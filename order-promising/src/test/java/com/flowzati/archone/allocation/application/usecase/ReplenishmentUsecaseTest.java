@@ -83,7 +83,7 @@ class ReplenishmentUsecaseTest {
     when(inbox.claimIfNew(eventId)).thenReturn(true);
 
     // 初始庫存池為 0
-    StockPool stockPool = new StockPool(1L, sku, 0, 0L);
+    StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
     Order pendingOrder = Order.place(UUID.randomUUID(), sku, 5);
@@ -103,7 +103,7 @@ class ReplenishmentUsecaseTest {
 
     assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(pendingOrder.getAllocatedAt()).isEqualTo(fixedNow);
-    assertThat(stockPool.getAvailable()).isEqualTo(5); // 0 + 10 - 5 = 5
+    assertThat(stockPool.availableToPromise()).isEqualTo(5); // 0 + 10 - 5 = 5
   }
 
   @Test
@@ -118,7 +118,7 @@ class ReplenishmentUsecaseTest {
     when(inbox.claimIfNew(eventId)).thenReturn(true);
 
     // 庫存池初始為 0
-    StockPool stockPool = new StockPool(1L, sku, 0, 0L);
+    StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
     // 有兩筆訂單，第一筆要 3 個，第二筆要 4 個 (總共 7 個，大於補充量 5)
@@ -137,7 +137,7 @@ class ReplenishmentUsecaseTest {
     // order2 (4) > 2 -> 失敗，狀態應維持不變 (或是維持 PENDING/BACKORDERED)
     assertThat(order1.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(order2.getStatus()).isEqualTo(OrderStatus.PENDING); // 原本狀態
-    assertThat(stockPool.getAvailable()).isEqualTo(2);
+    assertThat(stockPool.availableToPromise()).isEqualTo(2);
 
     verify(orderRepository).save(order1);
     // 在新設計中，補充失敗的訂單不會被 save，因為狀態沒變
@@ -154,7 +154,7 @@ class ReplenishmentUsecaseTest {
     int quantity = 10;
     StockReplenished event = new StockReplenished(eventId, sku, quantity);
 
-    StockPool stockPool = new StockPool(1L, sku, 0, 0L);
+    StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
     when(inbox.claimIfNew(eventId)).thenReturn(true);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
     when(orderRepository.getPendingBySku(sku)).thenReturn(List.of());
@@ -165,7 +165,7 @@ class ReplenishmentUsecaseTest {
     // Assert
     verify(stockPoolRepository).findBySku(sku);
     verify(stockPoolRepository).save(stockPool);
-    assertThat(stockPool.getAvailable()).isEqualTo(10);
+    assertThat(stockPool.availableToPromise()).isEqualTo(10);
     verify(orderRepository, never()).save(any());
     verify(eventPublisher, never()).publishEvent(any());
   }

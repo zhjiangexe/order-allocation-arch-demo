@@ -168,7 +168,7 @@ class AllocateOrderUsecaseTest {
     return Order.place(UUID.randomUUID(), sku, quantity);
   }
 
-  private StockPool aStockPool(String sku, int available) {
-    return new StockPool(1L, sku, available, 0L);
+  private StockPool aStockPool(String sku, int onHandQuantity) {
+    return new StockPool(1L, sku, onHandQuantity, 0, 0L);
   }
 }

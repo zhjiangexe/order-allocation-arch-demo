@@ -54,7 +54,7 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：1 / 17
+目前進度：2 / 17
 
 可立即獨立執行：`SR-01`、`SR-02`、`SR-03`、`SR-08`。前三項是互不依賴的 Domain 工作；`SR-08` 是不碰業務模型的外圈基礎設施，可與 Domain 工作平行進行。
 
@@ -76,7 +76,7 @@ SR-08 ─> SR-09 ─┐
 
 ### Domain layer（內圈）
 
-- [ ] **SR-01 — StockPool ATP domain model**（可獨立執行）
+- [x] **SR-01 — StockPool ATP domain model**（可獨立執行）
   - 將 `available` 改為 `onHandQuantity`。
   - 新增 `reservedQuantity` 與衍生的 `availableToPromise()`。
   - 將 `tryAllocate()` 改為 `tryReserve()`，並加入 `release()`。

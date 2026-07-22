@@ -29,7 +29,7 @@ class AllocateServiceTest {
     void shouldAllocateAllOrdersWhenStockIsSufficient() {
         // Arrange
         Instant now = Instant.parse("2026-07-21T10:00:00Z");
-        StockPool stockPool = new StockPool(1L, "SKU-1", 10, 0L);
+        StockPool stockPool = new StockPool(1L, "SKU-1", 10, 0, 0L);
         Order order1 = Order.place(UUID.randomUUID(), "SKU-1", 3);
         Order order2 = Order.place(UUID.randomUUID(), "SKU-1", 5);
         List<Order> backorders = List.of(order1, order2);
@@ -43,6 +43,9 @@ class AllocateServiceTest {
         assertThat(order2.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
         assertThat(order1.getAllocatedAt()).isEqualTo(now);
         assertThat(order2.getAllocatedAt()).isEqualTo(now);
+        assertThat(stockPool.getOnHandQuantity()).isEqualTo(10);
+        assertThat(stockPool.getReservedQuantity()).isEqualTo(8);
+        assertThat(stockPool.availableToPromise()).isEqualTo(2);
     }
 
     @Test
@@ -52,7 +55,7 @@ class AllocateServiceTest {
         Order order1 = Order.place(UUID.randomUUID(), "SKU-1", 3);
         Order order2 = Order.place(UUID.randomUUID(), "SKU-1", 4);
         List<Order> backorders = List.of(order1, order2);
-        StockPool stockPool = new StockPool(1L, "SKU-1", 5, 0L);
+        StockPool stockPool = new StockPool(1L, "SKU-1", 5, 0, 0L);
         Instant now = Instant.parse("2026-07-21T10:00:00Z");
 
         // Act
@@ -71,6 +74,8 @@ class AllocateServiceTest {
         assertThat(order2.getStatus()).isEqualTo(OrderStatus.PENDING).as("庫存不足的訂單狀態應保持為 PENDING");
         assertThat(order2.getAllocatedAt()).isNull();
 
-        assertThat(stockPool.getAvailable()).isEqualTo(2).as("庫存應正確扣減");
+        assertThat(stockPool.getOnHandQuantity()).isEqualTo(5).as("實際在庫量不應因 reservation 扣減");
+        assertThat(stockPool.getReservedQuantity()).isEqualTo(3).as("成功 reservation 的數量應被記錄");
+        assertThat(stockPool.availableToPromise()).isEqualTo(2).as("ATP 應正確扣減");
     }
 }

@@ -20,7 +20,7 @@ public class AllocateService {
   public List<Order> drain(List<Order> ordersToProcess, StockPool stockPool, Instant now) {
     List<Order> allocatedOrders = new ArrayList<>();
     for (Order order : ordersToProcess) {
-      if (stockPool.tryAllocate(order.getQuantity())) {
+      if (stockPool.tryReserve(order.getQuantity())) {
         order.markAllocated(now);
         allocatedOrders.add(order);
       }
