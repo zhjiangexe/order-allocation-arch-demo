@@ -1,0 +1,56 @@
+[versions]
+springBoot = "4.0.7"
+springCloud = "2025.1.2"
+springModulith = "2.0.7"
+dependencyManagement = "1.1.7"
+java = "17"
+uuid-creator = "6.1.0"
+
+[libraries]
+# Spring Boot Starters
+spring-boot-starter-actuator = { group = "org.springframework.boot", name = "spring-boot-starter-actuator" }
+spring-boot-starter-data-jpa = { group = "org.springframework.boot", name = "spring-boot-starter-data-jpa" }
+spring-boot-starter-flyway = { group = "org.springframework.boot", name = "spring-boot-starter-flyway" }
+spring-boot-starter-opentelemetry = { group = "org.springframework.boot", name = "spring-boot-starter-opentelemetry" }
+spring-boot-starter-webmvc = { group = "org.springframework.boot", name = "spring-boot-starter-webmvc" }
+spring-boot-devtools = { group = "org.springframework.boot", name = "spring-boot-devtools" }
+spring-boot-configuration-processor = { group = "org.springframework.boot", name = "spring-boot-configuration-processor" }
+
+# Spring Cloud
+spring-cloud-starter-circuitbreaker-resilience4j = { group = "org.springframework.cloud", name = "spring-cloud-starter-circuitbreaker-resilience4j" }
+
+# Spring Modulith
+spring-modulith-starter-core = { group = "org.springframework.modulith", name = "spring-modulith-starter-core" }
+spring-modulith-starter-insight = { group = "org.springframework.modulith", name = "spring-modulith-starter-insight" }
+spring-modulith-starter-jpa = { group = "org.springframework.modulith", name = "spring-modulith-starter-jpa" }
+
+# Observability
+micrometer-registry-otlp = { group = "io.micrometer", name = "micrometer-registry-otlp" }
+micrometer-registry-prometheus = { group = "io.micrometer", name = "micrometer-registry-prometheus" }
+
+# Database
+flyway-database-postgresql = { group = "org.flywaydb", name = "flyway-database-postgresql" }
+postgresql = { group = "org.postgresql", name = "postgresql" }
+uuid-creator = { group = "com.github.f4b6a3", name = "uuid-creator", version.ref = "uuid-creator" }
+
+# Test
+spring-boot-starter-actuator-test = { group = "org.springframework.boot", name = "spring-boot-starter-actuator-test" }
+spring-boot-starter-data-jpa-test = { group = "org.springframework.boot", name = "spring-boot-starter-data-jpa-test" }
+spring-boot-starter-opentelemetry-test = { group = "org.springframework.boot", name = "spring-boot-starter-opentelemetry-test" }
+spring-boot-starter-webmvc-test = { group = "org.springframework.boot", name = "spring-boot-starter-webmvc-test" }
+spring-modulith-starter-test = { group = "org.springframework.modulith", name = "spring-modulith-starter-test" }
+spring-boot-testcontainers = { group = "org.springframework.boot", name = "spring-boot-testcontainers" }
+testcontainers-postgresql = { group = "org.testcontainers", name = "testcontainers-postgresql" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
+dependency-management = { id = "io.spring.dependency-management", version.ref = "dependencyManagement" }
+java = { id = "java" }
+
+[bundles]
+spring-modulith = [
+    "spring-modulith-starter-core",
+    "spring-modulith-starter-insight",
+    "spring-modulith-starter-jpa"
+]
