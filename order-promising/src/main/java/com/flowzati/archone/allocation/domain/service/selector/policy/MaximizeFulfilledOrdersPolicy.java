@@ -1,5 +1,7 @@
-package com.flowzati.archone.allocation.domain.service;
+package com.flowzati.archone.allocation.domain.service.selector.policy;
 
+import com.flowzati.archone.allocation.domain.service.selector.context.BasicAllocationContext;
+import com.flowzati.archone.allocation.domain.service.selector.AllocationPolicy;
 import com.flowzati.archone.ordering.domain.model.Order;
 
 import java.util.ArrayList;

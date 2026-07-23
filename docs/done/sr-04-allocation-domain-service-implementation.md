@@ -11,7 +11,7 @@ SR-04 收斂 allocation domain policy，讓完整 reservation、ATP 不足、嚴
 - 將原本空白的 `AllocationPolicy` 改為可替換的 backorder selection strategy。
 - 提供 `StrictFifoAllocationPolicy` 與 `MaximizeFulfilledOrdersPolicy`，預設使用 Strict FIFO。
 - 以 generic immutable Context 與 `AllocationContextFactory` 隔離各 Policy 的動態輸入需求。
-- 由 `AllocationSelector.contextual(...)` 配對 Policy 與 ContextFactory，讓 `AllocateService` 只依賴非泛型的 selection port。
+- 由 `OrderAllocationSelector.contextual(...)` 配對 Policy 與 ContextFactory，讓 `AllocationService` 只依賴非泛型的 selection port。
 - 單筆 allocation 只允許完整 reservation，不支援部分成功。
 - 將 ATP 不足建模為 `INSUFFICIENT_ATP` 業務結果。
 - Batch allocation 直接回傳成功配置的 Orders；未被選取的 Orders 維持原狀。
@@ -40,7 +40,7 @@ ATP 不足時 domain service：
 
 ## Allocation Policy
 
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationPolicy.java`
+### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/AllocationPolicy.java`
 
 `AllocationPolicy` 是 backorder selection strategy：
 
@@ -50,15 +50,15 @@ public interface AllocationPolicy<C extends AllocationContext> {
 }
 ```
 
-Policy 只決定候選 Order，不直接修改 aggregate，也不負責 persistence。完整 reservation invariant 仍由 `AllocateService` 統一執行，因此替換 selection strategy 不會偷偷引入 partial allocation。
+Policy 只決定候選 Order，不直接修改 aggregate，也不負責 persistence。完整 reservation invariant 仍由 `AllocationService` 統一執行，因此替換 selection strategy 不會偷偷引入 partial allocation。
 
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/StrictFifoAllocationPolicy.java`
+### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/policy/StrictFifoAllocationPolicy.java`
 
 依輸入順序累計完整 quantity；遇到第一筆 ATP 不足立即停止，不跳過它處理後單。
 
 SR-10 repository 已提供 `backorderedSince ASC, id ASC` 的穩定 FIFO candidates。Strict FIFO policy 保留這個順序並實作 head-of-line blocking。
 
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/MaximizeFulfilledOrdersPolicy.java`
+### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/policy/MaximizeFulfilledOrdersPolicy.java`
 
 先以 `quantity ASC` 穩定排序，再從最小完整 Order 開始選取。所有 Order 的完成價值都視為 1，因此選擇最小 quantities 能在既有 ATP 下最大化完整完成的訂單數。
 
@@ -106,7 +106,7 @@ public interface AllocationContextFactory<C extends AllocationContext> {
 
 ### `AllocationSelector` facade
 
-`AllocationSelector.contextual(...)` 以泛型 static factory 配對 Factory 與 Policy：
+`OrderAllocationSelector.contextual(...)` 以泛型 static factory 配對 Factory 與 Policy：
 
 ```text
 AllocationRequest
@@ -114,7 +114,7 @@ AllocationRequest
   -> AllocationPolicy<C>.selectOrders(...)
 ```
 
-static factory 回傳非泛型的 `AllocationSelector` lambda，因此 `AllocateService` 只負責使用已組裝完成的 selector，不認識 `C`，也不使用 `instanceof` 判斷 Policy 類型。Compiler 仍會保證 Factory 與 Policy 使用相同 Context type，且不需要額外的 concrete selector class。
+static factory 回傳非泛型的 `AllocationSelector` lambda，因此 `AllocationService` 只負責使用已組裝完成的 selector，不認識 `C`，也不使用 `instanceof` 判斷 Policy 類型。Compiler 仍會保證 Factory 與 Policy 使用相同 Context type，且不需要額外的 concrete selector class。
 
 ## 完整 Reservation
 
@@ -126,26 +126,26 @@ static factory 回傳非泛型的 `AllocationSelector` lambda，因此 `Allocate
 new AllocateService();
 // 預設 Strict FIFO
 
-new AllocateService(AllocationSelector.maximizeFulfilledOrders());
+new AllocateService(OrderAllocationSelector.maximizeFulfilledOrders());
 // 明確選擇最大化完成訂單數
 ```
 
 內建 selector 也可在 composition 中直接取得：
 
 ```java
-AllocationSelector.strictFifo();
-AllocationSelector.maximizeFulfilledOrders();
+OrderAllocationSelector.strictFifo();
+OrderAllocationSelector.maximizeFulfilledOrders();
 ```
 
 需要不同 typed context 時仍由 `contextual(...)` 封裝 generic 配對：
 
 ```java
 new AllocateService(
-    AllocationSelector.contextual(policy, contextFactory)
+    OrderAllocationSelector.contextual(policy, contextFactory)
 );
 ```
 
-`allocateBackorders(...)` 只負責從 StockPool 與 decision time 建立統一 `AllocationRequest`，其餘 context-specific mapping／query 由 Factory 負責，因此新增 Policy 不需要修改 `AllocateService`。
+`allocateBackorders(...)` 只負責從 StockPool 與 decision time 建立統一 `AllocationRequest`，其餘 context-specific mapping／query 由 Factory 負責，因此新增 Policy 不需要修改 `AllocationService`。
 
 `allocate(order, stockPool, allocatedAt)`：
 
@@ -164,7 +164,7 @@ Order lifecycle validation 在 reservation mutation 前執行；若狀態或 all
 
 ### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/ReservationReleaseService.java`
 
-Release 不屬於 backorder selection strategy，因此從 `AllocationPolicy` 與 `AllocateService` 分離。`release(reservation, stockPool, releasedAt)` 在修改 aggregate 前先驗證：
+Release 不屬於 backorder selection strategy，因此從 `AllocationPolicy` 與 `AllocationService` 分離。`release(reservation, stockPool, releasedAt)` 在修改 aggregate 前先驗證：
 
 - Reservation 必須屬於指定 StockPool。
 - release time 必須存在，且不可早於 reserved time。
@@ -237,7 +237,7 @@ Optimistic lock conflict
 
 既有 `StockPoolTest` 驗證 `canReserve()` 是純查詢、`reserve()` 不做部分 reservation，以及 release 超量時不會用歸零掩蓋問題。
 
-### `../../order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationSelectorTest.java`
+### `../../order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/OrderAllocationSelectorTest.java`
 
 新增 1 個 unit test，驗證 Context Factory 先建立 typed context，再由 selector 傳給相同 generic type 的純 Policy。
 

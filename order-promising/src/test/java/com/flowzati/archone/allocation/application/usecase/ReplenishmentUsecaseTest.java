@@ -4,7 +4,7 @@ import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCo
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.service.AllocateService;
+import com.flowzati.archone.allocation.domain.service.AllocationService;
 import com.flowzati.archone.common.inbox.Inbox;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -49,10 +49,10 @@ class ReplenishmentUsecaseTest {
     orderRepository = mock(OrderRepository.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
 
-    AllocateService allocateService = new AllocateService();
+    AllocationService allocationService = new AllocationService();
 
-    allocationService = new OrderAllocationCoordinator(
-        allocateService,
+    this.allocationService = new OrderAllocationCoordinator(
+        allocationService,
         stockPoolRepository,
         orderRepository,
         eventPublisher
@@ -66,7 +66,7 @@ class ReplenishmentUsecaseTest {
         inbox,
         orderRepository,
         stockPoolRepository,
-        allocationService
+        this.allocationService
     );
   }
 

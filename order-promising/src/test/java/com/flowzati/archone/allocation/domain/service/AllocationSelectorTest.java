@@ -2,6 +2,10 @@ package com.flowzati.archone.allocation.domain.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.allocation.domain.service.selector.AllocationContext;
+import com.flowzati.archone.allocation.domain.service.selector.AllocationContextFactory;
+import com.flowzati.archone.allocation.domain.service.selector.AllocationPolicy;
+import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
 import com.flowzati.archone.ordering.domain.model.Order;
 import java.time.Instant;
 import java.util.List;
@@ -29,7 +33,7 @@ class AllocationSelectorTest {
     AllocationSelector selector =
         AllocationSelector.contextual(policy, contextFactory);
 
-    List<Order> selected = selector.selectOrders(List.of(order), request);
+    List<Order> selected = selector.select(List.of(order), request);
 
     assertThat(selected).containsExactly(order);
   }

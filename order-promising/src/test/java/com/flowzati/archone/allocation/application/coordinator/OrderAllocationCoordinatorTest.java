@@ -2,7 +2,7 @@ package com.flowzati.archone.allocation.application.coordinator;
 
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.service.AllocateService;
+import com.flowzati.archone.allocation.domain.service.AllocationService;
 import com.flowzati.archone.ordering.domain.event.OrderAllocated;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -38,7 +38,7 @@ class OrderAllocationCoordinatorTest {
     orderRepository = mock(OrderRepository.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
     coordinator = new OrderAllocationCoordinator(
-        new AllocateService(),
+        new AllocationService(),
         stockPoolRepository,
         orderRepository,
         eventPublisher

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.allocation.domain.model.ReservationStatus;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.model.StockReservation;
+import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import java.time.Instant;
@@ -16,16 +17,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("嚴格 FIFO allocation domain service")
-class AllocateServiceTest {
+class AllocationServiceTest {
 
   private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");
 
-  private AllocateService allocateService;
+  private AllocationService allocationService;
   private ReservationReleaseService releaseService;
 
   @BeforeEach
   void setUp() {
-    allocateService = new AllocateService();
+    allocationService = new AllocationService();
     releaseService = new ReservationReleaseService();
   }
 
@@ -35,7 +36,7 @@ class AllocateServiceTest {
     StockPool stockPool = stockPool(10, 2);
     Order order = pendingOrder(5);
 
-    AllocationOutcome outcome = allocateService.allocate(order, stockPool, NOW);
+    AllocationOutcome outcome = allocationService.allocate(order, stockPool, NOW);
 
     assertThat(outcome).isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
@@ -51,7 +52,7 @@ class AllocateServiceTest {
     StockPool stockPool = stockPool(5, 2);
     Order order = pendingOrder(4);
 
-    AllocationOutcome outcome = allocateService.allocate(order, stockPool, NOW);
+    AllocationOutcome outcome = allocationService.allocate(order, stockPool, NOW);
 
     assertThat(outcome).isEqualTo(AllocationOutcome.INSUFFICIENT_ATP);
     assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
@@ -66,7 +67,7 @@ class AllocateServiceTest {
     StockPool stockPool = stockPool(5, 2);
     Order order = pendingOrder(3);
 
-    assertThat(allocateService.allocate(order, stockPool, NOW))
+    assertThat(allocationService.allocate(order, stockPool, NOW))
         .isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(stockPool.getReservedQuantity()).isEqualTo(5);
     assertThat(stockPool.availableToPromise()).isZero();
@@ -79,7 +80,7 @@ class AllocateServiceTest {
     Order first = backorderedOrder(4, 3);
     Order smallerLaterOrder = backorderedOrder(2, 2);
 
-    List<Order> allocatedOrders = allocateService.allocateBackorders(
+    List<Order> allocatedOrders = allocationService.allocateBackorders(
         List.of(first, smallerLaterOrder),
         stockPool,
         NOW
@@ -99,7 +100,7 @@ class AllocateServiceTest {
     Order blocked = backorderedOrder(4, 2);
     Order smallerLaterOrder = backorderedOrder(1, 1);
 
-    List<Order> allocatedOrders = allocateService.allocateBackorders(
+    List<Order> allocatedOrders = allocationService.allocateBackorders(
         List.of(first, blocked, smallerLaterOrder),
         stockPool,
         NOW
@@ -120,7 +121,7 @@ class AllocateServiceTest {
     Order first = backorderedOrder(3, 2);
     Order second = backorderedOrder(5, 1);
 
-    List<Order> allocatedOrders = allocateService.allocateBackorders(
+    List<Order> allocatedOrders = allocationService.allocateBackorders(
         List.of(first, second),
         stockPool,
         NOW
@@ -133,8 +134,8 @@ class AllocateServiceTest {
   @Test
   @DisplayName("Maximize policy 應跳過大單並配置最多完整訂單")
   void maximizesNumberOfFulfilledOrdersWhenConfigured() {
-    AllocateService maximizingService =
-        new AllocateService(AllocationSelector.maximizeFulfilledOrders());
+    AllocationService maximizingService =
+        new AllocationService(AllocationSelector.maximizeFulfilledOrders());
     StockPool stockPool = stockPool(5, 0);
     Order largeFirst = backorderedOrder(6, 3);
     Order second = backorderedOrder(2, 2);
@@ -205,7 +206,7 @@ class AllocateServiceTest {
     Order order = Order.place(UUID.randomUUID(), "OTHER-SKU", 3, NOW.minusSeconds(1));
     order.releaseDomainEvents();
 
-    assertThatThrownBy(() -> allocateService.allocate(order, stockPool, NOW))
+    assertThatThrownBy(() -> allocationService.allocate(order, stockPool, NOW))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Order and stock pool SKU must match");
 
@@ -221,7 +222,7 @@ class AllocateServiceTest {
     order.markAllocated(NOW.minusSeconds(1));
     order.releaseDomainEvents();
 
-    assertThatThrownBy(() -> allocateService.allocate(order, stockPool, NOW))
+    assertThatThrownBy(() -> allocationService.allocate(order, stockPool, NOW))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Only pending or backordered orders can be allocated");
 

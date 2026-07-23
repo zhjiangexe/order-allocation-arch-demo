@@ -1,4 +1,4 @@
-package com.flowzati.archone.allocation.domain.service;
+package com.flowzati.archone.allocation.domain.service.selector;
 
 import com.flowzati.archone.ordering.domain.model.Order;
 import java.util.List;

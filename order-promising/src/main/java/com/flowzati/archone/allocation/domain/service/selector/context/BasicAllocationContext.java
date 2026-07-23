@@ -1,4 +1,6 @@
-package com.flowzati.archone.allocation.domain.service;
+package com.flowzati.archone.allocation.domain.service.selector.context;
+
+import com.flowzati.archone.allocation.domain.service.selector.AllocationContext;
 
 public record BasicAllocationContext(int availableToPromise) implements AllocationContext {
 

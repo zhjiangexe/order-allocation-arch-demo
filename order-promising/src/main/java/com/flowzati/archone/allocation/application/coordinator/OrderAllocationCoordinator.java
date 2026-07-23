@@ -2,7 +2,7 @@ package com.flowzati.archone.allocation.application.coordinator;
 
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.service.AllocateService;
+import com.flowzati.archone.allocation.domain.service.AllocationService;
 import com.flowzati.archone.allocation.domain.service.AllocationOutcome;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -19,24 +19,24 @@ import java.util.Optional;
 @Component
 public class OrderAllocationCoordinator {
 
-  private final AllocateService allocateService;
+  private final AllocationService allocationService;
   private final StockPoolRepository stockPoolRepository;
   private final OrderRepository orderRepository;
   private final ApplicationEventPublisher eventPublisher;
 
   public OrderAllocationCoordinator(
-      AllocateService allocateService,
+      AllocationService allocationService,
       StockPoolRepository stockPoolRepository,
       OrderRepository orderRepository,
       ApplicationEventPublisher eventPublisher) {
-    this.allocateService = allocateService;
+    this.allocationService = allocationService;
     this.stockPoolRepository = stockPoolRepository;
     this.orderRepository = orderRepository;
     this.eventPublisher = eventPublisher;
   }
 
   public Optional<Order> allocateOrder(Order order, StockPool stockPool, Instant now) {
-    AllocationOutcome outcome = allocateService.allocate(order, stockPool, now);
+    AllocationOutcome outcome = allocationService.allocate(order, stockPool, now);
     if (outcome == AllocationOutcome.INSUFFICIENT_ATP) {
       return Optional.empty();
     }
@@ -49,7 +49,7 @@ public class OrderAllocationCoordinator {
     stockPool.replenish(replenishedQuantity);
 
     List<Order> allocatedOrders =
-        allocateService.allocateBackorders(backorders, stockPool, now);
+        allocationService.allocateBackorders(backorders, stockPool, now);
 
     return persistAllocation(allocatedOrders, stockPool);
   }

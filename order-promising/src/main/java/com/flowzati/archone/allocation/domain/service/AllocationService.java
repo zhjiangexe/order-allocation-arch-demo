@@ -1,6 +1,7 @@
 package com.flowzati.archone.allocation.domain.service;
 
 import com.flowzati.archone.allocation.domain.model.StockPool;
+import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
 import com.flowzati.archone.ordering.domain.model.Order;
 
 import java.time.Instant;
@@ -8,15 +9,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class AllocateService {
+public class AllocationService {
 
-  private final AllocationSelector selector;
+  private final AllocationSelector allocationSelector;
 
-  public AllocateService(AllocationSelector selector) {
-    this.selector = selector;
+  public AllocationService(AllocationSelector allocationSelector) {
+    this.allocationSelector = allocationSelector;
   }
 
-  public AllocateService() {
+  public AllocationService() {
     this(AllocationSelector.strictFifo());
   }
 
@@ -43,7 +44,7 @@ public class AllocateService {
         now
     );
 
-    List<Order> selected = selector.selectOrders(candidates, request);
+    List<Order> selected = allocationSelector.select(candidates, request);
     List<Order> allocated = new ArrayList<>();
     for (Order order : selected) {
       applyAllocation(order, stockPool, now);

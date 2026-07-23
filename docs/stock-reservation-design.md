@@ -96,9 +96,9 @@ SR-08 ─> SR-09 ─┐
   - 增加 Order 狀態轉換與 event contract unit tests。
 
 - [x] **SR-04 — Allocation domain service and strict policy**（依賴 SR-01～SR-03）
-  - 重構 `AllocationPolicy` 與 `AllocateService`，只接受完整 reservation，不支援部分成功。
+  - 重構 `AllocationPolicy` 與 `AllocationService`，只接受完整 reservation，不支援部分成功。
   - `AllocationPolicy` 提供 `StrictFifoAllocationPolicy` 與 `MaximizeFulfilledOrdersPolicy`；預設使用嚴格 FIFO。
-  - 使用 generic immutable Context 與 `AllocationContextFactory` 配對 Policy；`AllocateService` 只依賴非泛型 selector facade。
+  - 使用 generic immutable Context 與 `AllocationContextFactory` 配對 Policy；`AllocationService` 只依賴非泛型 selector facade。
   - 將 ATP 不足建模為業務結果，不將 optimistic lock conflict 混為 backorder。
   - 建立嚴格 FIFO domain policy：第一張無法滿足就停止，不跳過後單。
   - 以純 domain unit tests 驗證 allocation、backorder、release 與 head-of-line blocking。
@@ -107,7 +107,7 @@ SR-08 ─> SR-09 ─┐
 
 - [ ] **SR-05 — Allocate Order application flow**（依賴 SR-01～SR-04）
   - 定義／補齊 Order、StockPool、StockReservation、Inbox 與 Outbox ports。
-  - 重構 `AllocateService`、`OrderAllocationCoordinator` 與 `AllocateOrderUsecase`。
+  - 重構 `AllocationService`、`OrderAllocationCoordinator` 與 `AllocateOrderUsecase`。
   - 成功時更新 StockPool、建立 ACTIVE reservation、標記 Order ALLOCATED 並要求寫入 `OrderAllocatedIntegrationEvent`。
   - ATP 不足時不建立 reservation，標記 Order BACKORDERED 並要求寫入 `BackorderCreatedIntegrationEvent`。
   - 使用 mocked ports 完成成功、不足、非 PENDING Order 與重複事件 application tests。

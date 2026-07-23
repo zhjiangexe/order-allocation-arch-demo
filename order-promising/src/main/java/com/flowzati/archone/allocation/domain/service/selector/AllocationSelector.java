@@ -1,12 +1,17 @@
-package com.flowzati.archone.allocation.domain.service;
+package com.flowzati.archone.allocation.domain.service.selector;
 
+import com.flowzati.archone.allocation.domain.service.AllocationRequest;
+import com.flowzati.archone.allocation.domain.service.selector.context.BasicAllocationContextFactory;
+import com.flowzati.archone.allocation.domain.service.selector.policy.MaximizeFulfilledOrdersPolicy;
+import com.flowzati.archone.allocation.domain.service.selector.policy.StrictFifoAllocationPolicy;
 import com.flowzati.archone.ordering.domain.model.Order;
 
 import java.util.List;
 
+@FunctionalInterface
 public interface AllocationSelector {
 
-  List<Order> selectOrders(List<Order> candidates, AllocationRequest request);
+  List<Order> select(List<Order> candidateOrders, AllocationRequest request);
 
   static AllocationSelector strictFifo() {
     return contextual(new StrictFifoAllocationPolicy(), new BasicAllocationContextFactory());
@@ -20,9 +25,9 @@ public interface AllocationSelector {
       AllocationPolicy<C> policy,
       AllocationContextFactory<C> contextFactory
   ) {
-    return (candidates, request) -> {
+    return (candidateOrders, request) -> {
       C context = contextFactory.create(request);
-      return policy.selectOrders(candidates, context);
+      return policy.selectOrders(candidateOrders, context);
     };
   }
 }
