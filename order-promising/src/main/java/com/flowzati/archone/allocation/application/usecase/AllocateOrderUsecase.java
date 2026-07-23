@@ -1,13 +1,15 @@
 package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.Inbox;
-import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import jakarta.transaction.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -41,7 +43,7 @@ public class AllocateOrderUsecase {
   }
 
   @Transactional
-  public void handle(OrderPlaced event) {
+  public void handle(OrderPlacedIntegrationEvent event) {
     if (!inbox.claimIfNew(event.getEventId())) {
       return;
     }
@@ -64,6 +66,8 @@ public class AllocateOrderUsecase {
       order.markBackOrdered(now);
       orderRepository.save(order);
       order.releaseDomainEvents().forEach(eventPublisher::publishEvent);
+      eventPublisher.publishEvent(new BackorderCreatedIntegrationEvent(
+          IdGenerator.nextId(), order.getId(), order.getSku(), order.getQuantity(), now));
     }
   }
 

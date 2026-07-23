@@ -4,10 +4,8 @@ import com.flowzati.archone.common.ddd.DomainEvent;
 import java.time.Instant;
 import java.util.UUID;
 
-public record OrderPlaced(
+public record OrderCancelled(
     UUID orderId,
-    String sku,
-    int quantity,
-    Instant placedAt
+    Instant cancelledAt
 ) implements DomainEvent {
 }

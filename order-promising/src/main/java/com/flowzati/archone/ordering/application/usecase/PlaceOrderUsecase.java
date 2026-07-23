@@ -2,10 +2,14 @@ package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.UUID;
 
 @Service
 public class PlaceOrderUsecase {
@@ -19,10 +23,14 @@ public class PlaceOrderUsecase {
   }
 
   @Transactional
-  public Long placeOrder(String sku, Integer quantity) {
-    Order placedOrder = Order.place(IdGenerator.nextId(), sku, quantity);
+  public UUID placeOrder(String sku, Integer quantity) {
+    UUID orderId = IdGenerator.nextId();
+    Instant placedAt = Instant.now();
+    Order placedOrder = Order.place(orderId, sku, quantity, placedAt);
     orderRepository.save(placedOrder);
-    publisher.publishEvent(placedOrder.releaseDomainEvents());
-    return null; // 暫時返回 null 以符合語法，實際業務邏輯應根據需求修改
+    placedOrder.releaseDomainEvents().forEach(publisher::publishEvent);
+    publisher.publishEvent(new OrderPlacedIntegrationEvent(
+        IdGenerator.nextId(), orderId, sku, quantity, placedAt));
+    return orderId;
   }
 }

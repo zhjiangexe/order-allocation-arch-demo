@@ -95,7 +95,7 @@ class OrderAllocationCoordinatorTest {
   }
 
   private Order pendingOrder(String sku, int quantity) {
-    Order order = Order.place(UUID.randomUUID(), sku, quantity);
+    Order order = Order.place(UUID.randomUUID(), sku, quantity, now.minusSeconds(1));
     order.releaseDomainEvents();
     return order;
   }

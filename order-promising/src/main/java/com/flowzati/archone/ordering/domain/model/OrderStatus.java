@@ -4,5 +4,5 @@ public enum OrderStatus {
   PENDING,
   ALLOCATED,
   BACKORDERED,
-  CANCELLED,
-  }
+  CANCELLED
+}

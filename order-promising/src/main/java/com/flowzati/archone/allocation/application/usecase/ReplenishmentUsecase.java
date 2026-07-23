@@ -1,7 +1,7 @@
 package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
-import com.flowzati.archone.allocation.domain.event.StockReplenished;
+import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.inbox.Inbox;
@@ -38,7 +38,7 @@ public class ReplenishmentUsecase {
 
 
   @Transactional
-  public void handle(StockReplenished event) {
+  public void handle(StockReplenishedIntegrationEvent event) {
     if (!inbox.claimIfNew(event.getEventId())) {
       return;
     }

@@ -30,8 +30,8 @@ class AllocateServiceTest {
         // Arrange
         Instant now = Instant.parse("2026-07-21T10:00:00Z");
         StockPool stockPool = new StockPool(1L, "SKU-1", 10, 0, 0L);
-        Order order1 = Order.place(UUID.randomUUID(), "SKU-1", 3);
-        Order order2 = Order.place(UUID.randomUUID(), "SKU-1", 5);
+        Order order1 = Order.place(UUID.randomUUID(), "SKU-1", 3, now.minusSeconds(1));
+        Order order2 = Order.place(UUID.randomUUID(), "SKU-1", 5, now.minusSeconds(1));
         List<Order> backorders = List.of(order1, order2);
 
         // Act
@@ -52,11 +52,11 @@ class AllocateServiceTest {
     @DisplayName("當庫存不足時，超過庫存的欠單不應被分配")
     void shouldNotAllocateWhenStockIsInsufficient() {
         // Arrange
-        Order order1 = Order.place(UUID.randomUUID(), "SKU-1", 3);
-        Order order2 = Order.place(UUID.randomUUID(), "SKU-1", 4);
+        Instant now = Instant.parse("2026-07-21T10:00:00Z");
+        Order order1 = Order.place(UUID.randomUUID(), "SKU-1", 3, now.minusSeconds(1));
+        Order order2 = Order.place(UUID.randomUUID(), "SKU-1", 4, now.minusSeconds(1));
         List<Order> backorders = List.of(order1, order2);
         StockPool stockPool = new StockPool(1L, "SKU-1", 5, 0, 0L);
-        Instant now = Instant.parse("2026-07-21T10:00:00Z");
 
         // Act
         List<Order> allocatedOrders = allocateService.drain(backorders, stockPool, now);

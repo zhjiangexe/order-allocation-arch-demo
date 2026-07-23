@@ -1,7 +1,7 @@
 package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
-import com.flowzati.archone.allocation.domain.event.StockReplenished;
+import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.service.AllocateService;
@@ -78,7 +78,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     String sku = "SKU-1";
     int quantity = 10;
-    StockReplenished event = new StockReplenished(eventId, sku, quantity);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, quantity);
 
     when(inbox.claimIfNew(eventId)).thenReturn(true);
 
@@ -86,7 +86,7 @@ class ReplenishmentUsecaseTest {
     StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
-    Order pendingOrder = Order.place(UUID.randomUUID(), sku, 5);
+    Order pendingOrder = pendingOrder(sku, 5);
     List<Order> backorders = List.of(pendingOrder);
     when(orderRepository.getPendingBySku(sku)).thenReturn(backorders);
 
@@ -113,7 +113,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     String sku = "SKU-1";
     int replenishedQuantity = 5;
-    StockReplenished event = new StockReplenished(eventId, sku, replenishedQuantity);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, replenishedQuantity);
 
     when(inbox.claimIfNew(eventId)).thenReturn(true);
 
@@ -122,8 +122,8 @@ class ReplenishmentUsecaseTest {
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
     // 有兩筆訂單，第一筆要 3 個，第二筆要 4 個 (總共 7 個，大於補充量 5)
-    Order order1 = Order.place(UUID.randomUUID(), sku, 3);
-    Order order2 = Order.place(UUID.randomUUID(), sku, 4);
+    Order order1 = pendingOrder(sku, 3);
+    Order order2 = pendingOrder(sku, 4);
     // 注意：這裡模擬它們已經是 PENDING 狀態（在補充場景中通常是這樣）
     List<Order> backorders = List.of(order1, order2);
     when(orderRepository.getPendingBySku(sku)).thenReturn(backorders);
@@ -152,7 +152,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     String sku = "SKU-1";
     int quantity = 10;
-    StockReplenished event = new StockReplenished(eventId, sku, quantity);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, quantity);
 
     StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
     when(inbox.claimIfNew(eventId)).thenReturn(true);
@@ -175,7 +175,7 @@ class ReplenishmentUsecaseTest {
   void shouldDoNothingWhenEventIsAlreadyProcessed() {
     // Arrange
     UUID eventId = UUID.randomUUID();
-    StockReplenished event = new StockReplenished(eventId, "SKU-1", 10);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, "SKU-1", 10);
     when(inbox.claimIfNew(eventId)).thenReturn(false);
 
     // Act
@@ -184,6 +184,12 @@ class ReplenishmentUsecaseTest {
     // Assert
     verify(inbox).claimIfNew(eventId);
     verifyNoInteractions(stockPoolRepository, orderRepository, eventPublisher);
+  }
+
+  private Order pendingOrder(String sku, int quantity) {
+    Order order = Order.place(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(1));
+    order.releaseDomainEvents();
+    return order;
   }
 
 }

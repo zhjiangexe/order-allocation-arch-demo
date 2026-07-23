@@ -16,7 +16,7 @@
 availableToPromise = onHandQuantity - reservedQuantity
 ```
 
-本設計的成功終點是建立有效 reservation、將訂單標記為 `ALLOCATED`，並可靠發布 `OrderAllocated`。後續 Fulfillment、WMS 與實際出庫不在本次範圍。
+本設計的成功終點是建立有效 reservation、將訂單標記為 `ALLOCATED`，並可靠發布 `OrderAllocatedIntegrationEvent`。後續 Fulfillment、WMS 與實際出庫不在本次範圍。
 
 ## 範圍
 
@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：4 / 17
+目前進度：5 / 17
 
-可立即獨立執行：`SR-03`、`SR-10`。`SR-03` 補齊 Order lifecycle 與 event contracts；`SR-10` 以已完成的 database foundation 建立 Order persistence adapter。
+可立即執行：`SR-04`、`SR-10`、`SR-12`。`SR-04` 收斂 allocation domain policy；`SR-10` 建立 Order persistence adapter；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters。
 
 主要相依路徑：
 
@@ -87,10 +87,11 @@ SR-08 ─> SR-09 ─┐
   - 新增 `StockReservation`、`ReservationStatus.ACTIVE/RELEASED`。
   - 測試建立、釋放、重複釋放及非法狀態轉換。
 
-- [ ] **SR-03 — Order lifecycle and domain event contracts**（可獨立執行）
+- [x] **SR-03 — Order lifecycle and domain event contracts**（可獨立執行）
   - 補齊 Order 的取消行為、狀態 invariant 與 `version`。
-  - 明確定義並補齊 `OrderPlaced`、`OrderAllocated`、`BackorderCreated`、`OrderCancelled` 與 `StockReplenished` payload。
-  - 依本文件的事件契約建立 immutable payload，且每個事件都有不可變的 `eventId`。
+  - 明確分離 bounded context 內部 Domain Event 與跨邊界 Integration Event。
+  - 明確定義並補齊 `OrderPlacedIntegrationEvent`、`OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent`、`OrderCancelledIntegrationEvent` 與 `StockReplenishedIntegrationEvent` payload。
+  - Integration Event 依本文件建立 immutable payload，且每個事件都有不可變的 `eventId`；Domain Event 不承擔 messaging identity。
   - 移除或明確取代目前空白且未使用的 `StockAllocated`。
   - 增加 Order 狀態轉換與 event contract unit tests。
 
@@ -105,20 +106,20 @@ SR-08 ─> SR-09 ─┐
 - [ ] **SR-05 — Allocate Order application flow**（依賴 SR-01～SR-04）
   - 定義／補齊 Order、StockPool、StockReservation、Inbox 與 Outbox ports。
   - 重構 `AllocateService`、`OrderAllocationCoordinator` 與 `AllocateOrderUsecase`。
-  - 成功時更新 StockPool、建立 ACTIVE reservation、標記 Order ALLOCATED 並要求寫入 `OrderAllocated`。
-  - ATP 不足時不建立 reservation，標記 Order BACKORDERED 並要求寫入 `BackorderCreated`。
+  - 成功時更新 StockPool、建立 ACTIVE reservation、標記 Order ALLOCATED 並要求寫入 `OrderAllocatedIntegrationEvent`。
+  - ATP 不足時不建立 reservation，標記 Order BACKORDERED 並要求寫入 `BackorderCreatedIntegrationEvent`。
   - 使用 mocked ports 完成成功、不足、非 PENDING Order 與重複事件 application tests。
 
 - [ ] **SR-06 — Cancellation and reservation release application flow**（依賴 SR-01～SR-03、SR-05）
-  - 新增取消 Order use case，要求寫入 `OrderCancelled` event。
-  - 新增處理 `OrderCancelled` 的 release use case。
+  - 新增取消 Order use case，要求寫入 `OrderCancelledIntegrationEvent`。
+  - 新增處理 `OrderCancelledIntegrationEvent` 的 release use case。
   - ACTIVE reservation 改為 RELEASED，並將數量從 `reservedQuantity` 釋放。
   - PENDING／BACKORDERED 取消或重複事件維持合法 no-op。
   - 釋放量大於 `reservedQuantity` 時拋出錯誤並 rollback，不以歸零掩蓋不一致。
   - 使用 mocked ports 測試各種取消狀態與冪等行為。
 
 - [ ] **SR-07 — Replenishment application flow**（依賴 SR-01、SR-03～SR-05）
-  - `StockReplenished` 僅接受正向增量並增加 `onHandQuantity`。
+  - `StockReplenishedIntegrationEvent` 僅接受正向增量並增加 `onHandQuantity`。
   - 透過 FIFO repository port 取得穩定排序的 backorders，交由 SR-04 policy 執行。
   - 第一張無法完整 reservation 時停止。
   - 使用 mocked ports 測試增量冪等、FIFO、head-of-line blocking 與未知 SKU 錯誤。
@@ -155,14 +156,15 @@ SR-08 ─> SR-09 ─┐
   - 補齊 typed Inbox／Outbox entities、repositories 與 migrations。
   - Inbox 以 `event_id` unique／primary key 保證 claim idempotency。
   - Outbox 保存 event identity、aggregate reference、type、payload、occurred／published timestamps、attempts 與 last error。
-  - Domain Event 必須逐一寫入 Outbox，且 Inbox claim、業務更新與 Outbox 寫入能在同 transaction rollback。
+  - 實作 application-layer translator，將可一對一轉換的 Domain Event 映射為 Integration Event 並 append 至 Outbox。
+  - Integration Event 必須逐一寫入 Outbox，且 Inbox claim、業務更新與 Outbox 寫入能在同 transaction rollback。
   - 修正 event list 被當成單一事件發布的問題，增加 persistence 與 rollback tests。
 
 - [ ] **SR-13 — Outbox relay and post-commit delivery adapter**（依賴 SR-12）
   - 實作 pending Outbox relay，只在業務 transaction commit 後發布事件。
   - 發布成功後標記 `publishedAt`；失敗時保留 pending、增加 attempts 並記錄 last error。
   - Relay 重複發布時由 consumer Inbox 保證冪等；目前不加入 DLQ 或通知整合。
-  - 移除核心流程對同步 `ApplicationEventPublisher` transaction chaining 的依賴。
+  - 移除跨 context 流程對同步 `ApplicationEventPublisher` chaining 的依賴；內部 Domain Event translator 仍可在原 transaction 同步寫入 Outbox。
   - 增加成功發布、失敗保留、重複發布與 process-restart recovery tests。
 
 ### Composition and verification（最外圈）
@@ -170,7 +172,7 @@ SR-08 ─> SR-09 ─┐
 - [ ] **SR-14 — Transaction wiring and entrypoints**（依賴 SR-05～SR-13）
   - 將 application ports 接到 JPA、Inbox 與 Outbox adapters。
   - 確保 Inbox claim、Aggregate 更新、Reservation 寫入與 Outbox 寫入位於同一個 transaction。
-  - 接回 OrderPlaced、OrderCancelled、StockReplenished listeners／consumers。
+  - 接回 `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent`、`StockReplenishedIntegrationEvent` listeners／consumers。
   - 以 `order_id` unique constraint 作為同一訂單只能建立一筆 reservation 的最後防線。
   - 增加 allocation、cancel、replenishment transaction rollback integration tests。
 
@@ -312,14 +314,14 @@ RELEASED ──重複取消──> no-op
 
 所有步驟在同一個 transaction：
 
-1. Inbox claim `OrderPlaced.eventId`。
+1. Inbox claim `OrderPlacedIntegrationEvent.eventId`。
 2. 重新讀取 `Order` 與 `StockPool`。
 3. 確認 Order 為 `PENDING`。
 4. 呼叫 `StockPool.tryReserve(quantity)`。
 5. 成功時增加 `reservedQuantity`。
 6. 建立 `ACTIVE` StockReservation。
 7. 將 Order 標記為 `ALLOCATED`。
-8. 將 `OrderAllocated` 寫入 Outbox。
+8. 將 `OrderAllocatedIntegrationEvent` 寫入 Outbox。
 9. Commit；commit 時由 `@Version` 偵測並行衝突。
 
 若 ATP 不足：
@@ -327,15 +329,15 @@ RELEASED ──重複取消──> no-op
 1. 不修改 StockPool。
 2. 不建立 StockReservation。
 3. 將 Order 標記為 `BACKORDERED`。
-4. 將 `BackorderCreated` 寫入 Outbox。
+4. 將 `BackorderCreatedIntegrationEvent` 寫入 Outbox。
 
 `StockPool.tryAllocate()` 應改名為 `tryReserve()`，以符合實際行為。
 
 ### 取消並釋放 reservation
 
-Ordering 在取消 transaction 中將 Order 改為 `CANCELLED`，並寫入 `OrderCancelled` Outbox event。Allocation 接收事件後，在另一個 transaction：
+Ordering 在取消 transaction 中將 Order 改為 `CANCELLED`，並寫入 `OrderCancelledIntegrationEvent` Outbox event。Allocation 接收事件後，在另一個 transaction：
 
-1. Inbox claim `OrderCancelled.eventId`。
+1. Inbox claim `OrderCancelledIntegrationEvent.eventId`。
 2. 依 `orderId` 尋找 `ACTIVE` reservation。
 3. 找不到時視為合法 no-op；PENDING／BACKORDERED 訂單本來就沒有 reservation。
 4. 將 reservation 改為 `RELEASED` 並設定 `releasedAt`。
@@ -346,7 +348,7 @@ Ordering 在取消 transaction 中將 Order 改為 `CANCELLED`，並寫入 `Orde
 
 ### 補貨與 backorder FIFO
 
-`StockReplenished.quantity` 是正向增量，必須大於零：
+`StockReplenishedIntegrationEvent.quantity` 是正向增量，必須大於零：
 
 ```text
 onHandQuantity += quantity
@@ -413,9 +415,34 @@ Retrying Handler 與 Transactional Usecase 應為不同 Spring Bean，確保每�
 
 目前不由 business code 直接寄送 Email 或 Slack，也不新增 DLQ。未來有正式 message broker 時，再由 redelivery、DLQ 與監控平台負責通知。
 
-## 事件契約
+## 事件模型
 
-### `OrderPlaced`
+Domain Event 與 Integration Event 明確分離：
+
+```text
+Aggregate behavior
+  → Domain Event（bounded context 內部業務事實，沒有 eventId）
+  → 同 transaction 的 application-layer translator
+  → Integration Event（跨 context/process 契約，有 eventId）
+  → Outbox
+```
+
+Domain Event 只表達 Aggregate 內已發生的事實，不直接作為 Inbox/Outbox 訊息 identity。SR-12 的 application-layer translator 將同步接收可一對一轉換的 Domain Event，建立 Integration Event 並透過 `Outbox` port append；Outbox adapter 必須和 Aggregate 更新參與同一個 transaction。需要多個 Aggregate 完整結果的 Integration Event（例如含 `reservationId` 的 `OrderAllocatedIntegrationEvent`）由 Coordinator 提供完整結果，不讓 translator 額外查詢 Repository 拼裝。
+
+Order Aggregate 目前的內部 Domain Events：
+
+| Domain Event | Payload |
+|---|---|
+| `OrderPlaced` | `orderId`, `sku`, `quantity`, `placedAt` |
+| `OrderAllocated` | `orderId`, `allocatedAt` |
+| `OrderBackordered` | `orderId`, `sku`, `quantity`, `backorderedSince` |
+| `OrderCancelled` | `orderId`, `cancelledAt` |
+
+Domain Events 不包含 `eventId`、retry count、serialization type 或 Outbox metadata。
+
+## Integration Event 契約
+
+### `OrderPlacedIntegrationEvent`
 
 ```text
 eventId
@@ -427,7 +454,7 @@ placedAt
 
 目前假設能產生此事件的訂單已符合本專案所需的履約前置條件；付款、風控與地址驗證不在範圍內。
 
-### `OrderAllocated`
+### `OrderAllocatedIntegrationEvent`
 
 ```text
 eventId
@@ -438,9 +465,9 @@ quantity
 allocatedAt
 ```
 
-此事件是目前專案的成功輸出，也是未來 Fulfillment context 的輸入。因為目前沒有付款、風控或地址驗證，假設能產生 `OrderPlaced` 的訂單已符合履約前置條件。
+此事件是目前專案的成功輸出，也是未來 Fulfillment context 的輸入。因為目前沒有付款、風控或地址驗證，假設能產生 `OrderPlacedIntegrationEvent` 的訂單已符合履約前置條件。
 
-### `BackorderCreated`
+### `BackorderCreatedIntegrationEvent`
 
 ```text
 eventId
@@ -452,7 +479,7 @@ backorderedSince
 
 此事件只代表業務上的 ATP 不足；optimistic lock conflict 或其他技術失敗不得發布此事件。
 
-### `OrderCancelled`
+### `OrderCancelledIntegrationEvent`
 
 ```text
 eventId
@@ -462,7 +489,7 @@ cancelledAt
 
 Allocation 以此事件釋放 ACTIVE reservation。重複事件由 Inbox 與 reservation 狀態共同保護。
 
-### `StockReplenished`
+### `StockReplenishedIntegrationEvent`
 
 ```text
 eventId
@@ -474,13 +501,15 @@ quantity
 
 ## 事件與 Transaction 邊界
 
-Domain／integration event 應逐一寫入 Outbox，不可在 transaction commit 前直接執行外部副作用。Inbox claim、Aggregate 更新、Reservation 寫入與 Outbox 寫入必須位於同一個 transaction，失敗時一起 rollback。
+Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直接執行外部副作用。Domain Event 可在 bounded context 內作為 application/domain policy 的內部通知，但不直接當作對外契約。Inbox claim、Aggregate 更新、Reservation 寫入與 Outbox 寫入必須位於同一個 transaction，失敗時一起 rollback。
 
-現有同步 `ApplicationEventPublisher` 僅視為待改善實作；目標流程為：
+現有 use case 暫時透過同步 `ApplicationEventPublisher` 逐一發布 Domain Event 與 Integration Event。SR-12 完成後的目標流程為：
 
 ```text
 業務 transaction
-  → 更新 Aggregate + 寫入 Outbox
+  → 更新 Aggregate
+  → 發布 Domain Event
+  → 同步 translator 建立 Integration Event + 寫入 Outbox
   → commit
   → Outbox publisher 發布事件
   → Consumer / Retrying Handler
@@ -501,7 +530,7 @@ Domain／integration event 應逐一寫入 Outbox，不可在 transaction commit
 
 測試不得依賴 dev seed；每個自動化測試自行建立 fixture。Production 不載入測試 SKU。
 
-StockPool 不由 `StockReplenished` 偷偷建立。若事件中的 SKU 尚無 StockPool，應視為錯誤；正式 SKU onboarding 不在目前範圍。
+StockPool 不由 `StockReplenishedIntegrationEvent` 偷偷建立。若事件中的 SKU 尚無 StockPool，應視為錯誤；正式 SKU onboarding 不在目前範圍。
 
 ## 必要測試
 
@@ -510,8 +539,8 @@ StockPool 不由 `StockReplenished` 偷偷建立。若事件中的 SKU 尚無 St
 - 同一 Order 不能建立兩筆 reservation。
 - 取消 ALLOCATED Order 會釋放 reservation 並減少 `reservedQuantity`。
 - 取消 PENDING／BACKORDERED Order 時，reservation handler 合法 no-op。
-- 重複 `OrderCancelled` 不會重複釋放庫存。
-- `StockReplenished` 只接受正數，重複 event 不會重複增加 `onHandQuantity`。
+- 重複 `OrderCancelledIntegrationEvent` 不會重複釋放庫存。
+- `StockReplenishedIntegrationEvent` 只接受正數，重複 event 不會重複增加 `onHandQuantity`。
 - 補貨後依 `backorderedSince, id` 嚴格 FIFO；第一張不足即停止。
 - 兩筆並行訂單競爭不足以同時滿足的 ATP 時，最多一筆 reservation 成功，且 `reservedQuantity <= onHandQuantity`。
 - Optimistic lock conflict 會重新執行完整 transaction；重試耗盡不會被標為 backorder。
@@ -520,7 +549,7 @@ StockPool 不由 `StockReplenished` 偷偷建立。若事件中的 SKU 尚無 St
 
 未來串接 Fulfillment／Inventory 時再討論：
 
-- `OrderAllocated` 如何轉成 Fulfillment Order。
+- `OrderAllocatedIntegrationEvent` 如何轉成 Fulfillment Order。
 - 下游實際出庫後回饋的事件名稱與契約，例如 `StockIssued`。
 - Reservation 是否增加 `CONSUMED` 與 `consumedAt`。
 - Promising 的 on-hand projection 如何與 Inventory source of truth 對帳。

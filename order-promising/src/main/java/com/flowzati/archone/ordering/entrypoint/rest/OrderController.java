@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/orders")
 public class OrderController {
@@ -17,7 +19,7 @@ public class OrderController {
 
   @RequestMapping
   public ResponseEntity<?> placeOrder(@RequestParam String sku, @RequestParam Integer quantity) {
-    Long l = placeOrderUsecase.placeOrder(sku, quantity);
-    return ResponseEntity.ok(l);
+    UUID orderId = placeOrderUsecase.placeOrder(sku, quantity);
+    return ResponseEntity.ok(orderId);
   }
 }

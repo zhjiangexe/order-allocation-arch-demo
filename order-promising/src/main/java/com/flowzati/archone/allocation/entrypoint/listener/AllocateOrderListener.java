@@ -1,7 +1,7 @@
 package com.flowzati.archone.allocation.entrypoint.listener;
 
 import com.flowzati.archone.allocation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.ordering.domain.event.OrderPlaced;
+import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +14,7 @@ public class AllocateOrderListener {
   }
 
   @EventListener
-  public void onEvent(OrderPlaced event) {
+  public void onEvent(OrderPlacedIntegrationEvent event) {
     usecase.handle(event);
   }
 }

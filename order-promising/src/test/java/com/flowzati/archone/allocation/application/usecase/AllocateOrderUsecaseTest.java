@@ -1,16 +1,19 @@
 package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.inbox.Inbox;
-import com.flowzati.archone.ordering.domain.event.OrderPlaced;
+import com.flowzati.archone.ordering.domain.event.OrderBackordered;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
@@ -24,8 +27,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 class AllocateOrderUsecaseTest {
@@ -154,18 +157,30 @@ class AllocateOrderUsecaseTest {
         .isEqualTo(OrderStatus.BACKORDERED);
 
     then(orderRepository).should().save(order);
-    then(eventPublisher).should(atLeastOnce()).publishEvent(any(Object.class));
+    ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
+    then(eventPublisher).should(times(2)).publishEvent(eventCaptor.capture());
+    assertThat(eventCaptor.getAllValues().get(0))
+        .isEqualTo(new OrderBackordered(
+            order.getId(), order.getSku(), order.getQuantity(), fixedNow));
+    assertThat(eventCaptor.getAllValues().get(1))
+        .isInstanceOfSatisfying(BackorderCreatedIntegrationEvent.class, event -> {
+          assertThat(event.getEventId()).isNotNull();
+          assertThat(event.getOrderId()).isEqualTo(order.getId());
+          assertThat(event.getBackorderedSince()).isEqualTo(fixedNow);
+        });
   }
 
   // --- Domain Language Helpers ---
   // 保留對象創建的 Helper 以維持測試數據的可讀性
 
-  private OrderPlaced anOrderPlacedEvent(UUID eventId, UUID orderId) {
-    return new OrderPlaced(eventId, orderId);
+  private OrderPlacedIntegrationEvent anOrderPlacedEvent(UUID eventId, UUID orderId) {
+    return new OrderPlacedIntegrationEvent(eventId, orderId, "SKU-1", 5, fixedNow.minusSeconds(1));
   }
 
   private Order aPendingOrder(String sku, int quantity) {
-    return Order.place(UUID.randomUUID(), sku, quantity);
+    Order order = Order.place(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(1));
+    order.releaseDomainEvents();
+    return order;
   }
 
   private StockPool aStockPool(String sku, int onHandQuantity) {
