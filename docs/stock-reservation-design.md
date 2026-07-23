@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：5 / 17
+目前進度：6 / 17
 
-可立即執行：`SR-04`、`SR-10`、`SR-12`。`SR-04` 收斂 allocation domain policy；`SR-10` 建立 Order persistence adapter；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters。
+可立即執行：`SR-04`、`SR-11`、`SR-12`。`SR-04` 收斂 allocation domain policy；`SR-11` 建立 StockReservation persistence adapter；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters。
 
 主要相依路徑：
 
@@ -141,9 +141,9 @@ SR-08 ─> SR-09 ─┐
   - 確認補貨、reserve 與 release 都會更新 `updatedAt`。
   - 增加 persistence mapping／repository tests。
 
-- [ ] **SR-10 — Order persistence adapter and FIFO query**（依賴 SR-03、SR-08）
+- [x] **SR-10 — Order persistence adapter and FIFO query**（依賴 SR-03、SR-08）
   - 建立目前缺少的 Order JPA entity、mapper 與 repository adapter。
-  - 持久化 `version` 並實作 `findBackorderedBySkuOrderByBackorderedSinceAsc()`。
+  - 持久化 `version` 並實作 `findBackordersBySkuInFifoOrder()`。
   - 以 migration 加入 `orders` table、quantity constraint 與 `(sku, status, backordered_since, id)` index。
   - 增加 mapping、狀態還原與穩定 FIFO repository tests。
 
@@ -359,7 +359,7 @@ onHandQuantity += quantity
 Backorder 查詢 contract：
 
 ```java
-List<Order> findBackorderedBySkuOrderByBackorderedSinceAsc(String sku);
+List<Order> findBackordersBySkuInFifoOrder(String sku);
 ```
 
 查詢須穩定排序：

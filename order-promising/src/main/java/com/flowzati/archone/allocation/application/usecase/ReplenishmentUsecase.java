@@ -47,8 +47,8 @@ public class ReplenishmentUsecase {
     StockPool stockPool = stockPoolRepository.findBySku(event.getSku())
         .orElseThrow(() -> new IllegalStateException("StockPool not found for SKU: " + event.getSku()));
 
-    // 2. 取等待中的訂單
-    List<Order> backorders = orderRepository.getPendingBySku(event.getSku());
+    // 2. 依穩定 FIFO 順序取得缺貨訂單
+    List<Order> backorders = orderRepository.findBackordersBySkuInFifoOrder(event.getSku());
 
     // 3. 由 Coordinator 統一執行補貨、分配與持久化
     Instant now = clock.instant();

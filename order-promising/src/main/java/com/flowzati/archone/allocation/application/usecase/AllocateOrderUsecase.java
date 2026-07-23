@@ -48,7 +48,8 @@ public class AllocateOrderUsecase {
       return;
     }
 
-    Order order = orderRepository.findById(event.getOrderId());
+    Order order = orderRepository.findById(event.getOrderId())
+        .orElseThrow(() -> new IllegalStateException("Order not found: " + event.getOrderId()));
     if (order.getStatus() != OrderStatus.PENDING) {
       return;
     }

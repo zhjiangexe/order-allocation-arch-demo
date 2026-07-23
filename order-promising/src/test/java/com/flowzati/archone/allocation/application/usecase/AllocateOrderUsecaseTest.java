@@ -86,13 +86,28 @@ class AllocateOrderUsecaseTest {
     order.markAllocated(fixedNow); // 使其狀態變為 ALLOCATED
 
     given(inbox.claimIfNew(eventId)).willReturn(true);
-    given(orderRepository.findById(order.getId())).willReturn(order);
+    given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
 
     // When
     usecase.handle(anOrderPlacedEvent(eventId, order.getId()));
 
     // Then
     then(orderRepository).should().findById(order.getId());
+    verifyNoInteractions(stockPoolRepository, allocationService, eventPublisher);
+  }
+
+  @Test
+  @DisplayName("當找不到 Order 時，應由 use case 決定並拋出異常")
+  void shouldThrowExceptionWhenOrderNotFound() {
+    UUID eventId = UUID.randomUUID();
+    UUID orderId = UUID.randomUUID();
+    given(inbox.claimIfNew(eventId)).willReturn(true);
+    given(orderRepository.findById(orderId)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> usecase.handle(anOrderPlacedEvent(eventId, orderId)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Order not found: " + orderId);
+
     verifyNoInteractions(stockPoolRepository, allocationService, eventPublisher);
   }
 
@@ -104,7 +119,7 @@ class AllocateOrderUsecaseTest {
     Order order = aPendingOrder("SKU-1", 5);
 
     given(inbox.claimIfNew(eventId)).willReturn(true);
-    given(orderRepository.findById(order.getId())).willReturn(order);
+    given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
     given(stockPoolRepository.findBySku("SKU-1")).willReturn(Optional.empty());
 
     // When & Then
@@ -122,7 +137,7 @@ class AllocateOrderUsecaseTest {
     StockPool stockPool = aStockPool("SKU-1", 10);
 
     given(inbox.claimIfNew(eventId)).willReturn(true);
-    given(orderRepository.findById(order.getId())).willReturn(order);
+    given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
     given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
     given(allocationService.allocateOrder(order, stockPool, fixedNow))
         .willReturn(Optional.of(order));
@@ -143,7 +158,7 @@ class AllocateOrderUsecaseTest {
     StockPool stockPool = aStockPool("SKU-1", 2);
 
     given(inbox.claimIfNew(eventId)).willReturn(true);
-    given(orderRepository.findById(order.getId())).willReturn(order);
+    given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
     given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
     given(allocationService.allocateOrder(order, stockPool, fixedNow))
         .willReturn(Optional.empty());

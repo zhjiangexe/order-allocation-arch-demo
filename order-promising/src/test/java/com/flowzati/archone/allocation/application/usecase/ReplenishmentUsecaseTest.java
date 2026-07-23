@@ -86,9 +86,10 @@ class ReplenishmentUsecaseTest {
     StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
-    Order pendingOrder = pendingOrder(sku, 5);
-    List<Order> backorders = List.of(pendingOrder);
-    when(orderRepository.getPendingBySku(sku)).thenReturn(backorders);
+    Order backorderedOrder = backorderedOrder(sku, 5);
+    List<Order> backorders = List.of(backorderedOrder);
+    when(orderRepository.findBackordersBySkuInFifoOrder(sku))
+        .thenReturn(backorders);
 
     // Act
     replenishmentUsecase.handle(event);
@@ -96,13 +97,13 @@ class ReplenishmentUsecaseTest {
     // Assert
     verify(inbox).claimIfNew(eventId);
     verify(stockPoolRepository).findBySku(sku);
-    verify(orderRepository).getPendingBySku(sku);
-    verify(orderRepository).save(pendingOrder);
+    verify(orderRepository).findBackordersBySkuInFifoOrder(sku);
+    verify(orderRepository).save(backorderedOrder);
     verify(stockPoolRepository).save(stockPool);
     verify(eventPublisher, atLeastOnce()).publishEvent(any(OrderAllocated.class));
 
-    assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(pendingOrder.getAllocatedAt()).isEqualTo(fixedNow);
+    assertThat(backorderedOrder.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
+    assertThat(backorderedOrder.getAllocatedAt()).isEqualTo(fixedNow);
     assertThat(stockPool.availableToPromise()).isEqualTo(5); // 0 + 10 - 5 = 5
   }
 
@@ -122,11 +123,11 @@ class ReplenishmentUsecaseTest {
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
     // 有兩筆訂單，第一筆要 3 個，第二筆要 4 個 (總共 7 個，大於補充量 5)
-    Order order1 = pendingOrder(sku, 3);
-    Order order2 = pendingOrder(sku, 4);
-    // 注意：這裡模擬它們已經是 PENDING 狀態（在補充場景中通常是這樣）
+    Order order1 = backorderedOrder(sku, 3);
+    Order order2 = backorderedOrder(sku, 4);
     List<Order> backorders = List.of(order1, order2);
-    when(orderRepository.getPendingBySku(sku)).thenReturn(backorders);
+    when(orderRepository.findBackordersBySkuInFifoOrder(sku))
+        .thenReturn(backorders);
 
     // Act
     replenishmentUsecase.handle(event);
@@ -134,9 +135,9 @@ class ReplenishmentUsecaseTest {
     // Assert
     // 0 + 5 = 5
     // order1 (3) <= 5 -> 成功，剩餘 2
-    // order2 (4) > 2 -> 失敗，狀態應維持不變 (或是維持 PENDING/BACKORDERED)
+    // order2 (4) > 2 -> 失敗，狀態應維持 BACKORDERED
     assertThat(order1.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(order2.getStatus()).isEqualTo(OrderStatus.PENDING); // 原本狀態
+    assertThat(order2.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(stockPool.availableToPromise()).isEqualTo(2);
 
     verify(orderRepository).save(order1);
@@ -157,7 +158,8 @@ class ReplenishmentUsecaseTest {
     StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
     when(inbox.claimIfNew(eventId)).thenReturn(true);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
-    when(orderRepository.getPendingBySku(sku)).thenReturn(List.of());
+    when(orderRepository.findBackordersBySkuInFifoOrder(sku))
+        .thenReturn(List.of());
 
     // Act
     replenishmentUsecase.handle(event);
@@ -186,8 +188,9 @@ class ReplenishmentUsecaseTest {
     verifyNoInteractions(stockPoolRepository, orderRepository, eventPublisher);
   }
 
-  private Order pendingOrder(String sku, int quantity) {
-    Order order = Order.place(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(1));
+  private Order backorderedOrder(String sku, int quantity) {
+    Order order = Order.place(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(2));
+    order.markBackOrdered(fixedNow.minusSeconds(1));
     order.releaseDomainEvents();
     return order;
   }
