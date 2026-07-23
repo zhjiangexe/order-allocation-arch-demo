@@ -29,13 +29,16 @@ public class StockPool {
     return onHandQuantity - reservedQuantity;
   }
 
-  public boolean tryReserve(int quantity) {
+  public boolean canReserve(int quantity) {
     requirePositive(quantity, "Quantity to reserve must be positive");
-    if (availableToPromise() >= quantity) {
-      reservedQuantity += quantity;
-      return true;
+    return availableToPromise() >= quantity;
+  }
+
+  public void reserve(int quantity) {
+    if (!canReserve(quantity)) {
+      throw new IllegalStateException("Insufficient ATP");
     }
-    return false;
+    reservedQuantity += quantity;
   }
 
   public void release(int quantity) {

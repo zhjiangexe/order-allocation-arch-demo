@@ -74,7 +74,7 @@ StockReservation.rehydrate(
 - RELEASED reservation 的 `releasedAt` 必須有值。
 - `releasedAt` 不得早於 `reservedAt`。
 
-`StockReservation` 不重複管理 StockPool 的 `reservedQuantity <= onHandQuantity` invariant；實際保留與釋放數量仍由 `StockPool.tryReserve()` 與 `StockPool.release()` 負責。
+`StockReservation` 不重複管理 StockPool 的 `reservedQuantity <= onHandQuantity` invariant；實際保留與釋放數量仍由 `StockPool.reserve()` 與 `StockPool.release()` 負責。
 
 ## 狀態轉換與冪等性
 

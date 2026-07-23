@@ -62,14 +62,15 @@ public class AllocateOrderUsecase {
     // 嘗試分配並儲存成功者
     Optional<Order> allocatedOrder = allocationCoordinator.allocateOrder(order, stockPool, now);
 
-    if (allocatedOrder.isEmpty()) {
-      // 如果分配失敗 (庫存不足)，則將此新訂單標記為欠單
-      order.markBackOrdered(now);
-      orderRepository.save(order);
-      order.releaseDomainEvents().forEach(eventPublisher::publishEvent);
-      eventPublisher.publishEvent(new BackorderCreatedIntegrationEvent(
-          IdGenerator.nextId(), order.getId(), order.getSku(), order.getQuantity(), now));
+    if (allocatedOrder.isPresent()) {
+      return;
     }
+    // 如果分配失敗 (庫存不足)，則將此新訂單標記為欠單
+    order.markBackOrdered(now);
+    orderRepository.save(order);
+    order.releaseDomainEvents().forEach(eventPublisher::publishEvent);
+    eventPublisher.publishEvent(new BackorderCreatedIntegrationEvent(
+        IdGenerator.nextId(), order.getId(), order.getSku(), order.getQuantity(), now));
   }
 
 }

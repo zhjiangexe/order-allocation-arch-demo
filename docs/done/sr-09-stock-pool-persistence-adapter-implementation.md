@@ -105,7 +105,7 @@ production compile 不再產生 legacy mapper removal warnings。
 使用 Spring Data JPA slice、Flyway 與 SR-08 的 PostgreSQL Testcontainer，展開為 9 個 SIT cases：
 
 - 透過 SKU 與 ID 寫入／讀回完整 StockPool。
-- `tryReserve()` 後儲存會更新 quantities、`updatedAt` 與 `version`。
+- `reserve()` 後儲存會更新 quantities、`updatedAt` 與 `version`。
 - `release()` 後儲存會更新 quantities、`updatedAt` 與 `version`。
 - `replenish()` 後儲存會更新 quantities、`updatedAt` 與 `version`。
 - stale version 寫回時由 optimistic locking 拒絕。

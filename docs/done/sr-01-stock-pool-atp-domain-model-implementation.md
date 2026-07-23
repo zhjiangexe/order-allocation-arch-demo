@@ -10,7 +10,7 @@ SR-01 只重構 StockPool domain model 與直接依賴該模型的 domain servic
 
 - 將單一 `available` 狀態改為 `onHandQuantity` 與 `reservedQuantity`。
 - 將 ATP 建模為衍生值 `availableToPromise()`。
-- 以 `tryReserve()` 取代 domain allocation 時直接扣減庫存。
+- 以 `canReserve()`／`reserve()` 取代 domain allocation 時直接扣減庫存。
 - 新增 `release()` 與 quantity invariants。
 - 保留 SR-09 前必要且明確標記為 deprecated 的 legacy persistence bridge。
 
@@ -40,14 +40,14 @@ reservedQuantity <= onHandQuantity
 
 Mutation quantity 必須大於零：
 
-- `tryReserve(quantity)`
+- `canReserve(quantity)`／`reserve(quantity)`
 - `release(quantity)`
 - `replenish(quantity)`
 
 此外：
 
 - `release(quantity)` 不允許超過目前的 `reservedQuantity`。
-- `tryReserve(quantity)` 在 ATP 不足時回傳 `false`，且不改變任何數量。
+- `canReserve(quantity)` 在 ATP 不足時回傳 `false` 且不改變數量；`reserve(quantity)` 只接受完整預留。
 - `replenish(quantity)` 使用 overflow-safe addition，避免 `int` overflow 破壞 invariant。
 
 ## 新增檔案
@@ -76,14 +76,14 @@ Mutation quantity 必須大於零：
 ### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/model/StockPool.java`
 
 - 將 `available` 欄位替換為 `onHandQuantity` 與 `reservedQuantity`。
-- 新增 `availableToPromise()`、`tryReserve()` 與 `release()`。
+- 新增 `availableToPromise()`、`canReserve()`、`reserve()` 與 `release()`。
 - 調整 `replenish()`，只增加 on-hand 並拒絕非正數與 overflow。
 - 新增 `getOnHandQuantity()` 與 `getReservedQuantity()`。
 - 集中驗證 quantity invariants。
 
 ### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocateService.java`
 
-- 將 `StockPool.tryAllocate()` 呼叫改為 `StockPool.tryReserve()`。
+- 將 `StockPool.tryAllocate()` 呼叫改為 `StockPool.canReserve()`／`reserve()`。
 - 成功分配現在增加 reserved quantity，實際 on-hand quantity 維持不變。
 
 ### `../../order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocateServiceTest.java`
@@ -162,6 +162,6 @@ BUILD SUCCESSFUL
 ## 後續任務注意事項
 
 - SR-02 建立 StockReservation aggregate，但不應重複管理 StockPool 的 quantity invariant。
-- SR-04 應以 `tryReserve()` 的結果建模 allocation／backorder policy。
+- SR-04 應以 `canReserve()` 的結果建模 allocation／backorder policy，再以 `reserve()` 執行完整預留。
 - SR-09 必須持久化 `onHandQuantity` 與 `reservedQuantity`，並移除本次保留的 deprecated bridge。
 - 實際出庫扣除 `onHandQuantity` 仍不在目前 promising service 範圍。

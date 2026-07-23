@@ -3,6 +3,7 @@ package com.flowzati.archone.allocation.application.coordinator;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.service.AllocateService;
+import com.flowzati.archone.allocation.domain.service.AllocationOutcome;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import org.springframework.context.ApplicationEventPublisher;
@@ -35,27 +36,27 @@ public class OrderAllocationCoordinator {
   }
 
   public Optional<Order> allocateOrder(Order order, StockPool stockPool, Instant now) {
-    List<Order> allocatedOrders = allocateService.drain(List.of(order), stockPool, now);
-
-    if (allocatedOrders.isEmpty()) {
+    AllocationOutcome outcome = allocateService.allocate(order, stockPool, now);
+    if (outcome == AllocationOutcome.INSUFFICIENT_ATP) {
       return Optional.empty();
     }
 
-    persistAllocation(allocatedOrders, stockPool);
-    return Optional.of(allocatedOrders.get(0));
+    persistAllocation(List.of(order), stockPool);
+    return Optional.of(order);
   }
 
   public List<Order> replenishAndAllocateBackorders(List<Order> backorders, StockPool stockPool, int replenishedQuantity, Instant now) {
     stockPool.replenish(replenishedQuantity);
 
-    List<Order> allocatedOrders = allocateService.drain(backorders, stockPool, now);
+    List<Order> allocatedOrders =
+        allocateService.allocateBackorders(backorders, stockPool, now);
 
     return persistAllocation(allocatedOrders, stockPool);
   }
 
   private List<Order> persistAllocation(List<Order> allocatedOrders, StockPool stockPool) {
-    allocatedOrders.forEach(orderRepository::save);
     stockPoolRepository.save(stockPool);
+    allocatedOrders.forEach(orderRepository::save);
     allocatedOrders.stream()
         .flatMap(order -> order.releaseDomainEvents().stream())
         .forEach(eventPublisher::publishEvent);

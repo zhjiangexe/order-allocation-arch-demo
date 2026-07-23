@@ -113,7 +113,7 @@ class StockPoolPersistenceIntegrationTest {
         WHERE id = 1
         """);
     entityManager.clear();
-    assertThat(staleStockPool.tryReserve(1)).isTrue();
+    staleStockPool.reserve(1);
 
     assertThatThrownBy(() -> {
       repositoryAdapter.save(staleStockPool);
@@ -193,7 +193,7 @@ class StockPoolPersistenceIntegrationTest {
     RESERVE(10, 3) {
       @Override
       void apply(StockPool stockPool) {
-        assertThat(stockPool.tryReserve(1)).isTrue();
+        stockPool.reserve(1);
       }
     },
     RELEASE(10, 1) {

@@ -30,10 +30,10 @@ class StockPoolTest {
   void reservesQuantityWithoutReducingOnHand() {
     StockPool stockPool = new StockPool(1L, "SKU-1", 10, 2, 0L);
 
-    boolean reserved = stockPool.tryReserve(5);
+    assertThat(stockPool.canReserve(5)).isTrue();
+    stockPool.reserve(5);
 
     // Promising 階段只做軟預留，實際出庫不屬於這個 bounded context。
-    assertThat(reserved).isTrue();
     assertThat(stockPool.getOnHandQuantity()).isEqualTo(10);
     assertThat(stockPool.getReservedQuantity()).isEqualTo(7);
     assertThat(stockPool.availableToPromise()).isEqualTo(3);
@@ -44,7 +44,8 @@ class StockPoolTest {
   void reservesTheExactAvailableToPromiseQuantity() {
     StockPool stockPool = new StockPool(1L, "SKU-1", 10, 4, 0L);
 
-    assertThat(stockPool.tryReserve(6)).isTrue();
+    assertThat(stockPool.canReserve(6)).isTrue();
+    stockPool.reserve(6);
     assertThat(stockPool.getReservedQuantity()).isEqualTo(10);
     assertThat(stockPool.availableToPromise()).isZero();
   }
@@ -54,10 +55,13 @@ class StockPoolTest {
   void leavesQuantitiesUnchangedWhenAvailableToPromiseIsInsufficient() {
     StockPool stockPool = new StockPool(1L, "SKU-1", 10, 7, 0L);
 
-    boolean reserved = stockPool.tryReserve(4);
+    boolean canReserve = stockPool.canReserve(4);
 
     // 不允許部分預留；數量不足時必須維持呼叫前的完整狀態。
-    assertThat(reserved).isFalse();
+    assertThat(canReserve).isFalse();
+    assertThatThrownBy(() -> stockPool.reserve(4))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Insufficient ATP");
     assertThat(stockPool.getOnHandQuantity()).isEqualTo(10);
     assertThat(stockPool.getReservedQuantity()).isEqualTo(7);
     assertThat(stockPool.availableToPromise()).isEqualTo(3);
@@ -125,7 +129,10 @@ class StockPoolTest {
   void rejectsNonPositiveReserveQuantity(int quantity) {
     StockPool stockPool = new StockPool(1L, "SKU-1", 10, 5, 0L);
 
-    assertThatThrownBy(() -> stockPool.tryReserve(quantity))
+    assertThatThrownBy(() -> stockPool.canReserve(quantity))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Quantity to reserve must be positive");
+    assertThatThrownBy(() -> stockPool.reserve(quantity))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Quantity to reserve must be positive");
   }

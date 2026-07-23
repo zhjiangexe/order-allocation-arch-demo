@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：6 / 17
+目前進度：7 / 17
 
-可立即執行：`SR-04`、`SR-11`、`SR-12`。`SR-04` 收斂 allocation domain policy；`SR-11` 建立 StockReservation persistence adapter；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters。
+可立即執行：`SR-05`、`SR-11`、`SR-12`。`SR-05` 建立 Allocate Order application flow；`SR-11` 建立 StockReservation persistence adapter；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters。
 
 主要相依路徑：
 
@@ -79,7 +79,7 @@ SR-08 ─> SR-09 ─┐
 - [x] **SR-01 — StockPool ATP domain model**（可獨立執行）
   - 將 `available` 改為 `onHandQuantity`。
   - 新增 `reservedQuantity` 與衍生的 `availableToPromise()`。
-  - 將 `tryAllocate()` 改為 `tryReserve()`，並加入 `release()`。
+  - 將 `tryAllocate()` 改為 `canReserve()`／`reserve()`，並加入 `release()`。
   - 驗證 quantity 與 `reservedQuantity <= onHandQuantity` invariant。
   - 更新 StockPool domain unit tests。
 
@@ -95,8 +95,10 @@ SR-08 ─> SR-09 ─┐
   - 移除或明確取代目前空白且未使用的 `StockAllocated`。
   - 增加 Order 狀態轉換與 event contract unit tests。
 
-- [ ] **SR-04 — Allocation domain service and strict policy**（依賴 SR-01～SR-03）
+- [x] **SR-04 — Allocation domain service and strict policy**（依賴 SR-01～SR-03）
   - 重構 `AllocationPolicy` 與 `AllocateService`，只接受完整 reservation，不支援部分成功。
+  - `AllocationPolicy` 提供 `StrictFifoAllocationPolicy` 與 `MaximizeFulfilledOrdersPolicy`；預設使用嚴格 FIFO。
+  - 使用 generic immutable Context 與 `AllocationContextFactory` 配對 Policy；`AllocateService` 只依賴非泛型 selector facade。
   - 將 ATP 不足建模為業務結果，不將 optimistic lock conflict 混為 backorder。
   - 建立嚴格 FIFO domain policy：第一張無法滿足就停止，不跳過後單。
   - 以純 domain unit tests 驗證 allocation、backorder、release 與 head-of-line blocking。
@@ -317,7 +319,7 @@ RELEASED ──重複取消──> no-op
 1. Inbox claim `OrderPlacedIntegrationEvent.eventId`。
 2. 重新讀取 `Order` 與 `StockPool`。
 3. 確認 Order 為 `PENDING`。
-4. 呼叫 `StockPool.tryReserve(quantity)`。
+4. 呼叫 `StockPool.canReserve(quantity)` 確認 ATP，再以 `reserve(quantity)` 完整預留。
 5. 成功時增加 `reservedQuantity`。
 6. 建立 `ACTIVE` StockReservation。
 7. 將 Order 標記為 `ALLOCATED`。
@@ -331,7 +333,7 @@ RELEASED ──重複取消──> no-op
 3. 將 Order 標記為 `BACKORDERED`。
 4. 將 `BackorderCreatedIntegrationEvent` 寫入 Outbox。
 
-`StockPool.tryAllocate()` 應改名為 `tryReserve()`，以符合實際行為。
+`StockPool` 以 `canReserve()` 表達 ATP capability query，並以 `reserve()` 執行完整預留。
 
 ### 取消並釋放 reservation
 
