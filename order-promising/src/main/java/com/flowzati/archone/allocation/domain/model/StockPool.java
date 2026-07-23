@@ -14,21 +14,15 @@ public class StockPool {
       int reservedQuantity,
       Long version
   ) {
+    if (sku == null || sku.isBlank()) {
+      throw new IllegalArgumentException("SKU is required");
+    }
     validateQuantities(onHandQuantity, reservedQuantity);
     this.id = id;
     this.sku = sku;
     this.onHandQuantity = onHandQuantity;
     this.reservedQuantity = reservedQuantity;
     this.version = version;
-  }
-
-  /**
-   * Compatibility bridge for the legacy persistence adapter. Remove in SR-09 after the
-   * adapter persists both on-hand and reserved quantities.
-   */
-  @Deprecated(forRemoval = true)
-  public StockPool(Long id, String sku, Integer available, Long version) {
-    this(id, sku, requireLegacyAvailable(available), 0, version);
   }
 
   public int availableToPromise() {
@@ -81,14 +75,6 @@ public class StockPool {
     return reservedQuantity;
   }
 
-  /**
-   * Compatibility bridge for the legacy persistence adapter. Remove in SR-09.
-   */
-  @Deprecated(forRemoval = true)
-  public Integer getAvailable() {
-    return availableToPromise();
-  }
-
   private static void validateQuantities(int onHandQuantity, int reservedQuantity) {
     if (onHandQuantity < 0) {
       throw new IllegalArgumentException("On-hand quantity cannot be negative");
@@ -99,13 +85,6 @@ public class StockPool {
     if (reservedQuantity > onHandQuantity) {
       throw new IllegalArgumentException("Reserved quantity cannot exceed on-hand quantity");
     }
-  }
-
-  private static int requireLegacyAvailable(Integer available) {
-    if (available == null) {
-      throw new IllegalArgumentException("Available quantity cannot be null");
-    }
-    return available;
   }
 
   private static void requirePositive(int quantity, String message) {

@@ -103,14 +103,14 @@ Mutation quantity 必須大於零：
 - SR-01 checkbox 更新為完成。
 - 整體進度更新為 `2 / 17`。
 
-## SR-09 前的相容橋接
+## SR-09 前的相容橋接（已移除）
 
-目前 `StockPoolEntity` 與 `StockPoolMapper` 仍只有 legacy `available` 欄位，它們屬於 SR-09。因此 SR-01 暫時保留：
+SR-01 完成當時，`StockPoolEntity` 與 `StockPoolMapper` 仍只有 legacy `available` 欄位，因此暫時保留：
 
 - 四參數 `StockPool(id, sku, available, version)` constructor。
 - `getAvailable()`，回傳目前的 ATP。
 
-兩者都標記為 `@Deprecated(forRemoval = true)`，只供既有 mapper 維持編譯。production compile 會對 mapper 顯示兩個預期的 removal warnings；SR-09 完成 entity／mapper migration 後必須刪除這兩個 bridge。
+兩者當時都標記為 `@Deprecated(forRemoval = true)`，只供既有 mapper 維持編譯。SR-09 已完成 entity／mapper migration，並移除這兩個 bridge 與相關 compile warnings。
 
 SR-01 沒有修改：
 

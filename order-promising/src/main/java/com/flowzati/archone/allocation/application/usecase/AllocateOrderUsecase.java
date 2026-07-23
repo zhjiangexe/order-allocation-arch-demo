@@ -57,10 +57,10 @@ public class AllocateOrderUsecase {
     Instant now = clock.instant();
 
     // 嘗試分配並儲存成功者
-    Optional<Order> allocatedOrder = allocationCoordinator.allocateAndSaveSuccess(order, stockPool, now);
+    Optional<Order> allocatedOrder = allocationCoordinator.allocateOrder(order, stockPool, now);
 
-    // 如果分配失敗 (庫存不足)，則將此新訂單標記為欠單
     if (allocatedOrder.isEmpty()) {
+      // 如果分配失敗 (庫存不足)，則將此新訂單標記為欠單
       order.markBackOrdered(now);
       orderRepository.save(order);
       order.releaseDomainEvents().forEach(eventPublisher::publishEvent);

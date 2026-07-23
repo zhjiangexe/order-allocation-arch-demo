@@ -26,6 +26,7 @@ SR-08 只建立 database migration 與 PostgreSQL integration test 基礎，不�
 ### `../../order-promising/src/sit/resources/application-test.properties`
 
 - 測試環境明確使用 `spring.jpa.hibernate.ddl-auto=none`。
+- SIT profile 明確啟用 Flyway。
 - 測試 datasource 由 Testcontainers service connection 提供，不保存固定 port 或認證資訊。
 
 ### `../../order-promising/src/sit/java/com/flowzati/archone/testsupport/PostgreSQLTestConfiguration.java`
@@ -62,7 +63,7 @@ SR-08 只建立 database migration 與 PostgreSQL integration test 基礎，不�
 
 ### `../../order-promising/src/main/resources/application.properties`
 
-- 啟用 Flyway。
+- 預設關閉 Flyway，避免 production application startup 自動執行 DDL。
 - 明確關閉 `baseline-on-migrate`；新資料庫必須透過 versioned migrations 建立。
 - 將 Hibernate `ddl-auto` 設為 `none`，避免 production 自動建立或修改 schema。
 
@@ -75,6 +76,8 @@ SR-08 只建立 database migration 與 PostgreSQL integration test 基礎，不�
 - `ORDER_PROMISING_DB_PASSWORD`
 
 未提供環境變數時，預設連線至 `jdbc:postgresql://localhost:5432/order_promising`。
+
+Dev profile 明確啟用 Flyway；production 若要 migration，必須由部署流程另行執行或明確開啟。
 
 ### 測試目錄拆分
 
@@ -101,8 +104,7 @@ SR-08 只建立 database migration 與 PostgreSQL integration test 基礎，不�
 執行 SIT：
 
 ```bash
-env DOCKER_HOST=unix:///Users/zhenghongjiang/.orbstack/run/docker.sock \
-  ./gradlew :order-promising:sit
+./gradlew :order-promising:sit
 ```
 
 結果：`2 tests completed`。
@@ -118,8 +120,7 @@ BUILD SUCCESSFUL
 完整 verification lifecycle：
 
 ```bash
-env DOCKER_HOST=unix:///Users/zhenghongjiang/.orbstack/run/docker.sock \
-  ./gradlew :order-promising:check
+./gradlew :order-promising:check
 ```
 
 `check` 已確認同時依賴 `test` 與 `sit`，執行結果為 `BUILD SUCCESSFUL`。
@@ -135,6 +136,6 @@ env DOCKER_HOST=unix:///Users/zhenghongjiang/.orbstack/run/docker.sock \
 ## 開發環境注意事項
 
 - Testcontainers 必須能連線至 Docker daemon。
-- 本機使用 OrbStack，其 socket 位於 `~/.orbstack/run/docker.sock`，因此驗證時需設定上述 `DOCKER_HOST`。
+- 本機固定使用 OrbStack，並在使用者層級的 `~/.zshrc` 設定 `DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock`；專案不負責偵測本機 Docker runtime。
 - 一般 Docker Desktop／CI 若提供標準 `/var/run/docker.sock`，不需要使用 OrbStack 專用設定。
 - 目前沒有 dev seed、production datasource credential 或業務 table；這些仍依原 tasklist 由後續任務負責。

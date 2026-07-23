@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Arrays;
+
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -44,11 +46,12 @@ class DatabaseFoundationIntegrationTest {
   }
 
   @Test
-  void appliesAndValidatesBaselineMigration() {
-    var migration = flyway.info().current();
+  void appliesAndValidatesAllMigrations() {
+    var appliedVersions = Arrays.stream(flyway.info().applied())
+        .map(migration -> migration.getVersion().getVersion())
+        .toList();
 
-    assertThat(migration).isNotNull();
-    assertThat(migration.getVersion().getVersion()).isEqualTo("1");
+    assertThat(appliedVersions).containsExactly("1", "2");
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 

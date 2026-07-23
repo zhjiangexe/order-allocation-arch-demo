@@ -3,35 +3,28 @@ package com.flowzati.archone.allocation.infrastructure.mapper;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.infrastructure.entity.StockPoolEntity;
 
-import java.lang.reflect.Field;
+public final class StockPoolMapper {
 
-public class StockPoolMapper {
+  private StockPoolMapper() {
+  }
+
   public static StockPoolEntity toEntity(StockPool stockPool) {
-    StockPoolEntity entity = new StockPoolEntity();
-    // 使用反射來設定私有欄位，或者建議在 StockEntity 增加 setter/constructor
-    try {
-      setField(entity, "id", stockPool.getId());
-      setField(entity, "sku", stockPool.getSku());
-      setField(entity, "available", stockPool.getAvailable());
-      setField(entity, "version", stockPool.getVersion());
-    } catch (Exception e) {
-      throw new RuntimeException("Mapping failed", e);
-    }
-    return entity;
+    return new StockPoolEntity(
+        stockPool.getId(),
+        stockPool.getSku(),
+        stockPool.getOnHandQuantity(),
+        stockPool.getReservedQuantity(),
+        stockPool.getVersion()
+    );
   }
 
   public static StockPool toDomain(StockPoolEntity stockPoolEntity) {
     return new StockPool(
-            stockPoolEntity.getId(),
-            stockPoolEntity.getSku(),
-            stockPoolEntity.getAvailable(),
-            stockPoolEntity.getVersion()
+        stockPoolEntity.getId(),
+        stockPoolEntity.getSku(),
+        stockPoolEntity.getOnHandQuantity(),
+        stockPoolEntity.getReservedQuantity(),
+        stockPoolEntity.getVersion()
     );
-  }
-
-  private static void setField(Object target, String fieldName, Object value) throws Exception {
-    Field field = target.getClass().getDeclaredField(fieldName);
-    field.setAccessible(true);
-    field.set(target, value);
   }
 }

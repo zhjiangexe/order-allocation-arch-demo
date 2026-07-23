@@ -121,14 +121,14 @@ class AllocateOrderUsecaseTest {
     given(inbox.claimIfNew(eventId)).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(order);
     given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
-    given(allocationService.allocateAndSaveSuccess(order, stockPool, fixedNow))
+    given(allocationService.allocateOrder(order, stockPool, fixedNow))
         .willReturn(Optional.of(order));
 
     // When
     usecase.handle(anOrderPlacedEvent(eventId, order.getId()));
 
     // Then
-    then(allocationService).should().allocateAndSaveSuccess(order, stockPool, fixedNow);
+    then(allocationService).should().allocateOrder(order, stockPool, fixedNow);
   }
 
   @Test
@@ -142,7 +142,7 @@ class AllocateOrderUsecaseTest {
     given(inbox.claimIfNew(eventId)).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(order);
     given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
-    given(allocationService.allocateAndSaveSuccess(order, stockPool, fixedNow))
+    given(allocationService.allocateOrder(order, stockPool, fixedNow))
         .willReturn(Optional.empty());
 
     // When

@@ -54,7 +54,7 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：2 / 17
+目前進度：3 / 17
 
 可立即獨立執行：`SR-01`、`SR-02`、`SR-03`、`SR-08`。前三項是互不依賴的 Domain 工作；`SR-08` 是不碰業務模型的外圈基礎設施，可與 Domain 工作平行進行。
 
@@ -133,7 +133,7 @@ SR-08 ─> SR-09 ─┐
 
 ### Infrastructure adapters（外圈）
 
-- [ ] **SR-09 — StockPool persistence adapter**（依賴 SR-01、SR-08）
+- [x] **SR-09 — StockPool persistence adapter**（依賴 SR-01、SR-08）
   - 更新 `StockPoolEntity`、`StockPoolMapper` 與 Repository adapter。
   - 保留 `@Version`，新增 `updatedAt`。
   - 以 migration 加入 `stock_pools` table、SKU unique、非負數與 reserved 不超過 on-hand 的資料庫限制。

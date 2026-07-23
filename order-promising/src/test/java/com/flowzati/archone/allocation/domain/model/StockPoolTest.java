@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("StockPool ATP 領域模型")
@@ -106,6 +107,16 @@ class StockPoolTest {
         Arguments.of(1, -1, "Reserved quantity cannot be negative"),
         Arguments.of(1, 2, "Reserved quantity cannot exceed on-hand quantity")
     );
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = {" ", "\t"})
+  @DisplayName("建立 StockPool 時應拒絕空白 SKU")
+  void rejectsBlankSku(String sku) {
+    assertThatThrownBy(() -> new StockPool(1L, sku, 10, 0, 0L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("SKU is required");
   }
 
   @ParameterizedTest(name = "[{index}] quantity={0}")

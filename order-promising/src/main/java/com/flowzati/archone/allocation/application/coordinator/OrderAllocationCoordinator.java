@@ -34,30 +34,31 @@ public class OrderAllocationCoordinator {
     this.eventPublisher = eventPublisher;
   }
 
-  /**
-   * 處理單筆訂單分配的便利方法。
-   */
-  public Optional<Order> allocateAndSaveSuccess(Order order, StockPool stockPool, Instant now) {
-    List<Order> orders = this.allocateAndSaveSuccesses(List.of(order), stockPool, now);
-    return orders.isEmpty() ? Optional.empty() : Optional.of(orders.get(0));
+  public Optional<Order> allocateOrder(Order order, StockPool stockPool, Instant now) {
+    List<Order> allocatedOrders = allocateService.drain(List.of(order), stockPool, now);
+
+    if (allocatedOrders.isEmpty()) {
+      return Optional.empty();
+    }
+
+    persistAllocation(allocatedOrders, stockPool);
+    return Optional.of(allocatedOrders.get(0));
   }
 
-  /**
-   * 執行分配行為並持久化成功的結果。
-   */
-  public List<Order> allocateAndSaveSuccesses(List<Order> ordersToProcess, StockPool stockPool, Instant now) {
-    // 調用領域服務執行計算
-    List<Order> allocatedOrders = allocateService.drain(ordersToProcess, stockPool, now);
+  public List<Order> replenishAndAllocateBackorders(List<Order> backorders, StockPool stockPool, int replenishedQuantity, Instant now) {
+    stockPool.replenish(replenishedQuantity);
 
-    // 持久化成功的訂單
-    allocatedOrders.forEach(order -> {
-      orderRepository.save(order);
-      order.releaseDomainEvents().forEach(eventPublisher::publishEvent);
-    });
+    List<Order> allocatedOrders = allocateService.drain(backorders, stockPool, now);
 
-    // 持久化庫存池變更
+    return persistAllocation(allocatedOrders, stockPool);
+  }
+
+  private List<Order> persistAllocation(List<Order> allocatedOrders, StockPool stockPool) {
+    allocatedOrders.forEach(orderRepository::save);
     stockPoolRepository.save(stockPool);
-
+    allocatedOrders.stream()
+        .flatMap(order -> order.releaseDomainEvents().stream())
+        .forEach(eventPublisher::publishEvent);
     return allocatedOrders;
   }
 }

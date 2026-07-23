@@ -24,13 +24,11 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
 
   @Override
   public Optional<StockPool> findBySku(String sku) {
-    // 這裡應該呼叫 jpa repository 根據 sku 查詢，目前先維持原樣或補齊
     return repository.findBySku(sku).map(StockPoolMapper::toDomain);
   }
 
   @Override
   public int save(StockPool stockPool) {
-    // 將領域對象轉回 Entity 並儲存
     repository.save(StockPoolMapper.toEntity(stockPool));
     return 1;
   }

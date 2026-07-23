@@ -20,14 +20,20 @@ public class ReplenishmentUsecase {
   private final Inbox inbox;
   private final OrderRepository orderRepository;
   private final StockPoolRepository stockPoolRepository;
-  private final OrderAllocationCoordinator allocationService;
+  private final OrderAllocationCoordinator allocationCoordinator;
 
-  public ReplenishmentUsecase(Clock clock, Inbox inbox, OrderRepository orderRepository, StockPoolRepository stockPoolRepository, OrderAllocationCoordinator allocationService) {
+  public ReplenishmentUsecase(
+      Clock clock,
+      Inbox inbox,
+      OrderRepository orderRepository,
+      StockPoolRepository stockPoolRepository,
+      OrderAllocationCoordinator allocationCoordinator
+  ) {
     this.clock = clock;
     this.inbox = inbox;
     this.orderRepository = orderRepository;
     this.stockPoolRepository = stockPoolRepository;
-    this.allocationService = allocationService;
+    this.allocationCoordinator = allocationCoordinator;
   }
 
 
@@ -41,14 +47,11 @@ public class ReplenishmentUsecase {
     StockPool stockPool = stockPoolRepository.findBySku(event.getSku())
         .orElseThrow(() -> new IllegalStateException("StockPool not found for SKU: " + event.getSku()));
 
-    // 2. 補充庫存
-    stockPool.replenish(event.getQuantity());
-
-    // 3. 取等待中的訂單
+    // 2. 取等待中的訂單
     List<Order> backorders = orderRepository.getPendingBySku(event.getSku());
 
-    // 4. 調用應用層服務執行分配與持久化
+    // 3. 由 Coordinator 統一執行補貨、分配與持久化
     Instant now = clock.instant();
-    allocationService.allocateAndSaveSuccesses(backorders, stockPool, now);
+    allocationCoordinator.replenishAndAllocateBackorders(backorders, stockPool, event.getQuantity(), now);
   }
 }
