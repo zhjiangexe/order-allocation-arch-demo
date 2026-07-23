@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：7 / 17
+目前進度：8 / 17
 
-可立即執行：`SR-05`、`SR-11`、`SR-12`。`SR-05` 建立 Allocate Order application flow；`SR-11` 建立 StockReservation persistence adapter；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters。
+可立即執行：`SR-05`、`SR-12`、`SR-16`。`SR-05` 建立 Allocate Order application flow；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters；`SR-16` 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
@@ -149,7 +149,7 @@ SR-08 ─> SR-09 ─┐
   - 以 migration 加入 `orders` table、quantity constraint 與 `(sku, status, backordered_since, id)` index。
   - 增加 mapping、狀態還原與穩定 FIFO repository tests。
 
-- [ ] **SR-11 — StockReservation persistence adapter**（依賴 SR-02、SR-08～SR-10）
+- [x] **SR-11 — StockReservation persistence adapter**（依賴 SR-02、SR-08～SR-10）
   - 新增 JPA entity、mapper、repository adapter 與 `@Version`。
   - 以 migration 加入 `stock_reservations` table、`order_id` unique、foreign keys、quantity 與狀態限制。
   - 實作 `findActiveByOrderId()` 並增加 mapping、constraint 與 repository tests。
