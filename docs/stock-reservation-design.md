@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：3 / 17
+目前進度：4 / 17
 
-可立即獨立執行：`SR-01`、`SR-02`、`SR-03`、`SR-08`。前三項是互不依賴的 Domain 工作；`SR-08` 是不碰業務模型的外圈基礎設施，可與 Domain 工作平行進行。
+可立即獨立執行：`SR-03`、`SR-10`。`SR-03` 補齊 Order lifecycle 與 event contracts；`SR-10` 以已完成的 database foundation 建立 Order persistence adapter。
 
 主要相依路徑：
 
@@ -83,7 +83,7 @@ SR-08 ─> SR-09 ─┐
   - 驗證 quantity 與 `reservedQuantity <= onHandQuantity` invariant。
   - 更新 StockPool domain unit tests。
 
-- [ ] **SR-02 — StockReservation domain model**（可獨立執行）
+- [x] **SR-02 — StockReservation domain model**（可獨立執行）
   - 新增 `StockReservation`、`ReservationStatus.ACTIVE/RELEASED`。
   - 測試建立、釋放、重複釋放及非法狀態轉換。
 
