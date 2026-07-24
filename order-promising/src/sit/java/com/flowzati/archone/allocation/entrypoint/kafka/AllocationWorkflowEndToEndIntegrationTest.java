@@ -85,7 +85,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
         UUID.randomUUID(), orderId, "SKU-AVAILABLE", 3, placedAt);
-    consumer.consumeOrderingEvent(record(IntegrationEventTopics.ORDERING_ORDER_EVENTS, event));
+    consumer.consumeOrderingEvent(record(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
@@ -98,7 +98,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     });
     assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox -> {
       assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName());
-      assertThat(outbox.getRoute()).isEqualTo(IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS);
+      assertThat(outbox.getRoute()).isEqualTo(IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC);
       assertThat(outbox.getAggregateId()).isEqualTo(orderId.toString());
     });
   }
@@ -119,7 +119,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(
         UUID.randomUUID(), orderId, Instant.now());
-    consumer.consumeOrderingEvent(record(IntegrationEventTopics.ORDERING_ORDER_EVENTS, event));
+    consumer.consumeOrderingEvent(record(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
@@ -145,7 +145,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
         UUID.randomUUID(), "SKU-FIFO", 5);
-    consumer.consumeInventoryEvent(record(IntegrationEventTopics.INVENTORY_STOCK_EVENTS, event));
+    consumer.consumeInventoryEvent(record(IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
     assertThat(orderRepository.findById(firstOrderId)).hasValueSatisfying(order ->
