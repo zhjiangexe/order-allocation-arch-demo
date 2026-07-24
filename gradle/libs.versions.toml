@@ -42,6 +42,8 @@ spring-boot-starter-webmvc-test = { group = "org.springframework.boot", name = "
 spring-modulith-starter-test = { group = "org.springframework.modulith", name = "spring-modulith-starter-test" }
 spring-boot-testcontainers = { group = "org.springframework.boot", name = "spring-boot-testcontainers" }
 testcontainers-postgresql = { group = "org.testcontainers", name = "testcontainers-postgresql" }
+testcontainers-kafka = { group = "org.testcontainers", name = "testcontainers-kafka" }
+kafka-clients = { group = "org.apache.kafka", name = "kafka-clients" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
 
 [plugins]

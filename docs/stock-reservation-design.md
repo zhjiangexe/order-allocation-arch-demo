@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：12 / 17
+目前進度：13 / 17
 
-可立即執行：`SR-13`、`SR-16`。SR-13 建立 Debezium Outbox CDC 到 Kafka；SR-16 建立 dev-only consistent seed data。
+可立即執行：`SR-14`、`SR-16`。SR-14 接回 transaction wiring 與 Kafka Integration Event entrypoints；SR-16 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
@@ -164,7 +164,7 @@ SR-08 ─> SR-09 ─┐
   - Integration Event 必須逐一寫入 Outbox，且 Domain Event translation、業務更新與 Outbox 寫入能在同 transaction rollback。
   - 修正 event list 被當成單一事件發布的問題，增加 persistence 與 rollback tests。
 
-- [ ] **SR-13 — Debezium Outbox CDC to Kafka**（依賴 SR-12）
+- [x] **SR-13 — Debezium Outbox CDC to Kafka**（依賴 SR-12）
   - 新增 `event_outbox.route`，由 translator 依 Integration Event 生產端寫入既定 Kafka topic；保留 `aggregatetype` 的 Aggregate 語意，不以它決定 topic。
   - 設定 PostgreSQL logical replication 與 Debezium connector，僅擷取 `event_outbox` 的已 commit row，並以 Outbox Event Router 的 `route.by.field=route` 發布至 Kafka。
   - 不實作 application polling relay，也不回寫 `publishedAt`、`attempts` 或 `lastError`；connector offset、重試與故障資訊由 Kafka Connect／Debezium 營運。
@@ -290,6 +290,8 @@ Inbox row 的存在代表該事件已隨業務更新成功 commit；若業務 tr
 | `timestamp` | `TIMESTAMPTZ` | `NOT NULL`；Integration Event 發生時間 |
 
 本專案採用 Debezium Outbox Event Router 的 canonical column names，並額外加入 `route`。`aggregatetype` 保留來源 Aggregate 的語意；Debezium 以 `route.by.field=route` 將 event 發布至對應 topic。這符合 topic 依生產端 bounded context 劃分的規劃，也避免將 `Order` 等 Aggregate type 改作傳輸路由。`route` 是 application／infrastructure 的 delivery metadata，不屬於 Domain Event。本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `timestamp` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
+
+目前 `timestamp` 是 PostgreSQL `TIMESTAMPTZ`，因此不設定 Outbox Event Router 的 `table.field.event.timestamp`（該設定要求 `INT64`）。Kafka record timestamp 使用 CDC 發生時間；原始 Integration Event 發生時間仍保留在 Outbox row 與 payload 中。
 
 Debezium 正常 restart 時依 Kafka Connect offset 與 PostgreSQL WAL 接續，不重新掃描 Outbox。第一次建立 connector，或 offset 遺失後重建 connector 時，會 snapshot 當時仍在 retention 範圍內的 Outbox rows；consumer Inbox 必須能安全忽略因此重送的相同 `event_id`。
 

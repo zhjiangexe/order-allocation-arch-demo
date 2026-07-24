@@ -15,7 +15,7 @@ SR-12 建立 Domain Event 到 Integration Event 的同步翻譯，以及可與�
 - Outbox 僅保存 immutable event row，不保存 `publishedAt`、attempts 或應用程式發布狀態。
 - Debezium、Kafka topic 與 consumer 不在本次範圍，留待 SR-13／SR-14。
 
-> 後續設計決策：SR-13 將以新的 migration 新增 `event_outbox.route`，並以它作為 Debezium topic routing field；SR-12 已建立的 `aggregatetype` 保留 Aggregate type 語意（例如 `Order`），不回溯宣稱此欄位已用於 topic routing。
+> 後續設計決策：系統尚未上線，SR-13 直接調整 V5 baseline，加入 `event_outbox.route` 作為 Debezium topic routing field；`aggregatetype` 保留 Aggregate type 語意（例如 `Order`）。既有本機資料庫須重建後再套用此 baseline。
 
 ## 新增檔案
 

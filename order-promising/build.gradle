@@ -45,6 +45,8 @@ dependencies {
 
     sitImplementation libs.spring.boot.testcontainers
     sitImplementation libs.testcontainers.postgresql
+    sitImplementation libs.testcontainers.kafka
+    sitImplementation libs.kafka.clients
 }
 
 tasks.register('sit', Test) {

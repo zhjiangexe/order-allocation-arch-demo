@@ -7,6 +7,8 @@ import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.outbox.Outbox;
 import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxRepo;
+import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
+import com.flowzati.archone.common.outbox.OutboxRoutes;
 import com.flowzati.archone.common.outbox.infrastructure.entity.OutboxEntity;
 import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
 import com.flowzati.archone.common.outbox.infrastructure.repository.OutboxRepoImpl;
@@ -89,15 +91,17 @@ class InboxRepoOutboxPersistenceIntegrationTest {
     Instant occurredAt = Instant.parse("2026-07-24T10:00:00Z");
     outboxRepo.append(new Outbox(
         eventId,
-        "Order",
+        OutboxAggregateTypes.ORDER,
         UUID.randomUUID().toString(),
         "OrderPlacedIntegrationEvent",
+        OutboxRoutes.ORDERING_ORDER_EVENTS,
         "{\"eventId\":\"" + eventId + "\"}",
         occurredAt
     ));
 
     OutboxEntity row = outboxRepository.findById(eventId).orElseThrow();
     assertThat(row.getEventType()).isEqualTo("OrderPlacedIntegrationEvent");
+    assertThat(row.getRoute()).isEqualTo(OutboxRoutes.ORDERING_ORDER_EVENTS);
     assertThat(row.getPayload()).contains(eventId.toString());
     assertThat(row.getOccurredAt()).isEqualTo(occurredAt);
   }

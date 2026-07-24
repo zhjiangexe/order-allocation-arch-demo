@@ -5,6 +5,8 @@ import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrati
 import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.outbox.OutboxAppender;
+import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
+import com.flowzati.archone.common.outbox.OutboxRoutes;
 import com.flowzati.archone.ordering.domain.event.OrderBackordered;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -28,8 +30,9 @@ public class AllocationDomainEventTranslator {
             event.sku(),
             event.quantity(),
             event.allocatedAt()),
-        "Order",
+        OutboxAggregateTypes.ORDER,
         event.orderId(),
+        OutboxRoutes.PROMISING_ALLOCATION_EVENTS,
         event.allocatedAt()
     );
   }
@@ -43,8 +46,9 @@ public class AllocationDomainEventTranslator {
             event.sku(),
             event.quantity(),
             event.backorderedSince()),
-        "Order",
+        OutboxAggregateTypes.ORDER,
         event.orderId(),
+        OutboxRoutes.PROMISING_ALLOCATION_EVENTS,
         event.backorderedSince()
     );
   }

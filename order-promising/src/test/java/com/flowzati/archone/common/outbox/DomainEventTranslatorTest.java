@@ -32,9 +32,10 @@ class DomainEventTranslatorTest {
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
     assertThat(outbox.getValue()).satisfies(row -> {
-      assertThat(row.aggregateType()).isEqualTo("Order");
+      assertThat(row.aggregateType()).isEqualTo(OutboxAggregateTypes.ORDER);
       assertThat(row.aggregateId()).isEqualTo(orderId.toString());
       assertThat(row.eventType()).isEqualTo(OrderPlacedIntegrationEvent.class.getSimpleName());
+      assertThat(row.route()).isEqualTo(OutboxRoutes.ORDERING_ORDER_EVENTS);
       assertThat(row.occurredAt()).isEqualTo(occurredAt);
       assertThat(row.payload()).contains("\"orderId\":\"" + orderId + "\"");
     });
@@ -54,6 +55,7 @@ class DomainEventTranslatorTest {
     verify(outboxRepo).append(outbox.capture());
     assertThat(outbox.getValue().eventType())
         .isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName());
+    assertThat(outbox.getValue().route()).isEqualTo(OutboxRoutes.PROMISING_ALLOCATION_EVENTS);
     assertThat(outbox.getValue().payload())
         .contains("\"reservationId\":\"" + reservationId + "\"");
   }

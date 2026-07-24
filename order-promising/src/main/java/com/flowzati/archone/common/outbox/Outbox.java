@@ -8,13 +8,14 @@ public record Outbox(
     String aggregateType,
     String aggregateId,
     String eventType,
+    String route,
     String payload,
     Instant occurredAt
 ) {
   public Outbox {
     if (eventId == null || aggregateType == null || aggregateType.isBlank()
         || aggregateId == null || aggregateId.isBlank() || eventType == null || eventType.isBlank()
-        || payload == null || payload.isBlank() || occurredAt == null) {
+        || route == null || route.isBlank() || payload == null || payload.isBlank() || occurredAt == null) {
       throw new IllegalArgumentException("Outbox event fields are required");
     }
   }

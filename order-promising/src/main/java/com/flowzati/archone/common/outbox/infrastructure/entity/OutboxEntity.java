@@ -26,6 +26,9 @@ public class OutboxEntity {
   @Column(name = "type", nullable = false)
   private String eventType;
 
+  @Column(nullable = false)
+  private String route;
+
   @Column(nullable = false, columnDefinition = "jsonb")
   @JdbcTypeCode(SqlTypes.JSON)
   private String payload;
@@ -41,6 +44,7 @@ public class OutboxEntity {
       String aggregateType,
       String aggregateId,
       String eventType,
+      String route,
       String payload,
       Instant occurredAt
   ) {
@@ -48,6 +52,7 @@ public class OutboxEntity {
     this.aggregateType = aggregateType;
     this.aggregateId = aggregateId;
     this.eventType = eventType;
+    this.route = route;
     this.payload = payload;
     this.occurredAt = occurredAt;
   }
@@ -56,6 +61,7 @@ public class OutboxEntity {
   public String getAggregateType() { return aggregateType; }
   public String getAggregateId() { return aggregateId; }
   public String getEventType() { return eventType; }
+  public String getRoute() { return route; }
   public String getPayload() { return payload; }
   public Instant getOccurredAt() { return occurredAt; }
 }

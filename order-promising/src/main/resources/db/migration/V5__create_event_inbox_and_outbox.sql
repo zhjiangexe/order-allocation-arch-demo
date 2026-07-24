@@ -9,6 +9,7 @@ CREATE TABLE event_outbox (
     aggregatetype VARCHAR(255) NOT NULL,
     aggregateid VARCHAR(255) NOT NULL,
     type VARCHAR(255) NOT NULL,
+    route VARCHAR(255) NOT NULL,
     payload JSONB NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL
 );
