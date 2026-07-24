@@ -56,21 +56,21 @@ availableToPromise = onHandQuantity - reservedQuantity
 
 目前進度：8 / 17
 
-可立即執行：`SR-05`、`SR-12`、`SR-16`。`SR-05` 建立 Allocate Order application flow；`SR-12` 建立 Integration Event 專用的 transactional Inbox／Outbox adapters；`SR-16` 建立 dev-only consistent seed data。
+可立即執行：`SR-05`、`SR-16`。`SR-05` 建立以 command 為輸入、以 Domain Event 為輸出的 Allocate Order application flow；`SR-12` 需在 SR-05 後建立 Domain Event translator 與 transactional Inbox／Outbox adapters；`SR-16` 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
 ```text
-Domain
+Domain and application flow
 SR-01 ─┐
-SR-02 ─┼─> SR-04 ─> SR-05 ─┐
-SR-03 ─┘          SR-06 ───┼─> SR-14 ─> SR-15 ─> SR-17
-                   SR-07 ───┘
+SR-02 ─┼─> SR-04 ─> SR-05 ─┬─> SR-06 ─┐
+SR-03 ─┘                   ├─> SR-07 ─┼─> SR-14 ─> SR-15 ─> SR-17
+                             └─> SR-12 ─> SR-13 ┘
 
 Independent infrastructure foundation
 SR-08 ─> SR-09 ─┐
       ├> SR-10 ─┼─> SR-11 ─┐
-      └> SR-12 ─────> SR-13 ┼─> SR-14
+      └─────────┴─> SR-12 ─┼─> SR-14
                               └> SR-16
 ```
 
@@ -106,14 +106,15 @@ SR-08 ─> SR-09 ─┐
 ### Application layer
 
 - [ ] **SR-05 — Allocate Order application flow**（依賴 SR-01～SR-04）
-  - 定義／補齊 Order、StockPool、StockReservation、Inbox 與 Outbox ports。
+  - 定義／補齊 Order、StockPool 與 StockReservation ports；`AllocateOrderUsecase` 的輸入改為 `AllocateOrderCommand(orderId)`，而非直接處理 Integration Event。
   - 重構 `AllocationService`、`OrderAllocationCoordinator` 與 `AllocateOrderUsecase`。
-  - 成功時更新 StockPool、建立 ACTIVE reservation、標記 Order ALLOCATED 並要求寫入 `OrderAllocatedIntegrationEvent`。
-  - ATP 不足時不建立 reservation，標記 Order BACKORDERED 並要求寫入 `BackorderCreatedIntegrationEvent`。
-  - 使用 mocked ports 完成成功、不足、非 PENDING Order 與重複事件 application tests。
+  - 成功時更新 StockPool、建立 ACTIVE reservation、標記 Order ALLOCATED，並發布完整的 `OrderAllocationCompleted` Domain Event。
+  - ATP 不足時不建立 reservation，標記 Order BACKORDERED，並發布 `OrderBackordered` Domain Event。
+  - 作為 Integration Event 來源的 Domain Event 必須帶齊 translator 所需的業務資料；translator 不額外查詢 Repository 拼裝 payload。
+  - 使用 mocked ports 完成成功、不足、非 PENDING Order 的 application tests；Integration Event、Inbox 與 Outbox 的測試屬於 SR-12／SR-14。
 
 - [ ] **SR-06 — Cancellation and reservation release application flow**（依賴 SR-01～SR-03、SR-05）
-  - 新增取消 Order use case，要求寫入 `OrderCancelledIntegrationEvent`。
+  - 新增取消 Order use case，發布 `OrderCancelled` Domain Event；由 translator 轉為 `OrderCancelledIntegrationEvent` 並寫入 Outbox。
   - 新增處理 `OrderCancelledIntegrationEvent` 的 release use case。
   - ACTIVE reservation 改為 RELEASED，並將數量從 `reservedQuantity` 釋放。
   - PENDING／BACKORDERED 取消或重複事件維持合法 no-op。
@@ -154,27 +155,28 @@ SR-08 ─> SR-09 ─┐
   - 以 migration 加入 `stock_reservations` table、`order_id` unique、foreign keys、quantity 與狀態限制。
   - 實作 `findActiveByOrderId()` 並增加 mapping、constraint 與 repository tests。
 
-- [ ] **SR-12 — Transactional Inbox/Outbox persistence adapters**（依賴 SR-03、SR-08）
+- [ ] **SR-12 — Domain Event translation and transactional Inbox/Outbox adapters**（依賴 SR-03、SR-05、SR-08）
   - 補齊 typed Inbox／Outbox entities、repositories 與 migrations。
   - Inbox 以 `event_id` unique／primary key 保證 claim idempotency。
-  - Outbox 保存 event identity、aggregate reference、type、payload、occurred／published timestamps、attempts 與 last error。
-  - 實作 application-layer translator，將可一對一轉換的 Domain Event 映射為 Integration Event 並 append 至 Outbox。
-  - Integration Event 必須逐一寫入 Outbox，且 Inbox claim、業務更新與 Outbox 寫入能在同 transaction rollback。
+  - Outbox 保存 event identity、aggregate reference、type、payload 與 occurred timestamp；row 寫入後不可由應用程式標記發布狀態。
+  - 實作 application-layer translator listener，將 Domain Event 映射為 Integration Event 並 append 至 Outbox；business Coordinator 不直接建立或寫入 Integration Event。
+  - Integration Event 必須逐一寫入 Outbox，且 Domain Event translation、業務更新與 Outbox 寫入能在同 transaction rollback。
   - 修正 event list 被當成單一事件發布的問題，增加 persistence 與 rollback tests。
 
-- [ ] **SR-13 — Outbox relay and post-commit delivery adapter**（依賴 SR-12）
-  - 實作 pending Outbox relay，只在業務 transaction commit 後發布事件。
-  - 發布成功後標記 `publishedAt`；失敗時保留 pending、增加 attempts 並記錄 last error。
-  - Relay 重複發布時由 consumer Inbox 保證冪等；目前不加入 DLQ 或通知整合。
-  - 移除跨 context 流程對同步 `ApplicationEventPublisher` chaining 的依賴；內部 Domain Event translator 仍可在原 transaction 同步寫入 Outbox。
-  - 增加成功發布、失敗保留、重複發布與 process-restart recovery tests。
+- [ ] **SR-13 — Debezium Outbox CDC to Kafka**（依賴 SR-12）
+  - 設定 PostgreSQL logical replication 與 Debezium connector，僅擷取 `event_outbox` 的已 commit row，並以 Outbox Event Router 發布至 Kafka。
+  - 不實作 application polling relay，也不回寫 `publishedAt`、`attempts` 或 `lastError`；connector offset、重試與故障資訊由 Kafka Connect／Debezium 營運。
+  - CDC delivery 為 at-least-once；相同 `eventId` 可能重送，consumer 必須以 Inbox 保證冪等。
+  - 以 Testcontainers 啟動 PostgreSQL、Kafka、Kafka Connect／Debezium，驗證 committed Outbox row 會送達 Kafka。
+  - 移除跨 context 流程對同步 `ApplicationEventPublisher` chaining 的依賴；內部 Domain Event translator 仍在原 transaction 同步寫入 Outbox。
+  - 增加 committed row 發布、正常 restart 依 offset 接續、snapshot 回放與重複 delivery 的整合測試。
 
 ### Composition and verification（最外圈）
 
-- [ ] **SR-14 — Transaction wiring and entrypoints**（依賴 SR-05～SR-13）
+- [ ] **SR-14 — Transaction wiring and Integration Event entrypoints**（依賴 SR-05～SR-13）
   - 將 application ports 接到 JPA、Inbox 與 Outbox adapters。
-  - 確保 Inbox claim、Aggregate 更新、Reservation 寫入與 Outbox 寫入位於同一個 transaction。
-  - 接回 `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent`、`StockReplenishedIntegrationEvent` listeners／consumers。
+  - 確保 Aggregate 更新、Reservation 寫入、Domain Event translation 與 Outbox 寫入位於同一個 transaction；Inbox claim 與接收 command 的業務更新位於同一個 transaction。
+  - 接回 Kafka Integration Event listeners／consumers，將事件轉為純業務 command，並以獨立 `messageId` 呼叫 use case；use case 先 claim Inbox 再執行業務邏輯。
   - 以 `order_id` unique constraint 作為同一訂單只能建立一筆 reservation 的最後防線。
   - 增加 allocation、cancel、replenishment transaction rollback integration tests。
 
@@ -280,11 +282,9 @@ Inbox row 的存在代表該事件已隨業務更新成功 commit；若業務 tr
 | `event_type` | `VARCHAR` | `NOT NULL` |
 | `payload` | `JSONB` | `NOT NULL` |
 | `occurred_at` | `TIMESTAMPTZ` | `NOT NULL` |
-| `published_at` | `TIMESTAMPTZ` | Nullable；成功發布後設定 |
-| `attempts` | `INTEGER` | `NOT NULL DEFAULT 0`, `CHECK (attempts >= 0)` |
-| `last_error` | `TEXT` | Nullable |
+本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `occurred_at` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
 
-目前不新增 DLQ table。發布失敗的 row 保持 `published_at IS NULL`，由 Outbox relay 後續重試；consumer 以 Inbox 承受可能的重複發布。
+Debezium 正常 restart 時依 Kafka Connect offset 與 PostgreSQL WAL 接續，不重新掃描 Outbox。第一次建立 connector，或 offset 遺失後重建 connector 時，會 snapshot 當時仍在 retention 範圍內的 Outbox rows；consumer Inbox 必須能安全忽略因此重送的相同 `event_id`。
 
 ## 狀態轉換
 
@@ -314,37 +314,34 @@ RELEASED ──重複取消──> no-op
 
 ### 建立 reservation
 
-所有步驟在同一個 transaction：
+接收端與業務處理的流程如下：
 
-1. Inbox claim `OrderPlacedIntegrationEvent.eventId`。
-2. 重新讀取 `Order` 與 `StockPool`。
-3. 確認 Order 為 `PENDING`。
+1. Kafka listener 收到 `OrderPlacedIntegrationEvent`。
+2. listener 轉為 `AllocateOrderCommand(orderId)`，並以 `eventId` 作為獨立 `messageId` 呼叫 use case。
+3. use case transaction 先以 `messageId` claim Inbox，成功後重新讀取 `Order` 與 `StockPool`，並確認 Order 為 `PENDING`。
 4. 呼叫 `StockPool.canReserve(quantity)` 確認 ATP，再以 `reserve(quantity)` 完整預留。
-5. 成功時增加 `reservedQuantity`。
-6. 建立 `ACTIVE` StockReservation。
-7. 將 Order 標記為 `ALLOCATED`。
-8. 將 `OrderAllocatedIntegrationEvent` 寫入 Outbox。
-9. Commit；commit 時由 `@Version` 偵測並行衝突。
+5. 成功時增加 `reservedQuantity`、建立 `ACTIVE` `StockReservation`，並將 Order 標記為 `ALLOCATED`。
+6. allocation flow 發布 `OrderAllocationCompleted` Domain Event；同 transaction 的 translator listener 將它轉成 `OrderAllocatedIntegrationEvent` 並寫入 Outbox。
+7. Commit；commit 時由 `@Version` 偵測並行衝突。
 
 若 ATP 不足：
 
 1. 不修改 StockPool。
 2. 不建立 StockReservation。
-3. 將 Order 標記為 `BACKORDERED`。
-4. 將 `BackorderCreatedIntegrationEvent` 寫入 Outbox。
+3. 將 Order 標記為 `BACKORDERED` 並發布 `OrderBackordered` Domain Event。
+4. translator listener 將它轉成 `BackorderCreatedIntegrationEvent` 並寫入 Outbox。
 
 `StockPool` 以 `canReserve()` 表達 ATP capability query，並以 `reserve()` 執行完整預留。
 
 ### 取消並釋放 reservation
 
-Ordering 在取消 transaction 中將 Order 改為 `CANCELLED`，並寫入 `OrderCancelledIntegrationEvent` Outbox event。Allocation 接收事件後，在另一個 transaction：
+Ordering 在取消 transaction 中將 Order 改為 `CANCELLED` 並發布 `OrderCancelled` Domain Event；translator 將其寫成 `OrderCancelledIntegrationEvent` Outbox event。Kafka delivery 後，Allocation listener 將事件轉為 release command，並以 `eventId` 作為 `messageId` 呼叫 use case；use case 在同一個 command transaction claim Inbox，並執行：
 
-1. Inbox claim `OrderCancelledIntegrationEvent.eventId`。
-2. 依 `orderId` 尋找 `ACTIVE` reservation。
-3. 找不到時視為合法 no-op；PENDING／BACKORDERED 訂單本來就沒有 reservation。
-4. 將 reservation 改為 `RELEASED` 並設定 `releasedAt`。
-5. 呼叫 `StockPool.release(quantity)`，減少 `reservedQuantity`。
-6. Commit。
+1. 依 `orderId` 尋找 `ACTIVE` reservation。
+2. 找不到時視為合法 no-op；PENDING／BACKORDERED 訂單本來就沒有 reservation。
+3. 將 reservation 改為 `RELEASED` 並設定 `releasedAt`。
+4. 呼叫 `StockPool.release(quantity)`，減少 `reservedQuantity`。
+5. Commit。
 
 不得以 `Math.max(0, reserved - quantity)` 隱藏資料不一致；若釋放量大於 `reservedQuantity`，應拋出錯誤並 rollback。
 
@@ -422,14 +419,20 @@ Retrying Handler 與 Transactional Usecase 應為不同 Spring Bean，確保每�
 Domain Event 與 Integration Event 明確分離：
 
 ```text
-Aggregate behavior
+Aggregate behavior / allocation flow
   → Domain Event（bounded context 內部業務事實，沒有 eventId）
-  → 同 transaction 的 application-layer translator
+  → 同 transaction 的 application-layer translator listener
   → Integration Event（跨 context/process 契約，有 eventId）
   → Outbox
+  → PostgreSQL WAL
+  → Debezium CDC connector
+  → Kafka
+  → Integration Event listener
+  → Command
+  → use case transaction（Inbox claim + 業務處理）
 ```
 
-Domain Event 只表達 Aggregate 內已發生的事實，不直接作為 Inbox/Outbox 訊息 identity。SR-12 的 application-layer translator 將同步接收可一對一轉換的 Domain Event，建立 Integration Event 並透過 `Outbox` port append；Outbox adapter 必須和 Aggregate 更新參與同一個 transaction。需要多個 Aggregate 完整結果的 Integration Event（例如含 `reservationId` 的 `OrderAllocatedIntegrationEvent`）由 Coordinator 提供完整結果，不讓 translator 額外查詢 Repository 拼裝。
+Domain Event 只表達 bounded context 內已發生的業務事實，不直接作為 Inbox／Outbox 訊息 identity。SR-12 的 application-layer translator listener 同步接收 Domain Event，建立 Integration Event 並透過 `Outbox` port append；Outbox adapter 必須和 Aggregate 更新參與同一個 transaction。Translator 是純轉換器，不額外查詢 Repository；因此作為 Integration Event 來源的 Domain Event 必須帶齊目標 payload。`eventId` 只在 translator 建立 Integration Event 時產生。
 
 Order Aggregate 目前的內部 Domain Events：
 
@@ -441,6 +444,25 @@ Order Aggregate 目前的內部 Domain Events：
 | `OrderCancelled` | `orderId`, `cancelledAt` |
 
 Domain Events 不包含 `eventId`、retry count、serialization type 或 Outbox metadata。
+
+Allocation flow 另發布下列跨 Aggregate 的 Domain Event。它不是 `Order` Aggregate 的事件，而是 Order、StockPool 與 StockReservation 已共同完成 allocation 的業務事實：
+
+| Domain Event | Payload | Translator 輸出 |
+|---|---|---|
+| `OrderAllocationCompleted` | `orderId`, `reservationId`, `sku`, `quantity`, `allocatedAt` | `OrderAllocatedIntegrationEvent` |
+
+`OrderAllocationCompleted` 由 allocation flow 在完整配置完成後發布。`OrderAllocated` 仍可供 bounded context 內部使用，但不作為 `OrderAllocatedIntegrationEvent` 的翻譯來源；這可避免為了帶入 `reservationId` 而讓 `Order` Aggregate 耦合 StockReservation 的識別字。
+
+完整翻譯對應如下：
+
+| Domain Event | Integration Event |
+|---|---|
+| `OrderPlaced` | `OrderPlacedIntegrationEvent` |
+| `OrderAllocationCompleted` | `OrderAllocatedIntegrationEvent` |
+| `OrderBackordered` | `BackorderCreatedIntegrationEvent` |
+| `OrderCancelled` | `OrderCancelledIntegrationEvent` |
+
+`StockReplenishedIntegrationEvent` 是 Inventory 發出的輸入事件，Promising consumer 將它轉為 replenish command；Promising 不反向發布同名事件。
 
 ## Integration Event 契約
 
@@ -501,21 +523,37 @@ quantity
 
 `quantity` 為正向增量，不能用負值表示盤點修正。
 
+## Kafka topics 與 partition key
+
+Topic 依事件生產端的 bounded context 劃分，而非每個 event type 一個 topic。每則訊息仍保留 `eventType`，consumer 依 type 分派；未來若個別事件有不同吞吐、權限或 SLA，再拆出獨立 topic。
+
+| Topic | 生產端事件 | Message key |
+|---|---|---|
+| `ordering.order-events` | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` | `orderId` |
+| `inventory.stock-events` | `StockReplenishedIntegrationEvent` | `sku` |
+| `promising.allocation-events` | `OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent` | `orderId` |
+
+目前不使用複合 key。`orderId` 已是全域 UUID；`StockPool` 目前以 SKU 識別，因此補貨事件以 `sku` 維持同 SKU 的 partition 內順序。未來若引入多倉且 StockPool 識別改為 `(warehouseId, sku)`，再改用 `stockPoolId` 或 `warehouseId:sku`。
+
 ## 事件與 Transaction 邊界
 
-Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直接執行外部副作用。Domain Event 可在 bounded context 內作為 application/domain policy 的內部通知，但不直接當作對外契約。Inbox claim、Aggregate 更新、Reservation 寫入與 Outbox 寫入必須位於同一個 transaction，失敗時一起 rollback。
+Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直接執行外部副作用。Domain Event 可在 bounded context 內作為 application/domain policy 的內部通知，但不直接當作對外契約。Aggregate 更新、Reservation 寫入、Domain Event translation 與 Outbox 寫入必須位於同一個 transaction，失敗時一起 rollback；接收端的 Inbox claim 則與該 command 的業務更新位於同一個 transaction。
 
-現有 use case 暫時透過同步 `ApplicationEventPublisher` 逐一發布 Domain Event 與 Integration Event。SR-12 完成後的目標流程為：
+目標流程為：
 
 ```text
 業務 transaction
-  → 更新 Aggregate
-  → 發布 Domain Event
-  → 同步 translator 建立 Integration Event + 寫入 Outbox
+  → Aggregate behavior
+  → publish Domain Event
+  → translator listener
+  → Integration Event + Outbox append
   → commit
-  → Outbox publisher 發布事件
-  → Consumer / Retrying Handler
-  → 新的業務 transaction
+  → PostgreSQL WAL
+  → Debezium CDC connector
+  → Kafka
+  → Integration Event listener
+  → Command
+  → use case 的新業務 transaction（Inbox claim + 業務處理）
 ```
 
 ## Dev Seed Data
