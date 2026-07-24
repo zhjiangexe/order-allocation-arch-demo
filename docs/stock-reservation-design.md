@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：8 / 17
+目前進度：9 / 17
 
-可立即執行：`SR-05`、`SR-16`。`SR-05` 建立以 command 為輸入、以 Domain Event 為輸出的 Allocate Order application flow；`SR-12` 需在 SR-05 後建立 Domain Event translator 與 transactional Inbox／Outbox adapters；`SR-16` 建立 dev-only consistent seed data。
+可立即執行：`SR-06`、`SR-07`、`SR-12`、`SR-16`。SR-06／SR-07 補齊取消與補貨 application flow；SR-12 建立 Domain Event translator 與 transactional Inbox／Outbox adapters；SR-16 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
@@ -105,7 +105,7 @@ SR-08 ─> SR-09 ─┐
 
 ### Application layer
 
-- [ ] **SR-05 — Allocate Order application flow**（依賴 SR-01～SR-04）
+- [x] **SR-05 — Allocate Order application flow**（依賴 SR-01～SR-04）
   - 定義／補齊 Order、StockPool 與 StockReservation ports；`AllocateOrderUsecase` 的輸入改為 `AllocateOrderCommand(orderId)`，而非直接處理 Integration Event。
   - 重構 `AllocationService`、`OrderAllocationCoordinator` 與 `AllocateOrderUsecase`。
   - 成功時更新 StockPool、建立 ACTIVE reservation、標記 Order ALLOCATED，並發布完整的 `OrderAllocationCompleted` Domain Event。

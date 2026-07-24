@@ -1,22 +1,19 @@
 package com.flowzati.archone.allocation.application.usecase;
 
+import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
-import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.Inbox;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import jakarta.transaction.Transactional;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class AllocateOrderUsecase {
@@ -24,7 +21,6 @@ public class AllocateOrderUsecase {
   private final OrderRepository orderRepository;
   private final StockPoolRepository stockPoolRepository;
   private final OrderAllocationCoordinator allocationCoordinator;
-  private final ApplicationEventPublisher eventPublisher;
   private final Clock clock;
 
   public AllocateOrderUsecase(
@@ -32,24 +28,22 @@ public class AllocateOrderUsecase {
       OrderRepository orderRepository,
       StockPoolRepository stockPoolRepository,
       OrderAllocationCoordinator allocationCoordinator,
-      ApplicationEventPublisher eventPublisher,
       Clock clock) {
     this.inbox = inbox;
     this.orderRepository = orderRepository;
     this.stockPoolRepository = stockPoolRepository;
     this.allocationCoordinator = allocationCoordinator;
-    this.eventPublisher = eventPublisher;
     this.clock = clock;
   }
 
   @Transactional
-  public void handle(OrderPlacedIntegrationEvent event) {
-    if (!inbox.claimIfNew(event.getEventId())) {
+  public void handle(AllocateOrderCommand command, UUID messageId) {
+    if (!inbox.claimIfNew(messageId)) {
       return;
     }
 
-    Order order = orderRepository.findById(event.getOrderId())
-        .orElseThrow(() -> new IllegalStateException("Order not found: " + event.getOrderId()));
+    Order order = orderRepository.findById(command.orderId())
+        .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
     if (order.getStatus() != OrderStatus.PENDING) {
       return;
     }
@@ -59,18 +53,9 @@ public class AllocateOrderUsecase {
 
     Instant now = clock.instant();
 
-    // 嘗試分配並儲存成功者
-    Optional<Order> allocatedOrder = allocationCoordinator.allocateOrder(order, stockPool, now);
-
-    if (allocatedOrder.isPresent()) {
+    if (allocationCoordinator.allocateOrder(order, stockPool, now).isPresent()) {
       return;
     }
-    // 如果分配失敗 (庫存不足)，則將此新訂單標記為欠單
-    order.markBackOrdered(now);
-    orderRepository.save(order);
-    order.releaseDomainEvents().forEach(eventPublisher::publishEvent);
-    eventPublisher.publishEvent(new BackorderCreatedIntegrationEvent(
-        IdGenerator.nextId(), order.getId(), order.getSku(), order.getQuantity(), now));
+    allocationCoordinator.backorderOrder(order, now);
   }
-
 }
