@@ -211,6 +211,16 @@ SR-08 ─> SR-09 ─┐
   - 驗證 retry metric 與 structured log 可辨識 operation、eventId 與 attempt。
   - 所有驗證通過後，將文件狀態改為「已實作」。
 
+### Demo-01 — 熱門 SKU 併發劇本（不在 SR-01～SR-18 編號內）
+
+- [x] **Demo-01 — Hot-SKU concurrency demo**（依賴 SR-18）
+  - SR-18 只用兩筆訂單證明 optimistic-lock retry 機制存在；Demo-01 將同一機制放大到 1,000 筆同 SKU、僅 10 件庫存的併發送出，觀察在既有 datasource connection pool 限制下最終是否仍收斂為正確結果。
+  - 以同一個 start gate 釋放 1,000 個 virtual-thread 任務送出 `OrderPlacedIntegrationEvent`；datasource connection pool（預設 10 個連線）自然限制同時執行的 transaction 數，不代表宣稱 1,000 個 DB transaction 真的同時執行。
+  - test-only interceptor 讓最先抵達的兩個 allocation attempt 在讀到同一版 StockPool 後才同時釋放，確保至少一次真實 JPA optimistic-lock conflict 是決定性發生，而不是仰賴機率性的自然碰撞；不注入合成例外。
+  - 只收集 `AllocationConcurrencyExhaustedException` 對應的原始事件，於併發波次結束後以同一 `eventId` 重送，模擬 broker 的 at-least-once redelivery；不模擬 broker 的 backoff 或 DLT policy。
+  - 對帳最終持久化狀態：10 張 Order `ALLOCATED`、990 張 `BACKORDERED`；10 筆 ACTIVE StockReservation 總量為 10；StockPool 的 ATP 為 0；1,000 個 eventId 均已於 Inbox claim；Outbox 記錄總數為 1,000 且對應最終 Order 結果。
+  - **範圍邊界：** 本示範驗證的是 bounded database concurrency 下的 1,000 筆併發 submissions 最終收斂，**不是** production throughput/latency benchmark，也不啟動 Kafka broker、Debezium connector 或另一套 load-testing 工具；不變更 allocation policy、Kafka topics 或 Integration Event 契約；不實作 FIFO replenishment 或 read-model replay demo。
+
 ## 資料模型
 
 ### `orders`

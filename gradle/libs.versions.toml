@@ -3,7 +3,7 @@ springBoot = "4.0.7"
 springCloud = "2025.1.2"
 springModulith = "2.0.7"
 dependencyManagement = "1.1.7"
-java = "17"
+java = "25"
 uuid-creator = "6.1.0"
 
 [libraries]

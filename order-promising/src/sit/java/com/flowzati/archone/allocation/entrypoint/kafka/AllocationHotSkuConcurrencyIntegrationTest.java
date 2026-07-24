@@ -1,0 +1,342 @@
+package com.flowzati.archone.allocation.entrypoint.kafka;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.allocation.application.retry.AllocationConcurrencyExhaustedException;
+import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.domain.model.StockPool;
+import com.flowzati.archone.common.messaging.IntegrationEventTopics;
+import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
+import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+
+/**
+ * Demo-01：1,000 張同 SKU 訂單競爭 10 件庫存的熱門 SKU 併發劇本。
+ *
+ * <p>驗證範圍：在既有的 datasource connection pool、Inbox/Outbox 與三次重試的 optimistic-lock
+ * 機制下，1,000 筆併發送出的 OrderPlaced 事件最終都會收斂為正確的 ALLOCATED／BACKORDERED
+ * 結果，且不超賣、不遺失事件、不重複 reservation。這是 bounded database concurrency 下的
+ * submission burst 展示，不是 production throughput/latency benchmark，也不啟動 Kafka broker。
+ */
+@SpringBootTest(
+    classes = ArchoneApplication.class,
+    properties = "spring.kafka.listener.auto-startup=false",
+    webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@ActiveProfiles("test")
+@Import({
+    PostgreSQLTestConfiguration.class,
+    AllocationHotSkuConcurrencyIntegrationTest.FirstWaveConflictConfiguration.class
+})
+class AllocationHotSkuConcurrencyIntegrationTest {
+
+  private static final String HOT_SKU = "HOT-SKU";
+  private static final int TOTAL_ORDERS = 1_000;
+  private static final int ON_HAND_QUANTITY = 10;
+  private static final int MAX_RECOVERY_ROUNDS = 5;
+
+  @Autowired
+  private AllocationKafkaIntegrationEventConsumer consumer;
+
+  @Autowired
+  private ObjectMapper objectMapper;
+
+  @Autowired
+  private OrderRepository orderRepository;
+
+  @Autowired
+  private StockPoolRepository stockPoolRepository;
+
+  @Autowired
+  private JdbcTemplate jdbcTemplate;
+
+  @Autowired
+  private FirstWaveConflictSynchronizer conflictSynchronizer;
+
+  @AfterEach
+  void clearDatabase() {
+    conflictSynchronizer.reset();
+    jdbcTemplate.execute("DELETE FROM event_outbox");
+    jdbcTemplate.execute("DELETE FROM event_inbox");
+    jdbcTemplate.execute("DELETE FROM stock_reservations");
+    jdbcTemplate.execute("DELETE FROM orders");
+    jdbcTemplate.execute("DELETE FROM stock_pools");
+  }
+
+  @Test
+  @Timeout(value = 180, unit = TimeUnit.SECONDS)
+  @DisplayName("1,000 張訂單競爭 10 件同 SKU 庫存時應不超賣且最終全部收斂")
+  void shouldReconcileAllOrdersWithoutOversellingUnderHotSkuContention() throws Exception {
+    // Step 1：準備 fixture —— 一個只有 10 件庫存的 StockPool，以及 1,000 張各要 1 件的 PENDING
+    // Order／OrderPlaced event。每筆 event 有自己的 eventId，之後可以個別重送。
+    UUID stockPoolId = UUID.randomUUID();
+    Instant placedAt = Instant.now().minusSeconds(1);
+    stockPoolRepository.save(new StockPool(stockPoolId, HOT_SKU, ON_HAND_QUANTITY, 0, null));
+
+    List<OrderPlacedIntegrationEvent> events = new ArrayList<>(TOTAL_ORDERS);
+    for (int i = 0; i < TOTAL_ORDERS; i++) {
+      UUID orderId = UUID.randomUUID();
+      orderRepository.save(Order.place(orderId, HOT_SKU, 1, placedAt));
+      events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, HOT_SKU, 1, placedAt));
+    }
+
+    // Step 2：把 1,000 筆事件同時丟進 allocation entrypoint。這一步只保證「同時送出」，
+    // 實際同時跑幾個 transaction 由 datasource connection pool（預設 10 條連線）決定。
+    // 少數幾筆會在自己的 3 次內建 retry 都遇到衝突而耗盡，回傳值就是這些需要重送的原始事件。
+    List<OrderPlacedIntegrationEvent> exhaustedAfterWave = submitConcurrentWave(events);
+
+    // Step 3：這一波送完之後，衝突高峰已經過去，此時逐筆重送 exhausted 的事件通常一次就會成功
+    // （模擬 Kafka 的 at-least-once redelivery）。若仍收斂不了才視為測試失敗。
+    redeliverUntilConverged(exhaustedAfterWave);
+
+    // Step 4：佐證「真的發生過至少一次 optimistic-lock conflict」——如果 1,000 筆都一次成功，
+    // allocateOrder 恰好會被呼叫 1,000 次；只要次數超過 1,000，代表有訂單被 retry 重新呼叫過，
+    // 而 retry 只會因為真實的 OptimisticLockingFailureException 觸發（沒有注入合成例外）。
+    // FirstWaveConflictSynchronizer 已經讓最先抵達的兩筆一定會撞在一起，所以這個斷言必過。
+    assertThat(conflictSynchronizer.invocations())
+        .as("至少一次重試代表 first-wave synchronization gate 觸發了真實的 optimistic-lock conflict")
+        .isGreaterThan(TOTAL_ORDERS);
+
+    // Step 5：所有事件都已經有確定結果，對帳持久化狀態，確認沒有超賣、遺失事件或重複 reservation。
+    assertReconciledState(stockPoolId);
+  }
+
+  /** 從同一個 start gate 釋放 1,000 個 virtual-thread 任務，回傳耗盡重試的原始事件供重送。 */
+  private List<OrderPlacedIntegrationEvent> submitConcurrentWave(
+      List<OrderPlacedIntegrationEvent> events) throws Exception {
+    CountDownLatch startGate = new CountDownLatch(1);
+    // 用 virtual thread（一個任務一條 thread）而不是固定大小的 thread pool，
+    // 是為了讓「同時送出 1,000 筆」這個 submission burst 真的成立；
+    // 真正同時執行的 DB transaction 數量則由下面的 datasource connection pool 自然限制住，
+    // 不會因為開了 1,000 條 thread 就真的打開 1,000 條 DB 連線。
+    ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    try {
+      // 先把 1,000 個任務全部排進去，此時每個任務都卡在 startGate.await()，還沒有真的送出事件。
+      List<CompletableFuture<OrderPlacedIntegrationEvent>> futures = events.stream()
+          .map(event -> CompletableFuture.supplyAsync(
+              () -> deliverAwaitingGate(event, startGate), executor))
+          .toList();
+
+      // 全部排隊完成後才一次放行，這樣 1,000 個任務會盡量同時開始搶同一個 StockPool，
+      // 而不是照建立順序一個一個依序送出。
+      startGate.countDown();
+
+      // 等整批送完；120 秒是留給「10 條連線處理 1,000 筆 transaction＋少量 retry」的寬鬆上限，
+      // 若逾時代表這批送出卡住了，直接讓測試失敗並回報。
+      CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+          .get(120, TimeUnit.SECONDS);
+
+      // 收集「重試三次都還是衝突」的事件；其餘任何非預期例外已經在 allOf(...).get() 這一步
+      // 就會以 ExecutionException 往外拋出，讓測試立即失敗（design 要求的
+      // 「非 retry-exhaustion 的失敗要讓劇本立刻失敗」）。
+      List<OrderPlacedIntegrationEvent> exhausted = new ArrayList<>();
+      for (CompletableFuture<OrderPlacedIntegrationEvent> future : futures) {
+        OrderPlacedIntegrationEvent exhaustedEvent = future.join();
+        if (exhaustedEvent != null) {
+          exhausted.add(exhaustedEvent);
+        }
+      }
+      return exhausted;
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  /** 等待 start gate 後送出一筆事件；回傳非 null 代表該筆重試耗盡，其餘失敗直接往外拋出使測試失敗。 */
+  private OrderPlacedIntegrationEvent deliverAwaitingGate(
+      OrderPlacedIntegrationEvent event, CountDownLatch startGate) {
+    try {
+      startGate.await();
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Interrupted while waiting for the start gate", interrupted);
+    }
+    try {
+      // consumer.consumeOrderingEvent(...) 內部已經包了三次重試（初始呼叫＋兩次 retry）；
+      // 只有三次都遇到 optimistic-lock conflict 才會冒出 AllocationConcurrencyExhaustedException。
+      consume(event);
+      return null;
+    } catch (AllocationConcurrencyExhaustedException exhausted) {
+      return event;
+    }
+  }
+
+  /** 只重送 retry-exhausted 的原始事件，直到全數收斂或達到 bounded recovery limit。 */
+  private void redeliverUntilConverged(List<OrderPlacedIntegrationEvent> exhaustedEvents) {
+    List<OrderPlacedIntegrationEvent> pending = exhaustedEvents;
+    int round = 0;
+    // 併發波次已經結束，這裡是單執行緒依序重送，理論上第一輪就會收斂；
+    // 保留多輪、有上限的迴圈只是為了不讓極端情況卡成無窮迴圈。
+    while (!pending.isEmpty() && round < MAX_RECOVERY_ROUNDS) {
+      List<OrderPlacedIntegrationEvent> stillExhausted = new ArrayList<>();
+      for (OrderPlacedIntegrationEvent event : pending) {
+        try {
+          // 用同一個 eventId 重送，模擬 Kafka at-least-once redelivery：
+          // 原本失敗的那次 transaction（含 Inbox claim）已經整個 rollback，
+          // 所以這次重送會被 Inbox 當成全新事件正常處理。
+          consume(event);
+        } catch (AllocationConcurrencyExhaustedException exhausted) {
+          stillExhausted.add(event);
+        }
+      }
+      pending = stillExhausted;
+      round++;
+    }
+
+    assertThat(pending)
+        .as("Retry-exhausted deliveries remaining after %d bounded recovery rounds", MAX_RECOVERY_ROUNDS)
+        .isEmpty();
+  }
+
+  private void assertReconciledState(UUID stockPoolId) {
+    // 1) Order 結果：10 件庫存只夠 10 張訂單成功，其餘 990 張應該進 BACKORDERED，不能有第三種狀態
+    //    或有訂單卡在 PENDING（代表事件遺失或漏處理）。
+    Integer allocatedCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM orders WHERE sku = ? AND status = 'ALLOCATED'", Integer.class, HOT_SKU);
+    Integer backorderedCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM orders WHERE sku = ? AND status = 'BACKORDERED'", Integer.class, HOT_SKU);
+    assertThat(allocatedCount).isEqualTo(ON_HAND_QUANTITY);
+    assertThat(backorderedCount).isEqualTo(TOTAL_ORDERS - ON_HAND_QUANTITY);
+
+    // 2) Reservation 結果：ACTIVE 筆數、總量都要精確等於庫存數，且 order_id 不重複——
+    //    這是直接偵測「超賣」與「同一張訂單被重複建立 reservation」的斷言。
+    Integer activeReservationCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+    Integer activeReservationQuantity = jdbcTemplate.queryForObject(
+        "SELECT coalesce(sum(quantity), 0) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+    Integer distinctReservedOrders = jdbcTemplate.queryForObject(
+        "SELECT count(DISTINCT order_id) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+    assertThat(activeReservationCount).isEqualTo(ON_HAND_QUANTITY);
+    assertThat(activeReservationQuantity).isEqualTo(ON_HAND_QUANTITY);
+    assertThat(distinctReservedOrders).isEqualTo(ON_HAND_QUANTITY);
+
+    // 3) StockPool 結果：on-hand 不變、reserved 等於庫存、ATP 歸零——三個數字彼此要一致。
+    assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
+      assertThat(pool.getOnHandQuantity()).isEqualTo(ON_HAND_QUANTITY);
+      assertThat(pool.getReservedQuantity()).isEqualTo(ON_HAND_QUANTITY);
+      assertThat(pool.availableToPromise()).isZero();
+    });
+
+    // 4) Inbox 結果：1,000 個 eventId 都要有一筆 claim，代表沒有事件被靜默遺失，
+    //    也沒有殘留任何「rollback 後沒被成功重送」的半途狀態。
+    Integer inboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_inbox", Integer.class);
+    assertThat(inboxCount).isEqualTo(TOTAL_ORDERS);
+
+    // 5) Outbox 結果：對外發布的 Integration Event 總數要等於送出的事件數，且種類分佈要對上
+    //    Order 的最終結果（10 筆 Allocated + 990 筆 Backorder），不能多也不能少。
+    Integer outboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_outbox", Integer.class);
+    Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
+        OrderAllocatedIntegrationEvent.class.getSimpleName());
+    Integer backorderedOutboxCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
+        BackorderCreatedIntegrationEvent.class.getSimpleName());
+    assertThat(outboxCount).isEqualTo(TOTAL_ORDERS);
+    assertThat(allocatedOutboxCount).isEqualTo(ON_HAND_QUANTITY);
+    assertThat(backorderedOutboxCount).isEqualTo(TOTAL_ORDERS - ON_HAND_QUANTITY);
+  }
+
+  private void consume(OrderPlacedIntegrationEvent event) {
+    ConsumerRecord<String, String> record = new ConsumerRecord<>(
+        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
+        0,
+        0,
+        event.getOrderId().toString(),
+        serialize(event));
+    record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
+    record.headers().add("eventType", OrderPlacedIntegrationEvent.class.getSimpleName()
+        .getBytes(StandardCharsets.UTF_8));
+    consumer.consumeOrderingEvent(record);
+  }
+
+  private String serialize(OrderPlacedIntegrationEvent event) {
+    try {
+      return objectMapper.writeValueAsString(event);
+    } catch (JsonProcessingException exception) {
+      throw new IllegalStateException("Cannot serialize test integration event", exception);
+    }
+  }
+
+  @TestConfiguration(proxyBeanMethods = false)
+  static class FirstWaveConflictConfiguration {
+
+    @Bean
+    FirstWaveConflictSynchronizer firstWaveConflictSynchronizer() {
+      return new FirstWaveConflictSynchronizer();
+    }
+  }
+
+  /**
+   * Test-only interceptor：讓最先抵達的兩個 allocation attempt 在都讀到同一版 StockPool 後
+   * 才同時釋放，逼出一次真實的 JPA optimistic-lock conflict，而不是注入合成例外。
+   */
+  @Aspect
+  static class FirstWaveConflictSynchronizer {
+
+    private final AtomicInteger invocations = new AtomicInteger();
+    private volatile CountDownLatch firstWaveGate = new CountDownLatch(2);
+
+    // 這個 pointcut 卡在 allocateOrder(..) 的「呼叫當下」，此時呼叫端（AllocateOrderUsecase）
+    // 已經在同一個 transaction 裡讀好了 StockPool；只要最先抵達的兩個 attempt 都卡在這裡，
+    // 就代表兩邊都是讀到同一個已提交版本的 StockPool，之後放行時必定有一邊會在真正 flush／
+    // commit 時因為 @Version 不符而被 JPA 拒絕——這就是「真實」而非「合成」的 conflict。
+    @Around("execution(* com.flowzati.archone.allocation.application.coordinator."
+        + "OrderAllocationCoordinator.allocateOrder(..))")
+    public Object synchronizeFirstWave(ProceedingJoinPoint joinPoint) throws Throwable {
+      int invocation = invocations.incrementAndGet();
+      // 注意：allocateOrder(..) 對「每一筆」提交的訂單都會被呼叫一次（不論庫存夠不夠），
+      // 所以 1,000 筆事件在沒有任何 retry 的情況下，invocations() 最終應該剛好是 1,000；
+      // 只有第 1、2 次呼叫會被攔下來同步，第 3 次以後直接放行，避免把整批 1,000 筆
+      // 都卡在同一個屏障上而在 connection pool 後面死鎖。
+      if (invocation <= 2) {
+        CountDownLatch gate = firstWaveGate;
+        gate.countDown();
+        if (!gate.await(10, TimeUnit.SECONDS)) {
+          throw new IllegalStateException("First-wave allocation attempts did not reach the barrier");
+        }
+      }
+      return joinPoint.proceed();
+    }
+
+    int invocations() {
+      return invocations.get();
+    }
+
+    void reset() {
+      invocations.set(0);
+      firstWaveGate = new CountDownLatch(2);
+    }
+  }
+}
