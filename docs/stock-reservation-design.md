@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：15 / 18
+目前進度：16 / 18
 
-可立即執行：`SR-15`、`SR-17`。SR-15 為 optimistic-lock retry 與 observability；SR-17 驗證不依賴 retry 的端到端業務流程。
+可立即執行：`SR-15`。SR-15 為 optimistic-lock retry 與 observability；SR-18 仍等待 SR-15 完成。
 
 主要相依路徑：
 
@@ -199,7 +199,7 @@ SR-08 ─> SR-09 ─┐
   - `SKU-PARTIALLY-RESERVED` 必須同時建立對應的 ALLOCATED Order 與 ACTIVE StockReservation，不得只設定孤立的 `reservedQuantity`。
   - 驗證重啟不會重複建立，且 test／production profile 不載入 seed。
 
-- [ ] **SR-17 — End-to-end business workflow verification**（依賴 SR-01～SR-14；SR-16 不阻擋）
+- [x] **SR-17 — End-to-end business workflow verification**（依賴 SR-01～SR-14；SR-16 不阻擋）
   - 執行並修正全部既有測試。
   - 使用 SR-08 的 PostgreSQL test environment，驗證 allocation、取消、補貨、嚴格 FIFO 與 Inbox／Outbox 的端到端流程。
   - 確認未引入多倉、shipment、WMS、expiration 或 safety stock。
