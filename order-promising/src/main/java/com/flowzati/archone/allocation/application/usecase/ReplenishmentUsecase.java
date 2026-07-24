@@ -5,6 +5,7 @@ import com.flowzati.archone.allocation.application.command.ReplenishStockCommand
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -39,10 +40,11 @@ public class ReplenishmentUsecase {
 
 
   @Transactional
-  public void handle(ReplenishStockCommand command, MessageMetadata message) {
-    if (!inboxRepo.claimIfNew(message)) {
+  public void handle(InboundCommand<ReplenishStockCommand> inbound) {
+    if (!inboxRepo.claimIfNew(inbound.message())) {
       return;
     }
+    ReplenishStockCommand command = inbound.command();
 
     // 1. 加載庫存 Aggregate
     StockPool stockPool = stockPoolRepository.findBySku(command.sku())

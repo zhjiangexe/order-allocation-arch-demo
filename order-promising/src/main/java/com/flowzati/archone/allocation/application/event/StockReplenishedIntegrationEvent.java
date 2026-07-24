@@ -1,5 +1,7 @@
 package com.flowzati.archone.allocation.application.event;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import java.util.UUID;
 
@@ -7,7 +9,12 @@ public final class StockReplenishedIntegrationEvent extends IntegrationEvent {
   private final String sku;
   private final int quantity;
 
-  public StockReplenishedIntegrationEvent(UUID eventId, String sku, int quantity) {
+  @JsonCreator
+  public StockReplenishedIntegrationEvent(
+      @JsonProperty("eventId") UUID eventId,
+      @JsonProperty("sku") String sku,
+      @JsonProperty("quantity") int quantity
+  ) {
     super(eventId);
     if (sku == null || sku.isBlank()) {
       throw new IllegalArgumentException("SKU is required");

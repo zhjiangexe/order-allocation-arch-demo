@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.application.event;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import java.time.Instant;
 import java.util.UUID;
@@ -10,12 +12,13 @@ public final class OrderPlacedIntegrationEvent extends IntegrationEvent {
   private final int quantity;
   private final Instant placedAt;
 
+  @JsonCreator
   public OrderPlacedIntegrationEvent(
-      UUID eventId,
-      UUID orderId,
-      String sku,
-      int quantity,
-      Instant placedAt
+      @JsonProperty("eventId") UUID eventId,
+      @JsonProperty("orderId") UUID orderId,
+      @JsonProperty("sku") String sku,
+      @JsonProperty("quantity") int quantity,
+      @JsonProperty("placedAt") Instant placedAt
   ) {
     super(eventId);
     if (orderId == null) {

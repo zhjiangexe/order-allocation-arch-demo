@@ -7,6 +7,7 @@ import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import jakarta.transaction.Transactional;
 import java.time.Clock;
@@ -37,10 +38,12 @@ public class ReleaseReservationUsecase {
   }
 
   @Transactional
-  public void handle(ReleaseReservationCommand command, MessageMetadata message) {
-    if (!inboxRepo.claimIfNew(message)) {
+  public void handle(InboundCommand<ReleaseReservationCommand> inbound) {
+    if (!inboxRepo.claimIfNew(inbound.message())) {
       return;
     }
+    ReleaseReservationCommand command = inbound.command();
+
     Optional<StockReservation> activeByOrderId = stockReservationRepository.findActiveByOrderId(command.orderId());
     if (activeByOrderId.isEmpty()) {
       return;

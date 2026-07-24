@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：13 / 17
+目前進度：14 / 17
 
-可立即執行：`SR-14`、`SR-16`。SR-14 接回 transaction wiring 與 Kafka Integration Event entrypoints；SR-16 建立 dev-only consistent seed data。
+可立即執行：`SR-15`、`SR-16`。SR-15 為 optimistic-lock retry 與 observability；SR-16 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
@@ -175,7 +175,7 @@ SR-08 ─> SR-09 ─┐
 
 ### Composition and verification（最外圈）
 
-- [ ] **SR-14 — Transaction wiring and Integration Event entrypoints**（依賴 SR-05～SR-13）
+- [x] **SR-14 — Transaction wiring and Integration Event entrypoints**（依賴 SR-05～SR-13）
   - 將 application ports 接到 JPA、Inbox 與 Outbox adapters。
   - 確保 Aggregate 更新、Reservation 寫入、Domain Event translation 與 Outbox 寫入位於同一個 transaction；Inbox claim 與接收 command 的業務更新位於同一個 transaction。
   - 接回 Kafka Integration Event consumers：先將 Debezium／Kafka record 反序列化為 typed Integration Event，再映射為本服務的純業務 Command；不得讓 use case 依賴 Kafka record、Debezium envelope 或外部 JSON。

@@ -11,6 +11,7 @@ uuid-creator = "6.1.0"
 spring-boot-starter-actuator = { group = "org.springframework.boot", name = "spring-boot-starter-actuator" }
 spring-boot-starter-data-jpa = { group = "org.springframework.boot", name = "spring-boot-starter-data-jpa" }
 spring-boot-starter-flyway = { group = "org.springframework.boot", name = "spring-boot-starter-flyway" }
+spring-boot-starter-kafka = { group = "org.springframework.boot", name = "spring-boot-starter-kafka" }
 spring-boot-starter-opentelemetry = { group = "org.springframework.boot", name = "spring-boot-starter-opentelemetry" }
 spring-boot-starter-webmvc = { group = "org.springframework.boot", name = "spring-boot-starter-webmvc" }
 spring-boot-devtools = { group = "org.springframework.boot", name = "spring-boot-devtools" }
@@ -54,6 +55,5 @@ java = { id = "java" }
 [bundles]
 spring-modulith = [
     "spring-modulith-starter-core",
-    "spring-modulith-starter-insight",
-    "spring-modulith-starter-jpa"
+    "spring-modulith-starter-insight"
 ]

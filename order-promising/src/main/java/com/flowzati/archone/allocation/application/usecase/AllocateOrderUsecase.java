@@ -5,6 +5,7 @@ import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCo
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -37,10 +38,11 @@ public class AllocateOrderUsecase {
   }
 
   @Transactional
-  public void handle(AllocateOrderCommand command, MessageMetadata message) {
-    if (!inboxRepo.claimIfNew(message)) {
+  public void handle(InboundCommand<AllocateOrderCommand> inbound) {
+    if (!inboxRepo.claimIfNew(inbound.message())) {
       return;
     }
+    AllocateOrderCommand command = inbound.command();
 
     Order order = orderRepository.findById(command.orderId())
         .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));

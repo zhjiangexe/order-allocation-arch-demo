@@ -10,6 +10,7 @@ import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.domain.service.AllocationService;
 import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -101,7 +102,7 @@ class ReplenishmentUsecaseTest {
         .thenReturn(backorders);
 
     // Act
-    replenishmentUsecase.handle(command(event), message(eventId));
+    replenishmentUsecase.handle(inbound(event));
 
     // Assert
     verify(inboxRepo).claimIfNew(message(eventId));
@@ -149,7 +150,7 @@ class ReplenishmentUsecaseTest {
         .thenReturn(backorders);
 
     // Act
-    replenishmentUsecase.handle(command(event), message(eventId));
+    replenishmentUsecase.handle(inbound(event));
 
     // Assert
     // 0 + 5 = 5
@@ -182,7 +183,7 @@ class ReplenishmentUsecaseTest {
         .thenReturn(List.of());
 
     // Act
-    replenishmentUsecase.handle(command(event), message(eventId));
+    replenishmentUsecase.handle(inbound(event));
 
     // Assert
     verify(stockPoolRepository).findBySku(sku);
@@ -202,7 +203,7 @@ class ReplenishmentUsecaseTest {
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(false);
 
     // Act
-    replenishmentUsecase.handle(command(event), message(eventId));
+    replenishmentUsecase.handle(inbound(event));
 
     // Assert
     verify(inboxRepo).claimIfNew(message(eventId));
@@ -218,7 +219,7 @@ class ReplenishmentUsecaseTest {
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findBySku("UNKNOWN-SKU")).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> replenishmentUsecase.handle(command(event), message(eventId)))
+    assertThatThrownBy(() -> replenishmentUsecase.handle(inbound(event)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("StockPool not found for SKU: UNKNOWN-SKU");
 
@@ -238,6 +239,10 @@ class ReplenishmentUsecaseTest {
 
   private ReplenishStockCommand command(StockReplenishedIntegrationEvent event) {
     return new ReplenishStockCommand(event.getSku(), event.getQuantity());
+  }
+
+  private InboundCommand<ReplenishStockCommand> inbound(StockReplenishedIntegrationEvent event) {
+    return new InboundCommand<>(command(event), message(event.getEventId()));
   }
 
 }

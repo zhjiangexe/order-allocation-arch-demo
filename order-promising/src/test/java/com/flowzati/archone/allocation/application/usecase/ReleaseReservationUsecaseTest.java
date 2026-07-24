@@ -7,6 +7,7 @@ import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import java.time.Clock;
 import java.time.Instant;
@@ -36,7 +37,7 @@ class ReleaseReservationUsecaseTest {
     when(inboxRepo.claimIfNew(message(messageId))).thenReturn(false);
 
     usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), message(messageId));
+        .handle(inbound(orderId, messageId));
 
     verifyNoInteractions(reservationRepository, stockPoolRepository, coordinator);
   }
@@ -53,7 +54,7 @@ class ReleaseReservationUsecaseTest {
     UUID messageId = UUID.randomUUID();
     when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
     usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), message(messageId));
+        .handle(inbound(orderId, messageId));
 
     verify(reservationRepository).findActiveByOrderId(orderId);
     verifyNoInteractions(stockPoolRepository, coordinator);
@@ -76,7 +77,7 @@ class ReleaseReservationUsecaseTest {
     when(stockPoolRepository.findById(stockPoolId)).thenReturn(Optional.of(stockPool));
 
     usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), message(messageId));
+        .handle(inbound(orderId, messageId));
 
     verify(coordinator).releaseReservation(reservation, stockPool, now);
   }
@@ -97,7 +98,7 @@ class ReleaseReservationUsecaseTest {
     when(stockPoolRepository.findById(stockPoolId)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), message(messageId)))
+        .handle(inbound(orderId, messageId)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("StockPool not found: " + stockPoolId);
     verifyNoInteractions(coordinator);
@@ -119,5 +120,9 @@ class ReleaseReservationUsecaseTest {
 
   private MessageMetadata message(UUID eventId) {
     return new MessageMetadata(eventId, "OrderCancelledIntegrationEvent");
+  }
+
+  private InboundCommand<ReleaseReservationCommand> inbound(UUID orderId, UUID eventId) {
+    return new InboundCommand<>(new ReleaseReservationCommand(orderId), message(eventId));
   }
 }
