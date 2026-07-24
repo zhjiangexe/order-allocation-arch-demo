@@ -165,7 +165,8 @@ SR-08 ─> SR-09 ─┐
   - 修正 event list 被當成單一事件發布的問題，增加 persistence 與 rollback tests。
 
 - [ ] **SR-13 — Debezium Outbox CDC to Kafka**（依賴 SR-12）
-  - 設定 PostgreSQL logical replication 與 Debezium connector，僅擷取 `event_outbox` 的已 commit row，並以 Outbox Event Router 發布至 Kafka。
+  - 新增 `event_outbox.route`，由 translator 依 Integration Event 生產端寫入既定 Kafka topic；保留 `aggregatetype` 的 Aggregate 語意，不以它決定 topic。
+  - 設定 PostgreSQL logical replication 與 Debezium connector，僅擷取 `event_outbox` 的已 commit row，並以 Outbox Event Router 的 `route.by.field=route` 發布至 Kafka。
   - 不實作 application polling relay，也不回寫 `publishedAt`、`attempts` 或 `lastError`；connector offset、重試與故障資訊由 Kafka Connect／Debezium 營運。
   - CDC delivery 為 at-least-once；相同 `eventId` 可能重送，consumer 必須以 Inbox 保證冪等。
   - 以 Testcontainers 啟動 PostgreSQL、Kafka、Kafka Connect／Debezium，驗證 committed Outbox row 會送達 Kafka。
@@ -281,12 +282,14 @@ Inbox row 的存在代表該事件已隨業務更新成功 commit；若業務 tr
 | 欄位 | 型別 | 限制／說明 |
 |---|---|---|
 | `id` | `UUID` | Primary key；Debezium event identity |
-| `aggregatetype` | `VARCHAR` | `NOT NULL`；Debezium topic routing value |
+| `aggregatetype` | `VARCHAR` | `NOT NULL`；來源 Aggregate type，例如 `Order` |
 | `aggregateid` | `VARCHAR` | `NOT NULL`；Kafka message key，支援 UUID／其他 aggregate id 表示 |
 | `type` | `VARCHAR` | `NOT NULL`；Integration Event type |
+| `route` | `VARCHAR` | `NOT NULL`；目標 Kafka topic，例如 `ordering.order-events` |
 | `payload` | `JSONB` | `NOT NULL` |
 | `timestamp` | `TIMESTAMPTZ` | `NOT NULL`；Integration Event 發生時間 |
-本專案採用 Debezium Outbox Event Router 的 canonical column names，避免 SR-13 額外欄位 mapping。本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `timestamp` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
+
+本專案採用 Debezium Outbox Event Router 的 canonical column names，並額外加入 `route`。`aggregatetype` 保留來源 Aggregate 的語意；Debezium 以 `route.by.field=route` 將 event 發布至對應 topic。這符合 topic 依生產端 bounded context 劃分的規劃，也避免將 `Order` 等 Aggregate type 改作傳輸路由。`route` 是 application／infrastructure 的 delivery metadata，不屬於 Domain Event。本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `timestamp` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
 
 Debezium 正常 restart 時依 Kafka Connect offset 與 PostgreSQL WAL 接續，不重新掃描 Outbox。第一次建立 connector，或 offset 遺失後重建 connector 時，會 snapshot 當時仍在 retention 範圍內的 Outbox rows；consumer Inbox 必須能安全忽略因此重送的相同 `event_id`。
 
