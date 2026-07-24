@@ -114,7 +114,7 @@ production compile 不再產生 legacy mapper removal warnings。
 - 負數 reserved 由 check constraint 拒絕。
 - reserved 超過 on-hand 由 check constraint 拒絕。
 
-測試只啟用 `JpaStockRepository`，避免提前載入仍屬於 SR-12 的 raw `InboxStore`。
+測試只啟用 `JpaStockRepository`，避免提前載入仍屬於 SR-12 的 raw `JpaEventInboxRepository`。
 
 ## `updatedAt` 與 `version` 行為
 

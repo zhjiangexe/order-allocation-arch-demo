@@ -6,7 +6,8 @@ import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
-import com.flowzati.archone.common.inbox.Inbox;
+import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.MessageMetadata;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -26,23 +27,23 @@ class ReleaseReservationUsecaseTest {
 
   @Test
   void shouldDoNothingWhenMessageWasAlreadyHandled() {
-    Inbox inbox = mock(Inbox.class);
+    InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);
     StockPoolRepository stockPoolRepository = mock(StockPoolRepository.class);
     OrderAllocationCoordinator coordinator = mock(OrderAllocationCoordinator.class);
     UUID orderId = UUID.randomUUID();
     UUID messageId = UUID.randomUUID();
-    when(inbox.claimIfNew(messageId)).thenReturn(false);
+    when(inboxRepo.claimIfNew(message(messageId))).thenReturn(false);
 
-    usecase(inbox, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), messageId);
+    usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
+        .handle(new ReleaseReservationCommand(orderId), message(messageId));
 
     verifyNoInteractions(reservationRepository, stockPoolRepository, coordinator);
   }
 
   @Test
   void shouldDoNothingWhenOrderHasNoActiveReservation() {
-    Inbox inbox = mock(Inbox.class);
+    InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);
     StockPoolRepository stockPoolRepository = mock(StockPoolRepository.class);
     OrderAllocationCoordinator coordinator = mock(OrderAllocationCoordinator.class);
@@ -50,9 +51,9 @@ class ReleaseReservationUsecaseTest {
     when(reservationRepository.findActiveByOrderId(orderId)).thenReturn(Optional.empty());
 
     UUID messageId = UUID.randomUUID();
-    when(inbox.claimIfNew(messageId)).thenReturn(true);
-    usecase(inbox, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), messageId);
+    when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
+    usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
+        .handle(new ReleaseReservationCommand(orderId), message(messageId));
 
     verify(reservationRepository).findActiveByOrderId(orderId);
     verifyNoInteractions(stockPoolRepository, coordinator);
@@ -60,7 +61,7 @@ class ReleaseReservationUsecaseTest {
 
   @Test
   void shouldReleaseActiveReservationThroughCoordinator() {
-    Inbox inbox = mock(Inbox.class);
+    InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);
     StockPoolRepository stockPoolRepository = mock(StockPoolRepository.class);
     OrderAllocationCoordinator coordinator = mock(OrderAllocationCoordinator.class);
@@ -70,19 +71,19 @@ class ReleaseReservationUsecaseTest {
     StockReservation reservation = StockReservation.create(
         UUID.randomUUID(), orderId, stockPoolId, 3, now.minusSeconds(1));
     StockPool stockPool = new StockPool(stockPoolId, "SKU-1", 10, 3, 0L);
-    when(inbox.claimIfNew(messageId)).thenReturn(true);
+    when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
     when(reservationRepository.findActiveByOrderId(orderId)).thenReturn(Optional.of(reservation));
     when(stockPoolRepository.findById(stockPoolId)).thenReturn(Optional.of(stockPool));
 
-    usecase(inbox, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), messageId);
+    usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
+        .handle(new ReleaseReservationCommand(orderId), message(messageId));
 
     verify(coordinator).releaseReservation(reservation, stockPool, now);
   }
 
   @Test
   void shouldFailWhenReservationStockPoolDoesNotExist() {
-    Inbox inbox = mock(Inbox.class);
+    InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);
     StockPoolRepository stockPoolRepository = mock(StockPoolRepository.class);
     OrderAllocationCoordinator coordinator = mock(OrderAllocationCoordinator.class);
@@ -91,28 +92,32 @@ class ReleaseReservationUsecaseTest {
     UUID messageId = UUID.randomUUID();
     StockReservation reservation = StockReservation.create(
         UUID.randomUUID(), orderId, stockPoolId, 3, now.minusSeconds(1));
-    when(inbox.claimIfNew(messageId)).thenReturn(true);
+    when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
     when(reservationRepository.findActiveByOrderId(orderId)).thenReturn(Optional.of(reservation));
     when(stockPoolRepository.findById(stockPoolId)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> usecase(inbox, reservationRepository, stockPoolRepository, coordinator)
-        .handle(new ReleaseReservationCommand(orderId), messageId))
+    assertThatThrownBy(() -> usecase(inboxRepo, reservationRepository, stockPoolRepository, coordinator)
+        .handle(new ReleaseReservationCommand(orderId), message(messageId)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("StockPool not found: " + stockPoolId);
     verifyNoInteractions(coordinator);
   }
 
   private ReleaseReservationUsecase usecase(
-      Inbox inbox,
+      InboxRepo inboxRepo,
       StockReservationRepository reservationRepository,
       StockPoolRepository stockPoolRepository,
       OrderAllocationCoordinator coordinator) {
     return new ReleaseReservationUsecase(
-        inbox,
+        inboxRepo,
         reservationRepository,
         stockPoolRepository,
         coordinator,
         Clock.fixed(now, ZoneId.of("UTC"))
     );
+  }
+
+  private MessageMetadata message(UUID eventId) {
+    return new MessageMetadata(eventId, "OrderCancelledIntegrationEvent");
   }
 }

@@ -4,7 +4,8 @@ import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.inbox.Inbox;
+import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -13,23 +14,22 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.UUID;
 
 @Service
 public class AllocateOrderUsecase {
-  private final Inbox inbox;
+  private final InboxRepo inboxRepo;
   private final OrderRepository orderRepository;
   private final StockPoolRepository stockPoolRepository;
   private final OrderAllocationCoordinator allocationCoordinator;
   private final Clock clock;
 
   public AllocateOrderUsecase(
-      Inbox inbox,
+      InboxRepo inboxRepo,
       OrderRepository orderRepository,
       StockPoolRepository stockPoolRepository,
       OrderAllocationCoordinator allocationCoordinator,
       Clock clock) {
-    this.inbox = inbox;
+    this.inboxRepo = inboxRepo;
     this.orderRepository = orderRepository;
     this.stockPoolRepository = stockPoolRepository;
     this.allocationCoordinator = allocationCoordinator;
@@ -37,8 +37,8 @@ public class AllocateOrderUsecase {
   }
 
   @Transactional
-  public void handle(AllocateOrderCommand command, UUID messageId) {
-    if (!inbox.claimIfNew(messageId)) {
+  public void handle(AllocateOrderCommand command, MessageMetadata message) {
+    if (!inboxRepo.claimIfNew(message)) {
       return;
     }
 

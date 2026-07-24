@@ -2,6 +2,7 @@ package com.flowzati.archone.allocation.entrypoint.listener;
 
 import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.usecase.AllocateOrderUsecase;
+import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,11 @@ public class AllocateOrderListener {
 
   @EventListener
   public void onEvent(OrderPlacedIntegrationEvent event) {
-    usecase.handle(new AllocateOrderCommand(event.getOrderId()), event.getEventId());
+    usecase.handle(
+        new AllocateOrderCommand(event.getOrderId()),
+        new MessageMetadata(
+            event.getEventId(),
+            OrderPlacedIntegrationEvent.class.getSimpleName())
+    );
   }
 }

@@ -5,9 +5,9 @@ import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCo
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.inbox.Inbox;
+import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,20 +29,20 @@ class AllocateOrderUsecaseTest {
   private final Instant fixedNow = Instant.parse("2026-07-22T00:00:00Z");
 
   private AllocateOrderUsecase usecase;
-  private Inbox inbox;
+  private InboxRepo inboxRepo;
   private OrderRepository orderRepository;
   private StockPoolRepository stockPoolRepository;
   private OrderAllocationCoordinator allocationCoordinator;
 
   @BeforeEach
   void setUp() {
-    inbox = mock(Inbox.class);
+    inboxRepo = mock(InboxRepo.class);
     orderRepository = mock(OrderRepository.class);
     stockPoolRepository = mock(StockPoolRepository.class);
     allocationCoordinator = mock(OrderAllocationCoordinator.class);
 
     usecase = new AllocateOrderUsecase(
-        inbox,
+        inboxRepo,
         orderRepository,
         stockPoolRepository,
         allocationCoordinator,
@@ -54,11 +54,11 @@ class AllocateOrderUsecaseTest {
   @DisplayName("當訊息已被處理過時，不應執行任何邏輯")
   void shouldDoNothingWhenMessageAlreadyProcessed() {
     UUID messageId = UUID.randomUUID();
-    given(inbox.claimIfNew(messageId)).willReturn(false);
+    given(inboxRepo.claimIfNew(message(messageId))).willReturn(false);
 
-    usecase.handle(new AllocateOrderCommand(UUID.randomUUID()), messageId);
+    usecase.handle(new AllocateOrderCommand(UUID.randomUUID()), message(messageId));
 
-    then(inbox).should().claimIfNew(messageId);
+    then(inboxRepo).should().claimIfNew(message(messageId));
     verifyNoInteractions(orderRepository, stockPoolRepository, allocationCoordinator);
   }
 
@@ -68,10 +68,10 @@ class AllocateOrderUsecaseTest {
     UUID messageId = UUID.randomUUID();
     Order order = pendingOrder("SKU-1", 5);
     order.markAllocated(fixedNow);
-    given(inbox.claimIfNew(messageId)).willReturn(true);
+    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
 
-    usecase.handle(new AllocateOrderCommand(order.getId()), messageId);
+    usecase.handle(new AllocateOrderCommand(order.getId()), message(messageId));
 
     then(orderRepository).should().findById(order.getId());
     verifyNoInteractions(stockPoolRepository, allocationCoordinator);
@@ -82,10 +82,10 @@ class AllocateOrderUsecaseTest {
   void shouldThrowExceptionWhenOrderNotFound() {
     UUID messageId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
-    given(inbox.claimIfNew(messageId)).willReturn(true);
+    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(orderId)).willReturn(Optional.empty());
 
-    assertThatThrownBy(() -> usecase.handle(new AllocateOrderCommand(orderId), messageId))
+    assertThatThrownBy(() -> usecase.handle(new AllocateOrderCommand(orderId), message(messageId)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Order not found: " + orderId);
 
@@ -97,11 +97,11 @@ class AllocateOrderUsecaseTest {
   void shouldThrowExceptionWhenStockPoolNotFound() {
     UUID messageId = UUID.randomUUID();
     Order order = pendingOrder("SKU-1", 5);
-    given(inbox.claimIfNew(messageId)).willReturn(true);
+    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
     given(stockPoolRepository.findBySku("SKU-1")).willReturn(Optional.empty());
 
-    assertThatThrownBy(() -> usecase.handle(new AllocateOrderCommand(order.getId()), messageId))
+    assertThatThrownBy(() -> usecase.handle(new AllocateOrderCommand(order.getId()), message(messageId)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("StockPool not found for SKU: SKU-1");
   }
@@ -112,13 +112,13 @@ class AllocateOrderUsecaseTest {
     UUID messageId = UUID.randomUUID();
     Order order = pendingOrder("SKU-1", 5);
     StockPool stockPool = stockPool("SKU-1", 10);
-    given(inbox.claimIfNew(messageId)).willReturn(true);
+    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
     given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
     given(allocationCoordinator.allocateOrder(order, stockPool, fixedNow))
         .willReturn(Optional.of(reservation(order, stockPool)));
 
-    usecase.handle(new AllocateOrderCommand(order.getId()), messageId);
+    usecase.handle(new AllocateOrderCommand(order.getId()), message(messageId));
 
     then(allocationCoordinator).should().allocateOrder(order, stockPool, fixedNow);
   }
@@ -129,13 +129,13 @@ class AllocateOrderUsecaseTest {
     UUID messageId = UUID.randomUUID();
     Order order = pendingOrder("SKU-1", 5);
     StockPool stockPool = stockPool("SKU-1", 2);
-    given(inbox.claimIfNew(messageId)).willReturn(true);
+    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
     given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
     given(allocationCoordinator.allocateOrder(order, stockPool, fixedNow))
         .willReturn(Optional.empty());
 
-    usecase.handle(new AllocateOrderCommand(order.getId()), messageId);
+    usecase.handle(new AllocateOrderCommand(order.getId()), message(messageId));
 
     then(allocationCoordinator).should().backorderOrder(order, fixedNow);
   }
@@ -153,5 +153,9 @@ class AllocateOrderUsecaseTest {
   private StockReservation reservation(Order order, StockPool stockPool) {
     return StockReservation.create(
         UUID.randomUUID(), order.getId(), stockPool.getId(), order.getQuantity(), fixedNow);
+  }
+
+  private MessageMetadata message(UUID eventId) {
+    return new MessageMetadata(eventId, "OrderPlacedIntegrationEvent");
   }
 }

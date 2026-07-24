@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：11 / 17
+目前進度：12 / 17
 
-可立即執行：`SR-12`、`SR-16`。SR-12 建立 Domain Event translator 與 transactional Inbox／Outbox adapters；SR-16 建立 dev-only consistent seed data。
+可立即執行：`SR-13`、`SR-16`。SR-13 建立 Debezium Outbox CDC 到 Kafka；SR-16 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
@@ -156,7 +156,7 @@ SR-08 ─> SR-09 ─┐
   - 以 migration 加入 `stock_reservations` table、`order_id` unique、foreign keys、quantity 與狀態限制。
   - 實作 `findActiveByOrderId()` 並增加 mapping、constraint 與 repository tests。
 
-- [ ] **SR-12 — Domain Event translation and transactional Inbox/Outbox adapters**（依賴 SR-03、SR-05、SR-08）
+- [x] **SR-12 — Domain Event translation and transactional Inbox/Outbox adapters**（依賴 SR-03、SR-05、SR-08）
   - 補齊 typed Inbox／Outbox entities、repositories 與 migrations。
   - Inbox 以 `event_id` unique／primary key 保證 claim idempotency。
   - Outbox 保存 event identity、aggregate reference、type、payload 與 occurred timestamp；row 寫入後不可由應用程式標記發布狀態。
@@ -177,7 +177,10 @@ SR-08 ─> SR-09 ─┐
 - [ ] **SR-14 — Transaction wiring and Integration Event entrypoints**（依賴 SR-05～SR-13）
   - 將 application ports 接到 JPA、Inbox 與 Outbox adapters。
   - 確保 Aggregate 更新、Reservation 寫入、Domain Event translation 與 Outbox 寫入位於同一個 transaction；Inbox claim 與接收 command 的業務更新位於同一個 transaction。
-  - 接回 Kafka Integration Event listeners／consumers，將事件轉為純業務 command，並以獨立 `messageId` 呼叫 use case；use case 先 claim Inbox 再執行業務邏輯。
+  - 接回 Kafka Integration Event consumers：先將 Debezium／Kafka record 反序列化為 typed Integration Event，再映射為本服務的純業務 Command；不得讓 use case 依賴 Kafka record、Debezium envelope 或外部 JSON。
+  - 建立 `InboundCommand<C>`，封裝 `command` 與 SR-12 的 `MessageMetadata(eventId, eventType)`；consumer 是 metadata 的唯一來源。
+  - message-driven use case 以 `handle(InboundCommand<C>)` 作 transaction boundary，先 claim Inbox 再執行業務邏輯；同步 HTTP／內部操作 use case 不強制使用此 wrapper。
+  - 初始映射：`OrderPlacedIntegrationEvent` → `InboundCommand<AllocateOrderCommand>`、`OrderCancelledIntegrationEvent` → `InboundCommand<ReleaseReservationCommand>`、`StockReplenishedIntegrationEvent` → `InboundCommand<ReplenishStockCommand>`。
   - 以 `order_id` unique constraint 作為同一訂單只能建立一筆 reservation 的最後防線。
   - 增加 allocation、cancel、replenishment transaction rollback integration tests。
 
@@ -277,13 +280,13 @@ Inbox row 的存在代表該事件已隨業務更新成功 commit；若業務 tr
 
 | 欄位 | 型別 | 限制／說明 |
 |---|---|---|
-| `event_id` | `UUID` | Primary key |
-| `aggregate_type` | `VARCHAR` | `NOT NULL` |
-| `aggregate_id` | `VARCHAR` | `NOT NULL`；支援 UUID／其他 aggregate id 表示 |
-| `event_type` | `VARCHAR` | `NOT NULL` |
+| `id` | `UUID` | Primary key；Debezium event identity |
+| `aggregatetype` | `VARCHAR` | `NOT NULL`；Debezium topic routing value |
+| `aggregateid` | `VARCHAR` | `NOT NULL`；Kafka message key，支援 UUID／其他 aggregate id 表示 |
+| `type` | `VARCHAR` | `NOT NULL`；Integration Event type |
 | `payload` | `JSONB` | `NOT NULL` |
-| `occurred_at` | `TIMESTAMPTZ` | `NOT NULL` |
-本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `occurred_at` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
+| `timestamp` | `TIMESTAMPTZ` | `NOT NULL`；Integration Event 發生時間 |
+本專案採用 Debezium Outbox Event Router 的 canonical column names，避免 SR-13 額外欄位 mapping。本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `timestamp` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
 
 Debezium 正常 restart 時依 Kafka Connect offset 與 PostgreSQL WAL 接續，不重新掃描 Outbox。第一次建立 connector，或 offset 遺失後重建 connector 時，會 snapshot 當時仍在 retention 範圍內的 Outbox rows；consumer Inbox 必須能安全忽略因此重送的相同 `event_id`。
 

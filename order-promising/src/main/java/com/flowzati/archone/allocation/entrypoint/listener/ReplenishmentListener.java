@@ -1,7 +1,9 @@
 package com.flowzati.archone.allocation.entrypoint.listener;
 
 import com.flowzati.archone.allocation.application.usecase.ReplenishmentUsecase;
+import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.common.inbox.MessageMetadata;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +17,11 @@ public class ReplenishmentListener {
 
   @EventListener
   public void onEvent(StockReplenishedIntegrationEvent event) {
-    usecase.handle(event);
+    usecase.handle(
+        new ReplenishStockCommand(event.getSku(), event.getQuantity()),
+        new MessageMetadata(
+            event.getEventId(),
+            StockReplenishedIntegrationEvent.class.getSimpleName())
+    );
   }
 }

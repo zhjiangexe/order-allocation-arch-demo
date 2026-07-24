@@ -1,6 +1,7 @@
 package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.model.ReservationStatus;
@@ -8,7 +9,8 @@ import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.domain.service.AllocationService;
-import com.flowzati.archone.common.inbox.Inbox;
+import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.event.OrderAllocated;
@@ -42,7 +44,7 @@ class ReplenishmentUsecaseTest {
   private OrderRepository orderRepository;
   private StockReservationRepository stockReservationRepository;
   private OrderAllocationCoordinator allocationService;
-  private Inbox inbox;
+  private InboxRepo inboxRepo;
   private ApplicationEventPublisher eventPublisher;
   private Clock clock;
   private ReplenishmentUsecase replenishmentUsecase;
@@ -66,12 +68,12 @@ class ReplenishmentUsecaseTest {
         eventPublisher
     );
 
-    inbox = mock(Inbox.class);
+    inboxRepo = mock(InboxRepo.class);
     clock = Clock.fixed(fixedNow, ZoneId.of("UTC"));
 
     replenishmentUsecase = new ReplenishmentUsecase(
         clock,
-        inbox,
+        inboxRepo,
         orderRepository,
         stockPoolRepository,
         this.allocationService
@@ -87,7 +89,7 @@ class ReplenishmentUsecaseTest {
     int quantity = 10;
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, quantity);
 
-    when(inbox.claimIfNew(eventId)).thenReturn(true);
+    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
 
     // 初始庫存池為 0
     StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), sku, 0, 0, 0L);
@@ -99,10 +101,10 @@ class ReplenishmentUsecaseTest {
         .thenReturn(backorders);
 
     // Act
-    replenishmentUsecase.handle(event);
+    replenishmentUsecase.handle(command(event), message(eventId));
 
     // Assert
-    verify(inbox).claimIfNew(eventId);
+    verify(inboxRepo).claimIfNew(message(eventId));
     verify(stockPoolRepository).findBySku(sku);
     verify(orderRepository).findBackordersBySkuInFifoOrder(sku);
     verify(orderRepository).save(backorderedOrder);
@@ -133,7 +135,7 @@ class ReplenishmentUsecaseTest {
     int replenishedQuantity = 5;
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, replenishedQuantity);
 
-    when(inbox.claimIfNew(eventId)).thenReturn(true);
+    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
 
     // 庫存池初始為 0
     StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), sku, 0, 0, 0L);
@@ -147,7 +149,7 @@ class ReplenishmentUsecaseTest {
         .thenReturn(backorders);
 
     // Act
-    replenishmentUsecase.handle(event);
+    replenishmentUsecase.handle(command(event), message(eventId));
 
     // Assert
     // 0 + 5 = 5
@@ -174,13 +176,13 @@ class ReplenishmentUsecaseTest {
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, quantity);
 
     StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), sku, 0, 0, 0L);
-    when(inbox.claimIfNew(eventId)).thenReturn(true);
+    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
     when(orderRepository.findBackordersBySkuInFifoOrder(sku))
         .thenReturn(List.of());
 
     // Act
-    replenishmentUsecase.handle(event);
+    replenishmentUsecase.handle(command(event), message(eventId));
 
     // Assert
     verify(stockPoolRepository).findBySku(sku);
@@ -197,13 +199,13 @@ class ReplenishmentUsecaseTest {
     // Arrange
     UUID eventId = UUID.randomUUID();
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, "SKU-1", 10);
-    when(inbox.claimIfNew(eventId)).thenReturn(false);
+    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(false);
 
     // Act
-    replenishmentUsecase.handle(event);
+    replenishmentUsecase.handle(command(event), message(eventId));
 
     // Assert
-    verify(inbox).claimIfNew(eventId);
+    verify(inboxRepo).claimIfNew(message(eventId));
     verifyNoInteractions(stockPoolRepository, orderRepository, stockReservationRepository, eventPublisher);
   }
 
@@ -213,10 +215,10 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     StockReplenishedIntegrationEvent event =
         new StockReplenishedIntegrationEvent(eventId, "UNKNOWN-SKU", 10);
-    when(inbox.claimIfNew(eventId)).thenReturn(true);
+    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findBySku("UNKNOWN-SKU")).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> replenishmentUsecase.handle(event))
+    assertThatThrownBy(() -> replenishmentUsecase.handle(command(event), message(eventId)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("StockPool not found for SKU: UNKNOWN-SKU");
 
@@ -228,6 +230,14 @@ class ReplenishmentUsecaseTest {
     order.markBackOrdered(fixedNow.minusSeconds(1));
     order.releaseDomainEvents();
     return order;
+  }
+
+  private MessageMetadata message(UUID eventId) {
+    return new MessageMetadata(eventId, StockReplenishedIntegrationEvent.class.getSimpleName());
+  }
+
+  private ReplenishStockCommand command(StockReplenishedIntegrationEvent event) {
+    return new ReplenishStockCommand(event.getSku(), event.getQuantity());
   }
 
 }

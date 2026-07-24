@@ -2,6 +2,7 @@ package com.flowzati.archone.allocation.entrypoint.listener;
 
 import com.flowzati.archone.allocation.application.command.ReleaseReservationCommand;
 import com.flowzati.archone.allocation.application.usecase.ReleaseReservationUsecase;
+import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,11 @@ public class ReleaseReservationListener {
 
   @EventListener
   public void onEvent(OrderCancelledIntegrationEvent event) {
-    usecase.handle(new ReleaseReservationCommand(event.getOrderId()), event.getEventId());
+    usecase.handle(
+        new ReleaseReservationCommand(event.getOrderId()),
+        new MessageMetadata(
+            event.getEventId(),
+            OrderCancelledIntegrationEvent.class.getSimpleName())
+    );
   }
 }

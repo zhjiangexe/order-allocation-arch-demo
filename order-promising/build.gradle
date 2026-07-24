@@ -26,6 +26,7 @@ dependencies {
     implementation libs.spring.cloud.starter.circuitbreaker.resilience4j
     implementation libs.bundles.spring.modulith
     implementation libs.uuid.creator
+    implementation libs.jackson.datatype.jsr310
 
 
     developmentOnly libs.spring.boot.devtools

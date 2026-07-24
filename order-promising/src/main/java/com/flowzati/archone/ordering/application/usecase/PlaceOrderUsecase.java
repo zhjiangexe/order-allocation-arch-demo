@@ -2,7 +2,6 @@ package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
@@ -29,8 +28,6 @@ public class PlaceOrderUsecase {
     Order placedOrder = Order.place(orderId, sku, quantity, placedAt);
     orderRepository.save(placedOrder);
     placedOrder.releaseDomainEvents().forEach(publisher::publishEvent);
-    publisher.publishEvent(new OrderPlacedIntegrationEvent(
-        IdGenerator.nextId(), orderId, sku, quantity, placedAt));
     return orderId;
   }
 }
