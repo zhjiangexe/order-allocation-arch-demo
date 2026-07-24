@@ -85,14 +85,30 @@ public class OrderAllocationCoordinator {
 
     List<Order> allocatedOrders =
         allocationService.allocateBackorders(backorders, stockPool, now);
+    List<StockReservation> reservations = allocatedOrders.stream()
+        .map(order -> StockReservation.create(
+            IdGenerator.nextId(),
+            order.getId(),
+            stockPool.getId(),
+            order.getQuantity(),
+            now))
+        .toList();
 
-    return persistAllocation(allocatedOrders, stockPool);
+    return persistReplenishmentAllocation(allocatedOrders, reservations, stockPool);
   }
 
-  private List<Order> persistAllocation(List<Order> allocatedOrders, StockPool stockPool) {
+  private List<Order> persistReplenishmentAllocation(
+      List<Order> allocatedOrders,
+      List<StockReservation> reservations,
+      StockPool stockPool
+  ) {
     stockPoolRepository.save(stockPool);
     allocatedOrders.forEach(orderRepository::save);
+    reservations.forEach(stockReservationRepository::save);
     publishDomainEvents(allocatedOrders);
+    for (int i = 0; i < allocatedOrders.size(); i++) {
+      publishAllocationCompleted(allocatedOrders.get(i), reservations.get(i));
+    }
     return allocatedOrders;
   }
 
@@ -137,6 +153,10 @@ public class OrderAllocationCoordinator {
     orderRepository.save(order);
     stockReservationRepository.save(reservation);
     publishDomainEvents(List.of(order));
+    publishAllocationCompleted(order, reservation);
+  }
+
+  private void publishAllocationCompleted(Order order, StockReservation reservation) {
     eventPublisher.publishEvent(new OrderAllocationCompleted(
         order.getId(),
         reservation.getId(),

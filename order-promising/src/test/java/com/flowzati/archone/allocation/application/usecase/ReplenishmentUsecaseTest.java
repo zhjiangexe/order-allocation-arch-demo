@@ -3,6 +3,8 @@ package com.flowzati.archone.allocation.application.usecase;
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
+import com.flowzati.archone.allocation.domain.model.ReservationStatus;
+import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.domain.service.AllocationService;
@@ -14,6 +16,7 @@ import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
@@ -24,6 +27,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -103,11 +107,21 @@ class ReplenishmentUsecaseTest {
     verify(orderRepository).findBackordersBySkuInFifoOrder(sku);
     verify(orderRepository).save(backorderedOrder);
     verify(stockPoolRepository).save(stockPool);
+    ArgumentCaptor<StockReservation> reservationCaptor =
+        ArgumentCaptor.forClass(StockReservation.class);
+    verify(stockReservationRepository).save(reservationCaptor.capture());
     verify(eventPublisher, atLeastOnce()).publishEvent(any(OrderAllocated.class));
 
     assertThat(backorderedOrder.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(backorderedOrder.getAllocatedAt()).isEqualTo(fixedNow);
     assertThat(stockPool.availableToPromise()).isEqualTo(5); // 0 + 10 - 5 = 5
+    assertThat(reservationCaptor.getValue()).satisfies(reservation -> {
+      assertThat(reservation.getOrderId()).isEqualTo(backorderedOrder.getId());
+      assertThat(reservation.getStockPoolId()).isEqualTo(stockPool.getId());
+      assertThat(reservation.getQuantity()).isEqualTo(5);
+      assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
+      assertThat(reservation.getReservedAt()).isEqualTo(fixedNow);
+    });
   }
 
   @Test
@@ -144,6 +158,7 @@ class ReplenishmentUsecaseTest {
     assertThat(stockPool.availableToPromise()).isEqualTo(2);
 
     verify(orderRepository).save(order1);
+    verify(stockReservationRepository).save(any(StockReservation.class));
     // 在新設計中，補充失敗的訂單不會被 save，因為狀態沒變
     verify(orderRepository, never()).save(order2);
     verify(stockPoolRepository).save(stockPool);
@@ -172,6 +187,7 @@ class ReplenishmentUsecaseTest {
     verify(stockPoolRepository).save(stockPool);
     assertThat(stockPool.availableToPromise()).isEqualTo(10);
     verify(orderRepository, never()).save(any());
+    verify(stockReservationRepository, never()).save(any());
     verify(eventPublisher, never()).publishEvent(any());
   }
 
@@ -188,7 +204,23 @@ class ReplenishmentUsecaseTest {
 
     // Assert
     verify(inbox).claimIfNew(eventId);
-    verifyNoInteractions(stockPoolRepository, orderRepository, eventPublisher);
+    verifyNoInteractions(stockPoolRepository, orderRepository, stockReservationRepository, eventPublisher);
+  }
+
+  @Test
+  @DisplayName("找不到對應 SKU 的 StockPool 時應失敗且不查詢 backorders")
+  void shouldFailWhenStockPoolDoesNotExist() {
+    UUID eventId = UUID.randomUUID();
+    StockReplenishedIntegrationEvent event =
+        new StockReplenishedIntegrationEvent(eventId, "UNKNOWN-SKU", 10);
+    when(inbox.claimIfNew(eventId)).thenReturn(true);
+    when(stockPoolRepository.findBySku("UNKNOWN-SKU")).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> replenishmentUsecase.handle(event))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("StockPool not found for SKU: UNKNOWN-SKU");
+
+    verifyNoInteractions(orderRepository, stockReservationRepository, eventPublisher);
   }
 
   private Order backorderedOrder(String sku, int quantity) {

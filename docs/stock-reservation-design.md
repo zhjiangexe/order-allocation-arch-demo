@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：10 / 17
+目前進度：11 / 17
 
-可立即執行：`SR-07`、`SR-12`、`SR-16`。SR-07 補齊補貨 application flow；SR-12 建立 Domain Event translator 與 transactional Inbox／Outbox adapters；SR-16 建立 dev-only consistent seed data。
+可立即執行：`SR-12`、`SR-16`。SR-12 建立 Domain Event translator 與 transactional Inbox／Outbox adapters；SR-16 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
@@ -121,10 +121,11 @@ SR-08 ─> SR-09 ─┐
   - 釋放量大於 `reservedQuantity` 時拋出錯誤並 rollback，不以歸零掩蓋不一致。
   - 使用 mocked ports 測試各種取消狀態與冪等行為。
 
-- [ ] **SR-07 — Replenishment application flow**（依賴 SR-01、SR-03～SR-05）
+- [x] **SR-07 — Replenishment application flow**（依賴 SR-01、SR-03～SR-05）
   - `StockReplenishedIntegrationEvent` 僅接受正向增量並增加 `onHandQuantity`。
   - 透過 FIFO repository port 取得穩定排序的 backorders，交由 SR-04 policy 執行。
   - 第一張無法完整 reservation 時停止。
+  - 每張成功配置的 backorder 建立 ACTIVE `StockReservation`；由 Coordinator 統一保存 StockPool、Orders 與 Reservations，並發布完整的 `OrderAllocationCompleted` Domain Event。
   - 使用 mocked ports 測試增量冪等、FIFO、head-of-line blocking 與未知 SKU 錯誤。
 
 ### Independent infrastructure foundation（可與內圈平行）
