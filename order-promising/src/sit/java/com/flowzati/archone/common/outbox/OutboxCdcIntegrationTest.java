@@ -2,6 +2,7 @@ package com.flowzati.archone.common.outbox;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -27,6 +28,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -39,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class OutboxCdcIntegrationTest {
 
-  private static final String ORDER_EVENTS_TOPIC = OutboxRoutes.ORDERING_ORDER_EVENTS;
+  private static final String ORDER_EVENTS_TOPIC = IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC;
   private static final String PRIMARY_CONNECTOR = "order-promising-outbox";
   private static final String DEBEZIUM_IMAGE = "quay.io/debezium/connect:3.5.2.Final";
   private static final Network NETWORK = Network.newNetwork();
@@ -78,6 +80,7 @@ class OutboxCdcIntegrationTest {
   }
 
   @Test
+  @DisplayName("已提交 Outbox row 應路由至 Kafka、重啟後續傳並可由 snapshot 回放")
   void shouldRouteCommittedOutboxRowsResumeAfterRestartAndReplaySnapshot() {
     try (KafkaConsumer<String, String> consumer = consumer()) {
       consumer.subscribe(List.of(ORDER_EVENTS_TOPIC));

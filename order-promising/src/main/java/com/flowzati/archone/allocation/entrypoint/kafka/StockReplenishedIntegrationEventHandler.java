@@ -6,7 +6,7 @@ import com.flowzati.archone.allocation.application.usecase.ReplenishmentUsecase;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.messaging.kafka.IntegrationEventHandler;
-import com.flowzati.archone.common.outbox.OutboxRoutes;
+import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,7 +21,7 @@ class StockReplenishedIntegrationEventHandler
 
   @Override
   public String topic() {
-    return OutboxRoutes.INVENTORY_STOCK_EVENTS;
+    return IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC;
   }
 
   @Override

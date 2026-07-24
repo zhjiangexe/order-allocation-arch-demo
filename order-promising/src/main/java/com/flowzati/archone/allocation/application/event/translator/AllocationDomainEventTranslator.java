@@ -6,7 +6,7 @@ import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
-import com.flowzati.archone.common.outbox.OutboxRoutes;
+import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.domain.event.OrderBackordered;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -32,7 +32,7 @@ public class AllocationDomainEventTranslator {
             event.allocatedAt()),
         OutboxAggregateTypes.ORDER,
         event.orderId(),
-        OutboxRoutes.PROMISING_ALLOCATION_EVENTS,
+        IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC,
         event.allocatedAt()
     );
   }
@@ -48,7 +48,7 @@ public class AllocationDomainEventTranslator {
             event.backorderedSince()),
         OutboxAggregateTypes.ORDER,
         event.orderId(),
-        OutboxRoutes.PROMISING_ALLOCATION_EVENTS,
+        IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC,
         event.backorderedSince()
     );
   }

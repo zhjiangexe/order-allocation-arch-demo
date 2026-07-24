@@ -540,13 +540,19 @@ quantity
 
 ## Kafka topics 與 partition key
 
-Topic 依事件生產端的 bounded context 劃分，而非每個 event type 一個 topic。每則訊息仍保留 `eventType`，consumer 依 type 分派；未來若個別事件有不同吞吐、權限或 SLA，再拆出獨立 topic。
+Topic 命名採用 `{事件生產端 bounded context}.{事件主題}-events`。它描述的是**誰擁有並發布這份跨邊界契約**，不是目前程式部署在哪個 application，也不是 Java package 或 Aggregate 名稱。故即使目前 `Ordering` 與 `Promising` 同在 `order-promising` 專案中，仍保留各自的 topic prefix；日後拆成獨立服務時，topic 契約不必因此改名。
 
-| Topic | 生產端事件 | Message key |
-|---|---|---|
-| `ordering.order-events` | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` | `orderId` |
-| `inventory.stock-events` | `StockReplenishedIntegrationEvent` | `sku` |
-| `promising.allocation-events` | `OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent` | `orderId` |
+目前的 bounded context 邊界如下：`Ordering` 擁有訂單生命週期事件；外部 `Inventory` 擁有庫存異動事件；`Promising` 擁有配置結果事件。`allocation` 是目前 Promising 內部的核心能力，不是已獨立對外發布契約的 bounded context，因此其輸出使用 `promising.allocation-events`，不使用 `allocation.*`。`inventory.stock-events` 中的 `inventory` 是生產端 context，`stock` 是事件業務主題，兩者不是同義詞。
+
+Topic 依生產端 bounded context 劃分，而非每個 event type 一個 topic。每則訊息仍保留 `eventType`，consumer 依 type 分派；未來若個別事件有不同吞吐、權限或 SLA，再拆出獨立 topic。
+
+| Topic | 生產端 bounded context | 生產端事件 | Message key |
+|---|---|---|---|
+| `ordering.order-events` | Ordering | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` | `orderId` |
+| `inventory.stock-events` | Inventory（外部上游） | `StockReplenishedIntegrationEvent` | `sku` |
+| `promising.allocation-events` | Promising | `OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent` | `orderId` |
+
+Java 常數名稱以 `*_TOPIC` 結尾，明確表示其值是 Kafka topic，例如 `ORDERING_ORDER_EVENTS_TOPIC`。topic 字串中的 `-events` 為複數，表示一條可承載多個同類事件的事件串流。現階段不加 `.v1`；只有發生無法相容的契約變更，且無法以平滑演進處理時，才新增版本化 topic 並規劃 consumer 遷移。
 
 目前不使用複合 key。`orderId` 已是全域 UUID；`StockPool` 目前以 SKU 識別，因此補貨事件以 `sku` 維持同 SKU 的 partition 內順序。未來若引入多倉且 StockPool 識別改為 `(warehouseId, sku)`，再改用 `stockPoolId` 或 `warehouseId:sku`。
 

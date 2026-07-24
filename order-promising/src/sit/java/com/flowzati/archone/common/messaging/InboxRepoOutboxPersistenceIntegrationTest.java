@@ -8,7 +8,7 @@ import com.flowzati.archone.common.outbox.Outbox;
 import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxRepo;
 import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
-import com.flowzati.archone.common.outbox.OutboxRoutes;
+import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.common.outbox.infrastructure.entity.OutboxEntity;
 import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
 import com.flowzati.archone.common.outbox.infrastructure.repository.OutboxRepoImpl;
@@ -18,6 +18,7 @@ import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -75,6 +76,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   private JdbcTemplate jdbcTemplate;
 
   @Test
+  @DisplayName("同一事件應只成功 claim 一次並保存事件類型")
   void shouldClaimInboxEventOnlyOnceAndPersistItsType() {
     UUID eventId = UUID.randomUUID();
 
@@ -86,6 +88,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   }
 
   @Test
+  @DisplayName("Outbox 應保存不可變的完整事件 payload")
   void shouldPersistImmutableOutboxEventPayload() {
     UUID eventId = UUID.randomUUID();
     Instant occurredAt = Instant.parse("2026-07-24T10:00:00Z");
@@ -94,20 +97,21 @@ class InboxRepoOutboxPersistenceIntegrationTest {
         OutboxAggregateTypes.ORDER,
         UUID.randomUUID().toString(),
         "OrderPlacedIntegrationEvent",
-        OutboxRoutes.ORDERING_ORDER_EVENTS,
+        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
         "{\"eventId\":\"" + eventId + "\"}",
         occurredAt
     ));
 
     OutboxEntity row = outboxRepository.findById(eventId).orElseThrow();
     assertThat(row.getEventType()).isEqualTo("OrderPlacedIntegrationEvent");
-    assertThat(row.getRoute()).isEqualTo(OutboxRoutes.ORDERING_ORDER_EVENTS);
+    assertThat(row.getRoute()).isEqualTo(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC);
     assertThat(row.getPayload()).contains(eventId.toString());
     assertThat(row.getOccurredAt()).isEqualTo(occurredAt);
   }
 
   @Test
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  @DisplayName("業務異動失敗時應連同翻譯後的 Outbox 一起回滾")
   void shouldRollbackBusinessChangeAndTranslatedOutboxTogether() {
     UUID orderId = UUID.randomUUID();
     Instant placedAt = Instant.parse("2026-07-24T10:00:00Z");

@@ -3,7 +3,7 @@ package com.flowzati.archone.ordering.application.event.translator;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
-import com.flowzati.archone.common.outbox.OutboxRoutes;
+import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
@@ -27,7 +27,7 @@ public class OrderingDomainEventTranslator {
             IdGenerator.nextId(), event.orderId(), event.sku(), event.quantity(), event.placedAt()),
         OutboxAggregateTypes.ORDER,
         event.orderId(),
-        OutboxRoutes.ORDERING_ORDER_EVENTS,
+        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
         event.placedAt()
     );
   }
@@ -38,7 +38,7 @@ public class OrderingDomainEventTranslator {
         new OrderCancelledIntegrationEvent(IdGenerator.nextId(), event.orderId(), event.cancelledAt()),
         OutboxAggregateTypes.ORDER,
         event.orderId(),
-        OutboxRoutes.ORDERING_ORDER_EVENTS,
+        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
         event.cancelledAt()
     );
   }
