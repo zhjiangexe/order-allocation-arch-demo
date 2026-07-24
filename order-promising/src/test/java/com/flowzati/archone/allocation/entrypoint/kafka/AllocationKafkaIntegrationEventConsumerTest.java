@@ -5,6 +5,8 @@ import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.command.ReleaseReservationCommand;
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.allocation.application.retry.AllocationRetryExecutor;
+import com.flowzati.archone.allocation.infrastructure.retry.SpringAllocationRetryExecutor;
 import com.flowzati.archone.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.allocation.application.usecase.ReleaseReservationUsecase;
 import com.flowzati.archone.allocation.application.usecase.ReplenishmentUsecase;
@@ -15,8 +17,12 @@ import com.flowzati.archone.ordering.application.event.OrderCancelledIntegration
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,13 +39,17 @@ class AllocationKafkaIntegrationEventConsumerTest {
   private final AllocateOrderUsecase allocateOrderUsecase = mock(AllocateOrderUsecase.class);
   private final ReleaseReservationUsecase releaseReservationUsecase = mock(ReleaseReservationUsecase.class);
   private final ReplenishmentUsecase replenishmentUsecase = mock(ReplenishmentUsecase.class);
+  private final AllocationRetryExecutor retryExecutor = new SpringAllocationRetryExecutor(new RetryTemplate(RetryPolicy.builder()
+      .maxRetries(2)
+      .delay(Duration.ZERO)
+      .build()), new SimpleMeterRegistry());
   private final AllocationKafkaIntegrationEventConsumer consumer = new AllocationKafkaIntegrationEventConsumer(
       new KafkaIntegrationEventDispatcher(
           objectMapper,
           List.of(
-              new OrderPlacedIntegrationEventHandler(allocateOrderUsecase),
-              new OrderCancelledIntegrationEventHandler(releaseReservationUsecase),
-              new StockReplenishedIntegrationEventHandler(replenishmentUsecase))));
+              new OrderPlacedIntegrationEventHandler(allocateOrderUsecase, retryExecutor),
+              new OrderCancelledIntegrationEventHandler(releaseReservationUsecase, retryExecutor),
+              new StockReplenishedIntegrationEventHandler(replenishmentUsecase, retryExecutor))));
 
   @Test
   @DisplayName("收到下單整合事件時應轉為配置訂單命令")

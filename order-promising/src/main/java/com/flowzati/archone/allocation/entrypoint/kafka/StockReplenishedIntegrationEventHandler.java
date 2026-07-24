@@ -2,6 +2,8 @@ package com.flowzati.archone.allocation.entrypoint.kafka;
 
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.allocation.application.retry.AllocationRetryContext;
+import com.flowzati.archone.allocation.application.retry.AllocationRetryExecutor;
 import com.flowzati.archone.allocation.application.usecase.ReplenishmentUsecase;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
@@ -14,9 +16,14 @@ class StockReplenishedIntegrationEventHandler
     implements IntegrationEventHandler<StockReplenishedIntegrationEvent> {
 
   private final ReplenishmentUsecase replenishmentUsecase;
+  private final AllocationRetryExecutor retryExecutor;
 
-  StockReplenishedIntegrationEventHandler(ReplenishmentUsecase replenishmentUsecase) {
+  StockReplenishedIntegrationEventHandler(
+      ReplenishmentUsecase replenishmentUsecase,
+      AllocationRetryExecutor retryExecutor
+  ) {
     this.replenishmentUsecase = replenishmentUsecase;
+    this.retryExecutor = retryExecutor;
   }
 
   @Override
@@ -32,6 +39,9 @@ class StockReplenishedIntegrationEventHandler
   @Override
   public void handleTyped(StockReplenishedIntegrationEvent event, MessageMetadata metadata) {
     ReplenishStockCommand replenishStockCommand = new ReplenishStockCommand(event.getSku(), event.getQuantity());
-    replenishmentUsecase.handle(new InboundCommand<>(replenishStockCommand, metadata));
+    InboundCommand<ReplenishStockCommand> inbound = new InboundCommand<>(replenishStockCommand, metadata);
+    retryExecutor.execute(
+        new AllocationRetryContext("replenish-stock", metadata.eventId(), null, event.getSku()),
+        () -> replenishmentUsecase.handle(inbound));
   }
 }

@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：16 / 18
+目前進度：18 / 18
 
-可立即執行：`SR-15`。SR-15 為 optimistic-lock retry 與 observability；SR-18 仍等待 SR-15 完成。
+目前所有 SR-01～SR-18 任務均已完成。
 
 主要相依路徑：
 
@@ -186,8 +186,8 @@ SR-08 ─> SR-09 ─┐
   - 以 `order_id` unique constraint 作為同一訂單只能建立一筆 reservation 的最後防線。
   - 增加 allocation、cancel、replenishment transaction rollback integration tests。
 
-- [ ] **SR-15 — Optimistic-lock retry and observability**（依賴 SR-14）
-  - 以獨立 Retrying Handler 包住 Transactional Usecase，最多嘗試三次。
+- [x] **SR-15 — Optimistic-lock retry and observability**（依賴 SR-14）
+  - 以獨立 `AllocationRetryExecutor` 與 Spring `RetryTemplate` 包住 Transactional Usecase，最多嘗試三次。
   - 每次重試重新讀取 Order、StockPool、Reservation 與 FIFO 清單。
   - 重試耗盡時拋出 `AllocationConcurrencyExhaustedException`，不得轉成 BACKORDERED。
   - 增加 structured error log 與 `order_allocation_retry_exhausted_total` metric。
@@ -204,7 +204,7 @@ SR-08 ─> SR-09 ─┐
   - 使用 SR-08 的 PostgreSQL test environment，驗證 allocation、取消、補貨、嚴格 FIFO 與 Inbox／Outbox 的端到端流程。
   - 確認未引入多倉、shipment、WMS、expiration 或 safety stock。
 
-- [ ] **SR-18 — Retry and concurrency end-to-end verification**（依賴 SR-15、SR-17）
+- [x] **SR-18 — Retry and concurrency end-to-end verification**（依賴 SR-15、SR-17）
   - 使用 SR-08 的 PostgreSQL test environment，新增兩筆訂單競爭同一 StockPool 的整合測試，確認不會超賣。
   - 驗證 optimistic-lock conflict 會重新讀取資料並依 retry policy 收斂為正確的 allocation 或 backorder 結果。
   - 驗證 retry exhausted 時拋出 `AllocationConcurrencyExhaustedException`、所有嘗試均 rollback，且不會將技術衝突錯誤建模為 BACKORDERED。
@@ -411,13 +411,13 @@ Optimistic lock conflict 不代表庫存不足，不能直接將 Order 標記為
 
 ```text
 Event Listener / Consumer
-  → Retrying Handler（最多三次）
+  → AllocationRetryExecutor（RetryOperations、耗盡時轉換例外與觀測）
     → Transactional Usecase
       → Coordinator
         → Repositories
 ```
 
-Retrying Handler 與 Transactional Usecase 應為不同 Spring Bean，確保每次重試都經過 proxy 並建立新的 transaction。不能在已標記 rollback-only 的 transaction 內繼續。
+`AllocationRetryExecutor` 是 application port，`SpringAllocationRetryExecutor` 是其 infrastructure 實作；兩者與 Transactional Usecase 應為不同 Spring Bean。`AllocationRetryConfiguration` 以 `RetryPolicy` 建立 `RetryOperations` bean（目前實作為 `RetryTemplate`）；每次 retry 都重新呼叫 Transactional Usecase 的 proxy，建立新的 transaction，不能在已標記 rollback-only 的 transaction 內繼續。策略僅重試 optimistic-lock conflict，初始呼叫加最多兩次 retry。
 
 重試耗盡時：
 
