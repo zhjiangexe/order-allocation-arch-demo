@@ -221,6 +221,17 @@ SR-08 ─> SR-09 ─┐
   - 對帳最終持久化狀態：10 張 Order `ALLOCATED`、990 張 `BACKORDERED`；10 筆 ACTIVE StockReservation 總量為 10；StockPool 的 ATP 為 0；1,000 個 eventId 均已於 Inbox claim；Outbox 記錄總數為 1,000 且對應最終 Order 結果。
   - **範圍邊界：** 本示範驗證的是 bounded database concurrency 下的 1,000 筆併發 submissions 最終收斂，**不是** production throughput/latency benchmark，也不啟動 Kafka broker、Debezium connector 或另一套 load-testing 工具；不變更 allocation policy、Kafka topics 或 Integration Event 契約；不實作 FIFO replenishment 或 read-model replay demo。
 
+### Demo-02 — FIFO 補貨批次劇本（不在 SR-01～SR-18 編號內）
+
+- [x] **Demo-02 — FIFO replenishment batch demo**（依賴 SR-07、SR-17；延續 Demo-01 Non-Goals 提到的下一個示範）
+  - 既有的 `AllocationWorkflowEndToEndIntegrationTest` 只用兩張訂單驗證 FIFO 補貨，不足以在量體下暴露「跳過 head-of-line blocking 訂單」這類演算法錯誤。Demo-02 將排隊量體放大到 1,000 張同 SKU BACKORDERED 訂單，驗證循序（非併發）`StockReplenishedIntegrationEvent` 喚醒佇列後的批次配置決策。
+  - 直接以 `Order.rehydrate(...)` 種入已排序穩定（`backorderedSince` 逐筆遞增）的 BACKORDERED fixture，不經過真正的下單配置流程；驗證的是補貨觸發批次配置這一段，下單配置路徑已由 Demo-01 覆蓋。
+  - 數量分布固定、可手算：前 500 張 quantity 皆為 1，第 501 張是刻意補不滿的 blocker（quantity 999），後 499 張 quantity 皆為 1。不用隨機數量，避免測試自己重新實作一次 FIFO 演算法來推導期望值。
+  - 第一次補貨量精準等於前 500 張總和（500），對帳：500 張 Order `ALLOCATED`、500 張仍 `BACKORDERED`（含 blocker 與其後 499 張未被跳過配置的小單）；500 筆 ACTIVE StockReservation 總量為 500；StockPool on-hand=500、reserved=500、ATP=0；1 個 eventId 已於 Inbox claim；Outbox 恰 500 筆 `OrderAllocatedIntegrationEvent`。
+  - 接著送第二次（循序）補貨，量等於 blocker 與其後 499 張的總和（1,498），驗證「喚醒佇列」的後半段——先前卡住的訂單能正確恢復配置：全部 1,000 張變為 `ALLOCATED`、1,000 筆 ACTIVE StockReservation 總量 1,998、StockPool on-hand=1,998、reserved=1,998、ATP=0、Inbox 累積 2 筆 claim、Outbox 恰 1,000 筆 `OrderAllocatedIntegrationEvent`。
+  - 除了聚合數字，額外用 `firstOrderId`／`blockerOrderId`／`lastOrderId` 三個關鍵位置的逐筆身分驗證，確認 blocker 在第一階段仍是 BACKORDERED、第二階段才變 ALLOCATED——因為除了 blocker 外每張訂單 quantity 都是 1，只看聚合數字無法分辨「選對哪幾張」，只能證明「選對幾張」。
+  - **範圍邊界：** 本示範驗證的是循序補貨事件觸發的 FIFO 批次配置決策，**不含**併發競爭（多個補貨事件同時到達、補貨當下有新訂單插隊）；不隨機化數量分布；不變更 `StrictFifoAllocationPolicy`、Kafka topics 或 Integration Event 契約；不是 production benchmark；不實作 read-model replay demo。
+
 ## 資料模型
 
 ### `orders`
