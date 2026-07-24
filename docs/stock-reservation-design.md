@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：14 / 17
+目前進度：15 / 18
 
-可立即執行：`SR-15`、`SR-16`。SR-15 為 optimistic-lock retry 與 observability；SR-16 建立 dev-only consistent seed data。
+可立即執行：`SR-15`、`SR-17`。SR-15 為 optimistic-lock retry 與 observability；SR-17 驗證不依賴 retry 的端到端業務流程。
 
 主要相依路徑：
 
@@ -64,7 +64,8 @@ availableToPromise = onHandQuantity - reservedQuantity
 Domain and application flow
 SR-01 ─┐
 SR-02 ─┼─> SR-04 ─> SR-05 ─┬─> SR-06 ─┐
-SR-03 ─┘                   ├─> SR-07 ─┼─> SR-14 ─> SR-15 ─> SR-17
+SR-03 ─┘                   ├─> SR-07 ─┼─> SR-14 ─┬─> SR-15 ─┐
+                             │                       └─> SR-17 ─┼─> SR-18
                              └─> SR-12 ─> SR-13 ┘
 
 Independent infrastructure foundation
@@ -192,17 +193,22 @@ SR-08 ─> SR-09 ─┐
   - 增加 structured error log 與 `order_allocation_retry_exhausted_total` metric。
   - 測試每次 retry 使用新 transaction，以及 exhausted rollback 行為。
 
-- [ ] **SR-16 — Dev-only consistent seed data**（依賴 SR-09～SR-11；可獨立於 SR-12～SR-15 執行）
+- [x] **SR-16 — Dev-only consistent seed data**（依賴 SR-09～SR-11；可獨立於 SR-12～SR-15 執行）
   - 新增 `@Profile("dev")`、idempotent 的 `ApplicationRunner`。
   - 建立 `SKU-AVAILABLE` 與 `SKU-EMPTY` StockPools。
   - `SKU-PARTIALLY-RESERVED` 必須同時建立對應的 ALLOCATED Order 與 ACTIVE StockReservation，不得只設定孤立的 `reservedQuantity`。
   - 驗證重啟不會重複建立，且 test／production profile 不載入 seed。
 
-- [ ] **SR-17 — End-to-end and concurrency verification**（依賴 SR-01～SR-15；SR-16 不阻擋）
+- [ ] **SR-17 — End-to-end business workflow verification**（依賴 SR-01～SR-14；SR-16 不阻擋）
   - 執行並修正全部既有測試。
-  - 使用 SR-08 的 PostgreSQL test environment，新增兩筆訂單競爭同一 StockPool 的整合測試，確認不會超賣。
-  - 驗證取消、補貨、嚴格 FIFO、Inbox／Outbox 與 retry 的端到端流程。
+  - 使用 SR-08 的 PostgreSQL test environment，驗證 allocation、取消、補貨、嚴格 FIFO 與 Inbox／Outbox 的端到端流程。
   - 確認未引入多倉、shipment、WMS、expiration 或 safety stock。
+
+- [ ] **SR-18 — Retry and concurrency end-to-end verification**（依賴 SR-15、SR-17）
+  - 使用 SR-08 的 PostgreSQL test environment，新增兩筆訂單競爭同一 StockPool 的整合測試，確認不會超賣。
+  - 驗證 optimistic-lock conflict 會重新讀取資料並依 retry policy 收斂為正確的 allocation 或 backorder 結果。
+  - 驗證 retry exhausted 時拋出 `AllocationConcurrencyExhaustedException`、所有嘗試均 rollback，且不會將技術衝突錯誤建模為 BACKORDERED。
+  - 驗證 retry metric 與 structured log 可辨識 operation、eventId 與 attempt。
   - 所有驗證通過後，將文件狀態改為「已實作」。
 
 ## 資料模型

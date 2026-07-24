@@ -105,7 +105,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   }
 
   @Test
-  void shouldRejectRecordFromUnexpectedTopic() throws Exception {
+  void shouldRejectEventNotHandledByOrderingTopic() throws Exception {
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
         UUID.randomUUID(), "SKU-1", 8);
 
@@ -114,7 +114,8 @@ class AllocationKafkaIntegrationEventConsumerTest {
         event,
         StockReplenishedIntegrationEvent.class.getSimpleName())))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unexpected Kafka topic: " + OutboxRoutes.INVENTORY_STOCK_EVENTS);
+        .hasMessage("Unsupported Kafka integration event: "
+            + OutboxRoutes.ORDERING_ORDER_EVENTS + "/StockReplenishedIntegrationEvent");
   }
 
   private ConsumerRecord<String, String> record(String topic, Object event, String eventType) throws Exception {
