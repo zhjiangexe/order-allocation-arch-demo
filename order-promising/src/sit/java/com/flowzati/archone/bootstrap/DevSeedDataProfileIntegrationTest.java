@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,6 +36,7 @@ class DevSeedDataProfileIntegrationTest {
   }
 
   @Test
+  @DisplayName("非 dev profile 不應載入示範資料")
   void shouldNotLoadDevSeedDataOutsideDevProfile() {
     assertThat(applicationContext.getBeansOfType(DevSeedDataInitializer.class)).isEmpty();
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_pools", Integer.class))

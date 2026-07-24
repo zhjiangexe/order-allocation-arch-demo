@@ -10,6 +10,7 @@ import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,6 +49,7 @@ class DevSeedDataIntegrationTest {
   }
 
   @Test
+  @DisplayName("dev seed 應建立一致資料且重跑不重複")
   void shouldCreateConsistentDevSeedDataWithoutDuplicatesOnRepeatRun() throws Exception {
     assertThat(stockPoolRepository.findBySku(DevSeedDataInitializer.AVAILABLE_SKU))
         .hasValueSatisfying(pool -> {

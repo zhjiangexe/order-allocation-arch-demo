@@ -6,6 +6,7 @@ import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.time.Instant;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,6 +18,7 @@ class OrderTest {
   private final Instant placedAt = Instant.parse("2026-07-23T00:00:00Z");
 
   @Test
+  @DisplayName("建立訂單時應為 PENDING 並記錄下單 Domain Event")
   void shouldPlacePendingOrderAndRecordDomainEvent() {
     Order order = Order.place(orderId, "SKU-1", 3, placedAt);
 
@@ -28,6 +30,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("PENDING 訂單應可配置")
   void shouldAllocatePendingOrder() {
     Instant allocatedAt = placedAt.plusSeconds(10);
     Order order = pendingOrder();
@@ -41,6 +44,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("PENDING 訂單應可轉為欠單")
   void shouldBackorderPendingOrder() {
     Instant backorderedAt = placedAt.plusSeconds(10);
     Order order = pendingOrder();
@@ -54,6 +58,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("欠單配置成功時應保留欠單歷程")
   void shouldAllocateBackorderedOrderAndPreserveHistory() {
     Instant backorderedAt = placedAt.plusSeconds(10);
     Instant allocatedAt = placedAt.plusSeconds(20);
@@ -69,6 +74,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("訂單取消應只成功一次")
   void shouldCancelOrderOnlyOnce() {
     Instant cancelledAt = placedAt.plusSeconds(10);
     Order order = pendingOrder();
@@ -83,6 +89,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("已配置訂單應可取消")
   void shouldAllowAllocatedOrderToBeCancelled() {
     Order order = pendingOrder();
     order.markAllocated(placedAt.plusSeconds(10));
@@ -95,6 +102,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("不合法狀態轉換應被拒絕")
   void shouldRejectIllegalTransitions() {
     Order allocated = pendingOrder();
     allocated.markAllocated(placedAt.plusSeconds(1));
@@ -106,6 +114,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("狀態轉換時間早於生命週期歷程時應被拒絕")
   void shouldRejectTransitionTimeBeforeLifecycleHistory() {
     Order order = pendingOrder();
 
@@ -118,6 +127,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("建立訂單時應拒絕不合法資料")
   void shouldRejectInvalidOrderCreation() {
     assertThatThrownBy(() -> Order.place(null, "SKU-1", 1, placedAt))
         .isInstanceOf(IllegalArgumentException.class);
@@ -130,6 +140,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("rehydrate 應還原訂單且不新增 Domain Event")
   void shouldRehydrateWithoutRecordingDomainEvents() {
     Instant backorderedAt = placedAt.plusSeconds(10);
     Instant allocatedAt = placedAt.plusSeconds(20);
@@ -152,6 +163,7 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("rehydrate 遇到不一致狀態時應被拒絕")
   void shouldRejectInconsistentRehydratedState() {
     assertThatThrownBy(() -> Order.rehydrate(
         orderId, "SKU-1", 3, OrderStatus.ALLOCATED,

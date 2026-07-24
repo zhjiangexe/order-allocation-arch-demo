@@ -7,6 +7,7 @@ import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -23,6 +24,7 @@ class CancelOrderUsecaseTest {
   private final Instant cancelledAt = Instant.parse("2026-07-24T01:00:00Z");
 
   @Test
+  @DisplayName("取消訂單時應儲存狀態並發布取消 Domain Event")
   void shouldPersistCancelledOrderAndPublishDomainEvent() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
@@ -38,6 +40,7 @@ class CancelOrderUsecaseTest {
   }
 
   @Test
+  @DisplayName("訂單已取消時應為合法 no-op")
   void shouldDoNothingWhenOrderIsAlreadyCancelled() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
@@ -53,6 +56,7 @@ class CancelOrderUsecaseTest {
   }
 
   @Test
+  @DisplayName("找不到訂單時取消應失敗")
   void shouldFailWhenOrderDoesNotExist() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);

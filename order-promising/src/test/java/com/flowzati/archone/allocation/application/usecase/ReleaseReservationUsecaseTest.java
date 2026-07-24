@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +28,7 @@ class ReleaseReservationUsecaseTest {
   private final Instant now = Instant.parse("2026-07-24T01:00:00Z");
 
   @Test
+  @DisplayName("訊息已處理過時不應再執行釋放")
   void shouldDoNothingWhenMessageWasAlreadyHandled() {
     InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);
@@ -43,6 +45,7 @@ class ReleaseReservationUsecaseTest {
   }
 
   @Test
+  @DisplayName("訂單沒有有效 Reservation 時應為合法 no-op")
   void shouldDoNothingWhenOrderHasNoActiveReservation() {
     InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);
@@ -61,6 +64,7 @@ class ReleaseReservationUsecaseTest {
   }
 
   @Test
+  @DisplayName("有效 Reservation 應透過 Coordinator 釋放")
   void shouldReleaseActiveReservationThroughCoordinator() {
     InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);
@@ -83,6 +87,7 @@ class ReleaseReservationUsecaseTest {
   }
 
   @Test
+  @DisplayName("Reservation 對應的 StockPool 不存在時應失敗")
   void shouldFailWhenReservationStockPoolDoesNotExist() {
     InboxRepo inboxRepo = mock(InboxRepo.class);
     StockReservationRepository reservationRepository = mock(StockReservationRepository.class);

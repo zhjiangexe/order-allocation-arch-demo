@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -46,6 +47,7 @@ class DatabaseFoundationIntegrationTest {
   }
 
   @Test
+  @DisplayName("Flyway 應套用並驗證所有資料庫 migration")
   void appliesAndValidatesAllMigrations() {
     var appliedVersions = Arrays.stream(flyway.info().applied())
         .map(migration -> migration.getVersion().getVersion())
@@ -56,6 +58,7 @@ class DatabaseFoundationIntegrationTest {
   }
 
   @Test
+  @DisplayName("交易失敗時應回滾資料庫變更")
   void rollsBackDatabaseChangesWhenTransactionFails() {
     assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
       jdbcTemplate.execute("CREATE TABLE " + ROLLBACK_PROBE_TABLE + " (id INTEGER PRIMARY KEY)");

@@ -5,6 +5,7 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -17,6 +18,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 class PlaceOrderUsecaseTest {
 
   @Test
+  @DisplayName("下單時應儲存訂單並發布下單 Domain Event")
   void shouldPersistOrderAndPublishDomainEvent() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);

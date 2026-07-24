@@ -11,6 +11,7 @@ import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEve
 import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +24,7 @@ class EventSeparationTest {
   private final Instant occurredAt = Instant.parse("2026-07-23T00:00:00Z");
 
   @Test
+  @DisplayName("Domain Event 應是沒有訊息識別的內部標記")
   void domainEventShouldBeAnInternalMarkerWithoutMessagingIdentity() {
     OrderPlaced event =
         new OrderPlaced(orderId, "SKU-1", 3, occurredAt);
@@ -33,6 +35,7 @@ class EventSeparationTest {
   }
 
   @Test
+  @DisplayName("Integration Event 應擁有不可變的事件識別")
   void integrationEventShouldOwnImmutableEventId() throws NoSuchFieldException {
     assertThat(Modifier.isFinal(
         IntegrationEvent.class.getDeclaredField("eventId").getModifiers())).isTrue();
@@ -43,6 +46,7 @@ class EventSeparationTest {
   }
 
   @Test
+  @DisplayName("Ordering Integration Event 應提供完整契約欄位")
   void shouldExposeCompleteOrderingIntegrationEventContracts() {
     OrderPlacedIntegrationEvent placed = new OrderPlacedIntegrationEvent(eventId, orderId, "SKU-1", 3, occurredAt);
     OrderCancelledIntegrationEvent cancelled = new OrderCancelledIntegrationEvent(eventId, orderId, occurredAt);
@@ -56,6 +60,7 @@ class EventSeparationTest {
   }
 
   @Test
+  @DisplayName("Allocation Integration Event 應提供完整契約欄位")
   void shouldExposeCompleteAllocationIntegrationEventContracts() {
     UUID reservationId = UUID.randomUUID();
     OrderAllocatedIntegrationEvent allocated = new OrderAllocatedIntegrationEvent(
@@ -71,6 +76,7 @@ class EventSeparationTest {
   }
 
   @Test
+  @DisplayName("Integration Event 應拒絕不合法 payload")
   void shouldRejectInvalidIntegrationEventPayloads() {
     assertThatThrownBy(() -> new OrderPlacedIntegrationEvent(eventId, orderId, "", 1, occurredAt))
         .isInstanceOf(IllegalArgumentException.class);

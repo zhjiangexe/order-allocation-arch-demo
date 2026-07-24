@@ -20,6 +20,7 @@ import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -75,6 +76,7 @@ class InboundCommandTransactionIntegrationTest {
   }
 
   @Test
+  @DisplayName("成功處理訊息時應在同一交易提交 Inbox、業務資料與 Outbox")
   void shouldCommitInboxAndBusinessUpdatesInOneTransaction() {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
@@ -94,6 +96,7 @@ class InboundCommandTransactionIntegrationTest {
   }
 
   @Test
+  @DisplayName("配置業務失敗時應回滾 Inbox claim 與 Order 狀態")
   void shouldRollBackInboxClaimWhenBusinessHandlingFails() {
     UUID orderId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
@@ -109,6 +112,7 @@ class InboundCommandTransactionIntegrationTest {
   }
 
   @Test
+  @DisplayName("釋放 Reservation 失敗時應回滾 Inbox 與庫存狀態")
   void shouldRollBackInboxClaimWhenReservationReleaseFails() {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
@@ -136,6 +140,7 @@ class InboundCommandTransactionIntegrationTest {
   }
 
   @Test
+  @DisplayName("補貨配置失敗時應回滾 Inbox、庫存、訂單與 Reservation")
   void shouldRollBackInboxClaimWhenReplenishmentAllocationFails() {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
