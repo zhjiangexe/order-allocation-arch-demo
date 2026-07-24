@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class StockReservationTest {
 
   private static final Instant RESERVED_AT = Instant.parse("2026-07-23T08:00:00Z");
+  private static final UUID STOCK_POOL_ID = UUID.fromString("00000000-0000-0000-0000-000000000010");
 
   @Test
   @DisplayName("建立 reservation 時應為 ACTIVE 並保留建立資料")
@@ -24,14 +25,14 @@ class StockReservationTest {
     StockReservation reservation = StockReservation.create(
         id,
         orderId,
-        10L,
+        STOCK_POOL_ID,
         3,
         RESERVED_AT
     );
 
     assertThat(reservation.getId()).isEqualTo(id);
     assertThat(reservation.getOrderId()).isEqualTo(orderId);
-    assertThat(reservation.getStockPoolId()).isEqualTo(10L);
+    assertThat(reservation.getStockPoolId()).isEqualTo(STOCK_POOL_ID);
     assertThat(reservation.getQuantity()).isEqualTo(3);
     assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
     assertThat(reservation.getReservedAt()).isEqualTo(RESERVED_AT);
@@ -99,7 +100,7 @@ class StockReservationTest {
         () -> StockReservation.create(
             UUID.randomUUID(),
             UUID.randomUUID(),
-            10L,
+            UUID.randomUUID(),
             quantity,
             RESERVED_AT
         )
@@ -113,13 +114,13 @@ class StockReservationTest {
     UUID id = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
 
-    assertThatThrownBy(() -> StockReservation.create(null, orderId, 10L, 1, RESERVED_AT))
+    assertThatThrownBy(() -> StockReservation.create(null, orderId, UUID.randomUUID(), 1, RESERVED_AT))
         .hasMessage("Reservation ID is required");
-    assertThatThrownBy(() -> StockReservation.create(id, null, 10L, 1, RESERVED_AT))
+    assertThatThrownBy(() -> StockReservation.create(id, null, UUID.randomUUID(), 1, RESERVED_AT))
         .hasMessage("Order ID is required");
     assertThatThrownBy(() -> StockReservation.create(id, orderId, null, 1, RESERVED_AT))
         .hasMessage("Stock pool ID is required");
-    assertThatThrownBy(() -> StockReservation.create(id, orderId, 10L, 1, null))
+    assertThatThrownBy(() -> StockReservation.create(id, orderId, UUID.randomUUID(), 1, null))
         .hasMessage("Reserved time is required");
   }
 
@@ -130,7 +131,7 @@ class StockReservationTest {
         () -> StockReservation.rehydrate(
             UUID.randomUUID(),
             UUID.randomUUID(),
-            10L,
+            UUID.randomUUID(),
             1,
             ReservationStatus.ACTIVE,
             RESERVED_AT,
@@ -148,7 +149,7 @@ class StockReservationTest {
         () -> StockReservation.rehydrate(
             UUID.randomUUID(),
             UUID.randomUUID(),
-            10L,
+            UUID.randomUUID(),
             1,
             ReservationStatus.RELEASED,
             RESERVED_AT,
@@ -162,7 +163,7 @@ class StockReservationTest {
         () -> StockReservation.rehydrate(
             UUID.randomUUID(),
             UUID.randomUUID(),
-            10L,
+            UUID.randomUUID(),
             1,
             ReservationStatus.RELEASED,
             RESERVED_AT,
@@ -183,7 +184,7 @@ class StockReservationTest {
     StockReservation reservation = StockReservation.rehydrate(
         id,
         orderId,
-        10L,
+        STOCK_POOL_ID,
         3,
         ReservationStatus.RELEASED,
         RESERVED_AT,
@@ -193,7 +194,7 @@ class StockReservationTest {
 
     assertThat(reservation.getId()).isEqualTo(id);
     assertThat(reservation.getOrderId()).isEqualTo(orderId);
-    assertThat(reservation.getStockPoolId()).isEqualTo(10L);
+    assertThat(reservation.getStockPoolId()).isEqualTo(STOCK_POOL_ID);
     assertThat(reservation.getQuantity()).isEqualTo(3);
     assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RELEASED);
     assertThat(reservation.getReservedAt()).isEqualTo(RESERVED_AT);
@@ -203,9 +204,9 @@ class StockReservationTest {
 
   private StockReservation activeReservation() {
     return StockReservation.create(
+        STOCK_POOL_ID,
         UUID.randomUUID(),
         UUID.randomUUID(),
-        10L,
         3,
         RESERVED_AT
     );

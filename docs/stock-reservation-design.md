@@ -251,7 +251,7 @@ public int availableToPromise() {
 |---|---|---|
 | `id` | `UUID` | Primary key，獨立的 reservation identity |
 | `order_id` | `UUID` | `NOT NULL`, FK to `orders(id)`, `UNIQUE` |
-| `stock_pool_id` | `BIGINT` | `NOT NULL`, FK to `stock_pools(id)` |
+| `stock_pool_id` | `UUID` | `NOT NULL`, FK to `stock_pools(id)` |
 | `quantity` | `INTEGER` | `NOT NULL`, `CHECK (quantity > 0)` |
 | `status` | `VARCHAR` | `ACTIVE`, `RELEASED` |
 | `reserved_at` | `TIMESTAMPTZ` | `NOT NULL` |

@@ -29,7 +29,7 @@ public class StockReservationEntity {
   private UUID orderId;
 
   @Column(name = "stock_pool_id", nullable = false)
-  private Long stockPoolId;
+  private UUID stockPoolId;
 
   @Column(nullable = false)
   private int quantity;
@@ -54,7 +54,7 @@ public class StockReservationEntity {
   public StockReservationEntity(
       UUID id,
       UUID orderId,
-      Long stockPoolId,
+      UUID stockPoolId,
       int quantity,
       ReservationStatus status,
       Instant reservedAt,
@@ -79,7 +79,7 @@ public class StockReservationEntity {
     return orderId;
   }
 
-  public Long getStockPoolId() {
+  public UUID getStockPoolId() {
     return stockPoolId;
   }
 

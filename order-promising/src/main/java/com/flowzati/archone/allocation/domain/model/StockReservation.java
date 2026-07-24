@@ -7,7 +7,7 @@ public class StockReservation {
 
   private final UUID id;
   private final UUID orderId;
-  private final Long stockPoolId;
+  private final UUID stockPoolId;
   private final int quantity;
   private ReservationStatus status;
   private final Instant reservedAt;
@@ -17,7 +17,7 @@ public class StockReservation {
   private StockReservation(
       UUID id,
       UUID orderId,
-      Long stockPoolId,
+      UUID stockPoolId,
       int quantity,
       ReservationStatus status,
       Instant reservedAt,
@@ -40,7 +40,7 @@ public class StockReservation {
   public static StockReservation create(
       UUID id,
       UUID orderId,
-      Long stockPoolId,
+      UUID stockPoolId,
       int quantity,
       Instant reservedAt
   ) {
@@ -59,7 +59,7 @@ public class StockReservation {
   public static StockReservation rehydrate(
       UUID id,
       UUID orderId,
-      Long stockPoolId,
+      UUID stockPoolId,
       int quantity,
       ReservationStatus status,
       Instant reservedAt,
@@ -100,7 +100,7 @@ public class StockReservation {
     return orderId;
   }
 
-  public Long getStockPoolId() {
+  public UUID getStockPoolId() {
     return stockPoolId;
   }
 
@@ -124,7 +124,7 @@ public class StockReservation {
     return version;
   }
 
-  private static void validateIdentity(UUID id, UUID orderId, Long stockPoolId) {
+  private static void validateIdentity(UUID id, UUID orderId, UUID stockPoolId) {
     if (id == null) {
       throw new IllegalArgumentException("Reservation ID is required");
     }

@@ -82,7 +82,7 @@ class ReplenishmentUsecaseTest {
     when(inbox.claimIfNew(eventId)).thenReturn(true);
 
     // 初始庫存池為 0
-    StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), sku, 0, 0, 0L);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
     Order backorderedOrder = backorderedOrder(sku, 5);
@@ -118,7 +118,7 @@ class ReplenishmentUsecaseTest {
     when(inbox.claimIfNew(eventId)).thenReturn(true);
 
     // 庫存池初始為 0
-    StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), sku, 0, 0, 0L);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
 
     // 有兩筆訂單，第一筆要 3 個，第二筆要 4 個 (總共 7 個，大於補充量 5)
@@ -154,7 +154,7 @@ class ReplenishmentUsecaseTest {
     int quantity = 10;
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, quantity);
 
-    StockPool stockPool = new StockPool(1L, sku, 0, 0, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), sku, 0, 0, 0L);
     when(inbox.claimIfNew(eventId)).thenReturn(true);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
     when(orderRepository.findBackordersBySkuInFifoOrder(sku))

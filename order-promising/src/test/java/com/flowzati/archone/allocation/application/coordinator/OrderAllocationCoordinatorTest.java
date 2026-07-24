@@ -100,6 +100,6 @@ class OrderAllocationCoordinatorTest {
   }
 
   private StockPool stockPool(String sku, int onHandQuantity) {
-    return new StockPool(1L, sku, onHandQuantity, 0, 0L);
+    return new StockPool(java.util.UUID.randomUUID(), sku, onHandQuantity, 0, 0L);
   }
 }

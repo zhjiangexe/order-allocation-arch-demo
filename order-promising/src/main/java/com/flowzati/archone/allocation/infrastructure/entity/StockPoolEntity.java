@@ -7,6 +7,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.time.Instant;
+import java.util.UUID;
 import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
@@ -17,7 +18,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 public class StockPoolEntity {
 
   @Id
-  private Long id;
+  private UUID id;
 
   @Column(nullable = false)
   private String sku;
@@ -40,7 +41,7 @@ public class StockPoolEntity {
   }
 
   public StockPoolEntity(
-      Long id,
+      UUID id,
       String sku,
       int onHandQuantity,
       int reservedQuantity,
@@ -53,7 +54,7 @@ public class StockPoolEntity {
     this.version = version;
   }
 
-  public Long getId() {
+  public UUID getId() {
     return id;
   }
 

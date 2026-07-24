@@ -1,5 +1,5 @@
 CREATE TABLE stock_pools (
-    id BIGINT PRIMARY KEY,
+    id UUID PRIMARY KEY,
     sku VARCHAR(255) NOT NULL,
     on_hand_quantity INTEGER NOT NULL,
     reserved_quantity INTEGER NOT NULL DEFAULT 0,

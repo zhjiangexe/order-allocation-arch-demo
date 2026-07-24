@@ -7,6 +7,7 @@ import com.flowzati.archone.allocation.infrastructure.repository.jpa.JpaStockRep
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class StockPoolRepositoryImpl implements StockPoolRepository {
@@ -18,7 +19,7 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
   }
 
   @Override
-  public Optional<StockPool> findById(Long id) {
+  public Optional<StockPool> findById(UUID id) {
     return repository.findById(id).map(StockPoolMapper::toDomain);
   }
 

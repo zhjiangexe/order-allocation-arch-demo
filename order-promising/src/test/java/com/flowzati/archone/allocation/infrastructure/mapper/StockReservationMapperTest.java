@@ -20,11 +20,12 @@ class StockReservationMapperTest {
   void mapsDomainToEntity() {
     UUID reservationId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
+    UUID stockPoolId = UUID.randomUUID();
     Instant releasedAt = RESERVED_AT.plusSeconds(60);
     StockReservation reservation = StockReservation.rehydrate(
         reservationId,
         orderId,
-        10L,
+        stockPoolId,
         3,
         ReservationStatus.RELEASED,
         RESERVED_AT,
@@ -36,7 +37,7 @@ class StockReservationMapperTest {
 
     assertThat(entity.getId()).isEqualTo(reservationId);
     assertThat(entity.getOrderId()).isEqualTo(orderId);
-    assertThat(entity.getStockPoolId()).isEqualTo(10L);
+    assertThat(entity.getStockPoolId()).isEqualTo(stockPoolId);
     assertThat(entity.getQuantity()).isEqualTo(3);
     assertThat(entity.getStatus()).isEqualTo(ReservationStatus.RELEASED);
     assertThat(entity.getReservedAt()).isEqualTo(RESERVED_AT);
@@ -49,10 +50,11 @@ class StockReservationMapperTest {
   void mapsEntityToDomain() {
     UUID reservationId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
+    UUID stockPoolId = UUID.randomUUID();
     StockReservationEntity entity = new StockReservationEntity(
         reservationId,
         orderId,
-        10L,
+        stockPoolId,
         3,
         ReservationStatus.ACTIVE,
         RESERVED_AT,
@@ -64,7 +66,7 @@ class StockReservationMapperTest {
 
     assertThat(reservation.getId()).isEqualTo(reservationId);
     assertThat(reservation.getOrderId()).isEqualTo(orderId);
-    assertThat(reservation.getStockPoolId()).isEqualTo(10L);
+    assertThat(reservation.getStockPoolId()).isEqualTo(stockPoolId);
     assertThat(reservation.getQuantity()).isEqualTo(3);
     assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
     assertThat(reservation.getReservedAt()).isEqualTo(RESERVED_AT);

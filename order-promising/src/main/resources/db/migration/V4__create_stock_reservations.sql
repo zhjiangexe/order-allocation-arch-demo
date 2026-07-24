@@ -1,7 +1,7 @@
 CREATE TABLE stock_reservations (
     id UUID PRIMARY KEY,
     order_id UUID NOT NULL,
-    stock_pool_id BIGINT NOT NULL,
+    stock_pool_id UUID NOT NULL,
     quantity INTEGER NOT NULL,
     status VARCHAR(32) NOT NULL,
     reserved_at TIMESTAMPTZ NOT NULL,

@@ -10,6 +10,7 @@ import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ import org.springframework.test.context.ActiveProfiles;
 class StockPoolPersistenceIntegrationTest {
 
   private static final Instant OLD_UPDATED_AT = Instant.parse("2000-01-01T00:00:00Z");
+  private static final UUID STOCK_POOL_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
   @Autowired
   private JpaStockRepository jpaRepository;
@@ -62,12 +64,12 @@ class StockPoolPersistenceIntegrationTest {
   @Test
   @DisplayName("應依 SKU 與 ID 還原完整 StockPool domain model")
   void persistsAndRestoresStockPool() {
-    StockPoolEntity saved = persistStockPool(1L, "SKU-1", 10, 4);
+    StockPoolEntity saved = persistStockPool(STOCK_POOL_ID, "SKU-1", 10, 4);
 
     StockPool bySku = repositoryAdapter.findBySku("SKU-1").orElseThrow();
-    StockPool byId = repositoryAdapter.findById(1L).orElseThrow();
+    StockPool byId = repositoryAdapter.findById(STOCK_POOL_ID).orElseThrow();
 
-    assertThat(bySku.getId()).isEqualTo(1L);
+    assertThat(bySku.getId()).isEqualTo(STOCK_POOL_ID);
     assertThat(bySku.getSku()).isEqualTo("SKU-1");
     assertThat(bySku.getOnHandQuantity()).isEqualTo(10);
     assertThat(bySku.getReservedQuantity()).isEqualTo(4);
@@ -81,18 +83,18 @@ class StockPoolPersistenceIntegrationTest {
   @EnumSource(QuantityMutation.class)
   @DisplayName("reserve、release 與 replenish 儲存時都應更新 timestamp 與 version")
   void updatesTimestampAndVersionForEveryQuantityMutation(QuantityMutation mutation) {
-    StockPoolEntity initial = persistStockPool(1L, "SKU-1", 10, 2);
+    StockPoolEntity initial = persistStockPool(STOCK_POOL_ID, "SKU-1", 10, 2);
     Long initialVersion = initial.getVersion();
-    setOldUpdatedAt(1L);
+    setOldUpdatedAt(STOCK_POOL_ID);
 
-    StockPool stockPool = repositoryAdapter.findById(1L).orElseThrow();
+    StockPool stockPool = repositoryAdapter.findById(STOCK_POOL_ID).orElseThrow();
     mutation.apply(stockPool);
 
     repositoryAdapter.save(stockPool);
     jpaRepository.flush();
     entityManager.clear();
 
-    StockPoolEntity updated = jpaRepository.findById(1L).orElseThrow();
+    StockPoolEntity updated = jpaRepository.findById(STOCK_POOL_ID).orElseThrow();
     assertThat(updated.getOnHandQuantity()).isEqualTo(mutation.expectedOnHandQuantity);
     assertThat(updated.getReservedQuantity()).isEqualTo(mutation.expectedReservedQuantity);
     assertThat(updated.getUpdatedAt()).isAfter(OLD_UPDATED_AT);
@@ -102,16 +104,16 @@ class StockPoolPersistenceIntegrationTest {
   @Test
   @DisplayName("stale StockPool snapshot 寫回時應被 optimistic locking 拒絕")
   void rejectsStaleVersion() {
-    persistStockPool(1L, "SKU-1", 10, 2);
-    StockPool staleStockPool = repositoryAdapter.findById(1L).orElseThrow();
+    persistStockPool(STOCK_POOL_ID, "SKU-1", 10, 2);
+    StockPool staleStockPool = repositoryAdapter.findById(STOCK_POOL_ID).orElseThrow();
 
     // 模擬另一個 transaction 已先更新同一筆 StockPool 並遞增 version。
     jdbcTemplate.update("""
         UPDATE stock_pools
         SET on_hand_quantity = 11,
             version = version + 1
-        WHERE id = 1
-        """);
+        WHERE id = ?
+        """, STOCK_POOL_ID);
     entityManager.clear();
     staleStockPool.reserve(1);
 
@@ -124,9 +126,9 @@ class StockPoolPersistenceIntegrationTest {
   @Test
   @DisplayName("資料庫應拒絕重複 SKU")
   void rejectsDuplicateSku() {
-    insertRawStockPool(1L, "SKU-1", 10, 0);
+    insertRawStockPool(STOCK_POOL_ID, "SKU-1", 10, 0);
 
-    assertThatThrownBy(() -> insertRawStockPool(2L, "SKU-1", 10, 0))
+    assertThatThrownBy(() -> insertRawStockPool(UUID.randomUUID(), "SKU-1", 10, 0))
         .isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
         .hasMessageContaining("uq_stock_pools_sku");
@@ -141,7 +143,7 @@ class StockPoolPersistenceIntegrationTest {
       String expectedConstraint
   ) {
     assertThatThrownBy(
-        () -> insertRawStockPool(1L, "SKU-1", onHandQuantity, reservedQuantity)
+        () -> insertRawStockPool(STOCK_POOL_ID, "SKU-1", onHandQuantity, reservedQuantity)
     ).isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
         .hasMessageContaining(expectedConstraint);
@@ -156,7 +158,7 @@ class StockPoolPersistenceIntegrationTest {
   }
 
   private StockPoolEntity persistStockPool(
-      long id,
+      UUID id,
       String sku,
       int onHandQuantity,
       int reservedQuantity
@@ -168,7 +170,7 @@ class StockPoolPersistenceIntegrationTest {
     return saved;
   }
 
-  private void setOldUpdatedAt(long id) {
+  private void setOldUpdatedAt(UUID id) {
     jdbcTemplate.update(
         "UPDATE stock_pools SET updated_at = ? WHERE id = ?",
         Timestamp.from(OLD_UPDATED_AT),
@@ -178,7 +180,7 @@ class StockPoolPersistenceIntegrationTest {
   }
 
   private void insertRawStockPool(
-      long id,
+      UUID id,
       String sku,
       int onHandQuantity,
       int reservedQuantity

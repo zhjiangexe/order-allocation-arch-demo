@@ -18,7 +18,7 @@ class StockPoolTest {
   @Test
   @DisplayName("ATP 應由實際在庫量扣除已預留量計算")
   void derivesAvailableToPromiseFromOnHandAndReservedQuantities() {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 4, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 4, 0L);
 
     assertThat(stockPool.getOnHandQuantity()).isEqualTo(10);
     assertThat(stockPool.getReservedQuantity()).isEqualTo(4);
@@ -28,7 +28,7 @@ class StockPoolTest {
   @Test
   @DisplayName("預留成功時只增加已預留量，不扣除實際在庫量")
   void reservesQuantityWithoutReducingOnHand() {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 2, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 2, 0L);
 
     assertThat(stockPool.canReserve(5)).isTrue();
     stockPool.reserve(5);
@@ -42,7 +42,7 @@ class StockPoolTest {
   @Test
   @DisplayName("預留量剛好等於 ATP 時應成功並將 ATP 歸零")
   void reservesTheExactAvailableToPromiseQuantity() {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 4, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 4, 0L);
 
     assertThat(stockPool.canReserve(6)).isTrue();
     stockPool.reserve(6);
@@ -53,7 +53,7 @@ class StockPoolTest {
   @Test
   @DisplayName("ATP 不足時應回傳失敗且所有數量保持不變")
   void leavesQuantitiesUnchangedWhenAvailableToPromiseIsInsufficient() {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 7, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 7, 0L);
 
     boolean canReserve = stockPool.canReserve(4);
 
@@ -70,7 +70,7 @@ class StockPoolTest {
   @Test
   @DisplayName("釋放 reservation 時應減少已預留量並恢復 ATP")
   void releasesReservedQuantity() {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 7, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 7, 0L);
 
     stockPool.release(4);
 
@@ -82,7 +82,7 @@ class StockPoolTest {
   @Test
   @DisplayName("補貨時只增加實際在庫量，不改變已預留量")
   void replenishesOnHandWithoutChangingReservedQuantity() {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 7, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 7, 0L);
 
     stockPool.replenish(5);
 
@@ -100,7 +100,7 @@ class StockPoolTest {
       String expectedMessage
   ) {
     assertThatThrownBy(
-        () -> new StockPool(1L, "SKU-1", onHandQuantity, reservedQuantity, 0L)
+        () -> new StockPool(java.util.UUID.randomUUID(), "SKU-1", onHandQuantity, reservedQuantity, 0L)
     ).isInstanceOf(IllegalArgumentException.class)
         .hasMessage(expectedMessage);
   }
@@ -118,7 +118,7 @@ class StockPoolTest {
   @ValueSource(strings = {" ", "\t"})
   @DisplayName("建立 StockPool 時應拒絕空白 SKU")
   void rejectsBlankSku(String sku) {
-    assertThatThrownBy(() -> new StockPool(1L, sku, 10, 0, 0L))
+    assertThatThrownBy(() -> new StockPool(java.util.UUID.randomUUID(), sku, 10, 0, 0L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("SKU is required");
   }
@@ -127,7 +127,7 @@ class StockPoolTest {
   @ValueSource(ints = {0, -1})
   @DisplayName("預留時應拒絕非正數 quantity")
   void rejectsNonPositiveReserveQuantity(int quantity) {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 5, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 5, 0L);
 
     assertThatThrownBy(() -> stockPool.canReserve(quantity))
         .isInstanceOf(IllegalArgumentException.class)
@@ -141,7 +141,7 @@ class StockPoolTest {
   @ValueSource(ints = {0, -1})
   @DisplayName("釋放時應拒絕非正數 quantity")
   void rejectsNonPositiveReleaseQuantity(int quantity) {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 5, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 5, 0L);
 
     assertThatThrownBy(() -> stockPool.release(quantity))
         .isInstanceOf(IllegalArgumentException.class)
@@ -152,7 +152,7 @@ class StockPoolTest {
   @ValueSource(ints = {0, -1})
   @DisplayName("補貨時應拒絕非正數 quantity")
   void rejectsNonPositiveReplenishQuantity(int quantity) {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 5, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 5, 0L);
 
     assertThatThrownBy(() -> stockPool.replenish(quantity))
         .isInstanceOf(IllegalArgumentException.class)
@@ -162,7 +162,7 @@ class StockPoolTest {
   @Test
   @DisplayName("釋放量超過已預留量時應拒絕且保持原狀態")
   void rejectsReleaseThatExceedsReservedQuantity() {
-    StockPool stockPool = new StockPool(1L, "SKU-1", 10, 3, 0L);
+    StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), "SKU-1", 10, 3, 0L);
 
     assertThatThrownBy(() -> stockPool.release(4))
         .isInstanceOf(IllegalArgumentException.class)

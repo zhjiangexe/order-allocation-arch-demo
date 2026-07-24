@@ -1,14 +1,16 @@
 package com.flowzati.archone.allocation.domain.model;
 
+import java.util.UUID;
+
 public class StockPool {
-  private final Long id;
+  private final UUID id;
   private final String sku;
   private int onHandQuantity;
   private int reservedQuantity;
   private final Long version;
 
   public StockPool(
-      Long id,
+      UUID id,
       String sku,
       int onHandQuantity,
       int reservedQuantity,
@@ -58,7 +60,7 @@ public class StockPool {
     }
   }
 
-  public Long getId() {
+  public UUID getId() {
     return id;
   }
 

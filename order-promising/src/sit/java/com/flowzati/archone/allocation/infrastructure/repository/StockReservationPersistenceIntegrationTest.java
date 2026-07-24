@@ -46,7 +46,7 @@ import org.springframework.test.context.ActiveProfiles;
 class StockReservationPersistenceIntegrationTest {
 
   private static final Instant RESERVED_AT = Instant.parse("2026-07-24T08:00:00Z");
-  private static final long STOCK_POOL_ID = 10L;
+  private static final UUID STOCK_POOL_ID = uuid(10);
 
   @Autowired
   private JpaStockReservationRepository jpaRepository;
@@ -251,7 +251,7 @@ class StockReservationPersistenceIntegrationTest {
     persistReferences(existingOrderId);
 
     assertThatThrownBy(() -> insertReservation(
-        uuid(1), existingOrderId, 99L, 1, "ACTIVE", null
+        uuid(1), existingOrderId, uuid(99), 1, "ACTIVE", null
     )).isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
         .hasMessageContaining("fk_stock_reservations_stock_pool");
@@ -272,7 +272,7 @@ class StockReservationPersistenceIntegrationTest {
   private void insertReservation(
       UUID id,
       UUID orderId,
-      long stockPoolId,
+      UUID stockPoolId,
       int quantity,
       String status,
       Instant releasedAt

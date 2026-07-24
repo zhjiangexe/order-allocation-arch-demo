@@ -244,10 +244,10 @@ class AllocationServiceTest {
   }
 
   private StockPool stockPool(int onHandQuantity, int reservedQuantity) {
-    return new StockPool(1L, "SKU-1", onHandQuantity, reservedQuantity, 0L);
+    return new StockPool(java.util.UUID.randomUUID(), "SKU-1", onHandQuantity, reservedQuantity, 0L);
   }
 
-  private StockReservation activeReservation(long stockPoolId, int quantity) {
+  private StockReservation activeReservation(UUID stockPoolId, int quantity) {
     return StockReservation.create(
         UUID.randomUUID(),
         UUID.randomUUID(),
