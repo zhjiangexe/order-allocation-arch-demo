@@ -3,6 +3,7 @@ package com.flowzati.archone.allocation.application.coordinator;
 import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.model.StockReservation;
+import com.flowzati.archone.allocation.domain.model.ReservationStatus;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.domain.service.AllocationService;
@@ -21,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -127,6 +129,53 @@ class OrderAllocationCoordinatorTest {
     assertThat(stockPool.getOnHandQuantity()).isEqualTo(10);
     verify(stockPoolRepository).save(stockPool);
     verifyNoInteractions(orderRepository, stockReservationRepository, eventPublisher);
+  }
+
+  @Test
+  @DisplayName("釋放 reservation 時應統一儲存 StockPool 與 Reservation")
+  void shouldPersistStockPoolAndReservationWhenReservationIsReleased() {
+    StockPool stockPool = new StockPool(UUID.randomUUID(), "SKU-1", 10, 3, 0L);
+    StockReservation reservation = StockReservation.create(
+        UUID.randomUUID(), UUID.randomUUID(), stockPool.getId(), 3, now.minusSeconds(1));
+
+    boolean released = coordinator.releaseReservation(reservation, stockPool, now);
+
+    assertThat(released).isTrue();
+    assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RELEASED);
+    assertThat(stockPool.getReservedQuantity()).isZero();
+    verify(stockPoolRepository).save(stockPool);
+    verify(stockReservationRepository).save(reservation);
+    verifyNoInteractions(orderRepository, eventPublisher);
+  }
+
+  @Test
+  @DisplayName("重複釋放 reservation 時應為 no-op 且不可重複增加 ATP")
+  void shouldDoNothingWhenReservationHasAlreadyBeenReleased() {
+    StockPool stockPool = new StockPool(UUID.randomUUID(), "SKU-1", 10, 3, 0L);
+    StockReservation reservation = StockReservation.create(
+        UUID.randomUUID(), UUID.randomUUID(), stockPool.getId(), 3, now.minusSeconds(1));
+    coordinator.releaseReservation(reservation, stockPool, now);
+
+    boolean releasedAgain = coordinator.releaseReservation(reservation, stockPool, now.plusSeconds(1));
+
+    assertThat(releasedAgain).isFalse();
+    assertThat(stockPool.getReservedQuantity()).isZero();
+  }
+
+  @Test
+  @DisplayName("釋放量超過已預留數量時應拒絕且兩個 aggregate 都保持不變")
+  void shouldRejectInconsistentReleaseBeforeMutatingEitherAggregate() {
+    StockPool stockPool = new StockPool(UUID.randomUUID(), "SKU-1", 10, 2, 0L);
+    StockReservation reservation = StockReservation.create(
+        UUID.randomUUID(), UUID.randomUUID(), stockPool.getId(), 3, now.minusSeconds(1));
+
+    assertThatThrownBy(() -> coordinator.releaseReservation(reservation, stockPool, now))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Quantity to release cannot exceed reserved quantity");
+
+    assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
+    assertThat(stockPool.getReservedQuantity()).isEqualTo(2);
+    verifyNoInteractions(stockPoolRepository, stockReservationRepository);
   }
 
   private Order pendingOrder(String sku, int quantity) {

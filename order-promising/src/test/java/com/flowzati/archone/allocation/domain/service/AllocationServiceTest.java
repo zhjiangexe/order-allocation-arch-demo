@@ -3,9 +3,7 @@ package com.flowzati.archone.allocation.domain.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.allocation.domain.model.ReservationStatus;
 import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -22,12 +20,10 @@ class AllocationServiceTest {
   private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");
 
   private AllocationService allocationService;
-  private ReservationReleaseService releaseService;
 
   @BeforeEach
   void setUp() {
     allocationService = new AllocationService();
-    releaseService = new ReservationReleaseService();
   }
 
   @Test
@@ -155,51 +151,6 @@ class AllocationServiceTest {
   }
 
   @Test
-  @DisplayName("釋放 ACTIVE reservation 時應同步釋放 StockPool quantity")
-  void releasesActiveReservationAndReservedQuantityTogether() {
-    StockPool stockPool = stockPool(10, 5);
-    StockReservation reservation = activeReservation(stockPool.getId(), 3);
-
-    boolean released = releaseService.release(reservation, stockPool, NOW);
-
-    assertThat(released).isTrue();
-    assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RELEASED);
-    assertThat(reservation.getReleasedAt()).isEqualTo(NOW);
-    assertThat(stockPool.getReservedQuantity()).isEqualTo(2);
-    assertThat(stockPool.availableToPromise()).isEqualTo(8);
-  }
-
-  @Test
-  @DisplayName("重複釋放 reservation 應為 no-op 且不可重複增加 ATP")
-  void repeatedReleaseIsNoOp() {
-    StockPool stockPool = stockPool(10, 5);
-    StockReservation reservation = activeReservation(stockPool.getId(), 3);
-    assertThat(releaseService.release(reservation, stockPool, NOW)).isTrue();
-
-    boolean releasedAgain =
-        releaseService.release(reservation, stockPool, NOW.plusSeconds(1));
-
-    assertThat(releasedAgain).isFalse();
-    assertThat(reservation.getReleasedAt()).isEqualTo(NOW);
-    assertThat(stockPool.getReservedQuantity()).isEqualTo(2);
-  }
-
-  @Test
-  @DisplayName("釋放量超過 StockPool reserved quantity 時應拒絕且兩個 aggregate 都保持不變")
-  void rejectsInconsistentReleaseBeforeMutatingEitherAggregate() {
-    StockPool stockPool = stockPool(10, 2);
-    StockReservation reservation = activeReservation(stockPool.getId(), 3);
-
-    assertThatThrownBy(() -> releaseService.release(reservation, stockPool, NOW))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Quantity to release cannot exceed reserved quantity");
-
-    assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
-    assertThat(reservation.getReleasedAt()).isNull();
-    assertThat(stockPool.getReservedQuantity()).isEqualTo(2);
-  }
-
-  @Test
   @DisplayName("Order 與 StockPool SKU 不一致時應在修改 aggregate 前拒絕")
   void rejectsSkuMismatchBeforeMutation() {
     StockPool stockPool = stockPool(10, 0);
@@ -247,13 +198,4 @@ class AllocationServiceTest {
     return new StockPool(java.util.UUID.randomUUID(), "SKU-1", onHandQuantity, reservedQuantity, 0L);
   }
 
-  private StockReservation activeReservation(UUID stockPoolId, int quantity) {
-    return StockReservation.create(
-        UUID.randomUUID(),
-        UUID.randomUUID(),
-        stockPoolId,
-        quantity,
-        NOW.minusSeconds(1)
-    );
-  }
 }

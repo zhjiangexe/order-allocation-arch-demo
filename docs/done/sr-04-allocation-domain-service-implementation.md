@@ -162,9 +162,11 @@ Order lifecycle validation 在 reservation mutation 前執行；若狀態或 all
 
 ## Release Consistency
 
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/ReservationReleaseService.java`
+### 後續調整：釋放規則收回 coordinator
 
-Release 不屬於 backorder selection strategy，因此從 `AllocationPolicy` 與 `AllocationService` 分離。`release(reservation, stockPool, releasedAt)` 在修改 aggregate 前先驗證：
+Release 不屬於 backorder selection strategy，因此從 `AllocationPolicy` 與 `AllocationService` 分離。原先以 `ReservationReleaseService` 承載；SR-06 實作後因目前只有一個協調流程使用，已收回 `OrderAllocationCoordinator` 的私有 `release(reservation, stockPool, releasedAt)`。
+
+此方法在修改 aggregate 前先驗證：
 
 - Reservation 必須屬於指定 StockPool。
 - release time 必須存在，且不可早於 reserved time。
@@ -172,7 +174,7 @@ Release 不屬於 backorder selection strategy，因此從 `AllocationPolicy` �
 
 驗證通過後才同時將 Reservation 改為 `RELEASED` 並釋放 StockPool quantity。重複 release 回傳 `false`，不會再次增加 ATP。
 
-這是 SR-06 可重用的 domain primitive；Inbox、repository、transaction 與 integration event 仍留給 SR-06。
+若未來 reservation 過期、人工取消等流程需要相同規則，可再重新抽回 domain service；Inbox、repository、transaction 與 integration event 仍留給 application flow。
 
 ## 預設嚴格 FIFO
 
@@ -288,6 +290,6 @@ BUILD SUCCESSFUL
 ## 後續任務注意事項
 
 - SR-05 使用 `INSUFFICIENT_ATP` 決定建立 backorder；成功時建立 ACTIVE StockReservation。
-- SR-06 使用 `ReservationReleaseService.release(...)` domain primitive，但仍負責 Inbox、persistence、Outbox 與 transaction。
+- SR-06 以 `OrderAllocationCoordinator` 的私有釋放規則處理 reservation release，並負責 Inbox、persistence 與 transaction。
 - SR-07 將 SR-10 的 stable FIFO repository result 傳入預設為 Strict FIFO 的 `allocateBackorders(...)`。
 - SR-15 才實作 optimistic-lock bounded retry；不得把 conflict 當成 backorder。

@@ -3,6 +3,7 @@ package com.flowzati.archone.allocation.application.coordinator;
 import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.model.StockReservation;
+import com.flowzati.archone.allocation.domain.model.ReservationStatus;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.domain.service.AllocationService;
@@ -65,6 +66,20 @@ public class OrderAllocationCoordinator {
     publishDomainEvents(List.of(order));
   }
 
+  public boolean releaseReservation(
+      StockReservation reservation,
+      StockPool stockPool,
+      Instant releasedAt
+  ) {
+    if (!release(reservation, stockPool, releasedAt)) {
+      return false;
+    }
+
+    stockPoolRepository.save(stockPool);
+    stockReservationRepository.save(reservation);
+    return true;
+  }
+
   public List<Order> replenishAndAllocateBackorders(List<Order> backorders, StockPool stockPool, int replenishedQuantity, Instant now) {
     stockPool.replenish(replenishedQuantity);
 
@@ -79,6 +94,38 @@ public class OrderAllocationCoordinator {
     allocatedOrders.forEach(orderRepository::save);
     publishDomainEvents(allocatedOrders);
     return allocatedOrders;
+  }
+
+  private boolean release(
+      StockReservation reservation,
+      StockPool stockPool,
+      Instant releasedAt
+  ) {
+    if (reservation == null) {
+      throw new IllegalArgumentException("Reservation is required");
+    }
+    if (stockPool == null) {
+      throw new IllegalArgumentException("Stock pool is required");
+    }
+    if (!reservation.getStockPoolId().equals(stockPool.getId())) {
+      throw new IllegalArgumentException("Reservation does not belong to stock pool");
+    }
+    if (reservation.getStatus() == ReservationStatus.RELEASED) {
+      return false;
+    }
+    if (releasedAt == null) {
+      throw new IllegalArgumentException("Released time is required");
+    }
+    if (releasedAt.isBefore(reservation.getReservedAt())) {
+      throw new IllegalArgumentException("Released time cannot be before reserved time");
+    }
+    if (reservation.getQuantity() > stockPool.getReservedQuantity()) {
+      throw new IllegalArgumentException("Quantity to release cannot exceed reserved quantity");
+    }
+
+    reservation.release(releasedAt);
+    stockPool.release(reservation.getQuantity());
+    return true;
   }
 
   private void persistAllocation(

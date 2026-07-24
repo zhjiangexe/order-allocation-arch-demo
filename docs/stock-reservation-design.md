@@ -54,9 +54,9 @@ availableToPromise = onHandQuantity - reservedQuantity
 - 一項任務只有在實作、對應測試與必要驗證都完成後，才能將 `[ ]` 更新為 `[x]`。
 - 若實作發現設計需要改變，先更新本文件並取得確認，不自行擴張範圍。
 
-目前進度：9 / 17
+目前進度：10 / 17
 
-可立即執行：`SR-06`、`SR-07`、`SR-12`、`SR-16`。SR-06／SR-07 補齊取消與補貨 application flow；SR-12 建立 Domain Event translator 與 transactional Inbox／Outbox adapters；SR-16 建立 dev-only consistent seed data。
+可立即執行：`SR-07`、`SR-12`、`SR-16`。SR-07 補齊補貨 application flow；SR-12 建立 Domain Event translator 與 transactional Inbox／Outbox adapters；SR-16 建立 dev-only consistent seed data。
 
 主要相依路徑：
 
@@ -113,8 +113,8 @@ SR-08 ─> SR-09 ─┐
   - 作為 Integration Event 來源的 Domain Event 必須帶齊 translator 所需的業務資料；translator 不額外查詢 Repository 拼裝 payload。
   - 使用 mocked ports 完成成功、不足、非 PENDING Order 的 application tests；Integration Event、Inbox 與 Outbox 的測試屬於 SR-12／SR-14。
 
-- [ ] **SR-06 — Cancellation and reservation release application flow**（依賴 SR-01～SR-03、SR-05）
-  - 新增取消 Order use case，發布 `OrderCancelled` Domain Event；由 translator 轉為 `OrderCancelledIntegrationEvent` 並寫入 Outbox。
+- [x] **SR-06 — Cancellation and reservation release application flow**（依賴 SR-01～SR-03、SR-05）
+  - 新增取消 Order use case，發布 `OrderCancelled` Domain Event；SR-12 的 translator 再將其轉為 `OrderCancelledIntegrationEvent` 並寫入 Outbox。
   - 新增處理 `OrderCancelledIntegrationEvent` 的 release use case。
   - ACTIVE reservation 改為 RELEASED，並將數量從 `reservedQuantity` 釋放。
   - PENDING／BACKORDERED 取消或重複事件維持合法 no-op。
