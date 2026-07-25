@@ -85,7 +85,7 @@ class OrderTest {
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
     assertThat(order.releaseDomainEvents()).containsExactly(
-        new OrderCancelled(orderId, cancelledAt));
+        new OrderCancelled(orderId, "SKU-1", cancelledAt));
   }
 
   @Test

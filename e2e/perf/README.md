@@ -52,5 +52,26 @@ exit code 就是 k6 的 exit code（見 `k6/hot-sku-burst.js` 的 `thresholds`�
 DLT 落地驗證：`./e2e/perf/run.sh check-dlt ordering.order-events-dlt` 撈出的 32 筆
 訊息，跟 DB 卡住的 32 筆 `PENDING` 訂單逐一核對 orderId 完全對上。
 
+### v3：SKU 分區 single-writer 對比（`archone.allocation.partition-key-strategy=sku`）
+
+同一劇本（1,000 VUs／庫存 500）分別跑 v1（`orderId` 分區）與 v3（`sku`
+分區）：
+
+| 情境 | 吞吐量（訂單／秒） | 重試次數 | 重試用盡次數 |
+| --- | --- | --- | --- |
+| v1（orderId 分區） | 203.3 | 15 | 6 |
+| v3（sku 分區） | 270.8 | 0 | 0 |
+
+v1、v3 的正式數據都是在各自 process 先跑過一輪拋棄式暖機 burst（同樣 1,000
+VUs／庫存 500，結果與 Prometheus 計數皆捨棄不計）之後才重新種庫存、量測，避免
+JIT／連線池／consumer-group 暖機程度不對稱污染吞吐量對比。
+
+對比圖：[`throughput_comparison.png`](k6/results/throughput_comparison.png)、
+[`conflict_comparison.png`](k6/results/conflict_comparison.png)。
+
+v3 只解決「下單 vs 下單」的衝突；「下單 vs 補貨」跨 consumer group 的殘留對撞
+不在這次範圍內，見
+[`docs/superpowers/specs/2026-07-26-v3-single-writer-design.md`](../../docs/superpowers/specs/2026-07-26-v3-single-writer-design.md)。
+
 如果訊息卡在退避重送中，直接 `./e2e/perf/run.sh down` 重來，不用 debug 被污染的
 partition——反正是拋棄式的本機環境。

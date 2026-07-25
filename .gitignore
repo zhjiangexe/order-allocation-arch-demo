@@ -37,3 +37,7 @@ out/
 .vscode/
 .spectra/
 openspec/.vector-search.db*
+
+### Python ###
+__pycache__/
+*.pyc

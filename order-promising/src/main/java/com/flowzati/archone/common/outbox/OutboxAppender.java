@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import java.time.Instant;
-import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,7 +20,7 @@ public class OutboxAppender {
   public void append(
       IntegrationEvent event,
       String aggregateType,
-      UUID aggregateId,
+      String aggregateId,
       String route,
       Instant occurredAt
   ) {
@@ -29,7 +28,7 @@ public class OutboxAppender {
       outboxRepo.append(new Outbox(
           event.getEventId(),
           aggregateType,
-          aggregateId.toString(),
+          aggregateId,
           event.getClass().getSimpleName(),
           route,
           objectMapper.writeValueAsString(event),

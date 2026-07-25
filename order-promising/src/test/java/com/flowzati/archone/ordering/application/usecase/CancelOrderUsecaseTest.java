@@ -36,7 +36,7 @@ class CancelOrderUsecaseTest {
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     verify(repository).save(order);
-    verify(publisher).publishEvent(new OrderCancelled(order.getId(), cancelledAt));
+    verify(publisher).publishEvent(new OrderCancelled(order.getId(), "SKU-1", cancelledAt));
   }
 
   @Test

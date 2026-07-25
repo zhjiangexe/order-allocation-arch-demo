@@ -31,7 +31,7 @@ public class AllocationDomainEventTranslator {
             event.quantity(),
             event.allocatedAt()),
         OutboxAggregateTypes.ORDER,
-        event.orderId(),
+        event.orderId().toString(),
         IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC,
         event.allocatedAt()
     );
@@ -47,7 +47,7 @@ public class AllocationDomainEventTranslator {
             event.quantity(),
             event.backorderedSince()),
         OutboxAggregateTypes.ORDER,
-        event.orderId(),
+        event.orderId().toString(),
         IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC,
         event.backorderedSince()
     );

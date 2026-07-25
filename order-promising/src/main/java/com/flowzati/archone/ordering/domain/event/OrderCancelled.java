@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record OrderCancelled(
     UUID orderId,
+    String sku,
     Instant cancelledAt
 ) implements DomainEvent {
 }

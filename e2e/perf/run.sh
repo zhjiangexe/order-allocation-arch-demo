@@ -7,6 +7,8 @@
 #                                                  →種庫存→跑 k6（都會偵測已在跑就跳過）
 #   SKU=... STOCK=... VUS=... ./e2e/perf/run.sh up
 #   ./e2e/perf/run.sh down                        拆除基礎設施＋停掉背景 app
+#   PARTITION_KEY_STRATEGY=sku SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh up
+#                                                 v3：SKU 分區 single-writer
 #   ./e2e/perf/run.sh seed <SKU> <QUANTITY>        單獨種／重置一筆 StockPool 庫存
 #   ./e2e/perf/run.sh verify <SKU>                 Prometheus／log／DB 三方對照
 #   ./e2e/perf/run.sh check-dlt <TOPIC>             撈 DLT topic 內容核對 orderId
@@ -29,6 +31,7 @@ cmd_up() {
   local sku="${SKU:-HOT-SKU}"
   local stock="${STOCK:-500}"
   local vus="${VUS:-1000}"
+  local partition_key_strategy="${PARTITION_KEY_STRATEGY:-order-id}"
   local results_file="${RESULTS_FILE:-${ROOT_DIR}/k6/results/hot-sku-burst-$(date +%Y%m%dT%H%M%S).json}"
 
   echo "== 1/5 基礎設施 =="
@@ -39,9 +42,9 @@ cmd_up() {
   if curl -sf -o /dev/null http://localhost:8080/actuator/health; then
     echo "app 已經在跑，略過啟動"
   else
-    echo "啟動 app，log 寫到 ${APP_LOG}"
+    echo "啟動 app（partition-key-strategy=${partition_key_strategy}），log 寫到 ${APP_LOG}"
     (cd "${REPO_ROOT}" && nohup ./gradlew :order-promising:bootRun \
-      --args='--spring.profiles.active=dev --spring.kafka.listener.concurrency=4 --management.endpoints.web.exposure.include=prometheus,health' \
+      --args="--spring.profiles.active=dev --spring.kafka.listener.concurrency=4 --management.endpoints.web.exposure.include=prometheus,health --archone.allocation.partition-key-strategy=${partition_key_strategy}" \
       > "${APP_LOG}" 2>&1 &)
     echo -n "等待 app 就緒"
     for _ in $(seq 1 60); do

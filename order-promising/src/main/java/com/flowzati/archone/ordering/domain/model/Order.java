@@ -109,7 +109,7 @@ public class Order {
 
     status = OrderStatus.CANCELLED;
     this.cancelledAt = cancelledAt;
-    events.add(new OrderCancelled(id, cancelledAt));
+    events.add(new OrderCancelled(id, sku, cancelledAt));
     return true;
   }
 
