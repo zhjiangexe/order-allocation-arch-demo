@@ -10,10 +10,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.retry.RetryException;
 import org.springframework.core.retry.RetryOperations;
+import org.springframework.core.retry.Retryable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
-/** Spring Retry adapter for the application retry port. */
+/** application 層 retry port 的 Spring Retry 實作。 */
 @Component
 public class SpringAllocationRetryExecutor implements AllocationRetryExecutor {
 
@@ -34,9 +35,17 @@ public class SpringAllocationRetryExecutor implements AllocationRetryExecutor {
   @Override
   public void execute(AllocationRetryContext context, Runnable transactionalUsecase) {
     try {
-      retryOperations.execute(() -> {
-        transactionalUsecase.run();
-        return null;
+      retryOperations.execute(new Retryable<Void>() {
+        @Override
+        public Void execute() {
+          transactionalUsecase.run();
+          return null;
+        }
+
+        @Override
+        public String getName() {
+          return context.operation();
+        }
       });
     } catch (RetryException exception) {
       if (!(exception.getCause() instanceof OptimisticLockingFailureException optimisticLockException)) {

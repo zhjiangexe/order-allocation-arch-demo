@@ -1,6 +1,6 @@
 package com.flowzati.archone.allocation.application.retry;
 
-/** Signals that an optimistic-lock conflict did not converge within the retry policy. */
+/** 代表樂觀鎖衝突在重試策略內沒有收斂。 */
 public class AllocationConcurrencyExhaustedException extends RuntimeException {
 
   private final AllocationRetryContext context;
