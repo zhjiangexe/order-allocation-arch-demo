@@ -1,0 +1,57 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: e2e/perf/k6/hot-sku-burst.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1000 max VUs, 2m30s max duration (incl. graceful stop):
+              * hot_sku_burst: 1 iterations for each of 1000 VUs (maxDuration: 2m0s, gracefulStop: 30s)
+
+
+running (0m01.0s), 0999/1000 VUs, 1 complete and 0 interrupted iterations
+hot_sku_burst   [   0% ] 1000 VUs  0m01.0s/2m0s  0001/1000 iters, 1 per VU
+
+running (0m02.0s), 0421/1000 VUs, 579 complete and 0 interrupted iterations
+hot_sku_burst   [  58% ] 1000 VUs  0m02.0s/2m0s  0579/1000 iters, 1 per VU
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 1000    421.172865/s
+    checks_succeeded...: 100.00% 1000 out of 1000
+    checks_failed......: 0.00%   0 out of 1000
+
+    ✓ order placed (200)
+
+    CUSTOM
+    order_allocated_total..........: 10     4.211729/s
+    order_backordered_total........: 990    416.961137/s
+    order_decision_latency_ms......: avg=1.31s   min=789ms    med=1.34s  max=1.5s     p(90)=1.48s    p(95)=1.49s    p(99)=1.5s    
+
+    HTTP
+    http_req_duration..............: avg=78.61ms min=324µs    med=2.15ms max=914.45ms p(90)=383.52ms p(95)=515.17ms p(99)=676.19ms
+      { expected_response:true }...: avg=78.61ms min=324µs    med=2.15ms max=914.45ms p(90)=383.52ms p(95)=515.17ms p(99)=676.19ms
+    http_req_failed................: 0.00%  0 out of 11291
+    http_reqs......................: 11291  4755.462823/s
+
+    EXECUTION
+    iteration_duration.............: avg=1.82s   min=929.07ms med=1.86s  max=2.35s    p(90)=2.22s    p(95)=2.25s    p(99)=2.29s   
+    iterations.....................: 1000   421.172865/s
+    vus............................: 421    min=421        max=999 
+    vus_max........................: 1000   min=1000       max=1000
+
+    NETWORK
+    data_received..................: 3.4 MB 1.4 MB/s
+    data_sent......................: 1.3 MB 540 kB/s
+
+
+
+
+running (0m02.4s), 0000/1000 VUs, 1000 complete and 0 interrupted iterations
+hot_sku_burst ✓ [ 100% ] 1000 VUs  0m02.4s/2m0s  1000/1000 iters, 1 per VU

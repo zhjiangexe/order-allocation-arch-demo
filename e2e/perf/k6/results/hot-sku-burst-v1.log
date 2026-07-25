@@ -1,0 +1,60 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: e2e/perf/k6/hot-sku-burst.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1000 max VUs, 2m30s max duration (incl. graceful stop):
+              * hot_sku_burst: 1 iterations for each of 1000 VUs (maxDuration: 2m0s, gracefulStop: 30s)
+
+
+running (0m01.0s), 0986/1000 VUs, 14 complete and 0 interrupted iterations
+hot_sku_burst   [   1% ] 1000 VUs  0m01.0s/2m0s  0014/1000 iters, 1 per VU
+
+running (0m02.0s), 0780/1000 VUs, 220 complete and 0 interrupted iterations
+hot_sku_burst   [  22% ] 1000 VUs  0m02.0s/2m0s  0220/1000 iters, 1 per VU
+
+running (0m03.0s), 0445/1000 VUs, 555 complete and 0 interrupted iterations
+hot_sku_burst   [  56% ] 1000 VUs  0m03.0s/2m0s  0555/1000 iters, 1 per VU
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 1000    282.527537/s
+    checks_succeeded...: 100.00% 1000 out of 1000
+    checks_failed......: 0.00%   0 out of 1000
+
+    ✓ order placed (200)
+
+    CUSTOM
+    order_allocated_total..........: 500    141.263768/s
+    order_backordered_total........: 500    141.263768/s
+    order_decision_latency_ms......: avg=2.18s   min=643ms    med=2.46s max=2.88s    p(90)=2.86s    p(95)=2.87s    p(99)=2.88s   
+
+    HTTP
+    http_req_duration..............: avg=33.03ms min=313µs    med=907µs max=620.59ms p(90)=105.22ms p(95)=294.18ms p(99)=413.54ms
+      { expected_response:true }...: avg=33.03ms min=313µs    med=907µs max=620.59ms p(90)=105.22ms p(95)=294.18ms p(99)=413.54ms
+    http_req_failed................: 0.00%  0 out of 20604
+    http_reqs......................: 20604  5821.197363/s
+
+    EXECUTION
+    iteration_duration.............: avg=2.57s   min=808.28ms med=2.8s  max=3.53s    p(90)=3.37s    p(95)=3.45s    p(99)=3.48s   
+    iterations.....................: 1000   282.527537/s
+    vus............................: 444    min=444        max=985 
+    vus_max........................: 1000   min=1000       max=1000
+
+    NETWORK
+    data_received..................: 6.2 MB 1.8 MB/s
+    data_sent......................: 2.3 MB 660 kB/s
+
+
+
+
+running (0m03.5s), 0000/1000 VUs, 1000 complete and 0 interrupted iterations
+hot_sku_burst ✓ [ 100% ] 1000 VUs  0m03.5s/2m0s  1000/1000 iters, 1 per VU

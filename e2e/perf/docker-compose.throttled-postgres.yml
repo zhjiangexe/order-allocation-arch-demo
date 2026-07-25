@@ -1,0 +1,16 @@
+# Probe-only override: throttle Postgres CPU to widen the SELECT-to-COMMIT window on
+# StockPool, to see whether that's enough to make natural k6/HTTP/Kafka timing
+# reproduce a real optimistic-lock conflict. Result: still 0 conflicts even at 0.1
+# CPU (avg HTTP latency went from ~ms to ~4s, decision latency p95 ~60s, system still
+# correctly settled at exactly on-hand-quantity ALLOCATED / the rest BACKORDERED — no
+# oversell). See ../README.md for the full writeup and why this line of attack is
+# considered exhausted. NOT for producing the official throughput/latency numbers: a
+# deliberately-slowed Postgres does not represent real capacity.
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.throttled-postgres.yml up -d
+services:
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
