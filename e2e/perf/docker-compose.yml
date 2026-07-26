@@ -80,3 +80,20 @@ services:
       STATUS_STORAGE_TOPIC: order_promising_connect_status
     ports:
       - "8083:8083"
+
+  # 純觀察用：瀏覽器直接看 topic 裡的訊息實際落在哪個 partition、key 是什麼，
+  # 用來肉眼核對 v3（sku 分區）是不是真的把同一個 SKU 的訊息都收斂進同一個
+  # partition，不用再靠 kafka-console-consumer 那種命令列方式。不影響任何測試
+  # 或壓測流程，純附加工具。
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: order-promising
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: order-promising-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+    ports:
+      - "8081:8080"

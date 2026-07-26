@@ -21,6 +21,11 @@ exit code 就是 k6 的 exit code（見 `k6/hot-sku-burst.js` 的 `thresholds`�
 跑的結果全部符合預期（不超賣、無逾時、延遲在門檻內），不用自己讀摘要判斷。結果 JSON
 存到 `k6/results/`。
 
+`docker compose up` 也會順便啟動 [Kafbat UI](http://localhost:8081)（純觀察用，不影響
+測試或壓測本身），可以直接在瀏覽器裡看 topic 訊息實際落在哪個 partition、key 是什麼——
+例如要肉眼核對 `PARTITION_KEY_STRATEGY=sku` 時，同一個 SKU 的訊息是不是真的都收斂進
+同一個 partition，不用再靠 `kafka-console-consumer` 那種命令列方式。
+
 其他 subcommand：
 
 ```bash
