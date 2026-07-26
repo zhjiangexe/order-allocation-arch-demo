@@ -35,6 +35,7 @@ curl -sf -X POST "${CONNECT_URL}/connectors" \
     "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
     "transforms.outbox.route.by.field": "route",
     "transforms.outbox.route.topic.replacement": "\${routedByValue}",
+    "transforms.outbox.table.field.event.key": "partition_key",
     "transforms.outbox.table.expand.json.payload": true,
     "transforms.outbox.table.fields.additional.placement": "type:header:eventType",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",

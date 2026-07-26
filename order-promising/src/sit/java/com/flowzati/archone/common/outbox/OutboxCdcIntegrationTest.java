@@ -119,6 +119,27 @@ class OutboxCdcIntegrationTest {
     }
   }
 
+  @Test
+  @DisplayName("Kafka record key 取自 partition_key 而非 aggregateid")
+  void shouldDeriveRecordKeyFromPartitionKeyRatherThanAggregateId() {
+    try (KafkaConsumer<String, String> consumer = consumer()) {
+      consumer.subscribe(List.of(ORDER_EVENTS_TOPIC));
+
+      // 兩欄刻意給不同值，模擬 partition-key-strategy=sku：aggregate 仍是那張訂單，
+      // 但 message key 必須是 SKU。兩欄同值時這個行為無法被觀察，所以必須分岔。
+      UUID eventId = appendOutboxEvent(
+          "OrderPlacedIntegrationEvent",
+          ORDER_EVENTS_TOPIC,
+          "order-keyed-by-sku",
+          "HOT-SKU",
+          "{\"eventId\":\"keyed\",\"orderId\":\"order-keyed-by-sku\"}");
+
+      ConsumerRecord<String, String> record = awaitEvent(consumer, eventId);
+      assertThat(record.key()).isEqualTo("HOT-SKU");
+      assertThat(record.topic()).isEqualTo(ORDER_EVENTS_TOPIC);
+    }
+  }
+
   private static GenericContainer<?> debeziumConnectContainer() {
     return new GenericContainer<>(DockerImageName.parse(DEBEZIUM_IMAGE))
         .withNetwork(NETWORK)
@@ -148,6 +169,7 @@ class OutboxCdcIntegrationTest {
     configuration.put("transforms.outbox.type", "io.debezium.transforms.outbox.EventRouter");
     configuration.put("transforms.outbox.route.by.field", "route");
     configuration.put("transforms.outbox.route.topic.replacement", "${routedByValue}");
+    configuration.put("transforms.outbox.table.field.event.key", "partition_key");
     configuration.put("transforms.outbox.table.expand.json.payload", true);
     configuration.put("transforms.outbox.table.fields.additional.placement", "type:header:eventType");
     configuration.put("key.converter", "org.apache.kafka.connect.storage.StringConverter");
@@ -212,20 +234,33 @@ class OutboxCdcIntegrationTest {
   }
 
   private static UUID appendOutboxEvent(String eventType, String route, String payload) {
+    String aggregateId = eventType.equals("OrderPlacedIntegrationEvent") ? "order-1" : "order-2";
+    return appendOutboxEvent(eventType, route, aggregateId, aggregateId, payload);
+  }
+
+  private static UUID appendOutboxEvent(
+      String eventType,
+      String route,
+      String aggregateId,
+      String partitionKey,
+      String payload
+  ) {
     UUID eventId = UUID.randomUUID();
     try (Connection connection = DriverManager.getConnection(
         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         PreparedStatement statement = connection.prepareStatement("""
-            INSERT INTO event_outbox (id, aggregatetype, aggregateid, type, route, payload, timestamp)
-            VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?)
+            INSERT INTO event_outbox
+                (id, aggregatetype, aggregateid, type, route, partition_key, payload, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?)
             """)) {
       statement.setObject(1, eventId);
       statement.setString(2, OutboxAggregateTypes.ORDER);
-      statement.setString(3, eventType.equals("OrderPlacedIntegrationEvent") ? "order-1" : "order-2");
+      statement.setString(3, aggregateId);
       statement.setString(4, eventType);
       statement.setString(5, route);
-      statement.setString(6, payload);
-      statement.setTimestamp(7, Timestamp.from(Instant.now()));
+      statement.setString(6, partitionKey);
+      statement.setString(7, payload);
+      statement.setTimestamp(8, Timestamp.from(Instant.now()));
       statement.executeUpdate();
       return eventId;
     } catch (Exception exception) {

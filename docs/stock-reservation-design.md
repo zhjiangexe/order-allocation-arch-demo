@@ -310,13 +310,16 @@ Inbox row 的存在代表該事件已隨業務更新成功 commit；若業務 tr
 |---|---|---|
 | `id` | `UUID` | Primary key；Debezium event identity |
 | `aggregatetype` | `VARCHAR` | `NOT NULL`；來源 Aggregate type，例如 `Order` |
-| `aggregateid` | `VARCHAR` | `NOT NULL`；Kafka message key，支援 UUID／其他 aggregate id 表示 |
+| `aggregateid` | `VARCHAR` | `NOT NULL`；來源 Aggregate 的識別碼，例如 Order 事件為 `orderId` |
 | `type` | `VARCHAR` | `NOT NULL`；Integration Event type |
 | `route` | `VARCHAR` | `NOT NULL`；目標 Kafka topic，例如 `ordering.order-events` |
+| `partition_key` | `VARCHAR` | `NOT NULL`；Kafka message key，支援 UUID／SKU 等表示 |
 | `payload` | `JSONB` | `NOT NULL` |
 | `timestamp` | `TIMESTAMPTZ` | `NOT NULL`；Integration Event 發生時間 |
 
-本專案採用 Debezium Outbox Event Router 的 canonical column names，並額外加入 `route`。`aggregatetype` 保留來源 Aggregate 的語意；Debezium 以 `route.by.field=route` 將 event 發布至對應 topic。這符合 topic 依生產端 bounded context 劃分的規劃，也避免將 `Order` 等 Aggregate type 改作傳輸路由。`route` 是 application／infrastructure 的 delivery metadata，不屬於 Domain Event。本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `timestamp` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
+本專案採用 Debezium Outbox Event Router 的 canonical column names，並額外加入 `route` 與 `partition_key`。`aggregatetype` 與 `aggregateid` 保留來源 Aggregate 的語意，回答「這筆事件屬於哪個 aggregate」；`route` 與 `partition_key` 表達傳輸決策，回答「這則訊息去哪個 topic、用什麼 key 分區」。Debezium 以 `route.by.field=route` 決定 topic、以 `table.field.event.key=partition_key` 決定 message key，不讀取 aggregate 欄位。
+
+**Aggregate 欄位不得兼任傳輸決策。** 這條規則同時適用於 `aggregatetype` 與 `aggregateid`：前者不改作傳輸路由（因此有 `route`），後者不改作 message key（因此有 `partition_key`）。傳遞一則 Kafka 訊息需要 topic 與 key 兩個決定，兩者各有專屬欄位。`aggregateid` 尤其不可兼任——`archone.allocation.partition-key-strategy=sku` 時 message key 是 SKU 而 aggregate 仍是 Order／`orderId`，兩者的值會分岔，一個欄位無法同時給出正確答案。Debezium 的 `table.field.event.key` 預設值雖是 `aggregateid`，但該設定存在本身就表示框架預期兩者可以分離。`route` 與 `partition_key` 都是 application／infrastructure 的 delivery metadata，不屬於 Domain Event。本專案不在 Outbox row 保存發布狀態。Debezium 從 PostgreSQL WAL 取得已 commit 的變更並以 connector offset 追蹤進度；consumer 以 Inbox 承受可能的重複發布。Outbox row 最少保留 30 天，並且只有在 Debezium replication slot lag 位於安全範圍時才可依 `timestamp` 清理；不得只因資料變舊就刪除。Kafka Connect error handling 與 DLQ policy 屬於 SR-13 的部署／營運設定，不另建 DLQ table。
 
 目前 `timestamp` 是 PostgreSQL `TIMESTAMPTZ`，因此不設定 Outbox Event Router 的 `table.field.event.timestamp`（該設定要求 `INT64`）。Kafka record timestamp 使用 CDC 發生時間；原始 Integration Event 發生時間仍保留在 Outbox row 與 payload 中。
 
@@ -567,11 +570,15 @@ Topic 命名採用 `{事件生產端 bounded context}.{事件主題}-events`。�
 
 Topic 依生產端 bounded context 劃分，而非每個 event type 一個 topic。每則訊息仍保留 `eventType`，consumer 依 type 分派；未來若個別事件有不同吞吐、權限或 SLA，再拆出獨立 topic。
 
-| Topic | 生產端 bounded context | 生產端事件 | Message key |
+下表的 Message key 對應 Outbox row 的 `partition_key` 欄位（本專案生產的 topic），不是 `aggregateid`。
+
+| Topic | 生產端 bounded context | 生產端事件 | Message key（`partition_key`） |
 |---|---|---|---|
-| `ordering.order-events` | Ordering | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` | `orderId` |
+| `ordering.order-events` | Ordering | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` | `orderId`；`partition-key-strategy=sku` 時為 `sku` |
 | `inventory.stock-events` | Inventory（外部上游） | `StockReplenishedIntegrationEvent` | `sku` |
 | `promising.allocation-events` | Promising | `OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent` | `orderId` |
+
+`promising.allocation-events` 不套用 `partition-key-strategy`。`sku` 策略的目的是讓同一 SKU 的下單事件收斂進同一 partition，使 allocation consumer 成為該 SKU 的 single writer；該 topic 目前沒有 consumer，沒有需要被保護的寫入端。要改動這點，先確認它已有 consumer 且確實需要 per-SKU 順序保證。
 
 Java 常數名稱以 `*_TOPIC` 結尾，明確表示其值是 Kafka topic，例如 `ORDERING_ORDER_EVENTS_TOPIC`。topic 字串中的 `-events` 為複數，表示一條可承載多個同類事件的事件串流。現階段不加 `.v1`；只有發生無法相容的契約變更，且無法以平滑演進處理時，才新增版本化 topic 並規劃 consumer 遷移。
 

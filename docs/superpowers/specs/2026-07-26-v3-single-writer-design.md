@@ -34,6 +34,13 @@ v3 做的事，是把文件裡已經用在 `inventory.stock-events` 的 SKU-key 
 
 ## 機制
 
+> **已被取代（superseded）**：下方流程描述的是「partition key 寫進 `aggregateid`
+> 欄位」這條路徑。`fix-outbox-partition-key-semantics` 已把傳輸決策拆到獨立的
+> `partition_key` 欄位——partition 行為完全不變，但取值來源改變。實際流程請見
+> `openspec/changes/fix-outbox-partition-key-semantics/design.md` 與
+> `docs/stock-reservation-design.md` 的 `event_outbox` 欄位表。此段保留作為 v3 當時
+> 決策脈絡的紀錄，不要依它重建實作。
+
 ```
 OutboxAppender.append(event, aggregateType, aggregateId, topic, occurredAt)
   → 寫進 event_outbox.aggregate_id 欄位

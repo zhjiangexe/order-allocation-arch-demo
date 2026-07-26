@@ -1,12 +1,14 @@
 package com.flowzati.archone.common.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.translator.AllocationDomainEventTranslator;
 import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
+import com.flowzati.archone.ordering.domain.event.OrderBackordered;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.time.Instant;
@@ -40,6 +42,7 @@ class DomainEventTranslatorTest {
       assertThat(row.aggregateId()).isEqualTo(orderId.toString());
       assertThat(row.eventType()).isEqualTo(OrderPlacedIntegrationEvent.class.getSimpleName());
       assertThat(row.route()).isEqualTo(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC);
+      assertThat(row.partitionKey()).isEqualTo(orderId.toString());
       assertThat(row.occurredAt()).isEqualTo(occurredAt);
       assertThat(row.payload()).contains("\"orderId\":\"" + orderId + "\"");
     });
@@ -66,8 +69,8 @@ class DomainEventTranslatorTest {
   }
 
   @Test
-  @DisplayName("partition-key-strategy=sku 時，下單事件應以 SKU 當 aggregateId")
-  void shouldUseSkuAsAggregateIdWhenPartitionKeyStrategyIsSku() {
+  @DisplayName("partition-key-strategy=sku 時，下單事件以 SKU 當 partition key，aggregateId 仍是 orderId")
+  void shouldUseSkuAsPartitionKeyButKeepOrderIdAsAggregateIdForPlaced() {
     OutboxRepo outboxRepo = mock(OutboxRepo.class);
     OutboxAppender appender = new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
     UUID orderId = UUID.randomUUID();
@@ -77,12 +80,13 @@ class DomainEventTranslatorTest {
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
-    assertThat(outbox.getValue().aggregateId()).isEqualTo("SKU-1");
+    assertThat(outbox.getValue().partitionKey()).isEqualTo("SKU-1");
+    assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
   }
 
   @Test
-  @DisplayName("預設策略下，取消事件應以 orderId 當 aggregateId")
-  void shouldUseOrderIdAsAggregateIdForCancelledByDefault() {
+  @DisplayName("預設策略下，取消事件的 aggregateId 與 partition key 皆為 orderId")
+  void shouldUseOrderIdAsBothAggregateIdAndPartitionKeyForCancelledByDefault() {
     OutboxRepo outboxRepo = mock(OutboxRepo.class);
     OutboxAppender appender = new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
     UUID orderId = UUID.randomUUID();
@@ -93,11 +97,12 @@ class DomainEventTranslatorTest {
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
     assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
+    assertThat(outbox.getValue().partitionKey()).isEqualTo(orderId.toString());
   }
 
   @Test
-  @DisplayName("partition-key-strategy=sku 時，取消事件應以 SKU 當 aggregateId")
-  void shouldUseSkuAsAggregateIdForCancelledWhenPartitionKeyStrategyIsSku() {
+  @DisplayName("partition-key-strategy=sku 時，取消事件以 SKU 當 partition key，aggregateId 仍是 orderId")
+  void shouldUseSkuAsPartitionKeyButKeepOrderIdAsAggregateIdForCancelled() {
     OutboxRepo outboxRepo = mock(OutboxRepo.class);
     OutboxAppender appender = new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
     UUID orderId = UUID.randomUUID();
@@ -107,6 +112,41 @@ class DomainEventTranslatorTest {
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
-    assertThat(outbox.getValue().aggregateId()).isEqualTo("SKU-1");
+    assertThat(outbox.getValue().partitionKey()).isEqualTo("SKU-1");
+    assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
+  }
+
+  @Test
+  @DisplayName("配置完成事件以 orderId 當 partition key，不套用 SKU 分區策略")
+  void shouldKeepOrderIdAsPartitionKeyForAllocatedOutcome() {
+    OutboxRepo outboxRepo = mock(OutboxRepo.class);
+    OutboxAppender appender = new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
+    UUID orderId = UUID.randomUUID();
+
+    new AllocationDomainEventTranslator(appender).translate(new OrderAllocationCompleted(
+        orderId, UUID.randomUUID(), "SKU-1", 3, occurredAt));
+
+    ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
+    verify(outboxRepo).append(outbox.capture());
+    assertThat(outbox.getValue().partitionKey()).isEqualTo(orderId.toString());
+    assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
+  }
+
+  @Test
+  @DisplayName("缺貨事件以 orderId 當 partition key，不套用 SKU 分區策略")
+  void shouldKeepOrderIdAsPartitionKeyForBackorderOutcome() {
+    OutboxRepo outboxRepo = mock(OutboxRepo.class);
+    OutboxAppender appender = new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
+    UUID orderId = UUID.randomUUID();
+
+    new AllocationDomainEventTranslator(appender)
+        .translate(new OrderBackordered(orderId, "SKU-1", 3, occurredAt));
+
+    ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
+    verify(outboxRepo).append(outbox.capture());
+    assertThat(outbox.getValue().eventType())
+        .isEqualTo(BackorderCreatedIntegrationEvent.class.getSimpleName());
+    assertThat(outbox.getValue().partitionKey()).isEqualTo(orderId.toString());
+    assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
   }
 }

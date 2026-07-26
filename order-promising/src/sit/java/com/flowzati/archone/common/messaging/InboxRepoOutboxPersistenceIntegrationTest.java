@@ -91,13 +91,15 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   @DisplayName("Outbox 應保存不可變的完整事件 payload")
   void shouldPersistImmutableOutboxEventPayload() {
     UUID eventId = UUID.randomUUID();
+    UUID orderId = UUID.randomUUID();
     Instant occurredAt = Instant.parse("2026-07-24T10:00:00Z");
     outboxRepo.append(new Outbox(
         eventId,
         OutboxAggregateTypes.ORDER,
-        UUID.randomUUID().toString(),
+        orderId.toString(),
         "OrderPlacedIntegrationEvent",
         IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
+        "HOT-SKU",
         "{\"eventId\":\"" + eventId + "\"}",
         occurredAt
     ));
@@ -105,6 +107,8 @@ class InboxRepoOutboxPersistenceIntegrationTest {
     OutboxEntity row = outboxRepository.findById(eventId).orElseThrow();
     assertThat(row.getEventType()).isEqualTo("OrderPlacedIntegrationEvent");
     assertThat(row.getRoute()).isEqualTo(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC);
+    assertThat(row.getAggregateId()).isEqualTo(orderId.toString());
+    assertThat(row.getPartitionKey()).isEqualTo("HOT-SKU");
     assertThat(row.getPayload()).contains(eventId.toString());
     assertThat(row.getOccurredAt()).isEqualTo(occurredAt);
   }

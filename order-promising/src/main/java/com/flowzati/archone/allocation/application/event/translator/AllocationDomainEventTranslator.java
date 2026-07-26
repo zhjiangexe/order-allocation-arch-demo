@@ -6,8 +6,10 @@ import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
+import com.flowzati.archone.common.outbox.OutboxDelivery;
 import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.domain.event.OrderBackordered;
+import java.util.UUID;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +34,7 @@ public class AllocationDomainEventTranslator {
             event.allocatedAt()),
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
-        IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC,
+        deliveryKeyedByOrder(event.orderId()),
         event.allocatedAt()
     );
   }
@@ -48,8 +50,23 @@ public class AllocationDomainEventTranslator {
             event.backorderedSince()),
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
-        IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC,
+        deliveryKeyedByOrder(event.orderId()),
         event.backorderedSince()
     );
+  }
+
+  /**
+   * 配置結果事件一律以 orderId 當 partition key，不套用
+   * {@code archone.allocation.partition-key-strategy}。
+   *
+   * <p>sku 策略存在的目的，是讓同一個 SKU 的下單事件收斂進同一個 partition，使
+   * allocation consumer 成為該 SKU 的 single writer。{@code promising.allocation-events}
+   * 在本 repo 沒有任何 consumer，沒有需要被保護的寫入端；為了「一致性」把策略套上來，
+   * 會製造一個無人驗證、無人受益的行為分支。要改動這裡，先確認該 topic 已經有
+   * consumer，而且它確實需要 per-SKU 的順序保證。
+   */
+  private static OutboxDelivery deliveryKeyedByOrder(UUID orderId) {
+    return new OutboxDelivery(
+        IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC, orderId.toString());
   }
 }

@@ -29,6 +29,9 @@ public class OutboxEntity {
   @Column(nullable = false)
   private String route;
 
+  @Column(name = "partition_key", nullable = false)
+  private String partitionKey;
+
   @Column(nullable = false, columnDefinition = "jsonb")
   @JdbcTypeCode(SqlTypes.JSON)
   private String payload;
@@ -45,6 +48,7 @@ public class OutboxEntity {
       String aggregateId,
       String eventType,
       String route,
+      String partitionKey,
       String payload,
       Instant occurredAt
   ) {
@@ -53,6 +57,7 @@ public class OutboxEntity {
     this.aggregateId = aggregateId;
     this.eventType = eventType;
     this.route = route;
+    this.partitionKey = partitionKey;
     this.payload = payload;
     this.occurredAt = occurredAt;
   }
@@ -62,6 +67,7 @@ public class OutboxEntity {
   public String getAggregateId() { return aggregateId; }
   public String getEventType() { return eventType; }
   public String getRoute() { return route; }
+  public String getPartitionKey() { return partitionKey; }
   public String getPayload() { return payload; }
   public Instant getOccurredAt() { return occurredAt; }
 }

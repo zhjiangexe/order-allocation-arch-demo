@@ -21,7 +21,7 @@ public class OutboxAppender {
       IntegrationEvent event,
       String aggregateType,
       String aggregateId,
-      String route,
+      OutboxDelivery delivery,
       Instant occurredAt
   ) {
     try {
@@ -30,7 +30,8 @@ public class OutboxAppender {
           aggregateType,
           aggregateId,
           event.getClass().getSimpleName(),
-          route,
+          delivery.route(),
+          delivery.partitionKey(),
           objectMapper.writeValueAsString(event),
           occurredAt
       ));

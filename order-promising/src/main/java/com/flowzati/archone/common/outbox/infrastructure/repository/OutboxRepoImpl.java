@@ -22,6 +22,7 @@ public class OutboxRepoImpl implements OutboxRepo {
         outbox.aggregateId(),
         outbox.eventType(),
         outbox.route(),
+        outbox.partitionKey(),
         outbox.payload(),
         outbox.occurredAt()
     ));
