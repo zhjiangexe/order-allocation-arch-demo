@@ -87,16 +87,57 @@ in-flight 請求的順序、卸載後的狀態更新。代價是使用者必須�
 變動的地方。這是刻意的取捨而非疏漏：型別與後端不同步時，錯誤會出現在執行期而非
 編譯期。範圍夠小（六支端點、兩個主要資料形狀）使這個風險可控。
 
-### 不引入資料抓取函式庫，以單一 async 動作 hook 統一 loading 與 error
+### 取數只在兩個進場點使用 effect，其餘一律在 event handler
 
-沒有輪詢、沒有快取需求、沒有跨頁共享的伺服器狀態，資料抓取函式庫的主要價值在此
-不成立。
+「所有取數由使用者動作觸發」在程式碼層面的直接後果是：整個應用只有兩個
+`useEffect`，且都是「進場載入」——訂單頁 mount 時取列表、App mount 時取分區策略。
+下單、查 SKU、觸發補貨、按重新整理全部發生在 event handler 裡。
 
-但六個動作各自複製一份 loading／error／result 的狀態機會製造重複，也容易讓某個
-動作漏掉錯誤處理。因此定義一個泛型的 async 動作 hook，統一三種狀態的表達，讓
-「失敗必須被呈現」成為結構上的預設而非每處自律。
+不存在同步 state 的 effect，也不存在計算衍生值的 effect（衍生值在 render 期間算）。
+這條紀律是「不輪詢」這個決定最容易被後續修改破壞的地方：一旦有人為了「讓畫面自己
+更新」而加第三個 effect，規格中「靜置不發請求」的保證就沒了。
+
+### 不引入資料抓取函式庫——它會直接牴觸規格
+
+沒有輪詢、沒有快取需求、沒有跨頁共享的伺服器狀態，資料抓取函式庫的主要價值
+（去重、快取、背景重新驗證）在此都不成立。
+
+更關鍵的是它會**違反**規格而不只是多餘：SWR 與 TanStack Query 預設都會
+`revalidateOnFocus`，切回分頁就發請求，而規格明訂「靜置的操作台不發出任何請求」。
+要用它們就得逐項關掉其預設行為，等於付出依賴成本卻只留下最薄的一層。
+
+改為定義一個泛型的 async 動作 hook。六個動作各自複製一份狀態機會製造重複，也容易
+讓某個動作漏掉錯誤處理。
+
+### 動作狀態用 discriminated union，並由單一元件負責呈現
+
+狀態型別不使用 `{ data?, loading, error? }` 這種平行欄位的形狀——它能表達不可能的
+狀態（同時 loading 又有 error、success 但 data 是 undefined），而那些組合遲早會在
+畫面上出現。
+
+改用 discriminated union：`idle` / `pending` / `success` 帶 data / `failure` 帶訊息。
+搭配一個吃這個 union 的呈現元件，負責渲染進行中與失敗、成功時才 render children。
+這讓規格的「失敗必須被呈現」成為結構上的預設，而不是每個呼叫點各自自律。
+
+### 樣式用 CSS Modules，不引入設計系統
+
+CSS Modules 提供 scope（元件之間不會互相污染）而不帶任何設計語彙。Tailwind 會引入
+一整套設計決策，跟「不引入設計系統、不追求視覺打磨」的 non-goal 衝突；單一全域
+CSS 檔則會讓元件之間的 class 名稱開始需要人工避讓。
+
+### 元件不採用 compound component、render props 或 context
+
+兩頁、六個元件，唯一的跨頁狀態是分區策略，而它只有頁首在用——App 自己持有即可，
+連 context 都不需要。這些模式解的是「元件庫要對未知的使用方保持彈性」的問題，這裡
+沒有未知的使用方。為了展示而套用會讓一個小介面讀起來比它實際的複雜度更難懂。
+
+同理不建立 barrel file（`index.ts` 統一 re-export）：它讓 import 路徑看不出東西實際
+住在哪裡，換不到這個規模需要的東西。
 
 ### 前端測試聚焦於有邏輯的部分
+
+以 Vitest 搭配 React Testing Library 與 jsdom——Vite 生態的標準組合，與建置工具共用
+同一份設定，不需要為測試另外維護一套轉譯設定。
 
 不對純版面元件寫測試。測試對象是兩處實際含有邏輯的地方：下單表單的提交前驗證
 （非正整數與空 SKU 不得送出請求），以及失敗路徑（動作失敗時錯誤被呈現且不顯示成功
@@ -122,6 +163,11 @@ in-flight 請求的順序、卸載後的狀態更新。代價是使用者必須�
 - 應用消費 `add-demo-console-api` 的六支端點，一律以相對路徑呼叫，經 dev server
   代理轉發至後端。
 - 型別定義集中於單一模組，涵蓋訂單表示、庫存狀態、補貨受理回應與組態回應。
+- 動作狀態為 discriminated union，以 `status` 區分 idle／pending／success／failure。
+
+**Module layout:** `src/api`（契約型別與端點呼叫）、`src/hooks`（async 動作 hook）、
+`src/components`（呈現元件，含統一的動作狀態元件）、`src/pages`（兩個路由頁面）、
+`vite.config.ts`（dev proxy，唯一出現後端 origin 之處）。不建立 barrel file。
 
 **Failure modes:**
 

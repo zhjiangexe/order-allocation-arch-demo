@@ -1,0 +1,14 @@
+.pending {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.failure {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid var(--danger);
+  background: var(--danger-surface);
+  color: var(--danger);
+  font-size: 0.9rem;
+}

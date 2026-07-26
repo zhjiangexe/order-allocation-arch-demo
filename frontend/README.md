@@ -1,0 +1,60 @@
+# frontend
+
+`order-promising` 的操作台：兩頁、本機執行、給螢幕分享時邊操作邊解說用。它不是產品
+介面，也不打算變成產品介面。
+
+## 啟動
+
+需要後端**以 dev profile 執行**——`/demo/replenish` 與 `/demo/config` 只在 dev profile
+註冊，其他 profile 下這兩條路徑會回 404，操作台的補貨與策略顯示就沒有東西可用。
+
+最省事的方式是用 `e2e/perf` 那套（PostgreSQL + Kafka + Debezium 都會一起起來）：
+
+```bash
+./e2e/perf/run.sh up      # 基礎設施 + app（dev profile）
+cd frontend && npm install && npm run dev
+```
+
+開 http://localhost:5173 。
+
+後端位址只寫在 `vite.config.ts` 的 dev proxy 裡，不出現在任何原始碼中。要指到別的地方
+設環境變數即可，不用改元件：
+
+```bash
+ARCHONE_BACKEND_ORIGIN=http://localhost:9090 npm run dev
+```
+
+## 指令
+
+| 指令 | 用途 |
+| --- | --- |
+| `npm run dev` | dev server（含後端 proxy） |
+| `npm test` | Vitest 元件與 hook 測試 |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run build` | 型別檢查 + production build（本專案不部署，用來確認建置沒壞） |
+
+## 兩頁在做什麼
+
+**訂單頁**（預設）——下單表單 ＋ 最近 20 筆訂單。列表一列攤開訂單的全部欄位，包含四個
+階段時間戳；沒有「點開看詳細」，因為那會是同一份資料的第二次呈現。
+
+**庫存頁**——查一個 SKU 的 on-hand／reserved／available-to-promise，並對同一個 SKU 觸發
+補貨。兩者共用一個 SKU 欄位，因為它們是一個連續動作：查到 ATP 是 0、補一批、再查一次。
+
+頁首顯示後端目前生效的分區策略（`sku` 是 v3 single-writer，其餘是 v1）。只顯示不切換
+——那個值在後端啟動時就固定了。
+
+## 為什麼沒有自動更新
+
+所有請求都對應一個明確的使用者動作：進頁面、送出表單、按查詢、按重新整理。沒有輪詢、
+沒有計時器、沒有背景刷新——訂單頁載入完成後靜置，網路面板不會再出現任何請求。
+
+代價是補貨之後要自己按「重新整理」才看得到訂單狀態變化。這在「操作者本人邊操作邊解說」
+的情境下不是負擔，反而讓「配置是非同步的」這件事在操作上顯而易見。
+
+## 一個典型的 demo 流程
+
+1. 庫存頁查一個 ATP 是 0 的 SKU
+2. 訂單頁對它下幾張單 → 看到 `PENDING`，按重新整理 → 變成 `BACKORDERED`
+3. 庫存頁對它補貨 → 顯示「已受理」與事件識別碼（**不是**「已配置」）
+4. 訂單頁按重新整理 → 看到那批訂單依 FIFO 轉成 `ALLOCATED`、`allocatedAt` 有值

@@ -1,0 +1,72 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  background: var(--surface);
+  color: inherit;
+}
+
+.quantity {
+  width: 7rem;
+}
+
+.quantities {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0;
+}
+
+.quantities div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.quantities dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.quantities dd {
+  margin: 0;
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.accepted {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-surface);
+  font-size: 0.9rem;
+}
+
+.eventId {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
