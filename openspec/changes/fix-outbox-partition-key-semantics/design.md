@@ -20,11 +20,15 @@ v3（`archone.allocation.partition-key-strategy=sku`）讓兩個角色的值分�
 等 Aggregate type 改作傳輸路由」而新增 `route` 欄位。本次是把這個推論延伸到
 `aggregateid`——同一個模式的第二次套用，不是新的架構方向。
 
-觸發時機是 `add-demo-console-api`：`GET /orders/{orderId}` 的事件時間軸需要
-`aggregatetype = 'Order' AND aggregateid = ?` 這條查詢條件，而它在 v3 模式下目前不成立。
-反過來說也成立——若不做時間軸，`aggregatetype` 與 `aggregateid` 會繼續是兩個沒有任何
-程式讀取的欄位（`route.by.field=route` 已經覆蓋掉 Debezium 用 `aggregatetype` 推導
-topic 的預設行為），這次改動也就沒有必要。
+要誠實記錄這次改動的性質：`aggregatetype` 與 `aggregateid` 目前沒有任何 production code
+讀取——`route.by.field=route` 早已覆蓋掉 Debezium 用 `aggregatetype` 推導 topic 的預設
+行為，而 `aggregateid` 的唯一用途就是被當成 message key。改完之後它們仍然沒有讀取端，
+只有一個 SIT 在斷言其正確性。
+
+所以這是「把資料修正確」，不是「讓某個功能得以實作」。仍然值得做的理由是：schema 對
+aggregate 身分給出錯誤答案是資料本身的缺陷，而分區策略會繼續存在、錯誤答案也會持續
+被寫進新的 row；修的成本固定而債務會累積。日後若要建立領域層的事件歷史，這塊地基
+已經是對的。
 
 ## Goals / Non-Goals
 
@@ -33,7 +37,7 @@ topic 的預設行為），這次改動也就沒有必要。
 - 讓 `event_outbox` 用獨立欄位表達 Kafka message key，`aggregateid` 回歸單一語意。
 - 在不改變任何 Kafka 傳遞行為的前提下完成語意修正：改動前後訊息落在哪個 partition、
   key 是什麼完全一致。
-- 讓「以 aggregate identity 查詢 outbox」在 v1 與 v3 兩種策略下都成立。
+- 讓 outbox row 在 v1 與 v3 兩種策略下都對「這筆事件屬於哪個 aggregate」給出正確答案。
 - 在測試中釘住核心行為：`aggregateid` 與 `partition_key` 不同時，Kafka record key
   取後者。
 
@@ -43,7 +47,7 @@ topic 的預設行為），這次改動也就沒有必要。
   冪等機制。
 - 不改變 `partition-key-strategy` 的既有行為或預設值，也不新增策略。
 - 不把 `sku` 策略擴張到 `promising.allocation-events`。
-- 不實作 `GET /orders/{orderId}` 的事件時間軸本身（屬於 `add-demo-console-api`）。
+- 不新增任何 outbox 的讀取端；本次只讓資料正確，不建立消費它的功能。
 - 不改動 outbox 的保留政策或新增清理機制。
 - 不新增 outbox 發布狀態欄位或 DLQ table。
 
@@ -56,16 +60,16 @@ topic 的預設行為），這次改動也就沒有必要。
 **（甲）新增 `partition_key` 欄位**——傳輸決策拿到自己的欄位，`aggregateid` 回歸
 aggregate identity。
 
-**（乙）不動 schema，時間軸改查 `payload->>'orderId'`**——加一個 jsonb index 即可，
+**（乙）不動 schema，需要時改查 `payload->>'orderId'`**——加一個 jsonb index 即可，
 不碰 Debezium 設定與既有 SIT。但這等於承認 schema 答不出「這筆事件屬於哪個
 aggregate」，改用 payload 內容繞過去；而這個問題本來就發生在 schema 層。查詢條件會
 綁死在 payload 欄位名上，而 payload 是對外契約的一部分，反而更難改。語意債原封不動
 留著，`aggregateid` 在 v3 下繼續說謊。
 
 **（丙）新增 `order_event_log` 投影表**——由 domain event listener 在同一 transaction
-寫入。由於因果鏈不追補貨觸發來源（見 `add-demo-console-api`），這張表的內容會跟
-outbox 逐筆重複、零新增資訊，卻多一條要維護的寫入路徑；而 `aggregateid` 的語意衝突
-依舊存在，只是被繞過。
+寫入。這是「領域事件歷史」該有的做法，但它解的是另一個問題：本次要修的是 outbox 對
+aggregate 身分說謊，投影表並不會讓 outbox 變誠實，只是繞過它。兩者不互斥，日後真的
+需要領域事件歷史時再單獨評估。
 
 選（甲）。它是 `route` 這個 precedent 的直接延伸：SR-13 為了不讓 `aggregatetype`
 兼任 topic 決策而開了 `route`，本次為了不讓 `aggregateid` 兼任 key 決策而開
@@ -166,8 +170,8 @@ Debezium 依 `route` 決定 topic、依 `partition_key` 決定 Kafka record key�
 **Scope boundaries:** 涵蓋 outbox schema、`Outbox`／`OutboxDelivery`／`OutboxAppender`、
 兩個 domain event translator、兩處 Debezium connector 設定、相關單元與整合測試，以及
 `docs/stock-reservation-design.md` 中 `event_outbox` 欄位表、其後的說明段落與「Kafka
-topics 與 partition key」表格的同步更新。不涵蓋 `GET /orders/{orderId}` 的事件時間軸
-實作、任何 REST 端點、前端，以及 outbox 保留／清理政策。
+topics 與 partition key」表格的同步更新。不涵蓋任何 outbox 讀取端、REST 端點、前端，
+以及 outbox 保留／清理政策。
 
 ## Risks / Trade-offs
 

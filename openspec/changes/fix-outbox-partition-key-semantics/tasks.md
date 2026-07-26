@@ -15,7 +15,7 @@
 
 ## 4. 查詢能力與端到端驗收
 
-- [x] 4.1 驗證 **Outbox rows are queryable by aggregate identity**：以 `partition-key-strategy=sku` 建立一張經歷 placed → backordered → allocated 的訂單，確認 `WHERE aggregatetype = 'Order' AND aggregateid = ?` 依 `timestamp` 回傳該訂單的全部三筆 Integration Event，且查詢不依賴 payload 欄位名或當前策略。以 SIT 中的持久化狀態斷言驗證（此查詢條件即 `add-demo-console-api` 的事件時間軸所依賴者）。
+- [x] 4.1 驗證 **Outbox rows are queryable by aggregate identity**：以 `partition-key-strategy=sku` 建立一張經歷 placed → backordered → allocated 的訂單，確認 `WHERE aggregatetype = 'Order' AND aggregateid = ?` 依 `timestamp` 回傳該訂單的全部三筆 Integration Event，且查詢不依賴 payload 欄位名或當前策略。以 SIT 中的持久化狀態斷言驗證——這是對 schema 誠實度的迴歸測試，不預設任何查詢端存在。
 - [x] 4.2 重建本機基礎設施並重跑壓測：執行 `./e2e/perf/run.sh down` 移除既有 Postgres volume（不可略過，否則 Flyway checksum 不符會導致啟動失敗，且不得以 `flyway repair` 掩蓋），再以 `PARTITION_KEY_STRATEGY=sku ./e2e/perf/run.sh up` 重建並跑一次。行為上：既有 k6 thresholds 全數通過，代表無行為變更。以兩項核對驗證——Kafbat UI 中同一 SKU 的 `ordering.order-events` 訊息仍收斂於同一 partition；`SELECT DISTINCT aggregateid FROM event_outbox WHERE aggregatetype='Order'` 回傳值全為 UUID、不含 SKU。
 
 ## 5. 文件同步

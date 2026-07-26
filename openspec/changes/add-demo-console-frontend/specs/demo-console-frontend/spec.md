@@ -8,8 +8,8 @@ present on both pages and SHALL display the partition-key strategy currently in
 effect, so a viewer can tell whether the running system uses the order-identifier
 strategy or the SKU strategy without leaving the console.
 
-Order detail SHALL NOT be a third route. It is a view of one row in the orders
-page's list, and SHALL be presented as a modal over that page.
+The orders page's list SHALL show every field of the order representation, so that
+inspecting one order requires no further navigation, modal, or detail view.
 
 #### Scenario: Opening the console lands on the orders page with the strategy visible
 
@@ -58,36 +58,6 @@ than relying on the backend to reject it.
 | `HOT-SKU` | 0 | blocked in the form, no request sent |
 | `HOT-SKU` | -3 | blocked in the form, no request sent |
 | empty | 1 | blocked in the form, no request sent |
-
-### Requirement: An order's causal chain is inspectable in a modal
-
-Selecting an order in the list SHALL open a modal showing that order's current
-status and its recorded timestamps, together with its Integration Event chain
-ordered by occurrence time. Each event SHALL show its type, its occurrence time,
-and its payload.
-
-Payload SHALL be rendered generically as key-value pairs derived from the returned
-JSON object, so that event types with differing payload shapes render without
-per-type layout code and a newly introduced event type renders without frontend
-changes.
-
-An order whose chain is empty SHALL render an explicit empty state, not an error
-and not a blank area.
-
-#### Scenario: A backordered-then-allocated order shows three events in order
-
-- **GIVEN** an order was placed, backordered, and later allocated
-- **WHEN** the viewer selects that order in the list
-- **THEN** the modal shows the order's status and timestamps, and lists the
-  placement, backorder, and allocation events in that order, each with its
-  payload as key-value pairs
-
-#### Scenario: Payloads of different shapes render without per-type code
-
-- **GIVEN** two events in one chain whose payloads contain different field sets
-- **WHEN** the modal renders that chain
-- **THEN** both payloads are displayed as their own key-value pairs, and neither
-  requires a layout dedicated to its event type
 
 ### Requirement: Stock state and replenishment share one page keyed by SKU
 

@@ -15,8 +15,14 @@ v1 之下兩個角色的值恆等（都是 `orderId`），衝突不可觀測。v
 aggregate 欄位兼任傳輸路由，特地新增 `route` 欄位。這個推論從未被延伸到
 `aggregateid`，因為當時不需要。本次補上同一個模式的第二次套用。
 
-現在做的理由：`add-demo-console-api` 需要一條誠實的事件時間軸查詢條件
-（`aggregatetype = 'Order' AND aggregateid = ?`），而該條件在 v3 模式下目前不成立。
+現在做的理由：schema 目前對「這筆事件屬於哪個 aggregate」給出錯誤答案，而這是資料本身
+的缺陷，不因為目前沒有讀取端就不成立。修的成本固定（八個檔案、零行為變更），拖著只會
+讓後續每一個想查 outbox 的人先撞上這個坑；而分區策略還會繼續存在，錯誤答案也會持續
+被寫進新的 row。
+
+需要誠實看待的一點：這次改動之後，`aggregatetype` 與 `aggregateid` 仍然沒有任何
+production code 讀取——只有一個 SIT 在斷言它們的正確性。這是「把資料修正確」，不是
+「讓某個功能得以實作」。
 
 ## What Changes
 
