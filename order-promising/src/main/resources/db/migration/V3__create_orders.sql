@@ -22,3 +22,15 @@ CREATE TABLE orders (
 -- 確保每次查詢的順序一致。欄位順序不可任意交換，否則可能無法完整利用此 index。
 CREATE INDEX idx_orders_backorder_fifo
     ON orders (sku, status, backordered_since, id);
+
+-- 此 index 配合「最近訂單列表」查詢：
+-- ORDER BY placed_at DESC, id DESC LIMIT ?
+--
+-- 欄位順序與方向都必須與 ORDER BY 完全一致，PostgreSQL 才能直接沿 index 取前 N 筆而
+-- 不用排序整張表。壓測後這張表會累積數千至上萬筆，而列表是操作台的主要畫面，
+-- 沒有這個 index 每次查詢都是全表掃描加排序，只為了取前 20 筆。
+--
+-- id DESC 是 tie-breaker，不可省略：同一毫秒寫入的多筆訂單若沒有穩定次序，
+-- 重複查詢會回傳不同順序，畫面上的列表就會無故跳動。理由與上方 FIFO index 相同。
+CREATE INDEX idx_orders_recent
+    ON orders (placed_at DESC, id DESC);

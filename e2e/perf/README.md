@@ -41,8 +41,14 @@ exit code 就是 k6 的 exit code（見 `k6/hot-sku-burst.js` 的 `thresholds`�
 已即時驗證通過。v1 baseline（4-partition／concurrency=4、庫存 500 件，原始輸出見
 [`k6/results/hot-sku-burst-v1.log`](k6/results/hot-sku-burst-v1.log)）：1,000 張訂單收斂為
 500 `ALLOCATED`／500 `BACKORDERED`，`checks_total` 全過、不超賣、不漏單，
-`order_decision_latency_ms` p99 2.88s。跟 Demo-01 SIT（`AllocationHotSkuConcurrencyIntegrationTest`
+`order_decision_latency_ms` p99 4.5s。跟 Demo-01 SIT（`AllocationHotSkuConcurrencyIntegrationTest`
 的 test-only 屏障強制製造衝突）是互補的驗證方式，都能穩定量到真實 optimistic-lock 衝突。
+
+上面這組數字是在 `POST /orders` 合約改為 JSON request body 之後重新量的。同一台機器上
+連跑兩次為 p99 4.5s 與 4.77s；先前記錄的 2.88s 是另一次量測環境下的結果。**這個差距不
+歸因於合約改動**——熱路徑上多出來的只有 JSON body 解析與 `idx_orders_recent` 的寫入，
+兩者都是微秒級；配置延遲由 Kafka 傳遞與單一 `StockPool` row 的樂觀鎖競爭主導。要拿延遲
+數字做跨版本比較，必須在同一次 session、同樣的機器負載下量測。
 
 重試與 DLT 架構（`AllocationConcurrencyExhaustedException` → 4 次指數退避重送 →
 `DeadLetterPublishingRecoverer`）的設計與取捨見
@@ -70,6 +76,10 @@ DLT 落地驗證：`./e2e/perf/run.sh check-dlt ordering.order-events-dlt` 撈�
 v1、v3 的正式數據都是在各自 process 先跑過一輪拋棄式暖機 burst（同樣 1,000
 VUs／庫存 500，結果與 Prometheus 計數皆捨棄不計）之後才重新種庫存、量測，避免
 JIT／連線池／consumer-group 暖機程度不對稱污染吞吐量對比。
+
+這張對比表是在 `POST /orders` 合約改動之前量的，未隨之重測——兩個版本跑的是同一支
+腳本、承受同樣的合約成本，因此相對比較仍然成立；但表中的絕對吞吐量不可與改動後的
+數字並列。要更新它必須把暖機方法論完整重跑一輪（v1 與 v3 各一次暖機加一次量測）。
 
 對比圖：[`throughput_comparison.png`](k6/results/throughput_comparison.png)、
 [`conflict_comparison.png`](k6/results/conflict_comparison.png)。

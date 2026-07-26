@@ -153,6 +153,38 @@ class OrderPersistenceIntegrationTest {
   }
 
   @Test
+  @DisplayName("應以下單時間遞減取最近訂單，並在時間相同時以 ID 穩定排序")
+  void findsRecentOrdersInStableDescendingOrder() {
+    // 前三筆刻意共用同一個 placed_at：沒有 id 作為 tie-breaker 的話，重複查詢的順序不保證一致
+    persistOrder(uuid(1), "SKU-1", OrderStatus.PENDING, null, null);
+    persistOrder(uuid(2), "SKU-1", OrderStatus.PENDING, null, null);
+    persistOrder(uuid(3), "SKU-2", OrderStatus.PENDING, null, null);
+    persistOrderAt(uuid(4), "SKU-1", PLACED_AT.plusSeconds(1));
+    entityManager.clear();
+
+    assertThat(repositoryAdapter.findRecent(10)).extracting(Order::getId)
+        .containsExactly(uuid(4), uuid(3), uuid(2), uuid(1));
+    assertThat(repositoryAdapter.findRecent(2)).extracting(Order::getId)
+        .containsExactly(uuid(4), uuid(3));
+    assertThat(repositoryAdapter.findRecent(10)).extracting(Order::getId)
+        .containsExactly(uuid(4), uuid(3), uuid(2), uuid(1));
+  }
+
+  @Test
+  @DisplayName("migration 應建立支援最近訂單查詢的 index，方向與 ORDER BY 一致")
+  void createsRecentOrdersIndex() {
+    String indexDefinition = jdbcTemplate.queryForObject("""
+        SELECT indexdef
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'orders'
+          AND indexname = 'idx_orders_recent'
+        """, String.class);
+
+    assertThat(indexDefinition).contains("(placed_at DESC, id DESC)");
+  }
+
+  @Test
   @DisplayName("migration 應建立支援穩定 FIFO 的複合 index")
   void createsStableFifoIndex() {
     String indexDefinition = jdbcTemplate.queryForObject("""
@@ -185,6 +217,11 @@ class OrderPersistenceIntegrationTest {
         null,
         null
     ));
+  }
+
+  private void persistOrderAt(UUID id, String sku, Instant placedAt) {
+    jpaRepository.saveAndFlush(
+        new OrderEntity(id, sku, 1, OrderStatus.PENDING, placedAt, null, null, null, null));
   }
 
   private static UUID uuid(int suffix) {

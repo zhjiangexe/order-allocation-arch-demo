@@ -34,8 +34,7 @@ range SHALL be rejected with `400`; the endpoint SHALL NOT silently reduce an
 out-of-range value to the maximum, because a client would otherwise be unable to
 distinguish a truncated response from a complete one.
 
-Each listed order SHALL carry the same fields as the single-order query response
-except the integration event chain, which SHALL NOT be included in list responses.
+Each listed order SHALL carry the same fields as the single-order query response.
 
 #### Scenario: Repeated requests return an identical sequence
 
@@ -53,38 +52,6 @@ except the integration event chain, which SHALL NOT be included in list response
 | 101 | `400` |
 | 0 | `400` |
 | -1 | `400` |
-
-### Requirement: A single order exposes its integration event chain
-
-The single-order query response SHALL include an `events` array containing every
-Integration Event emitted for that order, ordered by occurrence time. Each entry
-SHALL carry the event identifier, the event type, the occurrence timestamp, and
-the event payload exactly as it was published, without reshaping or flattening.
-
-The chain SHALL be resolved by aggregate identity, so it SHALL return the same
-events regardless of the active partition-key strategy. An order with no emitted
-events SHALL yield an empty array, not an error.
-
-#### Scenario: A backordered-then-allocated order shows its full causal chain
-
-- **GIVEN** an order was placed, backordered for lack of stock, and later
-  allocated after the SKU was replenished
-- **WHEN** that order is queried by identifier
-- **THEN** the `events` array contains the placement event, the backorder event,
-  and the allocation event in that order, each with its payload as published
-
-##### Example: chain entries for one order
-
-| Position | Event type | Payload |
-| --- | --- | --- |
-| 1 | `OrderPlacedIntegrationEvent` | as published |
-| 2 | `BackorderCreatedIntegrationEvent` | as published |
-| 3 | `OrderAllocatedIntegrationEvent` | as published |
-
-#### Scenario: An order queried immediately after placement returns its chain so far
-
-- **WHEN** an order is queried before any allocation decision has been recorded
-- **THEN** the response succeeds and `events` contains only the placement event
 
 ### Requirement: Stock pool state is queryable by SKU
 

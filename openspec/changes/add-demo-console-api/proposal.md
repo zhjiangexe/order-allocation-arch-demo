@@ -3,7 +3,7 @@
 v1 明確決定不做前端 UI，因此 `order-promising` 目前只有兩支 HTTP 端點
 （`OrderController` 的下單與單筆查詢），且兩支都是為了 k6 壓測而存在，不是為人使用
 而設計。要讓這個系統能被互動式操作與觀察——下一張單、查一次庫存、觸發一次補貨、
-看一張訂單的事件因果鏈——現有 HTTP 表面不足。
+看訂單狀態如何隨之改變——現有 HTTP 表面不足。
 
 同時既有的下單端點本身有三個獨立的缺陷：`@RequestMapping` 未限制 HTTP method，
 因此 `GET /orders?sku=X&quantity=1` 會真的建立訂單，違反 GET 必須是 safe method；
@@ -20,13 +20,8 @@ v1 明確決定不做前端 UI，因此 `order-promising` 目前只有兩支 HTT
 - 新增 `GET /orders`：回傳最近下單的 N 筆訂單，依 `placedAt` 遞減排序並以 `id`
   作為 tie-breaker 確保順序穩定。`limit` 預設 20、上限 100，超出上限回 `400`，
   不靜默截斷。
-- 新增查詢用 index 至 `orders` 與 `event_outbox`，直接併入
-  `V3__create_orders.sql` 與 `V5__create_event_inbox_and_outbox.sql`（此 schema 尚未
-  部署至任何環境，理由與 `fix-outbox-partition-key-semantics` 一致）。outbox 的
-  index 是必要的——單筆訂單查詢是 k6 壓測輪詢的熱路徑，事件因果鏈若走全表掃描會
-  影響既有 baseline。
-- 擴充 `GET /orders/{orderId}`：新增 `events` 陣列，依發生時間回傳該訂單的
-  Integration Event 因果鏈，每筆含事件識別碼、型別、發生時間與原樣的 payload。
+- 新增查詢用 index 至 `orders`，直接併入 `V3__create_orders.sql`（此 schema 尚未部署
+  至任何環境，理由與 `fix-outbox-partition-key-semantics` 一致）。
 - 新增 `GET /stock-pool/{sku}`：回傳該 SKU 的 on-hand、reserved 與
   available-to-promise。此為 allocation 模組的第一支 REST entrypoint。
 - 新增 `POST /demo/replenish`（dev-only）：向 `inventory.stock-events` 發布一則真實的
@@ -40,8 +35,7 @@ v1 明確決定不做前端 UI，因此 `order-promising` 目前只有兩支 HTT
 ### New Capabilities
 
 - `order-promising-http-api`: 訂單與庫存的 HTTP 命令與查詢表面——下單、最近訂單
-  列表、單筆訂單含事件因果鏈、單一 SKU 的庫存狀態。這些是正式的業務能力，不受
-  profile 限制。
+  列表、單筆訂單、單一 SKU 的庫存狀態。這些是正式的業務能力，不受 profile 限制。
 - `demo-only-probes`: 僅在 dev profile 啟用的探針端點——模擬外部上游發布補貨事件、
   揭露目前生效的分區策略。這些不屬於任何 bounded context，存在目的是讓系統可被
   互動式操作與觀察。
@@ -52,13 +46,10 @@ v1 明確決定不做前端 UI，因此 `order-promising` 目前只有兩支 HTT
 
 ## Impact
 
-- 依賴 `fix-outbox-partition-key-semantics`：事件因果鏈以 aggregate identity 查詢
-  outbox，該查詢條件在分區策略為 `sku` 時目前不成立。
 - Production code：`OrderController`、`PlaceOrderUsecase`（回傳型別）、
   `OrderRepository` 與其實作（新增查詢）、allocation 模組新增 REST entrypoint 與
-  查詢 usecase、`common/outbox` 新增唯讀查詢介面、新增 `demo` package。
-- Schema：`orders` 與 `event_outbox` 各新增一個查詢 index（改
-  `V3__create_orders.sql` 與 `V5__create_event_inbox_and_outbox.sql`）。
+  查詢 usecase、新增 `demo` package。
+- Schema：`orders` 新增一個查詢 index（改 `V3__create_orders.sql`）。
 - 基礎設施：`demo` 探針使 application 首次直接作為 Kafka producer；既有對外發布
   全部走 Debezium。此處不經 outbox 是正確的——探針不變更任何本地狀態，沒有需要與
   事件發布對齊的 transaction。

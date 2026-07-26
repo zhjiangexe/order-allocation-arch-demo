@@ -51,12 +51,17 @@ const backorderedTotal = new Counter('order_backordered_total');
 const decisionTimeoutTotal = new Counter('order_decision_timeout_total');
 
 export default function () {
-  const placeRes = http.post(`${BASE_URL}/orders?sku=${HOT_SKU}&quantity=1`);
+  const placeRes = http.post(
+    `${BASE_URL}/orders`,
+    JSON.stringify({ sku: HOT_SKU, quantity: 1 }),
+    { headers: { 'Content-Type': 'application/json' } },
+  );
   const placed = check(placeRes, { 'order placed (200)': (r) => r.status === 200 });
   if (!placed) {
     return;
   }
-  const orderId = JSON.parse(placeRes.body);
+  // 回傳的是完整訂單表示（跟 GET /orders/{id} 同型別），不是裸的 UUID 字串
+  const orderId = JSON.parse(placeRes.body).orderId;
 
   const finalOrder = pollUntilDecided(orderId);
   if (finalOrder === null) {

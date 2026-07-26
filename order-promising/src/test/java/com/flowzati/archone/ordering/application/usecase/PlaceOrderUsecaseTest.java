@@ -2,9 +2,9 @@ package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,7 +26,7 @@ class PlaceOrderUsecaseTest {
     ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
     ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
 
-    UUID returnedOrderId = usecase.placeOrder("SKU-1", 3);
+    Order returnedOrder = usecase.placeOrder("SKU-1", 3);
 
     verify(repository).save(orderCaptor.capture());
     verify(publisher).publishEvent(eventCaptor.capture());
@@ -34,8 +34,9 @@ class PlaceOrderUsecaseTest {
 
     Order persistedOrder = orderCaptor.getValue();
     List<Object> publishedEvents = eventCaptor.getAllValues();
-    assertThat(returnedOrderId).isEqualTo(persistedOrder.getId());
+    assertThat(returnedOrder).isSameAs(persistedOrder);
+    assertThat(returnedOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
     assertThat(publishedEvents).containsExactly(new OrderPlaced(
-        returnedOrderId, "SKU-1", 3, persistedOrder.getPlacedAt()));
+        returnedOrder.getId(), "SKU-1", 3, persistedOrder.getPlacedAt()));
   }
 }

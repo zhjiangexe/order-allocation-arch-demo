@@ -32,9 +32,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 這個查詢條件（{@code aggregatetype = 'Order' AND aggregateid = ?}）是
- * {@code add-demo-console-api} 的訂單事件時間軸所依賴的。它必須在 sku 分區策略下也成立
- * ——那正是把 partition key 從 {@code aggregateid} 拆出來之前會失敗的情境。
+ * 驗證 outbox row 的領域身分與傳輸決策確實分離：不論分區策略為何，Order aggregate 的
+ * 事件一律以 orderId 作為 {@code aggregateid}，SKU 只出現在 {@code partition_key}。
+ *
+ * <p>以「用 orderId 查得到這張訂單發布過的全部事件」作為斷言手法，是因為那是這個性質
+ * 最直接的可觀察後果——把 partition key 塞在 {@code aggregateid} 的舊實作在 sku 策略下
+ * 會漏掉下單事件。這裡不預設任何查詢端存在，純粹是對 schema 誠實度的迴歸測試。
  */
 @SpringBootTest(
     classes = ArchoneApplication.class,
@@ -107,11 +110,10 @@ class OutboxAggregateQueryIntegrationTest {
   }
 
   private UUID placeOrder() {
-    UUID orderId = placeOrderUsecase.placeOrder(SKU, 3);
+    Order placed = placeOrderUsecase.placeOrder(SKU, 3);
     // 下單當下 StockPool 的 ATP 是 0，配置決策要等這筆下單事件被 allocation 消費才發生。
-    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
-    return orderId;
+    assertThat(placed.getStatus()).isEqualTo(OrderStatus.PENDING);
+    return placed.getId();
   }
 
   private void backorderIt(UUID orderId) throws Exception {

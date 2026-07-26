@@ -605,6 +605,33 @@ Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直�
   → use case 的新業務 transaction（Inbox claim + 業務處理）
 ```
 
+## HTTP 表面
+
+HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 profile 限制，**dev-only 探針**只在 dev profile 註冊。
+
+| 端點 | 類別 | 說明 |
+|---|---|---|
+| `POST /orders` | 業務 | 下單。SKU 與數量走 JSON request body，回 `200` 與訂單表示。狀態碼刻意維持 `200` 而非 `201`：k6 壓測腳本的 check 寫死 200，改它會多破壞一處而換不到這個 demo 需要的東西 |
+| `GET /orders?limit=N` | 業務 | 最近訂單，依 `placed_at DESC, id DESC` 排序。`limit` 預設 20、範圍 1..100，超出回 `400` 而非靜默截斷——靜默截斷會讓呼叫方無法分辨「只有這麼多筆」與「被截斷」 |
+| `GET /orders/{orderId}` | 業務 | 單筆訂單。未知 id 回 `404` |
+| `GET /stock-pool/{sku}` | 業務 | 該 SKU 的 on-hand、reserved、available-to-promise。欄位以領域語彙命名、不縮寫成 ATP。無 StockPool 回 `404` |
+| `POST /demo/replenish` | dev-only 探針 | 見下方說明 |
+| `GET /demo/config` | dev-only 探針 | 回報目前生效的 `archone.allocation.partition-key-strategy`。只揭露不切換——該值在啟動時解析 |
+
+三個訂單端點共用同一個訂單表示型別，客戶端因此只需要一個訂單模型，而不是「建立時拿到一種、查詢時拿到另一種」。
+
+`GET /stock-pool/{sku}` 是 allocation 模組唯一的 REST entrypoint，且刻意只有唯讀查詢；命令仍然只從 Kafka entrypoint 進入，配置決策不開 HTTP 入口。
+
+### 補貨探針為什麼直接發 Kafka、且不經 Outbox
+
+`POST /demo/replenish` 扮演外部 Inventory bounded context 的上游 producer，向 `inventory.stock-events` 發布真實的 `StockReplenishedIntegrationEvent`，回 `202` 與該事件識別碼。它是本專案唯一直接作為 Kafka producer 的業務路徑（其餘對外發布一律走 Outbox → Debezium CDC）。
+
+不直接呼叫 `ReplenishmentUsecase` 的理由：該 usecase 收的是含 `MessageMetadata` 的 inbound command，而那個 metadata 正是 Inbox 冪等所依據的憑證，直接呼叫等於自行偽造；繞過 Kafka 也會一併繞過重試、退避與 DLT 處理。
+
+不經 Outbox 是正確的，不是違反本專案的 Outbox 原則：Outbox 解決的是「本地狀態變更」與「事件發布」的原子性，而這支探針不變更任何本地狀態——它扮演的是本專案並不擁有的上游 context——沒有需要對齊的 transaction。
+
+探針回應不含「預期會喚醒幾張訂單」：那是發布前的快照，與實際結果可能不符。配置是非同步的，`202` 不代表配置已完成，結果只能由後續查詢觀察。
+
 ## Dev Seed Data
 
 使用 `@Profile("dev")` 的 `ApplicationRunner`，以 idempotent 方式建立：

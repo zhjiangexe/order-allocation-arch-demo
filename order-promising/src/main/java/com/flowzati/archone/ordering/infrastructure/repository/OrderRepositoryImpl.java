@@ -8,6 +8,7 @@ import com.flowzati.archone.ordering.infrastructure.repository.jpa.JpaOrderRepos
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -32,6 +33,14 @@ public class OrderRepositoryImpl implements OrderRepository {
   @Override
   public List<Order> findBackordersBySkuInFifoOrder(String sku) {
     return repository.findBySkuAndStatusOrderByBackorderedSinceAscIdAsc(sku, OrderStatus.BACKORDERED)
+        .stream()
+        .map(OrderMapper::toDomain)
+        .toList();
+  }
+
+  @Override
+  public List<Order> findRecent(int limit) {
+    return repository.findAllByOrderByPlacedAtDescIdDesc(Limit.of(limit))
         .stream()
         .map(OrderMapper::toDomain)
         .toList();
