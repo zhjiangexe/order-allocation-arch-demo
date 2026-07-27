@@ -34,6 +34,18 @@ class CatalogModuleBoundaryTest {
       "import com.flowzati.archone.allocation"
   );
 
+  /**
+   * 主檔只提供查詢：`Owner`／`Product`／`Sku` 由 seed 建立，維護介面是另一件事，有自己的
+   * 授權與稽核需求。提供半套版本會招來對它的依賴。
+   *
+   * <p>repository 的 {@code save} 不在此列——seed 需要它，而它不是對外表面。
+   */
+  private static final List<String> WRITE_VERBS =
+      List.of("Create", "Update", "Delete", "Register", "Amend", "Remove");
+
+  private static final List<String> WRITE_MAPPINGS =
+      List.of("@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping");
+
   @Test
   @DisplayName("catalog 不應 import ordering 或 allocation")
   void doesNotDependOnOrderingOrAllocation() {
@@ -50,6 +62,31 @@ class CatalogModuleBoundaryTest {
   @DisplayName("掃描應真的看到檔案——路徑寫錯時這支測試不能無聲通過")
   void actuallyScansSomething() {
     assertThat(javaSources()).isNotEmpty();
+  }
+
+  @Test
+  @DisplayName("catalog 不應有寫入型的 usecase——主檔由 seed 建立")
+  void exposesNoWriteUsecase() {
+    List<String> writeUsecases = javaSources()
+        .filter(path -> path.toString().contains("/application/usecase/"))
+        .map(path -> path.getFileName().toString())
+        .filter(name -> WRITE_VERBS.stream().anyMatch(name::startsWith))
+        .toList();
+
+    assertThat(writeUsecases).isEmpty();
+  }
+
+  @Test
+  @DisplayName("catalog 的 REST 表面不應有寫入型 mapping")
+  void exposesNoWriteEndpoint() {
+    List<String> violations = javaSources()
+        .filter(path -> path.toString().contains("/entrypoint/rest/"))
+        .flatMap(source -> WRITE_MAPPINGS.stream()
+            .filter(mapping -> readSource(source).contains(mapping))
+            .map(mapping -> "%s → %s".formatted(source, mapping)))
+        .toList();
+
+    assertThat(violations).isEmpty();
   }
 
   private static Stream<Path> javaSources() {

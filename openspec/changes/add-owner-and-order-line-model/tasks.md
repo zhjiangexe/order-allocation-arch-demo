@@ -14,9 +14,9 @@
 
 ## 3. 主檔查詢
 
-- [ ] 3.1 實作 **The catalog is queryable from owner to product to SKU**：新增 `ListOwnersUsecase`、`ListProductsUsecase`（依 `ownerId`）、`ListSkusUsecase`（依 `ownerId` 與 `productCode`）三支純查詢。行為上：逐層選擇時每一層只回傳上一層選定範圍內的項目。以三支 usecase 測試搭配跨貨主 fixture 斷言不外洩他貨主資料驗證。
-- [ ] 3.2 實作 **The catalog exposes no write interface**：確認 `Owner`／`Product`／`Sku` 的 application 表面只有查詢，不新增任何建立、修改、刪除的 usecase 或端點。行為上：主檔只能由 seed 建立，呼叫端無從經由應用層改動主檔。以審閱三支 repository 介面與 controller 表面確認無寫入操作驗證。
-- [ ] 3.3 實作 **The catalog is queryable over HTTP**：新增唯讀端點列出貨主、列出某貨主的款、列出某款的規格，款與規格的路徑巢狀於其貨主之下。行為上：以他貨主的 `productCode` 查詢不會回傳任何項目；任何非讀取的 HTTP method 都不會建立或修改主檔。以 web 層測試涵蓋逐層選擇與跨貨主查詢兩種情形驗證。
+- [x] 3.1 實作 **The catalog is queryable from owner to product to SKU**：新增 `ListOwnersUsecase`、`ListProductsUsecase`（依 `ownerId`）、`ListSkusUsecase`（依 `ownerId` 與 `productCode`）三支純查詢。行為上：逐層選擇時每一層只回傳上一層選定範圍內的項目。以三支 usecase 測試搭配跨貨主 fixture 斷言不外洩他貨主資料驗證。
+- [x] 3.2 實作 **The catalog exposes no write interface**：確認 `Owner`／`Product`／`Sku` 的 application 表面只有查詢，不新增任何建立、修改、刪除的 usecase 或端點。行為上：主檔只能由 seed 建立，呼叫端無從經由應用層改動主檔。以審閱三支 repository 介面與 controller 表面確認無寫入操作驗證。
+- [x] 3.3 實作 **The catalog is queryable over HTTP**：新增唯讀端點列出貨主、列出某貨主的款、列出某款的規格，款與規格的路徑巢狀於其貨主之下。行為上：以他貨主的 `productCode` 查詢不會回傳任何項目；任何非讀取的 HTTP method 都不會建立或修改主檔。以 web 層測試涵蓋逐層選擇與跨貨主查詢兩種情形驗證。
 
 ## 4. 訂單的 domain
 
