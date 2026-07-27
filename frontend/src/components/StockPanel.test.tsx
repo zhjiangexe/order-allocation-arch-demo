@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { StockPanel } from './StockPanel';
@@ -13,6 +14,7 @@ describe('StockPanel 的失敗路徑', () => {
         replenishment={{ status: 'failure', message: 'Kafka 不可用' }}
         onQuery={noop}
         onReplenish={noop}
+        onSkuChange={noop}
       />,
     );
 
@@ -28,6 +30,7 @@ describe('StockPanel 的失敗路徑', () => {
         replenishment={{ status: 'idle' }}
         onQuery={noop}
         onReplenish={noop}
+        onSkuChange={noop}
       />,
     );
 
@@ -45,6 +48,7 @@ describe('StockPanel 的失敗路徑', () => {
         }}
         onQuery={noop}
         onReplenish={noop}
+        onSkuChange={noop}
       />,
     );
 
@@ -52,5 +56,67 @@ describe('StockPanel 的失敗路徑', () => {
     expect(screen.getByText(/再查一次/)).toBeInTheDocument();
     // 不得宣稱任何訂單已被配置
     expect(screen.queryByText(/已配置/)).not.toBeInTheDocument();
+  });
+});
+
+describe('StockPanel 的結果歸屬', () => {
+  it('庫存結果標示它屬於哪個 SKU，且該 SKU 取自後端回應而不是輸入框', () => {
+    render(
+      <StockPanel
+        stock={{
+          status: 'success',
+          data: {
+            sku: 'ACC-PARTIAL',
+            onHandQuantity: 10,
+            reservedQuantity: 4,
+            availableToPromise: 6,
+          },
+        }}
+        replenishment={{ status: 'idle' }}
+        onQuery={noop}
+        onReplenish={noop}
+        onSkuChange={noop}
+      />,
+    );
+
+    // 輸入框是空的，畫面上的 ACC-PARTIAL 只可能來自後端回應
+    expect(screen.getByText(/ACC-PARTIAL/)).toBeInTheDocument();
+  });
+
+  it('補貨受理訊息標示它屬於哪個 SKU', () => {
+    render(
+      <StockPanel
+        stock={{ status: 'idle' }}
+        replenishment={{
+          status: 'success',
+          data: { eventId: '3d9a-event', sku: 'ACC-DEMO', quantity: 500 },
+        }}
+        onQuery={noop}
+        onReplenish={noop}
+        onSkuChange={noop}
+      />,
+    );
+
+    expect(screen.getByText(/ACC-DEMO/)).toBeInTheDocument();
+  });
+
+  it('改動 SKU 後通知外層作廢前一次的結果，畫面不會留著別的 SKU 的查詢結果', async () => {
+    const onSkuChange = vi.fn();
+    render(
+      <StockPanel
+        stock={{
+          status: 'failure',
+          message: 'StockPool not found: SKU-NOT-A-THING',
+        }}
+        replenishment={{ status: 'idle' }}
+        onQuery={noop}
+        onReplenish={noop}
+        onSkuChange={onSkuChange}
+      />,
+    );
+
+    await userEvent.setup().type(screen.getByLabelText('SKU'), 'A');
+
+    expect(onSkuChange).toHaveBeenCalled();
   });
 });

@@ -16,6 +16,10 @@ export function StockPage() {
           replenishment={replenishment.state}
           onQuery={(sku) => void stock.run(sku)}
           onReplenish={(sku, quantity) => void replenishment.run({ sku, quantity })}
+          onSkuChange={() => {
+            stock.reset();
+            replenishment.reset();
+          }}
         />
       </section>
     </div>

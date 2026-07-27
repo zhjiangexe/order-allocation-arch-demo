@@ -35,6 +35,23 @@
   width: 7rem;
 }
 
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.resultFor {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.skuValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
 .quantities {
   display: flex;
   gap: 1.5rem;

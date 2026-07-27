@@ -10,13 +10,25 @@ interface StockPanelProps {
   replenishment: AsyncState<ReplenishmentAccepted>;
   onQuery: (sku: string) => void;
   onReplenish: (sku: string, quantity: number) => void;
+  /** 改動 SKU 時作廢畫面上的結果——它們屬於上一個 SKU。 */
+  onSkuChange: () => void;
 }
 
 /**
  * 查庫存與補貨放同一個面板、共用同一個 SKU 欄位，因為它們是一個連續動作：查到 ATP 是 0、
  * 補一批、再查一次確認。拆成兩塊會把這條敘事切斷。
+ *
+ * <p>共用一個欄位的代價是結果會失去歸屬：查完一個 SKU、把欄位改成另一個，畫面上的數字
+ * 仍是前一個 SKU 的。因此兩件事都要做——結果自己標出它屬於哪個 SKU（取自後端回應，不是
+ * 輸入框，兩者在查詢往返之間可能已經不同），而且改動欄位就作廢前一次的結果。
  */
-export function StockPanel({ stock, replenishment, onQuery, onReplenish }: StockPanelProps) {
+export function StockPanel({
+  stock,
+  replenishment,
+  onQuery,
+  onReplenish,
+  onSkuChange,
+}: StockPanelProps) {
   const skuId = useId();
   const quantityId = useId();
   const [sku, setSku] = useState('');
@@ -36,7 +48,10 @@ export function StockPanel({ stock, replenishment, onQuery, onReplenish }: Stock
             id={skuId}
             className={styles.input}
             value={sku}
-            onChange={(event) => setSku(event.target.value)}
+            onChange={(event) => {
+              setSku(event.target.value);
+              onSkuChange();
+            }}
             placeholder="HOT-SKU"
           />
         </div>
@@ -64,27 +79,32 @@ export function StockPanel({ stock, replenishment, onQuery, onReplenish }: Stock
 
       <ActionState state={stock} pendingLabel="查詢中…">
         {(pool) => (
-          <dl className={styles.quantities}>
-            <div>
-              <dt>on-hand</dt>
-              <dd>{pool.onHandQuantity}</dd>
-            </div>
-            <div>
-              <dt>reserved</dt>
-              <dd>{pool.reservedQuantity}</dd>
-            </div>
-            <div>
-              <dt>available-to-promise</dt>
-              <dd>{pool.availableToPromise}</dd>
-            </div>
-          </dl>
+          <div className={styles.result}>
+            <p className={styles.resultFor}>
+              <span className={styles.skuValue}>{pool.sku}</span> 的庫存
+            </p>
+            <dl className={styles.quantities}>
+              <div>
+                <dt>on-hand</dt>
+                <dd>{pool.onHandQuantity}</dd>
+              </div>
+              <div>
+                <dt>reserved</dt>
+                <dd>{pool.reservedQuantity}</dd>
+              </div>
+              <div>
+                <dt>available-to-promise</dt>
+                <dd>{pool.availableToPromise}</dd>
+              </div>
+            </dl>
+          </div>
         )}
       </ActionState>
 
       <ActionState state={replenishment} pendingLabel="發布補貨事件中…">
         {(accepted) => (
           <p className={styles.accepted}>
-            補貨事件已受理，事件識別碼{' '}
+            <span className={styles.skuValue}>{accepted.sku}</span> 的補貨事件已受理，事件識別碼{' '}
             <span className={styles.eventId}>{accepted.eventId}</span>
             。配置是非同步的——再查一次庫存、或到訂單頁按重新整理，才看得到結果。
           </p>

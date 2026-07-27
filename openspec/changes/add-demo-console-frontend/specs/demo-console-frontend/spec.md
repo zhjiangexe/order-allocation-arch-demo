@@ -73,6 +73,12 @@ already completed.
 
 A SKU with no stock pool SHALL render an explicit not-found state.
 
+Because both actions share one SKU field, every result the page displays SHALL
+identify the SKU it belongs to, and editing the SKU field SHALL discard results
+belonging to the previous SKU. The displayed SKU SHALL come from the backend
+response rather than from the field, since the two can differ by the time a
+response arrives.
+
 #### Scenario: Querying a partially reserved SKU reports all three quantities
 
 - **GIVEN** a stock pool holds 10 on hand with 4 reserved
@@ -93,6 +99,13 @@ A SKU with no stock pool SHALL render an explicit not-found state.
 | the replenishment was accepted | "N orders allocated" |
 | the returned event identifier | any order status change |
 | that the outcome requires querying again | a predicted count of woken orders |
+
+#### Scenario: Editing the SKU discards the previous SKU's result
+
+- **GIVEN** the viewer has queried one SKU and the page shows that SKU's result
+- **WHEN** the viewer edits the SKU field
+- **THEN** the previous SKU's result is no longer displayed, so the page never
+  shows a result next to a field naming a different SKU
 
 #### Scenario: An unknown SKU renders a not-found state
 
