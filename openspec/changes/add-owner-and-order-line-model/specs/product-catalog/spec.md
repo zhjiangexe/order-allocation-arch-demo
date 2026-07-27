@@ -21,14 +21,17 @@ No behavior in this capability reads it yet.
 ---
 ### Requirement: Catalog identifiers are scoped to their owner
 
-A product SHALL be identified by its owner together with the product code that owner
-assigns; a SKU SHALL be identified by its owner together with the SKU code that owner
-assigns. Neither code SHALL be unique on its own.
+A product code SHALL be unique only within its owner, and a SKU code SHALL be unique
+only within its owner. Neither code SHALL be unique on its own, and neither SHALL
+identify anything when named without an owner.
 
 In third-party logistics each owner assigns its own codes, so the same code identifies
-different goods for different owners. Scoping the identifier means every reference to a
-SKU must name the owner as well, making the collision impossible to overlook rather
-than merely documented.
+different goods for different owners. Every reference to a catalog entry from outside
+the catalog SHALL therefore name the owner as well, making the collision impossible to
+overlook rather than merely documented.
+
+How a catalog entry is keyed internally is not constrained here — only that the
+owner-scoped uniqueness is enforced by storage rather than by convention.
 
 #### Scenario: The same SKU code under two owners denotes two distinct SKUs
 

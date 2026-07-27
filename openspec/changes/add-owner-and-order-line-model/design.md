@@ -88,15 +88,48 @@ FK 的被指向方一律在前。
 分層的判準是「這個屬性屬於款還是屬於規格」：冷凍水餃的 500g 包與 1kg 包都是冷凍（款），
 但重量不同（規格）。
 
-### 主檔以 `(owner_id, code)` 複合鍵，不用代理鍵
+### 主檔用代理鍵，撞號保護交給 unique constraint
 
-`products` 的 PK 是 `(owner_id, product_code)`，`skus` 的是 `(owner_id, sku_code)`。
-另一個選項是給每張表一個 UUID 代理鍵，把 `(owner_id, code)` 降為 unique constraint。
+`products` 與 `skus` 的 PK 是 UUID 代理鍵，`(owner_id, product_code)` 與
+`(owner_id, sku_code)` 降為 unique constraint。
 
-選複合鍵，因為在 3PL 裡 `sku_code` 由貨主自訂，**不同貨主必然會撞號**，「SKU-A」單獨
-存在時不指向任何東西。複合鍵讓這個事實出現在型別上——所有要指向 SKU 的地方都被迫同時
-帶上 `owner_id`，包括 `order_lines` 的 FK。代理鍵做得到同樣的完整性，但允許程式碼只
-帶 `sku_code` 到處跑，而那正是現況的問題。
+**這與最初的決定相反。** 一開始選的是複合 PK，理由是「讓 `sku_code` 單獨無意義這件事
+出現在型別上」。那個理由不足以偏離慣例：
+
+- 既有五張表（`orders`、`order_lines`、`stock_pools`、`stock_reservations`、outbox）
+  全部是 `id UUID PRIMARY KEY`。主檔用複合 PK 是這個 repo 裡唯一的例外，而 design 若要
+  留下例外就得有比「比較貼切」更強的理由。
+- **撞號保護不需要複合 PK。**「同一貨主的 `sku_code` 唯一、不同貨主可以撞號」由 unique
+  constraint 保證，與主鍵是誰無關。把約束價值與主鍵選擇混為一談是最初那個決定的錯誤。
+- 複合 PK 的成本是真實且每天都會碰到的：JPA 要 `@IdClass` 或 `@EmbeddedId`，前者的鍵
+  欄位得宣告兩次、不同步時整個 persistence context 建不起來，後者讓查詢方法變成
+  `findById_OwnerId…`。複合鍵還會沿外鍵鏈往下傳播欄位。
+
+代理鍵的代價——`sku_code` 這個跨模組流通的字串與 `id` 並存——在這裡不需付：
+**`order_lines` 的外鍵仍然是 `(owner_id, sku_code)`，指向 `skus` 的 unique constraint。**
+PostgreSQL 允許外鍵指向 unique constraint 而不必是 PK，因此資料庫層的保證完全不變，
+訂單行也不必多存一個 `sku_id`，配貨路徑不必為了取 `sku_code` 而 join 主檔。
+
+`skus.id` 目前沒有引用者。它存在是為了 JPA 的單純與慣例一致，不是為了被指向。
+
+判準留給後續 change：**代理鍵是預設**，只有「純連接表」與「身分依附父實體的弱實體」
+兩種情形才用複合 PK；偏離時 unique constraint 一律不可省。
+
+### 主檔放獨立的 `catalog` package
+
+`Owner`、`Product`、`Sku` 放在新的 `catalog` package，與 `ordering`、`allocation` 平行，
+內部同樣分 domain／application／infrastructure／entrypoint。
+
+替代方案是放進 `ordering`——主檔確實是收單時才用到，檔案數也最少。不選它的理由是依賴
+方向：R3 的 `requireMatchingOwner()` 會讓 allocation 也需要讀貨主，屆時 allocation 就得
+`import ordering.domain.model.Owner`，而 **R4 的驗收條件之一正是
+`grep -r "ordering.domain.model" allocation/` 結果為空**。放進 `ordering` 等於現在種下一個
+兩個 change 之後要拔掉的依賴。
+
+放 `common` 也不行：那裡目前裝的是 outbox、inbox、ddd 這類技術設施，放業務模型進去會模糊
+它的職責。
+
+`catalog` 不依賴 `ordering` 或 `allocation`，兩者都可以依賴它——這是主檔應有的方向。
 
 ### `order_lines` 反正規化 `owner_id` 與 `backordered_since`
 

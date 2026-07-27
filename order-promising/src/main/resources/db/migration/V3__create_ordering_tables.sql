@@ -24,36 +24,41 @@ CREATE TABLE owners (
 -- 溫層放在款層級，是為了讓「同款兩種溫層」這類髒資料在結構上無法產生——那不是無效值
 -- 而是無效組合，收單時不會報錯，會拖到 R6 依節點 capabilities 篩選時才以「同一款商品
 -- 被篩到不同節點」的形式浮現，屆時很難歸因。
+-- 主檔用代理鍵，與本 schema 其餘各表一致；「同一貨主的款號唯一、不同貨主可以撞號」
+-- 由 unique constraint 保證，與主鍵是誰無關。
 CREATE TABLE products (
+    id UUID PRIMARY KEY,
     owner_id UUID NOT NULL,
     product_code VARCHAR(64) NOT NULL,
     name VARCHAR(255) NOT NULL,
     temperature_zone VARCHAR(32) NOT NULL,
-    CONSTRAINT pk_products PRIMARY KEY (owner_id, product_code),
+    CONSTRAINT uq_products_owner_code UNIQUE (owner_id, product_code),
     CONSTRAINT fk_products_owner FOREIGN KEY (owner_id) REFERENCES owners(id),
     CONSTRAINT ck_products_temperature_zone
         CHECK (temperature_zone IN ('AMBIENT', 'CHILLED', 'FROZEN'))
 );
 
--- PK 為 (owner_id, sku_code) 而非代理鍵：在 3PL 裡 sku_code 由貨主自訂，不同貨主必然
--- 撞號，「SKU-A」單獨存在時不指向任何東西。複合鍵讓這個事實出現在型別上——所有要指向
--- SKU 的地方都被迫同時帶上 owner_id。代理鍵做得到同樣的完整性，但允許程式碼只帶
--- sku_code 到處跑，而那正是本次改造前的問題。
+-- 同上用代理鍵。但外鍵刻意仍走自然鍵 (owner_id, product_code) 而非 products.id：
+-- 在 3PL 裡編碼由貨主自訂、跨貨主必然撞號，走自然鍵的外鍵會強制每一次參照都帶上貨主，
+-- 而「款與規格必須屬於同一個貨主」這件事因此由資料庫保證，不需在應用層檢查。
+-- PostgreSQL 允許外鍵指向 unique constraint 而不必是主鍵。
 CREATE TABLE skus (
+    id UUID PRIMARY KEY,
     owner_id UUID NOT NULL,
     sku_code VARCHAR(64) NOT NULL,
     product_code VARCHAR(64) NOT NULL,
     spec_name VARCHAR(255) NOT NULL,
     -- R6 成本函數的運費基準。500ml 與 1L 重量不同，因此在規格層級。
     weight_gram INTEGER NOT NULL,
-    CONSTRAINT pk_skus PRIMARY KEY (owner_id, sku_code),
+    CONSTRAINT uq_skus_owner_code UNIQUE (owner_id, sku_code),
     CONSTRAINT fk_skus_product
         FOREIGN KEY (owner_id, product_code) REFERENCES products(owner_id, product_code),
     CONSTRAINT ck_skus_weight_positive CHECK (weight_gram > 0)
 );
 
--- 「列出某款的所有規格」是下單表單第二段選擇的查詢。skus 的 PK 是
--- (owner_id, sku_code)，涵蓋不到 (owner_id, product_code)，因此需要這個 index。
+-- 「列出某款的所有規格」是下單表單第二段選擇的查詢。skus 的主鍵是代理鍵、unique
+-- constraint 是 (owner_id, sku_code)，兩者都涵蓋不到 (owner_id, product_code)，
+-- 因此需要這個 index。它同時支撐 fk_skus_product 的完整性檢查。
 CREATE INDEX idx_skus_product
     ON skus (owner_id, product_code);
 

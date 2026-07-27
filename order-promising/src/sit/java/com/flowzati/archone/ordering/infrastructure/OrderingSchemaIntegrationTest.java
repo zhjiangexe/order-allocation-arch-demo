@@ -83,8 +83,57 @@ class OrderingSchemaIntegrationTest {
   }
 
   @Nested
-  @DisplayName("主檔以 (owner_id, code) 為鍵")
+  @DisplayName("主檔用代理鍵，撞號保護交給 unique constraint")
   class OwnerScopedKeys {
+
+    @Test
+    @DisplayName("主檔應與其餘各表一致，使用單欄代理主鍵")
+    void usesSurrogatePrimaryKeys() {
+      assertThat(primaryKeyColumns("products")).containsExactly("id");
+      assertThat(primaryKeyColumns("skus")).containsExactly("id");
+      assertThat(primaryKeyColumns("owners")).containsExactly("id");
+    }
+
+    // 以下兩支刻意分開：第一個 constraint 違反會讓交易進入 aborted 狀態，同一個交易裡
+    // 的後續語句一律失敗於「current transaction is aborted」，斷言就驗不到真正的原因。
+
+    @Test
+    @DisplayName("同一貨主的 sku_code 應唯一——放棄複合主鍵不等於放棄這個約束")
+    void keepsSkuCodeUniqueWithinOneOwner() {
+      seedOwner(OWNER_ID, "OWNER-A");
+      seedProduct(OWNER_ID, "P-1", "AMBIENT");
+      seedSku(OWNER_ID, "SKU-A", "P-1", 520);
+
+      assertThatThrownBy(() -> seedSku(OWNER_ID, "SKU-A", "P-1", 999))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .rootCause()
+          .hasMessageContaining("uq_skus_owner_code");
+    }
+
+    @Test
+    @DisplayName("同一貨主的 product_code 應唯一")
+    void keepsProductCodeUniqueWithinOneOwner() {
+      seedOwner(OWNER_ID, "OWNER-A");
+      seedProduct(OWNER_ID, "P-1", "AMBIENT");
+
+      assertThatThrownBy(() -> seedProduct(OWNER_ID, "P-1", "FROZEN"))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .rootCause()
+          .hasMessageContaining("uq_products_owner_code");
+    }
+
+    @Test
+    @DisplayName("規格應無法指向他貨主的款——外鍵走自然鍵，跨貨主的參照建不起來")
+    void rejectsSkuPointingAtAnotherOwnersProduct() {
+      seedOwner(OWNER_ID, "OWNER-A");
+      seedOwner(OTHER_OWNER_ID, "OWNER-B");
+      seedProduct(OWNER_ID, "P-1", "AMBIENT");
+
+      assertThatThrownBy(() -> seedSku(OTHER_OWNER_ID, "SKU-A", "P-1", 520))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .rootCause()
+          .hasMessageContaining("fk_skus_product");
+    }
 
     @Test
     @DisplayName("兩個貨主應可各自定義同一個 sku_code")
@@ -250,6 +299,20 @@ class OrderingSchemaIntegrationTest {
         """, String.class, table);
   }
 
+  private List<String> primaryKeyColumns(String table) {
+    return jdbcTemplate.queryForList("""
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+        WHERE tc.table_schema = 'public'
+          AND tc.table_name = ?
+          AND tc.constraint_type = 'PRIMARY KEY'
+        ORDER BY kcu.ordinal_position
+        """, String.class, table);
+  }
+
   private List<String> foreignKeyColumns(String table) {
     return jdbcTemplate.queryForList("""
         SELECT kcu.column_name
@@ -291,16 +354,16 @@ class OrderingSchemaIntegrationTest {
 
   private void seedProduct(UUID ownerId, String productCode, String temperatureZone) {
     jdbcTemplate.update("""
-        INSERT INTO products (owner_id, product_code, name, temperature_zone)
-        VALUES (?, ?, ?, ?)
-        """, ownerId, productCode, productCode, temperatureZone);
+        INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
+        VALUES (?, ?, ?, ?, ?)
+        """, UUID.randomUUID(), ownerId, productCode, productCode, temperatureZone);
   }
 
   private void seedSku(UUID ownerId, String skuCode, String productCode, int weightGram) {
     jdbcTemplate.update("""
-        INSERT INTO skus (owner_id, sku_code, product_code, spec_name, weight_gram)
-        VALUES (?, ?, ?, ?, ?)
-        """, ownerId, skuCode, productCode, skuCode, weightGram);
+        INSERT INTO skus (id, owner_id, sku_code, product_code, spec_name, weight_gram)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, UUID.randomUUID(), ownerId, skuCode, productCode, skuCode, weightGram);
   }
 
   private void seedOrder(UUID id, UUID ownerId, String externalOrderNo) {
