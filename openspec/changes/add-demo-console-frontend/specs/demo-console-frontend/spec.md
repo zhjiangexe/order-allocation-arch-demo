@@ -32,9 +32,10 @@ inspecting one order requires no further navigation, modal, or detail view.
 
 ##### Example: configuration requests across a navigation sequence
 
-- **GIVEN** the console has just loaded the orders page
+- **GIVEN** the console has finished its initial load
 - **WHEN** the viewer navigates orders → stock → orders
-- **THEN** exactly one configuration request has been issued in total, not three
+- **THEN** the configuration request count is unchanged from what the initial
+  load produced — navigating adds none
 
 ### Requirement: Placing an order shows the result in the list on the same page
 
