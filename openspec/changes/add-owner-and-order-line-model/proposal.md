@@ -19,9 +19,10 @@ change：R3 的跨貨主隔離要 `owner_id`、R6 的選點要溫層與重量、
   `assigned_node_id`，以及反正規化的 `owner_id`。
 - **BREAKING**：`orders` 移除 `sku` 與 `quantity`，新增 `owner_id`、
   `external_order_no`、`ship_to_zone`、`ship_to_address`、`promised_delivery_date`、
-  `requested_node_id`、`fulfilled_at`。所有 `order.getSku()` 的呼叫點都會編譯失敗，
-  包含 allocation 側的 `AllocationService.requireMatchingSku()` 與兩個
-  `AllocationPolicy` 實作。
+  `requested_node_id`。所有 `order.getSku()`／`getQuantity()` 的呼叫點都會編譯失敗，
+  包含 allocation 側的 `AllocationService.requireMatchingSku()`、兩個
+  `AllocationPolicy` 實作，以及 `OrderAllocationCoordinator` 的三處（建立預留、
+  補貨批次配貨、發布配貨完成事件）。
 - **BREAKING**：`V3__create_orders.sql` 改寫為最終形狀並更名為
   `V3__create_ordering_tables.sql`——四張表依 FK 依賴順序建立，`orders` 直接帶齊分流
   欄位。此 schema 尚未部署至任何環境，理由與 `add-demo-console-api`、
@@ -39,13 +40,23 @@ change：R3 的跨貨主隔離要 `owner_id`、R6 的選點要溫層與重量、
   `OrderCancelledIntegrationEvent` 加 `ownerId`。allocation 側兩支 handler 連帶調整。
 - 新增 `ListOwnersUsecase`、`ListProductsUsecase`、`ListSkusUsecase` 三支純查詢。
   **不新增任何主檔寫入介面**——`Owner`／`Product`／`Sku` 由 seed 建立。
-- **四項從後續 change 提前**，理由是它們動的都是同一組表，分次做等於重複 ALTER：
+- **BREAKING**：`Order` 對 allocation 暴露的是**聚合後的需求**（SKU 對數量的映射）
+  而非 line 集合。配貨端看到「這張單總共要什麼」，沒有「行」可以逐個處理，因此
+  「逐行獨立配貨、配得到就預留」這種違反 ship-complete 的寫法**打不出來**，而不是
+  「測試會抓到」。R1 單行下這個映射只有一筆，行為完全不變；R8 多行時它自然變成多筆
+  而配貨端不需改動。這也把 allocation 與 `Order` 的介面提前切在 R4 `demand_lines`
+  要切的位置。
+- **BREAKING**：`StockReplenishedIntegrationEvent` 與 `ReplenishStockCommand` 加
+  `ownerId`，連帶 dev 補貨探針、前端庫存頁的補貨動作與 k6 腳本。不加的話
+  `findBackordersBySkuInFifoOrder` 雖然有了 `ownerId` 參數，卻沒有任何呼叫端拿得出
+  值——backorder 佇列的貨主隔離會是一條沒有生效路徑的規格。
+- **三項從後續 change 提前**，理由是它們動的都是同一組表，分次做等於重複遷移：
   `order_lines.backordered_since` 與 `idx_order_lines_backorder_fifo`（R8）、
-  `UNIQUE (owner_id, external_order_no)`（R5）、`orders.fulfilled_at`（R7）。前兩項
-  不提前就沒有 FIFO index 可用，壓測基準會斷掉且無法歸因。
+  `UNIQUE (owner_id, external_order_no)`（R5）。前兩項不提前就沒有 FIFO index 可用，
+  壓測基準會斷掉且無法歸因。**`orders.fulfilled_at` 不提前**——理由見 design.md。
 - **三項 line 數量無關性的防護**：以 `rehydrate()` 造 N=2 fixture 驗讀取與序列化路徑、
-  整籃原子性的 N=2 測試、架構測試禁止 production code 出現 `getLines().get(` 與
-  `.getFirst()`。少了它們，R3～R6 會在單行環境下累積一批沒有任何訊號的單行假設。
+  同一 SKU 兩行的整籃原子性測試、以及把單行假設**集中到一個具名方法**而非用字串
+  黑名單禁止。少了它們，R3～R6 會在單行環境下累積一批沒有任何訊號的單行假設。
 - 前端下單表單加貨主、上游單號、收件分區、地址、承諾到貨日，商品改為「款 → 規格」
   兩段選擇；訂單列表加貨主欄、SKU 顯示為「品名 · 規格」。**一列仍是一筆 line**。
 
@@ -63,8 +74,9 @@ change：R3 的跨貨主隔離要 `owner_id`、R6 的選點要溫層與重量、
 
 - `order-promising-http-api`: 下單命令與訂單查詢的 payload 形狀改變——命令帶貨主與
   收件資訊、訂單表示型別帶 lines 與貨主名稱。`GET /stock-pool/{sku}` 不變。
+- `demo-only-probes`: 補貨探針發布的上游事件加貨主，因此探針的請求也要指定貨主。
 - `demo-console-frontend`: 下單表單與訂單列表的欄位改變；商品選擇從單一 SKU 輸入改為
-  款與規格兩段選擇。
+  款與規格兩段選擇；庫存頁的補貨動作要指定貨主。
 
 ## Impact
 
@@ -81,20 +93,29 @@ change：R3 的跨貨主隔離要 `owner_id`、R6 的選點要溫層與重量、
   `PlaceOrderUsecase` 改收 command；`OrderRepository.findBackordersBySkuInFifoOrder`
   加 `ownerId` 參數（不同貨主的 backorder 隊列必須分開）。此方法屬 allocation 卻長在
   ordering 的 repository 上，那是 R4 要處理的耦合，本 change 只加參數、不搬家。
-- Allocation：`AllocateOrderUsecase`、`AllocationService.requireMatchingSku()` 與兩個
-  `AllocationPolicy` 實作改讀 line 的 `sku_code`；兩支 integration event handler 連帶
-  調整。**allocation 的決策邏輯與超賣防線不變。**
+- Allocation：`AllocateOrderUsecase`、`AllocationService`、兩個 `AllocationPolicy`
+  實作與 `OrderAllocationCoordinator` 改讀聚合後的需求而非 `order.getSku()`；三支
+  integration event handler 連帶調整。**allocation 的決策邏輯與超賣防線不變。**
+- 補貨鏈：`StockReplenishedIntegrationEvent`、`ReplenishStockCommand`、
+  `ReplenishmentUsecase`、`ReplenishmentProbeController` 與前端庫存頁的補貨動作全部
+  加上貨主。
 - 測試：ordering 既有七支測試的簽章調整；`OrderPersistenceIntegrationTest` 的 FIFO
   index 斷言改為斷言 `order_lines` 上的新 index；`e2e/perf/k6/hot-sku-burst.js` 的
-  request body；`AllocationFifoReplenishmentBatchIntegrationTest` 等 SIT 的 fixture
-  建構方式（requirement 本身不變——同一貨主下 FIFO 語意成立）。
+  下單與補貨 payload；`AllocationFifoReplenishmentBatchIntegrationTest` 等 SIT 的
+  fixture 建構方式（requirement 本身不變——同一貨主下 FIFO 語意成立）。
 - Seed：兩個貨主（`allow_split_shipment` 各為 `true`／`false`）**且使用相同的
   `sku_code`**，這是 3PL 撞號情境的最小再現，R3 的 `requireMatchingOwner()` 要靠它
-  驗證；常溫與冷凍各一款，其中一款帶兩個規格。
+  驗證；常溫與冷凍各一款，其中一款帶兩個規格。**既有 seed 的三個 `stock_pools` 與那張
+  已預留的訂單一併改用主檔的 `sku_code` 與新的訂單模型**——`stock_pools` 沒有指向主檔
+  的外鍵，兩邊對不上時不會報錯，只會讓 seed 的訂單配不到貨。
 - **不影響**：`stock_pools`、`stock_reservations` 的任何欄位；Kafka topic 名稱；
-  outbox／inbox 冪等機制；partition key 策略（仍為裸 `sku`，多貨主下會製造假競爭，
-  修正要等 R3——那時 `stock_pools` 才有 `owner_id`，`ownerId:skuCode` 才有對應實體）。
-- **已知且刻意的中間狀態**：`stock_pools` 尚無 `owner_id`，**跨貨主隔離在 R3 才生效**。
-  seed 有兩個貨主，配貨仍可能跨貨主取用。同樣地，`UNIQUE (owner_id,
-  external_order_no)` 提前並不等於冪等完成——本 change 到 R5 之間，重送同一張單會得到
-  資料庫錯誤而非既有訂單，那仍不是正確行為，只是安全的錯誤行為。
+  outbox／inbox 冪等機制；partition key 策略（仍為裸 `sku`）。
+- **已知且刻意的中間狀態**，三項都要寫進 design 並在程式碼註解標註：
+  - `stock_pools` 尚無 `owner_id`，**跨貨主隔離在 R3 才生效**。seed 有兩個貨主，配貨
+    仍可能跨貨主取用。補貨事件雖然帶了貨主，補進去的仍是共用池——**backorder 佇列分開
+    了，庫存還沒分開**。
+  - `UNIQUE (owner_id, external_order_no)` 提前並不等於冪等完成。本 change 到 R5 之間
+    重送同一張單會得到資料庫錯誤而非既有訂單，那仍不是正確行為，只是安全的錯誤行為。
+  - **sku partition 策略有到期日。** 它的前提是「一張單 = 一個 SKU」，R8 之後一張單碰
+    多個 SKU，一則 `OrderPlaced` 無法同時進兩個 partition。R3 改成 `ownerId:skuCode`
+    只是換 key，前提沒變。收尾的方向是事件按 SKU 拆開（R4 `demand_lines`）或策略退場。

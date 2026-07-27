@@ -93,3 +93,80 @@ selection rather than relying on the backend to reject it.
 | selected | selected | selected | -3 | blocked in the form, no request sent |
 | selected | selected | not selected | 1 | blocked in the form, no request sent |
 | not selected | — | — | 1 | blocked in the form, no request sent |
+
+---
+### Requirement: Stock state and replenishment share one page keyed by SKU
+
+The stock page SHALL take a SKU and report that SKU's on-hand, reserved, and
+available-to-promise quantities. From the same page and for the same SKU, the
+viewer SHALL be able to trigger a replenishment.
+
+Triggering a replenishment SHALL additionally require selecting an owner, because
+replenishment names the owner whose backordered queue it wakes. Querying stock SHALL
+NOT require an owner: stock pools carry no owner in this change, so a query scoped to
+one would be reporting a distinction the data does not make.
+
+The page SHALL state that the two actions are scoped differently, so a viewer does not
+read the reported quantities as belonging to the selected owner.
+
+Because allocation resulting from replenishment is asynchronous, the page SHALL
+report that the replenishment was accepted along with its event identifier, and
+SHALL state that the outcome is observed by querying again or by refreshing the
+orders page. The page SHALL NOT present the replenishment as if allocation had
+already completed.
+
+A SKU with no stock pool SHALL render an explicit not-found state.
+
+Because both actions share one SKU field, every result the page displays SHALL
+identify the SKU it belongs to, and editing the SKU field SHALL discard results
+belonging to the previous SKU. The displayed SKU SHALL come from the backend
+response rather than from the field, since the two can differ by the time a
+response arrives.
+
+#### Scenario: Querying a partially reserved SKU reports all three quantities
+
+- **GIVEN** a stock pool holds 10 on hand with 4 reserved
+- **WHEN** the viewer queries that SKU
+- **THEN** the page reports on-hand 10, reserved 4, and available-to-promise 6
+
+#### Scenario: Replenishment requires an owner but querying does not
+
+- **WHEN** the viewer triggers a replenishment without having selected an owner
+- **THEN** the action is blocked in the form and no request is sent, while querying the
+  same SKU's stock remains available without selecting an owner
+
+#### Scenario: A triggered replenishment is reported as accepted, not completed
+
+- **WHEN** the viewer triggers a replenishment for the queried SKU and a selected owner
+- **THEN** the page reports acceptance with the returned event identifier and
+  states that the allocation outcome is observed by querying again, and it does
+  not claim any order has been allocated
+
+##### Example: what appears and what must not appear after triggering
+
+| Shown | Not shown |
+| --- | --- |
+| the replenishment was accepted | "N orders allocated" |
+| the returned event identifier | any order status change |
+| that the outcome requires querying again | a predicted count of woken orders |
+| that the quantities shown are not owner-scoped | the selected owner as an attribute of the stock pool |
+
+#### Scenario: Editing the SKU discards the previous SKU's result
+
+- **GIVEN** the viewer has queried one SKU and the page shows that SKU's result
+- **WHEN** the viewer edits the SKU field
+- **THEN** the previous SKU's result is no longer displayed, so the page never
+  shows a result next to a field naming a different SKU
+
+#### Scenario: An unknown SKU renders a not-found state
+
+- **WHEN** the viewer queries a SKU that has no stock pool
+- **THEN** the page renders an explicit not-found state rather than an error
+  dialog or an empty result that looks like zero stock
+
+##### Example: an absent SKU is distinguishable from an empty one
+
+| SKU | Backend response | Page renders |
+| --- | --- | --- |
+| `SKU-EMPTY` (exists, no stock) | on-hand 0, reserved 0, ATP 0 | all three quantities as zero |
+| `SKU-NOT-A-THING` (no stock pool) | `404` | an explicit "no stock pool for this SKU" state |

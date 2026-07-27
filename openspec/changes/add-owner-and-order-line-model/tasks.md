@@ -1,9 +1,9 @@
 ## 1. Schema
 
-- [ ] 1.1 依「`V3` 改寫為最終形狀並更名，不新增 ALTER migration」，把 `V3__create_orders.sql` 改寫為 `V3__create_ordering_tables.sql`，依 `owners` → `products` → `skus` → `orders` → `order_lines` 的順序建表，FK 的被指向方一律在前。`orders` 直接帶齊 `owner_id`、`external_order_no`、`ship_to_zone`、`ship_to_address`、`promised_delivery_date`、`requested_node_id`、`fulfilled_at`，且不出現 `sku`、`quantity`。行為上：在空資料庫上一次套用即得到最終 schema，migration 歷史不含任何「建了又砍」的中間形狀。以 `./e2e/perf/run.sh down` 後重新啟動、Flyway 套用成功並通過 `DatabaseFoundationIntegrationTest` 驗證。
+- [ ] 1.1 依「`V3` 改寫為最終形狀並更名，不新增 ALTER migration」，把 `V3__create_orders.sql` 改寫為 `V3__create_ordering_tables.sql`，依 `owners` → `products` → `skus` → `orders` → `order_lines` 的順序建表，FK 的被指向方一律在前。`orders` 直接帶齊 `owner_id`、`external_order_no`、`ship_to_zone`、`ship_to_address`、`promised_delivery_date`、`requested_node_id`，且不出現 `sku`、`quantity`、`fulfilled_at`。行為上：在空資料庫上一次套用即得到最終 schema，migration 歷史不含任何「建了又砍」的中間形狀。以 `./e2e/perf/run.sh down` 後重新啟動、Flyway 套用成功並通過 `DatabaseFoundationIntegrationTest` 驗證。
 - [ ] 1.2 依「主檔以 `(owner_id, code)` 複合鍵，不用代理鍵」與「地址內嵌 `orders`，不另開 `addresses` 表」，把 `products` 的 PK 定為 `(owner_id, product_code)`、`skus` 的 PK 定為 `(owner_id, sku_code)` 且 FK `(owner_id, product_code)` 指向 `products`，收件分區與地址直接落在 `orders`。行為上：任何指向 SKU 的外鍵都被迫同時帶上 `owner_id`，單獨的 `sku_code` 無法建立參照。以 persistence 測試斷言複合 FK 存在且以單一 `sku_code` 無法插入 `order_lines` 驗證。
 - [ ] 1.3 依「`order_lines` 反正規化 `owner_id` 與 `backordered_since`」建立 `order_lines`，含 `line_no`（`UNIQUE (order_id, line_no)`）、`quantity > 0`、line 層級的 `status`、`backordered_since`，以及**無 FK 且恆為空**的 `assigned_node_id`（其 FK 需要 R2 的 `fulfillment_nodes` 先存在）。**不建 line 層級的 `allocated_at`**。行為上：line 可獨立於 header 被篩選與排序，而 `assigned_node_id` 在本 change 全程為空。以 persistence 測試斷言欄位與約束、並斷言 `order_lines` 無 `allocated_at` 欄位驗證。
-- [ ] 1.4 依「FIFO index 建在 `order_lines` 且刻意不含 `status`」與「四項從後續 change 提前」，建立 `idx_order_lines_backorder_fifo (owner_id, sku_code, backordered_since, id)` 與 `UNIQUE (owner_id, external_order_no)`，並在 migration 內以註解記錄不含 `status` 的理由（R4 之後待配佇列不依 status 過濾，且 status 夾在中間會讓 index 白建）。舊的 `idx_orders_backorder_fifo` 隨 `sku` 離開 `orders` 而消失。行為上：貨主與 SKU 的 backorder 查詢走 index 取得 FIFO 序，壓測基準不因本 change 斷掉。以 `OrderPersistenceIntegrationTest` 沿用既有 `createsRecentOrdersIndex` 的手法斷言新 index 的欄位順序與方向驗證。
+- [ ] 1.4 依「FIFO index 建在 `order_lines` 且刻意不含 `status`」與「三項從後續 change 提前」（`fulfilled_at` 已從提前清單移除，理由見 design.md），建立 `idx_order_lines_backorder_fifo (owner_id, sku_code, backordered_since, id)` 與 `UNIQUE (owner_id, external_order_no)`，並在 migration 內以註解記錄不含 `status` 的理由（R4 之後待配佇列不依 status 過濾，且 status 夾在中間會讓 index 白建）。舊的 `idx_orders_backorder_fifo` 隨 `sku` 離開 `orders` 而消失。行為上：貨主與 SKU 的 backorder 查詢走 index 取得 FIFO 序，壓測基準不因本 change 斷掉。以 `OrderPersistenceIntegrationTest` 沿用既有 `createsRecentOrdersIndex` 的手法斷言新 index 的欄位順序與方向驗證。
 
 ## 2. 主檔的 domain 與持久化
 
@@ -21,10 +21,13 @@
 ## 4. 訂單的 domain
 
 - [ ] 4.1 實作 **Order demand is expressed as lines**：依「`OrderLine` 是 entity 而非 aggregate root」新增 `OrderLine`，持有 `lineNo`、`ownerId`、`skuCode`、`quantity`、`status`、`backorderedSince`、`assignedNodeId`；**不提供 `OrderLineRepository`**，line 只能經由 `Order` 存取。`Order` 改為持有 line 集合並移除 `getSku()`／`getQuantity()`。行為上：訂單的表示不再有頂層 SKU 與數量，而 line 無法脫離其訂單被取得或修改。以 domain 測試與「不存在 `OrderLineRepository`」的表面審閱驗證。
-- [ ] 4.2 實作 **An order carries an owner, an upstream reference, and a delivery commitment**：`Order` 加 `ownerId`、`externalOrderNo`、`shipToZone`、`shipToAddress`、`promisedDeliveryDate`、`requestedNodeId`、`fulfilledAt`。`requestedNodeId` 與 `fulfilledAt` 只收下不使用，本 change 全程為空。行為上：下單時提供的五項 header 資訊在查詢時原樣取回。以 `OrderTest` 與 `OrderMapperTest` 驗證。
+- [ ] 4.2 實作 **An order carries an owner, an upstream reference, and a delivery commitment**：`Order` 加 `ownerId`、`externalOrderNo`、`shipToZone`、`shipToAddress`、`promisedDeliveryDate`、`requestedNodeId`。`requestedNodeId` 只收下不使用，本 change 全程為空——它是收單時上游指定的輸入，與 R7 才產生的 `fulfilledAt` 不同，後者不建。行為上：下單時提供的五項 header 資訊在查詢時原樣取回。以 `OrderTest` 與 `OrderMapperTest` 驗證。
 - [ ] 4.3 實作 **Order intake accepts exactly one line per order**：依 design 的「每張單恰好一筆 line」只寫在 `place()` 這項決定，把限制寫進 `Order.place()`，**不寫進 schema、也不寫進 `Order.rehydrate()`**。行為上：以零筆或兩筆 line 下單被拒絕且不留下任何資料，而以兩筆 line 呼叫 `rehydrate()` 成功還原。以 `OrderTest` 涵蓋 0／1／2 筆的 `place()` 與 2 筆的 `rehydrate()` 驗證。
 - [ ] 4.4 實作 **A line's status and backordered timestamp mirror its header**：`markAllocated`、`markBackOrdered`、`cancel` 的簽章不變，但內部同時更新 header 與所有 line。行為上：以 `rehydrate()` 造的兩行訂單被標記缺貨後，header 與兩條 line 帶同一個時間戳與同一個狀態。以 N=2 fixture 的 `OrderTest` 驗證。
 - [ ] 4.5 更新四支 domain event：`OrderPlaced` 加 `ownerId`、`shipToZone`、`promisedDeliveryDate` 並把 `sku`／`quantity` 改為 line 清單；`OrderBackordered`、`OrderAllocated`、`OrderCancelled` 加 `ownerId`。行為上：事件承載貨主，下游不需回頭查訂單即可知道這批貨屬於誰。以既有 domain event 測試的簽章調整與 `OrderTest` 的事件斷言驗證。
+
+- [ ] 4.6 依「allocation 拿聚合後的需求，不拿 line 集合」，在 `Order` 上新增 `getDemand()`，回傳 SKU 對數量的映射，並作為 allocation 讀取需求的唯一入口。行為上：配貨端拿到的是「這張單總共要什麼」，沒有「行」可以逐個處理，因此逐行獨立配貨無法表達；N=1 時映射只有一筆、行為與現況相同，N=2 同 SKU 時自動合併為一筆加總。以 `OrderTest` 涵蓋 N=1、N=2 同 SKU（合併）、N=2 不同 SKU（兩筆）三種情形驗證。
+- [ ] 4.7 依「單行假設集中到一個具名方法，不用字串黑名單」，在 `Order` 上新增 `requireSingleLine()`，語意為「此呼叫端踩在單行假設上」，供 partition key 與配貨重試 context 標籤取值；line 數不為一時明確拋錯。行為上：單行假設不再散落在各處，而是集中在一個可被搜尋的名字上，R8 只需列出它的呼叫點。以 `OrderTest` 斷言 N=1 回傳該筆、N=2 拋錯驗證。
 
 ## 5. 訂單的持久化
 
@@ -41,28 +44,37 @@
 
 ## 7. Allocation 側的連帶調整
 
-- [ ] 7.1 先跑一次全域搜尋列出所有 `order.getSku()` 與 `order.getQuantity()` 的呼叫點（已知含 `AllocateOrderUsecase`、`AllocationService.requireMatchingSku()` 與 `StrictFifoAllocationPolicy`、`MaximizeFulfilledOrdersPolicy`），再逐一改為讀 line 的 `skuCode` 與 `quantity`。行為上：配貨、缺貨、補貨重配的既有流程結果完全不變，包含超賣防線與 FIFO 順序。以既有 allocation 單元測試與 SIT 全數通過驗證。
-- [ ] 7.2 更新 `OrderPlacedIntegrationEvent`（加 `ownerId`、`shipToZone`、`promisedDeliveryDate`，`sku`／`quantity` 改為 line 清單）與 `OrderCancelledIntegrationEvent`（加 `ownerId`），並調整 allocation 側兩支 handler。**partition key 策略不動**，仍為裸 `sku`（多貨主下的假競爭要等 R3 才有對應實體可修）。行為上：跨模組事件承載貨主，而 Kafka topic 名稱、outbox／inbox 冪等機制與訊息 key 皆不變。以 handler 測試與 `AllocationWorkflowEndToEndIntegrationTest` 驗證。
-- [ ] 7.3 調整 `AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 等 SIT 的 fixture 建構方式，使其在含貨主與 line 的模型下成立。requirement 本身不變——同一貨主下 FIFO 與熱點語意皆成立。行為上：三支 SIT 測到的仍是原本要測的東西，而非因 fixture 改寫而失去前提。以三支 SIT 通過且斷言內容未被削弱驗證。
+- [ ] 7.1 先跑一次全域搜尋列出所有 `order.getSku()` 與 `order.getQuantity()` 的呼叫點，再逐一改為讀 `getDemand()`。已知清單：`AllocateOrderUsecase`（撈庫存池）、`AllocationService`（SKU 檢查與預留數量）、`StrictFifoAllocationPolicy`、`MaximizeFulfilledOrdersPolicy`，以及 **`OrderAllocationCoordinator` 的三處**（建立預留取數量、補貨批次配貨取數量、發布配貨完成事件同時取 SKU 與數量）——最後這個檔是 allocation 側被本 change 影響最深的一個，容易漏。行為上：配貨、缺貨、補貨重配的既有流程結果完全不變，包含超賣防線與 FIFO 順序。以既有 allocation 單元測試與 SIT 全數通過驗證。
+- [ ] 7.2 更新 `OrderPlacedIntegrationEvent`（加 `ownerId`、`shipToZone`、`promisedDeliveryDate`，`sku`／`quantity` 改為 line 清單）與 `OrderCancelledIntegrationEvent`（加 `ownerId`），並調整 allocation 側 handler。`OrderingDomainEventTranslator` 與配貨重試 context 的 SKU 一律經由 `requireSingleLine()` 取得。**partition key 策略不動**，仍為裸 `sku`。行為上：跨模組事件承載貨主，而 Kafka topic 名稱、outbox／inbox 冪等機制與訊息 key 皆不變。以 handler 測試與 `AllocationWorkflowEndToEndIntegrationTest` 驗證。
+- [ ] 7.3 依「sku partition 策略有到期日」，在 `OrderingDomainEventTranslator` 的策略註解補上這個限制：策略前提是「一張單 = 一個 SKU」，R8 之後一張單碰多個 SKU 時一則事件無法同時進兩個 partition，R3 改為 `ownerId:skuCode` 只是換 key、前提沒變；收尾方向是事件按 SKU 拆開或策略退場。行為上：下一個人不會以為 R3 改完就沒事了。以註解審閱確認與 design.md 一致驗證。
+- [ ] 7.4 調整 `AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 等 SIT 的 fixture 建構方式，使其在含貨主與 line 的模型下成立。requirement 本身不變——同一貨主下 FIFO 與熱點語意皆成立。行為上：三支 SIT 測到的仍是原本要測的東西，而非因 fixture 改寫而失去前提。以三支 SIT 通過且斷言內容未被削弱驗證。
+
+- [ ] 7.5 依「補貨事件帶貨主，佇列先於庫存分開」，為 `StockReplenishedIntegrationEvent` 與 `ReplenishStockCommand` 加上 `ownerId`，並讓 `ReplenishmentUsecase` 以它呼叫 5.4 的佇列查詢。行為上：對某貨主補貨只喚醒該貨主的 backorder 佇列，另一貨主的同碼 SKU 訂單維持 `BACKORDERED`。以 `ReplenishmentUsecaseTest` 與跨貨主的 SIT 驗證。
+- [ ] 7.6 依 7.5 的中間狀態，在 `ReplenishmentUsecase` 與 seed 的相關位置以註解標註**佇列分開了、庫存還沒分開**：`stock_pools` 無貨主維度，補進去的是共用池，兩個貨主的訂單都吃得到，R3 才收尾。行為上：下一個人不會把這個半套狀態誤認為 bug 或誤認為已完成。以註解審閱確認與 design.md 一致驗證。
+- [ ] 7.7 實作 **The replenishment probe publishes a real upstream stock event** 的變更：探針請求加上貨主，發布的事件 payload 帶 `ownerId`，**record key 維持裸 SKU**（key 選的是 partition，與事件是否帶貨主無關）。行為上：訊息 header、payload 事件識別碼與 record key 的既有契約不變，payload 多一個貨主欄位。以既有的探針發布整合測試加上 payload 貨主斷言驗證。
 
 ## 8. line 數量無關性的三項防護
 
 - [ ] 8.1 依「三項 line 數量無關性的防護」第一項，以 `Order.rehydrate()` 建立 N=2 的 fixture，驗讀取路徑、`OrderMapper` 往返與訂單回應序列化。行為上：兩行訂單在讀取與序列化的每一段都完整呈現兩條 line，不會只出現第一條。以 `OrderMapperTest` 與 `OrderControllerTest` 的 N=2 案例驗證。
-- [ ] 8.2 實作 **An allocation outcome applies to a whole order, never to part of it**：這是三項防護的第二項，也是最容易跳過的一項——單行下它退化成「配不到就缺貨」，因此「逐行獨立配貨」的錯誤實作會通過其他所有測試。行為上：兩行中一行可滿足、一行不可滿足時，**兩行都不得預留**，整單進 `BACKORDERED`。以 N=2 fixture 直接測 `StrictFifoAllocationPolicy` 與 `AllocationService`，斷言 `stock_reservations` 完全沒有該訂單的列驗證。
-- [ ] 8.3 實作 **Order handling does not depend on the number of lines**：新增架構測試，斷言 production code 不出現 `getLines().get(` 與 `.getFirst()`，手法與 roadmap R4 任務 9 相同。行為上：以位置取用第一筆 line 的寫法會讓建置失敗並指出來源。以刻意加入一處位置存取確認測試會失敗、移除後通過驗證。
+- [ ] 8.2 實作 **An allocation outcome applies to a whole order, never to part of it**：**先改實作再寫測試**——把配貨時用的數量從「訂單的 quantity」改為 `getDemand()` 的加總（4.6），這是本項成立的前提，不是只加一支測試。測試限定**同一個 SKU 的兩行**，因為現況一次配貨只取一個 `StockPool`，跨 SKU 屬 R8（見 design.md 的 Non-Goals）。行為上：ATP 為 5、兩行各要 5 時整單配不到、`stock_reservations` 對該訂單零筆；若有人寫成逐行獨立配貨，第一行會配到而測試看到一筆不該存在的預留。以 N=2 同 SKU 的 fixture 測 `AllocationService` 與 `StrictFifoAllocationPolicy` 驗證。
+- [ ] 8.3 實作 **Order handling does not depend on the number of lines**：新增架構測試，斷言**除 `Order.requireSingleLine()` 本身外**，production code 不以位置存取 line，手法與 roadmap R4 任務 9 相同。**不採字串黑名單**——`stream().findFirst()` 與「for 迴圈第一圈就 break」都繞得過，理由見 design.md。行為上：在 `requireSingleLine()` 之外以位置取 line 會讓建置失敗並指出來源，而搜尋該方法的呼叫點即可得到 R8 要拆的完整清單。以刻意在該方法外加入一處位置存取確認測試會失敗、移除後通過驗證。
 
 ## 9. Seed 資料
 
 - [ ] 9.1 實作 **Seed data reproduces the collisions and contrasts later work depends on**：seed 兩個貨主（`allow_split_shipment` 分別為 `true` 與 `false`）**且兩者定義相同的 `sku_code`**、常溫與冷凍各一款、其中一款帶兩個重量不同的規格，每個貨主各一張單一筆 line。行為上：跨貨主撞號、兩種溫層、款／規格兩層在 seed 後即可在畫面上看到。以 `DevSeedDataIntegrationTest` 斷言上述四項組合驗證。
-- [ ] 9.2 在 seed 的來源處以註解標註**跨貨主隔離在本 change 尚未生效**：`stock_pools` 無 `owner_id`，配貨仍可能跨貨主取用，R3 的 `requireMatchingOwner()` 才收尾。行為上：下一個讀到這段 seed 的人不會把這個中間狀態誤認為 bug 或誤認為已解決。以文件與註解審閱驗證。
+- [ ] 9.2 把既有 seed 的三個 `stock_pools` 改用主檔的 `sku_code`，並把那張已預留的 seed 訂單改用新的訂單模型（貨主、上游單號、收件資訊、承諾到貨日與一筆 line）。**`stock_pools` 沒有指向主檔的外鍵，兩邊對不上時不會報錯**，只會讓 seed 的訂單配不到貨，且前端庫存頁與既有 seed 測試的預期值一併錯位。行為上：seed 完成後那張訂單能走完配貨、庫存頁以主檔的 SKU 查得到資料。以 `DevSeedDataIntegrationTest` 斷言庫存池的 SKU 存在於主檔、且 seed 訂單可完成配貨驗證。
+- [ ] 9.3 在 seed 的來源處以註解標註**跨貨主隔離在本 change 尚未生效**：`stock_pools` 無 `owner_id`，配貨仍可能跨貨主取用，R3 的 `requireMatchingOwner()` 才收尾。行為上：下一個讀到這段 seed 的人不會把這個中間狀態誤認為 bug 或誤認為已解決。以文件與註解審閱驗證。
 
 ## 10. 前端
 
 - [ ] 10.1 實作 **The console presents orders and stock as two navigable pages** 的訂單列表變更：每一列加貨主欄（取自訂單回應而非另外解析），SKU 欄改為「品名 · 規格」，一列仍對應一張單的單一 line。型別模組的 `OrderView` 加 header 欄位與 `lines`，並新增 `OwnerView`、`ProductView`、`SkuView`。行為上：兩個貨主的同碼訂單在列表上可被區分。以前端測試斷言列渲染貨主與「品名 · 規格」驗證。
 - [ ] 10.2 實作 **Placing an order shows the result in the list on the same page**：下單表單加貨主下拉、上游單號、收件分區、地址、承諾到貨日，商品改為「款 → 規格」兩段選擇而非輸入 SKU 代碼；切換貨主時清除既有的款與規格選擇。行為上：無法送出不屬於所選貨主的 SKU，非正數量與未完成的選擇在表單層即被擋下、不送出請求。以前端測試涵蓋切換貨主清空選擇與五種表單驗證情形驗證。
 
+- [ ] 10.3 實作 **Stock state and replenishment share one page keyed by SKU** 的變更：庫存頁的補貨動作加貨主選擇，查詢庫存維持不需要貨主，並在畫面上說明兩者的範圍不同（庫存池尚無貨主維度，查詢結果不屬於任一貨主）。行為上：未選貨主時補貨在表單層被擋下、不送出請求，而查詢照常可用。以前端測試涵蓋未選貨主的補貨被擋、查詢不受影響兩種情形驗證。
+- [ ] 10.4 更新 `frontend/src/api/types.ts` 開頭的註解——它目前寫著「唯一需要跟隨 `add-demo-console-api` 變動的地方」，而本 change 大幅改寫這個檔。行為上：下一個人判斷「後端合約變了要改哪」時看到的是最新的來源清單。以註解審閱驗證。
+
 ## 11. 端到端驗收與文件
 
-- [ ] 11.1 更新 `e2e/perf/k6/hot-sku-burst.js` 的下單 request body（加貨主、上游單號、收件資訊、承諾到貨日，SKU 移入 lines）。行為上：壓測腳本能建立訂單並完成後續輪詢，`checks_total` 不因合約變更而失敗。以壓測執行時 thresholds 通過驗證。
+- [ ] 11.1 更新 `e2e/perf/k6/hot-sku-burst.js`：下單 request body 加貨主、上游單號、收件資訊、承諾到貨日並把 SKU 移入 lines；補貨請求加貨主。行為上：壓測腳本能建立訂單並完成後續輪詢，`checks_total` 不因合約變更而失敗。以壓測執行時 thresholds 通過驗證。
 - [ ] 11.2 依 design.md 的 Migration Plan 重建並重跑壓測：先 `./e2e/perf/run.sh down` 移除既有 Postgres volume（改寫既有 migration 必然造成 Flyway checksum 不符，**不得以 `flyway repair` 略過**），再 `./e2e/perf/run.sh up`。行為上：既有 k6 thresholds 全數通過，代表資料模型改造未使壓測退化。以本次結果更新 `e2e/perf/README.md` 的 baseline 數字，使文件數字與腳本版本一致。
 - [ ] 11.3 於 `docs/stock-reservation-design.md` 補上資料模型變更後的說明：貨主／款／規格三層主檔、訂單行的粒度，以及**跨貨主隔離尚未生效**與 **partition key 仍為裸 `sku`** 兩項已知中間狀態及其收尾的 change。以文件審閱確認與實作一致驗證。

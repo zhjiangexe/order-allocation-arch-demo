@@ -97,29 +97,35 @@ equal the header's, but no query orders by it, so it would be redundant without 
 ---
 ### Requirement: An allocation outcome applies to a whole order, never to part of it
 
-An order SHALL be allocated only when every one of its lines can be satisfied. When any
-line cannot be satisfied, no line of that order SHALL reserve stock and the whole order
-SHALL become backordered.
+An order SHALL be allocated only when its whole demand can be satisfied. When it cannot,
+no part of that order SHALL reserve stock and the whole order SHALL become backordered.
 
-Reserving stock for the satisfiable lines of an order that cannot ship would hold
+Reserving stock for the satisfiable part of an order that cannot ship would hold
 inventory for goods that will not leave, which is why partial reservation is forbidden
 rather than merely discouraged.
 
+An order SHALL expose its demand to allocation as quantities aggregated per SKU, not as
+a sequence of lines. Allocation therefore has no line to process individually, so
+per-line reservation is not merely tested against — it cannot be expressed. With one
+line the aggregate holds one entry and behavior is unchanged; with more lines it holds
+more, and allocation needs no modification to remain correct.
+
 A partially-allocated order status SHALL NOT exist.
 
-#### Scenario: One unsatisfiable line prevents every line from reserving
+#### Scenario: Demand exceeding available stock reserves nothing at all
 
-- **GIVEN** an order with two lines whose first line can be satisfied from stock and
-  whose second line cannot
+- **GIVEN** an order with two lines for the same SKU, each requesting five units, and a
+  stock pool that can promise five units
 - **WHEN** the order is allocated
-- **THEN** neither line holds a reservation and the whole order is backordered
+- **THEN** no reservation exists for that order and the whole order is backordered
 
-##### Example: reservations after allocating a two-line order
+##### Example: aggregated demand decides the outcome
 
-| Line | Requested | Stock available | Reservation held |
+| Lines | Aggregated demand | Available to promise | Reservations created |
 | --- | --- | --- | --- |
-| 1 | 5 | 10 | none |
-| 2 | 5 | 0 | none |
+| 5 + 5, same SKU | 10 | 5 | none — whole order backordered |
+| 5 + 5, same SKU | 10 | 10 | one, for the whole demand |
+| 5, single line | 5 | 5 | one, for the whole demand |
 
 ---
 ### Requirement: An order line references an existing catalog entry
@@ -169,6 +175,14 @@ One owner's queue SHALL NOT be affected by another owner's orders, even when bot
 the same SKU code, because in third-party logistics SKU codes collide across owners
 and the goods are not interchangeable.
 
+Replenishment SHALL name the owner whose queue it wakes. Without it the scoped query has
+no caller able to supply an owner, and the scoping would exist in the schema but never
+take effect.
+
+Stock itself remains unscoped: replenished units enter a pool both owners draw from.
+Queues are separated before inventory is, and this intermediate state SHALL be recorded
+where it can be found rather than left to be discovered.
+
 #### Scenario: Two owners using the same SKU code hold separate queues
 
 - **GIVEN** owner A and owner B each have backordered orders for SKU code `SKU-A`, and
@@ -177,17 +191,44 @@ and the goods are not interchangeable.
 - **THEN** only owner A's orders are returned, and owner B's earlier orders do not
   appear or affect the ordering
 
+#### Scenario: Replenishment wakes only the named owner's queue
+
+- **GIVEN** owner A and owner B both have backordered orders for SKU code `SKU-A`
+- **WHEN** stock is replenished for owner A and SKU code `SKU-A`
+- **THEN** only owner A's orders enter the allocation decision, and owner B's orders
+  remain backordered
+
 ---
 ### Requirement: Order handling does not depend on the number of lines
 
-Production code SHALL NOT reach a line by position. Retrieving an order's first line
-positionally is correct while intake permits only one line, produces no failing test,
-and silently ignores every other line once the policy is relaxed.
+Reaching a line by position is correct while intake permits only one line, produces no
+failing test, and silently ignores every other line once the policy is relaxed.
 
-This SHALL be enforced by an automated check over production sources, not by review.
+A small number of places genuinely need to collapse an order's lines into a single
+value — the message key used for event partitioning and the label attached to allocation
+retries both admit only one value, which no iteration can supply. These places are
+correct today only because an order carries one line.
 
-#### Scenario: Positional access to a line fails the build
+The order SHALL therefore expose exactly one named operation whose stated meaning is
+"this caller assumes a single line", and every such place SHALL obtain its value through
+it. Production code SHALL NOT otherwise reach a line by position, and this SHALL be
+enforced by an automated check over production sources rather than by review.
 
-- **WHEN** production code retrieves an order's line by index or by a first-element
-  accessor
+The single-line assumption SHALL NOT be enforced by forbidding particular expressions.
+An equivalent access written as a stream, or as a loop that stops after its first
+iteration, does the same thing and would pass such a check, so enumerating forbidden
+forms cannot be complete. Naming the assumption makes it searchable instead: relaxing
+the intake policy later requires finding the callers of one operation rather than
+auditing every access.
+
+#### Scenario: Positional access outside the named operation fails the build
+
+- **WHEN** production code reaches an order's line by position anywhere other than
+  inside the named single-line operation
 - **THEN** the automated check fails and identifies the offending source
+
+#### Scenario: The single-line assumption is enumerable
+
+- **WHEN** the callers of the named single-line operation are listed
+- **THEN** that list is the complete set of places that must change once intake accepts
+  more than one line per order
