@@ -41,6 +41,13 @@
   gap: 0.4rem;
 }
 
+/* 說明控制項為何不對稱，因此必須在還沒查詢時就看得到——不能只跟著結果出現。 */
+.scopeNote {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .resultFor {
   margin: 0;
   font-size: 0.8rem;

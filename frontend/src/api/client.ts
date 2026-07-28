@@ -1,9 +1,12 @@
 import type {
   DemoConfig,
   OrderView,
+  OwnerView,
   PlaceOrderCommand,
+  ProductView,
   ReplenishCommand,
   ReplenishmentAccepted,
+  SkuView,
   StockPoolView,
 } from './types';
 
@@ -42,6 +45,26 @@ export function placeOrder(command: PlaceOrderCommand): Promise<OrderView> {
 
 export function listRecentOrders(limit: number): Promise<OrderView[]> {
   return request<OrderView[]>(`/orders?limit=${limit}`);
+}
+
+/**
+ * 主檔的三支唯讀查詢，逐層往下：貨主 → 款 → 規格。
+ *
+ * 款與規格的路徑巢狀在貨主之下，是因為在 3PL 裡編碼由貨主自訂、跨貨主撞號——貨主不是可省
+ * 略的篩選條件，而是這些資源存在的前提。
+ */
+export function listOwners(): Promise<OwnerView[]> {
+  return request<OwnerView[]>('/owners');
+}
+
+export function listProducts(ownerId: string): Promise<ProductView[]> {
+  return request<ProductView[]>(`/owners/${encodeURIComponent(ownerId)}/products`);
+}
+
+export function listSkus(ownerId: string, productCode: string): Promise<SkuView[]> {
+  return request<SkuView[]>(
+    `/owners/${encodeURIComponent(ownerId)}/products/${encodeURIComponent(productCode)}/skus`,
+  );
 }
 
 export function getStockPool(sku: string): Promise<StockPoolView> {

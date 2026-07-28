@@ -1,20 +1,39 @@
+import type { Catalog } from '../api/catalog';
 import type { OrderView } from '../api/types';
 import styles from './OrderTable.module.css';
 
 interface OrderTableProps {
   orders: OrderView[];
+  catalog: Catalog;
 }
 
 /**
- * 一列攤開訂單表示的全部欄位，包含四個階段時間戳。刻意不做點開的詳細檢視——訂單只有
- * 這八個欄位，第二層視圖會是同一份資料的第二次呈現。
+ * 一列攤開訂單表示的全部欄位，包含四個階段時間戳。刻意不做點開的詳細檢視——第二層視圖會是
+ * 同一份資料的第二次呈現。
+ *
+ * <p>收單目前只收一行，因此一列仍對應一張單；但欄位是以 `lines` 為來源渲染的，多行時會在
+ * 同一格內以頓號並列，不會只顯示第一行。真正的可展開多列屬於放寬多行的那個 change。
  *
  * <p>時間戳欄位依**生命週期順序**排列（placed → backordered → allocated → cancelled），
  * 不是照 `OrderStatusResponse` 的欄位順序。後端把 allocated 排在 backordered 前面，照抄
  * 會讓一張「下單→缺貨→補貨後配置」的訂單在畫面上讀起來像時間倒退。這幾欄是階段時間戳
  * 不是狀態，狀態只有 `status` 一欄——表頭加 `at` 就是為了讓這件事不需要解釋。
  */
-export function OrderTable({ orders }: OrderTableProps) {
+export function OrderTable({ orders, catalog }: OrderTableProps) {
+  const ownerNames = new Map(catalog.owners.map((owner) => [owner.ownerId, owner.name]));
+
+  /**
+   * 「品名 · 規格」由前端從主檔解析，而不是讓訂單契約帶著它。
+   *
+   * 本頁為了下單表單的下拉選單已經載過主檔，這裡查的是同一份資料——那是「整個畫面查一次」，
+   * 不是每一列各查一次。查不到回 `null`：代碼本來就會另外顯示，這時整格退化成只有代碼，
+   * 也就是加上品名之前的樣子，不會變成空白，也不會把代碼印兩次。
+   */
+  function describe(order: OrderView, skuCode: string) {
+    const sku = catalog.findSku(order.ownerId, skuCode);
+    return sku === undefined ? null : `${sku.productName} · ${sku.specName}`;
+  }
+
   if (orders.length === 0) {
     return <p className={styles.empty}>目前沒有訂單。用上方的表單下一張。</p>;
   }
@@ -25,7 +44,8 @@ export function OrderTable({ orders }: OrderTableProps) {
         <thead>
           <tr>
             <th>order</th>
-            <th>sku</th>
+            <th>owner</th>
+            <th>item</th>
             <th>qty</th>
             <th>status</th>
             <th>placed at</th>
@@ -38,8 +58,16 @@ export function OrderTable({ orders }: OrderTableProps) {
           {orders.map((order) => (
             <tr key={order.orderId}>
               <td className={styles.id}>{order.orderId.slice(order.orderId.length-12, order.orderId.length)}</td>
-              <td>{order.sku}</td>
-              <td>{order.quantity}</td>
+              <td>{ownerNames.get(order.ownerId) ?? order.ownerId.slice(-12)}</td>
+              <td>
+                {order.lines.map((line) => (
+                  <span key={line.lineNo} className={styles.line}>
+                    {describe(order, line.skuCode)}
+                    <span className={styles.lineSkuCode}>{line.skuCode}</span>
+                  </span>
+                ))}
+              </td>
+              <td>{order.lines.map((line) => line.quantity).join('、')}</td>
               <td className={`${styles.status} ${styles[order.status]}`}>{order.status}</td>
               <td>{formatTime(order.placedAt)}</td>
               <td>{formatTime(order.backOrderedSince)}</td>

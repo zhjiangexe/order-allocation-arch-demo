@@ -12,6 +12,8 @@ describe('StockPanel 的失敗路徑', () => {
       <StockPanel
         stock={{ status: 'idle' }}
         replenishment={{ status: 'failure', message: 'Kafka 不可用' }}
+        owners={[]}
+        skuCodes={[]}
         onQuery={noop}
         onReplenish={noop}
         onSkuChange={noop}
@@ -28,6 +30,8 @@ describe('StockPanel 的失敗路徑', () => {
       <StockPanel
         stock={{ status: 'failure', message: 'StockPool not found: SKU-NOT-A-THING' }}
         replenishment={{ status: 'idle' }}
+        owners={[]}
+        skuCodes={[]}
         onQuery={noop}
         onReplenish={noop}
         onSkuChange={noop}
@@ -46,6 +50,8 @@ describe('StockPanel 的失敗路徑', () => {
           status: 'success',
           data: { eventId: '3d9a-event', sku: 'HOT-SKU', quantity: 500 },
         }}
+        owners={[]}
+        skuCodes={[]}
         onQuery={noop}
         onReplenish={noop}
         onSkuChange={noop}
@@ -73,6 +79,8 @@ describe('StockPanel 的結果歸屬', () => {
           },
         }}
         replenishment={{ status: 'idle' }}
+        owners={[]}
+        skuCodes={[]}
         onQuery={noop}
         onReplenish={noop}
         onSkuChange={noop}
@@ -91,6 +99,8 @@ describe('StockPanel 的結果歸屬', () => {
           status: 'success',
           data: { eventId: '3d9a-event', sku: 'ACC-DEMO', quantity: 500 },
         }}
+        owners={[]}
+        skuCodes={[]}
         onQuery={noop}
         onReplenish={noop}
         onSkuChange={noop}
@@ -109,6 +119,8 @@ describe('StockPanel 的結果歸屬', () => {
           message: 'StockPool not found: SKU-NOT-A-THING',
         }}
         replenishment={{ status: 'idle' }}
+        owners={[]}
+        skuCodes={[]}
         onQuery={noop}
         onReplenish={noop}
         onSkuChange={onSkuChange}
@@ -118,5 +130,57 @@ describe('StockPanel 的結果歸屬', () => {
     await userEvent.setup().type(screen.getByLabelText('SKU'), 'A');
 
     expect(onSkuChange).toHaveBeenCalled();
+  });
+
+  it('未選貨主時補貨鈕不可按，但查詢庫存照常可用', async () => {
+    const onQuery = vi.fn();
+    const onReplenish = vi.fn();
+    render(
+      <StockPanel
+        stock={{ status: 'idle' }}
+        replenishment={{ status: 'idle' }}
+        skuCodes={['SKU-AVAILABLE']}
+        owners={[
+          {
+            ownerId: '00000000-0000-0000-0000-000000000001',
+            code: 'OWNER-A',
+            name: '甲貨主',
+            status: 'ACTIVE',
+            allowSplitShipment: true,
+          },
+        ]}
+        onQuery={onQuery}
+        onReplenish={onReplenish}
+        onSkuChange={noop}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('SKU'), 'SKU-AVAILABLE');
+
+    // 補貨要喚醒某個貨主的缺貨佇列，SKU 代碼跨貨主撞號、決定不了是誰的
+    expect(screen.getByRole('button', { name: '觸發補貨' })).toBeDisabled();
+
+    // 查詢卻不需要貨主——庫存還沒有貨主維度，兩個貨主的同碼 SKU 共用同一列
+    await user.click(screen.getByRole('button', { name: '查詢庫存' }));
+    expect(onQuery).toHaveBeenCalledWith('SKU-AVAILABLE');
+    expect(onReplenish).not.toHaveBeenCalled();
+  });
+
+  it('尚未查詢時就說明補貨要選貨主、查詢不用', () => {
+    render(
+      <StockPanel
+        stock={{ status: 'idle' }}
+        replenishment={{ status: 'idle' }}
+        owners={[]}
+        skuCodes={[]}
+        onQuery={noop}
+        onReplenish={noop}
+        onSkuChange={noop}
+      />,
+    );
+
+    // 疑問發生在按任何按鈕之前，所以說明不能只跟著查詢結果出現
+    expect(screen.getByText(/補貨要選貨主/)).toBeInTheDocument();
+    expect(screen.getByText(/查詢不用選/)).toBeInTheDocument();
   });
 });

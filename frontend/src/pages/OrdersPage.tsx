@@ -6,17 +6,20 @@ import { ActionState } from '../components/ActionState';
 import { OrderTable } from '../components/OrderTable';
 import { PlaceOrderForm } from '../components/PlaceOrderForm';
 import { useAsyncAction } from '../hooks/useAsyncAction';
+import { useCatalog } from '../hooks/useCatalog';
 import styles from './OrdersPage.module.css';
 
 const LIST_LIMIT = 20;
 
 export function OrdersPage() {
+  const catalog = useCatalog();
   const orders = useAsyncAction(listRecentOrders);
   const placement = useAsyncAction(placeOrder);
   const { run: loadOrders } = orders;
 
-  // 全應用只有兩個 effect，都是「進場載入」。其餘取數一律在 event handler——
-  // 多一個 effect 就會破壞規格「靜置的操作台不發出任何請求」的保證。
+  // effect 只用於「進場載入」與「選擇驅動的主檔查詢」（見 useCatalog 與 PlaceOrderForm），
+  // 其餘取數一律在 event handler。任何帶 interval 或 timeout 的 effect 都會破壞規格
+  // 「靜置的操作台不發出任何請求」的保證——那是這裡唯一不能加的東西。
   useEffect(() => {
     void loadOrders(LIST_LIMIT);
   }, [loadOrders]);
@@ -33,7 +36,11 @@ export function OrdersPage() {
     <div className={styles.page}>
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>下單</h2>
-        <PlaceOrderForm onSubmit={handlePlaceOrder} pending={placement.state.status === 'pending'} />
+        <PlaceOrderForm
+          catalog={catalog}
+          onSubmit={handlePlaceOrder}
+          pending={placement.state.status === 'pending'}
+        />
         <ActionState state={placement.state} pendingLabel="下單中…">
           {() => null}
         </ActionState>
@@ -55,7 +62,9 @@ export function OrdersPage() {
           配置是非同步的：觸發補貨後要按重新整理才看得到狀態變化。
         </p>
         <ActionState state={orders.state} pendingLabel="載入訂單中…">
-          {(list) => <OrderTable orders={list} />}
+          {(list) => (
+            <OrderTable orders={list} catalog={catalog} />
+          )}
         </ActionState>
       </section>
     </div>

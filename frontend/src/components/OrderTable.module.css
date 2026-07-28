@@ -31,6 +31,18 @@
   color: var(--muted);
 }
 
+.line {
+  display: block;
+}
+
+/* 代碼是要拿去庫存頁貼的，等寬字讓它好選、好核對；視覺上退到品名之後。 */
+.lineSkuCode {
+  margin-left: 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .status {
   font-weight: 600;
 }
