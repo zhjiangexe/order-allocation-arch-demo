@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -23,7 +24,7 @@ class GetOrderUsecaseTest {
   @DisplayName("查詢存在的訂單時應回傳該訂單")
   void shouldReturnOrderWhenFound() {
     UUID orderId = UUID.randomUUID();
-    Order order = Order.place(orderId, "SKU-1", 3, Instant.now());
+    Order order = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now());
     when(repository.findById(orderId)).thenReturn(Optional.of(order));
 
     assertThat(usecase.getOrder(orderId)).isEqualTo(order);

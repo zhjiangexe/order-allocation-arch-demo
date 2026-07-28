@@ -16,6 +16,7 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.event.OrderAllocated;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -227,7 +228,7 @@ class ReplenishmentUsecaseTest {
   }
 
   private Order backorderedOrder(String sku, int quantity) {
-    Order order = Order.place(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(2));
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(2));
     order.markBackOrdered(fixedNow.minusSeconds(1));
     order.releaseDomainEvents();
     return order;

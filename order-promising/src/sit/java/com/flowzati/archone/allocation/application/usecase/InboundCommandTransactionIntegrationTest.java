@@ -17,6 +17,7 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -82,7 +83,7 @@ class InboundCommandTransactionIntegrationTest {
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
-    orderRepository.save(Order.place(orderId, "SKU-1", 3, placedAt));
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, placedAt));
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-1", 10, 0, null));
 
     allocateOrderUsecase.handle(inbound(orderId, eventId));
@@ -100,7 +101,7 @@ class InboundCommandTransactionIntegrationTest {
   void shouldRollBackInboxClaimWhenBusinessHandlingFails() {
     UUID orderId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    orderRepository.save(Order.place(orderId, "MISSING-SKU", 3, Instant.parse("2026-07-24T10:00:00Z")));
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "MISSING-SKU", 3, Instant.parse("2026-07-24T10:00:00Z")));
 
     assertThatThrownBy(() -> allocateOrderUsecase.handle(inbound(orderId, eventId)))
         .isInstanceOf(IllegalStateException.class)
@@ -119,9 +120,8 @@ class InboundCommandTransactionIntegrationTest {
     UUID reservationId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
     Instant reservedAt = Instant.now().plusSeconds(60);
-    orderRepository.save(Order.rehydrate(
-        orderId, "SKU-1", 3, OrderStatus.ALLOCATED, reservedAt.minusSeconds(1), reservedAt,
-        null, null, null));
+    orderRepository.save(OrderFixtures.allocatedOrder(
+        orderId, "SKU-1", 3, reservedAt.minusSeconds(1), reservedAt));
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-1", 3, 3, null));
     stockReservationRepository.save(
         StockReservation.create(reservationId, orderId, stockPoolId, 3, reservedAt));
@@ -146,8 +146,8 @@ class InboundCommandTransactionIntegrationTest {
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
     Instant placedAt = Instant.now().plusSeconds(60);
-    orderRepository.save(Order.rehydrate(
-        orderId, "SKU-1", 3, OrderStatus.BACKORDERED, placedAt, null, placedAt, null, null));
+    orderRepository.save(OrderFixtures.backorderedOrder(
+        orderId, "SKU-1", 3, placedAt, placedAt));
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-1", 0, 0, null));
 
     assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(

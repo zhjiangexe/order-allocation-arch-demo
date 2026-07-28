@@ -2,6 +2,7 @@ package com.flowzati.archone.ordering.entrypoint.rest;
 
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
+import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,8 +42,23 @@ public class OrderController {
 
   @PostMapping
   public OrderStatusResponse placeOrder(@RequestBody PlaceOrderRequest request) {
-    return OrderStatusResponse.from(
-        placeOrderUsecase.placeOrder(request.sku(), request.quantity()));
+    return OrderStatusResponse.from(placeOrderUsecase.placeOrder(toCommand(request)));
+  }
+
+  private static PlaceOrderCommand toCommand(PlaceOrderRequest request) {
+    List<PlaceOrderCommand.Line> lines = request.lines() == null
+        ? null
+        : request.lines().stream()
+            .map(line -> new PlaceOrderCommand.Line(line.skuCode(), line.quantity()))
+            .toList();
+    return new PlaceOrderCommand(
+        request.ownerId(),
+        request.externalOrderNo(),
+        request.shipToZone(),
+        request.shipToAddress(),
+        request.promisedDeliveryDate(),
+        request.requestedNodeId(),
+        lines);
   }
 
   @GetMapping

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record OrderAllocated(
     UUID orderId,
+    UUID ownerId,
     Instant allocatedAt
 ) implements DomainEvent {
 }

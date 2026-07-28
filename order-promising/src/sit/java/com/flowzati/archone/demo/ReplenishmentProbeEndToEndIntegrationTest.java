@@ -12,6 +12,7 @@ import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.KafkaTestConfiguration;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -115,9 +116,8 @@ class ReplenishmentProbeEndToEndIntegrationTest {
 
   private UUID backorder(Instant backorderedAt, int quantity) {
     UUID orderId = UUID.randomUUID();
-    orderRepository.save(Order.rehydrate(
-        orderId, SKU, quantity, OrderStatus.BACKORDERED,
-        backorderedAt.minusSeconds(1), null, backorderedAt, null, null));
+    orderRepository.save(OrderFixtures.backorderedOrder(
+        orderId, SKU, quantity, backorderedAt.minusSeconds(1), backorderedAt));
     return orderId;
   }
 

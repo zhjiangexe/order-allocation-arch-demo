@@ -4,6 +4,8 @@ import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -23,10 +25,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @WebMvcTest(OrderController.class)
 class OrderControllerTest {
+
+  private static final String PLACE_ORDER_BODY = """
+      {
+        "ownerId": "00000000-0000-0000-0000-0000000000a1",
+        "externalOrderNo": "EXT-1",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-08-01",
+        "lines": [{"skuCode": "HOT-SKU", "quantity": 3}]
+      }
+      """;
 
   private static final String SKU = "SKU-AVAILABLE";
   private static final Instant PLACED_AT = Instant.parse("2026-07-26T10:00:00Z");
@@ -47,12 +61,12 @@ class OrderControllerTest {
   @DisplayName("下單以 JSON body 送出，回傳與單筆查詢相同形狀的訂單表示")
   void shouldPlaceOrderFromJsonBodyAndReturnFullOrderRepresentation() {
     UUID orderId = UUID.randomUUID();
-    when(placeOrderUsecase.placeOrder(SKU, 3))
-        .thenReturn(Order.place(orderId, SKU, 3, PLACED_AT));
+    when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
+        .thenReturn(OrderFixtures.pendingOrder(orderId, SKU, 3, PLACED_AT));
 
     MvcTestResultAssert response = assertThat(mvc.post().uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"sku\":\"" + SKU + "\",\"quantity\":3}"));
+        .content(PLACE_ORDER_BODY));
 
     response.hasStatus(200);
     response.bodyJson().extractingPath("$.orderId").isEqualTo(orderId.toString());
@@ -67,14 +81,14 @@ class OrderControllerTest {
   void shouldListRecentOrdersWithDefaultLimit() {
     UUID orderId = UUID.randomUUID();
     when(listRecentOrdersUsecase.listRecent(20))
-        .thenReturn(List.of(Order.place(orderId, SKU, 3, PLACED_AT)));
+        .thenReturn(List.of(OrderFixtures.pendingOrder(orderId, SKU, 3, PLACED_AT)));
 
     MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
 
     response.hasStatus(200);
     response.bodyJson().extractingPath("$[0].orderId").isEqualTo(orderId.toString());
     response.bodyJson().extractingPath("$[0].status").isEqualTo("PENDING");
-    verify(placeOrderUsecase, never()).placeOrder(SKU, 3);
+    verify(placeOrderUsecase, never()).placeOrder(any(PlaceOrderCommand.class));
   }
 
   @ParameterizedTest(name = "limit={0} 應接受")
@@ -100,11 +114,11 @@ class OrderControllerTest {
   void shouldNotPlaceOrderForNonPostMethods() {
     assertThat(mvc.method(HttpMethod.PUT).uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"sku\":\"" + SKU + "\",\"quantity\":3}"))
+        .content(PLACE_ORDER_BODY))
         .hasStatus(405);
 
     assertThat(mvc.method(HttpMethod.DELETE).uri("/orders")).hasStatus(405);
 
-    verify(placeOrderUsecase, never()).placeOrder(SKU, 3);
+    verify(placeOrderUsecase, never()).placeOrder(any(PlaceOrderCommand.class));
   }
 }

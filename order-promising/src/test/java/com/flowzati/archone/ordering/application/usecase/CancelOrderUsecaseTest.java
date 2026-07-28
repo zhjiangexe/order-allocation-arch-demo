@@ -4,6 +4,7 @@ import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +29,7 @@ class CancelOrderUsecaseTest {
   void shouldPersistCancelledOrderAndPublishDomainEvent() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    Order order = Order.place(UUID.randomUUID(), "SKU-1", 3, placedAt);
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, placedAt);
     order.releaseDomainEvents();
     when(repository.findById(order.getId())).thenReturn(Optional.of(order));
 
@@ -36,7 +37,11 @@ class CancelOrderUsecaseTest {
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     verify(repository).save(order);
-    verify(publisher).publishEvent(new OrderCancelled(order.getId(), "SKU-1", cancelledAt));
+    verify(publisher).publishEvent(new OrderCancelled(
+        order.getId(),
+        OrderFixtures.OWNER_ID,
+        java.util.List.of(new com.flowzati.archone.ordering.domain.event.LineSnapshot(1, "SKU-1", 3)),
+        cancelledAt));
   }
 
   @Test
@@ -44,7 +49,7 @@ class CancelOrderUsecaseTest {
   void shouldDoNothingWhenOrderIsAlreadyCancelled() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    Order order = Order.place(UUID.randomUUID(), "SKU-1", 3, placedAt);
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, placedAt);
     order.cancel(cancelledAt);
     order.releaseDomainEvents();
     when(repository.findById(order.getId())).thenReturn(Optional.of(order));

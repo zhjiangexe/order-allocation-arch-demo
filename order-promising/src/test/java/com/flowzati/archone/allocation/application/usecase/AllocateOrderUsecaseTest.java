@@ -10,6 +10,7 @@ import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -142,7 +143,7 @@ class AllocateOrderUsecaseTest {
   }
 
   private Order pendingOrder(String sku, int quantity) {
-    Order order = Order.place(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(1));
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), sku, quantity, fixedNow.minusSeconds(1));
     order.releaseDomainEvents();
     return order;
   }

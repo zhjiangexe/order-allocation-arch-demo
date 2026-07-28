@@ -9,8 +9,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaOrderRepository extends JpaRepository<OrderEntity, UUID> {
 
-  List<OrderEntity> findBySkuAndStatusOrderByBackorderedSinceAscIdAsc(
-      String sku,
+  /**
+   * 待配佇列：篩選鍵在行、排序鍵在 header，因此查詢跨兩張表。
+   *
+   * <p>尚未帶上貨主——補貨事件目前只帶 SKU，沒有呼叫端拿得出 {@code ownerId}。讓事件帶上
+   * 貨主、並把佇列真正按貨主分開，是後續任務。
+   */
+  List<OrderEntity> findByLines_SkuCodeAndStatusOrderByBackorderedSinceAscIdAsc(
+      String skuCode,
       OrderStatus status
   );
 

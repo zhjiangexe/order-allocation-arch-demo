@@ -7,6 +7,7 @@ import com.flowzati.archone.common.outbox.OutboxDelivery;
 import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.util.UUID;
@@ -36,14 +37,18 @@ public class OrderingDomainEventTranslator {
 
   @EventListener
   public void translate(OrderPlaced event) {
+    // integration event 的契約仍是單一 SKU 與數量,尚未改為攜帶行清單,因此在此摺成一行。
+    // 摺疊一律經過具名的 requireSingleLine,而不是各自寫 lines().getFirst()。
+    LineSnapshot line = LineSnapshot.requireSingleLine(event.lines());
     outboxAppender.append(
         new OrderPlacedIntegrationEvent(
-            IdGenerator.nextId(), event.orderId(), event.sku(), event.quantity(), event.placedAt()),
+            IdGenerator.nextId(), event.orderId(), line.skuCode(), line.quantity(),
+            event.placedAt()),
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
         new OutboxDelivery(
             IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
-            partitionKey(event.orderId(), event.sku())),
+            partitionKey(event.orderId(), line.skuCode())),
         event.placedAt()
     );
   }
@@ -56,7 +61,8 @@ public class OrderingDomainEventTranslator {
         event.orderId().toString(),
         new OutboxDelivery(
             IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
-            partitionKey(event.orderId(), event.sku())),
+            partitionKey(
+                event.orderId(), LineSnapshot.requireSingleLine(event.lines()).skuCode())),
         event.cancelledAt()
     );
   }

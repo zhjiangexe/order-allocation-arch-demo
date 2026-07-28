@@ -18,6 +18,8 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -110,7 +112,14 @@ class OutboxAggregateQueryIntegrationTest {
   }
 
   private UUID placeOrder() {
-    Order placed = placeOrderUsecase.placeOrder(SKU, 3);
+    Order placed = placeOrderUsecase.placeOrder(new PlaceOrderCommand(
+        OrderFixtures.OWNER_ID,
+        "EXT-" + UUID.randomUUID(),
+        "100",
+        "台北市中正區重慶南路一段 122 號",
+        java.time.LocalDate.of(2026, 8, 1),
+        null,
+        java.util.List.of(new PlaceOrderCommand.Line(SKU, 3))));
     // 下單當下 StockPool 的 ATP 是 0，配置決策要等這筆下單事件被 allocation 消費才發生。
     assertThat(placed.getStatus()).isEqualTo(OrderStatus.PENDING);
     return placed.getId();

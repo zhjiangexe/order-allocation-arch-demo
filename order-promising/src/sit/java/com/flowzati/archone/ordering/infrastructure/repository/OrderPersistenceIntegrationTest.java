@@ -8,9 +8,12 @@ import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.infrastructure.entity.OrderEntity;
 import com.flowzati.archone.ordering.infrastructure.repository.jpa.JpaOrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.ordering.infrastructure.entity.OrderLineEntity;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -64,17 +67,8 @@ class OrderPersistenceIntegrationTest {
   @DisplayName("應寫入並還原完整 Order state 與 version")
   void persistsAndRestoresOrder() {
     UUID orderId = uuid(1);
-    Order order = Order.rehydrate(
-        orderId,
-        "SKU-1",
-        3,
-        OrderStatus.BACKORDERED,
-        PLACED_AT,
-        null,
-        BACKORDERED_AT,
-        null,
-        null
-    );
+    Order order = OrderFixtures.backorderedOrder(
+        orderId, OrderFixtures.OWNER_ID, "SKU-1", 3, PLACED_AT, BACKORDERED_AT, null);
 
     repositoryAdapter.save(order);
     jpaRepository.flush();
@@ -206,12 +200,30 @@ class OrderPersistenceIntegrationTest {
       Instant allocatedAt,
       Instant backorderedSince
   ) {
+    persistOrder(id, OrderFixtures.OWNER_ID, sku, status, allocatedAt, backorderedSince, PLACED_AT);
+  }
+
+  private void persistOrder(
+      UUID id,
+      UUID ownerId,
+      String sku,
+      OrderStatus status,
+      Instant allocatedAt,
+      Instant backorderedSince,
+      Instant placedAt
+  ) {
     jpaRepository.saveAndFlush(new OrderEntity(
         id,
-        sku,
-        1,
+        ownerId,
+        "EXT-" + id,
+        "100",
+        "台北市中正區重慶南路一段 122 號",
+        LocalDate.of(2026, 8, 1),
+        null,
+        List.of(new OrderLineEntity(
+            UUID.randomUUID(), 1, ownerId, sku, 1, status, backorderedSince, null)),
         status,
-        PLACED_AT,
+        placedAt,
         allocatedAt,
         backorderedSince,
         null,
@@ -220,8 +232,7 @@ class OrderPersistenceIntegrationTest {
   }
 
   private void persistOrderAt(UUID id, String sku, Instant placedAt) {
-    jpaRepository.saveAndFlush(
-        new OrderEntity(id, sku, 1, OrderStatus.PENDING, placedAt, null, null, null, null));
+    persistOrder(id, OrderFixtures.OWNER_ID, sku, OrderStatus.PENDING, null, null, placedAt);
   }
 
   private static UUID uuid(int suffix) {

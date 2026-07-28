@@ -3,46 +3,58 @@ package com.flowzati.archone.ordering.infrastructure.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
+import com.flowzati.archone.ordering.domain.model.OrderLine;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.infrastructure.entity.OrderEntity;
+import com.flowzati.archone.ordering.infrastructure.entity.OrderLineEntity;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Order persistence mapper")
 class OrderMapperTest {
 
-  private static final UUID ORDER_ID =
-      UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private static final UUID ORDER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private static final UUID OWNER_ID = OrderFixtures.OWNER_ID;
   private static final Instant PLACED_AT = Instant.parse("2026-07-23T08:00:00Z");
   private static final Instant BACKORDERED_AT = Instant.parse("2026-07-23T08:01:00Z");
 
   @Test
-  @DisplayName("應將完整 Order domain state 與 version 映射到 entity")
+  @DisplayName("應將完整 Order domain state、配送條件與 version 映射到 entity")
   void mapsDomainToEntity() {
-    Order order = Order.rehydrate(
-        ORDER_ID,
-        "SKU-1",
-        3,
-        OrderStatus.BACKORDERED,
-        PLACED_AT,
-        null,
-        BACKORDERED_AT,
-        null,
-        7L
-    );
+    Order order = OrderFixtures.backorderedOrder(
+        ORDER_ID, OWNER_ID, "SKU-1", 3, PLACED_AT, BACKORDERED_AT, 7L);
 
     OrderEntity entity = OrderMapper.toEntity(order);
 
     assertThat(entity.getId()).isEqualTo(ORDER_ID);
-    assertThat(entity.getSku()).isEqualTo("SKU-1");
-    assertThat(entity.getQuantity()).isEqualTo(3);
+    assertThat(entity.getOwnerId()).isEqualTo(OWNER_ID);
+    assertThat(entity.getShipToZone()).isEqualTo("100");
+    assertThat(entity.getShipToAddress()).isEqualTo("台北市中正區重慶南路一段 122 號");
+    assertThat(entity.getPromisedDeliveryDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+    assertThat(entity.getRequestedNodeId()).isNull();
     assertThat(entity.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(entity.getPlacedAt()).isEqualTo(PLACED_AT);
     assertThat(entity.getAllocatedAt()).isNull();
     assertThat(entity.getBackorderedSince()).isEqualTo(BACKORDERED_AT);
     assertThat(entity.getCancelledAt()).isNull();
     assertThat(entity.getVersion()).isEqualTo(7L);
+
+    assertThat(entity.getLines()).singleElement().satisfies(line -> {
+      assertThat(line.getLineNo()).isEqualTo(1);
+      assertThat(line.getOwnerId()).isEqualTo(OWNER_ID);
+      assertThat(line.getSkuCode()).isEqualTo("SKU-1");
+      assertThat(line.getQuantity()).isEqualTo(3);
+      assertThat(line.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+      assertThat(line.getBackorderedSince()).isEqualTo(BACKORDERED_AT);
+      assertThat(line.getAssignedNodeId()).isNull();
+    });
   }
 
   @Test
@@ -52,8 +64,13 @@ class OrderMapperTest {
     Instant cancelledAt = Instant.parse("2026-07-23T08:03:00Z");
     OrderEntity entity = new OrderEntity(
         ORDER_ID,
-        "SKU-1",
-        3,
+        OWNER_ID,
+        "EXT-1",
+        "100",
+        "台北市中正區重慶南路一段 122 號",
+        LocalDate.of(2026, 8, 1),
+        null,
+        List.of(lineEntity(1, "SKU-1", 3, OrderStatus.CANCELLED)),
         OrderStatus.CANCELLED,
         PLACED_AT,
         allocatedAt,
@@ -65,8 +82,11 @@ class OrderMapperTest {
     Order order = OrderMapper.toDomain(entity);
 
     assertThat(order.getId()).isEqualTo(ORDER_ID);
-    assertThat(order.getSku()).isEqualTo("SKU-1");
-    assertThat(order.getQuantity()).isEqualTo(3);
+    assertThat(order.getOwnerId()).isEqualTo(OWNER_ID);
+    assertThat(order.getExternalOrderNo()).isEqualTo("EXT-1");
+    assertThat(order.getDeliveryTerms()).isEqualTo(new DeliveryTerms(
+        "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 8, 1), null));
+    assertThat(order.getDemand()).isEqualTo(Map.of("SKU-1", 3));
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     assertThat(order.getPlacedAt()).isEqualTo(PLACED_AT);
     assertThat(order.getAllocatedAt()).isEqualTo(allocatedAt);
@@ -74,5 +94,36 @@ class OrderMapperTest {
     assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
     assertThat(order.getVersion()).isEqualTo(4L);
     assertThat(order.releaseDomainEvents()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("兩行訂單往返後行的順序、行號與各自欄位皆不變")
+  void roundTripsATwoLineOrder() {
+    Order order = Order.rehydrate(
+        ORDER_ID,
+        OWNER_ID,
+        "EXT-1",
+        OrderFixtures.deliveryTerms(),
+        List.of(
+            OrderLine.rehydrate(
+                UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3, OrderStatus.PENDING, null, null),
+            OrderLine.rehydrate(
+                UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7, OrderStatus.PENDING, null, null)),
+        OrderStatus.PENDING,
+        PLACED_AT, null, null, null, null);
+
+    Order restored = OrderMapper.toDomain(OrderMapper.toEntity(order));
+
+    assertThat(restored.getLines()).extracting(OrderLine::getLineNo).containsExactly(1, 2);
+    assertThat(restored.getLines()).extracting(OrderLine::getSkuCode)
+        .containsExactly("SKU-1", "SKU-2");
+    assertThat(restored.getLines()).extracting(OrderLine::getQuantity).containsExactly(3, 7);
+    assertThat(restored.getDemand()).isEqualTo(Map.of("SKU-1", 3, "SKU-2", 7));
+  }
+
+  private static OrderLineEntity lineEntity(
+      int lineNo, String skuCode, int quantity, OrderStatus status) {
+    return new OrderLineEntity(
+        UUID.randomUUID(), lineNo, OWNER_ID, skuCode, quantity, status, null, null);
   }
 }

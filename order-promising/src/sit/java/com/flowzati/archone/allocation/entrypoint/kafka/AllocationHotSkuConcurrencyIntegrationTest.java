@@ -16,6 +16,7 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -108,7 +109,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     List<OrderPlacedIntegrationEvent> events = new ArrayList<>(TOTAL_ORDERS);
     for (int i = 0; i < TOTAL_ORDERS; i++) {
       UUID orderId = UUID.randomUUID();
-      orderRepository.save(Order.place(orderId, HOT_SKU, 1, placedAt));
+      orderRepository.save(OrderFixtures.pendingOrder(orderId, HOT_SKU, 1, placedAt));
       events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, HOT_SKU, 1, placedAt));
     }
 

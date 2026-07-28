@@ -1,5 +1,6 @@
 package com.flowzati.archone.common.messaging;
 
+import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboxRepoImpl;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
@@ -15,6 +16,7 @@ import com.flowzati.archone.common.outbox.infrastructure.repository.OutboxRepoIm
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
@@ -122,11 +124,21 @@ class InboxRepoOutboxPersistenceIntegrationTest {
     TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 
     transaction.executeWithoutResult(status -> {
+      OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-1");
       jdbcTemplate.update("""
-          INSERT INTO orders (id, sku, quantity, status, placed_at, version)
-          VALUES (?, ?, ?, ?, ?, ?)
-          """, orderId, "SKU-1", 3, "PENDING", Timestamp.from(placedAt), 0L);
-      eventPublisher.publishEvent(new OrderPlaced(orderId, "SKU-1", 3, placedAt));
+          INSERT INTO orders (
+              id, owner_id, external_order_no, ship_to_zone, ship_to_address,
+              promised_delivery_date, status, placed_at, version)
+          VALUES (?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', DATE '2026-08-01', ?, ?, ?)
+          """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, "PENDING",
+          Timestamp.from(placedAt), 0L);
+      eventPublisher.publishEvent(new OrderPlaced(
+          orderId,
+          OrderFixtures.OWNER_ID,
+          "100",
+          java.time.LocalDate.of(2026, 8, 1),
+          java.util.List.of(new LineSnapshot(1, "SKU-1", 3)),
+          placedAt));
       status.setRollbackOnly();
     });
 

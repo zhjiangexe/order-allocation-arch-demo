@@ -7,6 +7,8 @@ import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.ordering.domain.model.OrderLine;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -154,7 +156,7 @@ class AllocationServiceTest {
   @DisplayName("Order 與 StockPool SKU 不一致時應在修改 aggregate 前拒絕")
   void rejectsSkuMismatchBeforeMutation() {
     StockPool stockPool = stockPool(10, 0);
-    Order order = Order.place(UUID.randomUUID(), "OTHER-SKU", 3, NOW.minusSeconds(1));
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "OTHER-SKU", 3, NOW.minusSeconds(1));
     order.releaseDomainEvents();
 
     assertThatThrownBy(() -> allocationService.allocate(order, stockPool, NOW))
@@ -162,6 +164,35 @@ class AllocationServiceTest {
         .hasMessage("Order and stock pool SKU must match");
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+    assertThat(stockPool.getReservedQuantity()).isZero();
+  }
+
+  @Test
+  @DisplayName("跨多個 SKU 的訂單不得被單一 StockPool 配貨——整籃裡有這個池滿足不了的東西")
+  void rejectsAnOrderWhoseDemandSpansMoreThanThisPool() {
+    StockPool stockPool = stockPool(100, 0);
+    // SKU-1 這一行這個池滿足得了，SKU-2 那一行它完全不認識。
+    Order order = twoSkuOrder();
+
+    assertThatThrownBy(() -> allocationService.allocate(order, stockPool, NOW))
+        .isInstanceOf(RuntimeException.class);
+
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+    assertThat(stockPool.getReservedQuantity()).isZero();
+  }
+
+  @Test
+  @DisplayName("補貨喚醒也不得把跨多個 SKU 的訂單整張配掉")
+  void rejectsMultiSkuOrdersWhenWakingBackorders() {
+    StockPool stockPool = stockPool(100, 0);
+    Order order = twoSkuOrder();
+    order.markBackOrdered(NOW.minusSeconds(3));
+    order.releaseDomainEvents();
+
+    assertThatThrownBy(() -> allocationService.allocateBackorders(List.of(order), stockPool, NOW))
+        .isInstanceOf(RuntimeException.class);
+
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(stockPool.getReservedQuantity()).isZero();
   }
 
@@ -181,14 +212,40 @@ class AllocationServiceTest {
     assertThat(stockPool.availableToPromise()).isEqualTo(10);
   }
 
+  /**
+   * 一張跨兩個 SKU 的訂單。收單入口拒絕多行，因此只能以 {@code Order.rehydrate} 造——
+   * 刻意直接寫出來而不藏進 fixture：這正是「入口進不來但儲存層允許」的東西。
+   *
+   * <p>這兩支測試守的是一條容易在重構中弄丟的界線：配貨只拿得到一個 {@code StockPool}，
+   * 而這張單的需求有一半落在它之外。**檢查必須是「這張單的需求恰好只有這個池的 SKU」，
+   * 不能是「包含」**——寫成包含的話，多行訂單會通過檢查，然後只扣其中一個 SKU 的量，
+   * 而整張單被標為已配。那是靜默的錯，不會有任何測試失敗。
+   */
+  private Order twoSkuOrder() {
+    UUID orderId = UUID.randomUUID();
+    UUID ownerId = OrderFixtures.OWNER_ID;
+    return Order.rehydrate(
+        orderId,
+        ownerId,
+        "EXT-" + orderId,
+        OrderFixtures.deliveryTerms(),
+        List.of(
+            OrderLine.rehydrate(
+                UUID.randomUUID(), 1, ownerId, "SKU-1", 3, OrderStatus.PENDING, null, null),
+            OrderLine.rehydrate(
+                UUID.randomUUID(), 2, ownerId, "SKU-2", 5, OrderStatus.PENDING, null, null)),
+        OrderStatus.PENDING,
+        NOW.minusSeconds(10), null, null, null, null);
+  }
+
   private Order pendingOrder(int quantity) {
-    Order order = Order.place(UUID.randomUUID(), "SKU-1", quantity, NOW.minusSeconds(4));
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", quantity, NOW.minusSeconds(4));
     order.releaseDomainEvents();
     return order;
   }
 
   private Order backorderedOrder(int quantity, int secondsAgo) {
-    Order order = Order.place(UUID.randomUUID(), "SKU-1", quantity, NOW.minusSeconds(5));
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", quantity, NOW.minusSeconds(5));
     order.markBackOrdered(NOW.minusSeconds(secondsAgo));
     order.releaseDomainEvents();
     return order;

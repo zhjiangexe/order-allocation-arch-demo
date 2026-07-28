@@ -11,6 +11,7 @@ import com.flowzati.archone.ordering.domain.event.OrderAllocated;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -179,7 +180,7 @@ class OrderAllocationCoordinatorTest {
   }
 
   private Order pendingOrder(String sku, int quantity) {
-    Order order = Order.place(UUID.randomUUID(), sku, quantity, now.minusSeconds(1));
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), sku, quantity, now.minusSeconds(1));
     order.releaseDomainEvents();
     return order;
   }

@@ -21,6 +21,7 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -104,8 +105,8 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     UUID secondOrderId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-CONCURRENT", 3, 0, null));
-    orderRepository.save(Order.place(firstOrderId, "SKU-CONCURRENT", 3, placedAt));
-    orderRepository.save(Order.place(secondOrderId, "SKU-CONCURRENT", 3, placedAt));
+    orderRepository.save(OrderFixtures.pendingOrder(firstOrderId, "SKU-CONCURRENT", 3, placedAt));
+    orderRepository.save(OrderFixtures.pendingOrder(secondOrderId, "SKU-CONCURRENT", 3, placedAt));
 
     OrderPlacedIntegrationEvent firstEvent = new OrderPlacedIntegrationEvent(
         UUID.randomUUID(), firstOrderId, "SKU-CONCURRENT", 3, placedAt);
@@ -148,7 +149,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     UUID orderId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-EXHAUSTED", 3, 0, null));
-    orderRepository.save(Order.place(orderId, "SKU-EXHAUSTED", 3, placedAt));
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-EXHAUSTED", 3, placedAt));
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
         UUID.randomUUID(), orderId, "SKU-EXHAUSTED", 3, placedAt);
     double metricBefore = exhaustedMetricCount();

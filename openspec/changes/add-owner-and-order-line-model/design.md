@@ -45,10 +45,13 @@ seed 有兩個貨主，但配貨仍可能跨貨主取用。
   [dom-promising-scope.md](../../../docs/dom-promising-scope.md)），該狀態不存在，不是
   「留到 R8」。
 - **不動 `stock_pools`／`stock_reservations`**，因此跨貨主隔離不生效。屬 R3。
-- **不改 partition key**。`sku` 策略在多貨主下會讓不同貨主的同名 SKU 收斂到同一
-  partition，製造假競爭。修正要等 R3——那時 `stock_pools` 才有 `owner_id`，
-  `ownerId:skuCode` 這個 key 才有對應的實體。本 change 留著這個已知缺陷，但同時記錄
-  它更深的一層限制（見下方「sku partition 策略有到期日」）。
+- **不改 partition key，而且現階段改反而會壞。** `stock_pools` 的 unique key 仍是
+  `(sku)`，因此兩個貨主的同名 SKU **真的共用同一列庫存、搶同一個樂觀鎖版本號**。`sku`
+  策略的目的正是讓競爭同一個 `StockPool` 的事件收斂到同一個 partition，所以裸 `sku`
+  在此刻是正確的 key。若現在就改成 `ownerId:skuCode`，兩個貨主的事件會被分到不同
+  partition 卻平行去搶同一列，single-writer 保證直接破掉。**partition key 的正確形狀
+  必須跟著 `StockPool` 的識別走**——R3 讓庫存真的分開之後才輪到它改（另見下方「sku
+  partition 策略有到期日」）。
 - **不建 `fulfillment_nodes`**，因此 `order_lines.assigned_node_id` **只建欄位不建 FK**，
   且恆為空。主檔屬 R2、填值屬 R6。
 - **不提供主檔的寫入介面**。`Owner`／`Product`／`Sku` 由 seed 建立，CRUD 介面不在範圍。
@@ -184,6 +187,20 @@ status 時 PostgreSQL 仍得排序一次，index 等於白建。
 「整單一起配到或一起缺貨」正是這個一致性的內容。因此不提供 `OrderLineRepository`，
 line 只能經由 `Order` 存取與持久化。
 
+**建構入口的判準**（本 change 確立，供 R2 的 `FulfillmentNode`、R7 的 `Shipment` 沿用）：
+分野是「**新建與從儲存還原的前置條件是否不同**」，不是「是不是 aggregate root」。
+
+| 情形 | 做法 | 本 change 的例子 |
+| --- | --- | --- |
+| 新建有政策或固定初始狀態，還原則否 | 一對具名 factory | `Order.place`／`rehydrate`、`OrderLine.create`／`rehydrate` |
+| 建立本身是業務事件 | factory 用業務動詞，不用 `create` | `place` 而非 `createOrder` |
+| 兩者皆無 | public constructor，不為了「看起來像 DDD」硬包一層 | `Owner`、`Product`、`Sku`（沿用既有的 `StockPool`） |
+
+**不為測試方便另開第三個入口。** 測試要的「一張已存在的待配訂單」正是 `rehydrate()` 的
+語意；用 `place()` 造會憑空產生一個永遠不會被發布的 `OrderPlaced` 事件，逼每個測試記得
+清掉它。測試 fixture 因此區分 `pendingOrder()`（走 `rehydrate`）與直接呼叫
+`Order.place(...)`（只有測收單本身的測試才用）。
+
 ### `PlaceOrderUsecase` 改收 command 物件
 
 header 欄位加到六個之後位置參數的呼叫端可讀性崩潰，而且 line 清單無法用位置參數自然
@@ -283,10 +300,19 @@ SKU，`stock_pools` 也還沒有 `owner_id`。**參數加了卻沒有任何真�
 
 這一節不改任何程式碼，只記錄一個 proposal 原本沒有寫下的限制。
 
-`sku` partition 策略的前提是「一張單 = 一個 SKU」，同 SKU 的配貨才收斂得到單一 writer。
-**這個前提在 line 模型下有壽命**：R8 之後一張單碰多個 SKU，一則 `OrderPlaced` 事件無法同
-時進兩個 partition。roadmap 說 R3 改成 `ownerId:skuCode`，那只是換 key，前提沒變，一樣撐
-不到 R8。
+先釐清一個容易搞反的地方：**partition key 的正確形狀由 `StockPool` 的識別決定，不是由訂單
+決定。** key 存在的目的是讓「會搶同一列庫存」的事件排進同一個 partition，因此兩者必須一起
+演進：
+
+| 階段 | `StockPool` 的識別 | 正確的 key |
+| --- | --- | --- |
+| 本 change | `(sku)` | `sku`——同名 SKU 真的共用一列，現況正確 |
+| R3 之後 | `(owner_id, node_id, sku_code, expire_date, group)` | `ownerId:skuCode`，**必須與加 `owner_id` 在同一個 change** |
+| R8 之後 | 同上 | 無解，見下 |
+
+策略還有第二個前提：「一張單 = 一個 SKU」，一則事件才摺得出單一個 key。**這個前提在 line
+模型下有壽命**——R8 之後一張單碰多個 SKU，一則 `OrderPlaced` 事件無法同時進兩個 partition。
+上表的 R3 那一列只是換 key，這個前提沒變，一樣撐不到 R8。
 
 收尾的方向有兩條：事件按 SKU 拆開（與 R4 `demand_lines` 同一個方向），或策略退場、壓測改
 用 order-id。本 change 不做選擇，只確保下一個人知道這裡有到期日，而不是以為 R3 改完就沒
@@ -407,9 +433,11 @@ ALTER 一次」，而那個理由在選了「重寫 `V3` 為最終形狀」之�
   這個約束。它不影響本 change 的「零筆預留」斷言，但實作時會撞上。
 - **跨貨主配貨在本 change 是通的** → 已知且刻意。緩解是在驗收與 seed 註解裡明確標註，
   而不是留給下一個人自己發現。R3 的 `requireMatchingOwner()` 收尾。
-- **partition key 仍為裸 `sku`** → 兩個貨主的同名 SKU 收斂到同一 partition，製造假競爭，
-  壓測的併發衝突率會略高於真實情況。緩解是接受並記錄；提前修會做出一個沒有實體對應的
-  key（`stock_pools` 還沒有 `owner_id`）。
+- **partition key 與 `StockPool` 的識別必須同步演進** → 兩者脫節時 single-writer 就失效。
+  現階段兩者一致（都是裸 `sku`），沒有問題；風險在 R3——`stock_pools` 加上 `owner_id`
+  的那一刻，partition key 必須在**同一個 change** 內跟著改成 `ownerId:skuCode`，否則
+  不同貨主的事件會擠進同一個 partition 排隊等一個它們其實不共用的鎖。這條要寫進 R3 的
+  任務，不能留給之後補。
 - **改寫 migration 需要重建 volume** → 忘記 `down` 會得到 Flyway checksum 錯誤。這是
   明確的失敗而非靜默錯誤，且前兩個 change 已經走過同一條路。
 

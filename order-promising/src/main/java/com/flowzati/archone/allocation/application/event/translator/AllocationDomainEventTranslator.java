@@ -8,7 +8,9 @@ import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
 import com.flowzati.archone.common.outbox.OutboxDelivery;
 import com.flowzati.archone.common.messaging.IntegrationEventTopics;
+import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderBackordered;
+import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.util.UUID;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -41,12 +43,14 @@ public class AllocationDomainEventTranslator {
 
   @EventListener
   public void translate(OrderBackordered event) {
+    // 同 OrderPlaced:此 integration event 的契約仍是單一 SKU 與數量,摺疊經過具名方法。
+    LineSnapshot line = LineSnapshot.requireSingleLine(event.lines());
     outboxAppender.append(
         new BackorderCreatedIntegrationEvent(
             IdGenerator.nextId(),
             event.orderId(),
-            event.sku(),
-            event.quantity(),
+            line.skuCode(),
+            line.quantity(),
             event.backorderedSince()),
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),

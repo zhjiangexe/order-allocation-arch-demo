@@ -15,6 +15,7 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
@@ -153,16 +154,8 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
   private UUID seedBackorderedOrder(int quantity, Instant firstBackorderedAt, int fifoPosition) {
     UUID orderId = UUID.randomUUID();
     Instant backorderedAt = firstBackorderedAt.plusMillis(fifoPosition);
-    Order order = Order.rehydrate(
-        orderId,
-        FIFO_SKU,
-        quantity,
-        OrderStatus.BACKORDERED,
-        backorderedAt.minusSeconds(1),
-        null,
-        backorderedAt,
-        null,
-        null);
+    Order order = OrderFixtures.backorderedOrder(
+        orderId, FIFO_SKU, quantity, backorderedAt.minusSeconds(1), backorderedAt);
     orderRepository.save(order);
     return orderId;
   }

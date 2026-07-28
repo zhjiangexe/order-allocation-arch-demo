@@ -7,6 +7,7 @@ import com.flowzati.archone.allocation.domain.service.selector.AllocationContext
 import com.flowzati.archone.allocation.domain.service.selector.AllocationPolicy;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
 import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -20,7 +21,7 @@ class AllocationSelectorTest {
   void createsTypedContextBeforeInvokingPolicy() {
     Instant decisionAt = Instant.parse("2026-07-24T02:00:00Z");
     AllocationRequest request = new AllocationRequest(UUID.randomUUID(), "SKU-1", 5, decisionAt);
-    Order order = Order.place(UUID.randomUUID(), "SKU-1", 3, decisionAt.minusSeconds(1));
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, decisionAt.minusSeconds(1));
     order.releaseDomainEvents();
 
     AllocationContextFactory<TestAllocationContext> contextFactory = source ->

@@ -7,7 +7,9 @@ description = 'order-promising'
 
 sourceSets {
     sit {
-        compileClasspath += sourceSets.main.output
+        // 也吃 test 的 output，讓兩個 source set 共用測試 fixture（例如 OrderFixtures）。
+        // 否則每個 fixture 都要複製一份到 sit，而複製出來的兩份會各自漂移。
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
         runtimeClasspath += output + compileClasspath
     }
 }

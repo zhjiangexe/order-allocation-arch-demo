@@ -1,5 +1,6 @@
 package com.flowzati.archone.common.event;
 
+import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
@@ -21,13 +22,19 @@ class EventSeparationTest {
 
   private final UUID eventId = UUID.randomUUID();
   private final UUID orderId = UUID.randomUUID();
+  private final UUID ownerId = UUID.randomUUID();
   private final Instant occurredAt = Instant.parse("2026-07-23T00:00:00Z");
 
   @Test
   @DisplayName("Domain Event 應是沒有訊息識別的內部標記")
   void domainEventShouldBeAnInternalMarkerWithoutMessagingIdentity() {
-    OrderPlaced event =
-        new OrderPlaced(orderId, "SKU-1", 3, occurredAt);
+    OrderPlaced event = new OrderPlaced(
+        orderId,
+        ownerId,
+        "100",
+        java.time.LocalDate.of(2026, 8, 1),
+        java.util.List.of(new LineSnapshot(1, "SKU-1", 3)),
+        occurredAt);
 
     assertThat(event).isInstanceOf(DomainEvent.class);
     assertThat(event.getClass().getMethods())

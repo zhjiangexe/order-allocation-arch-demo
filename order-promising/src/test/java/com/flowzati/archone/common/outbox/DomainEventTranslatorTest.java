@@ -1,6 +1,7 @@
 package com.flowzati.archone.common.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.translator.AllocationDomainEventTranslator;
@@ -23,6 +24,15 @@ import static org.mockito.Mockito.verify;
 
 class DomainEventTranslatorTest {
 
+  private static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+  private static final java.util.List<LineSnapshot> LINES =
+      java.util.List.of(new LineSnapshot(1, "SKU-1", 3));
+
+  private OrderPlaced placed(UUID orderId) {
+    return new OrderPlaced(
+        orderId, OWNER_ID, "100", java.time.LocalDate.of(2026, 8, 1), LINES, occurredAt);
+  }
+
   private final Instant occurredAt = Instant.parse("2026-07-24T10:00:00Z");
 
   @Test
@@ -33,7 +43,7 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new OrderingDomainEventTranslator(appender, "order-id")
-        .translate(new OrderPlaced(orderId, "SKU-1", 3, occurredAt));
+        .translate(placed(orderId));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
@@ -76,7 +86,7 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new OrderingDomainEventTranslator(appender, "sku")
-        .translate(new OrderPlaced(orderId, "SKU-1", 3, occurredAt));
+        .translate(placed(orderId));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
@@ -92,7 +102,7 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new OrderingDomainEventTranslator(appender, "order-id")
-        .translate(new OrderCancelled(orderId, "SKU-1", occurredAt));
+        .translate(new OrderCancelled(orderId, OWNER_ID, LINES, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
@@ -108,7 +118,7 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new OrderingDomainEventTranslator(appender, "sku")
-        .translate(new OrderCancelled(orderId, "SKU-1", occurredAt));
+        .translate(new OrderCancelled(orderId, OWNER_ID, LINES, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
@@ -140,7 +150,7 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new AllocationDomainEventTranslator(appender)
-        .translate(new OrderBackordered(orderId, "SKU-1", 3, occurredAt));
+        .translate(new OrderBackordered(orderId, OWNER_ID, LINES, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());

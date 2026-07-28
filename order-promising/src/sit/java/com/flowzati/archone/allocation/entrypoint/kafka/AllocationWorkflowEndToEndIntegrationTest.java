@@ -20,6 +20,7 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
@@ -80,7 +81,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
-    orderRepository.save(Order.place(orderId, "SKU-AVAILABLE", 3, placedAt));
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, placedAt));
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-AVAILABLE", 10, 0, null));
 
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
@@ -110,9 +111,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
     UUID stockPoolId = UUID.randomUUID();
     UUID reservationId = UUID.randomUUID();
     Instant reservedAt = Instant.now().minusSeconds(1);
-    orderRepository.save(Order.rehydrate(
-        orderId, "SKU-PARTIALLY-RESERVED", 4, OrderStatus.ALLOCATED, reservedAt.minusSeconds(1),
-        reservedAt, null, null, null));
+    orderRepository.save(OrderFixtures.allocatedOrder(
+        orderId, "SKU-PARTIALLY-RESERVED", 4, reservedAt.minusSeconds(1), reservedAt));
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-PARTIALLY-RESERVED", 10, 4, null));
     stockReservationRepository.save(
         StockReservation.create(reservationId, orderId, stockPoolId, 4, reservedAt));
@@ -163,16 +163,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
   }
 
   private Order backorderedOrder(UUID orderId, String sku, int quantity, Instant backorderedAt) {
-    return Order.rehydrate(
-        orderId,
-        sku,
-        quantity,
-        OrderStatus.BACKORDERED,
-        backorderedAt.minusSeconds(1),
-        null,
-        backorderedAt,
-        null,
-        null);
+    return OrderFixtures.backorderedOrder(
+        orderId, sku, quantity, backorderedAt.minusSeconds(1), backorderedAt);
   }
 
   private ConsumerRecord<String, String> record(String topic, IntegrationEvent event) throws Exception {

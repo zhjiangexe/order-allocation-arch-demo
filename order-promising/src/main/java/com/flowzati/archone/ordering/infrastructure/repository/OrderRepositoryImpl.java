@@ -32,7 +32,8 @@ public class OrderRepositoryImpl implements OrderRepository {
 
   @Override
   public List<Order> findBackordersBySkuInFifoOrder(String sku) {
-    return repository.findBySkuAndStatusOrderByBackorderedSinceAscIdAsc(sku, OrderStatus.BACKORDERED)
+    return repository.findByLines_SkuCodeAndStatusOrderByBackorderedSinceAscIdAsc(
+            sku, OrderStatus.BACKORDERED)
         .stream()
         .map(OrderMapper::toDomain)
         .toList();
