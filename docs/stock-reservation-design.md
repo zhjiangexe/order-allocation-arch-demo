@@ -731,7 +731,7 @@ HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 prof
 |---|---|---|
 | `OWNER-A` 甲貨主（可拆單） | 烏龍茶（AMBIENT） | `SKU-AVAILABLE` 500ml／`SKU-EMPTY` 1L |
 | `OWNER-A` | 冷凍水餃（FROZEN） | `SKU-PARTIALLY-RESERVED` 500g |
-| `OWNER-B` 乙貨主（不可拆單） | 麥茶（AMBIENT） | `SKU-AVAILABLE` 600ml |
+| `OWNER-B` 乙貨主（不可拆單） | 麥茶（AMBIENT） | `SKU-AVAILABLE` 600ml／`SKU-EMPTY` 1L |
 
 兩個貨主的 `SKU-AVAILABLE` 是**完全不同的商品**（烏龍茶 520g／麥茶 610g），這是 3PL 撞號
 的最小再現。它同時暴露上面說的中間狀態：`stock_pools` 的唯一鍵是 `(sku)`，所以這兩個商品
@@ -746,10 +746,14 @@ HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 prof
 `SKU-PARTIALLY-RESERVED` 必須同時 seed 一張 quantity 5、status `ALLOCATED` 的 Order，以及
 一筆 quantity 5、status `ACTIVE` 的 StockReservation，確保 `reservedQuantity` 有可追溯來源。
 
-另有一張乙貨主的 `PENDING` 訂單（`SKU-AVAILABLE` × 2），用途是讓列表上有一列 PENDING、
-並展示撞號。**它是直接寫入資料庫的固定樣本，不會產生 `OrderPlaced` 事件，因此永遠不會被
-配置，補貨也不會喚醒它**（補貨只處理 `BACKORDERED`）。這一點容易誤導——照操作台 README
-的 demo 流程補貨後它不會有任何變化。
+另有一張乙貨主的 `BACKORDERED` 訂單（`SKU-EMPTY` × 2），它同時是撞號展示與 FIFO 佇列的
+既有成員：補 `SKU-EMPTY` 時它會被喚醒，因此操作台 README 的 demo 流程對它成立。
+
+它**刻意不是 `PENDING`**。`PENDING` 的語意是「還沒試過配置」，在真實系統裡是收單到消費之間
+的毫秒級過渡；固化成種子資料等於展示一個穩定狀態下不存在的東西。更實際的問題是種子繞過下單
+usecase 直接寫入資料庫，不會產生 `OrderPlaced` 事件——配置端從不知道它存在，而補貨只處理
+`BACKORDERED`，所以一張種子 `PENDING` 訂單會**永遠不動**，補多少貨都一樣。`BACKORDERED`
+則語意一致（`SKU-EMPTY` 的 ATP 是 0，「試過、沒貨」成立）且真的會被喚醒。
 
 測試不得依賴 dev seed；每個自動化測試自行建立 fixture。Production 不載入測試 SKU。
 

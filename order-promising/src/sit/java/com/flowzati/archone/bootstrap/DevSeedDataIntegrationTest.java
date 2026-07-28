@@ -7,6 +7,7 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.allocation.domain.model.ReservationStatus;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
+import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -110,6 +111,27 @@ class DevSeedDataIntegrationTest {
         .isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM owners", Integer.class))
         .isEqualTo(2);
+  }
+
+  @Test
+  @DisplayName("種子的缺貨訂單應真的在 FIFO 佇列裡——補貨要能喚醒它，否則它是一列死資料")
+  void seedsABackorderThatReplenishmentCanActuallyWake() {
+    // 這一條守的是「種子訂單不是 PENDING」。PENDING 在真實系統裡是收單到消費之間的過渡，
+    // 固化成種子等於展示一個穩定狀態下不存在的東西；更糟的是那張單繞過下單 usecase 直接
+    // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在，補貨也不會碰它（只處理
+    // BACKORDERED）。照操作台 README 的 demo 流程補貨後畫面毫無變化，看起來像壞掉。
+    List<Order> queue = orderRepository.findBackordersBySkuInFifoOrder(
+        DevSeedDataInitializer.SPLIT_FORBIDDEN_OWNER_ID, DevSeedDataInitializer.EMPTY_SKU);
+
+    assertThat(queue).extracting(Order::getId)
+        .containsExactly(DevSeedDataInitializer.BACKORDERED_ORDER_ID);
+    assertThat(queue.getFirst().getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(queue.getFirst().getBackOrderedSince()).isNotNull();
+
+    // 缺貨對象的庫存池必須真的是空的，否則「試過、沒貨」這個狀態自相矛盾
+    assertThat(stockPoolRepository.findBySku(DevSeedDataInitializer.EMPTY_SKU))
+        .get()
+        .satisfies(pool -> assertThat(pool.availableToPromise()).isZero());
   }
 
   @Test

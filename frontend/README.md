@@ -58,7 +58,14 @@ ARCHONE_BACKEND_ORIGIN=http://localhost:9090 npm run dev
 
 ## 一個典型的 demo 流程
 
-1. 庫存頁查一個 ATP 是 0 的 SKU
+用 `SKU-EMPTY`（ATP 是 0）：
+
+1. 庫存頁查 `SKU-EMPTY` → on-hand 0、ATP 0
 2. 訂單頁對它下幾張單 → 看到 `PENDING`，按重新整理 → 變成 `BACKORDERED`
-3. 庫存頁對它補貨 → 顯示「已受理」與事件識別碼（**不是**「已配置」）
+3. 庫存頁選好貨主、對它補貨 → 顯示「已受理」與事件識別碼（**不是**「已配置」）
 4. 訂單頁按重新整理 → 看到那批訂單依 FIFO 轉成 `ALLOCATED`、`allocatedAt` 有值
+
+種子已經在乙貨主的佇列裡放了一張 `SKU-EMPTY` 的缺貨單，`backordered_since` 比你當場下的
+都早——補乙貨主的貨時它會**排在最前面**被配到。那不是 bug，是 FIFO 本來的樣子。
+
+補貨要選貨主，而佇列是按貨主分開的：補甲貨主不會動到乙貨主的單，即使兩邊的 SKU 代碼相同。

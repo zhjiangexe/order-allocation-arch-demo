@@ -76,16 +76,17 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID.fromString("00000000-0000-0000-0000-000000000103");
   public static final UUID PARTIALLY_RESERVED_ORDER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000201");
-  public static final UUID PENDING_ORDER_ID =
+  public static final UUID BACKORDERED_ORDER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000203");
 
   private static final UUID PARTIALLY_RESERVED_LINE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000202");
-  private static final UUID PENDING_LINE_ID =
+  private static final UUID BACKORDERED_LINE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000204");
   private static final UUID PARTIALLY_RESERVED_RESERVATION_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000301");
   private static final Instant PARTIALLY_RESERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
+  private static final Instant BACKORDERED_SINCE = Instant.parse("2026-01-01T00:00:00Z");
 
   private final OwnerRepository ownerRepository;
   private final ProductRepository productRepository;
@@ -145,6 +146,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     // 乙貨主：刻意使用與甲貨主相同的款號與 SKU 代碼，且是完全不同的商品
     product(SPLIT_FORBIDDEN_OWNER_ID, 13, AMBIENT_PRODUCT_CODE, "麥茶", TemperatureZone.AMBIENT);
     sku(SPLIT_FORBIDDEN_OWNER_ID, 24, AVAILABLE_SKU, AMBIENT_PRODUCT_CODE, "600ml", 610);
+    sku(SPLIT_FORBIDDEN_OWNER_ID, 25, EMPTY_SKU, AMBIENT_PRODUCT_CODE, "1L", 1050);
   }
 
   private void seedStockPools() {
@@ -159,15 +161,13 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     }
 
     // 甲貨主：一張已配到貨的單，連同它的預留
-    orderRepository.save(order(
+    orderRepository.save(allocatedOrder(
         PARTIALLY_RESERVED_ORDER_ID,
         PARTIALLY_RESERVED_LINE_ID,
         SPLIT_ALLOWED_OWNER_ID,
         "SEED-A-0001",
         PARTIALLY_RESERVED_SKU,
-        5,
-        OrderStatus.ALLOCATED,
-        PARTIALLY_RESERVED_AT));
+        5));
     stockReservationRepository.save(StockReservation.create(
         PARTIALLY_RESERVED_RESERVATION_ID,
         PARTIALLY_RESERVED_ORDER_ID,
@@ -175,18 +175,42 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         5,
         PARTIALLY_RESERVED_AT));
 
-    // 乙貨主：一張待處理的單，SKU 代碼與甲貨主相同但指的是另一個商品
-    orderRepository.save(order(
-        PENDING_ORDER_ID,
-        PENDING_LINE_ID,
+    // 乙貨主：一張缺貨排隊中的單。SKU 代碼與甲貨主相同但指的是另一個商品（麥茶 1L）。
+    //
+    // 狀態是 BACKORDERED 而不是 PENDING，這是刻意的。PENDING 的語意是「還沒試過配置」，
+    // 在真實系統裡是收單到消費之間的毫秒級過渡；把它固化成種子資料等於展示一個穩定狀態
+    // 下不存在的東西，而且那張單永遠不會動——它繞過下單 usecase 直接寫入，沒有
+    // OrderPlaced 事件，配置端從不知道它存在，補貨也不會喚醒它（補貨只處理 BACKORDERED）。
+    //
+    // BACKORDERED 則三件事同時成立：它進得了 FIFO 佇列，補 SKU-EMPTY 真的會喚醒它；
+    // 語意一致，因為那個庫存池的 on-hand 是 0；撞號展示也還在，兩個貨主都有 SKU-EMPTY。
+    orderRepository.save(backorderedOrder(
+        BACKORDERED_ORDER_ID,
+        BACKORDERED_LINE_ID,
         SPLIT_FORBIDDEN_OWNER_ID,
         "SEED-B-0001",
-        AVAILABLE_SKU,
-        2,
-        OrderStatus.PENDING,
-        null));
+        EMPTY_SKU,
+        2));
   }
 
+  private Order allocatedOrder(
+      UUID orderId, UUID lineId, UUID ownerId, String externalOrderNo, String skuCode,
+      int quantity) {
+    return order(orderId, lineId, ownerId, externalOrderNo, skuCode, quantity,
+        OrderStatus.ALLOCATED, PARTIALLY_RESERVED_AT, null);
+  }
+
+  private Order backorderedOrder(
+      UUID orderId, UUID lineId, UUID ownerId, String externalOrderNo, String skuCode,
+      int quantity) {
+    return order(orderId, lineId, ownerId, externalOrderNo, skuCode, quantity,
+        OrderStatus.BACKORDERED, null, BACKORDERED_SINCE);
+  }
+
+  /**
+   * 唯一的訂單建構出口。兩個 {@code Instant} 相鄰且都可為 null，直接讓呼叫端填很容易對調，
+   * 因此對外只開放上面兩個語意化的入口。
+   */
   private Order order(
       UUID orderId,
       UUID lineId,
@@ -195,7 +219,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       String skuCode,
       int quantity,
       OrderStatus status,
-      Instant allocatedAt
+      Instant allocatedAt,
+      Instant backOrderedSince
   ) {
     return Order.rehydrate(
         orderId,
@@ -203,12 +228,13 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         externalOrderNo,
         new DeliveryTerms(
             "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5), null),
+        // 行的 backorderedSince 恆等於 header——採 ship-complete 後所有行一起缺貨
         List.of(OrderLine.rehydrate(
-            lineId, 1, ownerId, skuCode, quantity, status, null, null)),
+            lineId, 1, ownerId, skuCode, quantity, status, backOrderedSince, null)),
         status,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
         allocatedAt,
-        null,
+        backOrderedSince,
         null,
         null);
   }
