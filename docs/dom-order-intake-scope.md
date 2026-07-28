@@ -96,18 +96,18 @@
 | `promisedDeliveryDate` | **header** | 承諾到貨日，③ 的時效項基準 |
 | `requestedNodeId` 指定倉 | **header**（選填） | 貨主指定則跳過 sourcing |
 | `sku` / `quantity` | **line** | — |
-| `assignedNodeId` 實際出貨倉 | **line** | **拆單後不同 line 可能從不同倉出** |
-| `lineStatus` | **line** | 拆單後不同 line 的履約進度可能不同。**不是為了 `PARTIALLY_ALLOCATED`**——採 ship-complete，配貨階段各 line 狀態恆等 |
+| ~~`assignedNodeId` 實際出貨倉~~ | ~~line~~ | **2026-07-29 砍除**——它放在 line 的唯一理由是跨倉拆單，而一張訂單只能一個倉、明細不可跨倉。倉別在 header 的 `fulfillment_node_id` |
+| `lineStatus` | **line** | **不是為了 `PARTIALLY_ALLOCATED`**——採 ship-complete，配貨階段各 line 狀態恆等。它為履約階段而存在（部分出貨、短揀） |
 
-最後兩列是關鍵：**sourcing 的輸入在 header，輸出在 line。** 若把 `assignedNodeId`
-放 header，拆單就表達不出來，之後必須搬遷。
+原本這裡寫的是「sourcing 的輸入在 header，輸出在 line」——那條規則隨 ③ 移出範圍而失效。
+現在倉別**只在 header**：貨主指定一個倉，明細不可跨倉，沒有 per-line 的倉別可言。
 
 ### 判準：要不要另開表
 
 | 資料 | 判定 | 理由 |
 | --- | --- | --- |
 | `order_lines` | **獨立表** | 多品項的必然 |
-| `owners` 貨主主檔 | **獨立小表** | 畫面要顯示貨主名稱，不能只存 id；並承載貨主層級的服務條款（如是否允許拆單） |
+| `owners` 貨主主檔 | **獨立小表** | 畫面要顯示貨主名稱，不能只存 id。（原本還要承載「是否允許拆單」，該欄位已砍除） |
 | `products` 商品款主檔 | **獨立表** | 一款商品有多個規格（SKU）。溫層屬於款層級——見下節「為何拆兩層」 |
 | `skus` 規格主檔 | **獨立表** | 重量屬於規格層級，進 ③ 的成本函數；`sku` 不能永遠是裸字串 |
 | `fulfillment_nodes` | **獨立表** | 欄位定義見 [dom-sourcing-scope.md](dom-sourcing-scope.md) 的「主檔需求」 |
@@ -119,7 +119,8 @@
 ```sql
 owners
   id, code, name, status,
-  allow_split_shipment,                             -- ③ 是否允許跨節點拆單
+  -- allow_split_shipment 已於 2026-07-29 砍除：它的定義是「是否允許跨節點拆單」，
+  -- 而明細不可跨倉，這個開關沒有東西可以開關
   UNIQUE (code)
 
 products                                            -- 1.14，款層級
@@ -143,7 +144,7 @@ orders
   ship_to_zone            NOT NULL,                     -- 1.13 ③ 的決策輸入
   ship_to_address         NOT NULL,                     -- 履約與面單用
   promised_delivery_date  NOT NULL,                     -- 1.13 ③ 的時效項基準
-  requested_node_id,                                    -- 選填，指定則跳過 sourcing
+  fulfillment_node_id,                                  -- NOT NULL，貨主在上游指定的出貨倉
   status, placed_at, allocated_at, backordered_since,
   cancelled_at, fulfilled_at, version
   UNIQUE (owner_id, external_order_no)                  -- 冪等鍵，見下
@@ -153,7 +154,6 @@ order_lines
   owner_id,                                             -- 反正規化，見下
   sku_code,                                             -- FK 為 (owner_id, sku_code)
   quantity,
-  assigned_node_id,                                     -- ③ 的決策輸出
   status
   UNIQUE (order_id, line_no)
 ```
@@ -258,8 +258,8 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 
 | 欄位 | ③ 怎麼用 | 連鎖 |
 | --- | --- | --- |
-| `temperature_zone` | 候選節點篩選的**硬約束** | `fulfillment_nodes` 要加 `capabilities`（支援的溫層） |
-| `weight_gram` | 成本函數的運費基準 | `node_coverage` 的 `shipping_cost` 拆為 `base_cost` + `cost_per_kg` |
+| `temperature_zone` | 原為候選節點篩選的硬約束 | **該用途已隨 ③ 移出範圍**（2026-07-29）。欄位保留——它仍是商品的事實，且款／規格兩層的結構價值不依賴它有沒有讀者 |
+| `weight_gram` | 原為成本函數的運費基準 | **該用途已隨 ③ 移出範圍**（2026-07-29）。欄位保留——它是規格的事實，且款／規格兩層的結構價值不依賴它有沒有讀者 |
 
 兩項連鎖的細節定義於 [dom-sourcing-scope.md](dom-sourcing-scope.md)。
 
@@ -482,8 +482,8 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 
 | 動作 | 檔案 |
 | --- | --- |
-| 建 `owners` 主檔 | 新 migration、`Owner`、`OwnerEntity`、`OwnerRepository(+Impl)`，含 `allow_split_shipment` |
-| `fulfillment_nodes` 主檔 | **不在本段**。欄位定義屬 ③（見 [dom-sourcing-scope.md](dom-sourcing-scope.md)），排程上是獨立的一個 change 且**必須先於** `stock_pools` 加 `node_id`，否則 FK 無處可指。見 [execution-roadmap.md](execution-roadmap.md) 的 R2 與禁忌 #2 |
+| 建 `owners` 主檔 | 新 migration、`Owner`、`OwnerEntity`、`OwnerRepository(+Impl)` |
+| `fulfillment_nodes` 主檔 | **不在本段**。③ 移出範圍後它縮成極簡表（`id`／`code`／`name`／`status`），但仍**必須先於** `stock_pools` 加 `node_id`，否則 FK 無處可指。見 [execution-roadmap.md](execution-roadmap.md) 的 R2 |
 | 建 `products` 款主檔 | 新 migration、`Product`、`ProductEntity`、`ProductRepository(+Impl)`。key 為 `(owner_id, product_code)`，持有 `temperature_zone` |
 | 建 `skus` 規格主檔 | 新 migration、`Sku`、`SkuEntity`、`SkuRepository(+Impl)`。key 為 `(owner_id, sku_code)`，FK 指向 `products`，持有 `weight_gram` |
 | `orders` 加 `owner_id` | `Order`、`OrderEntity`、`OrderMapper`、新 migration |
@@ -550,8 +550,8 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 
 ~~段 F 直送流程~~ 已刪除。直送（`ship_from` 由貨主指定非倉庫來源）會讓 ①②③ 與
 履約層各多一個分支，而該分支上沒有配貨決策、選點或揀貨——投入產出比不成立。
-`requested_node_id`（貨主指定從哪個倉出）**保留**，那仍是倉出流程，只是跳過 sourcing
-決策，與直送是兩回事。`Order` 的終態為 `FULFILLED`，用詞理由見
+`fulfillment_node_id`（貨主指定從哪個倉出）**保留**，那仍是倉出流程，與直送是兩回事。
+（原文寫「只是跳過 sourcing 決策」——③ 移出範圍後已經沒有可跳過的決策，指定的就是實際出貨倉。）`Order` 的終態為 `FULFILLED`，用詞理由見
 [system-layer-map.md](system-layer-map.md)。
 
 ---

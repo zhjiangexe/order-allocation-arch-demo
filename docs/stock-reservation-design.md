@@ -256,10 +256,10 @@ SR-08 ─> SR-09 ─┐
 | `id` | `UUID` | Primary key |
 | `owner_id` | `UUID` | `NOT NULL`, FK → `owners` |
 | `external_order_no` | `VARCHAR` | `NOT NULL`, `UNIQUE (owner_id, external_order_no)` |
-| `ship_to_zone` | `VARCHAR` | `NOT NULL`，R6 的選點輸入 |
+| `ship_to_zone` | `VARCHAR` | `NOT NULL`。原為選點輸入，③ 移出範圍後只作為地址的一部分保留 |
 | `ship_to_address` | `VARCHAR` | `NOT NULL`，履約與面單用，sourcing 不看 |
 | `promised_delivery_date` | `DATE` | `NOT NULL` |
-| `requested_node_id` | `UUID` | Nullable，貨主指定出貨倉；此階段只收下不使用 |
+| `fulfillment_node_id` | `UUID` | **`NOT NULL`**，貨主在上游指定的出貨倉。R2 更名並補 FK；R3 之後配貨只在該倉的庫存裡進行 |
 | `status` | `VARCHAR` | `PENDING`, `ALLOCATED`, `BACKORDERED`, `CANCELLED` |
 | `placed_at` | `TIMESTAMPTZ` | `NOT NULL` |
 | `allocated_at` | `TIMESTAMPTZ` | Nullable |
@@ -282,7 +282,6 @@ SR-08 ─> SR-09 ─┐
 | `owner_id` | `UUID` | `NOT NULL`，反正規化自 header |
 | `sku_code` | `VARCHAR` | `NOT NULL`, FK `(owner_id, sku_code)` → `skus` |
 | `quantity` | `INTEGER` | `NOT NULL`, `CHECK (quantity > 0)` |
-| `assigned_node_id` | `UUID` | Nullable，R6 的決策輸出；此階段恆為空 |
 | `status` | `VARCHAR` | 隨整張單走（ship-complete） |
 | `backordered_since` | `TIMESTAMPTZ` | Nullable，恆等於 header 的值 |
 
@@ -306,8 +305,7 @@ SR-08 ─> SR-09 ─┐
 **一、跨貨主隔離尚未生效。** `stock_pools` 的唯一鍵仍是 `(sku)`，沒有 `owner_id`。兩個
 貨主的同碼 SKU 共用同一列庫存——甲貨主下單會吃掉乙貨主的貨，而資料庫不會報錯。缺貨佇列
 已經按貨主分開（`findBackordersBySkuInFifoOrder` 帶 `ownerId`），庫存還沒有：**佇列分開了，
-庫存還沒分開**。收尾的是 **R3 庫存四維化**，屆時庫存的身分會擴為貨主、SKU、節點、批次
-四個維度。
+庫存還沒分開**。收尾的是 **R3 庫存分批**，屆時庫存的身分會擴為貨主、倉庫、SKU 加批次維度。
 
 在那之前，操作台的庫存頁刻意在畫面上直說這件事，而不是讓人從「補貨要選貨主、查詢不用」
 這個不對稱自己推敲。
@@ -318,11 +316,32 @@ SR-08 ─> SR-09 ─┐
 貨主維度，兩個貨主的同碼 SKU 真的在競爭同一列。
 
 但 R3 之後就不對了：庫存分開之後，同碼不同貨主的訊息不再競爭，卻仍會被擠進同一個
-partition，白白序列化。partition key 屆時必須跟著庫存的身分走。這件事記在 **R8** 的工作項
-裡（該策略要退場），而 R3 動庫存身分時就必須一併處理，不能等。
+partition，白白序列化。**R3 必須一併把 key 改成 `ownerId + "/" + nodeId + "/" + skuCode`**，
+不能等。
+
+那三個維度不是任選的，判準是「**一次交易會碰到的資源集合**」——凡是交易會跨越的維度都不能
+進 key：
+
+| 維度 | 進 key 嗎 | 理由 |
+| --- | --- | --- |
+| `owner_id` | 是 | 庫存分開後不同貨主不再競爭 |
+| `node_id` | 是 | 一張訂單只有一個倉、明細不可跨倉，交易不跨節點 |
+| `sku_code` | 是 | 競爭的單位 |
+| 批次維度（效期／良品狀態／批號） | **否** | FEFO 在一次交易內跨批次取用，事前不知道會碰到哪幾批 |
+
+所以 partition key 比庫存的身分**粗一級**：庫存列的身分含批次，爭用群組不含。
+
+字串以 `ownerId/nodeId/skuCode` 組成，把定長的 UUID 放前面、自由文字的 `skuCode` 放最後——
+SKU 代碼由貨主自訂，可能包含任何字元（包括分隔字元本身），定長在前才能保證不同的三元組不會
+產生同一個字串。不改用 hash 是因為 Kafka UI 上要看得出訊息落在哪個爭用群組。
 
 `partition_key` 與 `aggregateid` 在 `event_outbox` 上是分開的兩欄，正是為了這種時候——前者
-是**投遞**用的競爭群組，後者是**身分**。改投遞策略不必動身分。
+是**投遞**用的爭用群組，後者是**身分**（恆為 `orderId`）。這個 case 把差別具體化了：兩者
+連維度都不同。
+
+這個策略最終仍會退場，記在 **R8** 的工作項裡——放寬多行之後，一張單的兩行可能屬於不同的
+爭用群組，而一則訊息進不了兩個 partition。那與 ship-complete 根本衝突，換更複雜的複合 key
+救不回來。
 
 ### `stock_pools`
 

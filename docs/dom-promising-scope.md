@@ -135,7 +135,7 @@ StockPool stockPool = stockPoolRepository.findById(reservation.getStockPoolId())
 
 「可售批次」由兩個硬約束決定，見下節。
 
-`③ Sourcing` 取用的分節點 ATP 即為此聚合值。它是查詢結果，不儲存。
+分倉的 ATP 即為此聚合值。它是查詢結果，不儲存。（原本是 ③ Sourcing 的決策輸入，該層已移出範圍；現在的讀者是配貨本身——倉別由上游指定，配貨只在該倉的庫存裡進行。）
 
 ---
 
@@ -214,7 +214,8 @@ line）之前不產生任何可觀察差異。但它改變段 C 的性質：段 
 原先評估的 `isStockNecessary`（line 層級的缺貨行為開關）已排除。排除理由要更正——不是
 「需要多品項才有意義」，而是**它是跨 SKU 原子配貨，不是狀態分岔**：一旦允許逐單切換，
 兩種配貨演算法必須並存，隊列語意也要分兩套。若日後真的需要 ship-partial，應以貨主層級
-開關的形式加上（與 `allow_split_shipment` 同一類），並接受兩條配貨路徑的成本。
+開關的形式加上，並接受兩條配貨路徑的成本。（原文以 `allow_split_shipment` 作類比，該欄位
+已於 2026-07-29 砍除；同類的貨主層級開關現在是貨主×倉庫對應表上的效期管理與換批號設定。）
 
 ---
 
@@ -454,7 +455,7 @@ private String partitionKey(UUID orderId, String sku) {
 ### 一個 sku 策略本身的限制
 
 partition key 在 `OrderPlaced` 發出時就要決定，但實際競爭發生在 allocation 時。多節點
-後，同一個 `(owner, sku)` 的訂單可能被 ③ Sourcing 分到不同節點，那些訂單其實不競爭
+後，同一個 `(owner, sku)` 的訂單可能被貨主指定到不同倉，那些訂單其實不競爭
 ——**partition 會過度收斂**。
 
 理想單位是 `(owner, node, sku)`，但事件發出時還不知道 node。這是策略本身的限制，

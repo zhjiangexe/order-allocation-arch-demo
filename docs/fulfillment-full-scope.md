@@ -91,7 +91,10 @@ ORDER BY zone, aisle, level, bin
 
 演算法在各層的完整定位見 [system-layer-map.md](system-layer-map.md)。此項不改變
 任何演算法的存在與否——最小版與深做版的 supply-demand 演算法完全相同，全部位於
-② Promising 與 ③ Sourcing。
+② Promising（③ Sourcing 已於 2026-07-29 移出範圍）。
+
+**但深做與否會影響本系統的演算法總量**：裝箱（cartonization）是系統實際會算的第二個
+決策，屬履約層而非最小版。③ 移出之後，深做與否決定了整個系統有一個還是兩個演算法。
 
 ## F3：出貨單完整生命週期
 
