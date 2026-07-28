@@ -36,7 +36,8 @@ availableToPromise = onHandQuantity - reservedQuantity
 
 - 多倉選擇與 `fulfillmentNodeId`。
 - 跨倉拆單。
-- 多品項訂單與 `order_lines`。
+- 多品項訂單。（`order_lines` 這張表已在 `add-owner-and-order-line-model` 建立，收單仍限定
+  恰好一行；放寬到多行是 R8。）
 - `safetyStockQuantity`。
 - Reservation expiration。
 - `CONSUMED` reservation 狀態。
@@ -234,13 +235,31 @@ SR-08 ─> SR-09 ─┐
 
 ## 資料模型
 
+> 訂單層在 `add-owner-and-order-line-model` 之後改為五張表：`owners` → `products` → `skus`
+> → `orders` → `order_lines`。`orders` 不再直接持有 `sku` 與 `quantity`——它們移到行上。
+> 權威定義見 `V3__create_ordering_tables.sql`，該檔的註解記錄了每個取捨的理由。
+
+### 主檔：`owners` / `products` / `skus`
+
+貨主是 3PL 的委託方——倉庫不擁有貨，貨屬於他們。商品分兩層：**款**（`products`，溫層屬這裡，
+同一款的所有規格必然同溫層）與**規格**（`skus`，重量屬這裡，500ml 與 1L 重量不同）。
+
+三張表都用代理鍵，唯一性由 constraint 表達：`UNIQUE (owner_id, code)`。但 `skus` 指向
+`products`、`order_lines` 指向 `skus` 的外鍵**刻意仍走自然鍵** `(owner_id, product_code)`
+與 `(owner_id, sku_code)`。在 3PL 裡編碼由貨主自訂、跨貨主必然撞號，走自然鍵的外鍵強制每
+一次參照都帶上貨主，「款與規格必須屬於同一個貨主」因此由資料庫保證，不必在應用層檢查。
+
 ### `orders`
 
 | 欄位 | 型別 | 限制／說明 |
 |---|---|---|
 | `id` | `UUID` | Primary key |
-| `sku` | `VARCHAR` | `NOT NULL` |
-| `quantity` | `INTEGER` | `NOT NULL`, `CHECK (quantity > 0)` |
+| `owner_id` | `UUID` | `NOT NULL`, FK → `owners` |
+| `external_order_no` | `VARCHAR` | `NOT NULL`, `UNIQUE (owner_id, external_order_no)` |
+| `ship_to_zone` | `VARCHAR` | `NOT NULL`，R6 的選點輸入 |
+| `ship_to_address` | `VARCHAR` | `NOT NULL`，履約與面單用，sourcing 不看 |
+| `promised_delivery_date` | `DATE` | `NOT NULL` |
+| `requested_node_id` | `UUID` | Nullable，貨主指定出貨倉；此階段只收下不使用 |
 | `status` | `VARCHAR` | `PENDING`, `ALLOCATED`, `BACKORDERED`, `CANCELLED` |
 | `placed_at` | `TIMESTAMPTZ` | `NOT NULL` |
 | `allocated_at` | `TIMESTAMPTZ` | Nullable |
@@ -248,7 +267,62 @@ SR-08 ─> SR-09 ─┐
 | `cancelled_at` | `TIMESTAMPTZ` | Nullable |
 | `version` | `BIGINT` | `NOT NULL`, JPA `@Version` |
 
-本次相較現有 `Order` 主要增加持久化用的 `version`。`placedAt`、`allocatedAt`、`backOrderedSince` 與 `cancelledAt` 已表達重要生命週期時間，因此不另加通用 `created_at`／`updated_at`。
+`placedAt`、`allocatedAt`、`backOrderedSince` 與 `cancelledAt` 已表達重要生命週期時間，
+因此不另加通用 `created_at`／`updated_at`。
+
+地址內嵌於此而不另開 `addresses` 表：地址逐單指定、不可重用，獨立一張表只會多一層 join。
+
+### `order_lines`
+
+| 欄位 | 型別 | 限制／說明 |
+|---|---|---|
+| `id` | `UUID` | Primary key |
+| `order_id` | `UUID` | `NOT NULL`, FK → `orders`, `UNIQUE (order_id, line_no)` |
+| `line_no` | `INTEGER` | `NOT NULL`，上游單的行號 |
+| `owner_id` | `UUID` | `NOT NULL`，反正規化自 header |
+| `sku_code` | `VARCHAR` | `NOT NULL`, FK `(owner_id, sku_code)` → `skus` |
+| `quantity` | `INTEGER` | `NOT NULL`, `CHECK (quantity > 0)` |
+| `assigned_node_id` | `UUID` | Nullable，R6 的決策輸出；此階段恆為空 |
+| `status` | `VARCHAR` | 隨整張單走（ship-complete） |
+| `backordered_since` | `TIMESTAMPTZ` | Nullable，恆等於 header 的值 |
+
+`owner_id` 反正規化到行上不是為了省一次 join，而是為了建得出 FK——`(owner_id, sku_code)`
+才是 `skus` 的自然鍵。它的值不可變（一張單的貨主不會改變），因此沒有同步成本。
+
+`backordered_since` 同樣是為了 index 而非領域事實：採 ship-complete 後所有行在同一交易內
+一起配到或一起缺貨，此欄恆等於 header。它存在純粹是為了讓 FIFO 佇列查詢能走單表 index。
+對應地**不建**行層級的 `allocated_at`——它同樣恆等於 header，但沒有任何 index 需要它。
+
+**收單目前限定恰好一行**，由 `Order.place()` 強制。放寬多行是 R8 的工作；在那之前，
+`getDemand()` 這類以集合運算取值的入口已經是多行安全的，`OrderingArchitectureTest`
+則把「取第一行」這種寫法變成建置失敗。
+
+### 兩項已知的中間狀態
+
+`add-owner-and-order-line-model` 把貨主帶進了訂單層，但沒有帶進庫存層。下面兩件事因此是
+**已知的、刻意留下的**不一致，各自有負責收尾的 change——在那之前讀這份文件的人不該以為
+它們是疏漏。
+
+**一、跨貨主隔離尚未生效。** `stock_pools` 的唯一鍵仍是 `(sku)`，沒有 `owner_id`。兩個
+貨主的同碼 SKU 共用同一列庫存——甲貨主下單會吃掉乙貨主的貨，而資料庫不會報錯。缺貨佇列
+已經按貨主分開（`findBackordersBySkuInFifoOrder` 帶 `ownerId`），庫存還沒有：**佇列分開了，
+庫存還沒分開**。收尾的是 **R3 庫存四維化**，屆時庫存的身分會擴為貨主、SKU、節點、批次
+四個維度。
+
+在那之前，操作台的庫存頁刻意在畫面上直說這件事，而不是讓人從「補貨要選貨主、查詢不用」
+這個不對稱自己推敲。
+
+**二、Kafka partition key 仍是裸 `sku`。** `archone.allocation.partition-key-strategy=sku`
+時，partition key 用的是 SKU 代碼本身，不含貨主。它的用途是把「會競爭同一列庫存的訊息」
+送進同一個 partition 以達成 single-writer——而**目前這恰好是對的**，因為庫存池本來就沒有
+貨主維度，兩個貨主的同碼 SKU 真的在競爭同一列。
+
+但 R3 之後就不對了：庫存分開之後，同碼不同貨主的訊息不再競爭，卻仍會被擠進同一個
+partition，白白序列化。partition key 屆時必須跟著庫存的身分走。這件事記在 **R8** 的工作項
+裡（該策略要退場），而 R3 動庫存身分時就必須一併處理，不能等。
+
+`partition_key` 與 `aggregateid` 在 `event_outbox` 上是分開的兩欄，正是為了這種時候——前者
+是**投遞**用的競爭群組，後者是**身分**。改投遞策略不必動身分。
 
 ### `stock_pools`
 
@@ -405,17 +479,26 @@ List<Order> findBackordersBySkuInFifoOrder(String sku);
 ```sql
 SELECT *
 FROM orders
-WHERE sku = :sku
+WHERE owner_id = :ownerId
+  AND sku_code = :skuCode
   AND status = 'BACKORDERED'
 ORDER BY backordered_since ASC, id ASC;
 ```
 
-建議索引：
+查詢條件帶貨主，因為 SKU 代碼跨貨主撞號——只憑代碼決定不了要喚醒誰的佇列。實作是
+`findBackordersBySkuInFifoOrder(ownerId, skuCode)`，走 `order_lines` 而非 `orders`。
+
+索引：
 
 ```sql
-CREATE INDEX idx_orders_backorder_fifo
-ON orders (sku, status, backordered_since, id);
+CREATE INDEX idx_order_lines_backorder_fifo
+ON order_lines (owner_id, sku_code, backordered_since, id);
 ```
+
+**刻意不含 `status`**，這是與被它取代的 `idx_orders_backorder_fifo` 唯一的實質差異。R4 之後
+待配佇列不能依 `status` 過濾——ordering 的配貨狀態落後於 allocation 的決策，拿它當閘門會
+重複預留。而 `status` 若夾在 `sku_code` 與 `backordered_since` 之間，index 掃出的列會先按
+status 分組再按時間排序，查詢不篩 status 時仍得排序一次，index 等於白建。
 
 採用嚴格 FIFO：若第一張欠單無法完整取得 reservation，立即停止，不跳過它處理後面的較小訂單。
 
@@ -611,14 +694,19 @@ HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 prof
 
 | 端點 | 類別 | 說明 |
 |---|---|---|
-| `POST /orders` | 業務 | 下單。SKU 與數量走 JSON request body，回 `200` 與訂單表示。狀態碼刻意維持 `200` 而非 `201`：k6 壓測腳本的 check 寫死 200，改它會多破壞一處而換不到這個 demo 需要的東西 |
+| `POST /orders` | 業務 | 下單。JSON request body 帶貨主、上游單號、收件資訊、承諾到貨日與**行的清單**（`lines`），回 `200` 與訂單表示。狀態碼刻意維持 `200` 而非 `201`：k6 壓測腳本的 check 寫死 200，改它會多破壞一處而換不到這個 demo 需要的東西 |
 | `GET /orders?limit=N` | 業務 | 最近訂單，依 `placed_at DESC, id DESC` 排序。`limit` 預設 20、範圍 1..100，超出回 `400` 而非靜默截斷——靜默截斷會讓呼叫方無法分辨「只有這麼多筆」與「被截斷」 |
 | `GET /orders/{orderId}` | 業務 | 單筆訂單。未知 id 回 `404` |
-| `GET /stock-pool/{sku}` | 業務 | 該 SKU 的 on-hand、reserved、available-to-promise。欄位以領域語彙命名、不縮寫成 ATP。無 StockPool 回 `404` |
-| `POST /demo/replenish` | dev-only 探針 | 見下方說明 |
+| `GET /owners` | 業務 | 貨主清單 |
+| `GET /owners/{ownerId}/products` | 業務 | 該貨主的款 |
+| `GET /owners/{ownerId}/products/{productCode}/skus` | 業務 | 該款的規格 |
+| `GET /stock-pool/{sku}` | 業務 | 該 SKU 的 on-hand、reserved、available-to-promise。欄位以領域語彙命名、不縮寫成 ATP。無 StockPool 回 `404`。**不帶貨主**——庫存池還沒有貨主維度，加上它等於報告一個資料裡不存在的區別 |
+| `POST /demo/replenish` | dev-only 探針 | 見下方說明。要帶貨主——補貨喚醒的是某個貨主的缺貨佇列，而 SKU 代碼跨貨主撞號、決定不了是誰的 |
 | `GET /demo/config` | dev-only 探針 | 回報目前生效的 `archone.allocation.partition-key-strategy`。只揭露不切換——該值在啟動時解析 |
 
-三個訂單端點共用同一個訂單表示型別，客戶端因此只需要一個訂單模型，而不是「建立時拿到一種、查詢時拿到另一種」。
+三個訂單端點共用同一個訂單表示型別，客戶端因此只需要一個訂單模型，而不是「建立時拿到一種、查詢時拿到另一種」。該型別帶 `ownerId` 但**不帶貨主名稱或品名**——呼叫端為了下單表單的下拉選單本來就要載主檔，名稱從同一份資料解析即可。那是「整個畫面查一次」，不是每一列各查一次。
+
+主檔的三支查詢巢狀在貨主之下，不是把貨主當可省略的篩選條件：在 3PL 裡編碼由貨主自訂、跨貨主撞號，貨主是款與規格得以存在的前提。
 
 `GET /stock-pool/{sku}` 是 allocation 模組唯一的 REST entrypoint，且刻意只有唯讀查詢；命令仍然只從 Kafka entrypoint 進入，配置決策不開 HTTP 入口。
 
@@ -634,15 +722,34 @@ HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 prof
 
 ## Dev Seed Data
 
-使用 `@Profile("dev")` 的 `ApplicationRunner`，以 idempotent 方式建立：
+使用 `@Profile("dev")` 的 `ApplicationRunner`，以 idempotent 方式建立。建立順序固定為
+主檔 → 庫存 → 訂單：`order_lines` 有 FK 指向 `skus`，主檔缺列時訂單根本插不進去。
+
+**兩個貨主，刻意共用同一個 SKU 代碼。**
+
+| 貨主 | 款 | 規格（`sku_code`） |
+|---|---|---|
+| `OWNER-A` 甲貨主（可拆單） | 烏龍茶（AMBIENT） | `SKU-AVAILABLE` 500ml／`SKU-EMPTY` 1L |
+| `OWNER-A` | 冷凍水餃（FROZEN） | `SKU-PARTIALLY-RESERVED` 500g |
+| `OWNER-B` 乙貨主（不可拆單） | 麥茶（AMBIENT） | `SKU-AVAILABLE` 600ml |
+
+兩個貨主的 `SKU-AVAILABLE` 是**完全不同的商品**（烏龍茶 520g／麥茶 610g），這是 3PL 撞號
+的最小再現。它同時暴露上面說的中間狀態：`stock_pools` 的唯一鍵是 `(sku)`，所以這兩個商品
+共用同一列庫存。
 
 | SKU | onHand | reserved | ATP |
 |---|---:|---:|---:|
 | `SKU-AVAILABLE` | 10 | 0 | 10 |
-| `SKU-PARTIALLY-RESERVED` | 10 | 7 | 3 |
+| `SKU-PARTIALLY-RESERVED` | 20 | 5 | 15 |
 | `SKU-EMPTY` | 0 | 0 | 0 |
 
-`SKU-PARTIALLY-RESERVED` 必須同時 seed 一張 quantity 7、status `ALLOCATED` 的 Order，以及一筆 quantity 7、status `ACTIVE` 的 StockReservation，確保 `reservedQuantity` 有可追溯來源。
+`SKU-PARTIALLY-RESERVED` 必須同時 seed 一張 quantity 5、status `ALLOCATED` 的 Order，以及
+一筆 quantity 5、status `ACTIVE` 的 StockReservation，確保 `reservedQuantity` 有可追溯來源。
+
+另有一張乙貨主的 `PENDING` 訂單（`SKU-AVAILABLE` × 2），用途是讓列表上有一列 PENDING、
+並展示撞號。**它是直接寫入資料庫的固定樣本，不會產生 `OrderPlaced` 事件，因此永遠不會被
+配置，補貨也不會喚醒它**（補貨只處理 `BACKORDERED`）。這一點容易誤導——照操作台 README
+的 demo 流程補貨後它不會有任何變化。
 
 測試不得依賴 dev seed；每個自動化測試自行建立 fixture。Production 不載入測試 SKU。
 
