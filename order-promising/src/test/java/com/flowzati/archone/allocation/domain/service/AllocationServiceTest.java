@@ -168,6 +168,37 @@ class AllocationServiceTest {
   }
 
   @Test
+  @DisplayName("同一個 SKU 的兩行應以加總判斷，ATP 不足時整單不配、零筆預留")
+  void treatsTwoLinesOfTheSameSkuAsOneBasket() {
+    StockPool stockPool = stockPool(5, 0);
+    // 兩行各要 5，加總 10；可承諾量只有 5。逐行獨立配貨的實作會讓第一行配到 5——
+    // 那正是這支測試要擋的：為一張出不去的單鎖住庫存。
+    Order order = sameSkuTwoLineOrder(5, 5);
+
+    AllocationOutcome outcome = allocationService.allocate(order, stockPool, NOW);
+
+    assertThat(outcome).isEqualTo(AllocationOutcome.INSUFFICIENT_ATP);
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+    assertThat(stockPool.getReservedQuantity()).isZero();
+  }
+
+  @Test
+  @DisplayName("同一個 SKU 的兩行在 ATP 足夠時應一起配到，預留量為加總")
+  void allocatesTwoLinesOfTheSameSkuTogether() {
+    StockPool stockPool = stockPool(10, 0);
+    Order order = sameSkuTwoLineOrder(5, 5);
+
+    AllocationOutcome outcome = allocationService.allocate(order, stockPool, NOW);
+
+    // 收單入口目前擋著多行，但配貨本身已經處理得了——擋著它的只有那一個檢查。
+    assertThat(outcome).isEqualTo(AllocationOutcome.ALLOCATED);
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
+    assertThat(stockPool.getReservedQuantity()).isEqualTo(10);
+    assertThat(order.getLines())
+        .allSatisfy(line -> assertThat(line.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
+  }
+
+  @Test
   @DisplayName("跨多個 SKU 的訂單不得被單一 StockPool 配貨——整籃裡有這個池滿足不了的東西")
   void rejectsAnOrderWhoseDemandSpansMoreThanThisPool() {
     StockPool stockPool = stockPool(100, 0);
@@ -221,6 +252,24 @@ class AllocationServiceTest {
    * 不能是「包含」**——寫成包含的話，多行訂單會通過檢查，然後只扣其中一個 SKU 的量，
    * 而整張單被標為已配。那是靜默的錯，不會有任何測試失敗。
    */
+  /** 同一個 SKU 的兩行。收單入口拒絕多行，只能以 rehydrate 造。 */
+  private Order sameSkuTwoLineOrder(int firstQuantity, int secondQuantity) {
+    UUID orderId = UUID.randomUUID();
+    UUID ownerId = OrderFixtures.OWNER_ID;
+    return Order.rehydrate(
+        orderId,
+        ownerId,
+        "EXT-" + orderId,
+        OrderFixtures.deliveryTerms(),
+        List.of(
+            OrderLine.rehydrate(UUID.randomUUID(), 1, ownerId, "SKU-1", firstQuantity,
+                OrderStatus.PENDING, null, null),
+            OrderLine.rehydrate(UUID.randomUUID(), 2, ownerId, "SKU-1", secondQuantity,
+                OrderStatus.PENDING, null, null)),
+        OrderStatus.PENDING,
+        NOW.minusSeconds(10), null, null, null, null);
+  }
+
   private Order twoSkuOrder() {
     UUID orderId = UUID.randomUUID();
     UUID ownerId = OrderFixtures.OWNER_ID;

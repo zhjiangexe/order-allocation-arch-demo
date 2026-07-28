@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.entrypoint.rest;
 
+import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.model.OrderLine;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
@@ -121,6 +123,38 @@ class OrderControllerTest {
     assertThat(mvc.post().uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)
         .content(PLACE_ORDER_BODY)).hasStatus(409);
+  }
+
+  @Test
+  @DisplayName("多行訂單的每一行都要出現在回應裡，順序與行號不變")
+  void serialisesEveryLineOfAMultiLineOrder() {
+    // 收單入口目前只收一行，這張單只能以 rehydrate 造——但讀取與序列化的路徑必須撐得住
+    // 多行，否則放寬時才第一次執行到，那時錯誤會以「畫面少一行」的形式出現。
+    UUID orderId = UUID.randomUUID();
+    UUID ownerId = OrderFixtures.OWNER_ID;
+    Order twoLineOrder = Order.rehydrate(
+        orderId,
+        ownerId,
+        "EXT-MULTI",
+        OrderFixtures.deliveryTerms(),
+        List.of(
+            OrderLine.rehydrate(UUID.randomUUID(), 1, ownerId, "SKU-A", 3,
+                OrderStatus.PENDING, null, null),
+            OrderLine.rehydrate(UUID.randomUUID(), 2, ownerId, "SKU-B", 7,
+                OrderStatus.PENDING, null, null)),
+        OrderStatus.PENDING, PLACED_AT, null, null, null, null);
+    when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(twoLineOrder));
+
+    MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
+
+    response.hasStatus(200);
+    response.bodyJson().extractingPath("$[0].lines.length()").isEqualTo(2);
+    response.bodyJson().extractingPath("$[0].lines[0].lineNo").isEqualTo(1);
+    response.bodyJson().extractingPath("$[0].lines[0].skuCode").isEqualTo("SKU-A");
+    response.bodyJson().extractingPath("$[0].lines[0].quantity").isEqualTo(3);
+    response.bodyJson().extractingPath("$[0].lines[1].lineNo").isEqualTo(2);
+    response.bodyJson().extractingPath("$[0].lines[1].skuCode").isEqualTo("SKU-B");
+    response.bodyJson().extractingPath("$[0].lines[1].quantity").isEqualTo(7);
   }
 
   @Test

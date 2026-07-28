@@ -8,9 +8,9 @@ import com.flowzati.archone.ordering.domain.model.OrderLine;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.IntStream;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -59,17 +59,15 @@ public class PlaceOrderUsecase {
 
   /** 行號依提交順序產生，從 1 起算。 */
   private static List<OrderLine> toLines(PlaceOrderCommand command) {
-    List<PlaceOrderCommand.Line> lines = command.lines();
-    if (lines == null) {
+    if (command.lines() == null) {
       throw new IllegalArgumentException("Order must contain at least one line");
     }
-    return IntStream.range(0, lines.size())
-        .mapToObj(index -> OrderLine.create(
-            IdGenerator.nextId(),
-            index + 1,
-            command.ownerId(),
-            lines.get(index).skuCode(),
-            lines.get(index).quantity()))
-        .toList();
+    List<OrderLine> lines = new ArrayList<>();
+    int lineNo = 1;
+    for (PlaceOrderCommand.Line line : command.lines()) {
+      lines.add(OrderLine.create(
+          IdGenerator.nextId(), lineNo++, command.ownerId(), line.skuCode(), line.quantity()));
+    }
+    return List.copyOf(lines);
   }
 }

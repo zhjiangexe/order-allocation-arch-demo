@@ -55,9 +55,9 @@
 
 ## 8. line 數量無關性的三項防護
 
-- [ ] 8.1 依「三項 line 數量無關性的防護」第一項，以 `Order.rehydrate()` 建立 N=2 的 fixture，驗讀取路徑、`OrderMapper` 往返與訂單回應序列化。行為上：兩行訂單在讀取與序列化的每一段都完整呈現兩條 line，不會只出現第一條。以 `OrderMapperTest` 與 `OrderControllerTest` 的 N=2 案例驗證。
-- [ ] 8.2 實作 **An allocation outcome applies to a whole order, never to part of it**：**先改實作再寫測試**——把配貨時用的數量從「訂單的 quantity」改為 `getDemand()` 的加總（4.6），這是本項成立的前提，不是只加一支測試。測試限定**同一個 SKU 的兩行**，因為現況一次配貨只取一個 `StockPool`，跨 SKU 屬 R8（見 design.md 的 Non-Goals）。行為上：ATP 為 5、兩行各要 5 時整單配不到、`stock_reservations` 對該訂單零筆；若有人寫成逐行獨立配貨，第一行會配到而測試看到一筆不該存在的預留。以 N=2 同 SKU 的 fixture 測 `AllocationService` 與 `StrictFifoAllocationPolicy` 驗證。
-- [ ] 8.3 實作 **Order handling does not depend on the number of lines**：新增架構測試，斷言**除 `Order.requireSingleLine()` 本身外**，production code 不以位置存取 line，手法與 roadmap R4 任務 9 相同。**不採字串黑名單**——`stream().findFirst()` 與「for 迴圈第一圈就 break」都繞得過，理由見 design.md。行為上：在 `requireSingleLine()` 之外以位置取 line 會讓建置失敗並指出來源，而搜尋該方法的呼叫點即可得到 R8 要拆的完整清單。以刻意在該方法外加入一處位置存取確認測試會失敗、移除後通過驗證。
+- [x] 8.1 依「三項 line 數量無關性的防護」第一項，以 `Order.rehydrate()` 建立 N=2 的 fixture，驗讀取路徑、`OrderMapper` 往返與訂單回應序列化。行為上：兩行訂單在讀取與序列化的每一段都完整呈現兩條 line，不會只出現第一條。以 `OrderMapperTest` 與 `OrderControllerTest` 的 N=2 案例驗證。
+- [x] 8.2 實作 **An allocation outcome applies to a whole order, never to part of it**：**先改實作再寫測試**——把配貨時用的數量從「訂單的 quantity」改為 `getDemand()` 的加總（4.6），這是本項成立的前提，不是只加一支測試。測試限定**同一個 SKU 的兩行**，因為現況一次配貨只取一個 `StockPool`，跨 SKU 屬 R8（見 design.md 的 Non-Goals）。行為上：ATP 為 5、兩行各要 5 時整單配不到、`stock_reservations` 對該訂單零筆；若有人寫成逐行獨立配貨，第一行會配到而測試看到一筆不該存在的預留。以 N=2 同 SKU 的 fixture 測 `AllocationService` 與 `StrictFifoAllocationPolicy` 驗證。
+- [x] 8.3 實作 **Order handling does not depend on the number of lines**：新增架構測試，斷言**除 `Order.requireSingleLine()` 本身外**，production code 不以位置存取 line，手法與 roadmap R4 任務 9 相同。**不採字串黑名單**——`stream().findFirst()` 與「for 迴圈第一圈就 break」都繞得過，理由見 design.md。行為上：在 `requireSingleLine()` 之外以位置取 line 會讓建置失敗並指出來源，而搜尋該方法的呼叫點即可得到 R8 要拆的完整清單。以刻意在該方法外加入一處位置存取確認測試會失敗、移除後通過驗證。
 
 ## 9. Seed 資料
 
