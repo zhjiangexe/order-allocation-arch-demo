@@ -3,18 +3,23 @@
 # compose／git 那樣），不用記一堆各自獨立的檔案路徑。
 #
 # 用法：
-#   ./e2e/perf/run.sh [up]                       起完整流程：基礎設施→app→connector
-#                                                  →種庫存→跑 k6（都會偵測已在跑就跳過）
-#   SKU=... STOCK=... VUS=... ./e2e/perf/run.sh up
-#   ./e2e/perf/run.sh down                        拆除基礎設施＋停掉背景 app
-#   PARTITION_KEY_STRATEGY=sku SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh up
+#   ./e2e/perf/run.sh [up]                        起一套可用的系統：基礎設施→app→connector
+#                                                  （每步都會偵測已在跑就跳過）
+#   ./e2e/perf/run.sh perf                         up ＋ 種庫存 ＋ 跑 k6
+#   SKU=... STOCK=... VUS=... ./e2e/perf/run.sh perf
+#   PARTITION_KEY_STRATEGY=sku SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh perf
 #                                                 v3：SKU 分區 single-writer
+#   ./e2e/perf/run.sh down                        拆除基礎設施＋停掉背景 app
 #   ./e2e/perf/run.sh seed <SKU> <QUANTITY>        單獨種／重置一筆 StockPool 庫存
 #   ./e2e/perf/run.sh verify <SKU>                 Prometheus／log／DB 三方對照
 #   ./e2e/perf/run.sh check-dlt <TOPIC>             撈 DLT topic 內容核對 orderId
 #
-# `up` 的 exit code 就是 k6 的 exit code（見 k6/hot-sku-burst.js 的 thresholds）：
-# 0 代表這次跑的結果全部符合預期，不用自己讀摘要判斷。
+# `up` 與 `perf` 分開，是因為它們的代價差一個數量級：`up` 起一套能操作的系統，`perf` 會再
+# 跑一輪上千 VUS 的壓測。合在一起時，想開操作台看一眼的人只能被迫跑完整輪壓測——或者
+# 自己拼 docker compose，然後漏掉 connector 註冊那步，訂單就會永遠停在 PENDING。
+#
+# `perf` 的 exit code 就是 k6 的 exit code（見 k6/hot-sku-burst.js 的 thresholds）：
+# 0 代表這次跑的結果全部符合預期，不用自己讀摘要判斷。`up` 成功就是 0。
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,19 +31,17 @@ CONNECTOR_NAME="${CONNECTOR_NAME:-order-promising-outbox}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-order-promising-e2e-perf-postgres-1}"
 NETWORK="${NETWORK:-order-promising-e2e-perf_default}"
 
+# 起一套可用的系統。三步的順序不能換：connector 要讀 event_outbox，而那張表是 app 啟動時
+# 由 Flyway 建的——app 不在 compose 裡，所以 compose 自己帶不出一套完整的系統。
 cmd_up() {
   set -e
-  local sku="${SKU:-HOT-SKU}"
-  local stock="${STOCK:-500}"
-  local vus="${VUS:-1000}"
   local partition_key_strategy="${PARTITION_KEY_STRATEGY:-order-id}"
-  local results_file="${RESULTS_FILE:-${ROOT_DIR}/k6/results/hot-sku-burst-$(date +%Y%m%dT%H%M%S).json}"
 
-  echo "== 1/5 基礎設施 =="
+  echo "== 1/3 基礎設施 =="
   docker compose -f "${COMPOSE_FILE}" up -d
 
   echo
-  echo "== 2/5 app（偵測到已在跑會跳過啟動） =="
+  echo "== 2/3 app（偵測到已在跑會跳過啟動） =="
   if curl -sf -o /dev/null http://localhost:8080/actuator/health; then
     echo "app 已經在跑，略過啟動"
   else
@@ -62,7 +65,7 @@ cmd_up() {
   fi
 
   echo
-  echo "== 3/5 Debezium connector（偵測到已 RUNNING 會跳過註冊） =="
+  echo "== 3/3 Debezium connector（偵測到已 RUNNING 會跳過註冊） =="
   local status state
   status=$(curl -sf "${CONNECT_URL}/connectors/${CONNECTOR_NAME}/status" 2>/dev/null || echo '{}')
   state=$(echo "${status}" | jq -r '.connector.state // empty')
@@ -73,11 +76,27 @@ cmd_up() {
   fi
 
   echo
-  echo "== 4/5 種庫存（SKU=${sku} STOCK=${stock}） =="
+  echo "系統已就緒：app http://localhost:8080、Kafka UI http://localhost:8081"
+  echo "要開操作台：cd frontend && npm install && npm run dev"
+  echo "要跑壓測：${0} perf"
+}
+
+# 壓測。它先確保系統起來，再種一筆刻意集中的熱點庫存、對它打 k6。
+cmd_perf() {
+  set -e
+  local sku="${SKU:-HOT-SKU}"
+  local stock="${STOCK:-500}"
+  local vus="${VUS:-1000}"
+  local results_file="${RESULTS_FILE:-${ROOT_DIR}/k6/results/hot-sku-burst-$(date +%Y%m%dT%H%M%S).json}"
+
+  cmd_up
+
+  echo
+  echo "== 種庫存（SKU=${sku} STOCK=${stock}） =="
   cmd_seed "${sku}" "${stock}"
 
   echo
-  echo "== 5/5 跑 k6（VUS=${vus}） =="
+  echo "== 跑 k6（VUS=${vus}） =="
   set +e
   k6 run \
     -e HOT_SKU="${sku}" \
@@ -160,6 +179,7 @@ cmd_check_dlt() {
 
 case "${1:-up}" in
   up) cmd_up ;;
+  perf) cmd_perf ;;
   down) cmd_down ;;
   seed) shift; cmd_seed "$@" ;;
   verify) shift; cmd_verify "$@" ;;

@@ -9,15 +9,22 @@ App **不**容器化在這裡，直接跑在 host 上吃 `dev` profile 預設值
 
 ## 怎麼跑
 
-`./run.sh` 用 subcommand 分工（像 `docker compose`／`git` 那樣），把基礎設施、app、
-Debezium connector、種庫存、跑 k6 串成一個 `up`，每步都會偵測「已經在跑／已經註冊過」
-再決定要不要跳過，可以放心重複執行：
+`./run.sh` 用 subcommand 分工（像 `docker compose`／`git` 那樣），每步都會偵測「已經在跑／
+已經註冊過」再決定要不要跳過，可以放心重複執行：
 
 ```bash
-SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh up   # 或直接 ./e2e/perf/run.sh，up 是預設
+./e2e/perf/run.sh up                                    # 基礎設施 + app + Debezium connector
+SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh perf   # up ＋ 種庫存 ＋ 跑 k6
 ```
 
-exit code 就是 k6 的 exit code（見 `k6/hot-sku-burst.js` 的 `thresholds`）：0 代表這次
+`up` 與 `perf` 分開，是因為代價差一個數量級：只想開操作台看畫面的人不該被迫跑一輪上千
+VUS 的壓測。`up` 是預設的 subcommand，因此直接 `./e2e/perf/run.sh` 只會把系統起來。
+
+三步的順序不能換：connector 要讀 `event_outbox`，而那張表是 app 啟動時由 Flyway 建的。
+**app 不在 compose 裡**，所以 `docker compose up` 起不出一套完整的系統——少了 connector
+註冊，`OrderPlaced` 會卡在 outbox 出不去，訂單就永遠停在 `PENDING`。
+
+`perf` 的 exit code 就是 k6 的 exit code（見 `k6/hot-sku-burst.js` 的 `thresholds`）：0 代表這次
 跑的結果全部符合預期（不超賣、無逾時、延遲在門檻內），不用自己讀摘要判斷。結果 JSON
 存到 `k6/results/`。
 

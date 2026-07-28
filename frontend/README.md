@@ -11,11 +11,15 @@
 最省事的方式是用 `e2e/perf` 那套（PostgreSQL + Kafka + Debezium 都會一起起來）：
 
 ```bash
-./e2e/perf/run.sh up      # 基礎設施 + app（dev profile）
+./e2e/perf/run.sh up      # 基礎設施 + app（dev profile）+ Debezium connector
 cd frontend && npm install && npm run dev
 ```
 
-開 http://localhost:5173 。
+開 http://localhost:5173 （被佔用時 Vite 會自動換埠，看它印出來的那行）。
+
+**不要用 `docker compose up` 代替 `run.sh up`。** app 不在 compose 裡，而 Debezium
+connector 必須等 app 跑完 Flyway 建出 `event_outbox` 才能註冊——少了那步，下單會成功、
+`OrderPlaced` 卻出不了 outbox，訂單就永遠停在 `PENDING`，畫面上看不出任何錯誤。
 
 後端位址只寫在 `vite.config.ts` 的 dev proxy 裡，不出現在任何原始碼中。要指到別的地方
 設環境變數即可，不用改元件：

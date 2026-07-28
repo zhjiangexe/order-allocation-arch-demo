@@ -76,5 +76,5 @@
 ## 11. 端到端驗收與文件
 
 - [ ] 11.1 更新 `e2e/perf/k6/hot-sku-burst.js`：下單 request body 加貨主、上游單號、收件資訊、承諾到貨日並把 SKU 移入 lines；補貨請求加貨主。行為上：壓測腳本能建立訂單並完成後續輪詢，`checks_total` 不因合約變更而失敗。以壓測執行時 thresholds 通過驗證。
-- [ ] 11.2 依 design.md 的 Migration Plan 重建並重跑壓測：先 `./e2e/perf/run.sh down` 移除既有 Postgres volume（改寫既有 migration 必然造成 Flyway checksum 不符，**不得以 `flyway repair` 略過**），再 `./e2e/perf/run.sh up`。行為上：既有 k6 thresholds 全數通過，代表資料模型改造未使壓測退化。以本次結果更新 `e2e/perf/README.md` 的 baseline 數字，使文件數字與腳本版本一致。
+- [ ] 11.2 依 design.md 的 Migration Plan 重建並重跑壓測：先 `./e2e/perf/run.sh down` 移除既有 Postgres volume（改寫既有 migration 必然造成 Flyway checksum 不符，**不得以 `flyway repair` 略過**），再 `./e2e/perf/run.sh perf`（`up` 只起系統不跑 k6，壓測要用 `perf`）。行為上：既有 k6 thresholds 全數通過，代表資料模型改造未使壓測退化。以本次結果更新 `e2e/perf/README.md` 的 baseline 數字，使文件數字與腳本版本一致。
 - [ ] 11.3 於 `docs/stock-reservation-design.md` 補上資料模型變更後的說明：貨主／款／規格三層主檔、訂單行的粒度，以及**跨貨主隔離尚未生效**與 **partition key 仍為裸 `sku`** 兩項已知中間狀態及其收尾的 change。以文件審閱確認與實作一致驗證。

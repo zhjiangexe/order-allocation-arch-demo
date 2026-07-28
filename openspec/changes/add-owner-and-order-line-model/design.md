@@ -467,10 +467,11 @@ ALTER 一次」，而那個理由在選了「重寫 `V3` 為最終形狀」之�
 1. `./e2e/perf/run.sh down`，移除既有 Postgres volume。改寫既有 migration 必然造成
    checksum 不符，**不得以 `flyway repair` 略過**。
 2. 套用改寫後的 `V3__create_ordering_tables.sql` 與新的 seed。
-3. `./e2e/perf/run.sh up`，確認 k6 既有 thresholds 全數通過，並以本次結果更新
-   `e2e/perf/README.md` 的 baseline 數字，避免文件數字與腳本版本脫節。
+3. `./e2e/perf/run.sh perf`，確認 k6 既有 thresholds 全數通過，並以本次結果更新
+   `e2e/perf/README.md` 的 baseline 數字，避免文件數字與腳本版本脫節。（`up` 在本 change
+   中收斂成「只起系統」，跑 k6 要用 `perf`。）
 
-Rollback 就是 git revert 加一次 `down`／`up`——沒有需要保留的資料，也沒有任何環境
+Rollback 就是 git revert 加一次 `down`／`perf`——沒有需要保留的資料，也沒有任何環境
 持有舊 schema。
 
 ## Open Questions
