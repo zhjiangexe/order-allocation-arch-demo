@@ -7,8 +7,8 @@ import com.flowzati.archone.allocation.application.usecase.ReleaseReservationUse
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.messaging.kafka.IntegrationEventHandler;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -28,7 +28,7 @@ class OrderCancelledIntegrationEventHandler
 
   @Override
   public String topic() {
-    return IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC;
+    return OrderingEventTopics.ORDER_EVENTS;
   }
 
   @Override

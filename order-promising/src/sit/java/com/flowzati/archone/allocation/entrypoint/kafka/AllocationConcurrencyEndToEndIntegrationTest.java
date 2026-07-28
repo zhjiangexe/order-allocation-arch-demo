@@ -1,27 +1,24 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
 import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.retry.AllocationConcurrencyExhaustedException;
-import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -33,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -48,7 +46,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(
     classes = ArchoneApplication.class,
@@ -182,7 +181,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
 
   private void consume(OrderPlacedIntegrationEvent event) {
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
+        OrderingEventTopics.ORDER_EVENTS,
         0,
         0,
         event.getOrderId().toString(),

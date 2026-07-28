@@ -1,7 +1,7 @@
 package com.flowzati.archone.demo;
 
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.common.configuration.CommonConfiguration;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -64,7 +64,7 @@ class ReplenishmentProbeControllerTest {
     ProducerRecord<String, String> published = record.getValue();
     String eventId = header(published, "id");
 
-    assertThat(published.topic()).isEqualTo(IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC);
+    assertThat(published.topic()).isEqualTo(InventoryEventTopics.STOCK_EVENTS);
     assertThat(published.key()).isEqualTo("HOT-SKU");
     assertThat(header(published, "eventType")).isEqualTo("StockReplenishedIntegrationEvent");
     assertThat(published.value())

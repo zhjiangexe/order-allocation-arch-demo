@@ -2,12 +2,12 @@ package com.flowzati.archone.common.outbox;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
-import java.nio.charset.StandardCharsets;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -33,15 +33,15 @@ import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
-import org.testcontainers.containers.wait.strategy.Wait;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OutboxCdcIntegrationTest {
 
-  private static final String ORDER_EVENTS_TOPIC = IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC;
+  private static final String ORDER_EVENTS_TOPIC = OrderingEventTopics.ORDER_EVENTS;
   private static final String PRIMARY_CONNECTOR = "order-promising-outbox";
   private static final String DEBEZIUM_IMAGE = "quay.io/debezium/connect:3.5.2.Final";
   private static final Network NETWORK = Network.newNetwork();

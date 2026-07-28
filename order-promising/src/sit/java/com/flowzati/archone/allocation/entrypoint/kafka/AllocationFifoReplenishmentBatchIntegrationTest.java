@@ -1,21 +1,19 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.integration.IntegrationEvent;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
@@ -31,6 +29,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Demo-02：1,000 張已排隊的同 SKU 缺貨訂單，被循序到達的 StockReplenished 事件喚醒後的
@@ -227,7 +226,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
 
   private void consume(StockReplenishedIntegrationEvent event) {
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC,
+        InventoryEventTopics.STOCK_EVENTS,
         0,
         0,
         event.getSku(),

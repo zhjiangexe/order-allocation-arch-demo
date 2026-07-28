@@ -1,6 +1,7 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.application.retry.AllocationRetryContext;
 import com.flowzati.archone.allocation.application.retry.AllocationRetryExecutor;
@@ -8,7 +9,6 @@ import com.flowzati.archone.allocation.application.usecase.ReplenishmentUsecase;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.messaging.kafka.IntegrationEventHandler;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -28,7 +28,7 @@ class StockReplenishedIntegrationEventHandler
 
   @Override
   public String topic() {
-    return IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC;
+    return InventoryEventTopics.STOCK_EVENTS;
   }
 
   @Override

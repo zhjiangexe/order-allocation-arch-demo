@@ -1,15 +1,14 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.integration.IntegrationEvent;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -27,6 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 釘住 FIFO 保證的<strong>範圍</strong>：它只涵蓋「補貨事件處理當下的佇列快照」，不是全域
@@ -105,7 +105,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     // Step 2：補進 30。佇列的 head 要 100，head-of-line blocking 讓它配不到，
     // 這 30 個單位原封不動留在池裡。
     consumer.consumeInventoryEvent(record(
-        IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, replenishment(FIRST_REPLENISH_QUANTITY)));
+        InventoryEventTopics.STOCK_EVENTS, replenishment(FIRST_REPLENISH_QUANTITY)));
 
     assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(availableToPromise(stockPoolId)).isEqualTo(FIRST_REPLENISH_QUANTITY);
@@ -122,7 +122,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
     // Step 5：再補 70，兩次補貨合計正好 100——恰好是舊單的需求量。
     consumer.consumeInventoryEvent(record(
-        IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, replenishment(SECOND_REPLENISH_QUANTITY)));
+        InventoryEventTopics.STOCK_EVENTS, replenishment(SECOND_REPLENISH_QUANTITY)));
 
     // Step 6：舊單仍配不到。這就是插隊的代價：進來的貨總量足夠，但其中 10 個已經給了新單，
     // 剩下的 90 湊不滿它的 100。若把這條斷言改綠（例如讓佇列非空時新單也排隊），
@@ -148,7 +148,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
         UUID.randomUUID(), orderId, SKU, NEW_ORDER_QUANTITY, placedAt);
     consumer.consumeOrderingEvent(
-        record(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC, event));
+        record(OrderingEventTopics.ORDER_EVENTS, event));
     return orderId;
   }
 

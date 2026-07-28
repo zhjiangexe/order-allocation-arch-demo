@@ -1,9 +1,8 @@
 package com.flowzati.archone.common.outbox;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
@@ -11,15 +10,15 @@ import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.entrypoint.kafka.AllocationKafkaIntegrationEventConsumer;
 import com.flowzati.archone.common.integration.IntegrationEvent;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
+import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
-import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +32,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 驗證 outbox row 的領域身分與傳輸決策確實分離：不論分區策略為何，Order aggregate 的
@@ -139,7 +139,7 @@ class OutboxAggregateQueryIntegrationTest {
   private void backorderIt(UUID orderId) throws Exception {
     Order order = orderRepository.findById(orderId).orElseThrow();
     consumer.consumeOrderingEvent(record(
-        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
+        OrderingEventTopics.ORDER_EVENTS,
         new OrderPlacedIntegrationEvent(
             UUID.randomUUID(), orderId, SKU, order.getDemandFor(SKU), order.getPlacedAt())));
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(backordered ->
@@ -148,7 +148,7 @@ class OutboxAggregateQueryIntegrationTest {
 
   private void replenishStock() throws Exception {
     consumer.consumeInventoryEvent(record(
-        IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC,
+        InventoryEventTopics.STOCK_EVENTS,
         new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, SKU, 3)));
   }
 

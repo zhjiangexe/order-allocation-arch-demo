@@ -1,14 +1,15 @@
 package com.flowzati.archone.common.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.flowzati.archone.ordering.domain.event.LineSnapshot;
+import com.flowzati.archone.allocation.application.event.PromisingEventTopics;
 import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.translator.AllocationDomainEventTranslator;
 import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
+import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderBackordered;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
@@ -51,7 +52,7 @@ class DomainEventTranslatorTest {
       assertThat(row.aggregateType()).isEqualTo(OutboxAggregateTypes.ORDER);
       assertThat(row.aggregateId()).isEqualTo(orderId.toString());
       assertThat(row.eventType()).isEqualTo(OrderPlacedIntegrationEvent.class.getSimpleName());
-      assertThat(row.route()).isEqualTo(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC);
+      assertThat(row.route()).isEqualTo(OrderingEventTopics.ORDER_EVENTS);
       assertThat(row.partitionKey()).isEqualTo(orderId.toString());
       assertThat(row.occurredAt()).isEqualTo(occurredAt);
       assertThat(row.payload()).contains("\"orderId\":\"" + orderId + "\"");
@@ -73,7 +74,7 @@ class DomainEventTranslatorTest {
     verify(outboxRepo).append(outbox.capture());
     assertThat(outbox.getValue().eventType())
         .isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName());
-    assertThat(outbox.getValue().route()).isEqualTo(IntegrationEventTopics.PROMISING_ALLOCATION_EVENTS_TOPIC);
+    assertThat(outbox.getValue().route()).isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
     assertThat(outbox.getValue().payload())
         .contains("\"reservationId\":\"" + reservationId + "\"");
   }

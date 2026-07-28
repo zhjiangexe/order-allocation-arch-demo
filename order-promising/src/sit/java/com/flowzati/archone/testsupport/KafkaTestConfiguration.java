@@ -1,6 +1,7 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -26,11 +27,11 @@ public class KafkaTestConfiguration {
    */
   @Bean
   NewTopic inventoryStockEventsTopic() {
-    return new NewTopic(IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, 1, (short) 1);
+    return new NewTopic(InventoryEventTopics.STOCK_EVENTS, 1, (short) 1);
   }
 
   @Bean
   NewTopic orderingOrderEventsTopic() {
-    return new NewTopic(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC, 1, (short) 1);
+    return new NewTopic(OrderingEventTopics.ORDER_EVENTS, 1, (short) 1);
   }
 }

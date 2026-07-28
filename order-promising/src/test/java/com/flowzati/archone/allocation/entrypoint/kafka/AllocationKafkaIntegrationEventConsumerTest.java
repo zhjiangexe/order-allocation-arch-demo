@@ -4,29 +4,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.command.ReleaseReservationCommand;
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.application.retry.AllocationRetryExecutor;
-import com.flowzati.archone.allocation.infrastructure.retry.SpringAllocationRetryExecutor;
 import com.flowzati.archone.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.allocation.application.usecase.ReleaseReservationUsecase;
 import com.flowzati.archone.allocation.application.usecase.ReplenishmentUsecase;
+import com.flowzati.archone.allocation.infrastructure.retry.SpringAllocationRetryExecutor;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.springframework.core.retry.RetryPolicy;
-import org.springframework.core.retry.RetryTemplate;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,7 +61,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
         eventId, orderId, "SKU-1", 3, Instant.parse("2026-07-24T10:00:00Z"));
 
     consumer.consumeOrderingEvent(record(
-        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC, event, OrderPlacedIntegrationEvent.class.getSimpleName()));
+        OrderingEventTopics.ORDER_EVENTS, event, OrderPlacedIntegrationEvent.class.getSimpleName()));
 
     ArgumentCaptor<InboundCommand<AllocateOrderCommand>> inbound = inboundCaptor();
     verify(allocateOrderUsecase).handle(inbound.capture());
@@ -79,7 +80,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
         eventId, orderId, Instant.parse("2026-07-24T10:00:00Z"));
 
     consumer.consumeOrderingEvent(record(
-        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC, event, OrderCancelledIntegrationEvent.class.getSimpleName()));
+        OrderingEventTopics.ORDER_EVENTS, event, OrderCancelledIntegrationEvent.class.getSimpleName()));
 
     ArgumentCaptor<InboundCommand<ReleaseReservationCommand>> inbound = inboundCaptor();
     verify(releaseReservationUsecase).handle(inbound.capture());
@@ -94,7 +95,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 8);
 
     consumer.consumeInventoryEvent(record(
-        IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, event, StockReplenishedIntegrationEvent.class.getSimpleName()));
+        InventoryEventTopics.STOCK_EVENTS, event, StockReplenishedIntegrationEvent.class.getSimpleName()));
 
     ArgumentCaptor<InboundCommand<ReplenishStockCommand>> inbound = inboundCaptor();
     verify(replenishmentUsecase).handle(inbound.capture());
@@ -109,7 +110,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
         UUID.randomUUID(), UUID.randomUUID(), "SKU-1", 3, Instant.parse("2026-07-24T10:00:00Z"));
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC, 0, 0, "key", objectMapper.writeValueAsString(event));
+        OrderingEventTopics.ORDER_EVENTS, 0, 0, "key", objectMapper.writeValueAsString(event));
     record.headers().add("id", UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
     record.headers().add("eventType", OrderPlacedIntegrationEvent.class.getSimpleName()
         .getBytes(StandardCharsets.UTF_8));
@@ -125,12 +126,12 @@ class AllocationKafkaIntegrationEventConsumerTest {
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 8);
 
     assertThatThrownBy(() -> consumer.consumeOrderingEvent(record(
-        IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC,
+        InventoryEventTopics.STOCK_EVENTS,
         event,
         StockReplenishedIntegrationEvent.class.getSimpleName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported Kafka integration event: "
-            + IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC + "/StockReplenishedIntegrationEvent");
+            + OrderingEventTopics.ORDER_EVENTS + "/StockReplenishedIntegrationEvent");
   }
 
   private ConsumerRecord<String, String> record(String topic, Object event, String eventType) throws Exception {

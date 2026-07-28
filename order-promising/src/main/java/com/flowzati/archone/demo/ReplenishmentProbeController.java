@@ -2,9 +2,9 @@ package com.flowzati.archone.demo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -76,7 +76,7 @@ public class ReplenishmentProbeController {
    */
   private ProducerRecord<String, String> record(StockReplenishedIntegrationEvent event) {
     ProducerRecord<String, String> record = new ProducerRecord<>(
-        IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, event.getSku(), serialize(event));
+        InventoryEventTopics.STOCK_EVENTS, event.getSku(), serialize(event));
     record.headers().add("id", bytes(event.getEventId().toString()));
     record.headers().add("eventType", bytes(StockReplenishedIntegrationEvent.class.getSimpleName()));
     return record;

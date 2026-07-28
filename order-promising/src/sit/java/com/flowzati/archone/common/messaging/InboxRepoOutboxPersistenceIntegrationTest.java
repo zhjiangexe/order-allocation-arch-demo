@@ -1,22 +1,22 @@
 package com.flowzati.archone.common.messaging;
 
-import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboxRepoImpl;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.outbox.Outbox;
+import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
 import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxRepo;
-import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.common.outbox.infrastructure.entity.OutboxEntity;
 import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
 import com.flowzati.archone.common.outbox.infrastructure.repository.OutboxRepoImpl;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
+import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
-import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
@@ -27,10 +27,10 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -100,7 +100,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
         OutboxAggregateTypes.ORDER,
         orderId.toString(),
         "OrderPlacedIntegrationEvent",
-        IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
+        OrderingEventTopics.ORDER_EVENTS,
         "HOT-SKU",
         "{\"eventId\":\"" + eventId + "\"}",
         occurredAt
@@ -108,7 +108,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
 
     OutboxEntity row = outboxRepository.findById(eventId).orElseThrow();
     assertThat(row.getEventType()).isEqualTo("OrderPlacedIntegrationEvent");
-    assertThat(row.getRoute()).isEqualTo(IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC);
+    assertThat(row.getRoute()).isEqualTo(OrderingEventTopics.ORDER_EVENTS);
     assertThat(row.getAggregateId()).isEqualTo(orderId.toString());
     assertThat(row.getPartitionKey()).isEqualTo("HOT-SKU");
     assertThat(row.getPayload()).contains(eventId.toString());

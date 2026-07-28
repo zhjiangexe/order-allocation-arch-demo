@@ -1,12 +1,12 @@
 package com.flowzati.archone.ordering.application.event.translator;
 
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
+import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxDelivery;
-import com.flowzati.archone.common.messaging.IntegrationEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
@@ -48,7 +48,7 @@ public class OrderingDomainEventTranslator {
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
         new OutboxDelivery(
-            IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
+            OrderingEventTopics.ORDER_EVENTS,
             partitionKey(event.orderId(), () -> skuCode)),
         event.placedAt()
     );
@@ -61,7 +61,7 @@ public class OrderingDomainEventTranslator {
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
         new OutboxDelivery(
-            IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
+            OrderingEventTopics.ORDER_EVENTS,
             partitionKey(
                 event.orderId(), () -> LineSnapshot.requireSingleSku(event.lines()))),
         event.cancelledAt()
