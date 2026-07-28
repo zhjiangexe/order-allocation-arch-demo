@@ -83,7 +83,9 @@ class OutboxAggregateQueryIntegrationTest {
     jdbcTemplate.execute("DELETE FROM stock_pools");
     jdbcTemplate.execute("DELETE FROM skus");
     jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owner_nodes");
     jdbcTemplate.execute("DELETE FROM owners");
+    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
   }
 
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
@@ -129,7 +131,7 @@ class OutboxAggregateQueryIntegrationTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         java.time.LocalDate.of(2026, 8, 1),
-        null,
+        OrderFixtures.NODE_ID,
         java.util.List.of(new PlaceOrderCommand.Line(SKU, 3))));
     // 下單當下 StockPool 的 ATP 是 0，配置決策要等這筆下單事件被 allocation 消費才發生。
     assertThat(placed.getStatus()).isEqualTo(OrderStatus.PENDING);

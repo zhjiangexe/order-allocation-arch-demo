@@ -127,10 +127,12 @@ class InboxRepoOutboxPersistenceIntegrationTest {
       OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-1");
       jdbcTemplate.update("""
           INSERT INTO orders (
-              id, owner_id, external_order_no, ship_to_zone, ship_to_address,
-              promised_delivery_date, status, placed_at, version)
-          VALUES (?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', DATE '2026-08-01', ?, ?, ?)
-          """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, "PENDING",
+              id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone,
+              ship_to_address, promised_delivery_date, status, placed_at, version)
+          VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號',
+                  DATE '2026-08-01', ?, ?, ?)
+          """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, OrderFixtures.NODE_ID,
+          "PENDING",
           Timestamp.from(placedAt), 0L);
       eventPublisher.publishEvent(new OrderPlaced(
           orderId,

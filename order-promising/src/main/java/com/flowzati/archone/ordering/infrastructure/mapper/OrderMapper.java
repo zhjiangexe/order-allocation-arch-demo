@@ -21,7 +21,7 @@ public final class OrderMapper {
         delivery.shipToZone(),
         delivery.shipToAddress(),
         delivery.promisedDeliveryDate(),
-        delivery.requestedNodeId(),
+        delivery.fulfillmentNodeId(),
         toLineEntities(order.getLines()),
         order.getStatus(),
         order.getPlacedAt(),
@@ -38,10 +38,10 @@ public final class OrderMapper {
         entity.getOwnerId(),
         entity.getExternalOrderNo(),
         new DeliveryTerms(
+            entity.getFulfillmentNodeId(),
             entity.getShipToZone(),
             entity.getShipToAddress(),
-            entity.getPromisedDeliveryDate(),
-            entity.getRequestedNodeId()),
+            entity.getPromisedDeliveryDate()),
         toDomainLines(entity.getLines()),
         entity.getStatus(),
         entity.getPlacedAt(),
@@ -61,8 +61,7 @@ public final class OrderMapper {
             line.getSkuCode(),
             line.getQuantity(),
             line.getStatus(),
-            line.getBackorderedSince(),
-            line.getAssignedNodeId()))
+            line.getBackorderedSince()))
         .toList();
   }
 
@@ -75,8 +74,7 @@ public final class OrderMapper {
             line.getSkuCode(),
             line.getQuantity(),
             line.getStatus(),
-            line.getBackorderedSince(),
-            line.getAssignedNodeId()))
+            line.getBackorderedSince()))
         .toList();
   }
 }

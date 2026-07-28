@@ -10,16 +10,12 @@ const OWNER_A: OwnerView = {
   ownerId: '00000000-0000-0000-0000-000000000001',
   code: 'OWNER-A',
   name: '甲貨主',
-  status: 'ACTIVE',
-  allowSplitShipment: true,
 };
 
 const OWNER_B: OwnerView = {
   ownerId: '00000000-0000-0000-0000-000000000002',
   code: 'OWNER-B',
   name: '乙貨主',
-  status: 'ACTIVE',
-  allowSplitShipment: false,
 };
 
 /** 兩個貨主刻意共用同一個 SKU 代碼——那是 3PL 撞號的最小再現。 */

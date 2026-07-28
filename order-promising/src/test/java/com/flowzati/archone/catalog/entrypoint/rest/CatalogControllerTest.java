@@ -7,7 +7,6 @@ import com.flowzati.archone.catalog.application.usecase.ListOwnersUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListProductsUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListSkusUsecase;
 import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.OwnerStatus;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
 import com.flowzati.archone.catalog.domain.model.TemperatureZone;
@@ -41,11 +40,11 @@ class CatalogControllerTest {
   private ListSkusUsecase listSkusUsecase;
 
   @Test
-  @DisplayName("應列出所有貨主，含名稱與拆單許可")
+  @DisplayName("應列出所有貨主，含名稱與狀態")
   void listsOwners() {
     when(listOwnersUsecase.listAll()).thenReturn(List.of(
-        new Owner(OWNER_A, "OWNER-A", "甲貨主", OwnerStatus.ACTIVE, true),
-        new Owner(OWNER_B, "OWNER-B", "乙貨主", OwnerStatus.SUSPENDED, false)));
+        new Owner(OWNER_A, "OWNER-A", "甲貨主"),
+        new Owner(OWNER_B, "OWNER-B", "乙貨主")));
 
     MvcTestResultAssert response = assertThat(mvc.get().uri("/owners"));
 
@@ -53,9 +52,6 @@ class CatalogControllerTest {
     response.bodyJson().extractingPath("$.length()").isEqualTo(2);
     response.bodyJson().extractingPath("$[0].code").isEqualTo("OWNER-A");
     response.bodyJson().extractingPath("$[0].name").isEqualTo("甲貨主");
-    response.bodyJson().extractingPath("$[0].status").isEqualTo("ACTIVE");
-    response.bodyJson().extractingPath("$[0].allowSplitShipment").isEqualTo(true);
-    response.bodyJson().extractingPath("$[1].allowSplitShipment").isEqualTo(false);
   }
 
   @Test

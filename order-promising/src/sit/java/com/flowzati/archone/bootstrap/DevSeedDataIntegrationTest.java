@@ -2,6 +2,8 @@ package com.flowzati.archone.bootstrap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
+import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.allocation.domain.model.ReservationStatus;
@@ -21,6 +23,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 
 @SpringBootTest(
@@ -49,6 +52,9 @@ class DevSeedDataIntegrationTest {
   @Autowired
   private OwnerRepository ownerRepository;
 
+  @Autowired
+  private FulfillmentNodeRepository fulfillmentNodeRepository;
+
   /**
    * 每支測試前重新 seed。
    *
@@ -69,7 +75,9 @@ class DevSeedDataIntegrationTest {
     jdbcTemplate.execute("DELETE FROM stock_pools");
     jdbcTemplate.execute("DELETE FROM skus");
     jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owner_nodes");
     jdbcTemplate.execute("DELETE FROM owners");
+    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
   }
 
   @Test
@@ -121,7 +129,7 @@ class DevSeedDataIntegrationTest {
     // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在，補貨也不會碰它（只處理
     // BACKORDERED）。照操作台 README 的 demo 流程補貨後畫面毫無變化，看起來像壞掉。
     List<Order> queue = orderRepository.findBackordersBySkuInFifoOrder(
-        DevSeedDataInitializer.SPLIT_FORBIDDEN_OWNER_ID, DevSeedDataInitializer.EMPTY_SKU);
+        DevSeedDataInitializer.SECOND_OWNER_ID, DevSeedDataInitializer.EMPTY_SKU);
 
     assertThat(queue).extracting(Order::getId)
         .containsExactly(DevSeedDataInitializer.BACKORDERED_ORDER_ID);
@@ -157,12 +165,25 @@ class DevSeedDataIntegrationTest {
   }
 
   @Test
-  @DisplayName("兩個貨主的拆單許可應相反——同一組庫存、同樣需求，兩種結果")
-  void seedsOppositeSplitShipmentPermissions() {
-    assertThat(ownerRepository.findById(DevSeedDataInitializer.SPLIT_ALLOWED_OWNER_ID))
-        .hasValueSatisfying(owner -> assertThat(owner.allowsSplitShipment()).isTrue());
-    assertThat(ownerRepository.findById(DevSeedDataInitializer.SPLIT_FORBIDDEN_OWNER_ID))
-        .hasValueSatisfying(owner -> assertThat(owner.allowsSplitShipment()).isFalse());
+  @DisplayName("兩貨主的倉庫指派應重疊但不相等，且有一個倉同時服務兩個貨主")
+  void seedsOverlappingButUnequalWarehouseAssignments() {
+    List<UUID> first = nodeIdsOf(DevSeedDataInitializer.FIRST_OWNER_ID);
+    List<UUID> second = nodeIdsOf(DevSeedDataInitializer.SECOND_OWNER_ID);
+
+    // 同一貨主有多個倉
+    assertThat(first).hasSize(2);
+    assertThat(second).hasSize(2);
+    // 不同貨主的倉不同
+    assertThat(first).isNotEqualTo(second);
+    // 一個倉服務多個貨主——3PL 的定義性特徵。少了這條，一個「以倉庫而非指派關係做過濾」
+    // 的錯誤實作會安靜通過，因為每個倉只屬於一個貨主時兩種寫法結果相同。
+    assertThat(first).containsAnyElementsOf(second);
+  }
+
+  private List<UUID> nodeIdsOf(UUID ownerId) {
+    return fulfillmentNodeRepository.findByOwner(ownerId).stream()
+        .map(FulfillmentNode::getId)
+        .toList();
   }
 
   @Test
@@ -178,7 +199,7 @@ class DevSeedDataIntegrationTest {
         WHERE owner_id = ? AND product_code = ?
         ORDER BY sku_code
         """, Integer.class,
-        DevSeedDataInitializer.SPLIT_ALLOWED_OWNER_ID,
+        DevSeedDataInitializer.FIRST_OWNER_ID,
         DevSeedDataInitializer.AMBIENT_PRODUCT_CODE))
         .containsExactly(520, 1000);
   }

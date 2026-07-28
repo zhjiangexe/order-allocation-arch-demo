@@ -4,11 +4,18 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.util.UUID;
 
 @Entity
-@Table(name = "owners")
-public class OwnerEntity {
+@Table(
+    name = "fulfillment_nodes",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uq_fulfillment_nodes_code",
+        columnNames = {"code"}
+    )
+)
+public class FulfillmentNodeEntity {
 
   @Id
   private UUID id;
@@ -19,15 +26,10 @@ public class OwnerEntity {
   @Column(nullable = false)
   private String name;
 
-
-  protected OwnerEntity() {
+  protected FulfillmentNodeEntity() {
   }
 
-  public OwnerEntity(
-      UUID id,
-      String code,
-      String name
-  ) {
+  public FulfillmentNodeEntity(UUID id, String code, String name) {
     this.id = id;
     this.code = code;
     this.name = name;
@@ -44,5 +46,4 @@ public class OwnerEntity {
   public String getName() {
     return name;
   }
-
 }

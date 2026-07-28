@@ -3,7 +3,6 @@ package com.flowzati.archone.catalog.infrastructure.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.OwnerStatus;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
 import com.flowzati.archone.catalog.domain.model.TemperatureZone;
@@ -27,7 +26,7 @@ class CatalogMapperTest {
     @Test
     @DisplayName("應雙向映射代號、名稱、狀態與拆單許可")
     void mapsBothWays() {
-      Owner owner = new Owner(OWNER_ID, "OWNER-A", "甲貨主", OwnerStatus.SUSPENDED, false);
+      Owner owner = new Owner(OWNER_ID, "OWNER-A", "甲貨主");
 
       OwnerEntity entity = OwnerMapper.toEntity(owner);
       Owner restored = OwnerMapper.toDomain(entity);
@@ -35,14 +34,10 @@ class CatalogMapperTest {
       assertThat(entity.getId()).isEqualTo(OWNER_ID);
       assertThat(entity.getCode()).isEqualTo("OWNER-A");
       assertThat(entity.getName()).isEqualTo("甲貨主");
-      assertThat(entity.getStatus()).isEqualTo(OwnerStatus.SUSPENDED);
-      assertThat(entity.isAllowSplitShipment()).isFalse();
 
       assertThat(restored.getId()).isEqualTo(OWNER_ID);
       assertThat(restored.getCode()).isEqualTo("OWNER-A");
       assertThat(restored.getName()).isEqualTo("甲貨主");
-      assertThat(restored.getStatus()).isEqualTo(OwnerStatus.SUSPENDED);
-      assertThat(restored.allowsSplitShipment()).isFalse();
     }
   }
 

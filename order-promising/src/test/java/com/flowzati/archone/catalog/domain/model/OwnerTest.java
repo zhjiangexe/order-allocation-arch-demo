@@ -18,28 +18,25 @@ class OwnerTest {
   @Test
   @DisplayName("應保留代號、名稱、狀態與拆單許可")
   void retainsIdentityStatusAndSplitShipmentPermission() {
-    Owner owner = new Owner(OWNER_ID, "OWNER-A", "甲貨主", OwnerStatus.ACTIVE, false);
+    Owner owner = new Owner(OWNER_ID, "OWNER-A", "甲貨主");
 
     assertThat(owner.getId()).isEqualTo(OWNER_ID);
     assertThat(owner.getCode()).isEqualTo("OWNER-A");
     assertThat(owner.getName()).isEqualTo("甲貨主");
-    assertThat(owner.getStatus()).isEqualTo(OwnerStatus.ACTIVE);
-    assertThat(owner.allowsSplitShipment()).isFalse();
   }
 
   @Test
   @DisplayName("名稱應獨立存在，不由代號推導——畫面與 log 需要它")
   void keepsNameSeparateFromCode() {
-    Owner owner = new Owner(OWNER_ID, "OWNER-A", "甲貨主", OwnerStatus.ACTIVE, true);
+    Owner owner = new Owner(OWNER_ID, "OWNER-A", "甲貨主");
 
     assertThat(owner.getName()).isNotEqualTo(owner.getCode());
-    assertThat(owner.allowsSplitShipment()).isTrue();
   }
 
   @Test
   @DisplayName("識別碼為必填")
   void rejectsMissingId() {
-    assertThatThrownBy(() -> new Owner(null, "OWNER-A", "甲貨主", OwnerStatus.ACTIVE, true))
+    assertThatThrownBy(() -> new Owner(null, "OWNER-A", "甲貨主"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Owner ID");
   }
@@ -49,7 +46,7 @@ class OwnerTest {
   @ValueSource(strings = {"  "})
   @DisplayName("代號為必填")
   void rejectsBlankCode(String code) {
-    assertThatThrownBy(() -> new Owner(OWNER_ID, code, "甲貨主", OwnerStatus.ACTIVE, true))
+    assertThatThrownBy(() -> new Owner(OWNER_ID, code, "甲貨主"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Owner code");
   }
@@ -59,16 +56,8 @@ class OwnerTest {
   @ValueSource(strings = {"  "})
   @DisplayName("名稱為必填")
   void rejectsBlankName(String name) {
-    assertThatThrownBy(() -> new Owner(OWNER_ID, "OWNER-A", name, OwnerStatus.ACTIVE, true))
+    assertThatThrownBy(() -> new Owner(OWNER_ID, "OWNER-A", name))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Owner name");
-  }
-
-  @Test
-  @DisplayName("狀態為必填")
-  void rejectsMissingStatus() {
-    assertThatThrownBy(() -> new Owner(OWNER_ID, "OWNER-A", "甲貨主", null, true))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Owner status");
   }
 }

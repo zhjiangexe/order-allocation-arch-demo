@@ -12,9 +12,7 @@ public final class OwnerMapper {
     return new OwnerEntity(
         owner.getId(),
         owner.getCode(),
-        owner.getName(),
-        owner.getStatus(),
-        owner.allowsSplitShipment()
+        owner.getName()
     );
   }
 
@@ -22,9 +20,7 @@ public final class OwnerMapper {
     return new Owner(
         entity.getId(),
         entity.getCode(),
-        entity.getName(),
-        entity.getStatus(),
-        entity.isAllowSplitShipment()
+        entity.getName()
     );
   }
 }

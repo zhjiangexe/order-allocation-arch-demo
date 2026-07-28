@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.OwnerStatus;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
 import com.flowzati.archone.catalog.domain.model.TemperatureZone;
@@ -43,8 +42,8 @@ class CatalogQueryUsecaseTest {
     @Test
     @DisplayName("應原樣回傳 repository 的貨主清單與其排序")
     void returnsOwnersInRepositoryOrder() {
-      Owner first = new Owner(OWNER_A, "OWNER-A", "甲貨主", OwnerStatus.ACTIVE, true);
-      Owner second = new Owner(OWNER_B, "OWNER-B", "乙貨主", OwnerStatus.SUSPENDED, false);
+      Owner first = new Owner(OWNER_A, "OWNER-A", "甲貨主");
+      Owner second = new Owner(OWNER_B, "OWNER-B", "乙貨主");
       when(ownerRepository.findAll()).thenReturn(List.of(first, second));
 
       List<Owner> owners = new ListOwnersUsecase(ownerRepository).listAll();

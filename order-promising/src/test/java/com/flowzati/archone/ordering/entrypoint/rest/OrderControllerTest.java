@@ -139,9 +139,9 @@ class OrderControllerTest {
         OrderFixtures.deliveryTerms(),
         List.of(
             OrderLine.rehydrate(UUID.randomUUID(), 1, ownerId, "SKU-A", 3,
-                OrderStatus.PENDING, null, null),
+                OrderStatus.PENDING, null),
             OrderLine.rehydrate(UUID.randomUUID(), 2, ownerId, "SKU-B", 7,
-                OrderStatus.PENDING, null, null)),
+                OrderStatus.PENDING, null)),
         OrderStatus.PENDING, PLACED_AT, null, null, null, null);
     when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(twoLineOrder));
 

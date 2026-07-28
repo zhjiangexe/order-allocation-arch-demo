@@ -20,7 +20,7 @@ public record PlaceOrderCommand(
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate,
-    UUID requestedNodeId,
+    UUID fulfillmentNodeId,
     List<Line> lines
 ) {
 

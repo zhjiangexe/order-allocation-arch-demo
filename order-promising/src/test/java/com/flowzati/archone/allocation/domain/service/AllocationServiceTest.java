@@ -263,9 +263,9 @@ class AllocationServiceTest {
         OrderFixtures.deliveryTerms(),
         List.of(
             OrderLine.rehydrate(UUID.randomUUID(), 1, ownerId, "SKU-1", firstQuantity,
-                OrderStatus.PENDING, null, null),
+                OrderStatus.PENDING, null),
             OrderLine.rehydrate(UUID.randomUUID(), 2, ownerId, "SKU-1", secondQuantity,
-                OrderStatus.PENDING, null, null)),
+                OrderStatus.PENDING, null)),
         OrderStatus.PENDING,
         NOW.minusSeconds(10), null, null, null, null);
   }
@@ -280,9 +280,9 @@ class AllocationServiceTest {
         OrderFixtures.deliveryTerms(),
         List.of(
             OrderLine.rehydrate(
-                UUID.randomUUID(), 1, ownerId, "SKU-1", 3, OrderStatus.PENDING, null, null),
+                UUID.randomUUID(), 1, ownerId, "SKU-1", 3, OrderStatus.PENDING, null),
             OrderLine.rehydrate(
-                UUID.randomUUID(), 2, ownerId, "SKU-2", 5, OrderStatus.PENDING, null, null)),
+                UUID.randomUUID(), 2, ownerId, "SKU-2", 5, OrderStatus.PENDING, null)),
         OrderStatus.PENDING,
         NOW.minusSeconds(10), null, null, null, null);
   }

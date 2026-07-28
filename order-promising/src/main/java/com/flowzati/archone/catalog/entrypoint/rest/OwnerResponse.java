@@ -1,7 +1,6 @@
 package com.flowzati.archone.catalog.entrypoint.rest;
 
 import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.OwnerStatus;
 import java.util.UUID;
 
 /**
@@ -11,17 +10,13 @@ import java.util.UUID;
 public record OwnerResponse(
     UUID ownerId,
     String code,
-    String name,
-    OwnerStatus status,
-    boolean allowSplitShipment
+    String name
 ) {
 
   static OwnerResponse from(Owner owner) {
     return new OwnerResponse(
         owner.getId(),
         owner.getCode(),
-        owner.getName(),
-        owner.getStatus(),
-        owner.allowsSplitShipment());
+        owner.getName());
   }
 }

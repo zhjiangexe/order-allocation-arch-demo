@@ -62,8 +62,8 @@ class OrderingSchemaIntegrationTest {
               "ship_to_zone",
               "ship_to_address",
               "promised_delivery_date",
-              "requested_node_id")
-          .doesNotContain("sku", "quantity");
+              "fulfillment_node_id")
+          .doesNotContain("sku", "quantity", "requested_node_id");
     }
 
     @Test
@@ -76,9 +76,9 @@ class OrderingSchemaIntegrationTest {
     @DisplayName("order_lines 不應有 allocated_at——ship-complete 下它恆等於 header 且無 index 需要它")
     void doesNotCreateLineLevelAllocatedAt() {
       assertThat(columnNames("order_lines"))
-          .contains("line_no", "owner_id", "sku_code", "quantity", "assigned_node_id", "status",
-              "backordered_since")
-          .doesNotContain("allocated_at");
+          .contains("line_no", "owner_id", "sku_code", "quantity", "status", "backordered_since")
+          // assigned_node_id 已砍：一張單只從一個倉出、明細不可跨倉，它永遠等於 header
+          .doesNotContain("allocated_at", "assigned_node_id");
     }
   }
 
@@ -228,10 +228,32 @@ class OrderingSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("assigned_node_id 應無外鍵——fulfillment_nodes 要等 R2 才存在")
-    void leavesAssignedNodeWithoutForeignKey() {
-      assertThat(foreignKeyColumns("order_lines")).doesNotContain("assigned_node_id");
-      assertThat(foreignKeyColumns("orders")).doesNotContain("requested_node_id");
+    @DisplayName("倉別應以複合外鍵指向 owner_nodes——只擋倉不存在是不夠的")
+    void constrainsFulfillmentNodeByOwnerAssignment() {
+      // 單欄 FK 只保證「倉存在」；複合 FK 才保證「這個貨主掛了這個倉」。
+      assertThat(foreignKeyColumns("orders")).contains("owner_id", "fulfillment_node_id");
+      assertThat(jdbcTemplate.queryForObject("""
+          SELECT count(*) FROM information_schema.table_constraints
+          WHERE table_name = 'orders' AND constraint_name = 'fk_orders_owner_node'
+          """, Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("指定該貨主沒掛的倉應被資料庫擋下，而不是只擋倉不存在")
+    void rejectsWarehouseTheOwnerIsNotAssignedTo() {
+      seedOwner(OWNER_ID, "OWNER-A");
+      seedOwner(OTHER_OWNER_ID, "OWNER-B");
+      UUID nodeId = UUID.randomUUID();
+      jdbcTemplate.update(
+          "INSERT INTO fulfillment_nodes (id, code, name) VALUES (?, 'WH-X', '倉 X')", nodeId);
+      // 只指派給乙貨主
+      jdbcTemplate.update(
+          "INSERT INTO owner_nodes (owner_id, node_id) VALUES (?, ?)", OTHER_OWNER_ID, nodeId);
+
+      assertThatThrownBy(() -> insertOrder(UUID.randomUUID(), OWNER_ID, "EXT-1", nodeId))
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .rootCause()
+          .hasMessageContaining("fk_orders_owner_node");
     }
 
     @Test
@@ -347,8 +369,8 @@ class OrderingSchemaIntegrationTest {
 
   private void seedOwner(UUID id, String code) {
     jdbcTemplate.update("""
-        INSERT INTO owners (id, code, name, status, allow_split_shipment)
-        VALUES (?, ?, ?, 'ACTIVE', true)
+        INSERT INTO owners (id, code, name)
+        VALUES (?, ?, ?)
         """, id, code, code);
   }
 
@@ -366,13 +388,32 @@ class OrderingSchemaIntegrationTest {
         """, UUID.randomUUID(), ownerId, skuCode, productCode, skuCode, weightGram);
   }
 
+  /** 建一張單，順帶把它需要的倉庫與指派備齊——倉別必填且有複合外鍵，缺了寫不進去。 */
   private void seedOrder(UUID id, UUID ownerId, String externalOrderNo) {
+    UUID nodeId = defaultNodeFor(ownerId);
+    insertOrder(id, ownerId, externalOrderNo, nodeId);
+  }
+
+  private UUID defaultNodeFor(UUID ownerId) {
+    UUID nodeId = UUID.nameUUIDFromBytes(("node-" + ownerId).getBytes());
+    jdbcTemplate.update("""
+        INSERT INTO fulfillment_nodes (id, code, name)
+        VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING
+        """, nodeId, "WH-" + nodeId, "測試倉");
+    jdbcTemplate.update("""
+        INSERT INTO owner_nodes (owner_id, node_id)
+        VALUES (?, ?) ON CONFLICT DO NOTHING
+        """, ownerId, nodeId);
+    return nodeId;
+  }
+
+  private void insertOrder(UUID id, UUID ownerId, String externalOrderNo, UUID nodeId) {
     jdbcTemplate.update("""
         INSERT INTO orders (
-            id, owner_id, external_order_no, ship_to_zone, ship_to_address,
+            id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone, ship_to_address,
             promised_delivery_date, status, placed_at)
-        VALUES (?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', ?, 'PENDING', ?)
-        """, id, ownerId, externalOrderNo,
+        VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', ?, 'PENDING', ?)
+        """, id, ownerId, externalOrderNo, nodeId,
         Date.valueOf(LocalDate.of(2026, 8, 1)), Timestamp.from(PLACED_AT));
   }
 

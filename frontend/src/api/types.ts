@@ -13,20 +13,16 @@ export type OrderStatus = 'PENDING' | 'ALLOCATED' | 'BACKORDERED' | 'CANCELLED';
 
 export type TemperatureZone = 'AMBIENT' | 'CHILLED' | 'FROZEN';
 
-export type OwnerStatus = 'ACTIVE' | 'SUSPENDED';
-
 /**
  * 貨主。3PL 的委託方——倉庫不擁有貨，貨屬於他們。
  *
- * `allowSplitShipment` 目前沒有畫面在用（選點決策才會讀），但它是貨主主檔的自然欄位，
- * 契約帶著它不需要額外理由。
+ * 只有身分，沒有狀態或政策欄位。曾經有 `status` 與 `allowSplitShipment`，兩者都沒有讀者，
+ * 已於 R2 砍除——沒有讀者的欄位會讓下一個人以為它有意義。
  */
 export interface OwnerView {
   ownerId: string;
   code: string;
   name: string;
-  status: OwnerStatus;
-  allowSplitShipment: boolean;
 }
 
 /** 商品的「款」。溫層屬這一層——同一款的所有規格必然同溫層。 */

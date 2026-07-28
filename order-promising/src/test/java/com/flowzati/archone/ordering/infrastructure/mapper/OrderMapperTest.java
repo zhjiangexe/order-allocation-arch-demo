@@ -22,6 +22,7 @@ class OrderMapperTest {
 
   private static final UUID ORDER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
   private static final UUID OWNER_ID = OrderFixtures.OWNER_ID;
+  private static final UUID NODE_ID = OrderFixtures.NODE_ID;
   private static final Instant PLACED_AT = Instant.parse("2026-07-23T08:00:00Z");
   private static final Instant BACKORDERED_AT = Instant.parse("2026-07-23T08:01:00Z");
 
@@ -38,7 +39,7 @@ class OrderMapperTest {
     assertThat(entity.getShipToZone()).isEqualTo("100");
     assertThat(entity.getShipToAddress()).isEqualTo("台北市中正區重慶南路一段 122 號");
     assertThat(entity.getPromisedDeliveryDate()).isEqualTo(LocalDate.of(2026, 8, 1));
-    assertThat(entity.getRequestedNodeId()).isNull();
+    assertThat(entity.getFulfillmentNodeId()).isEqualTo(NODE_ID);
     assertThat(entity.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(entity.getPlacedAt()).isEqualTo(PLACED_AT);
     assertThat(entity.getAllocatedAt()).isNull();
@@ -53,7 +54,6 @@ class OrderMapperTest {
       assertThat(line.getQuantity()).isEqualTo(3);
       assertThat(line.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
       assertThat(line.getBackorderedSince()).isEqualTo(BACKORDERED_AT);
-      assertThat(line.getAssignedNodeId()).isNull();
     });
   }
 
@@ -69,7 +69,7 @@ class OrderMapperTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         LocalDate.of(2026, 8, 1),
-        null,
+        NODE_ID,
         List.of(lineEntity(1, "SKU-1", 3, OrderStatus.CANCELLED)),
         OrderStatus.CANCELLED,
         PLACED_AT,
@@ -85,7 +85,7 @@ class OrderMapperTest {
     assertThat(order.getOwnerId()).isEqualTo(OWNER_ID);
     assertThat(order.getExternalOrderNo()).isEqualTo("EXT-1");
     assertThat(order.getDeliveryTerms()).isEqualTo(new DeliveryTerms(
-        "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 8, 1), null));
+        NODE_ID, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 8, 1)));
     assertThat(order.getDemand()).isEqualTo(Map.of("SKU-1", 3));
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     assertThat(order.getPlacedAt()).isEqualTo(PLACED_AT);
@@ -106,9 +106,9 @@ class OrderMapperTest {
         OrderFixtures.deliveryTerms(),
         List.of(
             OrderLine.rehydrate(
-                UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3, OrderStatus.PENDING, null, null),
+                UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3, OrderStatus.PENDING, null),
             OrderLine.rehydrate(
-                UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7, OrderStatus.PENDING, null, null)),
+                UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7, OrderStatus.PENDING, null)),
         OrderStatus.PENDING,
         PLACED_AT, null, null, null, null);
 
@@ -124,6 +124,6 @@ class OrderMapperTest {
   private static OrderLineEntity lineEntity(
       int lineNo, String skuCode, int quantity, OrderStatus status) {
     return new OrderLineEntity(
-        UUID.randomUUID(), lineNo, OWNER_ID, skuCode, quantity, status, null, null);
+        UUID.randomUUID(), lineNo, OWNER_ID, skuCode, quantity, status, null);
   }
 }

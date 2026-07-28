@@ -24,8 +24,6 @@ public class OrderLine {
   private final UUID ownerId;
   private final String skuCode;
   private final int quantity;
-  /** R6 的決策輸出：實際出貨節點。本階段恆為空。 */
-  private final UUID assignedNodeId;
   private OrderStatus status;
   private Instant backorderedSince;
 
@@ -36,8 +34,7 @@ public class OrderLine {
       String skuCode,
       int quantity,
       OrderStatus status,
-      Instant backorderedSince,
-      UUID assignedNodeId
+      Instant backorderedSince
   ) {
     if (id == null) {
       throw new IllegalArgumentException("Order line ID is required");
@@ -64,7 +61,6 @@ public class OrderLine {
     this.quantity = quantity;
     this.status = status;
     this.backorderedSince = backorderedSince;
-    this.assignedNodeId = assignedNodeId;
   }
 
   /**
@@ -75,7 +71,7 @@ public class OrderLine {
    */
   public static OrderLine create(
       UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
-    return new OrderLine(id, lineNo, ownerId, skuCode, quantity, OrderStatus.PENDING, null, null);
+    return new OrderLine(id, lineNo, ownerId, skuCode, quantity, OrderStatus.PENDING, null);
   }
 
   /** 由儲存還原。不施加任何超出欄位有效性的限制。 */
@@ -86,11 +82,9 @@ public class OrderLine {
       String skuCode,
       int quantity,
       OrderStatus status,
-      Instant backorderedSince,
-      UUID assignedNodeId
+      Instant backorderedSince
   ) {
-    return new OrderLine(
-        id, lineNo, ownerId, skuCode, quantity, status, backorderedSince, assignedNodeId);
+    return new OrderLine(id, lineNo, ownerId, skuCode, quantity, status, backorderedSince);
   }
 
   void markAllocated() {
@@ -133,9 +127,5 @@ public class OrderLine {
 
   public Instant getBackorderedSince() {
     return backorderedSince;
-  }
-
-  public UUID getAssignedNodeId() {
-    return assignedNodeId;
   }
 }

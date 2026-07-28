@@ -36,8 +36,6 @@ public class OrderLineEntity {
   @Column(nullable = false)
   private int quantity;
 
-  @Column(name = "assigned_node_id")
-  private UUID assignedNodeId;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
@@ -56,8 +54,7 @@ public class OrderLineEntity {
       String skuCode,
       int quantity,
       OrderStatus status,
-      Instant backorderedSince,
-      UUID assignedNodeId
+      Instant backorderedSince
   ) {
     this.id = id;
     this.lineNo = lineNo;
@@ -66,7 +63,6 @@ public class OrderLineEntity {
     this.quantity = quantity;
     this.status = status;
     this.backorderedSince = backorderedSince;
-    this.assignedNodeId = assignedNodeId;
   }
 
   public UUID getId() {
@@ -89,9 +85,6 @@ public class OrderLineEntity {
     return quantity;
   }
 
-  public UUID getAssignedNodeId() {
-    return assignedNodeId;
-  }
 
   public OrderStatus getStatus() {
     return status;

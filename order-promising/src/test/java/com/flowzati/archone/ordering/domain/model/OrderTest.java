@@ -21,6 +21,7 @@ class OrderTest {
 
   private final UUID orderId = UUID.randomUUID();
   private final UUID ownerId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private final UUID nodeId = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
   private final Instant placedAt = Instant.parse("2026-07-23T00:00:00Z");
 
   @Test
@@ -53,7 +54,7 @@ class OrderTest {
     assertThat(delivery.shipToZone()).isEqualTo("100");
     assertThat(delivery.shipToAddress()).isEqualTo("台北市中正區重慶南路一段 122 號");
     assertThat(delivery.promisedDeliveryDate()).isEqualTo(LocalDate.of(2026, 8, 1));
-    assertThat(delivery.requestedNodeId()).isNull();
+    assertThat(delivery.fulfillmentNodeId()).isEqualTo(nodeId);
   }
 
   @Test
@@ -388,10 +389,10 @@ class OrderTest {
 
   private DeliveryTerms delivery() {
     return new DeliveryTerms(
+        nodeId,
         "100",
         "台北市中正區重慶南路一段 122 號",
-        LocalDate.of(2026, 8, 1),
-        null);
+        LocalDate.of(2026, 8, 1));
   }
 
   private OrderLine line(int lineNo, String skuCode, int quantity) {

@@ -36,7 +36,9 @@ class DevSeedDataProfileIntegrationTest {
     jdbcTemplate.execute("DELETE FROM stock_pools");
     jdbcTemplate.execute("DELETE FROM skus");
     jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owner_nodes");
     jdbcTemplate.execute("DELETE FROM owners");
+    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
   }
 
   @Test

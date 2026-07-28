@@ -22,6 +22,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public final class OrderFixtures {
 
   public static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+  /** 出貨倉。所有 fixture 共用一個——倉別在收單後不參與任何決策，區分它沒有價值。 */
+  public static final UUID NODE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
   public static final UUID OTHER_OWNER_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000a2");
   public static final String PRODUCT_CODE = "P-TEST";
@@ -38,10 +40,22 @@ public final class OrderFixtures {
    */
   public static void seedCatalog(JdbcTemplate jdbcTemplate, UUID ownerId, String... skuCodes) {
     jdbcTemplate.update("""
-        INSERT INTO owners (id, code, name, status, allow_split_shipment)
-        VALUES (?, ?, ?, 'ACTIVE', true)
+        INSERT INTO owners (id, code, name)
+        VALUES (?, ?, ?)
         ON CONFLICT (id) DO NOTHING
         """, ownerId, "OWNER-" + ownerId, "測試貨主");
+    // 倉庫與指派：orders 的 (owner_id, fulfillment_node_id) 有複合外鍵指向 owner_nodes，
+    // 少了這兩列，任何一張測試訂單都寫不進去。
+    jdbcTemplate.update("""
+        INSERT INTO fulfillment_nodes (id, code, name)
+        VALUES (?, ?, ?)
+        ON CONFLICT (id) DO NOTHING
+        """, NODE_ID, "WH-TEST", "測試倉");
+    jdbcTemplate.update("""
+        INSERT INTO owner_nodes (owner_id, node_id)
+        VALUES (?, ?)
+        ON CONFLICT DO NOTHING
+        """, ownerId, NODE_ID);
     jdbcTemplate.update("""
         INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
         VALUES (?, ?, ?, ?, 'AMBIENT')
@@ -58,10 +72,10 @@ public final class OrderFixtures {
 
   public static DeliveryTerms deliveryTerms() {
     return new DeliveryTerms(
+        NODE_ID,
         "100",
         "台北市中正區重慶南路一段 122 號",
-        LocalDate.of(2026, 8, 1),
-        null);
+        LocalDate.of(2026, 8, 1));
   }
 
   public static OrderLine line(String skuCode, int quantity) {
@@ -152,7 +166,7 @@ public final class OrderFixtures {
         "EXT-" + orderId,
         deliveryTerms(),
         List.of(OrderLine.rehydrate(
-            UUID.randomUUID(), 1, ownerId, skuCode, quantity, status, backorderedSince, null)),
+            UUID.randomUUID(), 1, ownerId, skuCode, quantity, status, backorderedSince)),
         status,
         placedAt,
         allocatedAt,

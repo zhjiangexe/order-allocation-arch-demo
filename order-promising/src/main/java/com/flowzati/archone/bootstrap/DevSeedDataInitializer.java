@@ -5,12 +5,13 @@ import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.OwnerStatus;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
 import com.flowzati.archone.catalog.domain.model.TemperatureZone;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.catalog.domain.repository.ProductRepository;
+import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
+import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;
 import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
 import com.flowzati.archone.ordering.domain.model.Order;
@@ -58,12 +59,25 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   public static final String EMPTY_SKU = "SKU-EMPTY";
   public static final String PARTIALLY_RESERVED_SKU = "SKU-PARTIALLY-RESERVED";
 
-  /** 允許拆單的貨主。R6 的對比組之一。 */
-  public static final UUID SPLIT_ALLOWED_OWNER_ID =
+  public static final UUID FIRST_OWNER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000001");
-  /** 不允許拆單的貨主，且與上一個共用 {@link #AVAILABLE_SKU} 這個代碼。 */
-  public static final UUID SPLIT_FORBIDDEN_OWNER_ID =
+  /** 與上一個貨主共用 {@link #AVAILABLE_SKU} 與 {@link #EMPTY_SKU} 兩個代碼。 */
+  public static final UUID SECOND_OWNER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+  /**
+   * 三個倉庫，兩個貨主各掛兩個、共用中部倉。
+   *
+   * <p>三件事要同時成立：同一貨主有多個倉、不同貨主的倉不同、**一個倉服務多個貨主**。
+   * 第三件是 3PL 的定義性特徵——少了它，一個「以倉庫而非指派關係做過濾」的錯誤實作會安靜
+   * 通過，因為每個倉剛好只屬於一個貨主時兩種寫法結果相同。
+   */
+  public static final UUID NORTH_NODE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000011");
+  public static final UUID CENTRAL_NODE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000012");
+  public static final UUID SOUTH_NODE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000013");
 
   public static final String AMBIENT_PRODUCT_CODE = "P-TEA";
   public static final String FROZEN_PRODUCT_CODE = "P-DUMPLING";
@@ -91,6 +105,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final OwnerRepository ownerRepository;
   private final ProductRepository productRepository;
   private final SkuRepository skuRepository;
+  private final FulfillmentNodeRepository fulfillmentNodeRepository;
   private final StockPoolRepository stockPoolRepository;
   private final OrderRepository orderRepository;
   private final StockReservationRepository stockReservationRepository;
@@ -99,6 +114,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       OwnerRepository ownerRepository,
       ProductRepository productRepository,
       SkuRepository skuRepository,
+      FulfillmentNodeRepository fulfillmentNodeRepository,
       StockPoolRepository stockPoolRepository,
       OrderRepository orderRepository,
       StockReservationRepository stockReservationRepository
@@ -106,6 +122,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     this.ownerRepository = ownerRepository;
     this.productRepository = productRepository;
     this.skuRepository = skuRepository;
+    this.fulfillmentNodeRepository = fulfillmentNodeRepository;
     this.stockPoolRepository = stockPoolRepository;
     this.orderRepository = orderRepository;
     this.stockReservationRepository = stockReservationRepository;
@@ -115,6 +132,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   @Transactional
   public void run(ApplicationArguments args) {
     seedCatalog();
+    seedNodes();
     seedStockPools();
     seedOrders();
   }
@@ -127,26 +145,42 @@ public class DevSeedDataInitializer implements ApplicationRunner {
    * 不會報錯，只會讓訂單配不到貨。三個庫存池用到的 SKU 因此必須在這裡都建出來。
    */
   private void seedCatalog() {
-    if (ownerRepository.findById(SPLIT_ALLOWED_OWNER_ID).isPresent()) {
+    if (ownerRepository.findById(FIRST_OWNER_ID).isPresent()) {
       return;
     }
 
-    ownerRepository.save(new Owner(
-        SPLIT_ALLOWED_OWNER_ID, "OWNER-A", "甲貨主（可拆單）", OwnerStatus.ACTIVE, true));
-    ownerRepository.save(new Owner(
-        SPLIT_FORBIDDEN_OWNER_ID, "OWNER-B", "乙貨主（不可拆單）", OwnerStatus.ACTIVE, false));
+    ownerRepository.save(new Owner(FIRST_OWNER_ID, "OWNER-A", "甲貨主"));
+    ownerRepository.save(new Owner(SECOND_OWNER_ID, "OWNER-B", "乙貨主"));
 
     // 甲貨主：常溫一款帶兩個規格（重量不同），冷凍一款
-    product(SPLIT_ALLOWED_OWNER_ID, 11, AMBIENT_PRODUCT_CODE, "烏龍茶", TemperatureZone.AMBIENT);
-    product(SPLIT_ALLOWED_OWNER_ID, 12, FROZEN_PRODUCT_CODE, "冷凍水餃", TemperatureZone.FROZEN);
-    sku(SPLIT_ALLOWED_OWNER_ID, 21, AVAILABLE_SKU, AMBIENT_PRODUCT_CODE, "500ml", 520);
-    sku(SPLIT_ALLOWED_OWNER_ID, 22, EMPTY_SKU, AMBIENT_PRODUCT_CODE, "1L", 1000);
-    sku(SPLIT_ALLOWED_OWNER_ID, 23, PARTIALLY_RESERVED_SKU, FROZEN_PRODUCT_CODE, "500g", 500);
+    product(FIRST_OWNER_ID, 11, AMBIENT_PRODUCT_CODE, "烏龍茶", TemperatureZone.AMBIENT);
+    product(FIRST_OWNER_ID, 12, FROZEN_PRODUCT_CODE, "冷凍水餃", TemperatureZone.FROZEN);
+    sku(FIRST_OWNER_ID, 21, AVAILABLE_SKU, AMBIENT_PRODUCT_CODE, "500ml", 520);
+    sku(FIRST_OWNER_ID, 22, EMPTY_SKU, AMBIENT_PRODUCT_CODE, "1L", 1000);
+    sku(FIRST_OWNER_ID, 23, PARTIALLY_RESERVED_SKU, FROZEN_PRODUCT_CODE, "500g", 500);
 
     // 乙貨主：刻意使用與甲貨主相同的款號與 SKU 代碼，且是完全不同的商品
-    product(SPLIT_FORBIDDEN_OWNER_ID, 13, AMBIENT_PRODUCT_CODE, "麥茶", TemperatureZone.AMBIENT);
-    sku(SPLIT_FORBIDDEN_OWNER_ID, 24, AVAILABLE_SKU, AMBIENT_PRODUCT_CODE, "600ml", 610);
-    sku(SPLIT_FORBIDDEN_OWNER_ID, 25, EMPTY_SKU, AMBIENT_PRODUCT_CODE, "1L", 1050);
+    product(SECOND_OWNER_ID, 13, AMBIENT_PRODUCT_CODE, "麥茶", TemperatureZone.AMBIENT);
+    sku(SECOND_OWNER_ID, 24, AVAILABLE_SKU, AMBIENT_PRODUCT_CODE, "600ml", 610);
+    sku(SECOND_OWNER_ID, 25, EMPTY_SKU, AMBIENT_PRODUCT_CODE, "1L", 1050);
+  }
+
+  /**
+   * 倉庫與指派。倉庫必須先於訂單建立：{@code orders} 的
+   * {@code (owner_id, fulfillment_node_id)} 有複合外鍵指向 {@code owner_nodes}。
+   */
+  private void seedNodes() {
+    if (fulfillmentNodeRepository.findById(NORTH_NODE_ID).isPresent()) {
+      return;
+    }
+    fulfillmentNodeRepository.save(new FulfillmentNode(NORTH_NODE_ID, "WH-NORTH", "北部倉"));
+    fulfillmentNodeRepository.save(new FulfillmentNode(CENTRAL_NODE_ID, "WH-CENTRAL", "中部倉"));
+    fulfillmentNodeRepository.save(new FulfillmentNode(SOUTH_NODE_ID, "WH-SOUTH", "南部倉"));
+
+    fulfillmentNodeRepository.assign(FIRST_OWNER_ID, NORTH_NODE_ID);
+    fulfillmentNodeRepository.assign(FIRST_OWNER_ID, CENTRAL_NODE_ID);
+    fulfillmentNodeRepository.assign(SECOND_OWNER_ID, CENTRAL_NODE_ID);
+    fulfillmentNodeRepository.assign(SECOND_OWNER_ID, SOUTH_NODE_ID);
   }
 
   private void seedStockPools() {
@@ -164,7 +198,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     orderRepository.save(allocatedOrder(
         PARTIALLY_RESERVED_ORDER_ID,
         PARTIALLY_RESERVED_LINE_ID,
-        SPLIT_ALLOWED_OWNER_ID,
+        FIRST_OWNER_ID,
+        NORTH_NODE_ID,
         "SEED-A-0001",
         PARTIALLY_RESERVED_SKU,
         5));
@@ -184,26 +219,28 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     //
     // BACKORDERED 則三件事同時成立：它進得了 FIFO 佇列，補 SKU-EMPTY 真的會喚醒它；
     // 語意一致，因為那個庫存池的 on-hand 是 0；撞號展示也還在，兩個貨主都有 SKU-EMPTY。
+    // 刻意指定南部倉：與甲貨主那張單的北部倉不同，R3 的分倉庫存才有資料可分。
     orderRepository.save(backorderedOrder(
         BACKORDERED_ORDER_ID,
         BACKORDERED_LINE_ID,
-        SPLIT_FORBIDDEN_OWNER_ID,
+        SECOND_OWNER_ID,
+        SOUTH_NODE_ID,
         "SEED-B-0001",
         EMPTY_SKU,
         2));
   }
 
   private Order allocatedOrder(
-      UUID orderId, UUID lineId, UUID ownerId, String externalOrderNo, String skuCode,
-      int quantity) {
-    return order(orderId, lineId, ownerId, externalOrderNo, skuCode, quantity,
+      UUID orderId, UUID lineId, UUID ownerId, UUID nodeId, String externalOrderNo,
+      String skuCode, int quantity) {
+    return order(orderId, lineId, ownerId, nodeId, externalOrderNo, skuCode, quantity,
         OrderStatus.ALLOCATED, PARTIALLY_RESERVED_AT, null);
   }
 
   private Order backorderedOrder(
-      UUID orderId, UUID lineId, UUID ownerId, String externalOrderNo, String skuCode,
-      int quantity) {
-    return order(orderId, lineId, ownerId, externalOrderNo, skuCode, quantity,
+      UUID orderId, UUID lineId, UUID ownerId, UUID nodeId, String externalOrderNo,
+      String skuCode, int quantity) {
+    return order(orderId, lineId, ownerId, nodeId, externalOrderNo, skuCode, quantity,
         OrderStatus.BACKORDERED, null, BACKORDERED_SINCE);
   }
 
@@ -215,6 +252,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID orderId,
       UUID lineId,
       UUID ownerId,
+      UUID nodeId,
       String externalOrderNo,
       String skuCode,
       int quantity,
@@ -227,10 +265,10 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         ownerId,
         externalOrderNo,
         new DeliveryTerms(
-            "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5), null),
+            nodeId, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5)),
         // 行的 backorderedSince 恆等於 header——採 ship-complete 後所有行一起缺貨
         List.of(OrderLine.rehydrate(
-            lineId, 1, ownerId, skuCode, quantity, status, backOrderedSince, null)),
+            lineId, 1, ownerId, skuCode, quantity, status, backOrderedSince)),
         status,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
         allocatedAt,

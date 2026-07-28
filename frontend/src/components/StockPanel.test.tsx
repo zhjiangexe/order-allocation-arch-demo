@@ -145,8 +145,6 @@ describe('StockPanel 的結果歸屬', () => {
             ownerId: '00000000-0000-0000-0000-000000000001',
             code: 'OWNER-A',
             name: '甲貨主',
-            status: 'ACTIVE',
-            allowSplitShipment: true,
           },
         ]}
         onQuery={onQuery}

@@ -16,7 +16,7 @@ public record PlaceOrderRequest(
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate,
-    UUID requestedNodeId,
+    UUID fulfillmentNodeId,
     List<Line> lines
 ) {
 

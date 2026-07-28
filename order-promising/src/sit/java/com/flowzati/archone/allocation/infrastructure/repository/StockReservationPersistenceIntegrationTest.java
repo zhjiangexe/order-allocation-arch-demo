@@ -268,11 +268,12 @@ class StockReservationPersistenceIntegrationTest {
     OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-1");
     jdbcTemplate.update("""
         INSERT INTO orders (
-            id, owner_id, external_order_no, ship_to_zone, ship_to_address,
+            id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone, ship_to_address,
             promised_delivery_date, status, placed_at)
-        VALUES (?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', DATE '2026-08-01',
+        VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', DATE '2026-08-01',
                 'PENDING', ?)
-        """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, Timestamp.from(RESERVED_AT));
+        """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, OrderFixtures.NODE_ID,
+        Timestamp.from(RESERVED_AT));
     jdbcTemplate.update("""
         INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity, status)
         VALUES (?, ?, 1, ?, 'SKU-1', 1, 'PENDING')

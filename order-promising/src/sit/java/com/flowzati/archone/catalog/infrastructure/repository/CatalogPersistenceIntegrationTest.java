@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.OwnerStatus;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
 import com.flowzati.archone.catalog.domain.model.TemperatureZone;
@@ -65,8 +64,8 @@ class CatalogPersistenceIntegrationTest {
 
   @BeforeEach
   void seedOwners() {
-    ownerRepository.save(new Owner(OWNER_A, "OWNER-A", "甲貨主", OwnerStatus.ACTIVE, true));
-    ownerRepository.save(new Owner(OWNER_B, "OWNER-B", "乙貨主", OwnerStatus.SUSPENDED, false));
+    ownerRepository.save(new Owner(OWNER_A, "OWNER-A", "甲貨主"));
+    ownerRepository.save(new Owner(OWNER_B, "OWNER-B", "乙貨主"));
     entityManager.flush();
   }
 
@@ -79,8 +78,6 @@ class CatalogPersistenceIntegrationTest {
 
     assertThat(restored.getCode()).isEqualTo("OWNER-B");
     assertThat(restored.getName()).isEqualTo("乙貨主");
-    assertThat(restored.getStatus()).isEqualTo(OwnerStatus.SUSPENDED);
-    assertThat(restored.allowsSplitShipment()).isFalse();
   }
 
   @Test

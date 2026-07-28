@@ -51,10 +51,10 @@ public class PlaceOrderUsecase {
 
   private static DeliveryTerms toDeliveryTerms(PlaceOrderCommand command) {
     return new DeliveryTerms(
+        command.fulfillmentNodeId(),
         command.shipToZone(),
         command.shipToAddress(),
-        command.promisedDeliveryDate(),
-        command.requestedNodeId());
+        command.promisedDeliveryDate());
   }
 
   /** 行號依提交順序產生，從 1 起算。 */

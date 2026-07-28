@@ -122,7 +122,8 @@ R3 屆時可以只動 translator 不動事件契約。
 
 **變更的資料表**
 
-`orders`：`requested_node_id` → `fulfillment_node_id`，`NOT NULL`，外鍵指向 `fulfillment_nodes`。
+`orders`：`requested_node_id` → `fulfillment_node_id`，`NOT NULL`，**複合外鍵
+`(owner_id, fulfillment_node_id)` 指向 `owner_nodes`**（不是單欄指向 `fulfillment_nodes`）。
 
 `order_lines`：移除 `assigned_node_id`。
 
@@ -132,15 +133,16 @@ R3 屆時可以只動 translator 不動事件契約。
 
 - 下單未提供倉別 → 請求被拒，不建立訂單
 - 下單提供的倉別不存在 → 請求被拒（外鍵）
-- 下單提供的倉別存在、但該貨主沒有掛這個倉 → **請求被拒**。這需要應用層檢查，資料庫的外鍵
-  只保證倉庫存在，保證不了配對關係
+- 下單提供的倉別存在、但該貨主沒有掛這個倉 → **請求被拒，由資料庫的複合外鍵擋下**。
+  應用層不需要任何額外檢查
 - 依貨主查詢可用倉庫 → 只回該貨主掛的倉，順序穩定
 - 下單成功後，`OrderPlaced` 事件帶得出倉別
 
 **種子資料**
 
-三個倉庫。甲貨主掛兩個、乙貨主掛一個——「同一貨主有多個倉」與「不同貨主的倉不同」兩件事都
-必須在畫面上看得出來，且為 R3 的分倉庫存準備資料。
+三個倉庫，兩個貨主各掛兩個、共用其中一個。三件事必須同時成立：同一貨主有多個倉、不同貨主的
+倉不同、**一個倉服務多個貨主**。第三件是 3PL 的定義性特徵——每個倉只屬於一個貨主時，「以倉庫
+過濾」與「以指派關係過濾」結果相同，錯誤實作會安靜通過。
 
 **前端**
 
@@ -156,11 +158,11 @@ R3 屆時可以只動 translator 不動事件契約。
 背景 app；重建後要重新註冊 Debezium connector（`run.sh up` 的第 3 步會做）。**風險在於忘記
 重建**——症狀是 app 啟動時 Flyway checksum 不符而失敗，訊息明確，不會靜默。
 
-**[「貨主沒掛這個倉」只能靠應用層擋]** → 資料庫擋得住「倉不存在」，擋不住「倉存在但不是這個
-貨主的」。複合外鍵在此不可行：`orders` 沒有指向 `owner_nodes` 的自然路徑（那需要 `orders` 的
-`(owner_id, fulfillment_node_id)` 一起指過去，而那反而是可行的）。**緩解**：實作時優先嘗試
-`FOREIGN KEY (owner_id, fulfillment_node_id) REFERENCES owner_nodes(owner_id, node_id)`——
-若可行，這條規則就由資料庫保證，與 R1 讓 `(owner_id, sku_code)` 走自然鍵外鍵是同一個手法。
+**[~~「貨主沒掛這個倉」只能靠應用層擋~~]** → **風險不成立**（2026-07-29 實測）。
+`FOREIGN KEY (owner_id, fulfillment_node_id) REFERENCES owner_nodes(owner_id, node_id)` 可行，
+規則因此只有一份且在資料庫裡，與 R1 讓 `(owner_id, sku_code)` 走自然鍵外鍵是同一個手法。
+`fk_orders_owner` 在邏輯上因此多餘（`owner_nodes.owner_id` 已指向 `owners`），保留它是為了讓
+「訂單有貨主」獨立於倉庫指派而成立。
 
 **[壓測腳本會撞外鍵]** → `run.sh seed` 目前只種主檔三層與庫存池。加了倉別必填之後，壓測訂單
 需要倉庫與貨主倉庫配對才插得進去。這與 R1 時 `HOT-SKU` 需要主檔是同一個問題，**必須在同一個
@@ -180,9 +182,10 @@ Rollback 就是 git revert 加一次 `down`／`up`——沒有需要保留的資
 
 ## Open Questions
 
-- **`(owner_id, fulfillment_node_id)` 的複合外鍵是否可行**，見 Risks。若可行，「貨主沒掛這個
-  倉」這條規則就從應用層檢查降為資料庫約束，應用層的檢查可以只保留為更友善的錯誤訊息。
-  實作時驗證，不預先決定。
+- ~~`(owner_id, fulfillment_node_id)` 的複合外鍵是否可行~~ **已驗證可行**（2026-07-29）。
+  PostgreSQL 允許複合外鍵指向複合主鍵，因此 `fk_orders_owner_node` 直接擋下「倉存在但這個
+  貨主沒掛」。**應用層不需要任何額外檢查**，這比原先預期的更好——規則只有一份，且在資料
+  庫。`OrderingSchemaIntegrationTest` 有一支測試守著它；把外鍵降級成單欄會讓該測試失敗。
 
 - **倉庫代碼的格式與種子內容**（例如 `WH-NORTH`／`WH-CENTRAL`／`WH-SOUTH`）留給實作，它不
   影響任何結構決定。唯一的約束是三個倉必須讓「一貨主多倉」與「貨主間倉不同」都成立。
