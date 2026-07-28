@@ -174,8 +174,9 @@ line 時間戳的聚合規則。
 6. Domain：`FulfillmentNode`；Infrastructure：entity／mapper／repository；
    Usecase：`ListNodesForOwnerUsecase`（依貨主列出可用倉庫）
 7. `OrderPlaced` 領域事件加 `fulfillmentNodeId`（R3 的 partition key 要用）
-8. Seed：**3 個倉庫**，甲貨主掛 2 個、乙貨主掛 1 個——「同一貨主有多個倉」與「不同貨主的倉
-   不同」兩件事都要在畫面上看得出來，也為 R3 的分倉庫存準備資料
+8. Seed：**3 個倉庫**，兩個貨主**各掛 2 個、共用其中 1 個**。三件事要同時看得出來：同一貨主
+   有多個倉、不同貨主的倉不同、**一個倉服務多個貨主**。第三件是 3PL 的定義性特徵，少了它，
+   一個「以倉庫而非配對關係做過濾」的錯誤實作會安靜地通過
 9. 前端：**只在下單表單加倉庫下拉**（依所選貨主過濾），**不做倉庫頁**——原本的倉庫頁是為了
    展示覆蓋矩陣，現在只剩三個欄位的清單，撐不起一頁
 10. 測試：persistence、seed 一致性、下單未指定倉庫被擋下、倉庫下拉依貨主過濾
