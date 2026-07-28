@@ -75,6 +75,6 @@
 
 ## 11. 端到端驗收與文件
 
-- [ ] 11.1 更新 `e2e/perf/k6/hot-sku-burst.js`：下單 request body 加貨主、上游單號、收件資訊、承諾到貨日並把 SKU 移入 lines；補貨請求加貨主。行為上：壓測腳本能建立訂單並完成後續輪詢，`checks_total` 不因合約變更而失敗。以壓測執行時 thresholds 通過驗證。
-- [ ] 11.2 依 design.md 的 Migration Plan 重建並重跑壓測：先 `./e2e/perf/run.sh down` 移除既有 Postgres volume（改寫既有 migration 必然造成 Flyway checksum 不符，**不得以 `flyway repair` 略過**），再 `./e2e/perf/run.sh perf`（`up` 只起系統不跑 k6，壓測要用 `perf`）。行為上：既有 k6 thresholds 全數通過，代表資料模型改造未使壓測退化。以本次結果更新 `e2e/perf/README.md` 的 baseline 數字，使文件數字與腳本版本一致。
+- [x] 11.1 更新 `e2e/perf/k6/hot-sku-burst.js`：下單 request body 加貨主、上游單號、收件資訊、承諾到貨日並把 SKU 移入 lines。單號帶一個本次執行專用的識別碼，因為 `UNIQUE (owner_id, external_order_no)` 會讓「只用 VU 編號」在第二次執行整批撞鍵。**另需擴充 `run.sh seed`**：`order_lines` 有 FK 指向 `skus`，只種庫存池的 SKU 下不了單，因此 seed 要一併建立壓測貨主的三層主檔；壓測用自己的貨主而非借用 dev seed 的 OWNER-A，兩者才不會互相弄壞。ownerId 由 k6 的 `setup` 以貨主代碼反查，UUID 因此只寫在 `run.sh` 一處。（原文提到的「補貨請求加貨主」在壓測 harness 裡不存在——唯一的補貨呼叫端是前端，已於 10.3 處理。）行為上：壓測腳本能建立訂單並完成後續輪詢，`checks_total` 不因合約變更而失敗。以壓測執行時 thresholds 通過驗證。
+- [x] 11.2 依 design.md 的 Migration Plan 重建並重跑壓測：先 `./e2e/perf/run.sh down` 移除既有 Postgres volume（改寫既有 migration 必然造成 Flyway checksum 不符，**不得以 `flyway repair` 略過**），再 `./e2e/perf/run.sh perf`（`up` 只起系統不跑 k6，壓測要用 `perf`）。**另需修 `run.sh verify`**：它的 DB 狀態查詢還在讀 `orders.sku`，那個欄位已移到 `order_lines.sku_code`，不修會直接報錯；改用 `EXISTS` 而非 join，避免多行訂單被計數多次（目前單行下兩者相等，正是最容易埋錯的情況）。行為上：既有 k6 thresholds 全數通過，代表資料模型改造未使壓測退化。以本次結果更新 `e2e/perf/README.md` 的 baseline 數字，使文件數字與腳本版本一致。
 - [ ] 11.3 於 `docs/stock-reservation-design.md` 補上資料模型變更後的說明：貨主／款／規格三層主檔、訂單行的粒度，以及**跨貨主隔離尚未生效**與 **partition key 仍為裸 `sku`** 兩項已知中間狀態及其收尾的 change。以文件審閱確認與實作一致驗證。

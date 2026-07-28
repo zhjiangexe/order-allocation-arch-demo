@@ -2,8 +2,9 @@
 // GET /orders/{id} 直到分配決策出爐，延遲用持久化的 placedAt -> allocatedAt/
 // backOrderedSince 時間戳計算（比輪詢 wall time 精準）。
 //
-// 前置：HOT_SKU 的 StockPool 要先種好庫存（見 ../README.md），且要用寬視窗（例如
-// 500）不要太窄，太窄大部分訂單會直接 BACKORDERED、撞不出自然衝突。
+// 前置：HOT_SKU 要先用 `run.sh seed` 種好——它會一併建立壓測貨主的主檔，因為
+// order_lines 有 FK 指向 skus，只有庫存池的 SKU 下不了單。庫存要用寬視窗（例如 500）
+// 不要太窄，太窄大部分訂單會直接 BACKORDERED、撞不出自然衝突。
 //
 // 這個 script 只回報 k6 端到端量得到的吞吐量與延遲；衝突率／重試率、DLT 壓測方式
 // 見 ../README.md。
@@ -24,6 +25,8 @@ const POLL_TIMEOUT_MS = parseInt(__ENV.POLL_TIMEOUT_MS || '15000', 10);
 // 要跟種庫存時實際下的數量一致（見 ../README.md），不然 order_allocated_total
 // 這條 threshold 驗證不到超賣
 const EXPECTED_STOCK = parseInt(__ENV.EXPECTED_STOCK || '500', 10);
+// 貨主以**代碼**指定、ownerId 在 setup 反查，這樣 UUID 只存在於 run.sh 一處
+const OWNER_CODE = __ENV.OWNER_CODE || 'PERF-OWNER';
 
 export const options = {
   scenarios: {
@@ -45,15 +48,43 @@ export const options = {
   },
 };
 
+// 承諾到貨日沒有 CHECK 約束，但填一個過去的日期會讓 DB 裡的壓測資料看起來像壞資料
+const PROMISED_DELIVERY_DATE = new Date(Date.now() + 7 * 24 * 3600 * 1000)
+  .toISOString()
+  .slice(0, 10);
+
 const decisionLatencyMs = new Trend('order_decision_latency_ms', true);
 const allocatedTotal = new Counter('order_allocated_total');
 const backorderedTotal = new Counter('order_backordered_total');
 const decisionTimeoutTotal = new Counter('order_decision_timeout_total');
 
-export default function () {
+// 反查壓測貨主，順便產生一個本次執行專用的識別碼。
+//
+// 訂單有 UNIQUE (owner_id, external_order_no)，而 __VU 每次執行都從 1 開始——單號若只用
+// VU 編號，第二次跑就會整批撞唯一鍵，看起來像下單失敗，其實是資料殘留。
+export function setup() {
+  const res = http.get(`${BASE_URL}/owners`);
+  if (res.status !== 200) {
+    throw new Error(`查不到貨主清單（HTTP ${res.status}）——app 起來了嗎？`);
+  }
+  const owner = JSON.parse(res.body).find((o) => o.code === OWNER_CODE);
+  if (owner === undefined) {
+    throw new Error(`找不到貨主 ${OWNER_CODE}——先跑 ./e2e/perf/run.sh seed ${HOT_SKU} <數量>`);
+  }
+  return { ownerId: owner.ownerId, runId: Date.now().toString(36) };
+}
+
+export default function (data) {
   const placeRes = http.post(
     `${BASE_URL}/orders`,
-    JSON.stringify({ sku: HOT_SKU, quantity: 1 }),
+    JSON.stringify({
+      ownerId: data.ownerId,
+      externalOrderNo: `PERF-${data.runId}-${__VU}`,
+      shipToZone: '100',
+      shipToAddress: '台北市中正區重慶南路一段 122 號',
+      promisedDeliveryDate: PROMISED_DELIVERY_DATE,
+      lines: [{ skuCode: HOT_SKU, quantity: 1 }],
+    }),
     { headers: { 'Content-Type': 'application/json' } },
   );
   const placed = check(placeRes, { 'order placed (200)': (r) => r.status === 200 });

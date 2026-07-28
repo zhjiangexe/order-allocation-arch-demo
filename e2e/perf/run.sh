@@ -31,6 +31,13 @@ CONNECTOR_NAME="${CONNECTOR_NAME:-order-promising-outbox}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-order-promising-e2e-perf-postgres-1}"
 NETWORK="${NETWORK:-order-promising-e2e-perf_default}"
 
+# 壓測自己的主檔。k6 script 以 PERF_OWNER_CODE 反查 ownerId（見 k6/hot-sku-burst.js 的
+# setup），因此 UUID 只寫在這裡一處，不必兩邊同步。
+PERF_OWNER_ID="00000000-0000-0000-0000-0000000000f1"
+PERF_OWNER_CODE="PERF-OWNER"
+PERF_PRODUCT_ID="00000000-0000-0000-0000-0000000000f2"
+PERF_PRODUCT_CODE="P-PERF"
+
 # 起一套可用的系統。三步的順序不能換：connector 要讀 event_outbox，而那張表是 app 啟動時
 # 由 Flyway 建的——app 不在 compose 裡，所以 compose 自己帶不出一套完整的系統。
 cmd_up() {
@@ -120,12 +127,34 @@ cmd_down() {
 
 # Upsert 一筆 StockPool 庫存。sku 有 UNIQUE 限制，重跑同一個 SKU 會直接把
 # on_hand/reserved 重置成指定值，不會累積出重複列或髒資料。
+# 把一個 SKU 種成「可下單」：主檔三層 ＋ 庫存池。
+#
+# 只種庫存池是不夠的——order_lines 有 FK (owner_id, sku_code) → skus，主檔缺這一列時
+# 下單會直接被資料庫擋下。壓測的 SKU 因此必須同時存在於兩邊。
+#
+# 壓測用自己的貨主而不借用 dev seed 的 OWNER-A：兩者互不依賴，改 demo 的固定資料不會
+# 弄壞壓測，反之亦然；資料庫裡也一眼看得出哪些列是壓測產物。
+#
+# 主檔用 DO NOTHING、庫存池用 DO UPDATE：前者是身分，重跑不該變動；後者正是「重置庫存」
+# 這個動作本身的目的。
 cmd_seed() {
   local sku="${1:?usage: run.sh seed <SKU> <ON_HAND_QUANTITY>}"
   local quantity="${2:?usage: run.sh seed <SKU> <ON_HAND_QUANTITY>}"
 
   # 這裡不依賴外層 -e（standalone 呼叫時是關的），失敗要自己判斷、自己中止
   if ! docker exec -i "${POSTGRES_CONTAINER}" psql -U order_promising -d order_promising <<SQL
+INSERT INTO owners (id, code, name, status, allow_split_shipment)
+VALUES ('${PERF_OWNER_ID}', '${PERF_OWNER_CODE}', '壓測貨主', 'ACTIVE', true)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
+VALUES ('${PERF_PRODUCT_ID}', '${PERF_OWNER_ID}', '${PERF_PRODUCT_CODE}', '壓測商品', 'AMBIENT')
+ON CONFLICT (owner_id, product_code) DO NOTHING;
+
+INSERT INTO skus (id, owner_id, sku_code, product_code, spec_name, weight_gram)
+VALUES (gen_random_uuid(), '${PERF_OWNER_ID}', '${sku}', '${PERF_PRODUCT_CODE}', '${sku}', 1)
+ON CONFLICT (owner_id, sku_code) DO NOTHING;
+
 INSERT INTO stock_pools (id, sku, on_hand_quantity, reserved_quantity, version, updated_at)
 VALUES (gen_random_uuid(), '${sku}', ${quantity}, 0, 0, now())
 ON CONFLICT (sku) DO UPDATE
@@ -138,7 +167,7 @@ SQL
     echo "種庫存失敗（SKU=${sku}）" >&2
     return 1
   fi
-  echo "已種好 ${sku}：on_hand_quantity=${quantity}"
+  echo "已種好 ${sku}：貨主 ${PERF_OWNER_CODE}、on_hand_quantity=${quantity}"
 }
 
 # Prometheus 跟 app log 兩種方法互相對照（/actuator/prometheus 沒開的話會是 404，
@@ -156,8 +185,14 @@ cmd_verify() {
 
   echo
   echo "== DB 訂單狀態分布（sku=${sku}） =="
+  # SKU 在 order_lines 上而不在 orders 上——訂單是行的集合，訂單層沒有單一 SKU。
+  # 這裡用 EXISTS 而不是 join：一張單有多行時 join 會讓它被計數多次，把「幾張單」
+  # 悄悄變成「幾行」。目前收單只收一行，兩者剛好相等，正是最容易埋錯的情況。
   docker exec -i "${POSTGRES_CONTAINER}" psql -U order_promising -d order_promising \
-    -c "SELECT status, count(*) FROM orders WHERE sku='${sku}' GROUP BY status ORDER BY status;"
+    -c "SELECT o.status, count(*) FROM orders o
+        WHERE EXISTS (SELECT 1 FROM order_lines ol
+                      WHERE ol.order_id = o.id AND ol.sku_code = '${sku}')
+        GROUP BY o.status ORDER BY o.status;"
 }
 
 # apache/kafka-native 是 native image、沒有 bin/*.sh，這裡借一般的 apache/kafka
