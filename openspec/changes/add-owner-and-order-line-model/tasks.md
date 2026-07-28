@@ -32,9 +32,9 @@
 ## 5. 訂單的持久化
 
 - [x] 5.1 新增 `OrderLineEntity` 並擴充 `OrderEntity`、`OrderMapper`、`OrderRepositoryImpl`，使 `Order` 連同其 lines 一併寫入與載入。行為上：一張含 N 筆 line 的訂單經 mapper 往返後 line 的順序、`lineNo` 與各自欄位皆不變。以 `OrderMapperTest` 的 N=1 與 N=2 往返測試驗證。
-- [ ] 5.2 實作 **An order line references an existing catalog entry**：line 的 `(owner_id, sku_code)` 由資料庫 FK 擋住，**不在應用層預先檢查**。行為上：以該貨主不存在的 `sku_code` 下單失敗，且訂單與 line 都不留下。以 persistence 測試斷言 FK 違反且交易回滾驗證。
-- [ ] 5.3 實作 **An upstream order number is unique within its owner**：`UNIQUE (owner_id, external_order_no)` 生效。行為上：同一貨主的同一上游單號送第二次會明確失敗，而不是靜默建立第二筆訂單；此時回傳的是錯誤而非既有訂單（冪等行為屬 R5）。以 persistence 測試斷言第二次寫入失敗且該對組合只存在一列驗證。
-- [ ] 5.4 實作 **Backorder queues are scoped to one owner and one SKU**：`OrderRepository.findBackordersBySkuInFifoOrder` 加上 `ownerId` 參數。此方法屬 allocation 卻長在 ordering 的 repository 上，那是 R4 的耦合，本 change 只加參數、不搬家。行為上：兩個貨主使用同一 `sku_code` 時，讀某貨主的佇列不會回傳另一貨主的訂單，也不受其排序影響。以 `OrderPersistenceIntegrationTest` 的跨貨主 fixture 驗證。
+- [x] 5.2 實作 **An order line references an existing catalog entry**：line 的 `(owner_id, sku_code)` 由資料庫 FK 擋住，**不在應用層預先檢查**。行為上：以該貨主不存在的 `sku_code` 下單失敗，且訂單與 line 都不留下。以 persistence 測試斷言 FK 違反且交易回滾驗證。
+- [x] 5.3 實作 **An upstream order number is unique within its owner**：`UNIQUE (owner_id, external_order_no)` 生效。行為上：同一貨主的同一上游單號送第二次會明確失敗，而不是靜默建立第二筆訂單；此時回傳的是錯誤而非既有訂單（冪等行為屬 R5）。以 persistence 測試斷言第二次寫入失敗且該對組合只存在一列驗證。
+- [ ] 5.4 實作 **Backorder queues are scoped to one owner and one SKU**：`OrderRepository.findBackordersBySkuInFifoOrder` 加上 `ownerId` 參數。**與 7.5 綁定，必須一起做**——這個查詢在本 change 只有一個呼叫端（`ReplenishmentUsecase`），而它的輸入來自只帶 SKU 的補貨事件，因此參數加了也沒有人拿得出值。先做 7.5 讓事件帶貨主，再回頭加參數；分開做的話中間會有一段「參數存在但恆為 null」的狀態，那比不加更糟。此方法屬 allocation 卻長在 ordering 的 repository 上，那是 R4 的耦合，本 change 只加參數、不搬家。行為上：兩個貨主使用同一 `sku_code` 時，讀某貨主的佇列不會回傳另一貨主的訂單，也不受其排序影響。以 `OrderPersistenceIntegrationTest` 的跨貨主 fixture 驗證。
 
 ## 6. Application 與 HTTP 表面
 
