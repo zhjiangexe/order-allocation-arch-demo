@@ -61,9 +61,9 @@
 
 ## 9. Seed 資料
 
-- [ ] 9.1 實作 **Seed data reproduces the collisions and contrasts later work depends on**：seed 兩個貨主（`allow_split_shipment` 分別為 `true` 與 `false`）**且兩者定義相同的 `sku_code`**、常溫與冷凍各一款、其中一款帶兩個重量不同的規格，每個貨主各一張單一筆 line。行為上：跨貨主撞號、兩種溫層、款／規格兩層在 seed 後即可在畫面上看到。以 `DevSeedDataIntegrationTest` 斷言上述四項組合驗證。
-- [ ] 9.2 把既有 seed 的三個 `stock_pools` 改用主檔的 `sku_code`，並把那張已預留的 seed 訂單改用新的訂單模型（貨主、上游單號、收件資訊、承諾到貨日與一筆 line）。**`stock_pools` 沒有指向主檔的外鍵，兩邊對不上時不會報錯**，只會讓 seed 的訂單配不到貨，且前端庫存頁與既有 seed 測試的預期值一併錯位。行為上：seed 完成後那張訂單能走完配貨、庫存頁以主檔的 SKU 查得到資料。以 `DevSeedDataIntegrationTest` 斷言庫存池的 SKU 存在於主檔、且 seed 訂單可完成配貨驗證。
-- [ ] 9.3 在 seed 的來源處以註解標註**跨貨主隔離在本 change 尚未生效**：`stock_pools` 無 `owner_id`，配貨仍可能跨貨主取用，R3 的 `requireMatchingOwner()` 才收尾。行為上：下一個讀到這段 seed 的人不會把這個中間狀態誤認為 bug 或誤認為已解決。以文件與註解審閱驗證。
+- [x] 9.1 實作 **Seed data reproduces the collisions and contrasts later work depends on**：seed 兩個貨主（`allow_split_shipment` 分別為 `true` 與 `false`）**且兩者定義相同的 `sku_code`**、常溫與冷凍各一款、其中一款帶兩個重量不同的規格，每個貨主各一張單一筆 line。行為上：跨貨主撞號、兩種溫層、款／規格兩層在 seed 後即可在畫面上看到。以 `DevSeedDataIntegrationTest` 斷言上述四項組合驗證。
+- [x] 9.2 把既有 seed 的三個 `stock_pools` 改用主檔的 `sku_code`，並把那張已預留的 seed 訂單改用新的訂單模型（貨主、上游單號、收件資訊、承諾到貨日與一筆 line）。**`stock_pools` 沒有指向主檔的外鍵，兩邊對不上時不會報錯**，只會讓 seed 的訂單配不到貨，且前端庫存頁與既有 seed 測試的預期值一併錯位。行為上：seed 完成後那張訂單能走完配貨、庫存頁以主檔的 SKU 查得到資料。以 `DevSeedDataIntegrationTest` 斷言庫存池的 SKU 存在於主檔、且 seed 訂單可完成配貨驗證。
+- [x] 9.3 在 seed 的來源處以註解標註**跨貨主隔離在本 change 尚未生效**：`stock_pools` 無 `owner_id`，配貨仍可能跨貨主取用，R3 的 `requireMatchingOwner()` 才收尾。行為上：下一個讀到這段 seed 的人不會把這個中間狀態誤認為 bug 或誤認為已解決。以文件與註解審閱驗證。
 
 ## 10. 前端
 

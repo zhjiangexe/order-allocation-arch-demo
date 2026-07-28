@@ -159,4 +159,27 @@ class DomainEventTranslatorTest {
     assertThat(outbox.getValue().partitionKey()).isEqualTo(orderId.toString());
     assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
   }
+  @Test
+  @DisplayName("order-id 策略下，跨多個 SKU 的訂單仍能翻譯——那個策略不需要 SKU")
+  void orderIdStrategyDoesNotNeedTheSkuAtAll() {
+    OutboxRepo outboxRepo = mock(OutboxRepo.class);
+    OutboxAppender appender =
+        new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
+    UUID orderId = UUID.randomUUID();
+
+    // 這是 R8「策略退場」那條出路的前提:退回 order-id 之後,多 SKU 的訂單必須真的跑得動。
+    // SKU 若在呼叫端就先求值,requireSingleSku 會在這裡拋錯,而那個策略根本用不到 SKU。
+    new OrderingDomainEventTranslator(appender, "order-id")
+        .translate(new OrderCancelled(
+            orderId,
+            OWNER_ID,
+            java.util.List.of(
+                new LineSnapshot(1, "SKU-1", 3),
+                new LineSnapshot(2, "SKU-2", 5)),
+            occurredAt));
+
+    ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
+    verify(outboxRepo).append(outbox.capture());
+    assertThat(outbox.getValue().partitionKey()).isEqualTo(orderId.toString());
+  }
 }

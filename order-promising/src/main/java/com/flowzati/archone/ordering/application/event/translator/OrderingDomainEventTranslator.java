@@ -11,6 +11,7 @@ import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,7 +49,7 @@ public class OrderingDomainEventTranslator {
         event.orderId().toString(),
         new OutboxDelivery(
             IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
-            partitionKey(event.orderId(), skuCode)),
+            partitionKey(event.orderId(), () -> skuCode)),
         event.placedAt()
     );
   }
@@ -62,7 +63,7 @@ public class OrderingDomainEventTranslator {
         new OutboxDelivery(
             IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
             partitionKey(
-                event.orderId(), LineSnapshot.requireSingleSku(event.lines()))),
+                event.orderId(), () -> LineSnapshot.requireSingleSku(event.lines()))),
         event.cancelledAt()
     );
   }
@@ -82,12 +83,28 @@ public class OrderingDomainEventTranslator {
    * 內跟著改成 {@code ownerId:skuCode}——分開做的話，中間那段時間不同貨主的事件會擠進同一個
    * partition 排隊等一個它們其實不共用的鎖。
    *
-   * <p><strong>而這個策略本身有到期日。</strong> 它的第二個前提是「一張單只碰一個 SKU」，
-   * 一則事件才摺得出單一個 key（見 {@code LineSnapshot.requireSingleSku}）。放寬多 SKU 之後
-   * 一則 {@code OrderPlaced} 無法同時進兩個 partition，屆時要嘛事件按 SKU 拆開，要嘛策略退場、
-   * 壓測改用 order-id。換 key 解決不了這一層。
+   * <p><strong>而這個策略本身有到期日，而且只有一條出路。</strong> 它的第二個前提是「一張單
+   * 只碰一個 SKU」，一則事件才摺得出單一個 key（見 {@code LineSnapshot.requireSingleSku}）。
+   *
+   * <p>放寬多 SKU 之後，這個策略與 ship-complete <strong>根本衝突</strong>：整籃原子判斷要在
+   * 同一個交易裡檢查所有 SKU 的 ATP，而 per-SKU 分區的保證是「同一個 SKU 的事件由同一個
+   * writer 序列化」——跨 SKU 的交易必然跨越多個 writer 的管轄，保證直接失效。
+   *
+   * <p>換更複雜的 key 救不回來：把整張單的 SKU 集合雜湊成 key 也不行，因為同一個 SKU 會出現
+   * 在多種組合裡，仍然跨 writer。<strong>問題不在 key 的組成，在「一次交易碰多個資源」與
+   * 「一個 key 只指向一個 partition」之間的矛盾。</strong>
+   *
+   * <p>「把事件按 SKU 拆成多則」<strong>不是出路</strong>——拆開之後一張單的兩則事件被兩個
+   * writer 各自處理，沒有人看得到整張單，那正是 ship-complete 要求的東西。唯一的出路是本策略
+   * 退場、退回 orderId，single-writer 的保證改用別的手段取得（按 SKU 分片的處理器、悲觀鎖，
+   * 或單純接受樂觀鎖重試）。
+   *
+   * <p>SKU 以 {@link Supplier} 傳入而非直接傳值，是為了讓上一段的第二條出路真的走得通：
+   * order-id 策略根本不需要 SKU，若在呼叫端就先算出來，多 SKU 的訂單會在
+   * {@code requireSingleSku} 拋錯——**一個不需要 SKU 的策略，被迫先算出 SKU 才能執行**。
+   * 延後求值之後，退回 order-id 就真的能跑，而不只是名義上的出路。
    */
-  private String partitionKey(UUID orderId, String sku) {
-    return SKU_STRATEGY.equals(partitionKeyStrategy) ? sku : orderId.toString();
+  private String partitionKey(UUID orderId, Supplier<String> skuCode) {
+    return SKU_STRATEGY.equals(partitionKeyStrategy) ? skuCode.get() : orderId.toString();
   }
 }

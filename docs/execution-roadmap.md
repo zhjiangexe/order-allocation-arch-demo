@@ -192,12 +192,64 @@ line 時間戳的聚合規則。
 5. `AllocationService`：批次篩選（`group = GOOD` 且未過期）→ FEFO 排序 → 依序取用；加 `requireMatchingOwner()`
 6. `AllocationOutcome`：區分「完全無批次」與「有批次但全不可售」。**決策層級是訂單**（採 ship-complete：整單配到／被哪條 line 卡住），per-line 資訊只作診斷用。型別要能承載「哪一條 line 的哪個 SKU 卡住了」
 7. `ReplenishmentUsecase`：改為帶效期的 upsert；`ReplenishStockCommand` 加 `expire_date`、`group`
-8. **防死鎖**：`OrderAllocationCoordinator` 的持久化段落**明確依 `(sku_code, expire_date)` 排序後寫入**，不可依賴集合的自然順序。排序鍵**現在就寫成跨 SKU 的形式**，即使單行時只有一個 SKU——R8 之後一次配貨會碰多個 SKU 的多個批次，屆時才改排序鍵是死鎖最難重現的一類問題
-9. **Partition key**：`OrderingDomainEventTranslator` 的 sku 策略改為 `ownerId:skuCode`
-10. 事件：`OrderAllocatedIntegrationEvent` 加批次清單（含每批對應的 `orderLineId`）
-11. Seed：同 SKU 三批（近／中／遠效期）、一批不良品、一批已過期、一張跨批次需求的單
-12. 前端：庫存頁改批次列表（效期、良品狀態、數量、是否可售與**落選理由**）＋ 貨主篩選；訂單詳細頁顯示配到哪些批次
-13. 測試：`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 的**前提失效，須重新設計**——熱點的定義從「一個 SKU」變成「一個批次」
+8. **補貨喚醒的批次上限**：`findBackordersBySkuInFifoOrder()` 目前無上限，`AllocationFifoReplenishmentBatchIntegrationTest` 已是「單次補貨喚醒 500 張」的情境——一個交易改 500 張 `Order`、寫 500 筆預留、發 1,000 則事件，而 `StockPool` 的樂觀鎖全程暴露在衝突下（交易越久越容易衝突 → 重試 → 更久）。批次化之後這從效能問題升級為**正確性問題**：一次補貨涉及的批次數量由佇列內容而非事件決定，鎖範圍不可預測，而任務 9 的死鎖防線依賴「知道自己會碰哪些列」。作法：**上限以張數為維度、可設定，超出時發一則續做事件**（同 topic 同 partition key），**終止條件為「本輪喚醒張數 < 上限即不續做」**——喚醒數不足代表佇列已清空或被 head-of-line blocker 卡住，再送一次結果相同，這同時保證進展性。**續做方案的前提是 FIFO 只保證「補貨當下的佇列快照」**（見 [dom-promising-scope.md](dom-promising-scope.md) 的「補貨的三個決定」）；若那條契約被改成嚴格全域 FIFO，本項只能退回同交易內分頁，而那沒有縮短交易
+9. **防死鎖**：`OrderAllocationCoordinator` 的持久化段落**明確依 `(sku_code, expire_date)` 排序後寫入**，不可依賴集合的自然順序。排序鍵**現在就寫成跨 SKU 的形式**，即使單行時只有一個 SKU——R8 之後一次配貨會碰多個 SKU 的多個批次，屆時才改排序鍵是死鎖最難重現的一類問題
+10. **Partition key**：`OrderingDomainEventTranslator` 的 sku 策略改為 `ownerId:skuCode`
+11. 事件：`OrderAllocatedIntegrationEvent` 加批次清單（含每批對應的 `orderLineId`）
+12. Seed：同 SKU 三批（近／中／遠效期）、一批不良品、一批已過期、一張跨批次需求的單
+13. 前端：庫存頁改批次列表（效期、良品狀態、數量、是否可售與**落選理由**）＋ 貨主篩選；訂單詳細頁顯示配到哪些批次
+14. 測試：`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 的**前提失效，須重新設計**——熱點的定義從「一個 SKU」變成「一個批次」。`AllocationFifoReplenishmentBatchIntegrationTest` 另受任務 8 影響：500 張的單次喚醒會變成多輪續做，斷言要從「一次補貨事件後的最終狀態」改為「續做收斂後的最終狀態」，**而 head-of-line blocking 的斷言必須保留**——那是這支測試存在的理由
+
+### 動工前要先定的四件事
+
+以下在 R1 實作期間浮現，都不是 R1 能決定的，但留到動工時才想會來不及。
+
+**1. `stock_pools` 的 aggregate 邊界：批次要不要進 unique key**
+
+任務 1 目前寫的是五維 `(owner_id, node_id, sku_code, expire_date, group)`，也就是**每個批次
+一個 aggregate、一個樂觀鎖**。另一個選項是三維 `(owner_id, node_id, sku_code)`，批次移到
+子表、成為 aggregate 內的集合。
+
+判準是「這個維度劃分**不可互換的庫存**，還是只是同一組內的排序依據」。**FEFO 的存在本身
+就證明批次可互換**——如果不可互換，就沒有「該先出哪一批」的問題。而「不超賣」這個 invariant
+也是跨批次計算的（ATP = 總量 − 預留）。按 DDD 的判準，一起變更、一起檢查不變式的東西該在
+同一個 aggregate 裡。
+
+五維的代價很具體，就是任務 8 那條防死鎖規則——一次交易更新多個獨立 aggregate，順序不固定
+就撞。三維讓「跨批次」那一層的多對一消失。
+
+**但任務 8 不能因此刪掉**：R6 拆單之後一次交易會跨節點，多對一會在那一層重新出現，只是排序
+鍵從 `(sku_code, expire_date)` 換成含 `node_id`。
+
+**2. partition key 必須與加 `owner_id` 在同一個 change**
+
+任務 9 已列出「改成 `ownerId:skuCode`」，但沒說**不能分開做**。key 的正確形狀由庫存的識別
+決定：庫存分開的那一刻，裸 `sku` 就從「正確」變成「假競爭」，兩個貨主的事件擠進同一個
+partition 排隊等一個它們其實不共用的鎖。分兩個 change 做的話，中間那段時間 single-writer
+是壞的。
+
+**3. partition key 該含哪些維度：兩維，不是三維也不是五維**
+
+判準是「**一次交易會碰到的資源集合**」，凡是交易會跨越的維度都不能進 key：
+
+| 維度 | 進 key 嗎 | 理由 |
+| --- | --- | --- |
+| `owner_id` | 是 | 庫存分開後不同貨主不再競爭 |
+| `sku_code` | 是 | 競爭的單位 |
+| `expire_date`／`group` | **否** | FEFO 在一次交易內跨批次取用 |
+| `node_id` | **否** | R6 的拆單會讓一次交易跨節點 |
+
+選太細比太粗危險：太粗只是過度收斂（本來可平行的被序列化），太細會讓 single-writer 失效。
+
+順帶釐清一個容易混的點：outbox 的 `aggregateid` 恆為 `orderId`，**與 `StockPool` 無關**
+——發事件的是 `Order`，`StockPool` 不出現在 outbox 裡。`partition_key` 對應的不是任何
+aggregate 的識別，而是「會競爭同一批庫存的事件群組」。
+
+**4. `stock_pools` 要不要建 `(owner_id, sku_code)` → `skus` 的外鍵**
+
+有了 `owner_id` 之後這才變成可行選項。好處是資料庫直接擋住「庫存池指向不存在的 SKU」；代價
+是 allocation 與 catalog 的儲存綁在一起。R1 目前靠 `DevSeedDataIntegrationTest` 的一支測試
+補這一段（斷言每個庫存池的 SKU 都存在於主檔）——若 R3 決定建外鍵，那支測試可以刪。
 
 ### 驗收
 
@@ -208,8 +260,12 @@ line 時間戳的聚合規則。
 
 ### 風險
 
-任務 8 與 13 最容易被跳過。前者不做會在壓測時出現偶發死鎖且難以重現；後者的三支測試
+任務 9 與 14 最容易被跳過。前者不做會在壓測時出現偶發死鎖且難以重現；後者的三支測試
 會「看起來還會過」但已經測不到原本要測的東西。
+
+任務 8 有另一種失敗方式：**它會讓一支現在是綠的測試變紅**，而最省事的反應是把上限調到
+大於 500 讓測試回綠——那等於沒做。上限的意義在於讓交易長度與佇列長度脫鉤，用「調到夠大」
+繞過它會保留原本的失敗模式，且不留下任何訊號。
 
 ---
 
@@ -336,7 +392,10 @@ line 時間戳的聚合規則。
 
 ## R8 放寬多筆 line
 
-**依賴**：R1　**並行**：任何　**規模**：約 20 檔（配貨演算法重寫，非原估的 15）
+**依賴**：R1、**R3 任務 8（補貨喚醒的批次上限）**　**不可與 R3 並行**　**規模**：約 20 檔（配貨演算法重寫，非原估的 15）
+
+對 R3 的依賴只有一項但是硬的：多行之後一次補貨喚醒涉及的 `StockPool` 數量由佇列內容
+決定，沒有批次上限就是無界，死鎖排序鍵無從先算（見任務 3）。
 
 `order_lines`、line 層級的 `backordered_since` 與 FIFO index 都已在 R1 完成，本 change
 **不搬遷任何結構、不加任何欄位、不改任何 index**。
@@ -357,11 +416,21 @@ line 時間戳的聚合規則。
 ### 任務
 
 1. 移除 `Order.place()` 裡「每張單只有一筆 line」的限制
-2. **`StrictFifoAllocationPolicy` 改為整籃原子判斷**：一張單的所有 line 的所有 SKU 必須同時可滿足才配，否則整單不配、不預留
+2. **`StrictFifoAllocationPolicy` 改為整籃原子判斷**：一張單的所有 line 的所有 SKU 必須同時可滿足才配，否則整單不配、不預留。具體形狀：`remaining` 從單一純量變成 per-SKU 的餘量映射，`break` 的判準從「這個 SKU 不足」變成「任一 SKU 不足」——**仍是 `break` 不是 `continue`**，head-of-line blocking 是刻意保留的性質
 3. **補貨喚醒改為跨 SKU 檢查**：補 SKU X 之後還要確認那些單的其他 SKU 也備齊
-4. `AmendOrderUsecase`、`SplitOrderUsecase`（**可拆成獨立的更小 change**）
-5. 前端：訂單列表一列改為可展開的多列
-6. 測試：整籃原子性、head-of-line blocking 在多 SKU 下的行為
+4. **`sku` partition 策略必須退場**，且這不是選項而是必然——它與 ship-complete 根本衝突：
+   整籃原子判斷要在同一個交易裡檢查所有 SKU 的 ATP，而 per-SKU 分區的保證是「同一個 SKU 的
+   事件由同一個 writer 序列化」，跨 SKU 的交易必然跨越多個 writer 的管轄。**換更複雜的
+   複合 key 救不回來**——把整張單的 SKU 集合雜湊成 key 也不行，同一個 SKU 會出現在多種組合
+   裡，仍然跨 writer。問題不在 key 的組成，在「一次交易碰多個資源」與「一個 key 只指向一個
+   partition」之間的矛盾。
+
+   「把事件按 SKU 拆成多則」**不是出路**：拆開之後一張單的兩則事件被兩個 writer 各自處理，
+   沒有人看得到整張單。退回 `orderId` 之後，single-writer 的保證要改用別的手段取得（按 SKU
+   分片的處理器、悲觀鎖，或單純接受樂觀鎖重試），而那是本 change 要一併決定的。**這一項比它看起來大**：「缺 SKU X 的 BACKORDERED 單」從候選集合退化為候選集合的**入口**——每張候選單還要載入全部 SKU 的需求、取得對應的全部 `StockPool`，才能做 ship-complete 的整籃判斷。一次補貨交易涉及的池數量因此由**佇列內容**決定而非事件決定。前提是 R3 任務 8 的批次上限已在位，否則池的數量無界，死鎖排序鍵無從先算
+5. `AmendOrderUsecase`、`SplitOrderUsecase`（**可拆成獨立的更小 change**）
+6. 前端：訂單列表一列改為可展開的多列
+7. 測試：整籃原子性、head-of-line blocking 在多 SKU 下的行為
 
 ### 驗收
 
@@ -391,7 +460,7 @@ R8 排最後的理由：它會讓 **R3、R6 與 R7** 同時面對多行的組合
 推翻前面任何設計。
 
 R3 也會被壓到這件事容易被忽略。採 ship-complete 之後只剩一個位置：**防死鎖的排序鍵要跨
-SKU**（一次配貨從碰一個 SKU 的多批次變成多個 SKU 的多批次），而這項已藉 R3 任務 8 提前
+SKU**（一次配貨從碰一個 SKU 的多批次變成多個 SKU 的多批次），而這項已藉 R3 任務 9 提前
 處理。原先擔心的「配貨結果從全有全無變成部分」在 ship-complete 下不存在。
 
 曾考慮把 R8 移到 R7 之前，理由是「單行下短揀對帳 demo 很弱」。**採 ship-complete 之後這個

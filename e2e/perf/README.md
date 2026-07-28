@@ -84,6 +84,10 @@ JIT／連線池／consumer-group 暖機程度不對稱污染吞吐量對比。
 對比圖：[`throughput_comparison.png`](k6/results/throughput_comparison.png)、
 [`conflict_comparison.png`](k6/results/conflict_comparison.png)。
 
+**這組數字量的是刻意製造衝突的劇本**（1,000 VUs 搶同一個 SKU），因此代表的是「熱點 SKU 下
+的上界」，不是一般流量的預期改善。真實訂單分散在多個 SKU 時衝突本來就少，兩個策略的差距會
+明顯縮小——這也是預設仍為 `order-id` 的理由：策略的價值取決於流量形狀，不是一律開啟。
+
 v3 只解決「下單 vs 下單」的衝突；「下單 vs 補貨」跨 consumer group 的殘留對撞
 不在這次範圍內，見
 [`docs/superpowers/specs/2026-07-26-v3-single-writer-design.md`](../../docs/superpowers/specs/2026-07-26-v3-single-writer-design.md)。
