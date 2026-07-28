@@ -15,7 +15,14 @@ effect, so a viewer can tell whether the running system uses the order-identifie
 strategy or the SKU strategy without leaving the console.
 
 The orders page's list SHALL show every field of the order representation, so that
-inspecting one order requires no further navigation, modal, or detail view.
+inspecting one order requires no further navigation, modal, or detail view. This
+includes the owner: each row SHALL name the owner the order belongs to, taken from the
+order response rather than resolved separately.
+
+Because intake accepts exactly one line per order, each row SHALL correspond to one
+order and SHALL render that order's single line inline. The row SHALL identify the
+line's goods as the product name together with the specification name rather than as a
+bare SKU code, since a SKU code alone is meaningless without its owner.
 
 #### Scenario: Opening the console lands on the orders page with the strategy visible
 
@@ -43,29 +50,55 @@ inspecting one order requires no further navigation, modal, or detail view.
 - **THEN** the configuration request count is unchanged from what the initial
   load produced — navigating adds none
 
+#### Scenario: A listed order names its owner and its goods in readable form
+
+- **GIVEN** two owners each have an order for a SKU code they both define
+- **WHEN** the orders page lists them
+- **THEN** each row names its own owner, and each row describes its goods as the
+  product name with the specification name, so the two rows are distinguishable
+
 ---
 ### Requirement: Placing an order shows the result in the list on the same page
 
-The orders page SHALL provide a form taking a SKU and a quantity. On success the
-newly created order SHALL become visible in the recent-orders list on that same
-page without navigation. The submitted quantity SHALL be sent as a number, and the
-form SHALL prevent submission of a non-positive quantity or an empty SKU rather
-than relying on the backend to reject it.
+The orders page SHALL provide a form taking an owner, an upstream order number, a
+destination zone, a destination address, a promised delivery date, and the goods
+ordered. The goods SHALL be chosen in two steps — a product, then one of that
+product's specifications — rather than typed as a SKU code, so that an unknown or
+cross-owner SKU code cannot be submitted at all.
+
+The selectable products SHALL be those of the selected owner, and the selectable
+specifications SHALL be those of the selected product. Changing the owner SHALL discard
+a product and specification chosen under the previous owner, since neither is valid
+under a different owner.
+
+On success the newly created order SHALL become visible in the recent-orders list on
+that same page without navigation. The submitted quantity SHALL be sent as a number,
+and the form SHALL prevent submission of a non-positive quantity or of an incomplete
+selection rather than relying on the backend to reject it.
 
 #### Scenario: A submitted order appears in the list as PENDING
 
-- **WHEN** the viewer submits the form with a valid SKU and quantity
+- **WHEN** the viewer submits the form with an owner, an upstream order number, a
+  destination, a promised delivery date, a selected specification, and a valid quantity
 - **THEN** the recent-orders list on the same page shows that new order with
-  status `PENDING`
+  status `PENDING`, naming that owner
+
+#### Scenario: Changing the owner discards a selection made under the previous owner
+
+- **GIVEN** the viewer has selected an owner, a product, and a specification
+- **WHEN** the viewer selects a different owner
+- **THEN** the product and specification selections are cleared, so the form can never
+  submit goods belonging to a different owner
 
 ##### Example: form validation before submission
 
-| SKU | Quantity | Result |
-| --- | --- | --- |
-| `HOT-SKU` | 1 | submitted |
-| `HOT-SKU` | 0 | blocked in the form, no request sent |
-| `HOT-SKU` | -3 | blocked in the form, no request sent |
-| empty | 1 | blocked in the form, no request sent |
+| Owner | Product | Specification | Quantity | Result |
+| --- | --- | --- | --- | --- |
+| selected | selected | selected | 1 | submitted |
+| selected | selected | selected | 0 | blocked in the form, no request sent |
+| selected | selected | selected | -3 | blocked in the form, no request sent |
+| selected | selected | not selected | 1 | blocked in the form, no request sent |
+| not selected | — | — | 1 | blocked in the form, no request sent |
 
 ---
 ### Requirement: Stock state and replenishment share one page keyed by SKU
@@ -73,6 +106,14 @@ than relying on the backend to reject it.
 The stock page SHALL take a SKU and report that SKU's on-hand, reserved, and
 available-to-promise quantities. From the same page and for the same SKU, the
 viewer SHALL be able to trigger a replenishment.
+
+Triggering a replenishment SHALL additionally require selecting an owner, because
+replenishment names the owner whose backordered queue it wakes. Querying stock SHALL
+NOT require an owner: stock pools carry no owner in this change, so a query scoped to
+one would be reporting a distinction the data does not make.
+
+The page SHALL state that the two actions are scoped differently, so a viewer does not
+read the reported quantities as belonging to the selected owner.
 
 Because allocation resulting from replenishment is asynchronous, the page SHALL
 report that the replenishment was accepted along with its event identifier, and
@@ -94,9 +135,15 @@ response arrives.
 - **WHEN** the viewer queries that SKU
 - **THEN** the page reports on-hand 10, reserved 4, and available-to-promise 6
 
+#### Scenario: Replenishment requires an owner but querying does not
+
+- **WHEN** the viewer triggers a replenishment without having selected an owner
+- **THEN** the action is blocked in the form and no request is sent, while querying the
+  same SKU's stock remains available without selecting an owner
+
 #### Scenario: A triggered replenishment is reported as accepted, not completed
 
-- **WHEN** the viewer triggers a replenishment for the queried SKU
+- **WHEN** the viewer triggers a replenishment for the queried SKU and a selected owner
 - **THEN** the page reports acceptance with the returned event identifier and
   states that the allocation outcome is observed by querying again, and it does
   not claim any order has been allocated
@@ -108,6 +155,7 @@ response arrives.
 | the replenishment was accepted | "N orders allocated" |
 | the returned event identifier | any order status change |
 | that the outcome requires querying again | a predicted count of woken orders |
+| that the quantities shown are not owner-scoped | the selected owner as an attribute of the stock pool |
 
 #### Scenario: Editing the SKU discards the previous SKU's result
 
