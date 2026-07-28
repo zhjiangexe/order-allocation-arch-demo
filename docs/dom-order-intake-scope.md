@@ -195,8 +195,8 @@ order_lines
 
 | 表 | 現況 | 目標 |
 | --- | --- | --- |
-| `stock_pools` | `UNIQUE (sku)` | `UNIQUE (owner_id, node_id, sku_code, expire_date, group)` |
-| `location_stock` | 不存在 | `(location_id, owner_id, sku_code, expire_date, group)` 複合主鍵 |
+| `stock_pools` | `UNIQUE (sku)` | `UNIQUE (owner_id, node_id, sku_code, lot_no)`（`expire_date`／`group` 為屬性） |
+| `location_stock` | 不存在 | `(location_id, owner_id, sku_code, lot_no)` 複合主鍵 |
 
 `stock_pools` 共有**四個**維度要擴張——貨主、節點、效期、良品狀態——**應在同一次
 migration 完成**。分次做等於對同一組 unique constraint 與所有查詢改四輪，中間狀態
@@ -207,7 +207,7 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 曾考慮在擴維度的同時把表改名為 `stock_batches`，理由是「一列已經代表一個批次」。**不改名。**
 
 `lot_number` 不做（見 [dom-promising-scope.md](dom-promising-scope.md) 的 P1），因此 key 是
-`(owner, node, sku, expire_date, group)`。這代表：
+`(owner, node, sku, lot_no)`。這代表：
 
 > 今天收 100 件效期 2027-01-01，下週再收 50 件同效期——**兩者合併為同一列，`on_hand = 150`。**
 
@@ -219,7 +219,7 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 | key | 一列代表 | `pool` 準確嗎 |
 | --- | --- | --- |
 | `(sku)` 現況 | 這個 SKU 的所有可用單位 | 準 |
-| `(owner, node, sku, expire_date, group)` 目標 | 這個貨主、節點、效期、狀態下的可互換單位 | **一樣準** |
+| `(owner, node, sku, lot_no)` 目標 | 這個貨主、節點下的某一批貨 | **一樣準** |
 
 `batch` 在 WMS 語境幾乎等同 lot，讀的人會期待「一次收貨 = 一列」與可追溯性，而這張表兩者
 都不提供。那與 `order-promising` 承諾了 promise date、`availableToPromise()` 承諾了時間
