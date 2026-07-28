@@ -6,7 +6,8 @@
  * 可行；端點數量若成長，就該回頭評估在後端引入文件產生器。
  *
  * 跟隨過的 change：`add-demo-console-api`（六支端點）、`add-owner-and-order-line-model`
- * （訂單改為行的集合、加入貨主與主檔查詢、補貨要指定貨主）。
+ * （訂單改為行的集合、加入貨主與主檔查詢、補貨要指定貨主）、
+ * `add-warehouse-and-owner-assignment`（訂單必須指定倉別、加入倉庫查詢）。
  */
 
 export type OrderStatus = 'PENDING' | 'ALLOCATED' | 'BACKORDERED' | 'CANCELLED';
@@ -21,6 +22,13 @@ export type TemperatureZone = 'AMBIENT' | 'CHILLED' | 'FROZEN';
  */
 export interface OwnerView {
   ownerId: string;
+  code: string;
+  name: string;
+}
+
+/** 倉庫。只有身分——系統不做選倉決策，所以沒有狀態、能力或產能可帶。 */
+export interface FulfillmentNodeView {
+  nodeId: string;
   code: string;
   name: string;
 }
@@ -62,6 +70,8 @@ export interface OrderView {
   orderId: string;
   ownerId: string;
   externalOrderNo: string;
+  /** 這張單從哪個倉出。由上游指定，不是系統選的。 */
+  fulfillmentNodeId: string;
   shipToZone: string;
   shipToAddress: string;
   promisedDeliveryDate: string;
@@ -76,6 +86,7 @@ export interface OrderView {
 export interface PlaceOrderCommand {
   ownerId: string;
   externalOrderNo: string;
+  fulfillmentNodeId: string;
   shipToZone: string;
   shipToAddress: string;
   promisedDeliveryDate: string;

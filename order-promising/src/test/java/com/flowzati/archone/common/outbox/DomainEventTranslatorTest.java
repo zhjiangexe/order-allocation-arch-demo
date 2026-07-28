@@ -26,12 +26,15 @@ import static org.mockito.Mockito.verify;
 class DomainEventTranslatorTest {
 
   private static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+  private static final UUID NODE_ID =
+      UUID.fromString("00000000-0000-0000-0000-0000000000b1");
   private static final java.util.List<LineSnapshot> LINES =
       java.util.List.of(new LineSnapshot(1, "SKU-1", 3));
 
   private OrderPlaced placed(UUID orderId) {
     return new OrderPlaced(
-        orderId, OWNER_ID, "100", java.time.LocalDate.of(2026, 8, 1), LINES, occurredAt);
+        orderId, OWNER_ID, NODE_ID, "100", java.time.LocalDate.of(2026, 8, 1), LINES,
+        occurredAt);
   }
 
   private final Instant occurredAt = Instant.parse("2026-07-24T10:00:00Z");

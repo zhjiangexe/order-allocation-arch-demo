@@ -19,6 +19,9 @@ import java.util.UUID;
  * <p>SKU 與數量在 {@code lines} 裡而不在頂層：訂單的形狀本來就是行的集合，客戶端不需要
  * 知道「目前每張單只有一行」這件事，多行放寬時這個契約也不必改。
  *
+ * <p>倉別在頂層而不在行上：一張單只從一個倉出、明細不可跨倉，放在行上會是 header 的複本。
+ * 與貨主名稱同理，這裡只帶識別碼——倉庫名稱由呼叫端從它已載入的主檔解析。
+ *
  * <p>k6 polls this to measure "time to allocation decision": the exact
  * {@code allocatedAt}/{@code backOrderedSince} timestamp, not the polling interval, is
  * what should drive the latency chart — polling only tells k6 *when to stop asking*.
@@ -27,6 +30,7 @@ public record OrderStatusResponse(
     UUID orderId,
     UUID ownerId,
     String externalOrderNo,
+    UUID fulfillmentNodeId,
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate,
@@ -47,6 +51,7 @@ public record OrderStatusResponse(
         order.getId(),
         order.getOwnerId(),
         order.getExternalOrderNo(),
+        order.getDeliveryTerms().fulfillmentNodeId(),
         order.getDeliveryTerms().shipToZone(),
         order.getDeliveryTerms().shipToAddress(),
         order.getDeliveryTerms().promisedDeliveryDate(),

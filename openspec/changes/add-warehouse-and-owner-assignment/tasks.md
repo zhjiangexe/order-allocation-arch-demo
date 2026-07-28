@@ -15,19 +15,19 @@
 
 ## 3. 倉庫查詢的 HTTP 表面
 
-- [ ] 3.1 實作 **An owner's warehouses are queryable over HTTP**：新增巢狀在貨主之下的唯讀端點，回傳該貨主已指派倉庫的 `id`／`code`／`name`。路徑巢狀而非以貨主當可省略的篩選條件——扁平的倉庫清單會誘使呼叫端提供該貨主出不了貨的倉。未知貨主回空陣列而非錯誤，與既有主檔查詢一致。行為上：查甲貨主只得到它掛的倉；查一個不存在的貨主得到空陣列而非 404。以 web 層測試涵蓋兩種情形驗證。
+- [x] 3.1 實作 **An owner's warehouses are queryable over HTTP**：新增巢狀在貨主之下的唯讀端點，回傳該貨主已指派倉庫的 `id`／`code`／`name`。路徑巢狀而非以貨主當可省略的篩選條件——扁平的倉庫清單會誘使呼叫端提供該貨主出不了貨的倉。未知貨主回空陣列而非錯誤，與既有主檔查詢一致。行為上：查甲貨主只得到它掛的倉；查一個不存在的貨主得到空陣列而非 404。以 web 層測試涵蓋兩種情形驗證。
 
 ## 4. 訂單的 domain 與收單
 
 - [x] 4.1 依 **An order carries an owner, an upstream reference, and a delivery commitment**，把 `Order` 的 `requestedNodeId` 更名為 `fulfillmentNodeId` 並改為必填——`place()` 與 `rehydrate()` 都要求它，缺少時拋錯而非填預設值。行為上：建立訂單時不給倉別會在領域層就失敗，不會拖到資料庫。以領域測試斷言缺倉別時拋出驗證。
 - [x] 4.2 依 **A line inherits its order's warehouse rather than carrying its own**，從 `OrderLine` 移除 `assignedNodeId`，並確認沒有任何地方以「行的倉別」為前提。行為上：行只有 `lineNo`／`ownerId`／`skuCode`／`quantity`／`status`／`backorderedSince`。以編譯與領域測試驗證。
 - [x] 4.3 ~~在 `OrderingArchitectureTest` 加規則禁止 `OrderLine` 帶倉別~~ **不做**（2026-07-29 決定）。架構測試該擋的是分層與依賴方向這類**容易不小心違反**的規則——既有那條禁止 `getLines().get(0)` 之所以成立，是因為「取第一行」是寫 allocation 時很自然會伸手去做、今天正確、放寬多行後安靜出錯的寫法。而「把倉別加回行上」是刻意的設計行為，會伴隨 spec 變更，不會手滑發生；它也不是架構規則而是單一類別的資料模型規則，該由 schema 與 spec 表達。真正值得補的架構規則是 ordering 與 allocation 的依賴方向（`AllocationService` 直接呼叫 `order.markAllocated()`），那屬 R4。
-- [ ] 4.4 依決策「**`OrderPlaced` 加 `fulfillmentNodeId`**」，為該領域事件加上該欄位。行為上：R3 要組 `ownerId/nodeId/skuCode` 的 partition key 時，節點維度在事件裡拿得到，不需回頭改事件契約。以事件的建構測試驗證欄位存在且等於訂單的倉別。
-- [ ] 4.5 依 `product-catalog` 的貨主定義，從 `Owner` 移除 `allowSplitShipment`，並清掉所有讀取端。行為上：貨主只有 `code`／`name`／`status`。以編譯驗證。
+- [x] 4.4 依決策「**`OrderPlaced` 加 `fulfillmentNodeId`**」，為該領域事件加上該欄位。行為上：R3 要組 `ownerId/nodeId/skuCode` 的 partition key 時，節點維度在事件裡拿得到，不需回頭改事件契約。以事件的建構測試驗證欄位存在且等於訂單的倉別。
+- [x] 4.5 依 `product-catalog` 的貨主定義，從 `Owner` 移除 `allowSplitShipment`，並清掉所有讀取端。行為上：貨主只有 `code`／`name`／`status`。以編譯驗證。
 
 ## 5. 下單的 HTTP 契約
 
-- [ ] 5.1 實作 **Placing an order accepts a JSON command and returns the created order** 的變更：request body 加必填倉別；回應的訂單表示帶倉別識別碼。狀態碼維持 `200`、既有的「無行／多行／未知 SKU／單號重複」拒絕條件不變。行為上：不帶倉別、或帶了該貨主沒掛的倉，請求被拒且不建立訂單。以 web 層測試涵蓋範例表的六種情形驗證。
+- [x] 5.1 實作 **Placing an order accepts a JSON command and returns the created order** 的變更：request body 加必填倉別；回應的訂單表示帶倉別識別碼。狀態碼維持 `200`、既有的「無行／多行／未知 SKU／單號重複」拒絕條件不變。行為上：不帶倉別、或帶了該貨主沒掛的倉，請求被拒且不建立訂單。以 web 層測試涵蓋範例表的六種情形驗證。
 
 ## 6. Seed 資料
 
@@ -37,12 +37,12 @@
 
 ## 7. 前端
 
-- [ ] 7.1 實作 **Placing an order shows the result in the list on the same page** 的變更：下單表單加倉庫下拉，選項為所選貨主已指派的倉；換貨主時**一併清空**倉庫、款、規格三者。倉庫用選的不用打——打字可以打出該貨主沒掛的倉，那會換來一次沒有必要的往返。行為上：兩個貨主的倉庫選項不同；未選倉庫時送出被表單擋下、不發請求。以前端測試涵蓋「選項依貨主過濾」「換貨主清空三者」「未選倉庫被擋」三種情形驗證。
-- [ ] 7.2 更新前端的型別與主檔載入：`PlaceOrderCommand` 與 `OrderView` 加倉別，`useCatalog` 一併載入各貨主的倉庫。行為上：倉庫清單與款／規格走同一次進場載入，選擇時零請求——與現有的「靜置不發請求」保證一致。以型別檢查與既有的 `OrdersPage` 靜置測試通過驗證。
+- [x] 7.1 實作 **Placing an order shows the result in the list on the same page** 的變更：下單表單加倉庫下拉，選項為所選貨主已指派的倉；換貨主時**一併清空**倉庫、款、規格三者。倉庫用選的不用打——打字可以打出該貨主沒掛的倉，那會換來一次沒有必要的往返。行為上：兩個貨主的倉庫選項不同；未選倉庫時送出被表單擋下、不發請求。以前端測試涵蓋「選項依貨主過濾」「換貨主清空三者」「未選倉庫被擋」三種情形驗證。
+- [x] 7.2 更新前端的型別與主檔載入：`PlaceOrderCommand` 與 `OrderView` 加倉別，`useCatalog` 一併載入各貨主的倉庫。行為上：倉庫清單與款／規格走同一次進場載入，選擇時零請求——與現有的「靜置不發請求」保證一致。以型別檢查與既有的 `OrdersPage` 靜置測試通過驗證。
 
 ## 8. 端到端驗收與文件
 
-- [ ] 8.1 更新 `e2e/perf/run.sh` 的 `seed` 子命令：除了現有的主檔三層與庫存池，一併種壓測用的倉庫與貨主倉庫配對。行為上：壓測訂單帶得出合法倉別，不會撞外鍵。以壓測執行時 `checks_total` 全過驗證。
-- [ ] 8.2 更新 `e2e/perf/k6/hot-sku-burst.js` 的下單 payload 加倉別，倉庫識別碼由 `setup` 以代碼反查（與現行貨主的作法一致，UUID 只寫在 `run.sh` 一處）。行為上：壓測腳本能建立訂單並完成後續輪詢。以 thresholds 通過驗證。
-- [ ] 8.3 依 design 的 Migration Plan 重建並重跑壓測：先 `./e2e/perf/run.sh down` 移除既有 Postgres volume（改寫既有 migration 必然造成 Flyway checksum 不符，**不得以 `flyway repair` 略過**），再 `./e2e/perf/run.sh perf`。行為上：既有 k6 thresholds 全數通過，代表倉別必填未使壓測退化。以本次結果更新 `e2e/perf/README.md` 的 baseline 數字。
-- [ ] 8.4 核對 `docs/` 的敘述與實作一致——這些文件已於 2026-07-29 先行更新，本項只是驗證而非再寫一輪。特別確認 `docs/stock-reservation-design.md` 的 `orders` 欄位表、`docs/execution-roadmap.md` 的 R2 任務清單、以及 1.4 實際採用的外鍵形式三者相符。以文件審閱驗證。
+- [x] 8.1 更新 `e2e/perf/run.sh` 的 `seed` 子命令：除了現有的主檔三層與庫存池，一併種壓測用的倉庫與貨主倉庫配對。行為上：壓測訂單帶得出合法倉別，不會撞外鍵。以壓測執行時 `checks_total` 全過驗證。
+- [x] 8.2 更新 `e2e/perf/k6/hot-sku-burst.js` 的下單 payload 加倉別，倉庫識別碼由 `setup` 以代碼反查（與現行貨主的作法一致，UUID 只寫在 `run.sh` 一處）。行為上：壓測腳本能建立訂單並完成後續輪詢。以 thresholds 通過驗證。
+- [x] 8.3 依 design 的 Migration Plan 重建並重跑壓測：先 `./e2e/perf/run.sh down` 移除既有 Postgres volume（改寫既有 migration 必然造成 Flyway checksum 不符，**不得以 `flyway repair` 略過**），再 `./e2e/perf/run.sh perf`。行為上：既有 k6 thresholds 全數通過，代表倉別必填未使壓測退化。以本次結果更新 `e2e/perf/README.md` 的 baseline 數字。
+- [x] 8.4 核對 `docs/` 的敘述與實作一致——這些文件已於 2026-07-29 先行更新，本項只是驗證而非再寫一輪。特別確認 `docs/stock-reservation-design.md` 的 `orders` 欄位表、`docs/execution-roadmap.md` 的 R2 任務清單、以及 1.4 實際採用的外鍵形式三者相符。以文件審閱驗證。

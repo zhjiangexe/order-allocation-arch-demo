@@ -167,10 +167,14 @@ line 時間戳的聚合規則。
    但那要等有讀者時再加
 3. `V3` 加 `owner_nodes`（PK `(owner_id, node_id)`，雙 FK）。**零設定欄位**——它在 R2 的
    用途只有一個：下單表單知道這個貨主能選哪些倉。設定欄位等 R3（見該節待定事項 6）
-4. `V3` 的 `orders.requested_node_id` 更名為 `fulfillment_node_id`、改 **`NOT NULL`**、
-   **補 FK** 指向 `fulfillment_nodes`。補 FK 刻意偏離「外部來的不補」原則：收件地址千變萬化，
-   但倉別是簽約時就固定的少數幾個值，上游送錯就是設定錯誤，早點擋下比較好
-5. `V3` 砍掉 `order_lines.assigned_node_id` 與 `owners.allow_split_shipment`
+4. `V3` 的 `orders.requested_node_id` 更名為 `fulfillment_node_id`、改 **`NOT NULL`**、補
+   **複合外鍵 `(owner_id, fulfillment_node_id)` → `owner_nodes`**（不是單欄指向
+   `fulfillment_nodes`）。已實測可行，因此「倉存在但這個貨主沒掛」由資料庫擋下，應用層零
+   檢查。補 FK 刻意偏離「外部來的不補」原則：收件地址千變萬化，但倉別是簽約時就固定的少數
+   幾個值，上游送錯就是設定錯誤，早點擋下比較好
+5. `V3` 砍掉 `order_lines.assigned_node_id`、`owners.allow_split_shipment` 與
+   **`owners.status`**。最後一個是任務 2 的同一把尺——它同樣沒有任何決策讀它，種子兩個貨主
+   都是 `ACTIVE`，`SUSPENDED` 只出現在測試裡。只砍新的而留下舊的不是判準，是慣性
 6. Domain：`FulfillmentNode`；Infrastructure：entity／mapper／repository；
    Usecase：`ListNodesForOwnerUsecase`（依貨主列出可用倉庫）
 7. `OrderPlaced` 領域事件加 `fulfillmentNodeId`（R3 的 partition key 要用）

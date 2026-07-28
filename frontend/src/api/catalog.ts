@@ -1,4 +1,4 @@
-import type { OwnerView, ProductView, SkuView } from './types';
+import type { FulfillmentNodeView, OwnerView, ProductView, SkuView } from './types';
 
 /** 主檔查到的規格，附上所屬款的品名——列表要顯示「品名 · 規格」，而品名在款那一層。 */
 export interface CatalogSku extends SkuView {
@@ -8,6 +8,8 @@ export interface CatalogSku extends SkuView {
 /** 一個貨主的整份主檔。`skus` 是該貨主全部款底下的規格，不分款攤平。 */
 export interface CatalogEntry {
   owner: OwnerView;
+  /** 這個貨主能指定的出貨倉。空陣列代表它一個倉都沒掛，那種貨主下不了單。 */
+  nodes: readonly FulfillmentNodeView[];
   products: readonly ProductView[];
   skus: readonly CatalogSku[];
 }
@@ -40,6 +42,10 @@ export class Catalog {
 
   get owners(): OwnerView[] {
     return [...this.entries.values()].map((entry) => entry.owner);
+  }
+
+  nodesOf(ownerId: string): readonly FulfillmentNodeView[] {
+    return this.entries.get(ownerId)?.nodes ?? [];
   }
 
   productsOf(ownerId: string): readonly ProductView[] {

@@ -31,6 +31,7 @@ class EventSeparationTest {
     OrderPlaced event = new OrderPlaced(
         orderId,
         ownerId,
+        UUID.fromString("00000000-0000-0000-0000-0000000000b1"),
         "100",
         java.time.LocalDate.of(2026, 8, 1),
         java.util.List.of(new LineSnapshot(1, "SKU-1", 3)),

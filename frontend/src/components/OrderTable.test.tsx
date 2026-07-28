@@ -21,6 +21,7 @@ const OWNER_B: OwnerView = {
 const CATALOG = new Catalog([
   {
     owner: OWNER_A,
+    nodes: [{ nodeId: '00000000-0000-0000-0000-000000000011', code: 'WH-NORTH', name: '北部倉' }],
     products: [
       {
         productId: 'p-a',
@@ -44,6 +45,7 @@ const CATALOG = new Catalog([
   },
   {
     owner: OWNER_B,
+    nodes: [{ nodeId: '00000000-0000-0000-0000-000000000013', code: 'WH-SOUTH', name: '南部倉' }],
     products: [
       {
         productId: 'p-b',
@@ -70,6 +72,7 @@ const CATALOG = new Catalog([
 function order(overrides: Partial<OrderView> & Pick<OrderView, 'orderId' | 'ownerId'>): OrderView {
   return {
     externalOrderNo: 'PO-1',
+    fulfillmentNodeId: '00000000-0000-0000-0000-000000000011',
     shipToZone: '100',
     shipToAddress: '台北市中正區重慶南路一段 122 號',
     promisedDeliveryDate: '2026-08-03',

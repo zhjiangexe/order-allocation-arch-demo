@@ -46,17 +46,17 @@ VUS 的壓測。`up` 是預設的 subcommand，因此直接 `./e2e/perf/run.sh` 
 
 整條路徑（`POST /orders` → Outbox → Debezium → Kafka → 消費）與 `GET /orders/{orderId}`
 已即時驗證通過。v1 baseline（4-partition／concurrency=4、庫存 500 件，原始輸出見
-[`k6/results/hot-sku-burst-r1-order-lines.log`](k6/results/hot-sku-burst-r1-order-lines.log)）：
+[`k6/results/hot-sku-burst-r2-warehouse.log`](k6/results/hot-sku-burst-r2-warehouse.log)）：
 1,000 張訂單收斂為 500 `ALLOCATED`／500 `BACKORDERED`，`checks_total` 全過、不超賣、
-不漏單，`order_decision_latency_ms` p99 4.14s–5.09s。跟 Demo-01 SIT
+不漏單，`order_decision_latency_ms` p99 5.11s。跟 Demo-01 SIT
 （`AllocationHotSkuConcurrencyIntegrationTest` 的 test-only 屏障強制製造衝突）是互補的
 驗證方式，都能穩定量到真實 optimistic-lock 衝突。
 
-上面這組數字是在訂單改為「貨主 ＋ 行的集合」之後、於空資料庫上重新套用 migration 再量的。
-同一次 session 連跑兩輪為 p99 5.09s 與 4.14s；此改動之前記錄的是 4.5s 與 4.77s，兩組區間
-重疊，**沒有證據顯示資料模型改造使延遲退化**。這是預期的——每張單多寫一列 `order_lines`
-並多一次指向 `skus` 的外鍵檢查，都是微秒級；配置延遲由 Kafka 傳遞與單一 `StockPool` row
-的樂觀鎖競爭主導。要拿延遲數字做跨版本比較，必須在同一次 session、同樣的機器負載下量測。
+上面這組數字是在訂單加上必填倉別、且該欄位帶複合外鍵之後，於空資料庫上重新套用 migration
+再量的。歷次記錄：加倉別前 5.09s 與 4.14s，更早的行模型改造前 4.5s 與 4.77s。**三組互相
+重疊，沒有證據顯示任何一次資料模型改造使延遲退化**。這是預期的——每張單多一次指向
+`owner_nodes` 的複合外鍵檢查是微秒級；配置延遲由 Kafka 傳遞與單一 `StockPool` row 的樂觀鎖
+競爭主導。要拿延遲數字做跨版本比較，必須在同一次 session、同樣的機器負載下量測。
 
 同一輪的重試計數（`run.sh verify HOT-SKU`）：嘗試 23 次、用盡 6 次，與下方表格的
 「乾淨跑法」一列一致；DB 的狀態分布也是 500／500，與 k6 端計數對得上。

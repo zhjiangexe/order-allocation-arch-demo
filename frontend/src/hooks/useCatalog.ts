@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import { Catalog, type CatalogEntry } from '../api/catalog';
-import { listOwners, listProducts, listSkus } from '../api/client';
+import { listNodes, listOwners, listProducts, listSkus } from '../api/client';
 
 /**
- * 進場載入一次主檔，供下拉選單、訂單列表的名稱解析、庫存頁的 SKU 建議共用。
+ * 進場載入一次主檔（貨主、倉庫、款、規格），供下拉選單、訂單列表的名稱解析、庫存頁的
+ * SKU 建議共用。
  *
  * <p>整個畫面查一次，不是每一列、每一次選擇各查一次——後者才是 N+1。
  *
@@ -22,14 +23,17 @@ export function useCatalog(): Catalog {
       const owners = await listOwners();
       const entries: CatalogEntry[] = await Promise.all(
         owners.map(async (owner) => {
-          const products = await listProducts(owner.ownerId);
+          const [nodes, products] = await Promise.all([
+            listNodes(owner.ownerId),
+            listProducts(owner.ownerId),
+          ]);
           const perProduct = await Promise.all(
             products.map(async (product) => {
               const skus = await listSkus(owner.ownerId, product.productCode);
               return skus.map((sku) => ({ ...sku, productName: product.name }));
             }),
           );
-          return { owner, products, skus: perProduct.flat() };
+          return { owner, nodes, products, skus: perProduct.flat() };
         }),
       );
 

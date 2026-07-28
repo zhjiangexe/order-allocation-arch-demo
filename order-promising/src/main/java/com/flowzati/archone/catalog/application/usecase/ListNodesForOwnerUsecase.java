@@ -1,0 +1,28 @@
+package com.flowzati.archone.catalog.application.usecase;
+
+import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
+import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ListNodesForOwnerUsecase {
+
+  private final FulfillmentNodeRepository fulfillmentNodeRepository;
+
+  public ListNodesForOwnerUsecase(FulfillmentNodeRepository fulfillmentNodeRepository) {
+    this.fulfillmentNodeRepository = fulfillmentNodeRepository;
+  }
+
+  /**
+   * 貨主是必要參數而非選用篩選。
+   *
+   * <p>與款、規格的理由不同——倉庫代碼不會跨貨主撞號。這裡的理由是**可用性**：一份不帶貨主
+   * 的倉庫清單會誘使呼叫端提供該貨主出不了貨的倉，而那種訂單會被資料庫的複合外鍵擋下，
+   * 換來一次沒有必要的往返。
+   */
+  public List<FulfillmentNode> listByOwner(UUID ownerId) {
+    return fulfillmentNodeRepository.findByOwner(ownerId);
+  }
+}

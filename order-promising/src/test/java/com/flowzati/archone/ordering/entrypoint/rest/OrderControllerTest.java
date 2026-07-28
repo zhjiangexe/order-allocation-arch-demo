@@ -38,6 +38,19 @@ class OrderControllerTest {
       {
         "ownerId": "00000000-0000-0000-0000-0000000000a1",
         "externalOrderNo": "EXT-1",
+        "fulfillmentNodeId": "00000000-0000-0000-0000-0000000000b1",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-08-01",
+        "lines": [{"skuCode": "HOT-SKU", "quantity": 3}]
+      }
+      """;
+
+  /** 沒有倉別的 body。倉別必填，這種請求不該建立任何訂單。 */
+  private static final String BODY_WITHOUT_NODE = """
+      {
+        "ownerId": "00000000-0000-0000-0000-0000000000a1",
+        "externalOrderNo": "EXT-1",
         "shipToZone": "100",
         "shipToAddress": "台北市中正區重慶南路一段 122 號",
         "promisedDeliveryDate": "2026-08-01",
@@ -75,6 +88,8 @@ class OrderControllerTest {
     response.hasStatus(200);
     response.bodyJson().extractingPath("$.orderId").isEqualTo(orderId.toString());
     response.bodyJson().extractingPath("$.ownerId").isEqualTo(OrderFixtures.OWNER_ID.toString());
+    response.bodyJson().extractingPath("$.fulfillmentNodeId")
+        .isEqualTo(OrderFixtures.NODE_ID.toString());
     response.bodyJson().extractingPath("$.shipToZone").isEqualTo("100");
     response.bodyJson().extractingPath("$.promisedDeliveryDate").isEqualTo("2026-08-01");
     response.bodyJson().extractingPath("$.status").isEqualTo("PENDING");
@@ -106,6 +121,29 @@ class OrderControllerTest {
   void rejectsOrdersReferencingUnknownCatalogData() {
     when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
         .thenThrow(new DataIntegrityViolationException("fk_order_lines_sku"));
+
+    assertThat(mvc.post().uri("/orders")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(PLACE_ORDER_BODY)).hasStatus(400);
+  }
+
+  @Test
+  @DisplayName("未指定倉別時回 400——倉別必填，領域層就會拒絕")
+  void rejectsOrdersWithoutAWarehouse() {
+    when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
+        .thenThrow(new IllegalArgumentException("Fulfillment node is required"));
+
+    assertThat(mvc.post().uri("/orders")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(BODY_WITHOUT_NODE)).hasStatus(400);
+    verify(placeOrderUsecase).placeOrder(any(PlaceOrderCommand.class));
+  }
+
+  @Test
+  @DisplayName("指定該貨主沒掛的倉時回 400——複合外鍵擋下，不是應用層檢查")
+  void rejectsWarehouseTheOwnerIsNotAssignedTo() {
+    when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
+        .thenThrow(new DataIntegrityViolationException("fk_orders_owner_node"));
 
     assertThat(mvc.post().uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)

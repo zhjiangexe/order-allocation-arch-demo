@@ -49,6 +49,7 @@ class PlaceOrderUsecaseTest {
     assertThat(publishedEvents).containsExactly(new OrderPlaced(
         returnedOrder.getId(),
         OrderFixtures.OWNER_ID,
+        OrderFixtures.NODE_ID,
         "100",
         java.time.LocalDate.of(2026, 8, 1),
         List.of(new LineSnapshot(1, "SKU-1", 3)),

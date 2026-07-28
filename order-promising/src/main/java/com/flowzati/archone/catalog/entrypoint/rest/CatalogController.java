@@ -1,5 +1,6 @@
 package com.flowzati.archone.catalog.entrypoint.rest;
 
+import com.flowzati.archone.catalog.application.usecase.ListNodesForOwnerUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListOwnersUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListProductsUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListSkusUsecase;
@@ -27,15 +28,18 @@ public class CatalogController {
   private final ListOwnersUsecase listOwnersUsecase;
   private final ListProductsUsecase listProductsUsecase;
   private final ListSkusUsecase listSkusUsecase;
+  private final ListNodesForOwnerUsecase listNodesForOwnerUsecase;
 
   public CatalogController(
       ListOwnersUsecase listOwnersUsecase,
       ListProductsUsecase listProductsUsecase,
-      ListSkusUsecase listSkusUsecase
+      ListSkusUsecase listSkusUsecase,
+      ListNodesForOwnerUsecase listNodesForOwnerUsecase
   ) {
     this.listOwnersUsecase = listOwnersUsecase;
     this.listProductsUsecase = listProductsUsecase;
     this.listSkusUsecase = listSkusUsecase;
+    this.listNodesForOwnerUsecase = listNodesForOwnerUsecase;
   }
 
   @GetMapping
@@ -51,6 +55,18 @@ public class CatalogController {
   @GetMapping("/{ownerId}/products")
   public List<ProductResponse> listProducts(@PathVariable UUID ownerId) {
     return listProductsUsecase.listByOwner(ownerId).stream().map(ProductResponse::from).toList();
+  }
+
+  /**
+   * 該貨主可以指定的出貨倉。同樣巢狀在貨主之下，但理由與款、規格不同——倉庫代碼不會跨貨主
+   * 撞號，這裡的前提是**指派關係**：沒有指派就不能從那個倉出貨。扁平的倉庫清單會誘使呼叫端
+   * 提供該貨主出不了貨的倉。
+   */
+  @GetMapping("/{ownerId}/nodes")
+  public List<FulfillmentNodeResponse> listNodes(@PathVariable UUID ownerId) {
+    return listNodesForOwnerUsecase.listByOwner(ownerId).stream()
+        .map(FulfillmentNodeResponse::from)
+        .toList();
   }
 
   @GetMapping("/{ownerId}/products/{productCode}/skus")

@@ -239,7 +239,7 @@ SR-08 ─> SR-09 ─┐
 > → `orders` → `order_lines`。`orders` 不再直接持有 `sku` 與 `quantity`——它們移到行上。
 > 權威定義見 `V3__create_ordering_tables.sql`，該檔的註解記錄了每個取捨的理由。
 
-### 主檔：`owners` / `products` / `skus`
+### 主檔：`owners` / `products` / `skus` / `fulfillment_nodes` / `owner_nodes`
 
 貨主是 3PL 的委託方——倉庫不擁有貨，貨屬於他們。商品分兩層：**款**（`products`，溫層屬這裡，
 同一款的所有規格必然同溫層）與**規格**（`skus`，重量屬這裡，500ml 與 1L 重量不同）。
@@ -248,6 +248,14 @@ SR-08 ─> SR-09 ─┐
 `products`、`order_lines` 指向 `skus` 的外鍵**刻意仍走自然鍵** `(owner_id, product_code)`
 與 `(owner_id, sku_code)`。在 3PL 裡編碼由貨主自訂、跨貨主必然撞號，走自然鍵的外鍵強制每
 一次參照都帶上貨主，「款與規格必須屬於同一個貨主」因此由資料庫保證，不必在應用層檢查。
+
+**貨主與倉庫都只有身分。** `owners` 是 `id`／`code`／`name`，`fulfillment_nodes` 是
+`id`／`code`／`name`——兩者都沒有 `status`。停用在營運上是真的，但目前沒有任何決策讀它，
+而一個沒有讀者的欄位會讓下一個人以為它有意義。等收單真的要擋停用貨主或停用倉時再加。
+
+`owner_nodes`（PK `(owner_id, node_id)`）記錄貨主能從哪些倉出貨。它是多對多——一個貨主可以
+有多個倉，**一個倉也服務多個貨主**，後者是 3PL 的定義性特徵。這張表沒有設定欄位；可否換
+批號之類的設定屬 R3。
 
 ### `orders`
 
@@ -259,7 +267,7 @@ SR-08 ─> SR-09 ─┐
 | `ship_to_zone` | `VARCHAR` | `NOT NULL`。原為選點輸入，③ 移出範圍後只作為地址的一部分保留 |
 | `ship_to_address` | `VARCHAR` | `NOT NULL`，履約與面單用，sourcing 不看 |
 | `promised_delivery_date` | `DATE` | `NOT NULL` |
-| `fulfillment_node_id` | `UUID` | **`NOT NULL`**，貨主在上游指定的出貨倉。R2 更名並補 FK；R3 之後配貨只在該倉的庫存裡進行 |
+| `fulfillment_node_id` | `UUID` | **`NOT NULL`**，貨主在上游指定的出貨倉。與 `owner_id` 組成**複合外鍵**指向 `owner_nodes`——因此「倉存在但這個貨主沒掛」由資料庫擋下，不需應用層檢查。R3 之後配貨只在該倉的庫存裡進行 |
 | `status` | `VARCHAR` | `PENDING`, `ALLOCATED`, `BACKORDERED`, `CANCELLED` |
 | `placed_at` | `TIMESTAMPTZ` | `NOT NULL` |
 | `allocated_at` | `TIMESTAMPTZ` | Nullable |

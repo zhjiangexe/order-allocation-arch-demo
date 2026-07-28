@@ -35,6 +35,7 @@ class OrderTest {
         new OrderPlaced(
             orderId,
             ownerId,
+            nodeId,
             "100",
             LocalDate.of(2026, 8, 1),
             List.of(new LineSnapshot(1, "SKU-1", 3)),

@@ -82,6 +82,7 @@ public class Order {
     order.events.add(new OrderPlaced(
         id,
         ownerId,
+        deliveryTerms.fulfillmentNodeId(),
         deliveryTerms.shipToZone(),
         deliveryTerms.promisedDeliveryDate(),
         order.toLineSnapshots(),

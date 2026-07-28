@@ -1,5 +1,6 @@
 import type {
   DemoConfig,
+  FulfillmentNodeView,
   OrderView,
   OwnerView,
   PlaceOrderCommand,
@@ -59,6 +60,10 @@ export function listOwners(): Promise<OwnerView[]> {
 
 export function listProducts(ownerId: string): Promise<ProductView[]> {
   return request<ProductView[]>(`/owners/${encodeURIComponent(ownerId)}/products`);
+}
+
+export function listNodes(ownerId: string): Promise<FulfillmentNodeView[]> {
+  return request<FulfillmentNodeView[]>(`/owners/${encodeURIComponent(ownerId)}/nodes`);
 }
 
 export function listSkus(ownerId: string, productCode: string): Promise<SkuView[]> {

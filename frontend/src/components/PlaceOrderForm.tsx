@@ -16,13 +16,18 @@ interface PlaceOrderFormProps {
  * 在 3PL 裡 SKU 代碼由貨主自訂、跨貨主撞號，讓人手打就可能送出屬於別的貨主的代碼——那會被
  * 資料庫的外鍵擋下，但那是在一次無謂的往返之後。逐層選擇讓那種輸入從一開始就不存在。
  *
- * 切換貨主時清空款與規格：它們在別的貨主底下不成立，留著只會讓表單能送出跨貨主的組合。
+ * 切換貨主時清空倉庫、款與規格：三者在別的貨主底下都不成立，留著只會讓表單能送出跨貨主的
+ * 組合。
+ *
+ * 倉庫同樣用選的不用打——打字可以打出該貨主沒掛的倉，那會被資料庫的複合外鍵擋下，換來
+ * 一次沒有必要的往返。
  *
  * 三層選項都讀 `catalog`，不自己發請求：訂單列表為了把代碼還原成看得懂的字，本來就已經把
  * 整份主檔載進來了，表單再抓一次只會抓到同一批資料。因此選貨主、選款都不產生任何往返。
  */
 export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormProps) {
   const ownerId = useId();
+  const nodeId = useId();
   const externalOrderNoId = useId();
   const productId = useId();
   const skuId = useId();
@@ -32,6 +37,7 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
   const promisedId = useId();
 
   const [selectedOwner, setSelectedOwner] = useState('');
+  const [selectedNode, setSelectedNode] = useState('');
   const [externalOrderNo, setExternalOrderNo] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
   const [selectedSku, setSelectedSku] = useState('');
@@ -41,12 +47,15 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
   const [promisedDeliveryDate, setPromisedDeliveryDate] = useState(defaultPromisedDate());
   const [invalidReason, setInvalidReason] = useState<string | null>(null);
 
+  const nodes = catalog.nodesOf(selectedOwner);
   const products = catalog.productsOf(selectedOwner);
   const skus = catalog.skusOf(selectedOwner, selectedProduct);
 
   function handleOwnerChange(value: string) {
     setSelectedOwner(value);
-    // 換貨主等於換一整組主檔，先前選的款與規格在新貨主底下不成立
+    // 換貨主等於換一整組主檔——倉庫、款、規格在新貨主底下都不成立。倉庫尤其要清：
+    // 兩個貨主可能共用同一個倉，留著看起來像「還有效」，但它是否有效取決於指派關係。
+    setSelectedNode('');
     setSelectedProduct('');
     setSelectedSku('');
   }
@@ -58,13 +67,14 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const reason = validate(selectedOwner, externalOrderNo, selectedSku, quantity);
+    const reason = validate(selectedOwner, selectedNode, externalOrderNo, selectedSku, quantity);
     setInvalidReason(reason);
     if (reason !== null) {
       return;
     }
     onSubmit({
       ownerId: selectedOwner,
+      fulfillmentNodeId: selectedNode,
       externalOrderNo: externalOrderNo.trim(),
       shipToZone: shipToZone.trim(),
       shipToAddress: shipToAddress.trim(),
@@ -87,6 +97,24 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
           {catalog.owners.map((owner) => (
             <option key={owner.ownerId} value={owner.ownerId}>
               {owner.name}（{owner.code}）
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={nodeId}>出貨倉</label>
+        <select
+          id={nodeId}
+          className={styles.input}
+          value={selectedNode}
+          onChange={(event) => setSelectedNode(event.target.value)}
+          disabled={selectedOwner === ''}
+        >
+          <option value="">請選擇</option>
+          {nodes.map((node) => (
+            <option key={node.nodeId} value={node.nodeId}>
+              {node.name}（{node.code}）
             </option>
           ))}
         </select>
@@ -197,12 +225,16 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
  */
 function validate(
   ownerId: string,
+  nodeId: string,
   externalOrderNo: string,
   skuCode: string,
   quantity: string,
 ): string | null {
   if (ownerId === '') {
     return '請選擇貨主';
+  }
+  if (nodeId === '') {
+    return '請選擇出貨倉';
   }
   if (externalOrderNo.trim() === '') {
     return '上游單號不可為空';
