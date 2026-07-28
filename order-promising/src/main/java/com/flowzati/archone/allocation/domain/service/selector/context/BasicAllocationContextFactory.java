@@ -8,6 +8,6 @@ public final class BasicAllocationContextFactory
 
   @Override
   public BasicAllocationContext create(AllocationRequest request) {
-    return new BasicAllocationContext(request.availableToPromise());
+    return new BasicAllocationContext(request.sku(), request.availableToPromise());
   }
 }

@@ -33,6 +33,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -92,8 +93,18 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     jdbcTemplate.execute("DELETE FROM event_outbox");
     jdbcTemplate.execute("DELETE FROM event_inbox");
     jdbcTemplate.execute("DELETE FROM stock_reservations");
+    jdbcTemplate.execute("DELETE FROM order_lines");
     jdbcTemplate.execute("DELETE FROM orders");
     jdbcTemplate.execute("DELETE FROM stock_pools");
+    jdbcTemplate.execute("DELETE FROM skus");
+    jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owners");
+  }
+
+  /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
+  @BeforeEach
+  void seedCatalogForOrders() {
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "HOT-SKU");
   }
 
   @Test
@@ -225,9 +236,17 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     // 1) Order 結果：10 件庫存只夠 10 張訂單成功，其餘 990 張應該進 BACKORDERED，不能有第三種狀態
     //    或有訂單卡在 PENDING（代表事件遺失或漏處理）。
     Integer allocatedCount = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM orders WHERE sku = ? AND status = 'ALLOCATED'", Integer.class, HOT_SKU);
+        """
+        SELECT count(*) FROM orders o
+        JOIN order_lines l ON l.order_id = o.id
+        WHERE l.sku_code = ? AND o.status = 'ALLOCATED'
+        """, Integer.class, HOT_SKU);
     Integer backorderedCount = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM orders WHERE sku = ? AND status = 'BACKORDERED'", Integer.class, HOT_SKU);
+        """
+        SELECT count(*) FROM orders o
+        JOIN order_lines l ON l.order_id = o.id
+        WHERE l.sku_code = ? AND o.status = 'BACKORDERED'
+        """, Integer.class, HOT_SKU);
     assertThat(allocatedCount).isEqualTo(ON_HAND_QUANTITY);
     assertThat(backorderedCount).isEqualTo(TOTAL_ORDERS - ON_HAND_QUANTITY);
 

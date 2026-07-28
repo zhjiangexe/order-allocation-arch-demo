@@ -51,7 +51,10 @@ public class ReplenishmentUsecase {
         .orElseThrow(() -> new IllegalStateException("StockPool not found for SKU: " + command.sku()));
 
     // 2. 依穩定 FIFO 順序取得缺貨訂單
-    List<Order> backorders = orderRepository.findBackordersBySkuInFifoOrder(command.sku());
+    // 只喚醒這個貨主的佇列。已知的中間狀態:補進去的庫存仍是共用的——stock_pools 還沒有
+    // owner_id,兩個貨主的同碼 SKU 共用同一列。佇列分開了,庫存還沒分開,後者屬 R3。
+    List<Order> backorders =
+        orderRepository.findBackordersBySkuInFifoOrder(command.ownerId(), command.sku());
 
     // 3. 由 Coordinator 統一執行補貨、分配與持久化
     Instant now = clock.instant();

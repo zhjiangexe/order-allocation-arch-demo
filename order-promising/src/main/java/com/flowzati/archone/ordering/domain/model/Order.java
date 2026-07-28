@@ -125,21 +125,42 @@ public class Order {
   }
 
   /**
-   * 取得唯一的那一行，語意是<strong>「此呼叫端踩在『每張單只有一行』這個假設上」</strong>。
+   * 這張單對某一個 SKU 的需求量。
    *
-   * <p>存在的理由是有些地方非要把 N 行摺成一個值不可——outbox 的 partition key 與配貨重試的
-   * context 標籤都只能有一個值，迴圈給不出來。它們今天成立純粹是因為收單只收一行。
-   *
-   * <p>把假設集中在一個有名字的方法上，而不是散落成各處的 {@code getLines().get(0)}：R8 放寬
-   * 多行時，搜尋這個方法的呼叫點就是完整的待修清單。以字串黑名單禁止位置存取則做不到——
-   * {@code stream().findFirst()} 或「迴圈第一圈就 break」都繞得過，而它們做的事一模一樣。
+   * <p>不存在時明確拋錯，而不是回 0：把「這張單根本不要這個 SKU」當成「要 0 個」，會讓配貨
+   * 端安靜地把它當作已滿足，而那正是跨 SKU 訂單被整張配掉的路徑。
    */
-  public OrderLine requireSingleLine() {
-    if (lines.size() != 1) {
-      throw new IllegalStateException(
-          "This caller assumes a single-line order, but the order has " + lines.size() + " lines");
+  public int getDemandFor(String skuCode) {
+    Integer quantity = getDemand().get(skuCode);
+    if (quantity == null) {
+      throw new IllegalArgumentException("Order has no demand for SKU " + skuCode);
     }
-    return lines.getFirst();
+    return quantity;
+  }
+
+  /**
+   * 這張單唯一涉及的 SKU，語意是<strong>「此呼叫端踩在『每張單只碰一個 SKU』這個假設上」
+   * </strong>。
+   *
+   * <p>存在的理由是有些地方非要把整張單摺成一個值不可——outbox 的 partition key、配貨重試的
+   * context 標籤，以及「用哪個 SKU 去撈庫存池」。它們今天成立是因為收單只收一行。
+   *
+   * <p><strong>這是單 SKU 假設，不是單行假設。</strong> 同一個 SKU 的兩行對這些呼叫端毫無
+   * 影響——它們要的是「哪一個 SKU」，而不是「哪一行」。用行數當判準會拒絕一批其實處理得了
+   * 的訂單，也會讓 R8 的待修清單虛胖。
+   *
+   * <p>把假設集中在一個有名字的方法上，而不是散落成各處的 {@code getDemand().keySet()} 取
+   * 首個：R8 放寬多行時，搜尋這個方法的呼叫點就是完整的待修清單。以字串黑名單禁止位置存取
+   * 則做不到——{@code stream().findFirst()} 或「迴圈第一圈就 break」都繞得過。
+   */
+  public String requireSingleSku() {
+    java.util.Set<String> skuCodes = getDemand().keySet();
+    if (skuCodes.size() != 1) {
+      throw new IllegalStateException(
+          "This caller assumes a single-SKU order, but the order spans " + skuCodes.size()
+              + " SKUs");
+    }
+    return skuCodes.iterator().next();
   }
 
   public void markAllocated(Instant allocatedAt) {
@@ -319,27 +340,6 @@ public class Order {
     return lines;
   }
 
-  /**
-   * 過渡用：改造期間讓尚未轉向 {@link #getDemand()} 的呼叫端繼續編譯。
-   *
-   * @deprecated 配貨端改讀 {@link #getDemand()}、需要單一值的地方改用
-   *     {@link #requireSingleLine()} 之後移除。留著它是為了讓資料模型的改造能分段進行，
-   *     每一段都編譯得起來、測試跑得動。
-   */
-  @Deprecated
-  public String getSku() {
-    return requireSingleLine().getSkuCode();
-  }
-
-  /**
-   * 過渡用，理由同 {@link #getSku()}。
-   *
-   * @deprecated 改讀 {@link #getDemand()}。
-   */
-  @Deprecated
-  public int getQuantity() {
-    return requireSingleLine().getQuantity();
-  }
 
   public OrderStatus getStatus() {
     return status;

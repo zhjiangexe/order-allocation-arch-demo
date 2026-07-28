@@ -44,13 +44,13 @@ public class AllocationDomainEventTranslator {
   @EventListener
   public void translate(OrderBackordered event) {
     // 同 OrderPlaced:此 integration event 的契約仍是單一 SKU 與數量,摺疊經過具名方法。
-    LineSnapshot line = LineSnapshot.requireSingleLine(event.lines());
+    String skuCode = LineSnapshot.requireSingleSku(event.lines());
     outboxAppender.append(
         new BackorderCreatedIntegrationEvent(
             IdGenerator.nextId(),
             event.orderId(),
-            line.skuCode(),
-            line.quantity(),
+            skuCode,
+            LineSnapshot.totalQuantity(event.lines()),
             event.backorderedSince()),
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),

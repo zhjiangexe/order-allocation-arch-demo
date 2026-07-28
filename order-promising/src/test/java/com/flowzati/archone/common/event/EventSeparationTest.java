@@ -48,7 +48,7 @@ class EventSeparationTest {
         IntegrationEvent.class.getDeclaredField("eventId").getModifiers())).isTrue();
     assertThat(IntegrationEvent.class.getMethods())
         .noneMatch(method -> method.getName().equals("setEventId"));
-    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(null, "SKU-1", 1))
+    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(null, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 1))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -74,7 +74,7 @@ class EventSeparationTest {
         eventId, orderId, reservationId, "SKU-1", 3, occurredAt);
     BackorderCreatedIntegrationEvent backorder = new BackorderCreatedIntegrationEvent(
         eventId, orderId, "SKU-1", 3, occurredAt);
-    StockReplenishedIntegrationEvent replenished = new StockReplenishedIntegrationEvent(eventId, "SKU-1", 10);
+    StockReplenishedIntegrationEvent replenished = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 10);
 
     assertThat(allocated.getReservationId()).isEqualTo(reservationId);
     assertThat(allocated.getAllocatedAt()).isEqualTo(occurredAt);
@@ -87,7 +87,7 @@ class EventSeparationTest {
   void shouldRejectInvalidIntegrationEventPayloads() {
     assertThatThrownBy(() -> new OrderPlacedIntegrationEvent(eventId, orderId, "", 1, occurredAt))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(eventId, "SKU-1", 0))
+    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 0))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new OrderAllocatedIntegrationEvent(
         eventId, orderId, null, "SKU-1", 1, occurredAt))

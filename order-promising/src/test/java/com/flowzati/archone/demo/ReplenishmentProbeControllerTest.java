@@ -28,6 +28,15 @@ import static org.mockito.Mockito.when;
 @ActiveProfiles("dev")
 class ReplenishmentProbeControllerTest {
 
+  /** 補貨要指定貨主——SKU 代碼跨貨主撞號，只憑它決定不了要喚醒誰的缺貨佇列。 */
+  private static final String REPLENISH_BODY = """
+      {
+        "ownerId": "00000000-0000-0000-0000-0000000000a1",
+        "sku": "HOT-SKU",
+        "quantity": 500
+      }
+      """;
+
   @Autowired
   private MockMvcTester mvc;
 
@@ -42,7 +51,7 @@ class ReplenishmentProbeControllerTest {
 
     MvcTestResultAssert response = assertThat(mvc.post().uri("/demo/replenish")
         .contentType(MediaType.APPLICATION_JSON)
-        .content("{\"sku\":\"HOT-SKU\",\"quantity\":500}"));
+        .content(REPLENISH_BODY));
 
     response.hasStatus(202);
     response.bodyJson().extractingPath("$.sku").isEqualTo("HOT-SKU");

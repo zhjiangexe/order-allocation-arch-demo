@@ -89,7 +89,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     String sku = "SKU-1";
     int quantity = 10;
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, quantity);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, sku, quantity);
 
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
 
@@ -99,7 +99,7 @@ class ReplenishmentUsecaseTest {
 
     Order backorderedOrder = backorderedOrder(sku, 5);
     List<Order> backorders = List.of(backorderedOrder);
-    when(orderRepository.findBackordersBySkuInFifoOrder(sku))
+    when(orderRepository.findBackordersBySkuInFifoOrder(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, sku))
         .thenReturn(backorders);
 
     // Act
@@ -108,7 +108,7 @@ class ReplenishmentUsecaseTest {
     // Assert
     verify(inboxRepo).claimIfNew(message(eventId));
     verify(stockPoolRepository).findBySku(sku);
-    verify(orderRepository).findBackordersBySkuInFifoOrder(sku);
+    verify(orderRepository).findBackordersBySkuInFifoOrder(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, sku);
     verify(orderRepository).save(backorderedOrder);
     verify(stockPoolRepository).save(stockPool);
     ArgumentCaptor<StockReservation> reservationCaptor =
@@ -135,7 +135,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     String sku = "SKU-1";
     int replenishedQuantity = 5;
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, replenishedQuantity);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, sku, replenishedQuantity);
 
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
 
@@ -147,7 +147,7 @@ class ReplenishmentUsecaseTest {
     Order order1 = backorderedOrder(sku, 3);
     Order order2 = backorderedOrder(sku, 4);
     List<Order> backorders = List.of(order1, order2);
-    when(orderRepository.findBackordersBySkuInFifoOrder(sku))
+    when(orderRepository.findBackordersBySkuInFifoOrder(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, sku))
         .thenReturn(backorders);
 
     // Act
@@ -175,12 +175,12 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     String sku = "SKU-1";
     int quantity = 10;
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, sku, quantity);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, sku, quantity);
 
     StockPool stockPool = new StockPool(java.util.UUID.randomUUID(), sku, 0, 0, 0L);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findBySku(sku)).thenReturn(Optional.of(stockPool));
-    when(orderRepository.findBackordersBySkuInFifoOrder(sku))
+    when(orderRepository.findBackordersBySkuInFifoOrder(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, sku))
         .thenReturn(List.of());
 
     // Act
@@ -200,7 +200,7 @@ class ReplenishmentUsecaseTest {
   void shouldDoNothingWhenEventIsAlreadyProcessed() {
     // Arrange
     UUID eventId = UUID.randomUUID();
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, "SKU-1", 10);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 10);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(false);
 
     // Act
@@ -216,7 +216,7 @@ class ReplenishmentUsecaseTest {
   void shouldFailWhenStockPoolDoesNotExist() {
     UUID eventId = UUID.randomUUID();
     StockReplenishedIntegrationEvent event =
-        new StockReplenishedIntegrationEvent(eventId, "UNKNOWN-SKU", 10);
+        new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "UNKNOWN-SKU", 10);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findBySku("UNKNOWN-SKU")).thenReturn(Optional.empty());
 
@@ -239,7 +239,7 @@ class ReplenishmentUsecaseTest {
   }
 
   private ReplenishStockCommand command(StockReplenishedIntegrationEvent event) {
-    return new ReplenishStockCommand(event.getSku(), event.getQuantity());
+    return new ReplenishStockCommand(event.getOwnerId(), event.getSku(), event.getQuantity());
   }
 
   private InboundCommand<ReplenishStockCommand> inbound(StockReplenishedIntegrationEvent event) {

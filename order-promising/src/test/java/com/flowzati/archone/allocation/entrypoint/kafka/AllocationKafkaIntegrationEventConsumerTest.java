@@ -91,7 +91,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   @DisplayName("收到補貨整合事件時應轉為補貨命令")
   void shouldMapStockReplenishedEventToInboundReplenishCommand() throws Exception {
     UUID eventId = UUID.randomUUID();
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, "SKU-1", 8);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 8);
 
     consumer.consumeInventoryEvent(record(
         IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, event, StockReplenishedIntegrationEvent.class.getSimpleName()));
@@ -122,8 +122,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   @Test
   @DisplayName("ordering topic 收到不支援事件時應拒絕")
   void shouldRejectEventNotHandledByOrderingTopic() throws Exception {
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
-        UUID.randomUUID(), "SKU-1", 8);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 8);
 
     assertThatThrownBy(() -> consumer.consumeOrderingEvent(record(
         IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC,

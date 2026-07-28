@@ -66,7 +66,7 @@ class OrderAllocationCoordinatorTest {
     assertThat(result).hasValueSatisfying(reservation -> {
       assertThat(reservation.getOrderId()).isEqualTo(order.getId());
       assertThat(reservation.getStockPoolId()).isEqualTo(stockPool.getId());
-      assertThat(reservation.getQuantity()).isEqualTo(order.getQuantity());
+      assertThat(reservation.getQuantity()).isEqualTo(order.getDemandFor(stockPool.getSku()));
     });
     assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(stockPool.getReservedQuantity()).isEqualTo(5);
@@ -80,8 +80,8 @@ class OrderAllocationCoordinatorTest {
     assertThat(eventCaptor.getValue()).isEqualTo(new OrderAllocationCompleted(
         order.getId(),
         result.orElseThrow().getId(),
-        order.getSku(),
-        order.getQuantity(),
+        stockPool.getSku(),
+        order.getDemandFor(stockPool.getSku()),
         now
     ));
   }

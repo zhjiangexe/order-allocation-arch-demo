@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -78,8 +79,18 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     jdbcTemplate.execute("DELETE FROM event_outbox");
     jdbcTemplate.execute("DELETE FROM event_inbox");
     jdbcTemplate.execute("DELETE FROM stock_reservations");
+    jdbcTemplate.execute("DELETE FROM order_lines");
     jdbcTemplate.execute("DELETE FROM orders");
     jdbcTemplate.execute("DELETE FROM stock_pools");
+    jdbcTemplate.execute("DELETE FROM skus");
+    jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owners");
+  }
+
+  /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
+  @BeforeEach
+  void seedCatalogForOrders() {
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
   }
 
   @Test
@@ -98,7 +109,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
 
     // Step 2：第一次補貨，數量精準等於前 500 張的總和，逼出「blocker 之後全部停止」的
     // 批次決策，而不是靠隨機數量碰運氣。
-    consume(new StockReplenishedIntegrationEvent(UUID.randomUUID(), FIFO_SKU, FIRST_REPLENISH_QUANTITY));
+    consume(new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, FIFO_SKU, FIRST_REPLENISH_QUANTITY));
 
     // Step 3：對帳第一階段——前 500 張應該已配置，blocker 與其後 499 張仍應卡在 BACKORDERED。
     assertReconciledState(stockPoolId, new ExpectedState(
@@ -117,7 +128,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     // Step 4：第二次（循序、非併發）補貨，數量等於 blocker 與其後 499 張的總和，
     // 驗證「喚醒佇列」的後半段——先前被 head-of-line blocking 卡住的訂單，補貨到位後
     // 應該能正確恢復配置，而不只是第一波卡住就結束驗證。
-    consume(new StockReplenishedIntegrationEvent(UUID.randomUUID(), FIFO_SKU, SECOND_REPLENISH_QUANTITY));
+    consume(new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, FIFO_SKU, SECOND_REPLENISH_QUANTITY));
 
     // Step 5：對帳第二階段——整個佇列應該全部配置完畢，沒有訂單被遺漏或重複配置。
     int totalReplenished = FIRST_REPLENISH_QUANTITY + SECOND_REPLENISH_QUANTITY;
@@ -167,9 +178,17 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
   private void assertReconciledState(UUID stockPoolId, ExpectedState expected) {
     // 1) Order 結果：ALLOCATED／BACKORDERED 的張數要精準對上這個階段的預期。
     Integer allocatedCount = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM orders WHERE sku = ? AND status = 'ALLOCATED'", Integer.class, FIFO_SKU);
+        """
+        SELECT count(*) FROM orders o
+        JOIN order_lines l ON l.order_id = o.id
+        WHERE l.sku_code = ? AND o.status = 'ALLOCATED'
+        """, Integer.class, FIFO_SKU);
     Integer backorderedCount = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM orders WHERE sku = ? AND status = 'BACKORDERED'", Integer.class, FIFO_SKU);
+        """
+        SELECT count(*) FROM orders o
+        JOIN order_lines l ON l.order_id = o.id
+        WHERE l.sku_code = ? AND o.status = 'BACKORDERED'
+        """, Integer.class, FIFO_SKU);
     assertThat(allocatedCount).isEqualTo(expected.allocated());
     assertThat(backorderedCount).isEqualTo(expected.backordered());
 

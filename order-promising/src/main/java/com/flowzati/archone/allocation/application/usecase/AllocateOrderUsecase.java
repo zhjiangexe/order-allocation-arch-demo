@@ -50,8 +50,11 @@ public class AllocateOrderUsecase {
       return;
     }
 
-    StockPool stockPool = stockPoolRepository.findBySku(order.getSku())
-        .orElseThrow(() -> new IllegalStateException("StockPool not found for SKU: " + order.getSku()));
+    // 一次配貨只取一個庫存池,因此這裡踩在「這張單只碰一個 SKU」的假設上。收單政策目前
+    // 保證它成立;放寬多 SKU 時,這裡要改成取多個池並做整籃判斷(見 roadmap R8)。
+    String skuCode = order.requireSingleSku();
+    StockPool stockPool = stockPoolRepository.findBySku(skuCode)
+        .orElseThrow(() -> new IllegalStateException("StockPool not found for SKU: " + skuCode));
 
     Instant now = clock.instant();
 

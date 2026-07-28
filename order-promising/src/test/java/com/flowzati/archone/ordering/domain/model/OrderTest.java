@@ -290,21 +290,32 @@ class OrderTest {
   }
 
   @Nested
-  @DisplayName("requireSingleLine：把單行假設集中在一個名字上")
-  class SingleLineAssumption {
+  @DisplayName("requireSingleSku：把單 SKU 假設集中在一個名字上")
+  class SingleSkuAssumption {
 
     @Test
-    @DisplayName("單行時應回傳該行")
-    void returnsTheOnlyLine() {
-      assertThat(pendingOrder().requireSingleLine().getSkuCode()).isEqualTo("SKU-1");
+    @DisplayName("只涉及一個 SKU 時應回傳它")
+    void returnsTheOnlySku() {
+      assertThat(pendingOrder().requireSingleSku()).isEqualTo("SKU-1");
     }
 
     @Test
-    @DisplayName("多行時應明確拋錯，而不是安靜取用第一行")
+    @DisplayName("同一個 SKU 的兩行仍然成立——判準是 SKU 的個數，不是行數")
+    void holdsForTwoLinesOfTheSameSku() {
+      Order order = Order.rehydrate(
+          orderId, ownerId, "EXT-1", delivery(),
+          List.of(line(1, "SKU-1", 3), line(2, "SKU-1", 7)),
+          OrderStatus.PENDING, placedAt, null, null, null, null);
+
+      assertThat(order.requireSingleSku()).isEqualTo("SKU-1");
+    }
+
+    @Test
+    @DisplayName("跨多個 SKU 時應明確拋錯，而不是安靜取用第一個")
     void failsLoudlyWhenTheAssumptionBreaks() {
-      assertThatThrownBy(() -> twoLineOrder().requireSingleLine())
+      assertThatThrownBy(() -> twoLineOrder().requireSingleSku())
           .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("single-line");
+          .hasMessageContaining("single-SKU");
     }
   }
 

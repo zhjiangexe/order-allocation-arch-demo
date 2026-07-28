@@ -53,7 +53,7 @@ public class OrderAllocationCoordinator {
         IdGenerator.nextId(),
         order.getId(),
         stockPool.getId(),
-        order.getQuantity(),
+        order.getDemandFor(stockPool.getSku()),
         now
     );
     persistAllocation(order, stockPool, reservation);
@@ -90,7 +90,7 @@ public class OrderAllocationCoordinator {
             IdGenerator.nextId(),
             order.getId(),
             stockPool.getId(),
-            order.getQuantity(),
+            order.getDemandFor(stockPool.getSku()),
             now))
         .toList();
 
@@ -107,7 +107,7 @@ public class OrderAllocationCoordinator {
     reservations.forEach(stockReservationRepository::save);
     publishDomainEvents(allocatedOrders);
     for (int i = 0; i < allocatedOrders.size(); i++) {
-      publishAllocationCompleted(allocatedOrders.get(i), reservations.get(i));
+      publishAllocationCompleted(allocatedOrders.get(i), stockPool, reservations.get(i));
     }
     return allocatedOrders;
   }
@@ -153,15 +153,20 @@ public class OrderAllocationCoordinator {
     orderRepository.save(order);
     stockReservationRepository.save(reservation);
     publishDomainEvents(List.of(order));
-    publishAllocationCompleted(order, reservation);
+    publishAllocationCompleted(order, stockPool, reservation);
   }
 
-  private void publishAllocationCompleted(Order order, StockReservation reservation) {
+  /**
+   * 事件帶的 SKU 與數量取自預留本身涵蓋的那個池——配貨的結果就是「對這個池預留了多少」，
+   * 從訂單再讀一次只會多一條可能不一致的路徑。
+   */
+  private void publishAllocationCompleted(
+      Order order, StockPool stockPool, StockReservation reservation) {
     eventPublisher.publishEvent(new OrderAllocationCompleted(
         order.getId(),
         reservation.getId(),
-        order.getSku(),
-        order.getQuantity(),
+        stockPool.getSku(),
+        reservation.getQuantity(),
         order.getAllocatedAt()
     ));
   }

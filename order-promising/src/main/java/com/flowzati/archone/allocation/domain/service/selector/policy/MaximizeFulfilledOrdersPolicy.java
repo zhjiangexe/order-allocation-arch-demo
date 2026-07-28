@@ -17,16 +17,17 @@ public final class MaximizeFulfilledOrdersPolicy
       BasicAllocationContext context
   ) {
     List<Order> smallestFirst = new ArrayList<>(candidates);
-    smallestFirst.sort(Comparator.comparingInt(Order::getQuantity));
+    smallestFirst.sort(Comparator.comparingInt(order -> order.getDemandFor(context.skuCode())));
 
     int remaining = context.availableToPromise();
     List<Order> selected = new ArrayList<>();
     for (Order order : smallestFirst) {
-      if (order.getQuantity() > remaining) {
+      int demand = order.getDemandFor(context.skuCode());
+      if (demand > remaining) {
         break;
       }
       selected.add(order);
-      remaining -= order.getQuantity();
+      remaining -= demand;
     }
     return List.copyOf(selected);
   }

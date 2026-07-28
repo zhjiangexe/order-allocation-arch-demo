@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +71,12 @@ class ReplenishmentProbeEndToEndIntegrationTest {
   @Autowired
   private JdbcTemplate jdbcTemplate;
 
+  /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
+  @BeforeEach
+  void seedCatalogForOrders() {
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-PROBE-E2E");
+  }
+
   @Test
   @DisplayName("觸發補貨探針後，排隊中的 backorder 應在 10 秒內依 FIFO 轉為 ALLOCATED")
   void shouldWakeQueuedBackordersWithinTheObservableWindow() {
@@ -97,8 +104,10 @@ class ReplenishmentProbeEndToEndIntegrationTest {
       return HttpClient.newHttpClient().send(
           HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/demo/replenish"))
               .header("Content-Type", "application/json")
+              // 補貨要指定貨主——只憑 SKU 決定不了要喚醒誰的缺貨佇列
               .POST(HttpRequest.BodyPublishers.ofString(
-                  "{\"sku\":\"" + SKU + "\",\"quantity\":" + quantity + "}"))
+                  "{\"ownerId\":\"" + OrderFixtures.OWNER_ID + "\",\"sku\":\"" + SKU
+                      + "\",\"quantity\":" + quantity + "}"))
               .build(),
           HttpResponse.BodyHandlers.ofString());
     } catch (Exception exception) {

@@ -10,12 +10,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface JpaOrderRepository extends JpaRepository<OrderEntity, UUID> {
 
   /**
-   * 待配佇列：篩選鍵在行、排序鍵在 header，因此查詢跨兩張表。
+   * 待配佇列：篩選鍵（貨主與 SKU）在行、排序鍵在 header，因此查詢跨兩張表。
    *
-   * <p>尚未帶上貨主——補貨事件目前只帶 SKU，沒有呼叫端拿得出 {@code ownerId}。讓事件帶上
-   * 貨主、並把佇列真正按貨主分開，是後續任務。
+   * <p>欄位順序與 {@code idx_order_lines_backorder_fifo (owner_id, sku_code,
+   * backordered_since, id)} 一致——等值篩選在前、排序鍵其次。
    */
-  List<OrderEntity> findByLines_SkuCodeAndStatusOrderByBackorderedSinceAscIdAsc(
+  List<OrderEntity> findByLines_OwnerIdAndLines_SkuCodeAndStatusOrderByBackorderedSinceAscIdAsc(
+      UUID ownerId,
       String skuCode,
       OrderStatus status
   );

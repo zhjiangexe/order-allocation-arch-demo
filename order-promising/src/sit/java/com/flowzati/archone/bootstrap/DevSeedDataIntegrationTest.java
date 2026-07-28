@@ -44,8 +44,12 @@ class DevSeedDataIntegrationTest {
   @AfterEach
   void clearDatabase() {
     jdbcTemplate.execute("DELETE FROM stock_reservations");
+    jdbcTemplate.execute("DELETE FROM order_lines");
     jdbcTemplate.execute("DELETE FROM orders");
     jdbcTemplate.execute("DELETE FROM stock_pools");
+    jdbcTemplate.execute("DELETE FROM skus");
+    jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owners");
   }
 
   @Test

@@ -38,17 +38,17 @@ public class OrderingDomainEventTranslator {
   @EventListener
   public void translate(OrderPlaced event) {
     // integration event 的契約仍是單一 SKU 與數量,尚未改為攜帶行清單,因此在此摺成一行。
-    // 摺疊一律經過具名的 requireSingleLine,而不是各自寫 lines().getFirst()。
-    LineSnapshot line = LineSnapshot.requireSingleLine(event.lines());
+    // 摺疊一律經過具名的 requireSingleSku,而不是各自從 lines() 挖。
+    String skuCode = LineSnapshot.requireSingleSku(event.lines());
     outboxAppender.append(
         new OrderPlacedIntegrationEvent(
-            IdGenerator.nextId(), event.orderId(), line.skuCode(), line.quantity(),
-            event.placedAt()),
+            IdGenerator.nextId(), event.orderId(), skuCode,
+            LineSnapshot.totalQuantity(event.lines()), event.placedAt()),
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
         new OutboxDelivery(
             IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
-            partitionKey(event.orderId(), line.skuCode())),
+            partitionKey(event.orderId(), skuCode)),
         event.placedAt()
     );
   }
@@ -62,7 +62,7 @@ public class OrderingDomainEventTranslator {
         new OutboxDelivery(
             IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
             partitionKey(
-                event.orderId(), LineSnapshot.requireSingleLine(event.lines()).skuCode())),
+                event.orderId(), LineSnapshot.requireSingleSku(event.lines()))),
         event.cancelledAt()
     );
   }
@@ -74,6 +74,18 @@ public class OrderingDomainEventTranslator {
    *
    * <p>這只決定 Kafka message key，不影響 outbox row 的 {@code aggregateid}——後者恆為
    * orderId，因為事件所屬的 aggregate 是 Order，與分區策略無關。
+   *
+   * <p><strong>key 的正確形狀由 {@code StockPool} 的識別決定，不是由訂單決定。</strong>
+   * key 存在的目的是讓「會搶同一列庫存」的事件排進同一個 partition，因此兩者必須一起演進：
+   * 目前 {@code stock_pools} 仍以 {@code (sku)} 唯一，同碼 SKU 真的共用一列，所以裸 sku 就是
+   * 正確的 key。等庫存加上 {@code owner_id} 的那一刻，這裡必須在<strong>同一個 change</strong>
+   * 內跟著改成 {@code ownerId:skuCode}——分開做的話，中間那段時間不同貨主的事件會擠進同一個
+   * partition 排隊等一個它們其實不共用的鎖。
+   *
+   * <p><strong>而這個策略本身有到期日。</strong> 它的第二個前提是「一張單只碰一個 SKU」，
+   * 一則事件才摺得出單一個 key（見 {@code LineSnapshot.requireSingleSku}）。放寬多 SKU 之後
+   * 一則 {@code OrderPlaced} 無法同時進兩個 partition，屆時要嘛事件按 SKU 拆開，要嘛策略退場、
+   * 壓測改用 order-id。換 key 解決不了這一層。
    */
   private String partitionKey(UUID orderId, String sku) {
     return SKU_STRATEGY.equals(partitionKeyStrategy) ? sku : orderId.toString();

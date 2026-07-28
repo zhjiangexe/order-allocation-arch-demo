@@ -20,11 +20,12 @@ public final class StrictFifoAllocationPolicy
     int remaining = context.availableToPromise();
     List<Order> selected = new ArrayList<>();
     for (Order order : candidates) {
-      if (order.getQuantity() > remaining) {
+      int demand = order.getDemandFor(context.skuCode());
+      if (demand > remaining) {
         break;
       }
       selected.add(order);
-      remaining -= order.getQuantity();
+      remaining -= demand;
     }
     return List.copyOf(selected);
   }

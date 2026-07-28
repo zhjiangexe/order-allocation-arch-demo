@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,8 +78,18 @@ class OutboxAggregateQueryIntegrationTest {
     jdbcTemplate.execute("DELETE FROM event_outbox");
     jdbcTemplate.execute("DELETE FROM event_inbox");
     jdbcTemplate.execute("DELETE FROM stock_reservations");
+    jdbcTemplate.execute("DELETE FROM order_lines");
     jdbcTemplate.execute("DELETE FROM orders");
     jdbcTemplate.execute("DELETE FROM stock_pools");
+    jdbcTemplate.execute("DELETE FROM skus");
+    jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owners");
+  }
+
+  /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
+  @BeforeEach
+  void seedCatalogForOrders() {
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-CHAIN");
   }
 
   @Test
@@ -130,7 +141,7 @@ class OutboxAggregateQueryIntegrationTest {
     consumer.consumeOrderingEvent(record(
         IntegrationEventTopics.ORDERING_ORDER_EVENTS_TOPIC,
         new OrderPlacedIntegrationEvent(
-            UUID.randomUUID(), orderId, SKU, order.getQuantity(), order.getPlacedAt())));
+            UUID.randomUUID(), orderId, SKU, order.getDemandFor(SKU), order.getPlacedAt())));
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(backordered ->
         assertThat(backordered.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
   }
@@ -138,7 +149,7 @@ class OutboxAggregateQueryIntegrationTest {
   private void replenishStock() throws Exception {
     consumer.consumeInventoryEvent(record(
         IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC,
-        new StockReplenishedIntegrationEvent(UUID.randomUUID(), SKU, 3)));
+        new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, SKU, 3)));
   }
 
   private List<String> eventTypesFor(UUID orderId) {

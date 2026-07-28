@@ -21,6 +21,7 @@ import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,8 +73,18 @@ class InboundCommandTransactionIntegrationTest {
     jdbcTemplate.execute("DELETE FROM event_outbox");
     jdbcTemplate.execute("DELETE FROM event_inbox");
     jdbcTemplate.execute("DELETE FROM stock_reservations");
+    jdbcTemplate.execute("DELETE FROM order_lines");
     jdbcTemplate.execute("DELETE FROM orders");
     jdbcTemplate.execute("DELETE FROM stock_pools");
+    jdbcTemplate.execute("DELETE FROM skus");
+    jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owners");
+  }
+
+  /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
+  @BeforeEach
+  void seedCatalogForOrders() {
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-1", "MISSING-SKU");
   }
 
   @Test
@@ -151,7 +162,7 @@ class InboundCommandTransactionIntegrationTest {
     stockPoolRepository.save(new StockPool(stockPoolId, "SKU-1", 0, 0, null));
 
     assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(
-        new ReplenishStockCommand("SKU-1", 3),
+        new ReplenishStockCommand(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 3),
         new MessageMetadata(eventId, "StockReplenishedIntegrationEvent"))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Allocated time cannot be before placed time");

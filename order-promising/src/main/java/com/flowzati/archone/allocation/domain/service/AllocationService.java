@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class AllocationService {
 
@@ -22,9 +23,9 @@ public class AllocationService {
   }
 
   public AllocationOutcome allocate(Order order, StockPool stockPool, Instant now) {
-    requireMatchingSku(order, stockPool);
+    requireDemandIsEntirelyInThisPool(order, stockPool);
 
-    if (stockPool.canReserve(order.getQuantity())) {
+    if (stockPool.canReserve(order.getDemandFor(stockPool.getSku()))) {
       applyAllocation(order, stockPool, now);
       return AllocationOutcome.ALLOCATED;
     }
@@ -36,7 +37,7 @@ public class AllocationService {
       StockPool stockPool,
       Instant now
   ) {
-    candidates.forEach(order -> requireMatchingSku(order, stockPool));
+    candidates.forEach(order -> requireDemandIsEntirelyInThisPool(order, stockPool));
     AllocationRequest request = new AllocationRequest(
         stockPool.getId(),
         stockPool.getSku(),
@@ -56,11 +57,21 @@ public class AllocationService {
 
   private void applyAllocation(Order order, StockPool stockPool, Instant now) {
     order.markAllocated(now);
-    stockPool.reserve(order.getQuantity());
+    stockPool.reserve(order.getDemandFor(stockPool.getSku()));
   }
 
-  private void requireMatchingSku(Order order, StockPool stockPool) {
-    if (!Objects.equals(order.getSku(), stockPool.getSku())) {
+  /**
+   * 這張單的需求必須<strong>恰好</strong>落在這一個庫存池上。
+   *
+   * <p>檢查的是「需求的 SKU 集合等於 {@code {pool.sku}}」，而不是「包含 pool.sku」。寫成
+   * 包含的話，一張跨多個 SKU 的訂單會通過檢查，然後只扣其中一個 SKU 的量，而整張單被標為
+   * 已配——那是靜默的錯，不會有任何測試失敗，因為單行訂單下兩種寫法完全等價。
+   *
+   * <p>一次配貨只取得一個庫存池，所以跨 SKU 的訂單在這一層就必須被擋下；讓它能被配貨屬於
+   * 後續 change 的工作（見 roadmap R8）。
+   */
+  private void requireDemandIsEntirelyInThisPool(Order order, StockPool stockPool) {
+    if (!Objects.equals(order.getDemand().keySet(), Set.of(stockPool.getSku()))) {
       throw new IllegalArgumentException("Order and stock pool SKU must match");
     }
   }

@@ -1,6 +1,7 @@
 package com.flowzati.archone.ordering.domain.event;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 事件裡那一行的內容：行號、SKU 與數量。
@@ -15,20 +16,32 @@ import java.util.List;
 public record LineSnapshot(int lineNo, String skuCode, int quantity) {
 
   /**
-   * 取得唯一的那一行，語意與 {@code Order.requireSingleLine()} 相同：
-   * <strong>此呼叫端踩在「每張單只有一行」這個假設上</strong>。
+   * 事件所涉及的唯一 SKU，語意與 {@code Order.requireSingleSku()} 相同：
+   * <strong>此呼叫端踩在「每張單只碰一個 SKU」這個假設上</strong>。
    *
-   * <p>事件的下游也有非要一個值不可的地方——outbox 的 partition key，以及尚未改為攜帶行
-   * 清單的 integration event 契約。與其讓它們各自寫 {@code lines().getFirst()}，不如統一
-   * 經過這個名字：R8 放寬多行時，搜尋 {@code requireSingleLine} 就是完整的待修清單。名稱
-   * 刻意與 {@code Order} 上的那個一字不差，可搜尋性優先於字面上的簡潔。
+   * <p>事件的下游也有非要一個值不可的地方——outbox 的 partition key，以及尚未改為攜帶行清單
+   * 的 integration event 契約。與其讓它們各自從 {@code lines()} 挖，不如統一經過這個名字：
+   * R8 放寬多行時，搜尋 {@code requireSingleSku} 就是完整的待修清單。名稱刻意與 {@code Order}
+   * 上的那個一字不差，可搜尋性優先於字面上的簡潔。
+   *
+   * <p>判準是 SKU 的個數而不是行數：同一個 SKU 的兩行摺得出唯一的 key，不該被拒絕。
    */
-  public static LineSnapshot requireSingleLine(List<LineSnapshot> lines) {
-    if (lines == null || lines.size() != 1) {
-      throw new IllegalStateException(
-          "This caller assumes a single-line order, but the event carries "
-              + (lines == null ? 0 : lines.size()) + " lines");
+  public static String requireSingleSku(List<LineSnapshot> lines) {
+    if (lines == null || lines.isEmpty()) {
+      throw new IllegalStateException("Event carries no lines");
     }
-    return lines.getFirst();
+    Set<String> skuCodes = lines.stream().map(LineSnapshot::skuCode)
+        .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+    if (skuCodes.size() != 1) {
+      throw new IllegalStateException(
+          "This caller assumes a single-SKU order, but the event spans " + skuCodes.size()
+              + " SKUs");
+    }
+    return skuCodes.iterator().next();
+  }
+
+  /** 事件所涉及的唯一 SKU 的那些行的數量總和。理由同 {@link #requireSingleSku}。 */
+  public static int totalQuantity(List<LineSnapshot> lines) {
+    return lines.stream().mapToInt(LineSnapshot::quantity).sum();
   }
 }

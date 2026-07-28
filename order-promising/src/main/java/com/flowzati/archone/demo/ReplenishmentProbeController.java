@@ -60,7 +60,7 @@ public class ReplenishmentProbeController {
       @RequestBody ReplenishStockRequest request
   ) {
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
-        IdGenerator.nextId(), request.sku(), request.quantity());
+        IdGenerator.nextId(), request.ownerId(), request.sku(), request.quantity());
     kafkaTemplate.send(record(event)).join();
     return ResponseEntity.status(HttpStatus.ACCEPTED).body(
         new ReplenishmentAcceptedResponse(event.getEventId(), event.getSku(), event.getQuantity()));
@@ -68,8 +68,11 @@ public class ReplenishmentProbeController {
 
   /**
    * 訊息必須滿足 {@code KafkaIntegrationEventDispatcher} 的契約：{@code id} 與
-   * {@code eventType} 兩個 header、payload 的 eventId 與 header 一致。record key 用 SKU，
-   * 與設計文件對 {@code inventory.stock-events} 的規定一致。
+   * {@code eventType} 兩個 header、payload 的 eventId 與 header 一致。
+   *
+   * <p>record key 維持裸 SKU，即使事件現在帶了貨主——key 決定的是 partition，而它的正確
+   * 形狀由 {@code StockPool} 的識別決定。庫存目前仍以 {@code (sku)} 唯一，同碼 SKU 真的
+   * 共用一列，因此裸 SKU 才是讓競爭者收斂到同一個 partition 的正確 key。
    */
   private ProducerRecord<String, String> record(StockReplenishedIntegrationEvent event) {
     ProducerRecord<String, String> record = new ProducerRecord<>(
@@ -91,7 +94,8 @@ public class ReplenishmentProbeController {
     return value.getBytes(StandardCharsets.UTF_8);
   }
 
-  public record ReplenishStockRequest(String sku, Integer quantity) {
+  /** {@code ownerId} 決定要喚醒哪一個貨主的缺貨佇列——SKU 代碼跨貨主撞號，只憑它決定不了。 */
+  public record ReplenishStockRequest(java.util.UUID ownerId, String sku, Integer quantity) {
   }
 
   public record ReplenishmentAcceptedResponse(UUID eventId, String sku, int quantity) {

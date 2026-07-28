@@ -154,7 +154,8 @@ class AllocateOrderUsecaseTest {
 
   private StockReservation reservation(Order order, StockPool stockPool) {
     return StockReservation.create(
-        UUID.randomUUID(), order.getId(), stockPool.getId(), order.getQuantity(), fixedNow);
+        UUID.randomUUID(), order.getId(), stockPool.getId(),
+        order.getDemandFor(stockPool.getSku()), fixedNow);
   }
 
   private MessageMetadata message(UUID eventId) {

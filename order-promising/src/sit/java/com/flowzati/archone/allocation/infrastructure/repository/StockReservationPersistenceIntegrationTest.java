@@ -3,6 +3,7 @@ package com.flowzati.archone.allocation.infrastructure.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.allocation.domain.model.ReservationStatus;
 import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.infrastructure.entity.StockReservationEntity;
@@ -263,10 +264,19 @@ class StockReservationPersistenceIntegrationTest {
         VALUES (?, ?, ?, ?)
         ON CONFLICT (id) DO NOTHING
         """, STOCK_POOL_ID, "SKU-1", 10, 0);
+    // 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,因此連同貨主與規格一起種下。
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-1");
     jdbcTemplate.update("""
-        INSERT INTO orders (id, sku, quantity, status, placed_at)
-        VALUES (?, ?, ?, ?, ?)
-        """, orderId, "SKU-1", 1, "PENDING", Timestamp.from(RESERVED_AT));
+        INSERT INTO orders (
+            id, owner_id, external_order_no, ship_to_zone, ship_to_address,
+            promised_delivery_date, status, placed_at)
+        VALUES (?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', DATE '2026-08-01',
+                'PENDING', ?)
+        """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, Timestamp.from(RESERVED_AT));
+    jdbcTemplate.update("""
+        INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity, status)
+        VALUES (?, ?, 1, ?, 'SKU-1', 1, 'PENDING')
+        """, UUID.randomUUID(), orderId, OrderFixtures.OWNER_ID);
   }
 
   private void insertReservation(

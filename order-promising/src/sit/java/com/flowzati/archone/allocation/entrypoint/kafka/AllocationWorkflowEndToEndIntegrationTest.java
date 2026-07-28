@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,8 +72,18 @@ class AllocationWorkflowEndToEndIntegrationTest {
     jdbcTemplate.execute("DELETE FROM event_outbox");
     jdbcTemplate.execute("DELETE FROM event_inbox");
     jdbcTemplate.execute("DELETE FROM stock_reservations");
+    jdbcTemplate.execute("DELETE FROM order_lines");
     jdbcTemplate.execute("DELETE FROM orders");
     jdbcTemplate.execute("DELETE FROM stock_pools");
+    jdbcTemplate.execute("DELETE FROM skus");
+    jdbcTemplate.execute("DELETE FROM products");
+    jdbcTemplate.execute("DELETE FROM owners");
+  }
+
+  /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
+  @BeforeEach
+  void seedCatalogForOrders() {
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-AVAILABLE", "SKU-FIFO", "SKU-PARTIALLY-RESERVED");
   }
 
   @Test
@@ -143,8 +154,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     orderRepository.save(backorderedOrder(firstOrderId, "SKU-FIFO", 3, firstBackorderedAt));
     orderRepository.save(backorderedOrder(secondOrderId, "SKU-FIFO", 3, secondBackorderedAt));
 
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
-        UUID.randomUUID(), "SKU-FIFO", 5);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-FIFO", 5);
     consumer.consumeInventoryEvent(record(IntegrationEventTopics.INVENTORY_STOCK_EVENTS_TOPIC, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
