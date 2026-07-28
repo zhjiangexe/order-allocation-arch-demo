@@ -38,9 +38,9 @@
 
 ## 6. Application 與 HTTP 表面
 
-- [ ] 6.1 依「`PlaceOrderUsecase` 改收 command 物件」，把 `placeOrder(String, Integer)` 改為 `placeOrder(PlaceOrderCommand)`，command 承載 header 六個欄位與 line 清單，回傳型別維持 `Order`（沿用 `add-demo-console-api` 建立的「POST 與 GET 共用回應型別」慣例）。行為上：呼叫端以具名欄位組出訂單，line 清單不需以位置參數表達。以 `PlaceOrderUsecaseTest` 的簽章調整驗證。
-- [ ] 6.2 實作 **Placing an order accepts a JSON command and returns the created order**：`POST /orders` 的 request body 改為帶貨主、上游單號、收件分區與地址、承諾到貨日與 lines，回應維持 `200` 與訂單表示型別。行為上：零筆或兩筆 line、他貨主的 `sku_code`、已用過的上游單號四種輸入各自被拒絕且不留下資料。以 web 層測試涵蓋成功一種與被拒四種驗證。
-- [ ] 6.3 實作 **Recent orders are listed in stable descending order**：依「訂單回應帶 `ownerName`，是刻意的反正規化」，`GET /orders` 與 `GET /orders/{orderId}` 的回應把 `sku`／`quantity` 移入 lines，並同時帶 `ownerId` 與 `ownerName`。排序、`limit` 預設 20／上限 100、超界回 `400` 的既有行為不變。行為上：列表顯示貨主名稱不需要為每一列再打一次查詢。以 web 層測試斷言回應含 `ownerName`、且既有的排序穩定性與 `limit` 邊界測試仍通過驗證。
+- [x] 6.1 依「`PlaceOrderUsecase` 改收 command 物件」，把 `placeOrder(String, Integer)` 改為 `placeOrder(PlaceOrderCommand)`，command 承載 header 六個欄位與 line 清單，回傳型別維持 `Order`（沿用 `add-demo-console-api` 建立的「POST 與 GET 共用回應型別」慣例）。行為上：呼叫端以具名欄位組出訂單，line 清單不需以位置參數表達。以 `PlaceOrderUsecaseTest` 的簽章調整驗證。
+- [x] 6.2 實作 **Placing an order accepts a JSON command and returns the created order**：`POST /orders` 的 request body 改為帶貨主、上游單號、收件分區與地址、承諾到貨日與 lines，回應維持 `200` 與訂單表示型別。行為上：零筆或兩筆 line、他貨主的 `sku_code`、已用過的上游單號四種輸入各自被拒絕且不留下資料。以 web 層測試涵蓋成功一種與被拒四種驗證。
+- [x] 6.3 實作 **Recent orders are listed in stable descending order**：依「訂單回應只帶 `ownerId`，名稱由呼叫端自行解析」，`GET /orders` 與 `GET /orders/{orderId}` 的回應把 `sku`／`quantity` 移入 lines，並帶 `ownerId`。排序、`limit` 預設 20／上限 100、超界回 `400` 的既有行為不變。行為上：訂單契約不含貨主名稱，呼叫端用它為下單表單載入的 `/owners` 自行解析，因此列表不會為了名稱多查一次主檔。以 web 層測試斷言回應含 `ownerId` 且不含 `ownerName`、且既有的排序穩定性與 `limit` 邊界測試仍通過驗證。
 
 ## 7. Allocation 側的連帶調整
 

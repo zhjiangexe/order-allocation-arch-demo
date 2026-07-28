@@ -16,6 +16,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpMethod;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -57,6 +58,7 @@ class OrderControllerTest {
   @MockitoBean
   private ListRecentOrdersUsecase listRecentOrdersUsecase;
 
+
   @Test
   @DisplayName("下單以 JSON body 送出，回傳與單筆查詢相同形狀的訂單表示")
   void shouldPlaceOrderFromJsonBodyAndReturnFullOrderRepresentation() {
@@ -70,10 +72,70 @@ class OrderControllerTest {
 
     response.hasStatus(200);
     response.bodyJson().extractingPath("$.orderId").isEqualTo(orderId.toString());
-    response.bodyJson().extractingPath("$.sku").isEqualTo(SKU);
-    response.bodyJson().extractingPath("$.quantity").isEqualTo(3);
+    response.bodyJson().extractingPath("$.ownerId").isEqualTo(OrderFixtures.OWNER_ID.toString());
+    response.bodyJson().extractingPath("$.shipToZone").isEqualTo("100");
+    response.bodyJson().extractingPath("$.promisedDeliveryDate").isEqualTo("2026-08-01");
     response.bodyJson().extractingPath("$.status").isEqualTo("PENDING");
     response.bodyJson().extractingPath("$.placedAt").isEqualTo(PLACED_AT.toString());
+
+    // SKU 與數量移進行裡，訂單頂層不再有它們
+    response.bodyJson().extractingPath("$.lines.length()").isEqualTo(1);
+    response.bodyJson().extractingPath("$.lines[0].lineNo").isEqualTo(1);
+    response.bodyJson().extractingPath("$.lines[0].skuCode").isEqualTo(SKU);
+    response.bodyJson().extractingPath("$.lines[0].quantity").isEqualTo(3);
+    response.bodyJson().doesNotHavePath("$.sku");
+    response.bodyJson().doesNotHavePath("$.quantity");
+  }
+
+  @Test
+  @DisplayName("下單被 Order aggregate 拒絕時回 400")
+  void rejectsCommandsTheAggregateRefuses() {
+    when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
+        .thenThrow(new IllegalArgumentException(
+            "Order intake accepts exactly one line per order"));
+
+    assertThat(mvc.post().uri("/orders")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(PLACE_ORDER_BODY)).hasStatus(400);
+  }
+
+  @Test
+  @DisplayName("訂單行指向該貨主沒有的 SKU 時回 400——引用了不存在的東西")
+  void rejectsOrdersReferencingUnknownCatalogData() {
+    when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
+        .thenThrow(new DataIntegrityViolationException("fk_order_lines_sku"));
+
+    assertThat(mvc.post().uri("/orders")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(PLACE_ORDER_BODY)).hasStatus(400);
+  }
+
+  @Test
+  @DisplayName("同一貨主的上游單號重複時回 409——不是格式錯，是與既有狀態衝突")
+  void rejectsDuplicateExternalOrderNoWithConflict() {
+    when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
+        .thenThrow(new DataIntegrityViolationException(
+            "could not execute statement [ERROR: duplicate key value violates unique "
+                + "constraint \"uq_orders_owner_external_no\"]"));
+
+    assertThat(mvc.post().uri("/orders")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(PLACE_ORDER_BODY)).hasStatus(409);
+  }
+
+  @Test
+  @DisplayName("訂單只帶貨主識別碼，不帶名稱——名稱由呼叫端用它已載入的主檔自行解析")
+  void carriesOwnerIdButNotOwnerName() {
+    when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(
+        OrderFixtures.pendingOrder(UUID.randomUUID(), SKU, 3, PLACED_AT)));
+
+    MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
+
+    response.bodyJson().extractingPath("$[0].ownerId")
+        .isEqualTo(OrderFixtures.OWNER_ID.toString());
+    // 把名稱塞進訂單契約會讓每次列表多一次主檔查詢，換到的是呼叫端本來就有的東西——
+    // 它為了下單表單的下拉選單已經載過 /owners 了。
+    response.bodyJson().doesNotHavePath("$[0].ownerName");
   }
 
   @Test

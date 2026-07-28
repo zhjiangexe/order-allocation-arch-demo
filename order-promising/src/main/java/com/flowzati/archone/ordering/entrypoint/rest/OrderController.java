@@ -4,6 +4,7 @@ import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -102,5 +103,46 @@ public class OrderController {
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<String> handleInvalidRequest(IllegalArgumentException exception) {
     return ResponseEntity.badRequest().body(exception.getMessage());
+  }
+
+  /**
+   * 儲存層的完整性拒絕，目前有兩種，而兩種對呼叫方的意義不同：
+   *
+   * <ul>
+   *   <li><strong>上游單號重複</strong>回 {@code 409}——請求本身沒有格式問題，是它與既有
+   *       狀態衝突；呼叫方該做的不是修正欄位再送，而是去查那張已經存在的訂單。收單冪等
+   *       實作之後，這條路徑會變成回傳既有訂單。在那之前明確報錯，總比靜默建立第二筆好
+   *       ——在倉儲場景，重複的訂單是會出兩次貨的實體事故。
+   *   <li><strong>訂單行指向該貨主沒有的 SKU</strong>回 {@code 400}——引用了不存在的東西，
+   *       那是請求內容的問題。刻意不在應用層預先查主檔換取更漂亮的訊息：那會多一條「檢查
+   *       通過但寫入時已被刪除」的競爭路徑，而完整性本來就該由外鍵保證。
+   * </ul>
+   *
+   * <p><strong>為什麼靠 constraint 名稱區分，而不是 Spring 的 {@code DuplicateKeyException}
+   * ：</strong>那個子型別只在 {@code JdbcTemplate} 的轉譯路徑上出現。實測經 JPA 寫入時，
+   * unique 違反一律轉成 {@code DataIntegrityViolationException} 父型別，訊息裡才帶著
+   * constraint 名稱。攔子型別的話那條路徑永遠不會走到。
+   *
+   * <p>轉譯也不能放進 repository：例外要到 flush 或 commit 才拋，那時已經離開
+   * repository 的方法了。
+   */
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<String> handleIntegrityViolation(DataIntegrityViolationException e) {
+    if (mentions(e, "uq_orders_owner_external_no")) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body("An order with this owner and external order number already exists");
+    }
+    return ResponseEntity.badRequest()
+        .body("The order references catalog data that does not exist for this owner");
+  }
+
+  /** constraint 名稱由本專案的 migration 定義，不隨資料庫版本的措辭改變。 */
+  private static boolean mentions(Throwable throwable, String constraintName) {
+    for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+      if (cause.getMessage() != null && cause.getMessage().contains(constraintName)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

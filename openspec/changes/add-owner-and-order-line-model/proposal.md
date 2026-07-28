@@ -33,8 +33,8 @@ change：R3 的跨貨主隔離要 `owner_id`、R6 的選點要溫層與重量、
   schema 從本 change 起就允許 N 筆。這個不對稱是刻意的，讓測試能造出 N=2 的 `Order`。
 - **BREAKING**：`POST /orders` 的 request body 改為帶貨主、上游單號、收件資訊、承諾
   到貨日與 lines；`GET /orders` 與 `GET /orders/{orderId}` 的回應把 `sku`／`quantity`
-  移入 lines，並加 `ownerId` 與 `ownerName`。回應帶 `ownerName` 是刻意的反正規化——
-  否則列表要為每一列再打一次貨主查詢。
+  移入 lines，並加 `ownerId`。**不帶貨主名稱**——呼叫端為了下單表單的下拉選單本來就要載
+  `/owners`，名稱用那份資料解析即可，不需要每次列表都多查一次主檔。
 - **BREAKING**：`OrderPlacedIntegrationEvent` 加 `ownerId`、`shipToZone`、
   `promisedDeliveryDate` 並把 `sku`／`quantity` 改為 line 清單；
   `OrderCancelledIntegrationEvent` 加 `ownerId`。allocation 側兩支 handler 連帶調整。
@@ -73,7 +73,8 @@ change：R3 的跨貨主隔離要 `owner_id`、R6 的選點要溫層與重量、
 ### Modified Capabilities
 
 - `order-promising-http-api`: 下單命令與訂單查詢的 payload 形狀改變——命令帶貨主與
-  收件資訊、訂單表示型別帶 lines 與貨主名稱。`GET /stock-pool/{sku}` 不變。
+  收件資訊，訂單表示型別帶行清單與貨主識別碼，但不帶貨主名稱。另新增主檔的唯讀端點。
+  庫存查詢端點不變。
 - `demo-only-probes`: 補貨探針發布的上游事件加貨主，因此探針的請求也要指定貨主。
 - `demo-console-frontend`: 下單表單與訂單列表的欄位改變；商品選擇從單一 SKU 輸入改為
   款與規格兩段選擇；庫存頁的補貨動作要指定貨主。

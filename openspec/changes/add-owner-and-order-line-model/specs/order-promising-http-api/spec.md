@@ -23,8 +23,8 @@ creating a second order.
   upstream order number, a destination zone and address, a promised delivery date, and
   one line with a SKU code and a positive quantity
 - **THEN** the response is `200` carrying that order's identifier, owner identifier,
-  owner name, destination, promised delivery date, status `PENDING`, placed timestamp,
-  and its lines, in the same shape as the single-order query response
+  destination, promised delivery date, status `PENDING`, placed timestamp, and its
+  lines, in the same shape as the single-order query response
 
 #### Scenario: A GET request to the orders path never creates an order
 
@@ -53,11 +53,14 @@ out-of-range value to the maximum, because a client would otherwise be unable to
 distinguish a truncated response from a complete one.
 
 Each listed order SHALL carry the same fields as the single-order query response,
-including its owner identifier, its owner's name, and its lines.
+including its owner identifier and its lines.
 
-The owner's name SHALL be carried by each listed order rather than left for the client
-to resolve. A list that identifies owners only by identifier forces one further request
-per row, which is the sole reason the name is duplicated into the response.
+An order SHALL identify its owner by identifier only. The owner's name SHALL NOT be
+duplicated into the order representation: a client rendering owner names already holds
+the catalog it loaded to offer owner selection, and resolving names from it costs one
+request for the whole view rather than one per row. Carrying the name would instead cost
+one master-data lookup on every list request, in exchange for something the caller
+already has.
 
 #### Scenario: Repeated requests return an identical sequence
 
@@ -65,10 +68,10 @@ per row, which is the sole reason the name is duplicated into the response.
 - **WHEN** the recent-orders endpoint is called twice without intervening writes
 - **THEN** both responses list the same orders in the same order
 
-#### Scenario: A listed order names its owner without a further request
+#### Scenario: A listed order identifies its owner without carrying the name
 
 - **WHEN** the recent-orders endpoint returns an order
-- **THEN** that order carries both the owner's identifier and the owner's name
+- **THEN** that order carries the owner's identifier and does not carry the owner's name
 
 ##### Example: limit boundary handling
 
