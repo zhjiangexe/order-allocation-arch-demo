@@ -8,21 +8,21 @@ TBD - created by archiving change 'add-owner-and-order-line-model'. Update Purpo
 
 ### Requirement: An owner is the party whose goods the warehouse holds
 
-An owner SHALL carry a human-readable code, a name, an operational status, and whether
-that owner permits a single order to ship from more than one node.
+An owner SHALL carry a human-readable code and a name, and nothing else.
 
 The name SHALL be stored rather than derived, because every screen and log line that
 mentions an owner needs to show something other than an identifier.
 
-The split-shipment permission SHALL be stored on the owner because it is a term of the
-logistics agreement, settled once per owner, rather than a decision taken per order.
-No behavior in this capability reads it yet.
+An owner SHALL NOT carry an operational status. Suspension is real in operations, but no
+decision reads it — the same test that removed it from the warehouse master applies here.
+An attribute with no reader is worse than a missing one, because the next reader assumes
+it means something. It returns when order intake genuinely rejects a suspended owner, and
+it returns with a failing test alongside it.
 
-#### Scenario: An owner records its identity, status, and split-shipment permission
+#### Scenario: An owner exposes only its identity
 
 - **WHEN** an owner is queried
-- **THEN** the response carries its code, its name, its status, and whether it permits
-  split shipment
+- **THEN** the response carries its code and its name, and carries no status
 
 ---
 ### Requirement: Catalog identifiers are scoped to their owner
@@ -107,19 +107,20 @@ interface that is not designed for that purpose.
 ---
 ### Requirement: Seed data reproduces the collisions and contrasts later work depends on
 
-Seed data SHALL include two owners that differ in their split-shipment permission and
-that both define the same SKU code. It SHALL include one ambient product and one
-frozen product, and at least one product carrying two specifications of different
-weights.
+Seed data SHALL include two owners that both define the same SKU code. It SHALL include
+one ambient product and one frozen product, and at least one product carrying two
+specifications of different weights.
 
 Each element exists to make a later decision observable: the shared SKU code is the
-minimal reproduction of cross-owner collision, the differing permissions are the
-strongest contrast for split-shipment decisions, the two temperature zones are needed
-before node capability filtering can be seen to filter anything, and the two
-specifications make the product-and-specification split visible on screen.
+minimal reproduction of cross-owner collision, and the two specifications make the
+product-and-specification split visible on screen.
+
+The two temperature zones SHALL remain seeded even though nothing reads temperature
+today. Temperature belongs to the product as a fact about the goods, and the two-level
+product-and-specification structure exists to make "one product, two temperature zones"
+unrepresentable — that value does not depend on a reader.
 
 #### Scenario: Seeded data contains a cross-owner SKU code collision
 
 - **WHEN** the seeded catalog is inspected
-- **THEN** two owners exist with different split-shipment permissions, and one SKU code
-  is defined by both
+- **THEN** two owners exist and one SKU code is defined by both
