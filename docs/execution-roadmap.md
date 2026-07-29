@@ -300,12 +300,13 @@ line 時間戳的聚合規則。
 11. 事件：`OrderAllocatedIntegrationEvent` 加批次清單（含每批對應的 `orderLineId`）
 12. Seed：同 SKU 三批（近／中／遠效期）、一批已過期、一張跨批次需求的單。**其中兩批刻意同效期不同入庫日**，否則 tie-breaker 沒有測到
 13. 前端：庫存頁改批次列表（效期、良品狀態、數量、是否可售與**落選理由**）＋ 貨主篩選；訂單詳細頁顯示配到哪些批次
-14. 測試：`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 的**前提失效，須重新設計**——熱點的定義從「一個 SKU」變成「一個批次」。`AllocationFifoReplenishmentBatchIntegrationTest` 另受任務 8 影響：500 張的單次喚醒會變成多輪續做，斷言要從「一次補貨事件後的最終狀態」改為「續做收斂後的最終狀態」，**而 head-of-line blocking 的斷言必須保留**——那是這支測試存在的理由
+14. 刪除 `DevSeedDataIntegrationTest` 中「每個庫存池的 SKU 都存在於主檔」那支測試——它驗的東西已由任務 1 的外鍵保證（見動工前第 4 件）
+15. 測試：`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 的**前提失效，須重新設計**——熱點的定義從「一個 SKU」變成「一個批次」。`AllocationFifoReplenishmentBatchIntegrationTest` 另受任務 8 影響：500 張的單次喚醒會變成多輪續做，斷言要從「一次補貨事件後的最終狀態」改為「續做收斂後的最終狀態」，**而 head-of-line blocking 的斷言必須保留**——那是這支測試存在的理由
 
 ### 動工前的六件事
 
-以下在 R1 實作期間與 2026-07-29 的範圍討論中浮現，都不是 R1 能決定的。前四件仍待定，
-第 5、6 件已定案。
+以下在 R1 實作期間與 2026-07-29 的範圍討論中浮現，都不是 R1 能決定的。**六件全數定案**，
+動工時直接照著做即可；每一項都保留了推導過程，因為被推翻的理由比結論更常被重複用到。
 
 **1. `stock_pools` 的身分是屬性的組合**（已定，2026-07-29）
 
@@ -343,14 +344,28 @@ aggregate」，弱得多，代價也具體（多列更新要固定順序，見�
 「有貨但不可售」——而效期已經覆蓋（過期即不可售）。破損品在本 demo 裡是「不存在」而非「存在
 但不可售」，這是誠實的簡化：我們沒有驗收、報廢、隔離解除那些流程。
 
-**2. partition key 必須與加 `owner_id` 在同一個 change**
+**2. partition key 與庫存維度的先後順序**（已定，2026-07-29）
 
-任務 9 已列出「改成 `ownerId:skuCode`」，但沒說**不能分開做**。key 的正確形狀由庫存的識別
-決定：庫存分開的那一刻，裸 `sku` 就從「正確」變成「假競爭」，兩個貨主的事件擠進同一個
-partition 排隊等一個它們其實不共用的鎖。分兩個 change 做的話，中間那段時間 single-writer
-是壞的。
+**同一個 change 裡做。** partition key 那一項只有兩個檔案（`OrderingDomainEventTranslator`
+與 `ReplenishmentProbeController`），拆出去省不到什麼，卻要記住一條順序規則。
 
-**3. partition key 該含哪些維度：三維**
+真要拆的話，**只有一個安全的順序：庫存先分維度、key 後改**。兩個方向的風險不對稱：
+
+| 順序 | 中間狀態 | 後果 |
+| --- | --- | --- |
+| 庫存先、key 後 | key 比爭用群組**粗** | 不同貨主的事件擠同一個 partition 排隊，但各自更新自己的列——**只是慢** |
+| key 先、庫存後 | key 比爭用群組**細** | 不同貨主的事件並行卻更新同一列 → 樂觀鎖衝突暴增 → 重試耗盡 → **落 DLT** |
+
+判準就是下一項自己寫的那句：**選太粗只是過度收斂，選太細會讓 single-writer 失效**。
+本項先前寫成「不能分開做，中間 single-writer 是壞的」，那對第一個方向是過度描述、對第二個
+方向是低估。
+
+**一個限縮**：`archone.allocation.partition-key-strategy` 預設是 `order-id`，該模式下每張單依
+自己的 id 分區，本來就沒有 single-writer，衝突全由樂觀鎖與重試處理。上述風險只在跑 `sku`
+策略時存在——也就是壓測與 v3 對比那個情境。這把風險從「production 事故」降為「demo 數字
+不可信」，但不表示可以不管：v3 的吞吐對比（270 vs 203 orders/s）正是靠那個策略。
+
+**3. partition key 該含哪些維度：三維**（已定，2026-07-29）
 
 判準是「**一次交易會碰到的資源集合**」，凡是交易會跨越的維度都不能進 key：
 
@@ -359,9 +374,13 @@ partition 排隊等一個它們其實不共用的鎖。分兩個 change 做的�
 | `owner_id` | 是 | 庫存分開後不同貨主不再競爭 |
 | `node_id` | **是** | 一張訂單只有一個倉、明細不可跨倉，交易不跨節點。（原本因「R6 拆單會跨節點」而排除，R6 移出範圍後那個理由消失） |
 | `sku_code` | 是 | 競爭的單位 |
-| 批次維度（效期／良品狀態／批號） | **否** | FEFO 在一次交易內跨批次取用，事前不知道會碰到哪幾批 |
+| `in_date`、`expiry_date` | **否** | FEFO 在一次交易內跨批次取用，事前不知道會碰到哪幾列 |
 
 選太細比太粗危險：太粗只是過度收斂（本來可平行的被序列化），太細會讓 single-writer 失效。
+
+因此 **partition key 比庫存的身分粗兩級**——身分是五維、爭用群組是三維。這不是妥協，是兩者
+本來就在回答不同的問題：身分問「哪一列是哪一列」，爭用群組問「哪些訊息會搶同一批列」。
+`event_outbox` 把 `aggregateid` 與 `partition_key` 分成兩欄，正是為了讓這兩件事各自獨立變動。
 
 **字串怎麼組**：`ownerId + "/" + nodeId + "/" + skuCode`。Kafka 只拿 key 做
 `hash(key) % partitions`、從不解析它，所以唯一的要求是**確定性**與**不撞鍵**。撞鍵風險來自
@@ -376,11 +395,20 @@ partition 排隊等一個它們其實不共用的鎖。分兩個 change 做的�
 ——發事件的是 `Order`，`StockPool` 不出現在 outbox 裡。`partition_key` 對應的不是任何
 aggregate 的識別，而是「會競爭同一批庫存的事件群組」。
 
-**4. `stock_pools` 要不要建 `(owner_id, sku_code)` → `skus` 的外鍵**
+**4. `stock_pools` 建 `(owner_id, sku_code)` → `skus` 的外鍵**（已定，2026-07-29）
 
-有了 `owner_id` 之後這才變成可行選項。好處是資料庫直接擋住「庫存池指向不存在的 SKU」；代價
-是 allocation 與 catalog 的儲存綁在一起。R1 目前靠 `DevSeedDataIntegrationTest` 的一支測試
-補這一段（斷言每個庫存池的 SKU 都存在於主檔）——若 R3 決定建外鍵，那支測試可以刪。
+有了 `owner_id` 之後這才變成可行選項，而且**與 R1 對 `order_lines` 的作法一致**：走自然鍵的
+外鍵強制每一次參照都帶上貨主，跨貨主的錯誤組合因此建不起來。庫存池面對的是同一個問題——
+SKU 代碼跨貨主撞號——用不同解法沒有道理。
+
+現在的防線是 `DevSeedDataIntegrationTest` 的一支測試（斷言每個庫存池的 SKU 都存在於主檔），
+那是最弱的一種：它只驗種子，正式路徑寫進一個不存在的 SKU 資料庫不會抱怨，症狀是「有庫存卻
+永遠配不到貨」，而那要查很久才會歸因到打錯代碼。**建了 FK 之後那支測試可以刪。**
+
+耦合的代價比看起來小：兩張表在同一個 schema、同一個 Postgres、同一次 migration 建出來。真正
+的耦合成本要到分庫或拆服務時才出現，而那不在計畫裡。唯一站得住的反對理由是模組邊界
+（allocation 不該知道 catalog 的表存在），但 R1 已經破了同一條線，而且真正的邊界防線是
+[system-layer-map.md](system-layer-map.md) 提的 Gradle module，不是外鍵。
 
 **5. 批號不做**（已定，2026-07-29；本項曾兩度判定相反，見第 1 項）
 
