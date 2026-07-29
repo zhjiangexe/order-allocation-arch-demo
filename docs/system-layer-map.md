@@ -79,7 +79,7 @@
 
 | | `StockPool` | `LocationStock` |
 | --- | --- | --- |
-| 粒度 | `(owner, node, skuCode, lotNo)` 批次層 | `(location, owner, skuCode, lotNo)` 儲位×批次層 |
+| 粒度 | `(owner, receipt, node, stockStatus)` 批次層 | `(location, owner, receipt, stockStatus)` 儲位×批次層 |
 | 回答 | 這個批次還能承諾多少？ | 這個批次實際放在哪一格？ |
 | 性質 | 邏輯帳 | 實體帳 |
 | 維護者 | 訂單層 | 履約層 |
@@ -99,12 +99,13 @@ node（北倉）· B貨主 · SKU-A
                                                           與 A 貨主不可互相調用
 ```
 
-**對帳等式**：同一批次（`owner, node, skuCode, lotNo` 四個維度全同）的所有儲位實體量總和，
+**對帳等式**：同一批次（`owner, receipt, node, stockStatus` 四個維度全同）的所有儲位實體量總和，
 必須等於該筆 `StockPool.onHand`。短揀就是這個等式破掉的時候。
 
-**兩本帳的身分必須一致**，否則等式無從成立——這是 `LocationStock` 也要帶批號的理由，
-不只是為了知道揀哪一批。效期與良品狀態在兩本帳上都是**屬性**而非身分（2026-07-29 定案，
-依據見 [execution-roadmap.md](execution-roadmap.md) 的 R3 動工前第 5 件）。
+**兩本帳的身分必須一致**，否則等式無從成立——這是 `LocationStock` 也要帶 `receiptId` 的
+理由，不只是為了知道揀哪一批。批號與效期在兩本帳上都是**屬性**而非身分；品質狀態則是身分
+的一部分，因為同一次到貨可以裂成良品與不良品兩列（2026-07-29 定案，依據見
+[execution-roadmap.md](execution-roadmap.md) 的 R3 動工前第 1、5 件）。
 
 **兩本帳都必須含貨主。** `LocationStock` 少了 `ownerId`，儲位上就分不出哪些貨是誰
 的，回架與盤點都無從對應。這在 3PL 是資料事故等級的缺陷，不是選配。

@@ -314,7 +314,7 @@ SR-08 ─> SR-09 ─┐
 貨主的同碼 SKU 共用同一列庫存——甲貨主下單會吃掉乙貨主的貨，而資料庫不會報錯。缺貨佇列
 已經按貨主分開（`findBackordersBySkuInFifoOrder` 帶 `ownerId`），庫存還沒有：**佇列分開了，
 庫存還沒分開**。收尾的是 **R3 庫存分批**，屆時 `stock_pools` 的唯一鍵會變成
-`(owner_id, node_id, sku_code, lot_no)`。
+`(owner_id, receipt_id, node_id, stock_status)`，並新增 `stock_receipts` 記錄到貨的不可變事實。
 
 在那之前，操作台的庫存頁刻意在畫面上直說這件事，而不是讓人從「補貨要選貨主、查詢不用」
 這個不對稱自己推敲。

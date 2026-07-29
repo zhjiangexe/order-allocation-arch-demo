@@ -92,13 +92,13 @@ Location                              主檔
   id, nodeId, code
 
 LocationStock
-  (locationId, ownerId, skuCode, lotNo) 複合主鍵, expireDate, group, quantity, version
+  (locationId, ownerId, receiptId, stockStatus) 複合主鍵, quantity, version
 
 Shipment
   id, orderId, ownerId, nodeId, status, createdAt, departedAt
 
 PickTask
-  id, shipmentId, orderLineId, locationId, ownerId, skuCode, lotNo
+  id, shipmentId, orderLineId, locationId, ownerId, receiptId
   requestedQty, pickedQty, status, confirmedAt
 ```
 
@@ -297,7 +297,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | 表 | 說明 |
 | --- | --- |
 | `locations` | 儲位主檔，`(node_id, code)` unique |
-| `location_stock` | `(location_id, owner_id, sku_code, lot_no)` 複合主鍵，含 `version` 樂觀鎖。`expire_date`／`group` 為屬性欄位——身分必須與 `stock_pools` 一致，否則對帳等式不成立 |
+| `location_stock` | `(location_id, owner_id, receipt_id, stock_status)` 複合主鍵，含 `version` 樂觀鎖——身分必須與 `stock_pools` 一致，否則對帳等式不成立 |
 | `shipments` | 出貨單，兩態 |
 | `pick_tasks` | 揀貨任務，含 `order_line_id` |
 
