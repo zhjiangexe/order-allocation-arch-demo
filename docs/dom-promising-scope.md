@@ -105,23 +105,24 @@ StockPool stockPool = stockPoolRepository.findById(reservation.getStockPoolId())
 「效期＋良品」的屬性組合當唯一鍵，兩次進貨會被 upsert 合併成一列，「換批號」就沒有東西可換。
 
 **但批號最終也不是身分。** 上游不給批號時，自產的批號就退化成代理鍵，而「業務採用它」
-這個立論隨之瓦解。身分改由**到貨**（`stock_receipts`）承擔：唯一鍵
-`(owner_id, receipt_id, node_id, stock_status)`，批號與效期都是屬性。FEFO 不受影響——效期
-仍是真的欄位、仍照樣排序，只是不在鍵裡；tie-breaker 用同樣不可變的 `received_at`。
-完整的推導過程見 [execution-roadmap.md](execution-roadmap.md) 的 R3 動工前第 1、5 件。
+這個立論隨之瓦解。**最終批號完全不做**——它的價值幾乎全在追溯，而追溯不在本專案範圍。
+身分改為**屬性的組合**：唯一鍵 `(owner_id, node_id, sku_code, in_date, expiry_date)`。
+FEFO 依 `expiry_date` 排序、`in_date` 作 tie-breaker（同效期不同日到貨會平手）。
+完整的推導過程（四版，每版被推翻的理由都是可複用的判準）見
+[execution-roadmap.md](execution-roadmap.md) 的 R3 動工前第 1、5 件。
 
 ### 模型改動
 
 ```text
 現況   StockPool(sku)                                     ← 一個數字
-目標   StockPool(ownerId, receiptId, nodeId, stockStatus) ＋ 效期／批號為屬性
+目標   StockPool(ownerId, nodeId, skuCode, inDate, expiryDate)
 ```
 
 一個貨主的一個 SKU 在一個節點上，會有**多筆** `StockPool`，各自代表一個批次。
 
 | 方案 | 判定 |
 | --- | --- |
-| `StockPool` 的 key 加批次維度 | **採用**（2026-07-29 定為以 `receiptId` 為身分，效期／批號／品質狀態各歸其位） |
+| `StockPool` 的 key 加批次維度 | **採用**（2026-07-29 定為 `(inDate, expiryDate)` 兩維，批號與品質狀態不做） |
 | 保留 `StockPool` 為聚合視圖，另建 `StockLot` 明細表 | 不採用 |
 
 不採用第二案的理由：它會製造**第三本帳**（`StockPool` 總量、`StockLot` 明細、
@@ -324,7 +325,7 @@ OrderRepository.findBackordersBySkuInFifoOrder(sku)
 ```text
 現在   findBySku(sku).replenish(qty)          ← 找到那一列，加數量
 
-之後   建立 receipt（批號／效期／到貨日）＋ 一列 stock_pools（倉、品質狀態、數量）
+之後   upsert(owner, node, sku, inDate, expiryDate, qty)
          同批次已存在 → 加到既有列
          不存在       → 建立新列
 ```
@@ -503,7 +504,7 @@ partition key 在 `OrderPlaced` 發出時就要決定，但實際競爭發生在
 | --- | --- |
 | Entity／Mapper | `StockPoolEntity`、`StockPoolMapper`、`StockReservationEntity`、`StockReservationMapper` |
 | Repository | `StockPoolRepository(+Impl)`、`JpaStockRepository`、`StockReservationRepository(+Impl)`、`JpaStockReservationRepository` |
-| Migration | 新增 `stock_receipts`；`stock_pools` 的 unique key 改為 `(owner_id, receipt_id, node_id, stock_status)`；建立 `order_lines`；`stock_reservations` 的 FK 改為 `order_line_id` |
+| Migration | `stock_pools` 的 unique key 改為 `(owner_id, node_id, sku_code, in_date, expiry_date)`；建立 `order_lines`；`stock_reservations` 的 FK 改為 `order_line_id` |
 | Kafka | `OrderAllocatedIntegrationEvent` 加批次資訊；`BackorderCreatedIntegrationEvent`；**`OrderingDomainEventTranslator` 的 partition key 改為 `ownerId:skuCode`** |
 | REST | `StockPoolController`、`StockPoolResponse`（改為批次列表） |
 | 其他 | `bootstrap/DevSeedDataInitializer`、`e2e/perf/k6/*`、`frontend/` |
@@ -554,7 +555,7 @@ partition key 在 `OrderPlaced` 發出時就要決定，但實際競爭發生在
 
 | 項目 | 理由 |
 | --- | --- |
-| ~~`lotNumber` 批號~~ | **2026-07-29 改為要做**。原理由「不改變配對邏輯」已被推翻——「可否換批號」設定讓它改變演算法的形狀。見上方「模型改動」前的更新 |
+| `lotNumber` 批號 | **不做**（2026-07-29 定案）。原本判定「不改變配對邏輯」，中途改判「要做」，最終回到不做——理由不是它不改變邏輯，而是它的價值幾乎全在追溯，而追溯不在範圍。「可否換批號」改以庫存列為單位解讀，見 [execution-roadmap.md](execution-roadmap.md) 第 5 件 |
 | `goodQty` / `badQty` 欄位 | 被 `group` 維度取代，維度可擴充而欄位不行 |
 | 各維度的可替換開關（11 個） | 只做兩個維度時退化：`group` 永遠不可換，`expireDate` 由 FEFO 規則決定 |
 | `productType` 贈品／組合／虛料號 | 需要商品結構（BOM）才有意義；只是過濾輸入，不改演算法。列為選配 |

@@ -195,9 +195,8 @@ order_lines
 
 | 表 | 現況 | 目標 |
 | --- | --- | --- |
-| `stock_receipts` | 不存在 | 新表：到貨的不可變事實（批號、效期、到貨日） |
-| `stock_pools` | `UNIQUE (sku)` | `UNIQUE (owner_id, receipt_id, node_id, stock_status)`——身分是**到貨**，批號與效期是屬性 |
-| `location_stock` | 不存在 | `(location_id, owner_id, receipt_id, stock_status)` 複合主鍵——身分必須與 `stock_pools` 一致，否則對帳等式不成立 |
+| `stock_pools` | `UNIQUE (sku)` | `UNIQUE (owner_id, node_id, sku_code, in_date, expiry_date)` |
+| `location_stock` | 不存在 | `(location_id, owner_id, sku_code, in_date, expiry_date)` 複合主鍵——身分必須與 `stock_pools` 一致，否則對帳等式不成立 |
 
 `stock_pools` 共有**四個**維度要擴張——貨主、節點、效期、良品狀態——**應在同一次
 migration 完成**。分次做等於對同一組 unique constraint 與所有查詢改四輪，中間狀態
@@ -208,7 +207,7 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 曾考慮在擴維度的同時把表改名為 `stock_batches`，理由是「一列已經代表一個批次」。**不改名。**
 
 `lot_number` 不做（見 [dom-promising-scope.md](dom-promising-scope.md) 的 P1），因此 key 是
-`(owner, receipt, node, stock_status)`。這代表：
+`(owner, node, sku, in_date, expiry_date)`。這代表：
 
 > 今天收 100 件效期 2027-01-01，下週再收 50 件同效期——**兩者合併為同一列，`on_hand = 150`。**
 
@@ -220,7 +219,7 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 | key | 一列代表 | `pool` 準確嗎 |
 | --- | --- | --- |
 | `(sku)` 現況 | 這個 SKU 的所有可用單位 | 準 |
-| `(owner, receipt, node, stock_status)` 目標 | 某一次到貨在某個倉、某個品質狀態下的貨 | **一樣準** |
+| `(owner, node, sku, in_date, expiry_date)` 目標 | 這個貨主在這個倉、某日到貨、某效期的那一批 | **一樣準** |
 
 `batch` 在 WMS 語境幾乎等同 lot，讀的人會期待「一次收貨 = 一列」與可追溯性，而這張表兩者
 都不提供。那與 `order-promising` 承諾了 promise date、`availableToPromise()` 承諾了時間
@@ -232,15 +231,15 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 
 ### 擴維度是語意重新詮釋，不只是加欄位
 
-`stock_pools` 現在一個 SKU 一列，語意上是**該 SKU 的可用量**。到貨、效期與品質狀態
+`stock_pools` 現在一個 SKU 一列，語意上是**該 SKU 的可用量**。貨主、倉、入庫日與效期
 進 key 之後，同一列的意思變成「該 SKU 的其中一組可互換單位」。既有資料會退化成
-「某一次到貨、效期為空、`stock_status = AVAILABLE`」的那唯一一列——既有列因此需要補一筆 receipt 才遷得過去。
+「某日到貨、某效期」的那唯一一列——既有列因此需要補上四個維度的值才遷得過去。
 
 這不是相容的欄位擴充，而是**同一列的語意改變**，兩個連帶後果：
 
 | 後果 | 說明 |
 | --- | --- |
-| migration 要明確處理既有列 | 既有列沒有對應的到貨記錄，補一筆 receipt 是資料決定不是技術細節 |
+| migration 要明確處理既有列 | 既有列的 `in_date` 與 `expiry_date` 該填什麼是資料決定，不是技術細節 |
 | 「一個 SKU 只有一列」的假設全部失效 | `StockPoolRepository.findBySku()` 目前回傳 `Optional<StockPool>`，擴維度後必須回傳 `List`。所有依賴單筆回傳的呼叫端都要改 |
 
 ### Index 的連鎖
@@ -572,7 +571,7 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 | 直送（drop-ship） | — | 見「執行順序」末段 |
 | line 內數量部分出（訂 10 出 6） | 不做 | `canReserve(quantity)` 已是全有全無 |
 | line 間部分配貨（`PARTIALLY_ALLOCATED`） | 不做 | 採 ship-complete。理由與代價見 [dom-promising-scope.md](dom-promising-scope.md) |
-| `damagedQuantity` / `blockedQuantity` 欄位 | 取代 | 改用 `stock_pools` 的 `stock_status` 維度（`AVAILABLE`／`DAMAGED`／`QUARANTINE`／`BLOCKED`），見 [dom-promising-scope.md](dom-promising-scope.md) |
+| `damagedQuantity` / `blockedQuantity` 欄位 | **不做** | 品質狀態未納入本階段的庫存身分，破損品在 demo 裡是「不存在」而非「存在但不可售」。見 [execution-roadmap.md](execution-roadmap.md) 第 1 件 |
 | `lot_number` 批號 | 延後 | 只是 tie-breaker，不改變配對邏輯，見 [dom-promising-scope.md](dom-promising-scope.md) 的 P1。**它的缺席也是 `stock_pools` 不改名為 `stock_batches` 的理由** |
 | `stock_availability` 聚合表 | 不做 | FEFO 下 `reserved` 只能長在批次列上，可用量因此 100% 可推導，存它只是快取。**兩個解封條件**：③ 選點的 ATP 計算量測出延遲（每張單 K 節點 × M line × B 批次）；或出現「對貨主／通路發布可售量」的職責——那個數字要扣安全庫存與通路配額，是獨立事實而非推導值 |
 | 表名改為 `stock_batches` | 不做 | 見「資料模型」的「為何不改名」 |

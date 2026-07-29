@@ -255,50 +255,50 @@ line 時間戳的聚合規則。
 
 **依賴**：R1、R2　**不可與 R4 並行**　**規模**：約 30 檔
 
-本專案最大的單一 change，也是**系統唯一真正在算的決策**（配哪批貨）。`stock_pools` 的新維度必須在**同一次 migration** 完成。
+**系統唯一真正在算的決策**（配哪批貨）。`stock_pools` 的四個新維度必須在**同一次 migration** 完成——它們動的是同一組 unique constraint 與同一批查詢，分次做等於改四輪。
 
 ### 任務
 
-1. Migration：新增 `stock_receipts`（到貨的不可變事實）並把 `stock_pools` 改為一列一批。
+1. Migration：`stock_pools` 由「一個 SKU 一列」改為「一批一列」。**不新增任何表。**
 
    ```sql
-   stock_receipts(
-     id, owner_id, sku_code, lot_number NULL, expiry_date NULL, received_at NOT NULL,
-     UNIQUE (id, owner_id)   -- 供 stock_pools 建複合外鍵
-   )
-
    stock_pools(
-     id, receipt_id, owner_id, node_id, sku_code, stock_status,
-     expiry_date,     -- 冗餘自 receipt，供 FEFO 過濾與排序
-     received_at,     -- 冗餘自 receipt，FIFO 與 FEFO 的 tie-breaker
-     on_hand_quantity, reserved_quantity, version,
-     UNIQUE (owner_id, receipt_id, node_id, stock_status),
-     FOREIGN KEY (receipt_id, owner_id) REFERENCES stock_receipts(id, owner_id)
+     id,
+     owner_id, node_id, sku_code, in_date, expiry_date,   -- 身分
+     on_hand_quantity, reserved_quantity, version, updated_at,
+     UNIQUE (owner_id, node_id, sku_code, in_date, expiry_date),
+     FOREIGN KEY (owner_id, sku_code) REFERENCES skus(owner_id, sku_code)
    )
    ```
 
-   **身分是「到貨」而不是「批號」**，這是本項最關鍵的決定，理由見下方「動工前」第 1 項。
-   兩個冗餘欄位是安全的——來源 `stock_receipts` 不可變，複本永遠不會漂，與
-   `order_lines.owner_id` 同一類。
+   **身分是屬性的組合**，不是批號也不是到貨編號——理由見下方「動工前」第 1 項。
 
-   **這不是相容的欄位擴充**：同一列的語意從「該 SKU 的可用量」變成「某一次到貨的其中一組
-   可互換單位」。既有列無法自動遷移，需要為它們補一筆 receipt。
+   `expiry_date` **NOT NULL**。可空會踩到 PostgreSQL 的坑：unique 約束把 NULL 視為互不相同，
+   兩批同日到貨的無效期商品會各成一列而不是合併。種子全是食品，NOT NULL 不造成虛構；真的
+   出現非效期商品時再處理，那時是改約束不是改鍵。
+
+   `in_date` 留在鍵裡而不只當屬性：同效期不同日到貨因此各成一列，補貨一律是 insert，不需要
+   「合併時日期取哪一個」這種規則。代價是列數多一些，換到的是沒有合併語意要維護。
+
+   **這不是相容的欄位擴充**：同一列的語意從「該 SKU 的可用量」變成「某貨主在某倉、某日到貨、
+   某效期的那一批」。既有列要補上四個維度的值才遷得過去。
 
    **表名不改**，理由見 [dom-order-intake-scope.md](dom-order-intake-scope.md) 的「為何不改名為
-   `stock_batches`」。但改寫 migration 時要在註解裡明說**一列是一批不是一個池**——名字現在
-   與內容不符，不寫下來下一個人會誤讀。
+   `stock_batches`」。但改寫 migration 時要在註解裡明說**一列是一批不是一個池**——名字與內容
+   不符，不寫下來下一個人會誤讀。
+
 2. Migration：`stock_reservations` FK 改為 `order_line_id`，並加批次欄位
 3. Domain：`StockPool` 加四維、加 `consume()`；`ReservationStatus` 加 `CONSUMED`；`StockReservation` 粒度改為 line × 批次
    - `CONSUMED` 會被 R4 的 `demand_lines` view 用在「已滿足」謂詞裡（`status IN ('ACTIVE','CONSUMED')`）。R3 先於 R4，所以此處只需確保 enum 存在；**若日後再擴充 `ReservationStatus`，必須同步檢查 view 定義**——漏掉會讓已出貨的訂單重新出現在待配佇列，而當下沒有任何測試會發現
 4. Repository：`findBySku` 拆為 `findSellableBatchesInFefoOrder(...)` 與 `findBatches(...)`
-5. `AllocationService`：批次篩選（`stock_status = 'AVAILABLE'` 且未過期）→ FEFO 排序 → 依序取用；加 `requireMatchingOwner()`。**排序鍵是 `(expiry_date, received_at, id)`**——只用效期不夠：同一個製造批分兩次到貨、或上游不給批號時，效期平手會很常見，而順序不定會讓配貨結果不可重現，也讓任務 9 的防死鎖排序失效
+5. `AllocationService`：批次篩選（未過期）→ FEFO 排序 → 依序取用；加 `requireMatchingOwner()`。**排序鍵是 `(expiry_date, in_date, id)`**——只用效期不夠：同效期不同日到貨會平手，而順序不定會讓配貨結果不可重現，也讓任務 9 的防死鎖排序失效
 6. `AllocationOutcome`：區分「完全無批次」與「有批次但全不可售」。**決策層級是訂單**（採 ship-complete：整單配到／被哪條 line 卡住），per-line 資訊只作診斷用。型別要能承載「哪一條 line 的哪個 SKU 卡住了」
-7. `ReplenishmentUsecase`：改為「建立一筆 `stock_receipts` ＋ 一列 `stock_pools`」。`ReplenishStockCommand` 加 `lotNumber`（可空）、`expiryDate`（可空）、`receivedAt`。**不是 upsert**——每次補貨就是一次到貨，即使批號相同也是新的一列；合併與否是上游資料的事，不是這裡的邏輯
+7. `ReplenishmentUsecase`：改為依五維鍵 upsert。`ReplenishStockCommand` 加 `nodeId`、`inDate`、`expiryDate`。同貨主同倉同 SKU 同日同效期的補貨會加到既有那一列，其餘一律新開列——合併規則因此完全由鍵決定，沒有額外邏輯
 8. **補貨喚醒的批次上限**：`findBackordersBySkuInFifoOrder()` 目前無上限，`AllocationFifoReplenishmentBatchIntegrationTest` 已是「單次補貨喚醒 500 張」的情境——一個交易改 500 張 `Order`、寫 500 筆預留、發 1,000 則事件，而 `StockPool` 的樂觀鎖全程暴露在衝突下（交易越久越容易衝突 → 重試 → 更久）。批次化之後這從效能問題升級為**正確性問題**：一次補貨涉及的批次數量由佇列內容而非事件決定，鎖範圍不可預測，而任務 9 的死鎖防線依賴「知道自己會碰哪些列」。作法：**上限以張數為維度、可設定，超出時發一則續做事件**（同 topic 同 partition key），**終止條件為「本輪喚醒張數 < 上限即不續做」**——喚醒數不足代表佇列已清空或被 head-of-line blocker 卡住，再送一次結果相同，這同時保證進展性。**續做方案的前提是 FIFO 只保證「補貨當下的佇列快照」**（見 [dom-promising-scope.md](dom-promising-scope.md) 的「補貨的三個決定」）；若那條契約被改成嚴格全域 FIFO，本項只能退回同交易內分頁，而那沒有縮短交易
-9. **防死鎖**：`OrderAllocationCoordinator` 的持久化段落**明確依 `(sku_code, expiry_date, received_at, id)` 排序後寫入**，不可依賴集合的自然順序。排序鍵**現在就寫成跨 SKU 的形式**，即使單行時只有一個 SKU——R8 之後一次配貨會碰多個 SKU 的多個批次，屆時才改排序鍵是死鎖最難重現的一類問題
+9. **防死鎖**：`OrderAllocationCoordinator` 的持久化段落**明確依 `(sku_code, expiry_date, in_date, id)` 排序後寫入**，不可依賴集合的自然順序。排序鍵**現在就寫成跨 SKU 的形式**，即使單行時只有一個 SKU——R8 之後一次配貨會碰多個 SKU 的多個批次，屆時才改排序鍵是死鎖最難重現的一類問題
 10. **Partition key**：`OrderingDomainEventTranslator` 與 `ReplenishmentProbeController` 的 key 改為 `ownerId + "/" + nodeId + "/" + skuCode`（見下方「動工前要先定」的第 3 項）。`AllocationDomainEventTranslator` 不動——它發的是往下游的結果事件，下游更新的是 `Order` 那一列，爭用群組本來就是 orderId
 11. 事件：`OrderAllocatedIntegrationEvent` 加批次清單（含每批對應的 `orderLineId`）
-12. Seed：同 SKU 三批（近／中／遠效期，各自一筆 receipt）、一批 `DAMAGED`、一批已過期、一張跨批次需求的單。**其中兩批刻意同效期不同 receipt**，否則 tie-breaker 沒有測到
+12. Seed：同 SKU 三批（近／中／遠效期）、一批已過期、一張跨批次需求的單。**其中兩批刻意同效期不同入庫日**，否則 tie-breaker 沒有測到
 13. 前端：庫存頁改批次列表（效期、良品狀態、數量、是否可售與**落選理由**）＋ 貨主篩選；訂單詳細頁顯示配到哪些批次
 14. 測試：`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 的**前提失效，須重新設計**——熱點的定義從「一個 SKU」變成「一個批次」。`AllocationFifoReplenishmentBatchIntegrationTest` 另受任務 8 影響：500 張的單次喚醒會變成多輪續做，斷言要從「一次補貨事件後的最終狀態」改為「續做收斂後的最終狀態」，**而 head-of-line blocking 的斷言必須保留**——那是這支測試存在的理由
 
@@ -307,33 +307,41 @@ line 時間戳的聚合規則。
 以下在 R1 實作期間與 2026-07-29 的範圍討論中浮現，都不是 R1 能決定的。前四件仍待定，
 第 5、6 件已定案。
 
-**1. `stock_pools` 的身分是「到貨」**（已定，2026-07-29）
+**1. `stock_pools` 的身分是屬性的組合**（已定，2026-07-29）
 
-唯一鍵 `(owner_id, receipt_id, node_id, stock_status)`，**一列一批、每批一個 aggregate、
+唯一鍵 `(owner_id, node_id, sku_code, in_date, expiry_date)`，**一列一批、每批一個 aggregate、
 一把樂觀鎖**。
 
-這個結論繞了很久才到，過程值得記下來，因為每一步都推翻了前一步：
+這個結論繞了四版才到，過程記在這裡，因為**每一版被推翻的理由都是可複用的判準**：
 
-**第一版判斷是三維 `(owner_id, node_id, sku_code)`、批次移到子表**，理由是「不超賣是跨批次
-的不變式，而 aggregate 邊界就是不變式的邊界」。**那個理由是錯的**——每批各自滿足
-`reserved ≤ on_hand`，總和就自動滿足，不變式會分解。真正的 DDD 論證是另一條、也弱得多：
-「一次交易應該只改一個 aggregate」，而 FEFO 一次吃 N 批。那是指引不是定律，代價很具體
-（多列更新要固定順序，見任務 9），而且兩本帳的對帳等式本來就是逐批的
-（見 [system-layer-map.md](system-layer-map.md)），文件其實一直假設一列一批。
+**第一版：三維 `(owner_id, node_id, sku_code)`，批次移到子表。** 理由是「不超賣是跨批次的
+不變式，而 aggregate 邊界就是不變式的邊界」。**那個理由錯了**——每批各自滿足
+`reserved ≤ on_hand`，總和就自動滿足，不變式會分解。真正的 DDD 論證是「一次交易應只改一個
+aggregate」，弱得多，代價也具體（多列更新要固定順序，見任務 9）。
+*判準：先確認不變式真的不可分解，再談 aggregate 邊界。*
 
-**第二版判斷是用批號當身分**。卡在上游不給批號的情況：系統自產的批號**就是代理鍵穿了件
-衣服**——「業務採用它、它印在標籤與出貨文件上」這個立論在自產時完全不成立。為了補救而想
-的 `lot_source` 欄位、「不管批」模式、哨兵值，全都是在替一個錯的身分打補丁。
+**第二版：用批號當身分。** 卡在上游不給批號時：自產的批號就是代理鍵穿了件衣服，而「業務採用
+它」這個立論在自產時不成立。為了補救而生的 `lot_source` 欄位、「不管批」模式、哨兵值，全是
+在替一個錯的身分打補丁。
+*判準：一個身分需要三個補丁才成立時，錯的是身分不是補丁。*
 
-**最終版：身分是到貨（receipt）。** `receipt_id` 同樣是系統產的，但它**識別一件真實發生的
-事**，不是為了湊主鍵而生。批號因此降為 `stock_receipts` 上的可空屬性，上述三個補丁一次
-消失：沒有來源要分辨、沒有模式要分支、沒有哨兵值。
+**第三版：身分是到貨（`stock_receipts` ＋ `receipt_id`）。** 這一版解掉了批號的問題，但它自己
+被兩件事推翻：一是「自產的 `receipt_id` 同樣是系統產的」——我用來否定批號的那個論證對它一樣
+適用，所以那個論證從一開始就不成立；二是把 receipt 表砍到真正需要的欄位之後，**除了 `id`
+之外每一欄都已冗餘到 `stock_pools` 上，而我們從不單獨查詢它**。
+*判準：一張所有欄位都被複製到別處、又從不被單獨查詢的表，沒有在做事。*
 
-附帶收穫是 `received_at`——FEFO 需要 tie-breaker（同批分兩次到貨、或沒有批號時，效期平手
-會很常見），而到貨日正好是那個鍵，且它不可變。
+**第四版（採用）：屬性組合。** 效期與入庫日直接是 `stock_pools` 的欄位，兩者同時進鍵。
+不需要批號、不需要到貨編號、不需要額外的表。合併規則完全由鍵決定——同貨主同倉同 SKU 同日
+同效期就是同一列，其餘各成一列。
 
-**判準的教訓**：先問「這一列代表哪一件真實發生的事」，比先問「哪些欄位組起來唯一」可靠。
-後者會讓人去湊，而湊出來的東西撐不住第一個例外。
+**放棄了什麼**：批號層級的追溯（召回時精確到製造批），以及逐次到貨的稽核記錄。兩者都在
+[system-layer-map.md](system-layer-map.md) 劃定的範圍外（入庫是「事件過場」），要做時是加一張
+表並把身分換過去——**在那之前不會有人依賴那些欄位**。
+
+**沒有納入 `stock_status`**（`AVAILABLE`／`DAMAGED`／…）。它與效期服務同一個展示點——
+「有貨但不可售」——而效期已經覆蓋（過期即不可售）。破損品在本 demo 裡是「不存在」而非「存在
+但不可售」，這是誠實的簡化：我們沒有驗收、報廢、隔離解除那些流程。
 
 **2. partition key 必須與加 `owner_id` 在同一個 change**
 
@@ -374,31 +382,24 @@ aggregate 的識別，而是「會競爭同一批庫存的事件群組」。
 是 allocation 與 catalog 的儲存綁在一起。R1 目前靠 `DevSeedDataIntegrationTest` 的一支測試
 補這一段（斷言每個庫存池的 SKU 都存在於主檔）——若 R3 決定建外鍵，那支測試可以刪。
 
-**5. 批號是屬性，不是身分**（已定，2026-07-29；本項曾判定相反，見第 1 項）
+**5. 批號不做**（已定，2026-07-29；本項曾兩度判定相反，見第 1 項）
 
-`lot_number` 放在 `stock_receipts` 上且**可為空**。上游給就記、沒給就 null——系統**不自產**
-批號。
+`stock_pools` 上**沒有 `lot_number` 欄位**，也沒有存放它的表。
 
-業界慣例的部分仍然成立：GS1 的批號（AI 10）由製造商／品牌商指定，識別的是**製造批次**；
-倉庫的角色是記錄它、跟著它走完儲存→揀貨→出貨，不是發明它。召回通知引用的也是製造批號。
+業界慣例的考證仍然成立且值得留著：GS1 的批號（AI 10）由製造商／品牌商指定，識別的是**製造
+批次**；倉庫的角色是記錄它、跟著它走完儲存→揀貨→出貨，不是發明它。召回通知引用的也是製造
+批號。**所以批號的價值幾乎全在追溯，而追溯不在本專案範圍。**
 
-改變的是**它在我們的模型裡扮演什麼角色**。原本要拿它當唯一鍵的一部分，那讓「上游不給」
-變成無解——自產就退化成代理鍵，不自產就沒有身分。身分改由到貨承擔之後，批號回到它本來
-的位置：一個描述性屬性，有就記，沒有就空著，不需要哨兵值也不需要來源欄位。
+不做的直接後果：**同效期同日到貨的兩個製造批會併成一列**，召回時無法精確到批。這是可接受的
+——本專案沒有召回流程，也沒有供應商整合可以提供真實批號。
 
-**同一個製造批分兩次到貨會是兩列**，這是正確的：我們無從確認它們可不可以互換，而倉庫作業
-上它們就是兩批貨。要合併是上游資料的決定（送同一個 receipt），不是我們的邏輯。
+**「可否換批號」這個設定因此重新定義為「可否混用不同的庫存列」**，也就是一次出貨能不能跨
+`(in_date, expiry_date)` 取貨。這是它在本模型裡唯一能一致執行的解讀，而且仍然改變演算法的
+形狀：可混時是「依 FEFO 依序取用直到湊滿」，不可混時是「找一個單列能滿足全量」。展示價值
+不變。
 
-**「可否換批號」因此解讀為「可否混用不同到貨」**，不分批號來源。這是保守的解讀，也是唯一
-能一致執行的解讀。
-
-**到貨數量不記在 `stock_receipts` 上。** 記了就有兩個數量——當初到多少、現在還剩多少——
-而後者從第一次出貨就開始分岔。唯一需要前者的場景是入庫驗收對帳（訂購 100、實到 98），
-而那是 layer map 劃在範圍外的入庫流程邏輯。
-
-**`source_type` 與 `source_ref_id` 也不做。** 上游系統有這兩欄（PURCHASE／RETURN／
-TRANSFER／ADJUSTMENT／INITIAL），但本專案的入庫只有補貨一種來源，多一個永遠是同一個值的
-欄位就是本專案已經砍過三次的那種欄位。等真的有退貨或調撥時再加。
+**要恢復批號時**：加一欄 `lot_no` 進 `stock_pools` 並納入唯一鍵，或抽出 `stock_receipts` 表把
+身分換過去。前者較小，後者較完整；觸發點是「到貨開始有批號以外的屬性」或「真的要做召回」。
 
 **6. 貨主 × 倉庫對應表：R2 建配對，R3 只加一欄**（已定，2026-07-29）
 
@@ -408,8 +409,9 @@ TRANSFER／ADJUSTMENT／INITIAL），但本專案的入庫只有補貨一種來�
 - **R2** 建 `owner_nodes(owner_id, node_id)`，零設定欄位——用途只是讓下單表單知道能選哪些倉
 - **R3** 只加 `allow_mixed_batch`（可否換批號）一欄
 
-`allow_mixed_batch` 是必要的，因為它改變**配貨演算法的形狀**而非參數：可換時是「依效期依序
-取用直到湊滿」，不可換時是「找一個單批能滿足全量」。同一張單、同樣庫存，兩種設定下會得出
+`allow_mixed_batch` 是必要的，因為它改變**配貨演算法的形狀**而非參數：可換時是「依 FEFO
+依序取用直到湊滿」，不可換時是「找一個單列能滿足全量」。本模型沒有批號，因此「批」指的是
+`(in_date, expiry_date)` 決定的那一列，見第 5 項。同一張單、同樣庫存，兩種設定下會得出
 不同結果，甚至一個配得到一個配不到。它也接手 `owners.allow_split_shipment` 被砍掉後留下的
 「兩個貨主對比組」角色，而且這次對比的是真的會跑到演算法的東西。
 
