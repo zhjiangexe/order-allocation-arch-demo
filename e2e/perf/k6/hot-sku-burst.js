@@ -11,13 +11,13 @@
 //
 // 執行方式：
 //   k6 run e2e/perf/k6/hot-sku-burst.js
-//   k6 run -e VUS=1000 -e HOT_SKU=HOT-SKU -e BASE_URL=http://localhost:8080 e2e/perf/k6/hot-sku-burst.js
+//   k6 run -e VUS=1000 -e HOT_SKU=HOT-SKU -e BASE_URL=http://localhost:28290 e2e/perf/k6/hot-sku-burst.js
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:28290';
 const HOT_SKU = __ENV.HOT_SKU || 'HOT-SKU';
 const VUS = parseInt(__ENV.VUS || '1000', 10);
 const POLL_INTERVAL_MS = parseInt(__ENV.POLL_INTERVAL_MS || '100', 10);

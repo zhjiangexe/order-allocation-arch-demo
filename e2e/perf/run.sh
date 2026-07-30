@@ -26,7 +26,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${ROOT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
 APP_LOG="${APP_LOG:-/tmp/order-promising-e2e-perf.log}"
-CONNECT_URL="${CONNECT_URL:-http://localhost:8083}"
+CONNECT_URL="${CONNECT_URL:-http://localhost:28293}"
 CONNECTOR_NAME="${CONNECTOR_NAME:-order-promising-outbox}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-order-promising-e2e-perf-postgres-1}"
 NETWORK="${NETWORK:-order-promising-e2e-perf_default}"
@@ -51,7 +51,7 @@ cmd_up() {
 
   echo
   echo "== 2/3 app（偵測到已在跑會跳過啟動） =="
-  if curl -sf -o /dev/null http://localhost:8080/actuator/health; then
+  if curl -sf -o /dev/null http://localhost:28290/actuator/health; then
     echo "app 已經在跑，略過啟動"
   else
     echo "啟動 app（partition-key-strategy=${partition_key_strategy}），log 寫到 ${APP_LOG}"
@@ -60,14 +60,14 @@ cmd_up() {
       > "${APP_LOG}" 2>&1 &)
     echo -n "等待 app 就緒"
     for _ in $(seq 1 60); do
-      if curl -sf -o /dev/null http://localhost:8080/actuator/health; then
+      if curl -sf -o /dev/null http://localhost:28290/actuator/health; then
         echo
         break
       fi
       echo -n "."
       sleep 3
     done
-    if ! curl -sf -o /dev/null http://localhost:8080/actuator/health; then
+    if ! curl -sf -o /dev/null http://localhost:28290/actuator/health; then
       echo "app 啟動逾時，見 ${APP_LOG}" >&2
       exit 1
     fi
@@ -85,7 +85,7 @@ cmd_up() {
   fi
 
   echo
-  echo "系統已就緒：app http://localhost:8080、Kafka UI http://localhost:8081"
+  echo "系統已就緒：app http://localhost:28290、Kafka UI http://localhost:28294"
   echo "要開操作台：cd frontend && npm install && npm run dev"
   echo "要跑壓測：${0} perf"
 }
@@ -186,7 +186,7 @@ cmd_verify() {
   local sku="${1:?usage: run.sh verify <SKU>}"
 
   echo "== Prometheus 重試計數 =="
-  curl -sf http://localhost:8080/actuator/prometheus | grep order_allocation_retry \
+  curl -sf http://localhost:28290/actuator/prometheus | grep order_allocation_retry \
     || echo "(打不到或沒有這個 metric；確認 app 啟動時有帶 --management.endpoints.web.exposure.include=prometheus)"
 
   echo

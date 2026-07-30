@@ -3,7 +3,7 @@ name: order-promising-e2e-perf
 # Infra-only stack for e2e/perf (and, later, e2e/spec): PostgreSQL + Kafka (KRaft) +
 # Kafka Connect/Debezium. The order-promising app itself is NOT containerized here —
 # run it on the host (./gradlew :order-promising:bootRun --args='--spring.profiles.active=dev')
-# so it picks up the default localhost:5432 / localhost:9092 already baked into
+# so it picks up the default localhost:28291 / localhost:28292 already baked into
 # application-dev.properties / application.properties with zero extra config.
 #
 # Kafka listener wiring mirrors the Testcontainers config already proven in
@@ -19,7 +19,8 @@ services:
       POSTGRES_PASSWORD: order_promising
     command: ["postgres", "-c", "wal_level=logical"]
     ports:
-      - "5432:5432"
+      # host port 一律 2829x（見 e2e/perf/README.md）；容器內部的 port 不動。
+      - "28291:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U order_promising -d order_promising"]
       interval: 5s
@@ -33,12 +34,14 @@ services:
       KAFKA_NODE_ID: "1"
       KAFKA_PROCESS_ROLES: broker,controller
       # EXTERNAL: host access (k6/app running on the developer machine), advertised as
-      #   localhost:9092 to match the app's existing default bootstrap-servers.
+      #   localhost:28292 to match the app's existing default bootstrap-servers.
+      #   **advertised 必須是 host 看得到的 port**——它是 client 拿到 metadata 之後真正
+      #   連過去的位址，只改 ports: 對應而不改這裡，client 會被導回連不上的 9092。
       # INTERNAL: container-to-container access (kafka-connect), advertised as
       #   kafka:19092 to match the existing OutboxCdcIntegrationTest connector config.
       # BROKER/CONTROLLER: inter-broker and KRaft controller traffic (single-node).
       KAFKA_LISTENERS: CONTROLLER://0.0.0.0:9094,BROKER://0.0.0.0:9093,INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka:9093,INTERNAL://kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka:9093,INTERNAL://kafka:19092,EXTERNAL://localhost:28292
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9094
@@ -56,7 +59,7 @@ services:
       KAFKA_LOG_FLUSH_INTERVAL_MESSAGES: "9223372036854775807"
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
     ports:
-      - "9092:9092"
+      - "28292:9092"
     healthcheck:
       # apache/kafka-native ships no bin/*.sh CLI tooling (it's the GraalVM native-image
       # variant), so a plain TCP check is what's actually available in the image.
@@ -79,7 +82,7 @@ services:
       OFFSET_STORAGE_TOPIC: order_promising_connect_offsets
       STATUS_STORAGE_TOPIC: order_promising_connect_status
     ports:
-      - "8083:8083"
+      - "28293:8083"
 
   # 純觀察用：瀏覽器直接看 topic 裡的訊息實際落在哪個 partition、key 是什麼，
   # 用來肉眼核對 v3（sku 分區）是不是真的把同一個 SKU 的訊息都收斂進同一個
@@ -96,4 +99,4 @@ services:
       KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: order-promising-connect
       KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
     ports:
-      - "8081:8080"
+      - "28294:8080"

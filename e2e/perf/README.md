@@ -4,8 +4,13 @@
 Connect/Debezium，讓下單真的走完整條路徑——Outbox → Debezium CDC → Kafka →
 allocation consumer，不是 `sit` source set 繞過 Kafka 的 in-process 捷徑。
 
-App **不**容器化在這裡，直接跑在 host 上吃 `dev` profile 預設值（`localhost:5432`、
-`localhost:9092`）。
+App **不**容器化在這裡，直接跑在 host 上吃 `dev` profile 預設值（`localhost:28291`、
+`localhost:28292`）。
+
+**host port 一律 `2829x`**：`28290` app、`28291` postgres、`28292` kafka、`28293`
+kafka-connect、`28294` kafka-ui、`28295` 前端 dev server。容器內部的 port 不動，只有 host
+對應與 Kafka 的 advertised listener 跟著改——**advertised 必須是 host 看得到的那個 port**，
+漏改它 client 會拿到 metadata 之後連回不存在的 9092。
 
 ## 怎麼跑
 
@@ -28,7 +33,7 @@ VUS 的壓測。`up` 是預設的 subcommand，因此直接 `./e2e/perf/run.sh` 
 跑的結果全部符合預期（不超賣、無逾時、延遲在門檻內），不用自己讀摘要判斷。結果 JSON
 存到 `k6/results/`。
 
-`docker compose up` 也會順便啟動 [Kafbat UI](http://localhost:8081)（純觀察用，不影響
+`docker compose up` 也會順便啟動 [Kafbat UI](http://localhost:28294)（純觀察用，不影響
 測試或壓測本身），可以直接在瀏覽器裡看 topic 訊息實際落在哪個 partition、key 是什麼——
 例如要肉眼核對 `PARTITION_KEY_STRATEGY=sku` 時，同一個 SKU 的訊息是不是真的都收斂進
 同一個 partition，不用再靠 `kafka-console-consumer` 那種命令列方式。

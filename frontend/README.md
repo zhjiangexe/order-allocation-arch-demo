@@ -15,7 +15,7 @@
 cd frontend && npm install && npm run dev
 ```
 
-開 http://localhost:5173 （被佔用時 Vite 會自動換埠，看它印出來的那行）。
+開 http://localhost:28295 。埠被佔用時 Vite 會直接失敗而不是換一個（`strictPort`）——換埠會讓「我開的到底是哪一份」變成要翻 log 才知道。
 
 **不要用 `docker compose up` 代替 `run.sh up`。** app 不在 compose 裡，而 Debezium
 connector 必須等 app 跑完 Flyway 建出 `event_outbox` 才能註冊——少了那步，下單會成功、

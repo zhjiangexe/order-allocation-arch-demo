@@ -4,7 +4,7 @@
 # 確保跟 SIT 套件已經驗證過的行為維持一致。
 set -euo pipefail
 
-CONNECT_URL="${CONNECT_URL:-http://localhost:8083}"
+CONNECT_URL="${CONNECT_URL:-http://localhost:28293}"
 CONNECTOR_NAME="${CONNECTOR_NAME:-order-promising-outbox}"
 SLOT_NAME="${SLOT_NAME:-order_promising_outbox_slot}"
 
