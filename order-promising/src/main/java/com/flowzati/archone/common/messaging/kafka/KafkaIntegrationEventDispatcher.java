@@ -19,11 +19,11 @@ import org.springframework.stereotype.Component;
 public class KafkaIntegrationEventDispatcher {
 
   private final ObjectMapper objectMapper;
-  private final Map<KafkaIntegrationEventKey, IntegrationEventHandler<?>> handlers;
+  private final Map<KafkaIntegrationEventKey, KafkaIntegrationEventHandler<?>> handlers;
 
   public KafkaIntegrationEventDispatcher(
       ObjectMapper objectMapper,
-      List<IntegrationEventHandler<?>> handlers
+      List<KafkaIntegrationEventHandler<?>> handlers
   ) {
     this.objectMapper = objectMapper;
     this.handlers = handlers.stream().collect(Collectors.toUnmodifiableMap(
@@ -38,7 +38,7 @@ public class KafkaIntegrationEventDispatcher {
   public void dispatch(ConsumerRecord<String, String> record, String expectedTopic) {
     MessageMetadata metadata = metadata(record);
     KafkaIntegrationEventKey key = new KafkaIntegrationEventKey(expectedTopic, metadata.eventType());
-    IntegrationEventHandler<?> handler = handlers.get(key);
+    KafkaIntegrationEventHandler<?> handler = handlers.get(key);
     if (handler == null) {
       throw new IllegalArgumentException("Unsupported Kafka integration event: "
           + expectedTopic + "/" + metadata.eventType());

@@ -6,14 +6,14 @@ import com.flowzati.archone.allocation.application.retry.AllocationRetryExecutor
 import com.flowzati.archone.allocation.application.usecase.ReleaseReservationUsecase;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.messaging.kafka.IntegrationEventHandler;
+import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
 import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
 class OrderCancelledIntegrationEventHandler
-    implements IntegrationEventHandler<OrderCancelledIntegrationEvent> {
+    implements KafkaIntegrationEventHandler<OrderCancelledIntegrationEvent> {
 
   private final ReleaseReservationUsecase releaseReservationUsecase;
   private final AllocationRetryExecutor retryExecutor;

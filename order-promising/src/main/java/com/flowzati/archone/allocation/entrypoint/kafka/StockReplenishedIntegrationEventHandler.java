@@ -8,12 +8,12 @@ import com.flowzati.archone.allocation.application.retry.AllocationRetryExecutor
 import com.flowzati.archone.allocation.application.usecase.ReplenishmentUsecase;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.messaging.kafka.IntegrationEventHandler;
+import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
 import org.springframework.stereotype.Component;
 
 @Component
 class StockReplenishedIntegrationEventHandler
-    implements IntegrationEventHandler<StockReplenishedIntegrationEvent> {
+    implements KafkaIntegrationEventHandler<StockReplenishedIntegrationEvent> {
 
   private final ReplenishmentUsecase replenishmentUsecase;
   private final AllocationRetryExecutor retryExecutor;

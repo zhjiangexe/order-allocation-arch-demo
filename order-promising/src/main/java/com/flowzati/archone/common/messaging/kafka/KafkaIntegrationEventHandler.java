@@ -4,7 +4,7 @@ import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 
 /** Maps one typed Integration Event to this bounded context's application command. */
-public interface IntegrationEventHandler<E extends IntegrationEvent> {
+public interface KafkaIntegrationEventHandler<E extends IntegrationEvent> {
 
   String topic();
 
