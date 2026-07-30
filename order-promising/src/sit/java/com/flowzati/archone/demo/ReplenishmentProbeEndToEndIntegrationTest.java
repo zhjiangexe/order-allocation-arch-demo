@@ -1,5 +1,6 @@
 package com.flowzati.archone.demo;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -44,7 +45,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest(
     classes = ArchoneApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "archone.allocation.partition-key-strategy=sku")
+    properties = "archone.allocation.partition-key-strategy=stock")
 @ActiveProfiles({"test", "dev"})
 @Import({PostgreSQLTestConfiguration.class, KafkaTestConfiguration.class})
 class ReplenishmentProbeEndToEndIntegrationTest {
@@ -80,7 +81,7 @@ class ReplenishmentProbeEndToEndIntegrationTest {
   @Test
   @DisplayName("觸發補貨探針後，排隊中的 backorder 應在 10 秒內依 FIFO 轉為 ALLOCATED")
   void shouldWakeQueuedBackordersWithinTheObservableWindow() {
-    stockPoolRepository.save(new StockPool(UUID.randomUUID(), SKU, 0, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
     // 必須早於現在：Order.markAllocated 會拒絕早於 backOrderedSince 的 allocatedAt，
     // 寫死的未來時間會讓配置在領域層就被擋下，而不是真的驗到訊息路徑
     Instant firstBackorderedAt = Instant.now().minusSeconds(60);
@@ -104,10 +105,20 @@ class ReplenishmentProbeEndToEndIntegrationTest {
       return HttpClient.newHttpClient().send(
           HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/demo/replenish"))
               .header("Content-Type", "application/json")
-              // 補貨要指定貨主——只憑 SKU 決定不了要喚醒誰的缺貨佇列
-              .POST(HttpRequest.BodyPublishers.ofString(
-                  "{\"ownerId\":\"" + OrderFixtures.OWNER_ID + "\",\"sku\":\"" + SKU
-                      + "\",\"quantity\":" + quantity + "}"))
+              // 五個維度都要帶：它們合起來決定這批貨加到哪一列。缺任一個回 400，
+              // 缺貨主更決定不了要喚醒誰的佇列。
+              .POST(HttpRequest.BodyPublishers.ofString("""
+                  {
+                    "ownerId": "%s",
+                    "nodeId": "%s",
+                    "sku": "%s",
+                    "inDate": "%s",
+                    "expiryDate": "%s",
+                    "quantity": %d
+                  }
+                  """.formatted(
+                      OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU,
+                      StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity)))
               .build(),
           HttpResponse.BodyHandlers.ofString());
     } catch (Exception exception) {
@@ -148,7 +159,7 @@ class ReplenishmentProbeEndToEndIntegrationTest {
             + "狀態=" + orderIds.stream().map(this::statusOf).toList()
             + "；inbox claims=" + jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM event_inbox", Integer.class)
-            + "；onHand=" + stockPoolRepository.findBySku(SKU).orElseThrow().getOnHandQuantity())
+            + "；onHand=" + StockFixtures.reloadUnexpiredBatch(stockPoolRepository, SKU).orElseThrow().getOnHandQuantity())
         .allSatisfy(id -> assertThat(statusOf(id)).isEqualTo(OrderStatus.ALLOCATED));
   }
 

@@ -5,7 +5,8 @@ import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.infrastructure.mapper.StockReservationMapper;
 import com.flowzati.archone.allocation.infrastructure.repository.jpa.JpaStockReservationRepository;
-import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
@@ -24,8 +25,13 @@ public class StockReservationRepositoryImpl implements StockReservationRepositor
   }
 
   @Override
-  public Optional<StockReservation> findActiveByOrderId(UUID orderId) {
-    return repository.findByOrderIdAndStatus(orderId, ReservationStatus.ACTIVE)
-        .map(StockReservationMapper::toDomain);
+  public List<StockReservation> findActiveByOrderLineIds(Collection<UUID> orderLineIds) {
+    if (orderLineIds.isEmpty()) {
+      return List.of();
+    }
+    return repository.findByOrderLineIdInAndStatus(orderLineIds, ReservationStatus.ACTIVE)
+        .stream()
+        .map(StockReservationMapper::toDomain)
+        .toList();
   }
 }

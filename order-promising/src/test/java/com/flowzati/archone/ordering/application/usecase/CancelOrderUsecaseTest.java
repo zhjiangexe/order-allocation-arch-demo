@@ -37,11 +37,9 @@ class CancelOrderUsecaseTest {
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     verify(repository).save(order);
+    // 取消事件不帶行——它要說的是「哪張單、什麼時候」，行的內容不構成這個事實的一部分。
     verify(publisher).publishEvent(new OrderCancelled(
-        order.getId(),
-        OrderFixtures.OWNER_ID,
-        java.util.List.of(new com.flowzati.archone.ordering.domain.event.LineSnapshot(1, "SKU-1", 3)),
-        cancelledAt));
+        order.getId(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, cancelledAt));
   }
 
   @Test

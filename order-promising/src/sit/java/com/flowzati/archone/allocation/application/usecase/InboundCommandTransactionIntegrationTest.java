@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.application.usecase;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.command.ReleaseReservationCommand;
@@ -97,7 +98,7 @@ class InboundCommandTransactionIntegrationTest {
     UUID eventId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
     orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, placedAt));
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-1", 10, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 0));
 
     allocateOrderUsecase.handle(inbound(orderId, eventId));
 
@@ -113,16 +114,27 @@ class InboundCommandTransactionIntegrationTest {
   @DisplayName("配置業務失敗時應回滾 Inbox claim 與 Order 狀態")
   void shouldRollBackInboxClaimWhenBusinessHandlingFails() {
     UUID orderId = UUID.randomUUID();
+    UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    orderRepository.save(OrderFixtures.pendingOrder(orderId, "MISSING-SKU", 3, Instant.parse("2026-07-24T10:00:00Z")));
+    // 以「下單時間在未來」逼出領域層的失敗：markAllocated 拒絕早於 placedAt 的配貨時間。
+    //
+    // **不能再用「查無庫存」當失敗來源**——分批之後那是缺貨，是正常結果（掛帳），不再丟例外。
+    // 拿它當失敗情境的話，這支測試會靜默地什麼都沒測到：不拋錯，assertThatThrownBy 直接失敗。
+    orderRepository.save(
+        OrderFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now().plusSeconds(3600)));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 0));
 
     assertThatThrownBy(() -> allocateOrderUsecase.handle(inbound(orderId, eventId)))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("StockPool not found for SKU: MISSING-SKU");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Allocated time cannot be before placed time");
 
+    // 失敗發生在 inbox claim 之後，所以那筆 claim 必須跟著回滾——否則重送會被當成重複而丟棄，
+    // 那張單就永遠停在 PENDING。
     assertThat(inboxRepository.findById(eventId)).isEmpty();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM stock_reservations", Integer.class)).isZero();
   }
 
   @Test
@@ -133,11 +145,13 @@ class InboundCommandTransactionIntegrationTest {
     UUID reservationId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
     Instant reservedAt = Instant.now().plusSeconds(60);
-    orderRepository.save(OrderFixtures.allocatedOrder(
-        orderId, "SKU-1", 3, reservedAt.minusSeconds(1), reservedAt));
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-1", 3, 3, null));
-    stockReservationRepository.save(
-        StockReservation.create(reservationId, orderId, stockPoolId, 3, reservedAt));
+    Order order = OrderFixtures.allocatedOrder(
+        orderId, "SKU-1", 3, reservedAt.minusSeconds(1), reservedAt);
+    orderRepository.save(order);
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 3, 3));
+    // 預留指向**行**而不是訂單：外鍵是 fk_stock_reservations_order_line。
+    stockReservationRepository.save(StockReservation.create(
+        reservationId, order.getLines().get(0).getId(), stockPoolId, 3, reservedAt));
 
     assertThatThrownBy(() -> releaseReservationUsecase.handle(new InboundCommand<>(
         new ReleaseReservationCommand(orderId),
@@ -148,7 +162,7 @@ class InboundCommandTransactionIntegrationTest {
     assertThat(inboxRepository.findById(eventId)).isEmpty();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(3));
-    assertThat(stockReservationRepository.findActiveByOrderId(orderId)).hasValueSatisfying(reservation ->
+    assertThat(activeReservationsOf(orderId)).singleElement().satisfies(reservation ->
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE));
   }
 
@@ -161,10 +175,12 @@ class InboundCommandTransactionIntegrationTest {
     Instant placedAt = Instant.now().plusSeconds(60);
     orderRepository.save(OrderFixtures.backorderedOrder(
         orderId, "SKU-1", 3, placedAt, placedAt));
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-1", 0, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 0, 0));
 
     assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(
-        new ReplenishStockCommand(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 3),
+        new ReplenishStockCommand(
+            com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1",
+            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3),
         new MessageMetadata(eventId, "StockReplenishedIntegrationEvent"))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Allocated time cannot be before placed time");
@@ -184,5 +200,19 @@ class InboundCommandTransactionIntegrationTest {
     return new InboundCommand<>(
         new AllocateOrderCommand(orderId),
         new MessageMetadata(eventId, "OrderPlacedIntegrationEvent"));
+  }
+
+  /**
+   * 這張單目前還有效的預留。
+   *
+   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
+   * {@code ReleaseReservationUsecase} 走同一條路。
+   */
+  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
+      activeReservationsOf(java.util.UUID orderId) {
+    return orderRepository.findById(orderId)
+        .map(order -> stockReservationRepository.findActiveByOrderLineIds(
+            order.getLines().stream().map(line -> line.getId()).toList()))
+        .orElse(java.util.List.of());
   }
 }

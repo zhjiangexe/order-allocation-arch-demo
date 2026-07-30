@@ -20,7 +20,7 @@ class AllocationSelectorTest {
   @DisplayName("應由 Factory 建立 Policy 專用 Context，再執行純 selection algorithm")
   void createsTypedContextBeforeInvokingPolicy() {
     Instant decisionAt = Instant.parse("2026-07-24T02:00:00Z");
-    AllocationRequest request = new AllocationRequest(UUID.randomUUID(), "SKU-1", 5, decisionAt);
+    AllocationRequest request = new AllocationRequest("SKU-1", 5, decisionAt);
     Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, decisionAt.minusSeconds(1));
     order.releaseDomainEvents();
 

@@ -116,7 +116,8 @@ class OrderTest {
     assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
     assertThat(order.releaseDomainEvents()).containsExactly(
         new OrderCancelled(
-            orderId, ownerId, List.of(new LineSnapshot(1, "SKU-1", 3)), cancelledAt));
+            orderId, ownerId, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID,
+            cancelledAt));
   }
 
   @Test

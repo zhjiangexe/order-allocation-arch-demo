@@ -125,7 +125,7 @@ class OutboxCdcIntegrationTest {
     try (KafkaConsumer<String, String> consumer = consumer()) {
       consumer.subscribe(List.of(ORDER_EVENTS_TOPIC));
 
-      // 兩欄刻意給不同值，模擬 partition-key-strategy=sku：aggregate 仍是那張訂單，
+      // 兩欄刻意給不同值，模擬 partition-key-strategy=stock：aggregate 仍是那張訂單，
       // 但 message key 必須是 SKU。兩欄同值時這個行為無法被觀察，所以必須分岔。
       UUID eventId = appendOutboxEvent(
           "OrderPlacedIntegrationEvent",

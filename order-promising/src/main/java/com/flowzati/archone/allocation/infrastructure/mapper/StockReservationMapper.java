@@ -11,7 +11,7 @@ public final class StockReservationMapper {
   public static StockReservationEntity toEntity(StockReservation reservation) {
     return new StockReservationEntity(
         reservation.getId(),
-        reservation.getOrderId(),
+        reservation.getOrderLineId(),
         reservation.getStockPoolId(),
         reservation.getQuantity(),
         reservation.getStatus(),
@@ -24,7 +24,7 @@ public final class StockReservationMapper {
   public static StockReservation toDomain(StockReservationEntity entity) {
     return StockReservation.rehydrate(
         entity.getId(),
-        entity.getOrderId(),
+        entity.getOrderLineId(),
         entity.getStockPoolId(),
         entity.getQuantity(),
         entity.getStatus(),

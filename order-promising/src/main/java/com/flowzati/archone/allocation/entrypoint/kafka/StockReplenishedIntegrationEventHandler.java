@@ -38,8 +38,14 @@ class StockReplenishedIntegrationEventHandler
 
   @Override
   public void handleTyped(StockReplenishedIntegrationEvent event, MessageMetadata metadata) {
-    ReplenishStockCommand replenishStockCommand = new ReplenishStockCommand(event.getOwnerId(), event.getSku(), event.getQuantity());
-    InboundCommand<ReplenishStockCommand> inbound = new InboundCommand<>(replenishStockCommand, metadata);
+    ReplenishStockCommand command = new ReplenishStockCommand(
+        event.getOwnerId(),
+        event.getNodeId(),
+        event.getSku(),
+        event.getInDate(),
+        event.getExpiryDate(),
+        event.getQuantity());
+    InboundCommand<ReplenishStockCommand> inbound = new InboundCommand<>(command, metadata);
     retryExecutor.execute(
         new AllocationRetryContext("replenish-stock", metadata.eventId(), null, event.getSku()),
         () -> replenishmentUsecase.handle(inbound));

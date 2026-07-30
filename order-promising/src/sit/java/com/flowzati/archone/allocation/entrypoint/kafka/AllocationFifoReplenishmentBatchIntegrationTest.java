@@ -1,8 +1,10 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.allocation.application.event.BackorderWakeRequestedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
@@ -16,6 +18,10 @@ import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -43,11 +49,26 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(
     classes = ArchoneApplication.class,
-    properties = "spring.kafka.listener.auto-startup=false",
+    properties = {
+        "spring.kafka.listener.auto-startup=false",
+        // 上限寫在測試裡而不是吃 production 預設：預設值會隨壓測結果調整，那不該讓這支
+        // 測試變色。它驗的是「分多輪會收斂」，與上限的具體數字無關。
+        "archone.allocation.replenishment-wake-limit=" + AllocationFifoReplenishmentBatchIntegrationTest.WAKE_LIMIT_TEXT
+    },
     webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
 @Import(PostgreSQLTestConfiguration.class)
 class AllocationFifoReplenishmentBatchIntegrationTest {
+
+  static final String WAKE_LIMIT_TEXT = "200";
+  private static final int WAKE_LIMIT = Integer.parseInt(WAKE_LIMIT_TEXT);
+  /**
+   * 續做的硬上限。超過就讓測試失敗——那代表終止條件失效、續做無限循環。
+   *
+   * <p>取「佇列長度 ÷ 上限」再留兩輪餘裕：真正要守的性質是**有界**，不是某個精確的輪數，
+   * 而精確的輪數會隨演算法的細節變動，釘死它只會讓測試變脆。
+   */
+  private static final int MAX_CONTINUATION_ROUNDS = 1_000 / WAKE_LIMIT + 2;
 
   private static final String FIFO_SKU = "FIFO-SKU";
   private static final int FITTING_ORDERS_BEFORE_BLOCKER = 500;
@@ -105,12 +126,24 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     // 因為除了 blocker 之外每張訂單 quantity 都是 1，光看總數／總量無法分辨
     // FIFO 有沒有選對「哪幾張」，只能證明選對「幾張」。
     UUID stockPoolId = UUID.randomUUID();
-    stockPoolRepository.save(new StockPool(stockPoolId, FIFO_SKU, 0, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, FIFO_SKU, 0, 0));
     BackorderQueue queue = seedBackorderQueue();
 
     // Step 2：第一次補貨，數量精準等於前 500 張的總和，逼出「blocker 之後全部停止」的
     // 批次決策，而不是靠隨機數量碰運氣。
-    consume(new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, FIFO_SKU, FIRST_REPLENISH_QUANTITY));
+    //
+    // **一次補貨事件不再喚醒整個佇列。** 喚醒有張數上限，超出時發一則續做事件；因此這裡要
+    // 等的不是「一個事件處理完」，而是「續做收斂」。SIT 沒有 Debezium，續做事件停在 outbox，
+    // 所以由 drainContinuations() 手動把它們餵回 consumer——那正是 production 裡 Kafka 會做
+    // 的事，只是在這裡是同步的、可數的。
+    consume(replenish(FIRST_REPLENISH_QUANTITY));
+    int firstPhaseRounds = drainContinuations();
+
+    // 分多輪是這個 change 的重點之一：如果只跑了一輪，代表上限沒有生效，而後面那些
+    // 「收斂後的狀態」斷言就退化成了舊行為的斷言。
+    assertThat(firstPhaseRounds)
+        .withFailMessage("第一波補貨應分多輪續做，實際只有 %d 輪", firstPhaseRounds)
+        .isGreaterThan(0);
 
     // Step 3：對帳第一階段——前 500 張應該已配置，blocker 與其後 499 張仍應卡在 BACKORDERED。
     assertReconciledState(stockPoolId, new ExpectedState(
@@ -129,7 +162,8 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     // Step 4：第二次（循序、非併發）補貨，數量等於 blocker 與其後 499 張的總和，
     // 驗證「喚醒佇列」的後半段——先前被 head-of-line blocking 卡住的訂單，補貨到位後
     // 應該能正確恢復配置，而不只是第一波卡住就結束驗證。
-    consume(new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, FIFO_SKU, SECOND_REPLENISH_QUANTITY));
+    consume(replenish(SECOND_REPLENISH_QUANTITY));
+    drainContinuations();
 
     // Step 5：對帳第二階段——整個佇列應該全部配置完畢，沒有訂單被遺漏或重複配置。
     int totalReplenished = FIRST_REPLENISH_QUANTITY + SECOND_REPLENISH_QUANTITY;
@@ -145,6 +179,39 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     assertThat(statusOf(queue.firstOrderId())).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(statusOf(queue.blockerOrderId())).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(statusOf(queue.lastOrderId())).isEqualTo(OrderStatus.ALLOCATED);
+  }
+
+  @Test
+  @Timeout(value = 60, unit = TimeUnit.SECONDS)
+  @DisplayName("blocker 卡在隊首且庫存還有量時不得續做——否則每輪讀滿上限卻配不到任何一張，永不停止")
+  void stopsInsteadOfLoopingWhenTheHeadOfLineIsBlockedWithStockRemaining() {
+    // 這個情境是「讀到幾張」與「配到幾張」唯一會分歧的地方，也是唯一能分辨終止條件寫對沒有
+    // 的地方：
+    //
+    //   讀到 = 上限（每輪都讀滿），配到 = 0（FIFO 停在隊首那張配不滿的單）
+    //
+    // 以讀取數當判準就會無限續做——而且庫存沒耗盡，allocatableBatches 不會變空，沒有任何
+    // 別的機制會讓它停下來。上一支測試碰不到這件事，因為那裡庫存剛好用完。
+    UUID stockPoolId = UUID.randomUUID();
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, FIFO_SKU, 0, 0));
+    Instant backorderedAt = Instant.now().minusSeconds(3600);
+    int position = 0;
+    UUID blockerOrderId = seedBackorderedOrder(BLOCKER_QUANTITY, backorderedAt, position++);
+    for (int i = 0; i < WAKE_LIMIT * 2; i++) {
+      seedBackorderedOrder(1, backorderedAt, position++);
+    }
+
+    // 補的量餵不飽 blocker，但遠遠足夠餵飽它後面那些單——所以「庫存還有」與「配不到」同時成立。
+    consume(replenish(BLOCKER_QUANTITY - 1));
+    int rounds = drainContinuations();
+
+    assertThat(rounds)
+        .withFailMessage("blocker 卡住時不該續做，實際續做了 %d 輪", rounds)
+        .isZero();
+    assertThat(statusOf(blockerOrderId)).isEqualTo(OrderStatus.BACKORDERED);
+    // 庫存一件都沒被動用：head-of-line blocking 不是「跳過去配小單」。
+    assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isZero());
   }
 
   /** 建立 FIFO 排序穩定的 1,000 張 BACKORDERED Order：前 500 張、blocker、後 499 張。 */
@@ -199,7 +266,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     Integer activeReservationQuantity = jdbcTemplate.queryForObject(
         "SELECT coalesce(sum(quantity), 0) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
     Integer distinctReservedOrders = jdbcTemplate.queryForObject(
-        "SELECT count(DISTINCT order_id) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+        "SELECT count(DISTINCT order_line_id) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
     assertThat(activeReservationCount).isEqualTo(expected.reservationCount());
     assertThat(activeReservationQuantity).isEqualTo(expected.reservationQuantity());
     assertThat(distinctReservedOrders).isEqualTo(expected.reservationCount());
@@ -211,19 +278,74 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
       assertThat(pool.availableToPromise()).isZero();
     });
 
-    // 4) Inbox 結果：累積送出的補貨事件數要對上 claim 筆數，代表沒有事件被重複處理或遺失。
-    Integer inboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_inbox", Integer.class);
-    assertThat(inboxCount).isEqualTo(expected.inboxCount());
+    // 4) Inbox 結果：每一則送進來的事件（補貨 + 續做）恰好一筆 claim。續做事件的數量由
+    //    佇列長度決定，所以這裡驗的是「至少有那幾則補貨事件」與「沒有任何事件被處理兩次」
+    //    ——後者靠 inbox 的主鍵保證，這裡把它斷言出來。
+    Integer inboxCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM event_inbox", Integer.class);
+    Integer distinctInboxCount = jdbcTemplate.queryForObject(
+        "SELECT count(DISTINCT event_id) FROM event_inbox", Integer.class);
+    assertThat(inboxCount).isGreaterThanOrEqualTo(expected.inboxCount());
+    assertThat(distinctInboxCount).isEqualTo(inboxCount);
 
     // 5) Outbox 結果：只有被配置的訂單各發一筆 OrderAllocatedIntegrationEvent，這個測試
     //    情境全程不會發布 BackorderCreatedIntegrationEvent（訂單一開始就是直接種成
-    //    BACKORDERED，沒有經過真正的下單配置流程）。
-    Integer outboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_outbox", Integer.class);
+    //    BACKORDERED，沒有經過真正的下單配置流程）。分批之後 outbox 還會有續做事件，
+    //    所以只斷言配置結果那一類的筆數，不斷言 outbox 總筆數。
     Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
         OrderAllocatedIntegrationEvent.class.getSimpleName());
-    assertThat(outboxCount).isEqualTo(expected.outboxAllocatedCount());
     assertThat(allocatedOutboxCount).isEqualTo(expected.outboxAllocatedCount());
+  }
+
+  private StockReplenishedIntegrationEvent replenish(int quantity) {
+    return new StockReplenishedIntegrationEvent(
+        UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, FIFO_SKU,
+        StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity);
+  }
+
+  /**
+   * 把 outbox 裡尚未處理的續做事件餵回 consumer，直到不再產生新的，回傳輪數。
+   *
+   * <p>production 裡這件事由 Debezium 與 Kafka 完成；SIT 沒有它們，續做事件會停在 outbox。
+   * 手動驅動的好處是**輪數變成可數的**，於是「會收斂」與「不會無限續做」都能斷言。
+   *
+   * <p>硬上限是這支測試最重要的一條:終止條件若失效（例如改成以「還有沒有配到的單」判斷），
+   * 一張永遠配不到的大單會讓續做無限循環，而沒有上限的話這支測試會掛到 @Timeout 才失敗，
+   * 訊息還不會說明原因。
+   */
+  private int drainContinuations() {
+    Set<UUID> processed = new HashSet<>();
+    int rounds = 0;
+    while (true) {
+      List<Map<String, Object>> pending = jdbcTemplate.queryForList("""
+          SELECT id, payload FROM event_outbox WHERE type = ? ORDER BY timestamp
+          """, BackorderWakeRequestedIntegrationEvent.class.getSimpleName());
+      List<Map<String, Object>> fresh = pending.stream()
+          .filter(row -> !processed.contains(UUID.fromString(row.get("id").toString())))
+          .toList();
+      if (fresh.isEmpty()) {
+        return rounds;
+      }
+      assertThat(++rounds)
+          .withFailMessage("續做超過 %d 輪仍未收斂——終止條件失效了", MAX_CONTINUATION_ROUNDS)
+          .isLessThanOrEqualTo(MAX_CONTINUATION_ROUNDS);
+      for (Map<String, Object> row : fresh) {
+        UUID eventId = UUID.fromString(row.get("id").toString());
+        processed.add(eventId);
+        consumeWake(eventId, row.get("payload").toString());
+      }
+    }
+  }
+
+  private void consumeWake(UUID eventId, String payload) {
+    ConsumerRecord<String, String> record = new ConsumerRecord<>(
+        InventoryEventTopics.STOCK_EVENTS, 0, 0, FIFO_SKU, payload);
+    record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));
+    record.headers().add("eventType",
+        BackorderWakeRequestedIntegrationEvent.class.getSimpleName()
+            .getBytes(StandardCharsets.UTF_8));
+    consumer.consumeInventoryEvent(record);
   }
 
   private void consume(StockReplenishedIntegrationEvent event) {

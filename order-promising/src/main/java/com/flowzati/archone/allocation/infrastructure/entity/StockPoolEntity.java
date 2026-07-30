@@ -5,23 +5,44 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Index;
 import jakarta.persistence.Version;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(
     name = "stock_pools",
-    uniqueConstraints = @UniqueConstraint(name = "uq_stock_pools_sku", columnNames = "sku")
+    uniqueConstraints = @UniqueConstraint(
+        name = "uq_stock_pools_batch",
+        columnNames = {"owner_id", "node_id", "sku_code", "in_date", "expiry_date"}
+    ),
+    indexes = @Index(
+        name = "idx_stock_pools_fefo",
+        columnList = "owner_id,node_id,sku_code,expiry_date,in_date,id"
+    )
 )
 public class StockPoolEntity {
 
   @Id
   private UUID id;
 
-  @Column(nullable = false)
-  private String sku;
+  @Column(name = "owner_id", nullable = false)
+  private UUID ownerId;
+
+  @Column(name = "node_id", nullable = false)
+  private UUID nodeId;
+
+  @Column(name = "sku_code", nullable = false)
+  private String skuCode;
+
+  @Column(name = "in_date", nullable = false)
+  private LocalDate inDate;
+
+  @Column(name = "expiry_date", nullable = false)
+  private LocalDate expiryDate;
 
   @Column(name = "on_hand_quantity", nullable = false)
   private int onHandQuantity;
@@ -42,13 +63,21 @@ public class StockPoolEntity {
 
   public StockPoolEntity(
       UUID id,
-      String sku,
+      UUID ownerId,
+      UUID nodeId,
+      String skuCode,
+      LocalDate inDate,
+      LocalDate expiryDate,
       int onHandQuantity,
       int reservedQuantity,
       Long version
   ) {
     this.id = id;
-    this.sku = sku;
+    this.ownerId = ownerId;
+    this.nodeId = nodeId;
+    this.skuCode = skuCode;
+    this.inDate = inDate;
+    this.expiryDate = expiryDate;
     this.onHandQuantity = onHandQuantity;
     this.reservedQuantity = reservedQuantity;
     this.version = version;
@@ -58,8 +87,24 @@ public class StockPoolEntity {
     return id;
   }
 
-  public String getSku() {
-    return sku;
+  public UUID getOwnerId() {
+    return ownerId;
+  }
+
+  public UUID getNodeId() {
+    return nodeId;
+  }
+
+  public String getSkuCode() {
+    return skuCode;
+  }
+
+  public LocalDate getInDate() {
+    return inDate;
+  }
+
+  public LocalDate getExpiryDate() {
+    return expiryDate;
   }
 
   public int getOnHandQuantity() {

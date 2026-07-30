@@ -3,9 +3,11 @@ package com.flowzati.archone.allocation.application.usecase;
 import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
 import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.model.StockReservation;
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
+import com.flowzati.archone.allocation.domain.service.AllocationOutcome;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.ordering.domain.model.Order;
@@ -13,7 +15,9 @@ import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +32,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class AllocateOrderUsecaseTest {
 
-  private final Instant fixedNow = Instant.parse("2026-07-22T00:00:00Z");
+  /** 台北 2026-07-22 早上 7 點——UTC 此刻還停在 07-21，剛好落在會出錯的那八小時內。 */
+  private final Instant fixedNow = Instant.parse("2026-07-21T23:00:00Z");
+  private static final LocalDate TODAY_IN_TAIPEI = LocalDate.of(2026, 7, 22);
 
   private AllocateOrderUsecase usecase;
   private InboxRepo inboxRepo;
@@ -48,7 +54,8 @@ class AllocateOrderUsecaseTest {
         orderRepository,
         stockPoolRepository,
         allocationCoordinator,
-        Clock.fixed(fixedNow, ZoneId.of("UTC"))
+        Clock.fixed(fixedNow, ZoneId.of("UTC")),
+        new BusinessCalendar(Clock.fixed(fixedNow, ZoneId.of("UTC")), "Asia/Taipei")
     );
   }
 
@@ -95,17 +102,41 @@ class AllocateOrderUsecaseTest {
   }
 
   @Test
-  @DisplayName("當找不到 SKU 對應的 StockPool 時，應拋出異常")
-  void shouldThrowExceptionWhenStockPoolNotFound() {
+  @DisplayName("一批可售的都沒有時應掛帳，不得丟例外")
+  void shouldBackorderRatherThanFailWhenThereIsNoAllocatableStock() {
     UUID messageId = UUID.randomUUID();
     Order order = pendingOrder("SKU-1", 5);
     given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
-    given(stockPoolRepository.findBySku("SKU-1")).willReturn(Optional.empty());
+    givenAllocatableBatches(List.of());
+    given(allocationCoordinator.allocateOrder(order, List.of(), fixedNow))
+        .willReturn(AllocationOutcome.NO_ALLOCATABLE_STOCK);
 
-    assertThatThrownBy(() -> usecase.handle(inbound(new AllocateOrderCommand(order.getId()), messageId)))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("StockPool not found for SKU: SKU-1");
+    usecase.handle(inbound(new AllocateOrderCommand(order.getId()), messageId));
+
+    // 缺貨是正常結果，不是訊息處理失敗。丟例外的話每一次缺貨都會走進重試與 DLT。
+    then(allocationCoordinator).should().backorderOrder(order, fixedNow);
+  }
+
+  @Test
+  @DisplayName("應以訂單的貨主、倉與今天去查可售批")
+  void shouldQueryAllocatableBatchesByOwnerNodeAndToday() {
+    UUID messageId = UUID.randomUUID();
+    Order order = pendingOrder("SKU-1", 5);
+    StockPool batch = stockPool("SKU-1", 10);
+    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
+    given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
+    givenAllocatableBatches(List.of(batch));
+    given(allocationCoordinator.allocateOrder(order, List.of(batch), fixedNow))
+        .willReturn(AllocationOutcome.ALLOCATED);
+
+    usecase.handle(inbound(new AllocateOrderCommand(order.getId()), messageId));
+
+    // 過期篩選與 FEFO 排序都在資料庫做——批數只會隨時間成長，把不可售的載進記憶體只為了
+    // 丟掉是錯的方向。
+    then(stockPoolRepository).should().findAllocatableBatchesInFefoOrder(
+        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-1",
+        TODAY_IN_TAIPEI);
   }
 
   @Test
@@ -113,16 +144,18 @@ class AllocateOrderUsecaseTest {
   void shouldAllocateSuccessfullyWhenStockIsEnough() {
     UUID messageId = UUID.randomUUID();
     Order order = pendingOrder("SKU-1", 5);
-    StockPool stockPool = stockPool("SKU-1", 10);
+    StockPool batch = stockPool("SKU-1", 10);
     given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
-    given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
-    given(allocationCoordinator.allocateOrder(order, stockPool, fixedNow))
-        .willReturn(Optional.of(reservation(order, stockPool)));
+    givenAllocatableBatches(List.of(batch));
+    given(allocationCoordinator.allocateOrder(order, List.of(batch), fixedNow))
+        .willReturn(AllocationOutcome.ALLOCATED);
 
     usecase.handle(inbound(new AllocateOrderCommand(order.getId()), messageId));
 
-    then(allocationCoordinator).should().allocateOrder(order, stockPool, fixedNow);
+    then(allocationCoordinator).should().allocateOrder(order, List.of(batch), fixedNow);
+    then(allocationCoordinator).should(org.mockito.Mockito.never())
+        .backorderOrder(order, fixedNow);
   }
 
   @Test
@@ -130,16 +163,22 @@ class AllocateOrderUsecaseTest {
   void shouldBackorderWhenStockIsInsufficient() {
     UUID messageId = UUID.randomUUID();
     Order order = pendingOrder("SKU-1", 5);
-    StockPool stockPool = stockPool("SKU-1", 2);
+    StockPool batch = stockPool("SKU-1", 2);
     given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(orderRepository.findById(order.getId())).willReturn(Optional.of(order));
-    given(stockPoolRepository.findBySku(stockPool.getSku())).willReturn(Optional.of(stockPool));
-    given(allocationCoordinator.allocateOrder(order, stockPool, fixedNow))
-        .willReturn(Optional.empty());
+    givenAllocatableBatches(List.of(batch));
+    given(allocationCoordinator.allocateOrder(order, List.of(batch), fixedNow))
+        .willReturn(AllocationOutcome.INSUFFICIENT_ATP);
 
     usecase.handle(inbound(new AllocateOrderCommand(order.getId()), messageId));
 
     then(allocationCoordinator).should().backorderOrder(order, fixedNow);
+  }
+
+  private void givenAllocatableBatches(List<StockPool> batches) {
+    given(stockPoolRepository.findAllocatableBatchesInFefoOrder(
+        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-1",
+        TODAY_IN_TAIPEI)).willReturn(batches);
   }
 
   private Order pendingOrder(String sku, int quantity) {
@@ -149,13 +188,7 @@ class AllocateOrderUsecaseTest {
   }
 
   private StockPool stockPool(String sku, int onHandQuantity) {
-    return new StockPool(java.util.UUID.randomUUID(), sku, onHandQuantity, 0, 0L);
-  }
-
-  private StockReservation reservation(Order order, StockPool stockPool) {
-    return StockReservation.create(
-        UUID.randomUUID(), order.getId(), stockPool.getId(),
-        order.getDemandFor(stockPool.getSku()), fixedNow);
+    return StockFixtures.unexpiredBatch(sku, onHandQuantity, 0);
   }
 
   private MessageMetadata message(UUID eventId) {

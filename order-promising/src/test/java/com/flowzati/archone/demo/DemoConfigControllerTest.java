@@ -13,7 +13,7 @@ class DemoConfigControllerTest {
 
   @WebMvcTest(DemoConfigController.class)
   @ActiveProfiles("dev")
-  @TestPropertySource(properties = "archone.allocation.partition-key-strategy=sku")
+  @TestPropertySource(properties = "archone.allocation.partition-key-strategy=stock")
   static class SkuStrategy {
 
     @Autowired
@@ -24,7 +24,7 @@ class DemoConfigControllerTest {
     void shouldReportSkuStrategy() {
       assertThat(mvc.get().uri("/demo/config"))
           .hasStatus(200)
-          .bodyJson().extractingPath("$.partitionKeyStrategy").isEqualTo("sku");
+          .bodyJson().extractingPath("$.partitionKeyStrategy").isEqualTo("stock");
     }
   }
 

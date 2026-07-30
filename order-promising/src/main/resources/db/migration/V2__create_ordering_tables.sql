@@ -7,6 +7,10 @@
 -- 環境，因此改寫為最終形狀而非以 ALTER 疊加——否則 migration 歷史會記錄一段「建了又砍」
 -- 的假歷史，而 orders.owner_id 的被指向方 owners 也會比它晚建。代價是既有的 Postgres
 -- volume 必須移除後重建（Flyway checksum 不符），不得以 flyway repair 略過。
+--
+-- 本檔原為 V3、stock_pools 為 V2。庫存加上指向 skus 的外鍵之後，被指向方必須先建，
+-- 因此兩者對調。同樣因為未部署，對調編號比在後續 migration 用 ALTER 補外鍵乾淨——
+-- 後者會讓 stock_pools 的定義散在兩個檔案裡。
 
 -- 貨主只有身分。沒有 status——停用貨主在營運上是真的，但本階段沒有任何決策讀它，而一個
 -- 沒有讀者的欄位會讓下一個人以為它有意義。等收單真的要擋停用貨主時再加，屆時它會帶著

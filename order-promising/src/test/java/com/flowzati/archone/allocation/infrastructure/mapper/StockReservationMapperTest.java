@@ -19,12 +19,12 @@ class StockReservationMapperTest {
   @DisplayName("應將完整 RELEASED reservation 映射至 entity")
   void mapsDomainToEntity() {
     UUID reservationId = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
+    UUID orderLineId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     Instant releasedAt = RESERVED_AT.plusSeconds(60);
     StockReservation reservation = StockReservation.rehydrate(
         reservationId,
-        orderId,
+        orderLineId,
         stockPoolId,
         3,
         ReservationStatus.RELEASED,
@@ -36,7 +36,7 @@ class StockReservationMapperTest {
     StockReservationEntity entity = StockReservationMapper.toEntity(reservation);
 
     assertThat(entity.getId()).isEqualTo(reservationId);
-    assertThat(entity.getOrderId()).isEqualTo(orderId);
+    assertThat(entity.getOrderLineId()).isEqualTo(orderLineId);
     assertThat(entity.getStockPoolId()).isEqualTo(stockPoolId);
     assertThat(entity.getQuantity()).isEqualTo(3);
     assertThat(entity.getStatus()).isEqualTo(ReservationStatus.RELEASED);
@@ -49,11 +49,11 @@ class StockReservationMapperTest {
   @DisplayName("應由 entity 還原完整 ACTIVE reservation")
   void mapsEntityToDomain() {
     UUID reservationId = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
+    UUID orderLineId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     StockReservationEntity entity = new StockReservationEntity(
         reservationId,
-        orderId,
+        orderLineId,
         stockPoolId,
         3,
         ReservationStatus.ACTIVE,
@@ -65,7 +65,7 @@ class StockReservationMapperTest {
     StockReservation reservation = StockReservationMapper.toDomain(entity);
 
     assertThat(reservation.getId()).isEqualTo(reservationId);
-    assertThat(reservation.getOrderId()).isEqualTo(orderId);
+    assertThat(reservation.getOrderLineId()).isEqualTo(orderLineId);
     assertThat(reservation.getStockPoolId()).isEqualTo(stockPoolId);
     assertThat(reservation.getQuantity()).isEqualTo(3);
     assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);

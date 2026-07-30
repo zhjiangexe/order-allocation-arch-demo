@@ -5,14 +5,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.allocation.domain.model.ReservationStatus;
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.infrastructure.entity.StockReservationEntity;
 import com.flowzati.archone.allocation.infrastructure.repository.jpa.JpaStockReservationRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import jakarta.persistence.EntityManager;
+import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.ActiveProfiles;
 
+/**
+ * 預留的持久化。
+ *
+ * <p><b>粒度是訂單行 × 批次</b>，不是訂單——外鍵指向 {@code order_lines}，唯一鍵是
+ * {@code (order_line_id, stock_pool_id)}。所以這裡的主角是**行的 id**，不是訂單的。
+ */
 @DataJpaTest(
     properties = "spring.data.jpa.repositories.enabled=false",
     showSql = false
@@ -48,6 +56,9 @@ class StockReservationPersistenceIntegrationTest {
 
   private static final Instant RESERVED_AT = Instant.parse("2026-07-24T08:00:00Z");
   private static final UUID STOCK_POOL_ID = uuid(10);
+  /** 第二個批次：一條行跨兩批時要用到，也是唯一鍵「行 × 批」的另一半。 */
+  private static final UUID SECOND_STOCK_POOL_ID = uuid(20);
+  private static final String SKU = "SKU-1";
 
   @Autowired
   private JpaStockReservationRepository jpaRepository;
@@ -65,24 +76,18 @@ class StockReservationPersistenceIntegrationTest {
   @DisplayName("應寫入並還原完整 ACTIVE reservation 與 version")
   void persistsAndRestoresActiveReservation() {
     UUID reservationId = uuid(1);
-    UUID orderId = uuid(11);
-    persistReferences(orderId);
+    UUID lineId = persistReferences(uuid(11));
     StockReservation reservation = StockReservation.create(
-        reservationId,
-        orderId,
-        STOCK_POOL_ID,
-        3,
-        RESERVED_AT
-    );
+        reservationId, lineId, STOCK_POOL_ID, 3, RESERVED_AT);
 
     repositoryAdapter.save(reservation);
     jpaRepository.flush();
     entityManager.clear();
 
-    StockReservation restored = repositoryAdapter.findActiveByOrderId(orderId).orElseThrow();
+    StockReservation restored = onlyActiveFor(lineId);
 
     assertThat(restored.getId()).isEqualTo(reservationId);
-    assertThat(restored.getOrderId()).isEqualTo(orderId);
+    assertThat(restored.getOrderLineId()).isEqualTo(lineId);
     assertThat(restored.getStockPoolId()).isEqualTo(STOCK_POOL_ID);
     assertThat(restored.getQuantity()).isEqualTo(3);
     assertThat(restored.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
@@ -92,80 +97,96 @@ class StockReservationPersistenceIntegrationTest {
   }
 
   @Test
-  @DisplayName("釋放後儲存應還原 RELEASED state 並遞增 version")
-  void persistsReleasedReservation() {
-    UUID reservationId = uuid(1);
-    UUID orderId = uuid(11);
-    persistReferences(orderId);
-    StockReservation reservation = StockReservation.create(
-        reservationId,
-        orderId,
-        STOCK_POOL_ID,
-        3,
-        RESERVED_AT
-    );
-    repositoryAdapter.save(reservation);
+  @DisplayName("一條行跨兩個批次時應存得下兩筆預留")
+  void persistsTwoReservationsForOneLineAcrossTwoBatches() {
+    UUID lineId = persistReferences(uuid(11));
+
+    repositoryAdapter.save(
+        StockReservation.create(uuid(1), lineId, STOCK_POOL_ID, 60, RESERVED_AT));
+    repositoryAdapter.save(
+        StockReservation.create(uuid(2), lineId, SECOND_STOCK_POOL_ID, 20, RESERVED_AT));
     jpaRepository.flush();
     entityManager.clear();
 
-    StockReservation active = repositoryAdapter.findActiveByOrderId(orderId).orElseThrow();
+    // 這是分批之後 schema 必須允許的事。舊的 UNIQUE (order_id) 會擋下第二筆，而那條規則
+    // 表達的是「一張單一筆預留」——分批之後它不再成立。
+    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(lineId)))
+        .hasSize(2)
+        .extracting(StockReservation::getQuantity)
+        .containsExactlyInAnyOrder(60, 20);
+  }
+
+  @Test
+  @DisplayName("釋放後儲存應還原 RELEASED state 並遞增 version")
+  void persistsReleasedReservation() {
+    UUID reservationId = uuid(1);
+    UUID lineId = persistReferences(uuid(11));
+    repositoryAdapter.save(
+        StockReservation.create(reservationId, lineId, STOCK_POOL_ID, 3, RESERVED_AT));
+    jpaRepository.flush();
+    entityManager.clear();
+
+    StockReservation active = onlyActiveFor(lineId);
     Instant releasedAt = RESERVED_AT.plusSeconds(60);
     active.release(releasedAt);
     repositoryAdapter.save(active);
     jpaRepository.flush();
     entityManager.clear();
 
-    Optional<StockReservation> activeResult = repositoryAdapter.findActiveByOrderId(orderId);
     StockReservationEntity entity = jpaRepository.findById(reservationId).orElseThrow();
 
-    assertThat(activeResult).isEmpty();
+    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(lineId))).isEmpty();
     assertThat(entity.getStatus()).isEqualTo(ReservationStatus.RELEASED);
     assertThat(entity.getReleasedAt()).isEqualTo(releasedAt);
     assertThat(entity.getVersion()).isEqualTo(1L);
   }
 
   @Test
-  @DisplayName("findActiveByOrderId 應只回傳 ACTIVE reservation")
-  void findsOnlyActiveReservationByOrderId() {
-    UUID activeOrderId = uuid(11);
-    UUID releasedOrderId = uuid(12);
-    persistReferences(activeOrderId);
-    persistReferences(releasedOrderId);
+  @DisplayName("findActiveByOrderLineIds 應只回傳 ACTIVE reservation")
+  void findsOnlyActiveReservations() {
+    UUID activeLineId = persistReferences(uuid(11));
+    UUID releasedLineId = persistReferences(uuid(12));
     jpaRepository.saveAndFlush(new StockReservationEntity(
-        uuid(1), activeOrderId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
+        uuid(1), activeLineId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
         RESERVED_AT, null, null
     ));
     jpaRepository.saveAndFlush(new StockReservationEntity(
-        uuid(2), releasedOrderId, STOCK_POOL_ID, 3, ReservationStatus.RELEASED,
+        uuid(2), releasedLineId, STOCK_POOL_ID, 3, ReservationStatus.RELEASED,
         RESERVED_AT, RESERVED_AT.plusSeconds(60), null
     ));
     entityManager.clear();
 
-    Optional<StockReservation> active = repositoryAdapter.findActiveByOrderId(activeOrderId);
-    Optional<StockReservation> released = repositoryAdapter.findActiveByOrderId(releasedOrderId);
-
-    assertThat(active).map(StockReservation::getId).contains(uuid(1));
-    assertThat(released).isEmpty();
+    // 一次問兩條行，只有 ACTIVE 那筆回來——過濾在資料庫做，呼叫端不必自己挑。
+    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(activeLineId, releasedLineId)))
+        .extracting(StockReservation::getId)
+        .containsExactly(uuid(1));
   }
 
   @Test
-  @DisplayName("找不到 ACTIVE reservation 時應忠實回傳 empty Optional")
-  void returnsEmptyWhenActiveReservationDoesNotExist() {
-    assertThat(repositoryAdapter.findActiveByOrderId(uuid(11))).isEmpty();
+  @DisplayName("找不到 ACTIVE reservation 時應忠實回傳空清單")
+  void returnsEmptyWhenNoActiveReservationExists() {
+    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(uuid(11)))).isEmpty();
+  }
+
+  @Test
+  @DisplayName("傳入空清單時不應查資料庫，直接回空")
+  void returnsEmptyWithoutQueryingForAnEmptyIdList() {
+    // 一張沒有行的訂單在這個系統裡不存在，但呼叫端（ReleaseReservationUsecase）不該為了
+    // 這件事多寫一個 if——空的 IN (...) 在某些方言下是語法錯誤，所以擋在 adapter 裡。
+    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of())).isEmpty();
   }
 
   @Test
   @DisplayName("stale reservation 寫回時應被 optimistic locking 拒絕")
   void rejectsStaleVersion() {
     UUID reservationId = uuid(1);
-    UUID orderId = uuid(11);
-    persistReferences(orderId);
+    UUID lineId = persistReferences(uuid(11));
     jpaRepository.saveAndFlush(new StockReservationEntity(
-        reservationId, orderId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
+        reservationId, lineId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
         RESERVED_AT, null, null
     ));
     entityManager.clear();
-    StockReservation staleReservation = repositoryAdapter.findActiveByOrderId(orderId).orElseThrow();
+    StockReservation staleReservation = onlyActiveFor(lineId);
 
     jdbcTemplate.update(
         "UPDATE stock_reservations SET version = version + 1 WHERE id = ?",
@@ -181,108 +202,141 @@ class StockReservationPersistenceIntegrationTest {
   }
 
   @Test
-  @DisplayName("資料庫應拒絕同一 order 的第二筆 reservation")
-  void rejectsDuplicateOrderReservation() {
-    UUID orderId = uuid(11);
-    persistReferences(orderId);
-    insertReservation(uuid(1), orderId, STOCK_POOL_ID, 1, "ACTIVE", null);
+  @DisplayName("資料庫應拒絕同一條行對同一批的第二筆 reservation")
+  void rejectsDuplicateReservationForTheSameLineAndBatch() {
+    UUID lineId = persistReferences(uuid(11));
+    insertReservation(uuid(1), lineId, STOCK_POOL_ID, 1, "ACTIVE", null);
 
+    // 唯一鍵是「行 × 批」而不是「行」：同一條行對**不同**批的第二筆是合法的（見上面那支
+    // 測試），對**同一**批的第二筆才是重複。
     assertThatThrownBy(() -> insertReservation(
-        uuid(2), orderId, STOCK_POOL_ID, 1, "ACTIVE", null
+        uuid(2), lineId, STOCK_POOL_ID, 1, "ACTIVE", null
     )).isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
-        .hasMessageContaining("uq_stock_reservations_order_id");
+        .hasMessageContaining("uq_stock_reservations_line_pool");
   }
 
   @ParameterizedTest(name = "[{index}] quantity={0}")
   @ValueSource(ints = {0, -1})
   @DisplayName("資料庫應拒絕非正數 reservation quantity")
   void rejectsNonPositiveQuantity(int quantity) {
-    UUID orderId = uuid(11);
-    persistReferences(orderId);
+    UUID lineId = persistReferences(uuid(11));
 
     assertThatThrownBy(() -> insertReservation(
-        uuid(1), orderId, STOCK_POOL_ID, quantity, "ACTIVE", null
+        uuid(1), lineId, STOCK_POOL_ID, quantity, "ACTIVE", null
     )).isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
         .hasMessageContaining("ck_stock_reservations_quantity_positive");
   }
 
   @Test
+  @DisplayName("資料庫應接受 CONSUMED——R4 的 view 會用它做「已滿足」的謂詞")
+  void acceptsConsumedStatus() {
+    UUID lineId = persistReferences(uuid(11));
+
+    // 本階段不產生這個狀態，但 CHECK 必須現在就接受它，否則 R7 開始出貨時才會發現。
+    insertReservation(uuid(1), lineId, STOCK_POOL_ID, 1, "CONSUMED", null);
+
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT status FROM stock_reservations WHERE id = ?", String.class, uuid(1)))
+        .isEqualTo("CONSUMED");
+  }
+
+  @Test
   @DisplayName("資料庫應拒絕未知 reservation status")
   void rejectsUnknownStatus() {
-    UUID orderId = uuid(11);
-    persistReferences(orderId);
+    UUID lineId = persistReferences(uuid(11));
 
     assertThatThrownBy(() -> insertReservation(
-        uuid(1), orderId, STOCK_POOL_ID, 1, "UNKNOWN", null
+        uuid(1), lineId, STOCK_POOL_ID, 1, "UNKNOWN", null
     )).isInstanceOf(DataIntegrityViolationException.class);
   }
 
   @Test
   @DisplayName("資料庫應拒絕不一致的 released state")
   void rejectsInconsistentReleasedState() {
-    UUID orderId = uuid(11);
-    persistReferences(orderId);
+    UUID lineId = persistReferences(uuid(11));
 
     assertThatThrownBy(() -> insertReservation(
-        uuid(1), orderId, STOCK_POOL_ID, 1, "RELEASED", null
+        uuid(1), lineId, STOCK_POOL_ID, 1, "RELEASED", null
     )).isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
         .hasMessageContaining("ck_stock_reservations_released_state");
   }
 
   @Test
-  @DisplayName("資料庫應拒絕不存在的 Order reference")
-  void rejectsInvalidOrderForeignKey() {
-    UUID existingOrderId = uuid(11);
-    persistReferences(existingOrderId);
+  @DisplayName("資料庫應拒絕不存在的 order line reference")
+  void rejectsInvalidOrderLineForeignKey() {
+    persistReferences(uuid(11));
 
     assertThatThrownBy(() -> insertReservation(
         uuid(1), uuid(99), STOCK_POOL_ID, 1, "ACTIVE", null
     )).isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
-        .hasMessageContaining("fk_stock_reservations_order");
+        .hasMessageContaining("fk_stock_reservations_order_line");
   }
 
   @Test
   @DisplayName("資料庫應拒絕不存在的 StockPool reference")
   void rejectsInvalidStockPoolForeignKey() {
-    UUID existingOrderId = uuid(11);
-    persistReferences(existingOrderId);
+    UUID lineId = persistReferences(uuid(11));
 
     assertThatThrownBy(() -> insertReservation(
-        uuid(1), existingOrderId, uuid(99), 1, "ACTIVE", null
+        uuid(1), lineId, uuid(99), 1, "ACTIVE", null
     )).isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
         .hasMessageContaining("fk_stock_reservations_stock_pool");
   }
 
-  private void persistReferences(UUID orderId) {
-    jdbcTemplate.update("""
-        INSERT INTO stock_pools (id, sku, on_hand_quantity, reserved_quantity)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT (id) DO NOTHING
-        """, STOCK_POOL_ID, "SKU-1", 10, 0);
-    // 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,因此連同貨主與規格一起種下。
-    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-1");
+  private StockReservation onlyActiveFor(UUID orderLineId) {
+    List<StockReservation> active =
+        repositoryAdapter.findActiveByOrderLineIds(List.of(orderLineId));
+    assertThat(active).hasSize(1);
+    return active.get(0);
+  }
+
+  /**
+   * 種下這筆預留需要的所有參照，回傳**訂單行的 id**。
+   *
+   * <p>回行的 id 而不是訂單的：預留的外鍵指向 {@code order_lines}，測試要的就是那個值。
+   */
+  private UUID persistReferences(UUID orderId) {
+    // 訂單行與庫存列的 (owner_id, sku_code) 都有外鍵指向主檔，因此主檔要先種。
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, SKU);
+    insertStockPool(STOCK_POOL_ID, StockFixtures.EXPIRES_ON);
+    // 第二批：同貨主同倉同 SKU 同入庫日，只有效期不同，所以是另一列。
+    insertStockPool(SECOND_STOCK_POOL_ID, StockFixtures.EXPIRES_ON.plusMonths(6));
     jdbcTemplate.update("""
         INSERT INTO orders (
             id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone, ship_to_address,
             promised_delivery_date, status, placed_at)
         VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', DATE '2026-08-01',
                 'PENDING', ?)
+        ON CONFLICT (id) DO NOTHING
         """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, OrderFixtures.NODE_ID,
         Timestamp.from(RESERVED_AT));
+    UUID lineId = UUID.randomUUID();
     jdbcTemplate.update("""
         INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity, status)
-        VALUES (?, ?, 1, ?, 'SKU-1', 1, 'PENDING')
-        """, UUID.randomUUID(), orderId, OrderFixtures.OWNER_ID);
+        VALUES (?, ?, 1, ?, ?, 1, 'PENDING')
+        """, lineId, orderId, OrderFixtures.OWNER_ID, SKU);
+    return lineId;
+  }
+
+  private void insertStockPool(UUID id, java.time.LocalDate expiryDate) {
+    jdbcTemplate.update("""
+        INSERT INTO stock_pools (
+            id, owner_id, node_id, sku_code, in_date, expiry_date,
+            on_hand_quantity, reserved_quantity)
+        VALUES (?, ?, ?, ?, ?, ?, 100, 0)
+        ON CONFLICT (id) DO NOTHING
+        """, id, OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU,
+        Date.valueOf(StockFixtures.ARRIVED_ON), Date.valueOf(expiryDate));
   }
 
   private void insertReservation(
       UUID id,
-      UUID orderId,
+      UUID orderLineId,
       UUID stockPoolId,
       int quantity,
       String status,
@@ -290,11 +344,11 @@ class StockReservationPersistenceIntegrationTest {
   ) {
     jdbcTemplate.update("""
         INSERT INTO stock_reservations (
-            id, order_id, stock_pool_id, quantity, status, reserved_at, released_at
+            id, order_line_id, stock_pool_id, quantity, status, reserved_at, released_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         id,
-        orderId,
+        orderLineId,
         stockPoolId,
         quantity,
         status,

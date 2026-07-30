@@ -4,10 +4,11 @@ import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.allocation.infrastructure.mapper.StockPoolMapper;
 import com.flowzati.archone.allocation.infrastructure.repository.jpa.JpaStockRepository;
-import org.springframework.stereotype.Repository;
-
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.stereotype.Repository;
 
 @Repository
 public class StockPoolRepositoryImpl implements StockPoolRepository {
@@ -24,8 +25,31 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
   }
 
   @Override
-  public Optional<StockPool> findBySku(String sku) {
-    return repository.findBySku(sku).map(StockPoolMapper::toDomain);
+  public List<StockPool> findAllocatableBatchesInFefoOrder(
+      UUID ownerId, UUID nodeId, String skuCode, LocalDate today) {
+    return repository
+        .findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCode, today)
+        .stream()
+        .map(StockPoolMapper::toDomain)
+        .toList();
+  }
+
+  @Override
+  public List<StockPool> findBatchesAcrossNodes(UUID ownerId, String skuCode) {
+    return repository
+        .findByOwnerIdAndSkuCodeOrderByNodeIdAscExpiryDateAscInDateAscIdAsc(ownerId, skuCode)
+        .stream()
+        .map(StockPoolMapper::toDomain)
+        .toList();
+  }
+
+  @Override
+  public Optional<StockPool> findByIdentity(
+      UUID ownerId, UUID nodeId, String skuCode, LocalDate inDate, LocalDate expiryDate) {
+    return repository
+        .findByOwnerIdAndNodeIdAndSkuCodeAndInDateAndExpiryDate(
+            ownerId, nodeId, skuCode, inDate, expiryDate)
+        .map(StockPoolMapper::toDomain);
   }
 
   @Override

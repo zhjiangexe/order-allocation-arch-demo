@@ -41,8 +41,11 @@ class OrderPlacedIntegrationEventHandler
     AllocateOrderCommand allocateOrderCommand = new AllocateOrderCommand(event.getOrderId());
     InboundCommand<AllocateOrderCommand> inbound = new InboundCommand<>(allocateOrderCommand, metadata);
     retryExecutor.execute(
+        // sku 傳 null（record 會正規化成 "unknown"）：對外事件不再帶 SKU，而為了一個日誌
+        // 欄位就把它加回 payload 會讓 translator 的延後求值再次失效。orderId 還在，要查
+        // SKU 從訂單查得到。
         new AllocationRetryContext(
-            "allocate-order", metadata.eventId(), event.getOrderId().toString(), event.getSku()),
+            "allocate-order", metadata.eventId(), event.getOrderId().toString(), null),
         () -> allocateOrderUsecase.handle(inbound));
   }
 }

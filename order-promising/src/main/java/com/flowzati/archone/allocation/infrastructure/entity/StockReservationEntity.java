@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
@@ -16,17 +17,21 @@ import java.util.UUID;
 @Table(
     name = "stock_reservations",
     uniqueConstraints = @UniqueConstraint(
-        name = "uq_stock_reservations_order_id",
-        columnNames = "order_id"
-    )
+        name = "uq_stock_reservations_line_pool",
+        columnNames = {"order_line_id", "stock_pool_id"}
+    ),
+    indexes = {
+        @Index(name = "idx_stock_reservations_line", columnList = "order_line_id"),
+        @Index(name = "idx_stock_reservations_pool", columnList = "stock_pool_id")
+    }
 )
 public class StockReservationEntity {
 
   @Id
   private UUID id;
 
-  @Column(name = "order_id", nullable = false)
-  private UUID orderId;
+  @Column(name = "order_line_id", nullable = false)
+  private UUID orderLineId;
 
   @Column(name = "stock_pool_id", nullable = false)
   private UUID stockPoolId;
@@ -53,7 +58,7 @@ public class StockReservationEntity {
 
   public StockReservationEntity(
       UUID id,
-      UUID orderId,
+      UUID orderLineId,
       UUID stockPoolId,
       int quantity,
       ReservationStatus status,
@@ -62,7 +67,7 @@ public class StockReservationEntity {
       Long version
   ) {
     this.id = id;
-    this.orderId = orderId;
+    this.orderLineId = orderLineId;
     this.stockPoolId = stockPoolId;
     this.quantity = quantity;
     this.status = status;
@@ -75,8 +80,8 @@ public class StockReservationEntity {
     return id;
   }
 
-  public UUID getOrderId() {
-    return orderId;
+  public UUID getOrderLineId() {
+    return orderLineId;
   }
 
   public UUID getStockPoolId() {

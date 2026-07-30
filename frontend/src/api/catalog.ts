@@ -63,21 +63,25 @@ export class Catalog {
     return this.skuByOwnerAndCode.get(ownerId)?.get(skuCode);
   }
 
+  /** 查不到回 `undefined`，用途是把批次列表裡的 `nodeId` 換成看得懂的倉名。 */
+  findNode(ownerId: string, nodeId: string): FulfillmentNodeView | undefined {
+    return this.nodesOf(ownerId).find((node) => node.nodeId === nodeId);
+  }
+
   /**
-   * 全貨主去重後的 SKU 代碼。
+   * 某個貨主的 SKU 代碼。
    *
-   * <p>去重是對的粒度，不是圖方便：庫存池還沒有貨主維度，兩個貨主的同碼 SKU 共用同一列，
-   * 因此對庫存查詢而言它們本來就是同一個東西。
+   * <p><b>曾經是全貨主去重的一份清單</b>，理由是「庫存池還沒有貨主維度，兩個貨主的同碼 SKU
+   * 共用同一列」。庫存分貨主之後那個理由不再成立——同碼 SKU 現在是兩批不同的貨，混在一起
+   * 建議會讓人查到不屬於所選貨主的代碼。
    *
-   * <p>這份清單是**建議**不是限制——壓測用的 `HOT-SKU` 之類的 SKU 有庫存池卻沒有主檔，
-   * 改成只能從清單選就會讓它查不到。
+   * <p>這份清單是**建議**不是限制——壓測用的 `HOT-SKU` 之類的 SKU 有庫存卻沒有主檔，改成
+   * 只能從清單選就會讓它查不到。
    */
-  skuCodes(): string[] {
+  skuCodesOf(ownerId: string): string[] {
     const codes = new Set<string>();
-    for (const entry of this.entries.values()) {
-      for (const sku of entry.skus) {
-        codes.add(sku.skuCode);
-      }
+    for (const sku of this.entries.get(ownerId)?.skus ?? []) {
+      codes.add(sku.skuCode);
     }
     return [...codes].sort();
   }

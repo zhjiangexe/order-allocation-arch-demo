@@ -58,7 +58,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
     UUID eventId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
-        eventId, orderId, "SKU-1", 3, Instant.parse("2026-07-24T10:00:00Z"));
+        eventId, orderId, Instant.parse("2026-07-24T10:00:00Z"));
 
     consumer.consumeOrderingEvent(record(
         OrderingEventTopics.ORDER_EVENTS, event, OrderPlacedIntegrationEvent.class.getSimpleName()));
@@ -92,7 +92,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   @DisplayName("收到補貨整合事件時應轉為補貨命令")
   void shouldMapStockReplenishedEventToInboundReplenishCommand() throws Exception {
     UUID eventId = UUID.randomUUID();
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 8);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
 
     consumer.consumeInventoryEvent(record(
         InventoryEventTopics.STOCK_EVENTS, event, StockReplenishedIntegrationEvent.class.getSimpleName()));
@@ -108,7 +108,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   @DisplayName("Kafka header 與 payload 的事件識別不一致時應拒絕")
   void shouldRejectMismatchedKafkaEventIdentity() throws Exception {
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
-        UUID.randomUUID(), UUID.randomUUID(), "SKU-1", 3, Instant.parse("2026-07-24T10:00:00Z"));
+        UUID.randomUUID(), UUID.randomUUID(), Instant.parse("2026-07-24T10:00:00Z"));
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
         OrderingEventTopics.ORDER_EVENTS, 0, 0, "key", objectMapper.writeValueAsString(event));
     record.headers().add("id", UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
@@ -123,7 +123,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   @Test
   @DisplayName("ordering topic 收到不支援事件時應拒絕")
   void shouldRejectEventNotHandledByOrderingTopic() throws Exception {
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 8);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
 
     assertThatThrownBy(() -> consumer.consumeOrderingEvent(record(
         InventoryEventTopics.STOCK_EVENTS,

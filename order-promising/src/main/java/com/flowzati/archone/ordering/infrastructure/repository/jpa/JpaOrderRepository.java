@@ -18,7 +18,8 @@ public interface JpaOrderRepository extends JpaRepository<OrderEntity, UUID> {
   List<OrderEntity> findByLines_OwnerIdAndLines_SkuCodeAndStatusOrderByBackorderedSinceAscIdAsc(
       UUID ownerId,
       String skuCode,
-      OrderStatus status
+      OrderStatus status,
+      Limit limit
   );
 
   List<OrderEntity> findAllByOrderByPlacedAtDescIdDesc(Limit limit);

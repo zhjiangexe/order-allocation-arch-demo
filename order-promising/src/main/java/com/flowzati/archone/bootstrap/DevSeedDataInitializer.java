@@ -13,6 +13,7 @@ import com.flowzati.archone.catalog.domain.repository.ProductRepository;
 import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
 import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;
+import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderLine;
@@ -43,13 +44,9 @@ import org.springframework.stereotype.Component;
  *       出來，重量不同才驗得到成本函數。
  * </ul>
  *
- * <p><strong>已知的中間狀態：跨貨主隔離尚未生效。</strong> {@code stock_pools} 還沒有
- * {@code owner_id}，它的唯一鍵仍是 {@code (sku)}——因此兩個貨主的 {@code SKU-AVAILABLE}
- * <strong>共用同一列庫存</strong>，配貨會取用不屬於該貨主的量。這是刻意接受的階段性狀態，
- * 由 R3 的 {@code requireMatchingOwner()} 與庫存四維化收尾，不是遺漏。
- *
- * <p>相對地，<strong>缺貨佇列已經按貨主分開</strong>——補貨事件帶了貨主，只喚醒該貨主的
- * 訂單。佇列分開了，庫存還沒分開；兩者不同步是這個階段的樣子。
+ * <p><strong>庫存以效期相對於今天計算，不寫死日期。</strong>寫死的話種子會過期——「還有一個
+ * 月到期」的那批，過三個月之後變成過期批，而排序與過期的示範就全錯了。相對計算讓**批與批
+ * 之間的關係**恆定，而那正是這份資料要展示的東西。
  */
 @Component
 @Profile("dev")
@@ -82,23 +79,49 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   public static final String AMBIENT_PRODUCT_CODE = "P-TEA";
   public static final String FROZEN_PRODUCT_CODE = "P-DUMPLING";
 
-  public static final UUID AVAILABLE_STOCK_POOL_ID =
+  /**
+   * {@link #AVAILABLE_SKU} 在甲貨主北部倉分成四批，四批各自展示一件事：
+   *
+   * <ul>
+   *   <li><b>近效期</b>——FEFO 會先取的那一批。
+   *   <li><b>中效期、早入庫</b>與<b>中效期、晚入庫</b>——**同效期不同入庫日**。少了這一對，
+   *       同效期的 tie-breaker 完全沒有被測到，而「同一生產批分兩車送到」是最常見的情況。
+   *   <li><b>已過期</b>——「有貨但一件都出不了」與「什麼都沒有」在畫面上必須分得開。
+   * </ul>
+   */
+  public static final UUID NEAR_EXPIRY_STOCK_POOL_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000101");
   public static final UUID EMPTY_STOCK_POOL_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000102");
   public static final UUID PARTIALLY_RESERVED_STOCK_POOL_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000103");
+  public static final UUID MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000104");
+  public static final UUID MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000105");
+  public static final UUID EXPIRED_STOCK_POOL_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000106");
+
   public static final UUID PARTIALLY_RESERVED_ORDER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000201");
   public static final UUID BACKORDERED_ORDER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000203");
+  /** 需求 80 件，跨近效期的 60 與中效期的 20——多批取用與多筆預留唯一的資料來源。 */
+  public static final UUID SPANNING_ORDER_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000205");
 
   private static final UUID PARTIALLY_RESERVED_LINE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000202");
   private static final UUID BACKORDERED_LINE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000204");
+  private static final UUID SPANNING_LINE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000206");
   private static final UUID PARTIALLY_RESERVED_RESERVATION_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000301");
+  private static final UUID SPANNING_NEAR_RESERVATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000302");
+  private static final UUID SPANNING_MID_RESERVATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000303");
   private static final Instant PARTIALLY_RESERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
   private static final Instant BACKORDERED_SINCE = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -109,6 +132,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final StockPoolRepository stockPoolRepository;
   private final OrderRepository orderRepository;
   private final StockReservationRepository stockReservationRepository;
+  private final BusinessCalendar businessCalendar;
 
   public DevSeedDataInitializer(
       OwnerRepository ownerRepository,
@@ -117,7 +141,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       FulfillmentNodeRepository fulfillmentNodeRepository,
       StockPoolRepository stockPoolRepository,
       OrderRepository orderRepository,
-      StockReservationRepository stockReservationRepository
+      StockReservationRepository stockReservationRepository,
+      BusinessCalendar businessCalendar
   ) {
     this.ownerRepository = ownerRepository;
     this.productRepository = productRepository;
@@ -126,6 +151,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     this.stockPoolRepository = stockPoolRepository;
     this.orderRepository = orderRepository;
     this.stockReservationRepository = stockReservationRepository;
+    this.businessCalendar = businessCalendar;
   }
 
   @Override
@@ -184,9 +210,27 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   }
 
   private void seedStockPools() {
-    createStockPoolIfAbsent(AVAILABLE_STOCK_POOL_ID, AVAILABLE_SKU, 10, 0);
-    createStockPoolIfAbsent(EMPTY_STOCK_POOL_ID, EMPTY_SKU, 0, 0);
-    createStockPoolIfAbsent(PARTIALLY_RESERVED_STOCK_POOL_ID, PARTIALLY_RESERVED_SKU, 20, 5);
+    LocalDate today = businessCalendar.today();
+
+    // 甲貨主北部倉的 SKU-AVAILABLE 分成四批。近效期那批已被跨批訂單全部吃掉（60/60），
+    // 中效期早入庫那批被吃掉 20——因此畫面上同時看得到「配完的批」與「配一半的批」。
+    batch(NEAR_EXPIRY_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+        today.minusMonths(2), today.plusMonths(1), 60, 60);
+    batch(MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+        today.minusMonths(2), today.plusMonths(6), 40, 20);
+    // 與上一批同效期、晚一個月入庫。兩者的先後只由入庫日決定，這是 tie-breaker 的唯一證據。
+    batch(MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+        today.minusMonths(1), today.plusMonths(6), 30, 0);
+    // 有貨但已過期，配不到。不刪除、不隱藏——倉庫裡真的有這 25 件。
+    batch(EXPIRED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+        today.minusMonths(12), today.minusDays(1), 25, 0);
+
+    // 乙貨主南部倉：on-hand 0。補這個 SKU 會喚醒下面那張缺貨單。
+    batch(EMPTY_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_NODE_ID, EMPTY_SKU,
+        today.minusMonths(2), today.plusMonths(3), 0, 0);
+
+    batch(PARTIALLY_RESERVED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, PARTIALLY_RESERVED_SKU,
+        today.minusMonths(2), today.plusMonths(9), 20, 5);
   }
 
   private void seedOrders() {
@@ -205,9 +249,27 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         5));
     stockReservationRepository.save(StockReservation.create(
         PARTIALLY_RESERVED_RESERVATION_ID,
-        PARTIALLY_RESERVED_ORDER_ID,
+        PARTIALLY_RESERVED_LINE_ID,
         PARTIALLY_RESERVED_STOCK_POOL_ID,
         5,
+        PARTIALLY_RESERVED_AT));
+
+    // 甲貨主：一張需求跨兩批的單。80 件 = 近效期 60 + 中效期 20，因此有兩筆預留。
+    // 這是「多批取用」與「一條行對多筆預留」在種子裡唯一的證據——少了它，跨批那條路徑
+    // 只有測試看得到，畫面上看不到。
+    orderRepository.save(allocatedOrder(
+        SPANNING_ORDER_ID,
+        SPANNING_LINE_ID,
+        FIRST_OWNER_ID,
+        NORTH_NODE_ID,
+        "SEED-A-0002",
+        AVAILABLE_SKU,
+        80));
+    stockReservationRepository.save(StockReservation.create(
+        SPANNING_NEAR_RESERVATION_ID, SPANNING_LINE_ID, NEAR_EXPIRY_STOCK_POOL_ID, 60,
+        PARTIALLY_RESERVED_AT));
+    stockReservationRepository.save(StockReservation.create(
+        SPANNING_MID_RESERVATION_ID, SPANNING_LINE_ID, MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, 20,
         PARTIALLY_RESERVED_AT));
 
     // 乙貨主：一張缺貨排隊中的單。SKU 代碼與甲貨主相同但指的是另一個商品（麥茶 1L）。
@@ -287,11 +349,14 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     skuRepository.save(new Sku(uuid(idSuffix), ownerId, skuCode, productCode, specName, weight));
   }
 
-  private void createStockPoolIfAbsent(
-      UUID id, String sku, int onHandQuantity, int reservedQuantity) {
-    if (stockPoolRepository.findBySku(sku).isEmpty()) {
-      stockPoolRepository.save(new StockPool(id, sku, onHandQuantity, reservedQuantity, null));
+  private void batch(
+      UUID id, UUID ownerId, UUID nodeId, String skuCode,
+      LocalDate inDate, LocalDate expiryDate, int onHandQuantity, int reservedQuantity) {
+    if (stockPoolRepository.findById(id).isPresent()) {
+      return;
     }
+    stockPoolRepository.save(new StockPool(
+        id, ownerId, nodeId, skuCode, inDate, expiryDate, onHandQuantity, reservedQuantity, null));
   }
 
   private static UUID uuid(int suffix) {

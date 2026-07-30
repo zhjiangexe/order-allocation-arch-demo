@@ -20,18 +20,18 @@ class StockReservationTest {
   @DisplayName("建立 reservation 時應為 ACTIVE 並保留建立資料")
   void createsActiveReservation() {
     UUID id = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
+    UUID orderLineId = UUID.randomUUID();
 
     StockReservation reservation = StockReservation.create(
         id,
-        orderId,
+        orderLineId,
         STOCK_POOL_ID,
         3,
         RESERVED_AT
     );
 
     assertThat(reservation.getId()).isEqualTo(id);
-    assertThat(reservation.getOrderId()).isEqualTo(orderId);
+    assertThat(reservation.getOrderLineId()).isEqualTo(orderLineId);
     assertThat(reservation.getStockPoolId()).isEqualTo(STOCK_POOL_ID);
     assertThat(reservation.getQuantity()).isEqualTo(3);
     assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
@@ -112,15 +112,15 @@ class StockReservationTest {
   @DisplayName("建立 reservation 時應拒絕缺少 identity 或保留時間")
   void rejectsMissingRequiredCreationData() {
     UUID id = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
+    UUID orderLineId = UUID.randomUUID();
 
-    assertThatThrownBy(() -> StockReservation.create(null, orderId, UUID.randomUUID(), 1, RESERVED_AT))
+    assertThatThrownBy(() -> StockReservation.create(null, orderLineId, UUID.randomUUID(), 1, RESERVED_AT))
         .hasMessage("Reservation ID is required");
     assertThatThrownBy(() -> StockReservation.create(id, null, UUID.randomUUID(), 1, RESERVED_AT))
-        .hasMessage("Order ID is required");
-    assertThatThrownBy(() -> StockReservation.create(id, orderId, null, 1, RESERVED_AT))
+        .hasMessage("Order line ID is required");
+    assertThatThrownBy(() -> StockReservation.create(id, orderLineId, null, 1, RESERVED_AT))
         .hasMessage("Stock pool ID is required");
-    assertThatThrownBy(() -> StockReservation.create(id, orderId, UUID.randomUUID(), 1, null))
+    assertThatThrownBy(() -> StockReservation.create(id, orderLineId, UUID.randomUUID(), 1, null))
         .hasMessage("Reserved time is required");
   }
 
@@ -178,12 +178,12 @@ class StockReservationTest {
   @DisplayName("應能還原完整的 RELEASED reservation")
   void rehydratesReleasedReservation() {
     UUID id = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
+    UUID orderLineId = UUID.randomUUID();
     Instant releasedAt = RESERVED_AT.plusSeconds(60);
 
     StockReservation reservation = StockReservation.rehydrate(
         id,
-        orderId,
+        orderLineId,
         STOCK_POOL_ID,
         3,
         ReservationStatus.RELEASED,
@@ -193,7 +193,7 @@ class StockReservationTest {
     );
 
     assertThat(reservation.getId()).isEqualTo(id);
-    assertThat(reservation.getOrderId()).isEqualTo(orderId);
+    assertThat(reservation.getOrderLineId()).isEqualTo(orderLineId);
     assertThat(reservation.getStockPoolId()).isEqualTo(STOCK_POOL_ID);
     assertThat(reservation.getQuantity()).isEqualTo(3);
     assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RELEASED);

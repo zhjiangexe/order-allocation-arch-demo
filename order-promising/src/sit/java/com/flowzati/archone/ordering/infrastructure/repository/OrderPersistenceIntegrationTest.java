@@ -114,7 +114,7 @@ class OrderPersistenceIntegrationTest {
     persistOrder(uuid(5), "SKU-1", OrderStatus.PENDING, null, null);
     entityManager.clear();
 
-    List<Order> result = repositoryAdapter.findBackordersBySkuInFifoOrder(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1");
+    List<Order> result = repositoryAdapter.findBackordersBySkuInFifoOrder(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 1_000);
 
     assertThat(result).extracting(Order::getId)
         .containsExactly(uuid(1), uuid(2), uuid(3));

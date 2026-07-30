@@ -31,10 +31,10 @@ public class OrderRepositoryImpl implements OrderRepository {
   }
 
   @Override
-  public List<Order> findBackordersBySkuInFifoOrder(UUID ownerId, String skuCode) {
+  public List<Order> findBackordersBySkuInFifoOrder(UUID ownerId, String skuCode, int limit) {
     return repository
         .findByLines_OwnerIdAndLines_SkuCodeAndStatusOrderByBackorderedSinceAscIdAsc(
-            ownerId, skuCode, OrderStatus.BACKORDERED)
+            ownerId, skuCode, OrderStatus.BACKORDERED, Limit.of(limit))
         .stream()
         .map(OrderMapper::toDomain)
         .toList();

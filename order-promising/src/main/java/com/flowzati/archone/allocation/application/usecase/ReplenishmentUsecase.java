@@ -1,59 +1,87 @@
 package com.flowzati.archone.allocation.application.usecase;
 
-import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
+import com.flowzati.archone.allocation.application.command.WakeBackordersCommand;
+import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
+import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 補貨並在<strong>同一個交易內</strong>喚醒該貨主的缺貨佇列。
  *
  * <p><b>同交易不是效能取捨，是 FIFO 的實作機制。</b>若改成「補貨只加庫存、另發事件非同步
  * 喚醒」，在兩次 commit 之間任何新單都會走 {@code AllocateOrderUsecase} 直接吃掉剛補進來的
- * ATP，反超整個佇列。現況之所以不會，正是因為補貨與喚醒共用同一個 {@code StockPool} 的
+ * ATP，反超整個佇列。現況之所以不會，正是因為補貨與喚醒共用同一批 {@code StockPool} 的
  * 樂觀鎖，併發的新單會衝突重試。
  *
- * <p><b>已知缺口：喚醒批次沒有上限。</b>{@code findBackordersBySkuInFifoOrder()} 回傳整個
- * 佇列，一次補貨可能在單一交易內改動數百張訂單（見
- * {@code AllocationFifoReplenishmentBatchIntegrationTest} 的 500 張情境），而樂觀鎖全程
- * 暴露在衝突下。收尾在 roadmap R3 任務 8：上限加續做事件。
+ * <p><b>喚醒有張數上限，超出時發續做事件。</b>沒有上限的話，一次補貨要改動幾張單、要碰幾個
+ * 批，是由佇列內容而不是由事件決定——鎖的範圍不可預測，而防死鎖的寫入排序依賴「事先知道會
+ * 碰哪些列」。分批之後這從效能問題升級為正確性問題。
  *
  * <p>FIFO 保證的範圍、補貨事件為何是單筆，見 {@code docs/dom-promising-scope.md} 的
  * 「補貨的三個決定」。
  */
 @Service
 public class ReplenishmentUsecase {
+
   private final Clock clock;
   private final InboxRepo inboxRepo;
   private final OrderRepository orderRepository;
   private final StockPoolRepository stockPoolRepository;
   private final OrderAllocationCoordinator allocationCoordinator;
+  private final ApplicationEventPublisher eventPublisher;
+  private final BusinessCalendar businessCalendar;
+  private final int wakeLimit;
 
   public ReplenishmentUsecase(
       Clock clock,
+      BusinessCalendar businessCalendar,
       InboxRepo inboxRepo,
       OrderRepository orderRepository,
       StockPoolRepository stockPoolRepository,
-      OrderAllocationCoordinator allocationCoordinator
+      OrderAllocationCoordinator allocationCoordinator,
+      ApplicationEventPublisher eventPublisher,
+      // 上限太大則交易長、鎖範圍不可預測；太小則續做事件頻繁、每輪的固定成本被攤薄。
+      //
+      // **200 是還沒調校過的值,不是量出來的。** 它被選中的理由只有一個:讓機制真的被走到
+      // ——1,000 張的佇列在這個上限下會分多輪收斂,所以續做與終止條件都有測試蓋著
+      // (`AllocationFifoReplenishmentBatchIntegrationTest`)。
+      //
+      // 要調校它需要的是「單筆喚醒交易的實際耗時」,而那要在安靜的機器上量。R3 的壓測
+      // (任務 10.3) 卡在同一件事上,見 e2e/perf/README.md 的「一次失敗的量測」。
+      //
+      // 調校的方向:上限 × 單筆耗時 ≈ 交易長度,而交易長度決定併發的新單要等多久。
+      @Value("${archone.allocation.replenishment-wake-limit:200}") int wakeLimit
   ) {
     this.clock = clock;
+    this.businessCalendar = businessCalendar;
     this.inboxRepo = inboxRepo;
     this.orderRepository = orderRepository;
     this.stockPoolRepository = stockPoolRepository;
     this.allocationCoordinator = allocationCoordinator;
+    this.eventPublisher = eventPublisher;
+    if (wakeLimit <= 0) {
+      throw new IllegalArgumentException("Replenishment wake limit must be positive");
+    }
+    this.wakeLimit = wakeLimit;
   }
-
 
   @Transactional
   public void handle(InboundCommand<ReplenishStockCommand> inbound) {
@@ -62,18 +90,99 @@ public class ReplenishmentUsecase {
     }
     ReplenishStockCommand command = inbound.command();
 
-    // 1. 加載庫存 Aggregate
-    StockPool stockPool = stockPoolRepository.findBySku(command.sku())
-        .orElseThrow(() -> new IllegalStateException("StockPool not found for SKU: " + command.sku()));
+    upsertBatch(command);
+    wake(command.ownerId(), command.nodeId(), command.sku());
+  }
 
-    // 2. 依穩定 FIFO 順序取得缺貨訂單
-    // 只喚醒這個貨主的佇列。已知的中間狀態:補進去的庫存仍是共用的——stock_pools 還沒有
-    // owner_id,兩個貨主的同碼 SKU 共用同一列。佇列分開了,庫存還沒分開,後者屬 R3。
-    List<Order> backorders =
-        orderRepository.findBackordersBySkuInFifoOrder(command.ownerId(), command.sku());
+  /**
+   * 續做喚醒：庫存在上一輪就加進去了，這裡只把佇列接著餵完。
+   */
+  @Transactional
+  public void handleWake(InboundCommand<WakeBackordersCommand> inbound) {
+    if (!inboxRepo.claimIfNew(inbound.message())) {
+      return;
+    }
+    WakeBackordersCommand command = inbound.command();
+    wake(command.ownerId(), command.nodeId(), command.sku());
+  }
 
-    // 3. 由 Coordinator 統一執行補貨、分配與持久化
+  /**
+   * 依五維鍵 upsert：命中既有列就加數量，否則新開一列。
+   *
+   * <p>沒有「差不多就併進去」的規則，因為根本沒有規則要定——五個維度全等才是同一批。
+   */
+  private void upsertBatch(ReplenishStockCommand command) {
+    Optional<StockPool> byIdentity = stockPoolRepository.findByIdentity(
+        command.ownerId(),
+        command.nodeId(),
+        command.sku(),
+        command.inDate(),
+        command.expiryDate()
+    );
+    StockPool stockPool;
+    if (byIdentity.isPresent()) {
+      stockPool = byIdentity.get();
+      stockPool.replenish(command.quantity());
+    } else {
+      stockPool = new StockPool(
+          IdGenerator.nextId(),
+          command.ownerId(),
+          command.nodeId(),
+          command.sku(),
+          command.inDate(),
+          command.expiryDate(),
+          command.quantity(),
+          0,
+          null);
+    }
+    stockPoolRepository.save(stockPool);
+
+  }
+
+  /**
+   * 喚醒一輪，並在可能還有單時發續做事件。
+   *
+   * <p><b>終止條件是「本輪真正配到的張數 &lt; 上限即不續做」。</b>不足上限代表佇列已經清空，
+   * 或是被 head-of-line blocker 卡住——後者再送一次結果完全相同，因此停下來既正確又保證有進展。
+   *
+   * <p><b>判準必須是「配到幾張」而不是「讀到幾張」。</b>兩者只在 blocker 卡住時不同，而那正是
+   * 會出事的情形：blocker 在隊首、庫存還有量時，每一輪都讀滿上限卻配不到任何一張，以讀取數
+   * 當判準就會無限續做。以配到數當判準則保證了進展性——只有在整批都推進了的時候才續做。
+   *
+   * <p>反過來若以「還有沒有沒配到的單」當條件，同樣會無限循環。
+   */
+  private void wake(UUID ownerId, UUID nodeId, String skuCode) {
     Instant now = clock.instant();
-    allocationCoordinator.replenishAndAllocateBackorders(backorders, stockPool, command.quantity(), now);
+
+    List<StockPool> allocatableBatches = stockPoolRepository.findAllocatableBatchesInFefoOrder(
+        ownerId, nodeId, skuCode, businessCalendar.today());
+    if (allocatableBatches.isEmpty()) {
+      return;
+    }
+
+    List<Order> backorders =
+        orderRepository.findBackordersBySkuInFifoOrder(ownerId, skuCode, wakeLimit);
+    if (backorders.isEmpty()) {
+      return;
+    }
+
+    int wokenCount =
+        allocationCoordinator.allocateBackorders(backorders, allocatableBatches, now).size();
+
+    if (wokenCount >= wakeLimit) {
+      requestContinuation(ownerId, nodeId, skuCode, now);
+    }
+  }
+
+  /**
+   * 發領域事件，由 {@code AllocationDomainEventTranslator} 譯成對外事件並寫進 outbox。
+   *
+   * <p><b>不在這裡直接 append。</b>那樣也能跑，但會讓這支 usecase 成為唯一一個知道 outbox
+   * 存在的 usecase，也是唯一在 translator 之外自己組對外事件的地方——而 translator 這一層的
+   * 用途正是讓「領域事實」與「怎麼送出去」只有一處交會。
+   */
+  private void requestContinuation(UUID ownerId, UUID nodeId, String skuCode, Instant now) {
+    eventPublisher.publishEvent(
+        new BackorderWakeContinuationRequired(ownerId, nodeId, skuCode, now));
   }
 }

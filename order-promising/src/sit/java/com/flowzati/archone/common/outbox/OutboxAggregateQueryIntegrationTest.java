@@ -1,5 +1,6 @@
 package com.flowzati.archone.common.outbox;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
@@ -46,7 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     classes = ArchoneApplication.class,
     properties = {
         "spring.kafka.listener.auto-startup=false",
-        "archone.allocation.partition-key-strategy=sku"
+        "archone.allocation.partition-key-strategy=stock"
     },
     webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
@@ -95,9 +96,9 @@ class OutboxAggregateQueryIntegrationTest {
   }
 
   @Test
-  @DisplayName("sku 分區策略下，仍能以 orderId 查回該訂單完整的事件因果鏈")
+  @DisplayName("stock 分區策略下，仍能以 orderId 查回該訂單完整的事件因果鏈")
   void shouldReturnFullEventChainByOrderIdUnderSkuPartitionStrategy() throws Exception {
-    stockPoolRepository.save(new StockPool(UUID.randomUUID(), SKU, 0, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
     UUID orderId = placeOrder();
     backorderIt(orderId);
@@ -113,15 +114,19 @@ class OutboxAggregateQueryIntegrationTest {
   }
 
   @Test
-  @DisplayName("sku 分區策略下，下單事件的 partition key 是 SKU，配置結果事件是 orderId")
+  @DisplayName("stock 分區策略下，下單事件的 partition key 是 (貨主, 倉)，配置結果事件是 orderId")
   void shouldKeepDeliveryKeysSeparateFromAggregateIdentity() throws Exception {
-    stockPoolRepository.save(new StockPool(UUID.randomUUID(), SKU, 0, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
     UUID orderId = placeOrder();
     backorderIt(orderId);
     replenishStock();
 
-    assertThat(partitionKeysFor(orderId)).containsExactly(SKU, orderId.toString(), orderId.toString());
+    // 下單事件的 key 是爭用群組（貨主/倉/SKU），配貨結果事件維持 orderId。
+    String contentionKey = com.flowzati.archone.common.outbox.StockContentionKey.of(
+        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID);
+    assertThat(partitionKeysFor(orderId))
+        .containsExactly(contentionKey, orderId.toString(), orderId.toString());
   }
 
   private UUID placeOrder() {
@@ -142,8 +147,7 @@ class OutboxAggregateQueryIntegrationTest {
     Order order = orderRepository.findById(orderId).orElseThrow();
     consumer.consumeOrderingEvent(record(
         OrderingEventTopics.ORDER_EVENTS,
-        new OrderPlacedIntegrationEvent(
-            UUID.randomUUID(), orderId, SKU, order.getDemandFor(SKU), order.getPlacedAt())));
+        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, order.getPlacedAt())));
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(backordered ->
         assertThat(backordered.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
   }
@@ -151,7 +155,9 @@ class OutboxAggregateQueryIntegrationTest {
   private void replenishStock() throws Exception {
     consumer.consumeInventoryEvent(record(
         InventoryEventTopics.STOCK_EVENTS,
-        new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, SKU, 3)));
+        new StockReplenishedIntegrationEvent(
+            UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, SKU,
+            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3)));
   }
 
   private List<String> eventTypesFor(UUID orderId) {

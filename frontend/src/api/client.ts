@@ -72,8 +72,16 @@ export function listSkus(ownerId: string, productCode: string): Promise<SkuView[
   );
 }
 
-export function getStockPool(sku: string): Promise<StockPoolView> {
-  return request<StockPoolView>(`/stock-pool/${encodeURIComponent(sku)}`);
+/**
+ * 某貨主某 SKU 的所有批。
+ *
+ * `ownerId` 是必要參數而非選用篩選——SKU 代碼由貨主自訂、跨貨主撞號，少了它後端會把兩個
+ * 貨主的貨混在同一份清單裡（實際上後端直接回 `400`）。
+ */
+export function getStockPool(ownerId: string, sku: string): Promise<StockPoolView> {
+  return request<StockPoolView>(
+    `/stock-pool/${encodeURIComponent(sku)}?ownerId=${encodeURIComponent(ownerId)}`,
+  );
 }
 
 export function replenish(command: ReplenishCommand): Promise<ReplenishmentAccepted> {

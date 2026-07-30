@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.common.outbox.StockContentionKey;
+import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -12,6 +14,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,24 +62,50 @@ public class ReplenishmentProbeController {
   public ResponseEntity<ReplenishmentAcceptedResponse> replenish(
       @RequestBody ReplenishStockRequest request
   ) {
+    // quantity 是包裝型別，缺欄位時是 null。**必須在這裡明確擋下**——直接傳給收 int 的建構子
+    // 會在拆箱時 NPE，而 NPE 會變成 500，把呼叫方的錯誤報成伺服器的錯誤。包裝型別的目的正是
+    // 讓「沒帶」與「帶了 0」分得開，不檢查就等於白選了那個型別。
+    if (request.quantity() == null) {
+      throw new IllegalArgumentException("Replenishment quantity is required");
+    }
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
-        IdGenerator.nextId(), request.ownerId(), request.sku(), request.quantity());
+        IdGenerator.nextId(),
+        request.ownerId(),
+        request.nodeId(),
+        request.sku(),
+        request.inDate(),
+        request.expiryDate(),
+        request.quantity());
     kafkaTemplate.send(record(event)).join();
     return ResponseEntity.status(HttpStatus.ACCEPTED).body(
         new ReplenishmentAcceptedResponse(event.getEventId(), event.getSku(), event.getQuantity()));
   }
 
   /**
+   * 缺欄位或值域錯誤一律回 {@code 400}，與 {@code OrderController} 同一個慣例——兩者都是
+   * 「呼叫方給了不合法的輸入」。
+   *
+   * <p>驗證由 {@code StockReplenishedIntegrationEvent} 的建構子完成，這裡不重複一份：那個事件
+   * 是要送上 Kafka 的東西，它自己拒絕不合法的內容才是唯一有效的守門。少了這個 handler，缺欄位
+   * 會變成 {@code 500}——把呼叫方的錯誤報成伺服器的錯誤。
+   */
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<String> handleInvalidRequest(IllegalArgumentException exception) {
+    return ResponseEntity.badRequest().body(exception.getMessage());
+  }
+
+  /**
    * 訊息必須滿足 {@code KafkaIntegrationEventDispatcher} 的契約：{@code id} 與
    * {@code eventType} 兩個 header、payload 的 eventId 與 header 一致。
    *
-   * <p>record key 維持裸 SKU，即使事件現在帶了貨主——key 決定的是 partition，而它的正確
-   * 形狀由 {@code StockPool} 的識別決定。庫存目前仍以 {@code (sku)} 唯一，同碼 SKU 真的
-   * 共用一列，因此裸 SKU 才是讓競爭者收斂到同一個 partition 的正確 key。
+   * <p>record key 用 {@link StockContentionKey}（{@code (貨主, 倉)}）。這裡與 ordering 的
+   * translator 必須產生逐位元相同的 key，因此共用同一個組成規則而不是各寫一次——不一致的
+   * 話補貨與下單會落在不同 partition，兩者對同一列庫存的寫入就不再被序列化。
    */
   private ProducerRecord<String, String> record(StockReplenishedIntegrationEvent event) {
-    ProducerRecord<String, String> record = new ProducerRecord<>(
-        InventoryEventTopics.STOCK_EVENTS, event.getSku(), serialize(event));
+    String key = StockContentionKey.of(event.getOwnerId(), event.getNodeId());
+    ProducerRecord<String, String> record =
+        new ProducerRecord<>(InventoryEventTopics.STOCK_EVENTS, key, serialize(event));
     record.headers().add("id", bytes(event.getEventId().toString()));
     record.headers().add("eventType", bytes(StockReplenishedIntegrationEvent.class.getSimpleName()));
     return record;
@@ -94,8 +123,20 @@ public class ReplenishmentProbeController {
     return value.getBytes(StandardCharsets.UTF_8);
   }
 
-  /** {@code ownerId} 決定要喚醒哪一個貨主的缺貨佇列——SKU 代碼跨貨主撞號，只憑它決定不了。 */
-  public record ReplenishStockRequest(java.util.UUID ownerId, String sku, Integer quantity) {
+  /**
+   * 五個維度都必填——它們合起來決定這批貨加到哪一列，缺任一個就得定義合併規則。
+   *
+   * <p>包裝型別而非基本型別，是為了讓「沒帶」與「帶了 0」分得開：缺欄位要回 400，帶 0 則是
+   * 值域錯誤。用 {@code int} 的話缺欄位會靜默變成 0，然後被當成值域錯誤處理。
+   */
+  public record ReplenishStockRequest(
+      UUID ownerId,
+      UUID nodeId,
+      String sku,
+      LocalDate inDate,
+      LocalDate expiryDate,
+      Integer quantity
+  ) {
   }
 
   public record ReplenishmentAcceptedResponse(UUID eventId, String sku, int quantity) {

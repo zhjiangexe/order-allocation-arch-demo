@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
@@ -116,14 +117,12 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     UUID firstOrderId = UUID.randomUUID();
     UUID secondOrderId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-CONCURRENT", 3, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-CONCURRENT", 3, 0));
     orderRepository.save(OrderFixtures.pendingOrder(firstOrderId, "SKU-CONCURRENT", 3, placedAt));
     orderRepository.save(OrderFixtures.pendingOrder(secondOrderId, "SKU-CONCURRENT", 3, placedAt));
 
-    OrderPlacedIntegrationEvent firstEvent = new OrderPlacedIntegrationEvent(
-        UUID.randomUUID(), firstOrderId, "SKU-CONCURRENT", 3, placedAt);
-    OrderPlacedIntegrationEvent secondEvent = new OrderPlacedIntegrationEvent(
-        UUID.randomUUID(), secondOrderId, "SKU-CONCURRENT", 3, placedAt);
+    OrderPlacedIntegrationEvent firstEvent = new OrderPlacedIntegrationEvent(UUID.randomUUID(), firstOrderId, placedAt);
+    OrderPlacedIntegrationEvent secondEvent = new OrderPlacedIntegrationEvent(UUID.randomUUID(), secondOrderId, placedAt);
     conflictInjector.blockFirstTwoAllocationAttempts();
 
     ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -144,8 +143,9 @@ class AllocationConcurrencyEndToEndIntegrationTest {
       assertThat(pool.getReservedQuantity()).isEqualTo(3);
       assertThat(pool.getReservedQuantity()).isLessThanOrEqualTo(pool.getOnHandQuantity());
     });
-    assertThat(stockReservationRepository.findActiveByOrderId(firstOrderId).isPresent()
-        ^ stockReservationRepository.findActiveByOrderId(secondOrderId).isPresent()).isTrue();
+    // 恰好一張拿到預留：兩張都拿到代表超賣，都沒拿到代表兩張都白白重試到耗盡。
+    assertThat(!activeReservationsOf(firstOrderId).isEmpty()
+        ^ !activeReservationsOf(secondOrderId).isEmpty()).isTrue();
     assertThat(inboxRepository.findById(firstEvent.getEventId())).isPresent();
     assertThat(inboxRepository.findById(secondEvent.getEventId())).isPresent();
     assertThat(outboxRepository.findAll().stream().map(outbox -> outbox.getEventType()))
@@ -160,10 +160,9 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     UUID stockPoolId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-EXHAUSTED", 3, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-EXHAUSTED", 3, 0));
     orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-EXHAUSTED", 3, placedAt));
-    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
-        UUID.randomUUID(), orderId, "SKU-EXHAUSTED", 3, placedAt);
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt);
     double metricBefore = exhaustedMetricCount();
     conflictInjector.failFirstAllocationAttempts(3);
 
@@ -175,7 +174,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
-    assertThat(stockReservationRepository.findActiveByOrderId(orderId)).isEmpty();
+    assertThat(activeReservationsOf(orderId)).isEmpty();
     assertThat(inboxRepository.findById(event.getEventId())).isEmpty();
     assertThat(outboxRepository.count()).isZero();
     assertThat(exhaustedMetricCount()).isEqualTo(metricBefore + 1.0);
@@ -261,5 +260,20 @@ class AllocationConcurrencyEndToEndIntegrationTest {
       forcedFailures = 0;
       concurrentAttempts = null;
     }
+  }
+
+  /**
+   * 這張單目前還有效的預留。
+   *
+   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
+   * {@code ReleaseReservationUsecase} 走同一條路。回的是清單而不是單筆：一條行跨三批就有
+   * 三筆預留。
+   */
+  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
+      activeReservationsOf(java.util.UUID orderId) {
+    return orderRepository.findById(orderId)
+        .map(order -> stockReservationRepository.findActiveByOrderLineIds(
+            order.getLines().stream().map(line -> line.getId()).toList()))
+        .orElse(java.util.List.of());
   }
 }

@@ -7,7 +7,7 @@
 #                                                  （每步都會偵測已在跑就跳過）
 #   ./e2e/perf/run.sh perf                         up ＋ 種庫存 ＋ 跑 k6
 #   SKU=... STOCK=... VUS=... ./e2e/perf/run.sh perf
-#   PARTITION_KEY_STRATEGY=sku SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh perf
+#   PARTITION_KEY_STRATEGY=stock SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh perf
 #                                                 v3：SKU 分區 single-writer
 #   ./e2e/perf/run.sh down                        拆除基礎設施＋停掉背景 app
 #   ./e2e/perf/run.sh seed <SKU> <QUANTITY>        單獨種／重置一筆 StockPool 庫存
@@ -39,6 +39,18 @@ PERF_PRODUCT_ID="00000000-0000-0000-0000-0000000000f2"
 PERF_PRODUCT_CODE="P-PERF"
 PERF_NODE_ID="00000000-0000-0000-0000-0000000000f4"
 PERF_NODE_CODE="WH-PERF"
+
+# 熱點庫存那一列。**id 與兩個日期都固定**，這是熱點壓測的正確性前提：
+#
+#   庫存以 (貨主, 倉, SKU, 入庫日, 效期) 唯一，所以日期若取「今天」，隔天重跑就會多出
+#   第二列。而這支壓測的價值全在「1,000 張單真的搶同一列」所產生的樂觀鎖競爭——庫存一
+#   散開，競爭強度就完全不同，而 checks 與 thresholds 仍然會全過。那是最糟的失敗方式。
+#
+# 效期刻意放到 2099：壓測 fixture 不該有到期日，過期的批配不到貨，而那個失敗會表現成
+# 「訂單全部掛帳」，看起來像配貨壞了而不是像 fixture 過期。
+PERF_STOCK_POOL_ID="00000000-0000-0000-0000-0000000000f5"
+PERF_IN_DATE="2026-01-01"
+PERF_EXPIRY_DATE="2099-12-31"
 
 # 起一套可用的系統。三步的順序不能換：connector 要讀 event_outbox，而那張表是 app 啟動時
 # 由 Flyway 建的——app 不在 compose 裡，所以 compose 自己帶不出一套完整的系統。
@@ -165,9 +177,14 @@ INSERT INTO owner_nodes (owner_id, node_id)
 VALUES ('${PERF_OWNER_ID}', '${PERF_NODE_ID}')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO stock_pools (id, sku, on_hand_quantity, reserved_quantity, version, updated_at)
-VALUES (gen_random_uuid(), '${sku}', ${quantity}, 0, 0, now())
-ON CONFLICT (sku) DO UPDATE
+-- 以固定 id 做 upsert 而不是 DELETE 後重建：stock_reservations 的外鍵指向這一列，
+-- 前一輪壓測留下的預留會讓 DELETE 失敗。UPDATE 沒有這個問題。
+INSERT INTO stock_pools (
+    id, owner_id, node_id, sku_code, in_date, expiry_date,
+    on_hand_quantity, reserved_quantity, version, updated_at)
+VALUES ('${PERF_STOCK_POOL_ID}', '${PERF_OWNER_ID}', '${PERF_NODE_ID}', '${sku}',
+        DATE '${PERF_IN_DATE}', DATE '${PERF_EXPIRY_DATE}', ${quantity}, 0, 0, now())
+ON CONFLICT (id) DO UPDATE
   SET on_hand_quantity = EXCLUDED.on_hand_quantity,
       reserved_quantity = 0,
       version = stock_pools.version + 1,
@@ -177,7 +194,21 @@ SQL
     echo "種庫存失敗（SKU=${sku}）" >&2
     return 1
   fi
-  echo "已種好 ${sku}：貨主 ${PERF_OWNER_CODE}、倉庫 ${PERF_NODE_CODE}、on_hand_quantity=${quantity}"
+
+  # **斷言熱點庫存只有一列。** 上面的 upsert 保證「我們種的那一列」是同一列，但保證不了
+  # 「沒有別人種的第二列」——前一輪用不同日期種過、或有人手動補過貨，都會多出一列而讓
+  # 競爭分散。散開之後 checks 與 thresholds 仍然全過，所以這裡不查就沒人會發現。
+  local batch_count
+  batch_count=$(docker exec -i "${POSTGRES_CONTAINER}" psql -U order_promising -d order_promising \
+    -tAc "SELECT count(*) FROM stock_pools WHERE owner_id = '${PERF_OWNER_ID}' AND node_id = '${PERF_NODE_ID}' AND sku_code = '${sku}'")
+  if [ "${batch_count}" != "1" ]; then
+    echo "熱點庫存必須只有一列，實際有 ${batch_count} 列——競爭已被分散，這次壓測測不到" >&2
+    echo "真實的樂觀鎖衝突。先 ./e2e/perf/run.sh down 重建再跑。" >&2
+    return 1
+  fi
+
+  echo "已種好 ${sku}：貨主 ${PERF_OWNER_CODE}、倉庫 ${PERF_NODE_CODE}、單一批次" \
+    "（入庫 ${PERF_IN_DATE}／效期 ${PERF_EXPIRY_DATE}）、on_hand_quantity=${quantity}"
 }
 
 # Prometheus 跟 app log 兩種方法互相對照（/actuator/prometheus 沒開的話會是 404，

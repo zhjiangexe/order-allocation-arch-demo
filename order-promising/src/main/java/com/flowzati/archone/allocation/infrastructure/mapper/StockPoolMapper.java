@@ -11,20 +11,28 @@ public final class StockPoolMapper {
   public static StockPoolEntity toEntity(StockPool stockPool) {
     return new StockPoolEntity(
         stockPool.getId(),
-        stockPool.getSku(),
+        stockPool.getOwnerId(),
+        stockPool.getNodeId(),
+        stockPool.getSkuCode(),
+        stockPool.getInDate(),
+        stockPool.getExpiryDate(),
         stockPool.getOnHandQuantity(),
         stockPool.getReservedQuantity(),
         stockPool.getVersion()
     );
   }
 
-  public static StockPool toDomain(StockPoolEntity stockPoolEntity) {
+  public static StockPool toDomain(StockPoolEntity entity) {
     return new StockPool(
-        stockPoolEntity.getId(),
-        stockPoolEntity.getSku(),
-        stockPoolEntity.getOnHandQuantity(),
-        stockPoolEntity.getReservedQuantity(),
-        stockPoolEntity.getVersion()
+        entity.getId(),
+        entity.getOwnerId(),
+        entity.getNodeId(),
+        entity.getSkuCode(),
+        entity.getInDate(),
+        entity.getExpiryDate(),
+        entity.getOnHandQuantity(),
+        entity.getReservedQuantity(),
+        entity.getVersion()
     );
   }
 }

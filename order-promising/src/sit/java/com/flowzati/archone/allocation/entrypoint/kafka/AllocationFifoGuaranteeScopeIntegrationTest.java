@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
@@ -101,7 +102,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   void shouldLetANewOrderTakeLeftoverAtpAheadOfAnOlderQueuedOrder() throws Exception {
     // Step 1：一個空的庫存池，與一張已經排隊很久、需求 100 的缺貨訂單。
     UUID stockPoolId = UUID.randomUUID();
-    stockPoolRepository.save(new StockPool(stockPoolId, SKU, 0, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, SKU, 0, 0));
     UUID queuedOrderId = seedQueuedOrder();
 
     // Step 2：補進 30。佇列的 head 要 100，head-of-line blocking 讓它配不到，
@@ -147,8 +148,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     Instant placedAt = Instant.now();
     orderRepository.save(
         OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, placedAt));
-    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
-        UUID.randomUUID(), orderId, SKU, NEW_ORDER_QUANTITY, placedAt);
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt);
     consumer.consumeOrderingEvent(
         record(OrderingEventTopics.ORDER_EVENTS, event));
     return orderId;
@@ -156,7 +156,8 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
   private StockReplenishedIntegrationEvent replenishment(int quantity) {
     return new StockReplenishedIntegrationEvent(
-        UUID.randomUUID(), OrderFixtures.OWNER_ID, SKU, quantity);
+            UUID.randomUUID(), OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, SKU,
+            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity);
   }
 
   private OrderStatus statusOf(UUID orderId) {

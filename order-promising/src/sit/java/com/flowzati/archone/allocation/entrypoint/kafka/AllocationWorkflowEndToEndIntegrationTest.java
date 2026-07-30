@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
@@ -96,10 +97,9 @@ class AllocationWorkflowEndToEndIntegrationTest {
     UUID stockPoolId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
     orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, placedAt));
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-AVAILABLE", 10, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-AVAILABLE", 10, 0));
 
-    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
-        UUID.randomUUID(), orderId, "SKU-AVAILABLE", 3, placedAt);
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt);
     consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
@@ -107,7 +107,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(3));
-    assertThat(stockReservationRepository.findActiveByOrderId(orderId)).hasValueSatisfying(reservation -> {
+    assertThat(activeReservationsOf(orderId)).singleElement().satisfies(reservation -> {
       assertThat(reservation.getStockPoolId()).isEqualTo(stockPoolId);
       assertThat(reservation.getQuantity()).isEqualTo(3);
     });
@@ -125,20 +125,22 @@ class AllocationWorkflowEndToEndIntegrationTest {
     UUID stockPoolId = UUID.randomUUID();
     UUID reservationId = UUID.randomUUID();
     Instant reservedAt = Instant.now().minusSeconds(1);
-    orderRepository.save(OrderFixtures.allocatedOrder(
-        orderId, "SKU-PARTIALLY-RESERVED", 4, reservedAt.minusSeconds(1), reservedAt));
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-PARTIALLY-RESERVED", 10, 4, null));
-    stockReservationRepository.save(
-        StockReservation.create(reservationId, orderId, stockPoolId, 4, reservedAt));
+    Order order = OrderFixtures.allocatedOrder(
+        orderId, "SKU-PARTIALLY-RESERVED", 4, reservedAt.minusSeconds(1), reservedAt);
+    orderRepository.save(order);
+    stockPoolRepository.save(
+        StockFixtures.unexpiredBatch(stockPoolId, "SKU-PARTIALLY-RESERVED", 10, 4));
+    // 預留指向**行**而不是訂單：外鍵是 fk_stock_reservations_order_line。
+    stockReservationRepository.save(StockReservation.create(
+        reservationId, order.getLines().get(0).getId(), stockPoolId, 4, reservedAt));
 
-    OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(
-        UUID.randomUUID(), orderId, Instant.now());
+    OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, Instant.now());
     consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
-    assertThat(stockReservationRepository.findActiveByOrderId(orderId)).isEmpty();
+    assertThat(activeReservationsOf(orderId)).isEmpty();
     assertThat(jdbcTemplate.queryForObject(
         "SELECT status FROM stock_reservations WHERE id = ?", String.class, reservationId))
         .isEqualTo("RELEASED");
@@ -153,11 +155,13 @@ class AllocationWorkflowEndToEndIntegrationTest {
     UUID secondOrderId = UUID.randomUUID();
     Instant firstBackorderedAt = Instant.now().minusSeconds(4);
     Instant secondBackorderedAt = firstBackorderedAt.plusSeconds(1);
-    stockPoolRepository.save(new StockPool(stockPoolId, "SKU-FIFO", 0, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-FIFO", 0, 0));
     orderRepository.save(backorderedOrder(firstOrderId, "SKU-FIFO", 3, firstBackorderedAt));
     orderRepository.save(backorderedOrder(secondOrderId, "SKU-FIFO", 3, secondBackorderedAt));
 
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-FIFO", 5);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
+            UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-FIFO",
+            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 5);
     consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
@@ -169,8 +173,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
       assertThat(pool.getOnHandQuantity()).isEqualTo(5);
       assertThat(pool.getReservedQuantity()).isEqualTo(3);
     });
-    assertThat(stockReservationRepository.findActiveByOrderId(firstOrderId)).isPresent();
-    assertThat(stockReservationRepository.findActiveByOrderId(secondOrderId)).isEmpty();
+    assertThat(activeReservationsOf(firstOrderId)).isNotEmpty();
+    assertThat(activeReservationsOf(secondOrderId)).isEmpty();
     assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox ->
         assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName()));
   }
@@ -186,5 +190,20 @@ class AllocationWorkflowEndToEndIntegrationTest {
     record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
     record.headers().add("eventType", event.getClass().getSimpleName().getBytes(StandardCharsets.UTF_8));
     return record;
+  }
+
+  /**
+   * 這張單目前還有效的預留。
+   *
+   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
+   * {@code ReleaseReservationUsecase} 走同一條路。回的是清單而不是單筆：一條行跨三批就有
+   * 三筆預留。
+   */
+  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
+      activeReservationsOf(java.util.UUID orderId) {
+    return orderRepository.findById(orderId)
+        .map(order -> stockReservationRepository.findActiveByOrderLineIds(
+            order.getLines().stream().map(line -> line.getId()).toList()))
+        .orElse(java.util.List.of());
   }
 }

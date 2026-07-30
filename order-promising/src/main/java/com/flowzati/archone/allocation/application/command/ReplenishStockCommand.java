@@ -1,9 +1,14 @@
 package com.flowzati.archone.allocation.application.command;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * 補貨。{@code ownerId} 決定要喚醒哪一個貨主的缺貨佇列。
+ * 補貨。五個維度合起來決定要加到哪一列——命中既有列就加數量，否則新開一列。
+ *
+ * <p>{@code inDate} 與 {@code expiryDate} 是**必填**。少了它們就得定義「這批貨算不算既有列
+ * 的一部分」的合併規則，而任何一條規則都會在某些情況下合併掉不該合併的貨；讓它們參與識別，
+ * 就沒有規則要定義，也就沒有規則會定錯。
  *
  * <p><b>一則命令恰好對應一個貨主的一個 SKU，這是決定而非未完成的擴充。</b>三個理由：
  * partition key 只有在單 SKU 時有唯一正確解（多 SKU 時熱點 SKU 的序列化保證失效）；
@@ -14,13 +19,29 @@ import java.util.UUID;
  * ——批次是傳輸層的事，不是領域交易的事。理由與代價見
  * {@code docs/dom-promising-scope.md} 的「補貨的三個決定」。
  */
-public record ReplenishStockCommand(UUID ownerId, String sku, int quantity) {
+public record ReplenishStockCommand(
+    UUID ownerId,
+    UUID nodeId,
+    String sku,
+    LocalDate inDate,
+    LocalDate expiryDate,
+    int quantity
+) {
   public ReplenishStockCommand {
     if (ownerId == null) {
       throw new IllegalArgumentException("Owner ID is required");
     }
+    if (nodeId == null) {
+      throw new IllegalArgumentException("Fulfillment node ID is required");
+    }
     if (sku == null || sku.isBlank()) {
       throw new IllegalArgumentException("SKU is required");
+    }
+    if (inDate == null) {
+      throw new IllegalArgumentException("In-date is required");
+    }
+    if (expiryDate == null) {
+      throw new IllegalArgumentException("Expiry date is required");
     }
     if (quantity <= 0) {
       throw new IllegalArgumentException("Replenishment quantity must be positive");

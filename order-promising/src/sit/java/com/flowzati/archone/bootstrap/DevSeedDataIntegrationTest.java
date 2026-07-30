@@ -1,5 +1,7 @@
 package com.flowzati.archone.bootstrap;
 
+import com.flowzati.archone.allocation.domain.model.StockPool;
+import com.flowzati.archone.common.time.BusinessCalendar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
@@ -50,6 +52,9 @@ class DevSeedDataIntegrationTest {
   private JdbcTemplate jdbcTemplate;
 
   @Autowired
+  private BusinessCalendar businessCalendar;
+
+  @Autowired
   private OwnerRepository ownerRepository;
 
   @Autowired
@@ -83,26 +88,28 @@ class DevSeedDataIntegrationTest {
   @Test
   @DisplayName("dev seed 應建立一致資料且重跑不重複")
   void shouldCreateConsistentDevSeedDataWithoutDuplicatesOnRepeatRun() throws Exception {
-    assertThat(stockPoolRepository.findBySku(DevSeedDataInitializer.AVAILABLE_SKU))
-        .hasValueSatisfying(pool -> {
-          assertThat(pool.getOnHandQuantity()).isEqualTo(10);
-          assertThat(pool.getReservedQuantity()).isZero();
-        });
-    assertThat(stockPoolRepository.findBySku(DevSeedDataInitializer.EMPTY_SKU))
-        .hasValueSatisfying(pool -> {
-          assertThat(pool.getOnHandQuantity()).isZero();
-          assertThat(pool.getReservedQuantity()).isZero();
-        });
-    assertThat(stockPoolRepository.findBySku(DevSeedDataInitializer.PARTIALLY_RESERVED_SKU))
-        .hasValueSatisfying(pool -> {
-          assertThat(pool.getOnHandQuantity()).isEqualTo(20);
-          assertThat(pool.getReservedQuantity()).isEqualTo(5);
-        });
+    assertThat(batch(DevSeedDataInitializer.NEAR_EXPIRY_STOCK_POOL_ID)).satisfies(pool -> {
+      assertThat(pool.getOnHandQuantity()).isEqualTo(60);
+      // 被跨批訂單全部吃掉：畫面上要有一個「配完的批」。
+      assertThat(pool.getReservedQuantity()).isEqualTo(60);
+    });
+    assertThat(batch(DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID)).satisfies(pool -> {
+      assertThat(pool.getOnHandQuantity()).isEqualTo(40);
+      // 配一半的批：跨批訂單的第二段。
+      assertThat(pool.getReservedQuantity()).isEqualTo(20);
+    });
+    assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_POOL_ID)).satisfies(pool -> {
+      assertThat(pool.getOnHandQuantity()).isZero();
+      assertThat(pool.getReservedQuantity()).isZero();
+    });
+    assertThat(batch(DevSeedDataInitializer.PARTIALLY_RESERVED_STOCK_POOL_ID)).satisfies(pool -> {
+      assertThat(pool.getOnHandQuantity()).isEqualTo(20);
+      assertThat(pool.getReservedQuantity()).isEqualTo(5);
+    });
     assertThat(orderRepository.findById(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
         .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
-    assertThat(stockReservationRepository.findActiveByOrderId(
-        DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
-        .hasValueSatisfying(reservation -> {
+    assertThat(activeReservationsOf(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
+        .singleElement().satisfies(reservation -> {
           assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
           assertThat(reservation.getQuantity()).isEqualTo(5);
           assertThat(reservation.getStockPoolId())
@@ -111,14 +118,61 @@ class DevSeedDataIntegrationTest {
 
     initializer.run(null);
 
+    // 六批（近／中早／中晚／已過期／空／部分預留）、三張單、三筆預留。
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_pools", Integer.class))
-        .isEqualTo(3);
+        .isEqualTo(6);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM orders", Integer.class))
-        .isEqualTo(2);
+        .isEqualTo(3);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_reservations", Integer.class))
-        .isEqualTo(1);
+        .isEqualTo(3);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM owners", Integer.class))
         .isEqualTo(2);
+  }
+
+  @Test
+  @DisplayName("種子必須有同效期不同入庫日的兩批——少了它，FEFO 的 tie-breaker 完全沒被測到")
+  void seedsTwoBatchesSharingAnExpiryDateButDifferingInArrival() {
+    StockPool early = batch(DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID);
+    StockPool late = batch(DevSeedDataInitializer.MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID);
+
+    assertThat(early.getExpiryDate()).isEqualTo(late.getExpiryDate());
+    assertThat(early.getInDate()).isBefore(late.getInDate());
+  }
+
+  @Test
+  @DisplayName("種子必須有一批已過期的貨——「有貨但配不到」在畫面上要看得見")
+  void seedsAnExpiredBatchThatIsPresentButNotAllocatable() {
+    StockPool expired = batch(DevSeedDataInitializer.EXPIRED_STOCK_POOL_ID);
+
+    // 不刪除、不隱藏：倉庫裡真的有這 25 件，而它與「什麼都沒有」要引導出不同的動作。
+    assertThat(expired.getOnHandQuantity()).isEqualTo(25);
+    assertThat(expired.isExpired(businessCalendar.today())).isTrue();
+    assertThat(stockPoolRepository.findAllocatableBatchesInFefoOrder(
+        DevSeedDataInitializer.FIRST_OWNER_ID, DevSeedDataInitializer.NORTH_NODE_ID,
+        DevSeedDataInitializer.AVAILABLE_SKU, businessCalendar.today()))
+        .extracting(StockPool::getId)
+        .doesNotContain(DevSeedDataInitializer.EXPIRED_STOCK_POOL_ID);
+  }
+
+  @Test
+  @DisplayName("種子必須有一張需求跨兩批的訂單——多批取用與多筆預留唯一的資料來源")
+  void seedsAnOrderWhoseDemandSpansTwoBatches() {
+    assertThat(orderRepository.findById(DevSeedDataInitializer.SPANNING_ORDER_ID))
+        .hasValueSatisfying(order -> {
+          assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
+          assertThat(order.getDemandFor(DevSeedDataInitializer.AVAILABLE_SKU)).isEqualTo(80);
+        });
+
+    // 80 件 = 近效期 60 + 中效期 20，所以是兩筆預留，各指向不同的批。
+    assertThat(activeReservationsOf(DevSeedDataInitializer.SPANNING_ORDER_ID))
+        .hasSize(2)
+        .extracting(reservation -> reservation.getStockPoolId(),
+            reservation -> reservation.getQuantity())
+        .containsExactlyInAnyOrder(
+            org.assertj.core.groups.Tuple.tuple(
+                DevSeedDataInitializer.NEAR_EXPIRY_STOCK_POOL_ID, 60),
+            org.assertj.core.groups.Tuple.tuple(
+                DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, 20));
   }
 
   @Test
@@ -129,7 +183,7 @@ class DevSeedDataIntegrationTest {
     // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在，補貨也不會碰它（只處理
     // BACKORDERED）。照操作台 README 的 demo 流程補貨後畫面毫無變化，看起來像壞掉。
     List<Order> queue = orderRepository.findBackordersBySkuInFifoOrder(
-        DevSeedDataInitializer.SECOND_OWNER_ID, DevSeedDataInitializer.EMPTY_SKU);
+        DevSeedDataInitializer.SECOND_OWNER_ID, DevSeedDataInitializer.EMPTY_SKU, 1_000);
 
     assertThat(queue).extracting(Order::getId)
         .containsExactly(DevSeedDataInitializer.BACKORDERED_ORDER_ID);
@@ -137,9 +191,7 @@ class DevSeedDataIntegrationTest {
     assertThat(queue.getFirst().getBackOrderedSince()).isNotNull();
 
     // 缺貨對象的庫存池必須真的是空的，否則「試過、沒貨」這個狀態自相矛盾
-    assertThat(stockPoolRepository.findBySku(DevSeedDataInitializer.EMPTY_SKU))
-        .get()
-        .satisfies(pool -> assertThat(pool.availableToPromise()).isZero());
+    assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_POOL_ID).availableToPromise()).isZero();
   }
 
   @Test
@@ -204,13 +256,23 @@ class DevSeedDataIntegrationTest {
         .containsExactly(520, 1000);
   }
 
-  @Test
-  @DisplayName("庫存池的 SKU 必須都存在於主檔——兩邊對不上時資料庫不會報錯，只會讓訂單配不到貨")
-  void keepsStockPoolSkusInSyncWithTheCatalog() {
-    assertThat(jdbcTemplate.queryForList("""
-        SELECT sp.sku FROM stock_pools sp
-        WHERE NOT EXISTS (SELECT 1 FROM skus s WHERE s.sku_code = sp.sku)
-        """, String.class))
-        .isEmpty();
+  /**
+   * 這張單目前還有效的預留。
+   *
+   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
+   * {@code ReleaseReservationUsecase} 走同一條路。回的是清單而不是單筆：一條行跨三批就有
+   * 三筆預留。
+   */
+  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
+      activeReservationsOf(java.util.UUID orderId) {
+    return orderRepository.findById(orderId)
+        .map(order -> stockReservationRepository.findActiveByOrderLineIds(
+            order.getLines().stream().map(line -> line.getId()).toList()))
+        .orElse(java.util.List.of());
+  }
+
+  /** 依 id 取那一批。種子的日期相對於今天計算，所以用 id 取比用五維鍵拼出來可靠。 */
+  private StockPool batch(java.util.UUID stockPoolId) {
+    return stockPoolRepository.findById(stockPoolId).orElseThrow();
   }
 }

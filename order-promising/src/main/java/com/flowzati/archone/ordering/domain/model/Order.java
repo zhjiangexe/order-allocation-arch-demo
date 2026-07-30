@@ -211,7 +211,7 @@ public class Order {
     status = OrderStatus.CANCELLED;
     this.cancelledAt = cancelledAt;
     lines.forEach(OrderLine::cancel);
-    events.add(new OrderCancelled(id, ownerId, toLineSnapshots(), cancelledAt));
+    events.add(new OrderCancelled(id, ownerId, deliveryTerms.fulfillmentNodeId(), cancelledAt));
     return true;
   }
 

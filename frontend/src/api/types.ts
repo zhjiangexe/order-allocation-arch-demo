@@ -7,7 +7,9 @@
  *
  * 跟隨過的 change：`add-demo-console-api`（六支端點）、`add-owner-and-order-line-model`
  * （訂單改為行的集合、加入貨主與主檔查詢、補貨要指定貨主）、
- * `add-warehouse-and-owner-assignment`（訂單必須指定倉別、加入倉庫查詢）。
+ * `add-warehouse-and-owner-assignment`（訂單必須指定倉別、加入倉庫查詢）、
+ * `add-batch-stock-and-fefo`（庫存改為批次列表、查詢與補貨都要帶貨主、補貨要帶倉別與
+ * 入庫日與效期）。
  */
 
 export type OrderStatus = 'PENDING' | 'ALLOCATED' | 'BACKORDERED' | 'CANCELLED';
@@ -93,22 +95,51 @@ export interface PlaceOrderCommand {
   lines: Array<{ skuCode: string; quantity: number }>;
 }
 
-export interface StockPoolView {
-  sku: string;
+/**
+ * 一批貨。
+ *
+ * 沒有「為什麼不能配」的欄位——`expired` 與 `availableToPromise` 兩個各講一件事，讀的人合
+ * 起來就分得出是「過期了」還是「被預留光了」，而那兩者在畫面上要引導出不同的動作（報廢 vs
+ * 等出貨）。後端曾經有一個 `unsellableReason`，但它永遠只會是 `null` 或 `"EXPIRED"`。
+ */
+export interface StockBatchView {
+  stockPoolId: string;
+  nodeId: string;
+  /** ISO 日期（`2026-01-05`）。同效期時它決定 FEFO 的先後。 */
+  inDate: string;
+  expiryDate: string;
   onHandQuantity: number;
   reservedQuantity: number;
   availableToPromise: number;
+  expired: boolean;
 }
 
 /**
- * 補貨要指定貨主：SKU 代碼跨貨主撞號，只憑它決定不了要喚醒誰的缺貨佇列。
+ * 某貨主某 SKU 手上的所有批，**依配貨會取用的順序**（倉別、效期、入庫日）。
  *
- * 注意庫存查詢**不**需要貨主——`stock_pools` 目前還沒有貨主維度，兩個貨主的同碼 SKU
- * 共用同一列。佇列已按貨主分開，庫存還沒有。
+ * 過期的批會在清單裡並標記，不是被濾掉——濾掉會讓「有 100 件但一件都出不了」與「什麼都
+ * 沒有」在畫面上長得一樣。
+ */
+export interface StockPoolView {
+  sku: string;
+  batches: StockBatchView[];
+}
+
+/**
+ * 補貨。五個維度合起來決定這批貨加到哪一列——命中既有列就加數量，否則新開一列。
+ *
+ * 缺任一個維度就得定義合併規則，而任何一條規則都會在某些情況下把不可互換的貨併在一起。
+ * 因此五個都是必填，後端缺任一個回 `400`。
+ *
+ * 庫存查詢**現在也需要貨主**——`stock_pools` 已按貨主分開，兩個貨主的同碼 SKU 是不同的貨。
  */
 export interface ReplenishCommand {
   ownerId: string;
+  nodeId: string;
   sku: string;
+  /** ISO 日期（`2026-01-05`）。 */
+  inDate: string;
+  expiryDate: string;
   quantity: number;
 }
 

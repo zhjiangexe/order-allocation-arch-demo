@@ -16,13 +16,14 @@ export function StockPage() {
         <StockPanel
           stock={stock.state}
           replenishment={replenishment.state}
-          onQuery={(sku) => void stock.run(sku)}
           owners={catalog.owners}
-          skuCodes={catalog.skuCodes()}
-          onReplenish={(ownerId, sku, quantity) =>
-            void replenishment.run({ ownerId, sku, quantity })
-          }
-          onSkuChange={() => {
+          nodesOf={(ownerId) => catalog.nodesOf(ownerId)}
+          skuCodesOf={(ownerId) => catalog.skuCodesOf(ownerId)}
+          // 查不到就顯示 id：主檔缺一筆不該讓整列變空白，而 id 至少還查得下去。
+          nodeLabel={(ownerId, nodeId) => catalog.findNode(ownerId, nodeId)?.name ?? nodeId}
+          onQuery={(ownerId, sku) => void stock.run(ownerId, sku)}
+          onReplenish={(input) => void replenishment.run(input)}
+          onScopeChange={() => {
             stock.reset();
             replenishment.reset();
           }}

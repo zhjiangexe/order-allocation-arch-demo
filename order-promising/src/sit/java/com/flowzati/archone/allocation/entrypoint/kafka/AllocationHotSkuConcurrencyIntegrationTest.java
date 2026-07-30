@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
@@ -116,13 +117,13 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     // Order／OrderPlaced event。每筆 event 有自己的 eventId，之後可以個別重送。
     UUID stockPoolId = UUID.randomUUID();
     Instant placedAt = Instant.now().minusSeconds(1);
-    stockPoolRepository.save(new StockPool(stockPoolId, HOT_SKU, ON_HAND_QUANTITY, 0, null));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, HOT_SKU, ON_HAND_QUANTITY, 0));
 
     List<OrderPlacedIntegrationEvent> events = new ArrayList<>(TOTAL_ORDERS);
     for (int i = 0; i < TOTAL_ORDERS; i++) {
       UUID orderId = UUID.randomUUID();
       orderRepository.save(OrderFixtures.pendingOrder(orderId, HOT_SKU, 1, placedAt));
-      events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, HOT_SKU, 1, placedAt));
+      events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt));
     }
 
     // Step 2：把 1,000 筆事件同時丟進 allocation entrypoint。這一步只保證「同時送出」，
@@ -258,12 +259,25 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     Integer activeReservationQuantity = jdbcTemplate.queryForObject(
         "SELECT coalesce(sum(quantity), 0) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
     Integer distinctReservedOrders = jdbcTemplate.queryForObject(
-        "SELECT count(DISTINCT order_id) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+        "SELECT count(DISTINCT order_line_id) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
     assertThat(activeReservationCount).isEqualTo(ON_HAND_QUANTITY);
     assertThat(activeReservationQuantity).isEqualTo(ON_HAND_QUANTITY);
     assertThat(distinctReservedOrders).isEqualTo(ON_HAND_QUANTITY);
 
-    // 3) StockPool 結果：on-hand 不變、reserved 等於庫存、ATP 歸零——三個數字彼此要一致。
+    // 3a) **庫存必須集中在單一批次。**
+    //
+    // 這是分批之後最重要的一條，而它守的不是正確性、是**測試本身還有沒有在測東西**：
+    // 這支測試的價值全在「1,000 張單真的搶同一列」所產生的樂觀鎖衝突。庫存若散成三批，
+    // 衝突就分散了，競爭強度完全不同，而上面每一條斷言仍然會通過——那是最糟的失敗方式，
+    // 因為測試是綠的，測到的東西卻不見了。
+    Integer batchCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM stock_pools WHERE sku_code = ?", Integer.class, HOT_SKU);
+    assertThat(batchCount)
+        .withFailMessage("熱點庫存必須只有一列，實際有 %d 列——競爭已被分散，這支測試不再測到"
+            + "真實的樂觀鎖衝突", batchCount)
+        .isEqualTo(1);
+
+    // 3b) StockPool 結果：on-hand 不變、reserved 等於庫存、ATP 歸零——三個數字彼此要一致。
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(ON_HAND_QUANTITY);
       assertThat(pool.getReservedQuantity()).isEqualTo(ON_HAND_QUANTITY);

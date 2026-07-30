@@ -6,7 +6,7 @@ import java.util.UUID;
 public class StockReservation {
 
   private final UUID id;
-  private final UUID orderId;
+  private final UUID orderLineId;
   private final UUID stockPoolId;
   private final int quantity;
   private ReservationStatus status;
@@ -16,7 +16,7 @@ public class StockReservation {
 
   private StockReservation(
       UUID id,
-      UUID orderId,
+      UUID orderLineId,
       UUID stockPoolId,
       int quantity,
       ReservationStatus status,
@@ -24,11 +24,11 @@ public class StockReservation {
       Instant releasedAt,
       Long version
   ) {
-    validateIdentity(id, orderId, stockPoolId);
+    validateIdentity(id, orderLineId, stockPoolId);
     validateQuantity(quantity);
     validateState(status, reservedAt, releasedAt);
     this.id = id;
-    this.orderId = orderId;
+    this.orderLineId = orderLineId;
     this.stockPoolId = stockPoolId;
     this.quantity = quantity;
     this.status = status;
@@ -39,14 +39,14 @@ public class StockReservation {
 
   public static StockReservation create(
       UUID id,
-      UUID orderId,
+      UUID orderLineId,
       UUID stockPoolId,
       int quantity,
       Instant reservedAt
   ) {
     return new StockReservation(
         id,
-        orderId,
+        orderLineId,
         stockPoolId,
         quantity,
         ReservationStatus.ACTIVE,
@@ -58,7 +58,7 @@ public class StockReservation {
 
   public static StockReservation rehydrate(
       UUID id,
-      UUID orderId,
+      UUID orderLineId,
       UUID stockPoolId,
       int quantity,
       ReservationStatus status,
@@ -68,7 +68,7 @@ public class StockReservation {
   ) {
     return new StockReservation(
         id,
-        orderId,
+        orderLineId,
         stockPoolId,
         quantity,
         status,
@@ -96,8 +96,8 @@ public class StockReservation {
     return id;
   }
 
-  public UUID getOrderId() {
-    return orderId;
+  public UUID getOrderLineId() {
+    return orderLineId;
   }
 
   public UUID getStockPoolId() {
@@ -124,12 +124,12 @@ public class StockReservation {
     return version;
   }
 
-  private static void validateIdentity(UUID id, UUID orderId, UUID stockPoolId) {
+  private static void validateIdentity(UUID id, UUID orderLineId, UUID stockPoolId) {
     if (id == null) {
       throw new IllegalArgumentException("Reservation ID is required");
     }
-    if (orderId == null) {
-      throw new IllegalArgumentException("Order ID is required");
+    if (orderLineId == null) {
+      throw new IllegalArgumentException("Order line ID is required");
     }
     if (stockPoolId == null) {
       throw new IllegalArgumentException("Stock pool ID is required");
