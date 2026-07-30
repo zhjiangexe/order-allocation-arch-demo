@@ -10,7 +10,7 @@
 
 **系統沒有在算任何東西。** ③ Sourcing 已移出範圍（出貨倉由上游指定），配貨因此是本系統
 **唯一真正在算的決策**——而現在它只是「夠不夠、扣掉」。加上批次與效期之後，它才成為一個
-有內容的演算法：篩掉不可售的批、依效期排序、跨批取用直到湊滿。
+有內容的演算法：篩掉配不到的批、依效期排序、跨批取用直到湊滿。
 
 現在做的另一個理由是**遲了會更貴**。每晚一個 change，就多一批在「一個 SKU 一列」前提下寫成、
 且在該前提下完全正確的程式碼——`findBySku` 回傳單一結果、配貨只碰一列、預留對應一個池。
@@ -29,13 +29,20 @@
   湊滿。決策層級仍是整張訂單（ship-complete），不做部分配貨。
 - **BREAKING**：`ReplenishStockCommand` 加 `nodeId`、`inDate`、`expiryDate`，補貨改為依五維鍵
   upsert。`/demo/replenish` 的 request body 隨之改變。
-- **BREAKING**：`archone.allocation.partition-key-strategy=sku` 的 key 由裸 `skuCode` 改為
-  `ownerId/nodeId/skuCode`。庫存分開之後，同碼不同貨主的訊息不再競爭，卻仍被擠進同一個
-  partition——這一項**必須與唯一鍵的改動在同一個 change**，理由見 design。
+- **BREAKING**：`archone.allocation.partition-key-strategy` 的值由 `sku` 改名為 `stock`，key 由
+  裸 `skuCode` 改為 `ownerId/nodeId`。庫存分開之後，同碼不同貨主的訊息不再競爭，卻仍被擠進
+  同一個 partition。**key 刻意不含 SKU**：一張單放寬成多 SKU 之後摺不出單一個 key，而
+  ship-complete 要求整籃在同一個交易裡判斷。代價是同貨主同倉、不同 SKU 的訂單被過度序列化
+  ——太粗只是慢但正確，太細直接失去 single writer。這一項**必須與唯一鍵的改動在同一個
+  change**，理由見 design。
 - **補貨喚醒加上批次上限**：一次補貨涉及的批次數量由佇列內容而非事件決定，鎖範圍不可預測。
   超出上限時發一則續做事件（同 topic 同 partition key）。
-- `OrderAllocatedIntegrationEvent` 加批次清單（每批對應的 `orderLineId`）。
-- 庫存查詢與操作台的庫存頁改為批次列表，含「為何不可售」的落選理由。
+- **BREAKING**：四個訂單生命週期對外事件全部瘦成通知型——**只帶事件識別碼、`orderId` 與一個
+  時間戳**，`sku`、`quantity`、`ownerId`、`nodeId` 與 `lines` 全數移除。消費端本來就得讀回訂單
+  才拿得到收件資訊與承諾到貨日，複製欄位只是多開一個會與主檔不一致的來源；要知道配到哪些批
+  就讀 `stock_reservations`。加欄位對消費端不破壞、減欄位才破壞，所以最小集是正確的起點。
+  理由見 design。
+- 庫存查詢與操作台的庫存頁改為批次列表，逐批標示是否已過期。
 
 ## Capabilities
 
@@ -43,7 +50,7 @@
 
 - `stock-allocation`——庫存如何被識別、如何被配給訂單。這是系統唯一在算的決策，目前散落在
   `fifo-replenishment-demo` 與 `hot-sku-concurrency-demo` 兩份 demo spec 的暗示裡，沒有自己的
-  規格。本 change 把它獨立出來：庫存的身分與維度、可售性的判準、FEFO 的取用順序、預留的粒度。
+  規格。本 change 把它獨立出來：庫存的身分與維度、可配與否的判準、FEFO 的取用順序、預留的粒度。
 
 ### Modified Capabilities
 

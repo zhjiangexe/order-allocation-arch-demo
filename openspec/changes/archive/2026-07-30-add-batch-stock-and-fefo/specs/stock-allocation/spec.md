@@ -59,7 +59,7 @@ takes a long time to trace back to its cause.
 
 ---
 
-### Requirement: Expired stock is present but not sellable
+### Requirement: Expired stock is present but not allocatable
 
 Stock whose expiry date has passed SHALL remain in the system and SHALL be excluded
 from allocation. It SHALL NOT be deleted and SHALL NOT be silently omitted from
@@ -69,16 +69,34 @@ Deleting it would destroy the record of goods physically present in the warehous
 Omitting it from queries would make "we have 100 units but can ship none" indis-
 tinguishable from "we have nothing" — and those two states call for different actions.
 
+Stock that allocation may draw on SHALL be exactly the stock that is both unexpired
+and not already fully reserved. A row whose entire quantity is reserved is, to
+allocation, indistinguishable from one that does not exist; treating the two
+differently would oblige every caller to remember to skip it.
+
+Expiry SHALL be expressed as a property of the row — whether it has expired — rather
+than as a verdict on what may be done with it. The verdict depends on quantity as
+well, and folding the two together loses the distinction the previous paragraph
+insists on. Nor SHALL the term "sellable" be used: a third-party logistics provider
+does not sell the goods, the owner does; the question a warehouse answers is whether
+goods can ship.
+
 #### Scenario: An order is not satisfied from expired stock
 
 - **GIVEN** the only stock for a SKU expired yesterday
 - **WHEN** an order for that SKU is allocated
 - **THEN** the order is backordered, and the expired stock's quantity is unchanged
 
-#### Scenario: Expired stock remains visible with its reason
+#### Scenario: Expired stock remains visible and marked
 
 - **WHEN** stock for a SKU is queried
-- **THEN** expired rows appear in the response, marked as not sellable
+- **THEN** expired rows appear in the response, marked as expired
+
+#### Scenario: A fully reserved row is not drawn on
+
+- **GIVEN** the only unexpired stock for a SKU is entirely reserved for other orders
+- **WHEN** a further order for that SKU is allocated
+- **THEN** the order is backordered and that row's reserved quantity is unchanged
 
 ---
 
@@ -115,7 +133,8 @@ write ordering that prevents deadlocks has nothing stable to sort by.
 
 ### Requirement: An order is satisfied wholly or not at all
 
-An order SHALL be allocated only when its entire demand can be met from sellable stock.
+An order SHALL be allocated only when its entire demand can be met from allocatable
+stock.
 When it cannot, no stock SHALL be reserved for it and the whole order SHALL become
 backordered.
 
@@ -126,7 +145,7 @@ nothing.
 
 #### Scenario: A partially satisfiable order reserves nothing
 
-- **GIVEN** sellable stock totals 50 units across two rows
+- **GIVEN** allocatable stock totals 50 units across two rows
 - **WHEN** an order for 80 units is allocated
 - **THEN** the order is backordered and both rows' reserved quantities are unchanged
 
@@ -152,13 +171,13 @@ the physical and logical ledgers must reconcile later.
 
 ### Requirement: Seed data makes every allocation outcome reproducible
 
-Seed data SHALL include, for one SKU, three sellable rows of near, middle and far
+Seed data SHALL include, for one SKU, three unexpired rows of near, middle and far
 expiry, of which **two share an expiry date and differ in arrival date**, plus one
 expired row. It SHALL include an order whose demand spans more than one row.
 
 Each element exists to make one behaviour observable: the three expiries make the
 ordering visible, the shared expiry is the only way the tie-break is exercised at all,
-the expired row is the "present but not sellable" case, and the spanning order is the
+the expired row is the "present but not allocatable" case, and the spanning order is the
 only way multi-row consumption and multi-reservation are seen to happen.
 
 #### Scenario: Seeded stock exercises the tie-break

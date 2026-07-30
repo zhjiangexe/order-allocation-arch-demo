@@ -14,10 +14,17 @@ alongside the SKU and the quantity, and the published event SHALL carry all of t
 Stock is identified by those five together; a replenishment naming fewer cannot say
 which row it adds to, and the consumer would have to invent the missing values.
 
-The record key SHALL be the owner, warehouse and SKU joined together — the same key the
-ordering events use under the SKU strategy. Stock is now held per owner and warehouse,
-so those are the messages that contend for the same rows; the bare SKU would serialise
-messages that no longer compete.
+The record key SHALL be the owner and warehouse joined together — **byte-for-byte the
+same key the ordering events carry under the `stock` strategy**, produced by the same
+shared rule rather than composed a second time here. Stock is held per owner and
+warehouse, so those are the messages that contend for the same rows; the bare SKU would
+serialise messages that no longer compete.
+
+The key SHALL NOT contain the SKU, even though the probe knows it. A replenishment and
+an order for the same owner and warehouse must land on the same partition for the
+single-writer guarantee to hold over the rows they both touch, and the ordering side
+cannot put the SKU in its key — see `outbox-event-delivery`. Two keys composed from
+different dimensions would diverge silently: no error, just a lost guarantee.
 
 The probe SHALL NOT write to the outbox and SHALL NOT modify any local state. The
 outbox exists to make a local state change atomic with event publication; the
@@ -39,4 +46,14 @@ snapshot taken before publication and can disagree with the actual outcome.
 #### Scenario: A replenishment carrying no warehouse is rejected
 
 - **WHEN** the probe is called without a warehouse
-- **THEN** no event is published and no stock changes
+- **THEN** the response is `400`, no event is published and no stock changes
+
+#### Scenario: A replenishment missing its quantity is a caller error, not a server error
+
+- **WHEN** the probe is called with no quantity at all
+- **THEN** the response is `400` rather than `500`
+
+A missing field SHALL be reported as the caller's error. Every field of the request is
+nullable on the wire, so an absent one must be rejected before it reaches a constructor
+that would fail on it — otherwise the caller's omission is reported as a server fault
+and the probe becomes useless for diagnosing exactly the mistakes it is there to surface.
