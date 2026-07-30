@@ -447,34 +447,34 @@ bug 修掉。
 
 ## 對 Kafka partition key 的連鎖
 
-`OrderingDomainEventTranslator:76` 的 sku 策略：
+**已於 R3 定案：key 是 `(貨主, 倉)`，不含 SKU。** 本節原本推導出 `(owner, node, sku)` 並記下
+一條「策略本身的限制」，兩者都已被取代，理由如下。
 
-```java
-private String partitionKey(UUID orderId, String sku) {
-  return SKU_STRATEGY.equals(partitionKeyStrategy) ? sku : orderId.toString();
-}
-```
+該策略的目的是 **single-writer**——會碰到同一批庫存的事件收斂到同一 partition，讓那些
+`StockPool` 列只有一個 consumer 在寫。
 
-該策略的目的是 **single-writer**——同一個 SKU 的事件收斂到同一 partition，讓同一個
-`StockPool` 只有一個 consumer 在寫。
+原本的推導是「爭用單位就是庫存的識別」，於是往 `(owner, node, sku)` 走。它在單行訂單下正確，
+但有一個到期日：
 
-多貨主後，single-writer 的單位是 `(owner, sku)` 而非 `sku`：
-
-| | 用裸 `sku` | 用 `ownerId:skuCode` |
+| | `(owner, node, sku)` | **`(owner, node)`** |
 | --- | --- | --- |
-| 結果正確性 | ✓ 仍是 single-writer | ✓ |
-| 吞吐 | **假競爭**——A 貨主與 B 貨主的同名 SKU 是不同庫存池，卻被序列化到同一 partition | 各自獨立 |
+| 單行訂單 | ✓ 精準,不多序列化 | ✓ 正確,但同貨主同倉的不同 SKU 也排隊 |
+| **多行多 SKU 訂單（R8）** | **✗ 摺不出單一個 key**——而 ship-complete 要求整籃 ATP 在同一交易判斷，per-SKU 的 writer 管轄必然被跨越 | **✓ 一張單只屬於一個 (貨主, 倉)，一個 writer 看得到整張單** |
+| 事件發出時知道嗎 | 要 SKU，需從行摺疊 | 貨主與倉都在訂單 header 上 |
 
-修正為 `ownerId + ":" + skuCode`。
+**所以本節原記的「限制」其實指向的是解法。** 原文說「理想單位是 `(owner, node, sku)`，但事件
+發出時還不知道 node」——那個前提在 R2 就不成立了（`orders.fulfillment_node_id` 由上游在下單時
+指定，收單當下就知道）。而把 SKU 拿掉之後，剩下的兩個維度剛好都在 header 上，不需要任何摺疊。
 
-### 一個 sku 策略本身的限制
+代價是**過度序列化**：同貨主同倉、不同 SKU 的訂單本來永遠不會撞，現在也排在同一條隊伍。這是
+刻意選的方向——太粗只是慢但正確，太細則直接失去 single-writer。而在本專案的量體下慢幾乎收不
+到：壓測量到「完全沒有 single-writer」也只掉約 25% 吞吐，容量餘裕有一個數量級。
 
-partition key 在 `OrderPlaced` 發出時就要決定，但實際競爭發生在 allocation 時。多節點
-後，同一個 `(owner, sku)` 的訂單可能被貨主指定到不同倉，那些訂單其實不競爭
-——**partition 會過度收斂**。
+設定值隨之由 `partition-key-strategy=sku` 改名為 `stock`——它序列化的是庫存，而不是以 SKU 當
+key；名字說的是**序列化什麼**而不是**用哪幾個欄位**，所以日後若再調整群組的組成，名字仍然成立。
 
-理想單位是 `(owner, node, sku)`，但事件發出時還不知道 node。這是策略本身的限制，
-不是實作瑕疵，記錄於此避免日後誤判為 bug。
+組成規則收在 `common/outbox/StockContentionKey`，ordering 的 translator 與補貨探針共用，因為
+兩者必須產生逐位元相同的 key。
 
 ---
 

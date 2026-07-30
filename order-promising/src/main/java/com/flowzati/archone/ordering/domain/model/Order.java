@@ -195,6 +195,30 @@ public class Order {
     events.add(new OrderBackordered(id, ownerId, toLineSnapshots(), backorderedSince));
   }
 
+  /**
+   * 取消這張單。已取消時為 no-op 並回 {@code false}，不拋錯。
+   *
+   * <p><b>與 {@link #markAllocated} / {@link #markBackOrdered} 刻意不同慣例</b>，兩者狀態不對
+   *時是拋錯。差別在驅動來源：
+   *
+   * <ul>
+   *   <li>{@code markAllocated} / {@code markBackOrdered} 由系統內部的配貨決策驅動。狀態不對
+   *       代表**程式錯誤**，該大聲失敗。
+   *   <li>{@code cancel} 由**外部請求**驅動——訊息重送、使用者連點兩下、上游重試都會讓同一個
+   *       取消到達兩次。冪等是正確行為，不是寬容。
+   * </ul>
+   *
+   * <p>所以看到這個不一致時**不要把它「修」成拋錯**。等取消接上 Kafka 入口之後，冪等會從
+   * 「比較好」變成必要。
+   *
+   * <p><b>目前允許從 {@code PENDING}、{@code ALLOCATED}、{@code BACKORDERED} 取消</b>，因為那
+   * 三個狀態下實體上都還沒發生任何事，補償就只是釋放預留。
+   *
+   * <p><b>缺一條禁令：離倉後不得取消。</b>逆物流不在範圍內，那條路徑沒有補償手段（見
+   * {@code docs/system-layer-map.md} 交會點 4）。它今天不是被違反而是**表達不出來**——
+   * {@code OrderStatus} 還沒有 {@code FULFILLED}，那個狀態隨 R7 履約層到來。R7 加它的時候
+   * 必須連同這條禁令一起加，否則會出現無法補償的路徑。
+   */
   public boolean cancel(Instant cancelledAt) {
     if (status == OrderStatus.CANCELLED) {
       return false;

@@ -304,72 +304,68 @@ SR-08 ─> SR-09 ─┐
 `getDemand()` 這類以集合運算取值的入口已經是多行安全的，`OrderingArchitectureTest`
 則把「取第一行」這種寫法變成建置失敗。
 
-### 兩項已知的中間狀態
+### 兩項已知的中間狀態——**都已於 R3 收尾**
 
-`add-owner-and-order-line-model` 把貨主帶進了訂單層，但沒有帶進庫存層。下面兩件事因此是
-**已知的、刻意留下的**不一致，各自有負責收尾的 change——在那之前讀這份文件的人不該以為
-它們是疏漏。
+`add-owner-and-order-line-model` 把貨主帶進了訂單層而沒有帶進庫存層，這裡曾記錄兩件刻意留下
+的不一致。`add-batch-stock-and-fefo`（R3）把兩件都收了，保留原文的結論以便對照：
 
-**一、跨貨主隔離尚未生效。** `stock_pools` 的唯一鍵仍是 `(sku)`，沒有 `owner_id`。兩個
-貨主的同碼 SKU 共用同一列庫存——甲貨主下單會吃掉乙貨主的貨，而資料庫不會報錯。缺貨佇列
-已經按貨主分開（`findBackordersBySkuInFifoOrder` 帶 `ownerId`），庫存還沒有：**佇列分開了，
-庫存還沒分開**。收尾的是 **R3 庫存分批**，屆時 `stock_pools` 的唯一鍵會變成
-`(owner_id, node_id, sku_code, in_date, expiry_date)`。
+**一、跨貨主隔離**已生效。`stock_pools` 的唯一鍵是
+`(owner_id, node_id, sku_code, in_date, expiry_date)`，並有 `(owner_id, sku_code)` → `skus`
+的複合外鍵——跨貨主的錯誤組合從「配不到貨」變成「寫不進去」。操作台的庫存頁不再有「補貨要
+選貨主、查詢不用」那個不對稱，兩邊都要選。
 
-在那之前，操作台的庫存頁刻意在畫面上直說這件事，而不是讓人從「補貨要選貨主、查詢不用」
-這個不對稱自己推敲。
+**二、Kafka partition key** 改了，但**不是原文預測的形狀**。原文寫「R3 必須把 key 改成
+`ownerId + "/" + nodeId + "/" + skuCode`」，R3 的 review 期間否決了那個三維版本，改成
+`(貨主, 倉)`——設定值也由 `sku` 改名為 `stock`。
 
-**二、Kafka partition key 仍是裸 `sku`。** `archone.allocation.partition-key-strategy=sku`
-時，partition key 用的是 SKU 代碼本身，不含貨主。它的用途是把「會競爭同一列庫存的訊息」
-送進同一個 partition 以達成 single-writer——而**目前這恰好是對的**，因為庫存池本來就沒有
-貨主維度，兩個貨主的同碼 SKU 真的在競爭同一列。
+理由是那個三維 key 有到期日，而下一段（原文自己寫的）已經指出了它：per-SKU 的 key 與
+ship-complete 根本衝突。**把 SKU 拿掉就沒有那個到期日**——一張單不管跨幾個 SKU 都只屬於一個
+`(貨主, 倉)`，一個 writer 看得到整張單。代價是過度序列化（同貨主同倉、不同 SKU 的訂單也
+排隊），而那是刻意選的方向：太粗只是慢但正確，太細則直接失去 single-writer。
 
-但 R3 之後就不對了：庫存分開之後，同碼不同貨主的訊息不再競爭，卻仍會被擠進同一個
-partition，白白序列化。**R3 必須一併把 key 改成 `ownerId + "/" + nodeId + "/" + skuCode`**，
-不能等。
-
-那三個維度不是任選的，判準是「**一次交易會碰到的資源集合**」——凡是交易會跨越的維度都不能
-進 key：
-
-| 維度 | 進 key 嗎 | 理由 |
-| --- | --- | --- |
-| `owner_id` | 是 | 庫存分開後不同貨主不再競爭 |
-| `node_id` | 是 | 一張訂單只有一個倉、明細不可跨倉，交易不跨節點 |
-| `sku_code` | 是 | 競爭的單位 |
-| 批次維度（效期／良品狀態／批號） | **否** | FEFO 在一次交易內跨批次取用，事前不知道會碰到哪幾批 |
-
-所以 partition key 比庫存的身分**粗一級**：庫存列的身分含批次，爭用群組不含。
-
-字串以 `ownerId/nodeId/skuCode` 組成，把定長的 UUID 放前面、自由文字的 `skuCode` 放最後——
-SKU 代碼由貨主自訂，可能包含任何字元（包括分隔字元本身），定長在前才能保證不同的三元組不會
-產生同一個字串。不改用 hash 是因為 Kafka UI 上要看得出訊息落在哪個爭用群組。
-
-`partition_key` 與 `aggregateid` 在 `event_outbox` 上是分開的兩欄，正是為了這種時候——前者
-是**投遞**用的爭用群組，後者是**身分**（恆為 `orderId`）。這個 case 把差別具體化了：兩者
-連維度都不同。
-
-這個策略最終仍會退場，記在 **R8** 的工作項裡——放寬多行之後，一張單的兩行可能屬於不同的
-爭用群組，而一則訊息進不了兩個 partition。那與 ship-complete 根本衝突，換更複雜的複合 key
-救不回來。
+因此原文結尾「這個策略最終仍會退場，記在 R8」**不再成立**，R8 的對應任務已標記為由 R3 解決。
 
 ### `stock_pools`
 
+**一列是一批貨，不是一個 SKU 的池。** 表名與類別名都還叫 pool（改名的取捨見
+`docs/dom-order-intake-scope.md`），但一列承載的是「某貨主在某倉、某日到貨、某效期的那一批」。
+
 | 欄位 | 型別 | 限制／說明 |
 |---|---|---|
-| `id` | `BIGINT` | Primary key |
-| `sku` | `VARCHAR` | `NOT NULL`, `UNIQUE` |
+| `id` | `UUID` | Primary key（代理鍵；身分是下面五個維度） |
+| `owner_id` | `UUID` | `NOT NULL`，身分維度 |
+| `node_id` | `UUID` | `NOT NULL`, FK → `fulfillment_nodes`，身分維度 |
+| `sku_code` | `VARCHAR(64)` | `NOT NULL`，身分維度 |
+| `in_date` | `DATE` | `NOT NULL`，身分維度；同效期時決定 FEFO 的先後 |
+| `expiry_date` | `DATE` | `NOT NULL`，身分維度；FEFO 的主排序鍵 |
 | `on_hand_quantity` | `INTEGER` | `NOT NULL`, `CHECK (on_hand_quantity >= 0)` |
 | `reserved_quantity` | `INTEGER` | `NOT NULL DEFAULT 0`, `CHECK (reserved_quantity >= 0)` |
 | `version` | `BIGINT` | `NOT NULL`, JPA `@Version` |
 | `updated_at` | `TIMESTAMPTZ` | `NOT NULL` |
 
-額外限制：
-
 ```sql
+CONSTRAINT uq_stock_pools_batch
+    UNIQUE (owner_id, node_id, sku_code, in_date, expiry_date)
+CONSTRAINT fk_stock_pools_sku
+    FOREIGN KEY (owner_id, sku_code) REFERENCES skus(owner_id, sku_code)
 CHECK (reserved_quantity <= on_hand_quantity)
+CREATE INDEX idx_stock_pools_fefo
+    ON stock_pools (owner_id, node_id, sku_code, expiry_date, in_date, id)
 ```
 
-`available_to_promise` 不存入資料庫，避免它與兩個基礎量不一致。Domain model 提供：
+三件不是顯而易見的事：
+
+**`expiry_date` 是 `NOT NULL`。** PostgreSQL 的 unique 把 NULL 視為互不相同，可空會讓同日到貨
+的無效期商品各成一列而非合併，而那是安靜發生的。
+
+**`in_date` 參與身分而不只是屬性。** 這讓補貨要嘛完全命中一列、要嘛新開一列，因此沒有合併
+規則要定義，也就沒有規則會定錯。
+
+**刻意沒有 `CHECK (expiry_date >= in_date)`。** 貨可能到貨時就已經過期（運輸延誤、上游出錯），
+而倉庫實體上就是收到了那批貨；加上那個約束，要把它記進系統就得在兩個日期裡挑一個造假。
+
+`available_to_promise` 不存入資料庫——存了就是第二個真相來源，而它遲早會與第一個不合。Domain
+model 提供：
 
 ```java
 public int availableToPromise() {
@@ -377,24 +373,40 @@ public int availableToPromise() {
 }
 ```
 
-現有 `available` 欄位改為 `onHandQuantity`，並新增 `reservedQuantity` 與 `updatedAt`；既有 `version` 保留。
+**「能不能配」不是這一列的屬性。** `StockPool.isExpired(today)` 只回答「過期了沒有」；配貨拿
+得到什麼還要看有沒有量，那個判斷在查詢裡（`findAllocatableBatchesInFefoOrder`，兩個篩選條件：
+`expiry_date >= today` **且** `on_hand_quantity > reserved_quantity`）。分開是刻意的——「有 100
+件但一件都出不了」與「什麼都沒有」在畫面上要引導出不同的動作。
 
 ### `stock_reservations`
+
+**粒度是訂單行 × 批次**，不是訂單。一條行的需求跨三個批就是三筆預留。
 
 | 欄位 | 型別 | 限制／說明 |
 |---|---|---|
 | `id` | `UUID` | Primary key，獨立的 reservation identity |
-| `order_id` | `UUID` | `NOT NULL`, FK to `orders(id)`, `UNIQUE` |
-| `stock_pool_id` | `UUID` | `NOT NULL`, FK to `stock_pools(id)` |
+| `order_line_id` | `UUID` | `NOT NULL`, FK → `order_lines(id)` |
+| `stock_pool_id` | `UUID` | `NOT NULL`, FK → `stock_pools(id)` |
 | `quantity` | `INTEGER` | `NOT NULL`, `CHECK (quantity > 0)` |
-| `status` | `VARCHAR` | `ACTIVE`, `RELEASED` |
+| `status` | `VARCHAR` | `ACTIVE`, `RELEASED`, `CONSUMED` |
 | `reserved_at` | `TIMESTAMPTZ` | `NOT NULL` |
 | `released_at` | `TIMESTAMPTZ` | Nullable；只有 `RELEASED` 時有值 |
 | `version` | `BIGINT` | `NOT NULL`, JPA `@Version` |
 
-`order_id` 的唯一限制表達目前的一張訂單只能有一筆 reservation。Reservation 不重複保存 `sku`，而是透過 `stock_pool_id` 取得。
+```sql
+CONSTRAINT uq_stock_reservations_line_pool UNIQUE (order_line_id, stock_pool_id)
+CREATE INDEX idx_stock_reservations_line ON stock_reservations (order_line_id);
+CREATE INDEX idx_stock_reservations_pool ON stock_reservations (stock_pool_id);
+```
 
-Reservation 不加入通用 `created_at`／`updated_at`；`reserved_at`、`released_at` 與 `version` 已足以表達目前生命週期。
+唯一鍵是「行 × 批」而不是「行」：同一條行對**不同**批的第二筆是合法的，對**同一**批的第二筆
+才是重複。原本的 `UNIQUE (order_id)` 表達的是「一張單一筆預留」，分批之後那條規則不再成立。
+
+曾考慮「一條行一筆預留，內含批次清單」——否決，因為釋放與消耗都是逐批發生的（出貨時某一批
+先被揀完），一筆多批的預留表達不了部分消耗，而那正是履約層兩本帳要對的東西。
+
+Reservation 不重複保存 `sku_code`，而是透過 `stock_pool_id` 取得。也不加入通用
+`created_at`／`updated_at`；`reserved_at`、`released_at` 與 `version` 已足以表達生命週期。
 
 ### `event_inbox`（技術表）
 
@@ -446,10 +458,16 @@ CANCELLED ──再次取消───────> no-op
 ```text
 建立成功：ACTIVE
 ACTIVE ──訂單取消──> RELEASED
+ACTIVE ──出貨────> CONSUMED
 RELEASED ──重複取消──> no-op
 ```
 
-目前不加入 `CONSUMED`。成功的 reservation 在此 bounded context 中保持 `ACTIVE`，代表供給仍承諾給該訂單；未來串接下游後，再由 Fulfillment／Inventory 回饋事件完成後續狀態。
+`CONSUMED` 已加入，但**本階段不產生它**——它為履約層的出貨扣帳準備（`StockPool.consume()`
+同時扣 `reservedQuantity` 與 `onHandQuantity`，與只扣前者的 `release()` 語意不同）。
+
+必須現在就存在的理由是 R4 的 `demand_lines` view 會用 `status IN ('ACTIVE','CONSUMED')` 當
+「已滿足」的謂詞，而 R4 緊接在 R3 之後。**日後再擴充這個 enum 時必須同步檢查那個 view**
+——漏掉會讓已出貨的訂單重新出現在待配佇列，而當下沒有任何測試會發現。
 
 ## 核心流程
 
@@ -459,42 +477,68 @@ RELEASED ──重複取消──> no-op
 
 1. Kafka listener 收到 `OrderPlacedIntegrationEvent`。
 2. listener 轉為 `AllocateOrderCommand(orderId)`，並以 `eventId` 作為獨立 `messageId` 呼叫 use case。
-3. use case transaction 先以 `messageId` claim Inbox，成功後重新讀取 `Order` 與 `StockPool`，並確認 Order 為 `PENDING`。
-4. 呼叫 `StockPool.canReserve(quantity)` 確認 ATP，再以 `reserve(quantity)` 完整預留。
-5. 成功時增加 `reservedQuantity`、建立 `ACTIVE` `StockReservation`，並將 Order 標記為 `ALLOCATED`。
-6. allocation flow 發布 `OrderAllocationCompleted` Domain Event；同 transaction 的 translator listener 將它轉成 `OrderAllocatedIntegrationEvent` 並寫入 Outbox。
-7. Commit；commit 時由 `@Version` 偵測並行衝突。
+3. use case transaction 先以 `messageId` claim Inbox，成功後重新讀取 `Order`，並確認 Order 為 `PENDING`。
+4. 以 `findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCode, today)` 取得**已依 FEFO
+   排序的可配批次**。篩選（未過期、還有量）與排序（`expiry_date, in_date, id`）都在資料庫做
+   ——批數隨營運時間成長，把配不到的載進記憶體只為了丟掉是錯的方向。「今天」由
+   `BusinessCalendar` 依營運時區決定，不是 UTC。
+5. **先把整張單的取用計畫算完**（跨批依序取用直到湊滿），確認每一條行都湊得滿，才真正動
+   `reserve()`。規劃與套用分開是 ship-complete 的實作機制：邊算邊扣的話，需求 80 而可配只有
+   50 時會先扣掉 50 才發現配不到，那 50 件就被一張出不了貨的單鎖住。
+6. 成功時每一個取用建立一筆 `ACTIVE` `StockReservation`（行 × 批），並將 Order 標記為
+   `ALLOCATED`。**批次的寫入依 `(sku_code, expiry_date, in_date, id)` 排序**，不可依賴集合的
+   自然順序——兩個交易以相反順序鎖同一組列就會死鎖。
+7. allocation flow 發布 `OrderAllocationCompleted` Domain Event；同 transaction 的 translator listener 將它轉成 `OrderAllocatedIntegrationEvent` 並寫入 Outbox。**那則對外事件只帶 `orderId` 與時間**，不帶批次清單——它描述的是會被取消釋放的狀態，而取消事件在另一個 topic、沒有順序保證；下游要知道配到哪些批就回頭讀 `stock_reservations`。
+8. Commit；commit 時由 `@Version` 偵測並行衝突。
 
-若 ATP 不足：
+若可配總量不足（或一批可配的都沒有）：
 
-1. 不修改 StockPool。
+1. **不修改任何一批** StockPool——跨批的總量不足時，一批都不預留。
 2. 不建立 StockReservation。
 3. 將 Order 標記為 `BACKORDERED` 並發布 `OrderBackordered` Domain Event。
 4. translator listener 將它轉成 `BackorderCreatedIntegrationEvent` 並寫入 Outbox。
 
-`StockPool` 以 `canReserve()` 表達 ATP capability query，並以 `reserve()` 執行完整預留。
+`StockPool` 以 `canReserve()` 表達單一批的 ATP capability query，並以 `reserve()` 執行預留；跨批的整籃判斷在 `AllocationService.planPicks()`。
 
 ### 取消並釋放 reservation
 
 Ordering 在取消 transaction 中將 Order 改為 `CANCELLED` 並發布 `OrderCancelled` Domain Event；translator 將其寫成 `OrderCancelledIntegrationEvent` Outbox event。Kafka delivery 後，Allocation listener 將事件轉為 release command，並以 `eventId` 作為 `messageId` 呼叫 use case；use case 在同一個 command transaction claim Inbox，並執行：
 
-1. 依 `orderId` 尋找 `ACTIVE` reservation。
-2. 找不到時視為合法 no-op；PENDING／BACKORDERED 訂單本來就沒有 reservation。
-3. 將 reservation 改為 `RELEASED` 並設定 `releasedAt`。
-4. 呼叫 `StockPool.release(quantity)`，減少 `reservedQuantity`。
-5. Commit。
+1. 依 `orderId` 讀出訂單，取得它每一條行的 id。`stock_reservations` 指向 `order_lines`，
+   用訂單直接查就得 join 到 ordering 的表，而那個方向的依賴不該由 allocation 的 repository
+   建立。
+2. 以 `findActiveByOrderLineIds(...)` 取得**所有**有效預留。一條行跨三批就有三筆，**全部**都
+   要釋放——只放第一筆會讓其餘批的量永遠鎖著，而且不會有任何錯誤浮現。
+3. 找不到時視為合法 no-op；PENDING／BACKORDERED 訂單本來就沒有 reservation。
+4. 每一筆改為 `RELEASED` 並設定 `releasedAt`。
+5. 對每一批呼叫 `StockPool.release(quantity)`，減少 `reservedQuantity`；批次的寫入同樣依
+   `(sku_code, expiry_date, in_date, id)` 排序。
+6. Commit。
+
+**釋放不會喚醒缺貨佇列**——那是一個已知的缺口，記在
+[`execution-roadmap.md`](execution-roadmap.md) 的「已識別但未排程」。
 
 不得以 `Math.max(0, reserved - quantity)` 隱藏資料不一致；若釋放量大於 `reservedQuantity`，應拋出錯誤並 rollback。
 
 ### 補貨與 backorder FIFO
 
-`StockReplenishedIntegrationEvent.quantity` 是正向增量，必須大於零：
+`StockReplenishedIntegrationEvent` 帶**五個維度加數量**：貨主、倉、SKU、入庫日、效期、數量。
+數量是正向增量，必須大於零。補貨依五維鍵 upsert：
 
 ```text
-onHandQuantity += quantity
+命中既有列 → onHandQuantity += quantity
+沒有命中   → 新開一列
 ```
 
-事件以 `eventId + Inbox` 保證不會重複加庫存。目前不支援負數 replenishment、盤點覆蓋或 `StockAdjusted`。
+沒有「差不多就併進去」的規則，因為根本沒有規則要定——五個維度全等才是同一批。
+
+事件以 `eventId + Inbox` 保證不會重複加庫存。目前不支援負數 replenishment、盤點覆蓋或
+`StockAdjusted`。
+
+**喚醒有張數上限**（`archone.allocation.replenishment-wake-limit`），超出時經 outbox 發一則
+續做事件（同 topic 同 partition key）。終止條件是「本輪**真正配到**的張數 < 上限即不續做」
+——判準必須是「配到幾張」而不是「讀到幾張」，兩者只在 head-of-line blocker 卡住時不同，而那
+正是會無限續做的情形。
 
 Backorder 查詢 contract：
 
@@ -588,10 +632,17 @@ Order Aggregate 目前的內部 Domain Events：
 
 | Domain Event | Payload |
 |---|---|
-| `OrderPlaced` | `orderId`, `sku`, `quantity`, `placedAt` |
-| `OrderAllocated` | `orderId`, `allocatedAt` |
-| `OrderBackordered` | `orderId`, `sku`, `quantity`, `backorderedSince` |
-| `OrderCancelled` | `orderId`, `cancelledAt` |
+| `OrderPlaced` | `orderId`, `ownerId`, `fulfillmentNodeId`, `shipToZone`, `promisedDeliveryDate`, `lines`, `placedAt` |
+| `OrderAllocated` | `orderId`, `ownerId`, `allocatedAt` |
+| `OrderBackordered` | `orderId`, `ownerId`, `lines`, `backorderedSince` |
+| `OrderCancelled` | `orderId`, `ownerId`, `fulfillmentNodeId`, `cancelledAt` |
+
+需求以 `lines` 表達而不是單一 `sku` 與 `quantity`——訂單的形狀本來就是行的集合。`OrderCancelled`
+是例外，**它不帶 `lines`**：取消是整單行為，事件要說的是「哪張單、什麼時候」，行的內容不構成
+這個事實的一部分。
+
+`ownerId` 與 `fulfillmentNodeId` 在領域事件上，是因為 translator 要用它們算 partition key。
+領域事件是 in-process 的，帶著它們沒有契約成本。
 
 Domain Events 不包含 `eventId`、retry count、serialization type 或 Outbox metadata。
 
@@ -599,7 +650,16 @@ Allocation flow 另發布下列跨 Aggregate 的 Domain Event。它不是 `Order
 
 | Domain Event | Payload | Translator 輸出 |
 |---|---|---|
-| `OrderAllocationCompleted` | `orderId`, `reservationId`, `sku`, `quantity`, `allocatedAt` | `OrderAllocatedIntegrationEvent` |
+| `OrderAllocationCompleted` | `orderId`, `allocatedAt` | `OrderAllocatedIntegrationEvent` |
+
+它與 `OrderAllocated` 的差別在時機：後者由聚合根在狀態轉換時發出，前者由 coordinator 在三個
+聚合根都寫入之後發出。對外事件只能由後者觸發。
+
+**四則訂單生命週期的對外事件都只帶 `(eventId, orderId, 時間戳)`**——`OrderPlaced`、
+`OrderCancelled`、`OrderAllocated`、`BackorderCreated`。消費端拿 `orderId` 回頭讀整張單，它反正
+得讀（收件資訊、交期、行的內容都不在事件裡），payload 抄一份只是多一個會與訂單不一致的來源。
+例外是**來自系統外部**的事件（`StockReplenishedIntegrationEvent`、
+`BackorderWakeRequestedIntegrationEvent`）：那裡沒有本地聚合根可讀，事實只存在於訊息裡。
 
 `OrderAllocationCompleted` 由 allocation flow 在完整配置完成後發布。`OrderAllocated` 仍可供 bounded context 內部使用，但不作為 `OrderAllocatedIntegrationEvent` 的翻譯來源；這可避免為了帶入 `reservationId` 而讓 `Order` Aggregate 耦合 StockReservation 的識別字。
 
