@@ -62,9 +62,12 @@ public interface JpaStockRepository extends JpaRepository<StockPoolEntity, UUID>
       @Param("skuCodes") Collection<String> skuCodes,
       @Param("today") LocalDate today);
 
-  /** 庫存頁用：不篩選，過期與預留光的都要在。 */
-  List<StockPoolEntity> findByOwnerIdAndSkuCodeOrderByNodeIdAscExpiryDateAscInDateAscIdAsc(
-      UUID ownerId, String skuCode);
+  /**
+   * 庫存頁用：不篩選，過期與預留光的都要在。以 {@code skuCode} 為第一排序鍵讓同一個 SKU 的
+   * 批相鄰，組內則是 FEFO——那正是配貨會取用它們的順序。
+   */
+  List<StockPoolEntity> findByOwnerIdAndNodeIdOrderBySkuCodeAscExpiryDateAscInDateAscIdAsc(
+      UUID ownerId, UUID nodeId);
 
   Optional<StockPoolEntity> findByOwnerIdAndNodeIdAndSkuCodeAndInDateAndExpiryDate(
       UUID ownerId, UUID nodeId, String skuCode, LocalDate inDate, LocalDate expiryDate);

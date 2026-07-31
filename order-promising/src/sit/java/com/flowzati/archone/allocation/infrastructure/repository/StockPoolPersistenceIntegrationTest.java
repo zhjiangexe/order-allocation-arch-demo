@@ -15,6 +15,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,6 +67,8 @@ class StockPoolPersistenceIntegrationTest {
   private static final UUID SECOND_NODE_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000b2");
   private static final String SKU = "SKU-1";
+  /** 分組要驗得出「同一個倉的兩個 SKU 各自成組」，所以需要第二個代碼。 */
+  private static final String SECOND_SKU = "SKU-2";
   private static final LocalDate TODAY = StockFixtures.TODAY;
 
   @Autowired
@@ -143,39 +146,67 @@ class StockPoolPersistenceIntegrationTest {
   }
 
   @Test
-  @DisplayName("庫存頁查詢應跨倉回全部，含過期與預留光的批")
-  void returnsEveryBatchAcrossNodesForTheStockPage() {
+  @DisplayName("庫存頁查詢應回這個倉的全部批，含過期與預留光的")
+  void returnsEveryBatchHeldInTheWarehouse() {
     persistBatch(uuid(2), TODAY.plusMonths(1), 10, 0);
     persistBatch(uuid(3), TODAY.minusDays(1), 25, 0);
     persistBatch(uuid(4), TODAY.plusMonths(2), 40, 40);
 
     // 過期與預留光的都要在——濾掉會讓「有貨但出不了」與「什麼都沒有」在畫面上長得一樣。
-    assertThat(repositoryAdapter.findBatchesAcrossNodes(OrderFixtures.OWNER_ID, SKU))
-        .hasSize(3);
+    assertThat(repositoryAdapter.findBatchesInWarehouse(OrderFixtures.OWNER_ID,
+        OrderFixtures.NODE_ID))
+        .hasEntrySatisfying(SKU, batches -> assertThat(batches).hasSize(3));
   }
 
   @Test
-  @DisplayName("庫存頁查詢應先依倉別分組，組內再依 (效期, 入庫日, id) 排序")
-  void groupsStockPageBatchesByNodeThenFefoWithinEachNode() {
-    insertNode(SECOND_NODE_ID, "WH-TEST-2", "第二測試倉");
-    UUID firstNodeLater = uuid(2);
-    UUID firstNodeEarlier = uuid(3);
-    UUID secondNodeLater = uuid(4);
-    UUID secondNodeEarlier = uuid(5);
+  @DisplayName("庫存頁查詢應依 SKU 分組，組內再依 (效期, 入庫日, id) 排序")
+  void groupsWarehouseBatchesBySkuAndOrdersEachGroupByFefo() {
+    UUID firstSkuLater = uuid(2);
+    UUID firstSkuEarlier = uuid(3);
+    UUID secondSkuLater = uuid(4);
+    UUID secondSkuEarlier = uuid(5);
     // 以「與期望完全相反」的順序寫入，確保順序來自 ORDER BY 而不是插入次序。
-    persistBatchAtNode(SECOND_NODE_ID, secondNodeLater, TODAY.plusMonths(6), 10, 0);
-    persistBatchAtNode(SECOND_NODE_ID, secondNodeEarlier, TODAY.plusMonths(1), 10, 0);
-    persistBatchAtNode(OrderFixtures.NODE_ID, firstNodeLater, TODAY.plusMonths(6), 10, 0);
-    persistBatchAtNode(OrderFixtures.NODE_ID, firstNodeEarlier, TODAY.plusMonths(1), 10, 0);
+    persistBatchOfSku(SECOND_SKU, secondSkuLater, TODAY.plusMonths(6));
+    persistBatchOfSku(SECOND_SKU, secondSkuEarlier, TODAY.plusMonths(1));
+    persistBatchOfSku(SKU, firstSkuLater, TODAY.plusMonths(6));
+    persistBatchOfSku(SKU, firstSkuEarlier, TODAY.plusMonths(1));
 
-    // **倉別必須先分組。** 配貨一次只在一個倉裡進行（FEFO 查詢帶 nodeId），所以跨倉依效期
-    // 混排會在畫面上顯示一個永遠不會發生的取用順序。組內才是真正的取用順序。
+    Map<String, List<StockPool>> held = repositoryAdapter.findBatchesInWarehouse(
+        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID);
+
+    // 組內才是真正的取用順序。這個順序是查詢的保證而不是呼叫端的責任：tie-break 一路到 id，
+    // 而 id 存在的目的是讓順序可重現、本身不帶任何呼叫端排得出來的意義。
     //
-    // 這個順序是查詢端點的保證，不是呼叫端的責任：tie-break 一路到 id，而 id 存在的目的
-    // 是讓順序可重現、本身不帶任何呼叫端排得出來的意義。
-    assertThat(repositoryAdapter.findBatchesAcrossNodes(OrderFixtures.OWNER_ID, SKU))
-        .extracting(StockPool::getId)
-        .containsExactly(firstNodeEarlier, firstNodeLater, secondNodeEarlier, secondNodeLater);
+    // **鍵的順序也要斷言。** containsOnlyKeys 不看順序，而 Map.copyOf 的迭代順序未定義——
+    // 只驗鍵的集合，等於讓「把排好的順序在最後一步丟掉」這個錯誤完全沒有訊號。
+    assertThat(held.keySet()).containsExactly(SKU, SECOND_SKU);
+    assertThat(held.get(SKU)).extracting(StockPool::getId)
+        .containsExactly(firstSkuEarlier, firstSkuLater);
+    assertThat(held.get(SECOND_SKU)).extracting(StockPool::getId)
+        .containsExactly(secondSkuEarlier, secondSkuLater);
+  }
+
+  @Test
+  @DisplayName("庫存頁查詢不得帶出別的倉的批——配貨從不跨倉")
+  void excludesBatchesHeldInAnotherWarehouse() {
+    insertNode(SECOND_NODE_ID, "WH-TEST-2", "第二測試倉");
+    UUID here = uuid(2);
+    persistBatchAtNode(OrderFixtures.NODE_ID, here, TODAY.plusMonths(1), 10, 0);
+    persistBatchAtNode(SECOND_NODE_ID, uuid(3), TODAY.plusMonths(1), 10, 0);
+
+    assertThat(repositoryAdapter.findBatchesInWarehouse(OrderFixtures.OWNER_ID,
+        OrderFixtures.NODE_ID))
+        .hasEntrySatisfying(SKU, batches ->
+            assertThat(batches).extracting(StockPool::getId).containsExactly(here));
+  }
+
+  @Test
+  @DisplayName("一批都沒有的倉應回空分組，不是例外——那是新倉上線時的正常狀態")
+  void answersAnEmptyWarehouseWithAnEmptyGrouping() {
+    insertNode(SECOND_NODE_ID, "WH-TEST-2", "第二測試倉");
+
+    assertThat(repositoryAdapter.findBatchesInWarehouse(OrderFixtures.OWNER_ID, SECOND_NODE_ID))
+        .isEmpty();
   }
 
   @Test
@@ -342,6 +373,14 @@ class StockPoolPersistenceIntegrationTest {
       int reservedQuantity) {
     return persistBatchAtNode(OrderFixtures.NODE_ID, id, expiryDate, inDate, onHandQuantity,
         reservedQuantity);
+  }
+
+  private StockPoolEntity persistBatchOfSku(String skuCode, UUID id, LocalDate expiryDate) {
+    StockPoolEntity saved = jpaRepository.saveAndFlush(new StockPoolEntity(
+        id, OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, skuCode, StockFixtures.ARRIVED_ON,
+        expiryDate, 10, 0, null));
+    entityManager.clear();
+    return saved;
   }
 
   private StockPoolEntity persistBatchAtNode(

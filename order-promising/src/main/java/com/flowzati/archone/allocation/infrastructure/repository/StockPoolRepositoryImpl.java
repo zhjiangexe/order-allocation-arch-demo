@@ -54,12 +54,21 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
   }
 
   @Override
-  public List<StockPool> findBatchesAcrossNodes(UUID ownerId, String skuCode) {
-    return repository
-        .findByOwnerIdAndSkuCodeOrderByNodeIdAscExpiryDateAscInDateAscIdAsc(ownerId, skuCode)
+  public java.util.Map<String, List<StockPool>> findBatchesInWarehouse(UUID ownerId, UUID nodeId) {
+    // LinkedHashMap 而不是 groupingBy 的預設 HashMap：查詢已經把同一個 SKU 的批排在一起且
+    // 組內是 FEFO，用會重排鍵的 map 收就把那個順序丟掉一半。
+    //
+    // 同理，回傳**不能**包成 Map.copyOf——它的迭代順序未定義，一路排好的鍵在最後一步就散了。
+    java.util.Map<String, List<StockPool>> bySku = new java.util.LinkedHashMap<>();
+    repository.findByOwnerIdAndNodeIdOrderBySkuCodeAscExpiryDateAscInDateAscIdAsc(ownerId, nodeId)
         .stream()
         .map(StockPoolMapper::toDomain)
-        .toList();
+        .forEach(batch -> bySku
+            .computeIfAbsent(batch.getSkuCode(), key -> new java.util.ArrayList<>())
+            .add(batch));
+
+    bySku.replaceAll((skuCode, batches) -> List.copyOf(batches));
+    return java.util.Collections.unmodifiableMap(bySku);
   }
 
   @Override

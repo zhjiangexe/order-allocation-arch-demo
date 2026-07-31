@@ -40,13 +40,21 @@ public interface StockPoolRepository {
       UUID ownerId, UUID nodeId, java.util.Collection<String> skuCodes, LocalDate today);
 
   /**
-   * 某貨主某 SKU 在**所有倉**的批，順序與配貨一致（倉別、效期、入庫日、id）。
+   * 某貨主在某倉手上的**全部**批，依 SKU 分組，每組內是 FEFO 順序。
    *
    * <p>供庫存頁使用，因此**不做任何篩選**：過期的、預留光的都要在，且要看得出是哪一種。
    * 濾掉會讓「有 100 件但一件都出不了」與「什麼都沒有」在畫面上長得一樣，而前者要報廢、
-   * 後者要進貨。
+   * 後者要進貨。這一點與 {@link #findAllocatableBatchesBySku} 相反——那一支是配貨要用的，
+   * 過期與預留光的批對它沒有意義。
+   *
+   * <p>回的鍵**只有這個倉真的有批的 SKU**。畫面要的「這個貨主的每一個規格」那份名單存在
+   * 主檔裡，而庫存這一側對主檔零依賴、連外鍵都沒有；補齊由前端做，它為了把代碼還原成看得
+   * 懂的字本來就載了整份主檔。
+   *
+   * <p>一批都沒有時回空 map，不是例外。「這個倉什麼都沒放」是正常答案，而且那正是新倉上線
+   * 時的狀態。
    */
-  List<StockPool> findBatchesAcrossNodes(UUID ownerId, String skuCode);
+  java.util.Map<String, List<StockPool>> findBatchesInWarehouse(UUID ownerId, UUID nodeId);
 
   /**
    * 依五個身分維度取那一列。

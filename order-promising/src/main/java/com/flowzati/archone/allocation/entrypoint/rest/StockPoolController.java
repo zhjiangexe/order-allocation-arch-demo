@@ -2,13 +2,8 @@ package com.flowzati.archone.allocation.entrypoint.rest;
 
 import com.flowzati.archone.allocation.application.usecase.GetStockPoolUsecase;
 import com.flowzati.archone.common.time.BusinessCalendar;
-import java.util.NoSuchElementException;
 import java.util.UUID;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,25 +26,21 @@ public class StockPoolController {
   }
 
   /**
-   * {@code ownerId} 是必要參數而非選用篩選——SKU 代碼由貨主自訂、跨貨主撞號，少了它回應會
-   * 把兩個貨主的貨混在同一份清單裡。
+   * 這個貨主在這個倉手上的全部批，依 SKU 分組。
+   *
+   * <p>兩個參數都是必要的，而且都不是選用篩選。少了 {@code ownerId}，回應會把兩個貨主的貨
+   * 混在一起——SKU 代碼由貨主自訂、跨貨主撞號。少了 {@code nodeId}，回的是一個沒有任何一次
+   * 配貨能整批取用的池：配貨從不跨倉，每一次都鎖在一個倉裡。
+   *
+   * <p><b>一批都沒有時回 200 與空清單，不是 404。</b>「這個倉什麼都沒放」是正常答案，不是
+   * 問了不存在的東西——而那正是新倉上線時的狀態，也正是最需要打開它的時候。
    */
-  @GetMapping("/{sku}")
-  public StockPoolResponse getStockPool(
-      @PathVariable String sku,
-      @RequestParam UUID ownerId
+  @GetMapping
+  public StockPoolResponse getStockInWarehouse(
+      @RequestParam UUID ownerId,
+      @RequestParam UUID nodeId
   ) {
     return StockPoolResponse.from(
-        sku, getStockPoolUsecase.getBatches(ownerId, sku), businessCalendar.today());
-  }
-
-  /**
-   * 「找不到」本身由 {@link GetStockPoolUsecase} 判斷並丟出 JDK 原生的
-   * {@link NoSuchElementException}，是否轉成 404 則是 HTTP 層的決定。這個 controller 目前
-   * 只有一個唯讀端點，沒有其他路徑會拋出語意不是「找不到」的同型別例外。
-   */
-  @ExceptionHandler(NoSuchElementException.class)
-  public ResponseEntity<String> handleNotFound(NoSuchElementException exception) {
-    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
+        getStockPoolUsecase.getBatchesInWarehouse(ownerId, nodeId), businessCalendar.today());
   }
 }
