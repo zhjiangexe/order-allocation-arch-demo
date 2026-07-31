@@ -35,6 +35,25 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
   }
 
   @Override
+  public java.util.Map<String, List<StockPool>> findAllocatableBatchesBySku(
+      UUID ownerId, UUID nodeId, java.util.Collection<String> skuCodes, LocalDate today) {
+    if (skuCodes.isEmpty()) {
+      return java.util.Map.of();
+    }
+
+    // 每一個被問到的 SKU 都要有一筆，即使一批都沒有——空清單是缺貨，缺鍵是輸入錯誤。
+    java.util.Map<String, List<StockPool>> grouped = new java.util.LinkedHashMap<>();
+    skuCodes.forEach(skuCode -> grouped.put(skuCode, new java.util.ArrayList<>()));
+
+    repository.findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCodes, today).stream()
+        .map(StockPoolMapper::toDomain)
+        .forEach(batch -> grouped.get(batch.getSkuCode()).add(batch));
+
+    grouped.replaceAll((skuCode, batches) -> List.copyOf(batches));
+    return java.util.Map.copyOf(grouped);
+  }
+
+  @Override
   public List<StockPool> findBatchesAcrossNodes(UUID ownerId, String skuCode) {
     return repository
         .findByOwnerIdAndSkuCodeOrderByNodeIdAscExpiryDateAscInDateAscIdAsc(ownerId, skuCode)

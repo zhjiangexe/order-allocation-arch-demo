@@ -69,8 +69,8 @@ public class OrderAllocationCoordinator {
 
   /** 配一筆需求，成功就連同預留一起寫入並發事件。 */
   public AllocationOutcome allocateOrder(
-      Demand demand, List<StockPool> allocatableBatches, Instant now) {
-    AllocationResult result = allocationService.allocate(demand, allocatableBatches, now);
+      Demand demand, Map<String, List<StockPool>> batchesBySku, Instant now) {
+    AllocationResult result = allocationService.allocate(demand, batchesBySku, now);
     if (!result.isAllocated()) {
       return result.outcome();
     }
@@ -129,11 +129,11 @@ public class OrderAllocationCoordinator {
 
   public List<Demand> allocateBackorders(
       List<Demand> backorders,
-      List<StockPool> allocatableBatches,
+      Map<String, List<StockPool>> batchesBySku,
       Instant now
   ) {
     List<OrderAllocation> allocations =
-        allocationService.allocateBackorders(backorders, allocatableBatches, now);
+        allocationService.allocateBackorders(backorders, batchesBySku, now);
     if (allocations.isEmpty()) {
       return List.of();
     }

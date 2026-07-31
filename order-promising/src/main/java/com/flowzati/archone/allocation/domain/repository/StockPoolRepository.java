@@ -31,6 +31,15 @@ public interface StockPoolRepository {
       UUID ownerId, UUID nodeId, String skuCode, LocalDate today);
 
   /**
+   * 多個 SKU 的可配批，**依 SKU 分組**回傳，每組內仍是 FEFO 順序。
+   *
+   * <p>回傳的鍵集合**恰好等於** {@code skuCodes}：一批都沒有的 SKU 對應空清單，而不是缺鍵。
+   * 兩者意義不同——空清單是普通的缺貨，缺鍵會讓配貨誤判成「呼叫端組錯了輸入」。
+   */
+  java.util.Map<String, List<StockPool>> findAllocatableBatchesBySku(
+      UUID ownerId, UUID nodeId, java.util.Collection<String> skuCodes, LocalDate today);
+
+  /**
    * 某貨主某 SKU 在**所有倉**的批，順序與配貨一致（倉別、效期、入庫日、id）。
    *
    * <p>供庫存頁使用，因此**不做任何篩選**：過期的、預留光的都要在，且要看得出是哪一種。

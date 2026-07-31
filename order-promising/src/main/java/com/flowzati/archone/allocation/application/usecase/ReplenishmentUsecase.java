@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -154,9 +156,10 @@ public class ReplenishmentUsecase {
   private void wake(UUID ownerId, UUID nodeId, String skuCode) {
     Instant now = clock.instant();
 
-    List<StockPool> allocatableBatches = stockPoolRepository.findAllocatableBatchesInFefoOrder(
-        ownerId, nodeId, skuCode, businessCalendar.today());
-    if (allocatableBatches.isEmpty()) {
+    // 先確認補的這個 SKU 真的有量可配——沒有的話這一輪根本不必開始。
+    if (stockPoolRepository
+        .findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCode, businessCalendar.today())
+        .isEmpty()) {
       return;
     }
 
@@ -171,8 +174,19 @@ public class ReplenishmentUsecase {
       return;
     }
 
+    // 第三段查詢：候選單可能需要別的 SKU，整籃判斷要看它們**全部**的庫存。
+    //
+    // 查詢次數固定為三次（選單 → 取行 → 取批），不隨候選單數成長；逐張各自查會是 N+1，
+    // 而一輪最多 wakeLimit 張。更重要的是死鎖：本輪要碰哪些庫存列必須在進入交易前全部
+    // 已知，WRITE_ORDER 的全序才算得出來。
+    Set<String> skuCodes = backorders.stream()
+        .flatMap(demand -> demand.totalsBySku().keySet().stream())
+        .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+    Map<String, List<StockPool>> batchesBySku = stockPoolRepository.findAllocatableBatchesBySku(
+        ownerId, nodeId, skuCodes, businessCalendar.today());
+
     int wokenCount =
-        allocationCoordinator.allocateBackorders(backorders, allocatableBatches, now).size();
+        allocationCoordinator.allocateBackorders(backorders, batchesBySku, now).size();
 
     if (wokenCount >= wakeLimit) {
       requestContinuation(ownerId, nodeId, skuCode, now);

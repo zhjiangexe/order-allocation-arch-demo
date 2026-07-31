@@ -3,15 +3,27 @@ package com.flowzati.archone.allocation.domain.service;
 import java.time.Instant;
 
 /**
- * 給挑單政策看的配貨額度。
+ * 一次配貨決策的外部條件：每個 SKU 目前可承諾多少，以及決策的時刻。
  *
- * <p>{@code availableToPromise} 是**該 {@code (貨主, 倉, SKU)} 所有可配批的加總**，不是單一批
- * 的量。批之間對同一條需求是可互換的，政策要決定的是「這一輪能餵飽幾張單」，那個問題只跟
- * 總量有關；哪一張單吃到哪一批是之後 FEFO 的事。
+ * <p><b>刻意不帶「這次補的是哪個 SKU」。</b>那是事件的屬性，不是決策的屬性——一張單的可滿足
+ * 性取決於它需要的每一個 SKU，而不是取決於哪一個 SKU 剛好被補了貨。
+ *
+ * <p>留著那個欄位的代價不是多一個欄位，是**它會被用**：挑單政策拿得到它，就寫得出「只檢查
+ * 這一個 SKU」的版本，而那正是整籃原子判斷要消除的行為。拿不到就寫不出來。
+ *
+ * <p>單 SKU 時 {@code availableBySku} 只有一筆，行為與改動前完全相同。
  */
 public record AllocationRequest(
-    String sku,
-    int availableToPromise,
+    SkuQuantities availableBySku,
     Instant decisionAt
 ) {
+
+  public AllocationRequest {
+    if (availableBySku == null) {
+      throw new IllegalArgumentException("Available quantities are required");
+    }
+    if (decisionAt == null) {
+      throw new IllegalArgumentException("Decision time is required");
+    }
+  }
 }

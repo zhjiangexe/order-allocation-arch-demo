@@ -304,9 +304,16 @@ class ReplenishmentUsecaseTest {
         .thenReturn(Optional.of(batch));
   }
 
+  /**
+   * 兩支查詢一起 stub：補的這個 SKU 有沒有量可配（守門），以及候選單涉及的所有 SKU 的批
+   * （真正拿去配的）。這些測試的候選單都只要 {@code SKU}，所以兩者的內容相同。
+   */
   private void givenAllocatableBatches(List<StockPool> batches) {
     when(stockPoolRepository.findAllocatableBatchesInFefoOrder(
         OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, today)).thenReturn(batches);
+    when(stockPoolRepository.findAllocatableBatchesBySku(
+        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, java.util.Set.of(SKU), today))
+        .thenReturn(java.util.Map.of(SKU, batches));
   }
 
   private void givenBackorders(List<Demand> demands) {

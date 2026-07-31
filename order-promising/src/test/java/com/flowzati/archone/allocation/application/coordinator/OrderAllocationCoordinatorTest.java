@@ -64,7 +64,7 @@ class OrderAllocationCoordinatorTest {
     Demand order = pendingDemand("SKU-1", 5);
     StockPool batch = stockPool("SKU-1", 10);
 
-    AllocationOutcome outcome = coordinator.allocateOrder(order, List.of(batch), now);
+    AllocationOutcome outcome = coordinator.allocateOrder(order, grouped(order, batch), now);
 
     assertThat(outcome).isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(batch.getReservedQuantity()).isEqualTo(5);
@@ -94,7 +94,7 @@ class OrderAllocationCoordinatorTest {
     StockPool near = StockFixtures.batchExpiringOn("SKU-1", NEAR_EXPIRY, 60, 0);
     StockPool far = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 40, 0);
 
-    coordinator.allocateOrder(order, List.of(near, far), now);
+    coordinator.allocateOrder(order, grouped(order, near, far), now);
 
     ArgumentCaptor<StockReservation> captor = ArgumentCaptor.forClass(StockReservation.class);
     verify(stockReservationRepository, org.mockito.Mockito.times(2)).save(captor.capture());
@@ -115,7 +115,7 @@ class OrderAllocationCoordinatorTest {
 
     // 刻意把遠效期放前面。FEFO 查詢碰巧已經排好，但那是查詢的實作細節；釋放與補貨兩條路徑
     // 的集合來源完全不同，寫入順序必須自己保證，否則相反順序的兩個交易會互相等成死鎖。
-    coordinator.allocateOrder(order, List.of(far, near), now);
+    coordinator.allocateOrder(order, grouped(order, far, near), now);
 
     ArgumentCaptor<StockPool> captor = ArgumentCaptor.forClass(StockPool.class);
     verify(stockPoolRepository, org.mockito.Mockito.times(2)).save(captor.capture());
@@ -128,7 +128,7 @@ class OrderAllocationCoordinatorTest {
     Demand order = pendingDemand("SKU-1", 5);
     StockPool batch = stockPool("SKU-1", 2);
 
-    AllocationOutcome outcome = coordinator.allocateOrder(order, List.of(batch), now);
+    AllocationOutcome outcome = coordinator.allocateOrder(order, grouped(order, batch), now);
 
     assertThat(outcome).isEqualTo(AllocationOutcome.INSUFFICIENT_ATP);
     assertThat(batch.getReservedQuantity()).isZero();
@@ -143,7 +143,7 @@ class OrderAllocationCoordinatorTest {
 
     // 「一批都沒有」與「有批但全部過期」的差別屬於庫存狀態，由庫存頁每次重算；訂單這一側
     // 不再為了那個區別多付一次查詢，因為它算出來也沒有不會過期的地方可以放。
-    assertThat(coordinator.allocateOrder(order, List.of(), now))
+    assertThat(coordinator.allocateOrder(order, grouped(order), now))
         .isEqualTo(AllocationOutcome.NO_ALLOCATABLE_STOCK);
     verifyNoInteractions(
         stockPoolRepository, stockReservationRepository, eventPublisher);
@@ -169,7 +169,7 @@ class OrderAllocationCoordinatorTest {
   void shouldWriteNothingWhenThereAreNoBackorders() {
     StockPool batch = stockPool("SKU-1", 10);
 
-    List<Demand> result = coordinator.allocateBackorders(List.of(), List.of(batch), now);
+    List<Demand> result = coordinator.allocateBackorders(List.of(), Map.of("SKU-1", List.of(batch)), now);
 
     // 補貨本身已經在 usecase 的 upsert 寫進去了，這裡再存一次只是多一次無謂的寫入與衝突。
     assertThat(result).isEmpty();
@@ -256,6 +256,17 @@ class OrderAllocationCoordinatorTest {
   private Demand pendingDemand(String sku, int quantity) {
     return DemandFixtures.demand(
         com.flowzati.archone.common.IdGenerator.nextId(), sku, quantity, now.minusSeconds(1));
+  }
+
+  /** 依批自己的 {@code skuCode} 分組，並替這張單指名卻一批都沒有的 SKU 補上空群組。 */
+  private static Map<String, List<StockPool>> grouped(Demand demand, StockPool... batches) {
+    Map<String, List<StockPool>> bySku = new java.util.LinkedHashMap<>();
+    demand.totalsBySku().keySet()
+        .forEach(skuCode -> bySku.put(skuCode, new java.util.ArrayList<>()));
+    for (StockPool batch : batches) {
+      bySku.computeIfAbsent(batch.getSkuCode(), key -> new java.util.ArrayList<>()).add(batch);
+    }
+    return bySku;
   }
 
   private StockPool stockPool(String sku, int onHandQuantity) {

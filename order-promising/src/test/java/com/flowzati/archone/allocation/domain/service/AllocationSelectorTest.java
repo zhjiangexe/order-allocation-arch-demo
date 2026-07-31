@@ -10,6 +10,7 @@ import com.flowzati.archone.allocation.domain.model.Demand;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,14 +21,15 @@ class AllocationSelectorTest {
   @DisplayName("應由 Factory 建立 Policy 專用 Context，再執行純 selection algorithm")
   void createsTypedContextBeforeInvokingPolicy() {
     Instant decisionAt = Instant.parse("2026-07-24T02:00:00Z");
-    AllocationRequest request = new AllocationRequest("SKU-1", 5, decisionAt);
+    AllocationRequest request =
+        new AllocationRequest(SkuQuantities.of(Map.of("SKU-1", 5)), decisionAt);
     Demand demand = DemandFixtures.demand(
         UUID.randomUUID(), "SKU-1", 3, decisionAt.minusSeconds(1));
 
     AllocationContextFactory<TestAllocationContext> contextFactory = source ->
-        new TestAllocationContext(source.availableToPromise(), source.decisionAt());
+        new TestAllocationContext(source.availableBySku(), source.decisionAt());
     AllocationPolicy<TestAllocationContext> policy = (candidates, context) -> {
-      assertThat(context.availableToPromise()).isEqualTo(5);
+      assertThat(context.availableBySku().quantityOf("SKU-1")).isEqualTo(5);
       assertThat(context.decisionAt()).isEqualTo(decisionAt);
       return candidates;
     };
@@ -40,7 +42,7 @@ class AllocationSelectorTest {
   }
 
   private record TestAllocationContext(
-      int availableToPromise,
+      SkuQuantities availableBySku,
       Instant decisionAt
   ) implements AllocationContext {
   }

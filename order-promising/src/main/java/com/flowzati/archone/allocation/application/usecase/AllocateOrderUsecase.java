@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AllocateOrderUsecase {
@@ -58,9 +59,6 @@ public class AllocateOrderUsecase {
       return;
     }
 
-    // 一次配貨只取一個 (貨主, 倉, SKU) 的批,因此這裡踩在「這張單只碰一個 SKU」的假設上。
-    // 收單政策目前保證它成立;放寬多 SKU 時,這裡要改成取多組批並做整籃判斷(見 roadmap R8)。
-    String skuCode = requireSingleSku(demand);
     Instant now = clock.instant();
 
     // 篩選與排序都在資料庫做。批數只會隨時間成長,把配不到的載進記憶體只為了丟掉是錯的
@@ -68,33 +66,19 @@ public class AllocateOrderUsecase {
     //
     // 一批可配的都沒有不是例外——那是「缺貨」這個正常結果,由配貨流程判定後掛帳。原本的
     // 「查無庫存池就丟例外」在分批之後會把每一次缺貨都變成訊息處理失敗。
-    List<StockPool> allocatableBatches = stockPoolRepository.findAllocatableBatchesInFefoOrder(
+    // 一次取這張單需要的**每一個** SKU 的批。整籃原子判斷要看全部——只取其中一個 SKU 的批
+    // 會讓其餘的行看起來都缺貨。
+    Map<String, List<StockPool>> batchesBySku = stockPoolRepository.findAllocatableBatchesBySku(
         demand.ownerId(),
         demand.nodeId(),
-        skuCode,
+        demand.totalsBySku().keySet(),
         businessCalendar.today());
 
-    if (allocationCoordinator.allocateOrder(demand, allocatableBatches, now)
+    if (allocationCoordinator.allocateOrder(demand, batchesBySku, now)
         == AllocationOutcome.ALLOCATED) {
       return;
     }
     allocationCoordinator.backorderOrder(demand, now);
   }
 
-  /**
-   * 這筆需求唯一涉及的 SKU。
-   *
-   * <p>語意是「此呼叫端踩在『一張單只碰一個 SKU』這個假設上」。R8 放寬多 SKU 時，搜尋這個
-   * 方法就是完整的待修清單——把假設集中在一個有名字的地方，而不是散成各處的
-   * {@code totalsBySku().keySet()} 取首個。
-   */
-  private static String requireSingleSku(Demand demand) {
-    var skuCodes = demand.totalsBySku().keySet();
-    if (skuCodes.size() != 1) {
-      throw new IllegalStateException(
-          "This caller assumes a single-SKU order, but the demand spans " + skuCodes.size()
-              + " SKUs");
-    }
-    return skuCodes.iterator().next();
-  }
 }

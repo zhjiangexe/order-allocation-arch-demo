@@ -18,6 +18,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -112,8 +114,8 @@ class AllocateOrderUsecaseTest {
     Demand order = pendingDemand("SKU-1", 5);
     given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(demandRepository.findByOrderId(order.orderId())).willReturn(Optional.of(order));
-    givenAllocatableBatches(List.of());
-    given(allocationCoordinator.allocateOrder(order, List.of(), fixedNow))
+    givenAllocatableBatches();
+    given(allocationCoordinator.allocateOrder(order, Map.of("SKU-1", List.of()), fixedNow))
         .willReturn(AllocationOutcome.NO_ALLOCATABLE_STOCK);
 
     usecase.handle(inbound(new AllocateOrderCommand(order.orderId()), messageId));
@@ -130,16 +132,16 @@ class AllocateOrderUsecaseTest {
     StockPool batch = stockPool("SKU-1", 10);
     given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(demandRepository.findByOrderId(order.orderId())).willReturn(Optional.of(order));
-    givenAllocatableBatches(List.of(batch));
-    given(allocationCoordinator.allocateOrder(order, List.of(batch), fixedNow))
+    givenAllocatableBatches(batch);
+    given(allocationCoordinator.allocateOrder(order, Map.of("SKU-1", List.of(batch)), fixedNow))
         .willReturn(AllocationOutcome.ALLOCATED);
 
     usecase.handle(inbound(new AllocateOrderCommand(order.orderId()), messageId));
 
     // 過期篩選與 FEFO 排序都在資料庫做——批數只會隨時間成長，把不可售的載進記憶體只為了
     // 丟掉是錯的方向。
-    then(stockPoolRepository).should().findAllocatableBatchesInFefoOrder(
-        DemandFixtures.OWNER_ID, DemandFixtures.NODE_ID, "SKU-1",
+    then(stockPoolRepository).should().findAllocatableBatchesBySku(
+        DemandFixtures.OWNER_ID, DemandFixtures.NODE_ID, Set.of("SKU-1"),
         TODAY_IN_TAIPEI);
   }
 
@@ -151,13 +153,13 @@ class AllocateOrderUsecaseTest {
     StockPool batch = stockPool("SKU-1", 10);
     given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(demandRepository.findByOrderId(order.orderId())).willReturn(Optional.of(order));
-    givenAllocatableBatches(List.of(batch));
-    given(allocationCoordinator.allocateOrder(order, List.of(batch), fixedNow))
+    givenAllocatableBatches(batch);
+    given(allocationCoordinator.allocateOrder(order, Map.of("SKU-1", List.of(batch)), fixedNow))
         .willReturn(AllocationOutcome.ALLOCATED);
 
     usecase.handle(inbound(new AllocateOrderCommand(order.orderId()), messageId));
 
-    then(allocationCoordinator).should().allocateOrder(order, List.of(batch), fixedNow);
+    then(allocationCoordinator).should().allocateOrder(order, Map.of("SKU-1", List.of(batch)), fixedNow);
     then(allocationCoordinator).should(org.mockito.Mockito.never())
         .backorderOrder(order, fixedNow);
   }
@@ -170,8 +172,8 @@ class AllocateOrderUsecaseTest {
     StockPool batch = stockPool("SKU-1", 2);
     given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     given(demandRepository.findByOrderId(order.orderId())).willReturn(Optional.of(order));
-    givenAllocatableBatches(List.of(batch));
-    given(allocationCoordinator.allocateOrder(order, List.of(batch), fixedNow))
+    givenAllocatableBatches(batch);
+    given(allocationCoordinator.allocateOrder(order, Map.of("SKU-1", List.of(batch)), fixedNow))
         .willReturn(AllocationOutcome.INSUFFICIENT_ATP);
 
     usecase.handle(inbound(new AllocateOrderCommand(order.orderId()), messageId));
@@ -179,10 +181,10 @@ class AllocateOrderUsecaseTest {
     then(allocationCoordinator).should().backorderOrder(order, fixedNow);
   }
 
-  private void givenAllocatableBatches(List<StockPool> batches) {
-    given(stockPoolRepository.findAllocatableBatchesInFefoOrder(
-        DemandFixtures.OWNER_ID, DemandFixtures.NODE_ID, "SKU-1",
-        TODAY_IN_TAIPEI)).willReturn(batches);
+  private void givenAllocatableBatches(StockPool... batches) {
+    given(stockPoolRepository.findAllocatableBatchesBySku(
+        DemandFixtures.OWNER_ID, DemandFixtures.NODE_ID, Set.of("SKU-1"),
+        TODAY_IN_TAIPEI)).willReturn(Map.of("SKU-1", List.of(batches)));
   }
 
   private Demand pendingDemand(String sku, int quantity) {
