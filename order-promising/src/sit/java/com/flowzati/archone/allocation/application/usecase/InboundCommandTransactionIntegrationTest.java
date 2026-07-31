@@ -96,8 +96,8 @@ class InboundCommandTransactionIntegrationTest {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    Instant placedAt = Instant.now().minusSeconds(1);
-    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, placedAt));
+    Instant receivedAt = Instant.now().minusSeconds(1);
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 0));
 
     allocateOrderUsecase.handle(inbound(orderId, eventId));
@@ -116,7 +116,7 @@ class InboundCommandTransactionIntegrationTest {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    // 以「下單時間在未來」逼出領域層的失敗：markAllocated 拒絕早於 placedAt 的配貨時間。
+    // 以「下單時間在未來」逼出領域層的失敗：markAllocated 拒絕早於 receivedAt 的配貨時間。
     //
     // **不能再用「查無庫存」當失敗來源**——分批之後那是缺貨，是正常結果（掛帳），不再丟例外。
     // 拿它當失敗情境的話，這支測試會靜默地什麼都沒測到：不拋錯，assertThatThrownBy 直接失敗。
@@ -172,9 +172,9 @@ class InboundCommandTransactionIntegrationTest {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    Instant placedAt = Instant.now().plusSeconds(60);
+    Instant receivedAt = Instant.now().plusSeconds(60);
     orderRepository.save(OrderFixtures.backorderedOrder(
-        orderId, "SKU-1", 3, placedAt, placedAt));
+        orderId, "SKU-1", 3, receivedAt, receivedAt));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 0, 0));
 
     assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(

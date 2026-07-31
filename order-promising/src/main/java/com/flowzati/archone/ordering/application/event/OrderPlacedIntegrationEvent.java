@@ -23,33 +23,37 @@ import java.util.UUID;
  * <p>partition key 需要貨主、倉與 SKU,但那是**傳遞決策**,寫在 outbox 的 {@code partition_key}
  * 欄位而不是 payload（見 {@code outbox-event-delivery} 規格:分區策略不得影響 payload content）。
  * translator 從**領域**事件取那些值,領域事件是 in-process 的,帶著它們沒有契約成本。
+ *
+ * <p>時間戳是 {@code receivedAt}——**我們收到這張單的時刻**。它曾經叫 {@code placedAt}，而那個
+ * 名字現在指的是另一件事（上游說客戶下單的時刻，可能不存在）。事件帶的一律是系統事實：消費端
+ * 問的是「這件事什麼時候發生」，而不是「客戶什麼時候按下送出」。
  */
 public final class OrderPlacedIntegrationEvent extends IntegrationEvent {
   private final UUID orderId;
-  private final Instant placedAt;
+  private final Instant receivedAt;
 
   @JsonCreator
   public OrderPlacedIntegrationEvent(
       @JsonProperty("eventId") UUID eventId,
       @JsonProperty("orderId") UUID orderId,
-      @JsonProperty("placedAt") Instant placedAt
+      @JsonProperty("receivedAt") Instant receivedAt
   ) {
     super(eventId);
     if (orderId == null) {
       throw new IllegalArgumentException("Order ID is required");
     }
-    if (placedAt == null) {
-      throw new IllegalArgumentException("Placed time is required");
+    if (receivedAt == null) {
+      throw new IllegalArgumentException("Received time is required");
     }
     this.orderId = orderId;
-    this.placedAt = placedAt;
+    this.receivedAt = receivedAt;
   }
 
   public UUID getOrderId() {
     return orderId;
   }
 
-  public Instant getPlacedAt() {
-    return placedAt;
+  public Instant getReceivedAt() {
+    return receivedAt;
   }
 }

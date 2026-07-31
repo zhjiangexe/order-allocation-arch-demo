@@ -309,7 +309,7 @@ class StockReservationPersistenceIntegrationTest {
     jdbcTemplate.update("""
         INSERT INTO orders (
             id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone, ship_to_address,
-            promised_delivery_date, status, placed_at)
+            promised_delivery_date, status, received_at)
         VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', DATE '2026-08-01',
                 'PENDING', ?)
         ON CONFLICT (id) DO NOTHING

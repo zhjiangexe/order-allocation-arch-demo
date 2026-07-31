@@ -116,14 +116,14 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     // Step 1：準備 fixture —— 一個只有 10 件庫存的 StockPool，以及 1,000 張各要 1 件的 PENDING
     // Order／OrderPlaced event。每筆 event 有自己的 eventId，之後可以個別重送。
     UUID stockPoolId = UUID.randomUUID();
-    Instant placedAt = Instant.now().minusSeconds(1);
+    Instant receivedAt = Instant.now().minusSeconds(1);
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, HOT_SKU, ON_HAND_QUANTITY, 0));
 
     List<OrderPlacedIntegrationEvent> events = new ArrayList<>(TOTAL_ORDERS);
     for (int i = 0; i < TOTAL_ORDERS; i++) {
       UUID orderId = UUID.randomUUID();
-      orderRepository.save(OrderFixtures.pendingOrder(orderId, HOT_SKU, 1, placedAt));
-      events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt));
+      orderRepository.save(OrderFixtures.pendingOrder(orderId, HOT_SKU, 1, receivedAt));
+      events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt));
     }
 
     // Step 2：把 1,000 筆事件同時丟進 allocation entrypoint。這一步只保證「同時送出」，

@@ -432,7 +432,8 @@ class AllocationServiceTest {
             OrderLine.rehydrate(
                 UUID.randomUUID(), 2, ownerId, "SKU-2", 5, OrderStatus.PENDING, null)),
         OrderStatus.PENDING,
-        NOW.minusSeconds(10), null, null, null, null);
+        NOW.minusSeconds(10),
+        null, null, null, null, null);
   }
 
   /** 同一個 SKU 的兩行。收單入口拒絕多行，只能以 rehydrate 造。 */
@@ -450,7 +451,8 @@ class AllocationServiceTest {
             OrderLine.rehydrate(UUID.randomUUID(), 2, ownerId, "SKU-1", secondQuantity,
                 OrderStatus.PENDING, null)),
         OrderStatus.PENDING,
-        NOW.minusSeconds(10), null, null, null, null);
+        NOW.minusSeconds(10),
+        null, null, null, null, null);
   }
 
   private Order pendingOrder(int quantity) {

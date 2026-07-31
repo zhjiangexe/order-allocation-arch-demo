@@ -59,6 +59,7 @@ public class OrderController {
         request.shipToAddress(),
         request.promisedDeliveryDate(),
         request.fulfillmentNodeId(),
+        request.placedAt(),
         lines);
   }
 

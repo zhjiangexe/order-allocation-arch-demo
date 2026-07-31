@@ -14,12 +14,29 @@ import java.util.Map;
 import java.util.UUID;
 
 public class Order {
+  /**
+   * 上游下單時刻可以晚於收單時刻多久，仍視為時鐘偏移而非資料錯誤。
+   *
+   * <p><b>擋的是「填成明天」這種等級的錯誤，不是精確的時鐘校正。</b>上游系統的時鐘與我們的
+   * 不同步，快幾秒是常態；嚴格比較會把正常的單擋在門外。而真正的資料錯誤（填成下個月、時區
+   * 算錯八小時）都遠超過這個窗。
+   *
+   * <p>刻意是常數而非設定值：它不隨環境改變，也不是效能調校的旋鈕——每個環境都該用同一個
+   * 標準判斷「這個時間是不是填錯了」。做成設定值只會讓人以為它可以調鬆來繞過驗證。
+   *
+   * <p>不設下限：三個月前的下單時間可能是歷史資料匯入，那是合法的。
+   */
+  public static final java.time.Duration PLACED_AT_TOLERANCE = java.time.Duration.ofMinutes(5);
+
   private final List<DomainEvent> events = new ArrayList<>();
   private final UUID id;
   private final UUID ownerId;
   private final String externalOrderNo;
   private final DeliveryTerms deliveryTerms;
   private final List<OrderLine> lines;
+  /** 我們收到並接受這張單的時刻。由本系統寫入，呼叫端不得提供。凡是排序訂單先後之處都用它。 */
+  private final Instant receivedAt;
+  /** 上游說客戶下單的時刻。可為 null——上游沒有義務送這個值。刻意不參與任何排序。 */
   private final Instant placedAt;
   private final Long version;
   private OrderStatus status;
@@ -34,20 +51,22 @@ public class Order {
       DeliveryTerms deliveryTerms,
       List<OrderLine> lines,
       OrderStatus status,
+      Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
       Instant backOrderedSince,
       Instant cancelledAt,
       Long version
   ) {
-    validateState(id, ownerId, externalOrderNo, deliveryTerms, lines, status, placedAt,
-        allocatedAt, backOrderedSince, cancelledAt, version);
+    validateState(id, ownerId, externalOrderNo, deliveryTerms, lines, status, receivedAt,
+        placedAt, allocatedAt, backOrderedSince, cancelledAt, version);
     this.id = id;
     this.ownerId = ownerId;
     this.externalOrderNo = externalOrderNo;
     this.deliveryTerms = deliveryTerms;
     this.lines = List.copyOf(lines);
     this.status = status;
+    this.receivedAt = receivedAt;
     this.placedAt = placedAt;
     this.allocatedAt = allocatedAt;
     this.backOrderedSince = backOrderedSince;
@@ -63,6 +82,9 @@ public class Order {
    * schema 不設限，R8 放寬時才不必搬遷結構；{@code rehydrate} 不設限，它的職責是還原資料庫
    * 裡的任何東西，而那也讓測試今天就能造出多行訂單，把讀取、映射、序列化的多行路徑一直
    * 驗著。
+   *
+   * @param receivedAt 我們收到這張單的時刻，由呼叫端以系統時鐘取得
+   * @param placedAt 上游說客戶下單的時刻，可為 {@code null}
    */
   public static Order place(
       UUID id,
@@ -70,6 +92,7 @@ public class Order {
       String externalOrderNo,
       DeliveryTerms deliveryTerms,
       List<OrderLine> lines,
+      Instant receivedAt,
       Instant placedAt
   ) {
     if (lines == null || lines.size() != 1) {
@@ -77,8 +100,8 @@ public class Order {
           "Order intake accepts exactly one line per order; multi-line intake is not enabled");
     }
     Order order = new Order(
-        id, ownerId, externalOrderNo, deliveryTerms, lines, OrderStatus.PENDING, placedAt,
-        null, null, null, null);
+        id, ownerId, externalOrderNo, deliveryTerms, lines, OrderStatus.PENDING, receivedAt,
+        placedAt, null, null, null, null);
     order.events.add(new OrderPlaced(
         id,
         ownerId,
@@ -86,7 +109,9 @@ public class Order {
         deliveryTerms.shipToZone(),
         deliveryTerms.promisedDeliveryDate(),
         order.toLineSnapshots(),
-        placedAt));
+        // 事件帶的是收單時刻——它描述「這件事在我們系統裡何時發生」。上游的下單時刻是訂單的
+        // 屬性而非事件的屬性，需要它的消費端重讀訂單就拿得到。
+        receivedAt));
     return order;
   }
 
@@ -98,6 +123,7 @@ public class Order {
       DeliveryTerms deliveryTerms,
       List<OrderLine> lines,
       OrderStatus status,
+      Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
       Instant backOrderedSince,
@@ -105,8 +131,8 @@ public class Order {
       Long version
   ) {
     return new Order(
-        id, ownerId, externalOrderNo, deliveryTerms, lines, status, placedAt, allocatedAt,
-        backOrderedSince, cancelledAt, version);
+        id, ownerId, externalOrderNo, deliveryTerms, lines, status, receivedAt, placedAt,
+        allocatedAt, backOrderedSince, cancelledAt, version);
   }
 
   /**
@@ -168,7 +194,7 @@ public class Order {
     if (status != OrderStatus.PENDING && status != OrderStatus.BACKORDERED) {
       throw new IllegalStateException("Only pending or backordered orders can be allocated");
     }
-    requireNotBefore(allocatedAt, placedAt, "Allocated time cannot be before placed time");
+    requireNotBefore(allocatedAt, receivedAt, "Allocated time cannot be before received time");
     if (backOrderedSince != null) {
       requireNotBefore(
           allocatedAt, backOrderedSince, "Allocated time cannot be before backordered time");
@@ -186,7 +212,7 @@ public class Order {
       throw new IllegalStateException("Only pending orders can be backordered");
     }
     requireNotBefore(
-        backorderedSince, placedAt, "Backordered time cannot be before placed time");
+        backorderedSince, receivedAt, "Backordered time cannot be before received time");
 
     status = OrderStatus.BACKORDERED;
     this.backOrderedSince = backorderedSince;
@@ -223,7 +249,7 @@ public class Order {
     if (status == OrderStatus.CANCELLED) {
       return false;
     }
-    requireNotBefore(cancelledAt, placedAt, "Cancelled time cannot be before placed time");
+    requireNotBefore(cancelledAt, receivedAt, "Cancelled time cannot be before received time");
     if (allocatedAt != null) {
       requireNotBefore(cancelledAt, allocatedAt, "Cancelled time cannot be before allocated time");
     }
@@ -258,6 +284,7 @@ public class Order {
       DeliveryTerms deliveryTerms,
       List<OrderLine> lines,
       OrderStatus status,
+      Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
       Instant backOrderedSince,
@@ -288,25 +315,34 @@ public class Order {
     if (status == null) {
       throw new IllegalArgumentException("Order status is required");
     }
-    if (placedAt == null) {
-      throw new IllegalArgumentException("Placed time is required");
+    if (receivedAt == null) {
+      throw new IllegalArgumentException("Received time is required");
+    }
+    // 上游的下單時刻只有上界，沒有下界。三個月前的下單時間可能是歷史資料匯入，那是合法的；
+    // 而晚於收單時刻超過容忍窗，代表上游填錯了——沒有任何合法情形會讓客戶在我們收到之後才
+    // 下單。容忍窗吸收的是時鐘偏移，不是資料錯誤。
+    if (placedAt != null && placedAt.isAfter(receivedAt.plus(PLACED_AT_TOLERANCE))) {
+      throw new IllegalArgumentException(
+          "Placed time cannot be later than received time by more than " + PLACED_AT_TOLERANCE);
     }
     if (version != null && version < 0) {
       throw new IllegalArgumentException("Version cannot be negative");
     }
+    // 以下的時序下界一律是收單時刻，不是上游的下單時刻：後者可空，拿它當下界會在上游沒給時
+    // 安靜地失去整組驗證。
     if (allocatedAt != null) {
-      requireNotBefore(allocatedAt, placedAt, "Allocated time cannot be before placed time");
+      requireNotBefore(allocatedAt, receivedAt, "Allocated time cannot be before received time");
     }
     if (backOrderedSince != null) {
       requireNotBefore(
-          backOrderedSince, placedAt, "Backordered time cannot be before placed time");
+          backOrderedSince, receivedAt, "Backordered time cannot be before received time");
     }
     if (allocatedAt != null && backOrderedSince != null) {
       requireNotBefore(
           allocatedAt, backOrderedSince, "Allocated time cannot be before backordered time");
     }
     if (cancelledAt != null) {
-      requireNotBefore(cancelledAt, placedAt, "Cancelled time cannot be before placed time");
+      requireNotBefore(cancelledAt, receivedAt, "Cancelled time cannot be before received time");
       if (allocatedAt != null) {
         requireNotBefore(cancelledAt, allocatedAt, "Cancelled time cannot be before allocated time");
       }
@@ -370,6 +406,17 @@ public class Order {
     return status;
   }
 
+  /** 我們收到這張單的時刻。永遠有值。 */
+  public Instant getReceivedAt() {
+    return receivedAt;
+  }
+
+  /**
+   * 上游說客戶下單的時刻，上游沒送時為 {@code null}。
+   *
+   * <p><b>不要拿它排序。</b>它可空，而且由一個我們控制不了時鐘與送單排程的系統決定——一張
+   * 遲到的單會因此排到已經等候多時的單前面。要排序請用 {@link #getReceivedAt()}。
+   */
   public Instant getPlacedAt() {
     return placedAt;
   }

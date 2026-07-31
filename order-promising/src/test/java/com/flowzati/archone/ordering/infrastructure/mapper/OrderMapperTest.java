@@ -23,14 +23,16 @@ class OrderMapperTest {
   private static final UUID ORDER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
   private static final UUID OWNER_ID = OrderFixtures.OWNER_ID;
   private static final UUID NODE_ID = OrderFixtures.NODE_ID;
-  private static final Instant PLACED_AT = Instant.parse("2026-07-23T08:00:00Z");
+  private static final Instant RECEIVED_AT = Instant.parse("2026-07-23T08:00:00Z");
+  /** 上游說客戶下單的時刻，刻意早於收單——兩者相同的話，往返測試分不出欄位是否對調。 */
+  private static final Instant UPSTREAM_PLACED_AT = Instant.parse("2026-07-23T06:30:00Z");
   private static final Instant BACKORDERED_AT = Instant.parse("2026-07-23T08:01:00Z");
 
   @Test
   @DisplayName("應將完整 Order domain state、配送條件與 version 映射到 entity")
   void mapsDomainToEntity() {
     Order order = OrderFixtures.backorderedOrder(
-        ORDER_ID, OWNER_ID, "SKU-1", 3, PLACED_AT, BACKORDERED_AT, 7L);
+        ORDER_ID, OWNER_ID, "SKU-1", 3, RECEIVED_AT, BACKORDERED_AT, 7L);
 
     OrderEntity entity = OrderMapper.toEntity(order);
 
@@ -41,7 +43,10 @@ class OrderMapperTest {
     assertThat(entity.getPromisedDeliveryDate()).isEqualTo(LocalDate.of(2026, 8, 1));
     assertThat(entity.getFulfillmentNodeId()).isEqualTo(NODE_ID);
     assertThat(entity.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(entity.getPlacedAt()).isEqualTo(PLACED_AT);
+    assertThat(entity.getReceivedAt()).isEqualTo(RECEIVED_AT);
+    // fixture 不帶上游的下單時刻，映射也不得憑空補一個——補了就與「上游真的送了同一個
+    // 時間」在資料庫裡長得一樣。
+    assertThat(entity.getPlacedAt()).isNull();
     assertThat(entity.getAllocatedAt()).isNull();
     assertThat(entity.getBackorderedSince()).isEqualTo(BACKORDERED_AT);
     assertThat(entity.getCancelledAt()).isNull();
@@ -72,7 +77,8 @@ class OrderMapperTest {
         NODE_ID,
         List.of(lineEntity(1, "SKU-1", 3, OrderStatus.CANCELLED)),
         OrderStatus.CANCELLED,
-        PLACED_AT,
+        RECEIVED_AT,
+        UPSTREAM_PLACED_AT,
         allocatedAt,
         null,
         cancelledAt,
@@ -88,7 +94,9 @@ class OrderMapperTest {
         NODE_ID, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 8, 1)));
     assertThat(order.getDemand()).isEqualTo(Map.of("SKU-1", 3));
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-    assertThat(order.getPlacedAt()).isEqualTo(PLACED_AT);
+    // 兩個時間戳各自還原，不互相污染——它們在建構子裡相鄰，對調不會編譯失敗。
+    assertThat(order.getReceivedAt()).isEqualTo(RECEIVED_AT);
+    assertThat(order.getPlacedAt()).isEqualTo(UPSTREAM_PLACED_AT);
     assertThat(order.getAllocatedAt()).isEqualTo(allocatedAt);
     assertThat(order.getBackOrderedSince()).isNull();
     assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
@@ -110,7 +118,8 @@ class OrderMapperTest {
             OrderLine.rehydrate(
                 UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7, OrderStatus.PENDING, null)),
         OrderStatus.PENDING,
-        PLACED_AT, null, null, null, null);
+        RECEIVED_AT,
+        null, null, null, null, null);
 
     Order restored = OrderMapper.toDomain(OrderMapper.toEntity(order));
 

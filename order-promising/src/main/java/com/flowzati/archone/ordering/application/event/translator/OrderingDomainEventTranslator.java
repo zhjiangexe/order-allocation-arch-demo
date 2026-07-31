@@ -39,7 +39,7 @@ public class OrderingDomainEventTranslator {
   public void translate(OrderPlaced event) {
     // 貨主與倉只在 partition key 用到——對外事件兩個都不帶。
     OrderPlacedIntegrationEvent integration =
-        new OrderPlacedIntegrationEvent(IdGenerator.nextId(), event.orderId(), event.placedAt());
+        new OrderPlacedIntegrationEvent(IdGenerator.nextId(), event.orderId(), event.receivedAt());
     String partitionKey =
         partitionKey(event.orderId(), event.ownerId(), event.fulfillmentNodeId());
     outboxAppender.append(
@@ -47,7 +47,7 @@ public class OrderingDomainEventTranslator {
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
         new OutboxDelivery(OrderingEventTopics.ORDER_EVENTS, partitionKey),
-        event.placedAt()
+        event.receivedAt()
     );
   }
 

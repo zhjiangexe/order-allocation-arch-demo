@@ -155,6 +155,24 @@ class DevSeedDataIntegrationTest {
   }
 
   @Test
+  @DisplayName("種子必須一張帶上游下單時刻、一張不帶——「上游沒送」在畫面上要有一列是空的")
+  void seedsOneOrderWithAnUpstreamPlacedTimeAndOneWithout() {
+    assertThat(orderRepository.findById(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
+        .hasValueSatisfying(order -> {
+          assertThat(order.getReceivedAt()).isNotNull();
+          assertThat(order.getPlacedAt()).isNotNull();
+          // 上游比我們早——兩者相同的話，畫面上分不出上游是真的送了還是我們補的。
+          assertThat(order.getPlacedAt()).isBefore(order.getReceivedAt());
+        });
+
+    assertThat(orderRepository.findById(DevSeedDataInitializer.BACKORDERED_ORDER_ID))
+        .hasValueSatisfying(order -> {
+          assertThat(order.getReceivedAt()).isNotNull();
+          assertThat(order.getPlacedAt()).isNull();
+        });
+  }
+
+  @Test
   @DisplayName("種子必須有一張需求跨兩批的訂單——多批取用與多筆預留唯一的資料來源")
   void seedsAnOrderWhoseDemandSpansTwoBatches() {
     assertThat(orderRepository.findById(DevSeedDataInitializer.SPANNING_ORDER_ID))

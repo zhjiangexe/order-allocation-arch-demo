@@ -22,5 +22,5 @@ public interface JpaOrderRepository extends JpaRepository<OrderEntity, UUID> {
       Limit limit
   );
 
-  List<OrderEntity> findAllByOrderByPlacedAtDescIdDesc(Limit limit);
+  List<OrderEntity> findAllByOrderByReceivedAtDescIdDesc(Limit limit);
 }

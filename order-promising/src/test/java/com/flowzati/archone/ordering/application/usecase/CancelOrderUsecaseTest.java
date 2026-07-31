@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 
 class CancelOrderUsecaseTest {
 
-  private final Instant placedAt = Instant.parse("2026-07-24T00:00:00Z");
+  private final Instant receivedAt = Instant.parse("2026-07-24T00:00:00Z");
   private final Instant cancelledAt = Instant.parse("2026-07-24T01:00:00Z");
 
   @Test
@@ -29,7 +29,7 @@ class CancelOrderUsecaseTest {
   void shouldPersistCancelledOrderAndPublishDomainEvent() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, placedAt);
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
     order.releaseDomainEvents();
     when(repository.findById(order.getId())).thenReturn(Optional.of(order));
 
@@ -47,7 +47,7 @@ class CancelOrderUsecaseTest {
   void shouldDoNothingWhenOrderIsAlreadyCancelled() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, placedAt);
+    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
     order.cancel(cancelledAt);
     order.releaseDomainEvents();
     when(repository.findById(order.getId())).thenReturn(Optional.of(order));

@@ -137,6 +137,7 @@ class OutboxAggregateQueryIntegrationTest {
         "台北市中正區重慶南路一段 122 號",
         java.time.LocalDate.of(2026, 8, 1),
         OrderFixtures.NODE_ID,
+        null,
         java.util.List.of(new PlaceOrderCommand.Line(SKU, 3))));
     // 下單當下 StockPool 的 ATP 是 0，配置決策要等這筆下單事件被 allocation 消費才發生。
     assertThat(placed.getStatus()).isEqualTo(OrderStatus.PENDING);
@@ -147,7 +148,7 @@ class OutboxAggregateQueryIntegrationTest {
     Order order = orderRepository.findById(orderId).orElseThrow();
     consumer.consumeOrderingEvent(record(
         OrderingEventTopics.ORDER_EVENTS,
-        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, order.getPlacedAt())));
+        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, order.getReceivedAt())));
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(backordered ->
         assertThat(backordered.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
   }

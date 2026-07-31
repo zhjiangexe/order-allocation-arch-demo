@@ -42,7 +42,7 @@ public class OrderRepositoryImpl implements OrderRepository {
 
   @Override
   public List<Order> findRecent(int limit) {
-    return repository.findAllByOrderByPlacedAtDescIdDesc(Limit.of(limit))
+    return repository.findAllByOrderByReceivedAtDescIdDesc(Limit.of(limit))
         .stream()
         .map(OrderMapper::toDomain)
         .toList();

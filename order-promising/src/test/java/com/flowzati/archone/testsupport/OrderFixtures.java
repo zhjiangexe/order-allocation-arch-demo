@@ -97,14 +97,14 @@ public final class OrderFixtures {
    * 的事。
    */
   public static Order pendingOrder(
-      UUID orderId, String skuCode, int quantity, Instant placedAt) {
-    return pendingOrder(orderId, OWNER_ID, skuCode, quantity, placedAt);
+      UUID orderId, String skuCode, int quantity, Instant receivedAt) {
+    return pendingOrder(orderId, OWNER_ID, skuCode, quantity, receivedAt);
   }
 
   public static Order pendingOrder(
-      UUID orderId, UUID ownerId, String skuCode, int quantity, Instant placedAt) {
+      UUID orderId, UUID ownerId, String skuCode, int quantity, Instant receivedAt) {
     return order(
-        orderId, ownerId, skuCode, quantity, OrderStatus.PENDING, placedAt, null, null, null);
+        orderId, ownerId, skuCode, quantity, OrderStatus.PENDING, receivedAt, null, null, null);
   }
 
   /**
@@ -114,8 +114,8 @@ public final class OrderFixtures {
    * 排序的，把它藏進 fixture 等於把被測的東西藏起來。
    */
   public static Order backorderedOrder(
-      UUID orderId, String skuCode, int quantity, Instant placedAt, Instant backorderedAt) {
-    return backorderedOrder(orderId, OWNER_ID, skuCode, quantity, placedAt, backorderedAt, null);
+      UUID orderId, String skuCode, int quantity, Instant receivedAt, Instant backorderedAt) {
+    return backorderedOrder(orderId, OWNER_ID, skuCode, quantity, receivedAt, backorderedAt, null);
   }
 
   public static Order backorderedOrder(
@@ -123,18 +123,18 @@ public final class OrderFixtures {
       UUID ownerId,
       String skuCode,
       int quantity,
-      Instant placedAt,
+      Instant receivedAt,
       Instant backorderedAt,
       Long version
   ) {
-    return order(orderId, ownerId, skuCode, quantity, OrderStatus.BACKORDERED, placedAt,
+    return order(orderId, ownerId, skuCode, quantity, OrderStatus.BACKORDERED, receivedAt,
         null, backorderedAt, version);
   }
 
   /** 一張已配到貨的訂單。 */
   public static Order allocatedOrder(
-      UUID orderId, String skuCode, int quantity, Instant placedAt, Instant allocatedAt) {
-    return order(orderId, OWNER_ID, skuCode, quantity, OrderStatus.ALLOCATED, placedAt,
+      UUID orderId, String skuCode, int quantity, Instant receivedAt, Instant allocatedAt) {
+    return order(orderId, OWNER_ID, skuCode, quantity, OrderStatus.ALLOCATED, receivedAt,
         allocatedAt, null, null);
   }
 
@@ -155,7 +155,7 @@ public final class OrderFixtures {
       String skuCode,
       int quantity,
       OrderStatus status,
-      Instant placedAt,
+      Instant receivedAt,
       Instant allocatedAt,
       Instant backorderedSince,
       Long version
@@ -168,7 +168,10 @@ public final class OrderFixtures {
         List.of(OrderLine.rehydrate(
             UUID.randomUUID(), 1, ownerId, skuCode, quantity, status, backorderedSince)),
         status,
-        placedAt,
+        receivedAt,
+        // 上游的下單時刻——fixture 一律不帶。需要它的測試自己造，因為「上游有沒有送」正是
+        // 那些測試要驗的東西，預設填一個值會讓「沒送」這條路徑從此沒有 fixture 走得到。
+        null,
         allocatedAt,
         backorderedSince,
         null,

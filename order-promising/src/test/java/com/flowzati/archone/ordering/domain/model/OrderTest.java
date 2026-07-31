@@ -22,12 +22,12 @@ class OrderTest {
   private final UUID orderId = UUID.randomUUID();
   private final UUID ownerId = UUID.fromString("00000000-0000-0000-0000-000000000001");
   private final UUID nodeId = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
-  private final Instant placedAt = Instant.parse("2026-07-23T00:00:00Z");
+  private final Instant receivedAt = Instant.parse("2026-07-23T00:00:00Z");
 
   @Test
   @DisplayName("建立訂單時應為 PENDING 並記錄下單 Domain Event")
   void shouldPlacePendingOrderAndRecordDomainEvent() {
-    Order order = Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)), placedAt);
+    Order order = Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)), receivedAt, null);
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
     assertThat(order.getVersion()).isNull();
@@ -39,14 +39,14 @@ class OrderTest {
             "100",
             LocalDate.of(2026, 8, 1),
             List.of(new LineSnapshot(1, "SKU-1", 3)),
-            placedAt));
+            receivedAt));
     assertThat(order.releaseDomainEvents()).isEmpty();
   }
 
   @Test
   @DisplayName("訂單應持有貨主、上游單號與配送條件，並在查詢時原樣取回")
   void shouldRetainOwnerAndDeliveryTerms() {
-    Order order = Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)), placedAt);
+    Order order = Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)), receivedAt, null);
 
     assertThat(order.getOwnerId()).isEqualTo(ownerId);
     assertThat(order.getExternalOrderNo()).isEqualTo("EXT-1");
@@ -61,7 +61,7 @@ class OrderTest {
   @Test
   @DisplayName("PENDING 訂單應可配置")
   void shouldAllocatePendingOrder() {
-    Instant allocatedAt = placedAt.plusSeconds(10);
+    Instant allocatedAt = receivedAt.plusSeconds(10);
     Order order = pendingOrder();
 
     order.markAllocated(allocatedAt);
@@ -75,7 +75,7 @@ class OrderTest {
   @Test
   @DisplayName("PENDING 訂單應可轉為欠單")
   void shouldBackorderPendingOrder() {
-    Instant backorderedAt = placedAt.plusSeconds(10);
+    Instant backorderedAt = receivedAt.plusSeconds(10);
     Order order = pendingOrder();
 
     order.markBackOrdered(backorderedAt);
@@ -90,8 +90,8 @@ class OrderTest {
   @Test
   @DisplayName("欠單配置成功時應保留欠單歷程")
   void shouldAllocateBackorderedOrderAndPreserveHistory() {
-    Instant backorderedAt = placedAt.plusSeconds(10);
-    Instant allocatedAt = placedAt.plusSeconds(20);
+    Instant backorderedAt = receivedAt.plusSeconds(10);
+    Instant allocatedAt = receivedAt.plusSeconds(20);
     Order order = pendingOrder();
     order.markBackOrdered(backorderedAt);
     order.releaseDomainEvents();
@@ -106,7 +106,7 @@ class OrderTest {
   @Test
   @DisplayName("訂單取消應只成功一次")
   void shouldCancelOrderOnlyOnce() {
-    Instant cancelledAt = placedAt.plusSeconds(10);
+    Instant cancelledAt = receivedAt.plusSeconds(10);
     Order order = pendingOrder();
 
     assertThat(order.cancel(cancelledAt)).isTrue();
@@ -124,24 +124,24 @@ class OrderTest {
   @DisplayName("已配置訂單應可取消")
   void shouldAllowAllocatedOrderToBeCancelled() {
     Order order = pendingOrder();
-    order.markAllocated(placedAt.plusSeconds(10));
+    order.markAllocated(receivedAt.plusSeconds(10));
     order.releaseDomainEvents();
 
-    order.cancel(placedAt.plusSeconds(20));
+    order.cancel(receivedAt.plusSeconds(20));
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-    assertThat(order.getAllocatedAt()).isEqualTo(placedAt.plusSeconds(10));
+    assertThat(order.getAllocatedAt()).isEqualTo(receivedAt.plusSeconds(10));
   }
 
   @Test
   @DisplayName("不合法狀態轉換應被拒絕")
   void shouldRejectIllegalTransitions() {
     Order allocated = pendingOrder();
-    allocated.markAllocated(placedAt.plusSeconds(1));
+    allocated.markAllocated(receivedAt.plusSeconds(1));
 
-    assertThatThrownBy(() -> allocated.markBackOrdered(placedAt.plusSeconds(2)))
+    assertThatThrownBy(() -> allocated.markBackOrdered(receivedAt.plusSeconds(2)))
         .isInstanceOf(IllegalStateException.class);
-    assertThatThrownBy(() -> allocated.markAllocated(placedAt.plusSeconds(2)))
+    assertThatThrownBy(() -> allocated.markAllocated(receivedAt.plusSeconds(2)))
         .isInstanceOf(IllegalStateException.class);
   }
 
@@ -150,11 +150,11 @@ class OrderTest {
   void shouldRejectTransitionTimeBeforeLifecycleHistory() {
     Order order = pendingOrder();
 
-    assertThatThrownBy(() -> order.markAllocated(placedAt.minusSeconds(1)))
+    assertThatThrownBy(() -> order.markAllocated(receivedAt.minusSeconds(1)))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> order.markBackOrdered(placedAt.minusSeconds(1)))
+    assertThatThrownBy(() -> order.markBackOrdered(receivedAt.minusSeconds(1)))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> order.cancel(placedAt.minusSeconds(1)))
+    assertThatThrownBy(() -> order.cancel(receivedAt.minusSeconds(1)))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -162,11 +162,11 @@ class OrderTest {
   @DisplayName("建立訂單時應拒絕不合法資料")
   void shouldRejectInvalidOrderCreation() {
     List<OrderLine> lines = List.of(line(1, "SKU-1", 1));
-    assertThatThrownBy(() -> Order.place(null, ownerId, "EXT-1", delivery(), lines, placedAt))
+    assertThatThrownBy(() -> Order.place(null, ownerId, "EXT-1", delivery(), lines, receivedAt, null))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> Order.place(orderId, null, "EXT-1", delivery(), lines, placedAt))
+    assertThatThrownBy(() -> Order.place(orderId, null, "EXT-1", delivery(), lines, receivedAt, null))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), lines, null))
+    assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), lines, null, null))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -177,7 +177,7 @@ class OrderTest {
     List<OrderLine> foreignLines =
         List.of(OrderLine.create(UUID.randomUUID(), 1, otherOwnerId, "SKU-1", 1));
 
-    assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), foreignLines, placedAt))
+    assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), foreignLines, receivedAt, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("owner");
   }
@@ -185,8 +185,8 @@ class OrderTest {
   @Test
   @DisplayName("rehydrate 應還原訂單且不新增 Domain Event")
   void shouldRehydrateWithoutRecordingDomainEvents() {
-    Instant backorderedAt = placedAt.plusSeconds(10);
-    Instant allocatedAt = placedAt.plusSeconds(20);
+    Instant backorderedAt = receivedAt.plusSeconds(10);
+    Instant allocatedAt = receivedAt.plusSeconds(20);
 
     Order order = Order.rehydrate(
         orderId,
@@ -195,7 +195,8 @@ class OrderTest {
         delivery(),
         List.of(line(1, "SKU-1", 3)),
         OrderStatus.ALLOCATED,
-        placedAt,
+        receivedAt,
+        null,
         allocatedAt,
         backorderedAt,
         null,
@@ -214,14 +215,14 @@ class OrderTest {
     @Test
     @DisplayName("零筆或兩筆行的收單應被拒絕，且不留下任何資料")
     void rejectsIntakeThatIsNotExactlyOneLine() {
-      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(), placedAt))
+      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(), receivedAt, null))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("exactly one line");
       assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(),
-          List.of(line(1, "SKU-1", 1), line(2, "SKU-2", 1)), placedAt))
+          List.of(line(1, "SKU-1", 1), line(2, "SKU-2", 1)), receivedAt, null))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("exactly one line");
-      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), null, placedAt))
+      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), null, receivedAt, null))
           .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -245,7 +246,8 @@ class OrderTest {
           delivery(),
           List.of(line(1, "SKU-1", 1), line(1, "SKU-2", 1)),
           OrderStatus.PENDING,
-          placedAt, null, null, null, null))
+          receivedAt,
+          null, null, null, null, null))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("line numbers must be unique");
     }
@@ -271,7 +273,8 @@ class OrderTest {
           delivery(),
           List.of(line(1, "SKU-1", 5), line(2, "SKU-1", 5)),
           OrderStatus.PENDING,
-          placedAt, null, null, null, null);
+          receivedAt,
+          null, null, null, null, null);
 
       assertThat(order.getDemand()).isEqualTo(Map.of("SKU-1", 10));
     }
@@ -308,7 +311,7 @@ class OrderTest {
       Order order = Order.rehydrate(
           orderId, ownerId, "EXT-1", delivery(),
           List.of(line(1, "SKU-1", 3), line(2, "SKU-1", 7)),
-          OrderStatus.PENDING, placedAt, null, null, null, null);
+          OrderStatus.PENDING, receivedAt, null, null, null, null, null);
 
       assertThat(order.requireSingleSku()).isEqualTo("SKU-1");
     }
@@ -329,7 +332,7 @@ class OrderTest {
     @Test
     @DisplayName("兩行訂單轉為欠單後，header 與兩行帶同一個時間戳與狀態")
     void mirrorsBackorderAcrossAllLines() {
-      Instant backorderedAt = placedAt.plusSeconds(10);
+      Instant backorderedAt = receivedAt.plusSeconds(10);
       Order order = twoLineOrder();
 
       order.markBackOrdered(backorderedAt);
@@ -345,9 +348,9 @@ class OrderTest {
     @DisplayName("配置後所有行一起成為 ALLOCATED，且不留下欠單時間")
     void mirrorsAllocationAcrossAllLines() {
       Order order = twoLineOrder();
-      order.markBackOrdered(placedAt.plusSeconds(10));
+      order.markBackOrdered(receivedAt.plusSeconds(10));
 
-      order.markAllocated(placedAt.plusSeconds(20));
+      order.markAllocated(receivedAt.plusSeconds(20));
 
       assertThat(order.getLines()).allSatisfy(line -> {
         assertThat(line.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
@@ -360,7 +363,7 @@ class OrderTest {
     void mirrorsCancellationAcrossAllLines() {
       Order order = twoLineOrder();
 
-      order.cancel(placedAt.plusSeconds(10));
+      order.cancel(receivedAt.plusSeconds(10));
 
       assertThat(order.getLines())
           .allSatisfy(line -> assertThat(line.getStatus()).isEqualTo(OrderStatus.CANCELLED));
@@ -374,7 +377,7 @@ class OrderTest {
   private Order pendingOrder() {
     return Order.rehydrate(
         orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)),
-        OrderStatus.PENDING, placedAt, null, null, null, null);
+        OrderStatus.PENDING, receivedAt, null, null, null, null, null);
   }
 
   /** 兩行訂單只能經由 rehydrate 造出——收單政策拒絕它，而讀取路徑必須撐得住。 */
@@ -386,7 +389,70 @@ class OrderTest {
         delivery(),
         List.of(line(1, "SKU-1", 3), line(2, "SKU-2", 7)),
         OrderStatus.PENDING,
-        placedAt, null, null, null, null);
+        receivedAt,
+        null, null, null, null, null);
+  }
+
+  @Nested
+  @DisplayName("上游的下單時刻")
+  class UpstreamPlacedTime {
+
+    @Test
+    @DisplayName("上游沒送時為空，不會被補成收單時刻")
+    void isAbsentWhenUpstreamDidNotSendIt() {
+      Order order = Order.place(
+          orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)), receivedAt, null);
+
+      assertThat(order.getPlacedAt()).isNull();
+      assertThat(order.getReceivedAt()).isEqualTo(receivedAt);
+    }
+
+    @Test
+    @DisplayName("早於收單時刻多久都接受——舊的下單時間是合法的歷史資料匯入")
+    void acceptsAnyPastInstant() {
+      Instant threeMonthsEarlier = receivedAt.minus(java.time.Duration.ofDays(90));
+
+      Order order = Order.place(orderId, ownerId, "EXT-1", delivery(),
+          List.of(line(1, "SKU-1", 3)), receivedAt, threeMonthsEarlier);
+
+      assertThat(order.getPlacedAt()).isEqualTo(threeMonthsEarlier);
+    }
+
+    @Test
+    @DisplayName("略晚於收單時刻仍接受——上游時鐘偏移幾秒是常態，不是資料錯誤")
+    void acceptsSmallClockDrift() {
+      Instant twoSecondsLater = receivedAt.plusSeconds(2);
+
+      Order order = Order.place(orderId, ownerId, "EXT-1", delivery(),
+          List.of(line(1, "SKU-1", 3)), receivedAt, twoSecondsLater);
+
+      assertThat(order.getPlacedAt()).isEqualTo(twoSecondsLater);
+    }
+
+    @Test
+    @DisplayName("晚於收單時刻超過容忍窗即拒絕——沒有任何合法情形讓客戶在我們收到之後才下單")
+    void rejectsInstantBeyondTolerance() {
+      Instant oneDayLater = receivedAt.plus(java.time.Duration.ofDays(1));
+
+      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(),
+          List.of(line(1, "SKU-1", 3)), receivedAt, oneDayLater))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Placed time");
+    }
+
+    @Test
+    @DisplayName("狀態轉換的時序下界是收單時刻，不是上游的下單時刻")
+    void transitionsAreBoundedByReceivedTimeNotPlacedTime() {
+      Instant upstreamEarlier = receivedAt.minusSeconds(3600);
+      Order order = Order.place(orderId, ownerId, "EXT-1", delivery(),
+          List.of(line(1, "SKU-1", 3)), receivedAt, upstreamEarlier);
+      order.releaseDomainEvents();
+
+      // 落在上游下單之後、我們收單之前——若下界取錯成 placedAt，這一行會安靜地通過。
+      assertThatThrownBy(() -> order.markAllocated(receivedAt.minusSeconds(1)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("received time");
+    }
   }
 
   private DeliveryTerms delivery() {

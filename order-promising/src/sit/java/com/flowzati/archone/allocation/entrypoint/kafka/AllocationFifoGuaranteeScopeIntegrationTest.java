@@ -145,10 +145,10 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
   private UUID placeNewOrder() throws Exception {
     UUID orderId = UUID.randomUUID();
-    Instant placedAt = Instant.now();
+    Instant receivedAt = Instant.now();
     orderRepository.save(
-        OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, placedAt));
-    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt);
+        OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
     consumer.consumeOrderingEvent(
         record(OrderingEventTopics.ORDER_EVENTS, event));
     return orderId;

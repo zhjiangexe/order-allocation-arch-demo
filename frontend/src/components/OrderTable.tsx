@@ -48,7 +48,8 @@ export function OrderTable({ orders, catalog }: OrderTableProps) {
             <th>item</th>
             <th>qty</th>
             <th>status</th>
-            <th>placed at</th>
+            <th>received at</th>
+            <th>placed upstream</th>
             <th>backordered at</th>
             <th>allocated at</th>
             <th>cancelled at</th>
@@ -69,6 +70,9 @@ export function OrderTable({ orders, catalog }: OrderTableProps) {
               </td>
               <td>{order.lines.map((line) => line.quantity).join('、')}</td>
               <td className={`${styles.status} ${styles[order.status]}`}>{order.status}</td>
+              <td>{formatTime(order.receivedAt)}</td>
+              {/* 上游沒送時留白（—），與其他未發生的階段同一個表示法。不重複 receivedAt：
+                  兩欄一樣的話，看的人分不出上游是真的送了還是我們補的。 */}
               <td>{formatTime(order.placedAt)}</td>
               <td>{formatTime(order.backOrderedSince)}</td>
               <td>{formatTime(order.allocatedAt)}</td>

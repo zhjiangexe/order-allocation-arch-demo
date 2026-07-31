@@ -72,7 +72,7 @@ class EventSeparationTest {
     // 而 payload 抄一份需求內容只會多一個對不上的來源。
     assertThat(placed.getEventId()).isEqualTo(eventId);
     assertThat(placed.getOrderId()).isEqualTo(orderId);
-    assertThat(placed.getPlacedAt()).isEqualTo(occurredAt);
+    assertThat(placed.getReceivedAt()).isEqualTo(occurredAt);
     assertThat(cancelled.getOrderId()).isEqualTo(orderId);
     assertThat(cancelled.getCancelledAt()).isEqualTo(occurredAt);
   }

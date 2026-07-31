@@ -112,7 +112,21 @@ CREATE TABLE orders (
     -- 保留一個永遠不會發生的狀態，而每個讀取端都得處理它。
     fulfillment_node_id UUID NOT NULL,
     status VARCHAR(32) NOT NULL,
-    placed_at TIMESTAMPTZ NOT NULL,
+    -- 我們收到並接受這張單的時刻。由本系統寫入，呼叫端不得提供。
+    --
+    -- 這個欄位原名 placed_at，但值一直是收單時的 Instant.now()——名字說的是客戶下單，
+    -- 存的卻是我們收單。凡是需要「訂單先後」的地方（缺貨佇列、最近訂單列表）用的都是
+    -- 這個值，因為在一張單抵達之前，系統對它一無所知，無從為它保留任何東西。
+    received_at TIMESTAMPTZ NOT NULL,
+    -- 上游系統說客戶下單的時刻。可空——上游沒有義務送這個值。
+    --
+    -- 與 received_at 分開存，因為兩者回答不同的問題：一個是客戶何時承諾，一個是我們何時
+    -- 有能力行動。在 3PL 兩者經常不同（上游批次送單、失敗重試、批次重跑），合成一欄就
+    -- 分不出延遲來自上游還是來自我們。
+    --
+    -- 刻意不參與任何排序：它可空，而且由一個我們控制不了時鐘與送單排程的系統決定——
+    -- 一張遲到的單會因此排到已經等候多時的單前面。
+    placed_at TIMESTAMPTZ,
     allocated_at TIMESTAMPTZ,
     backordered_since TIMESTAMPTZ,
     cancelled_at TIMESTAMPTZ,
@@ -137,7 +151,10 @@ CREATE TABLE orders (
 );
 
 -- 此 index 配合「最近訂單列表」查詢：
--- ORDER BY placed_at DESC, id DESC LIMIT ?
+-- ORDER BY received_at DESC, id DESC LIMIT ?
+--
+-- 排序鍵是收單時刻而不是上游的下單時刻：後者可空，且由上游的時鐘決定，一張遲到的單
+-- 會排進早就收到的單之間，列表因此不再是「最近收到的」。
 --
 -- 欄位順序與方向都必須與 ORDER BY 完全一致，PostgreSQL 才能直接沿 index 取前 N 筆而
 -- 不用排序整張表。壓測後這張表會累積數千至上萬筆，而列表是操作台的主要畫面，
@@ -146,7 +163,7 @@ CREATE TABLE orders (
 -- id DESC 是 tie-breaker，不可省略：同一毫秒寫入的多筆訂單若沒有穩定次序，
 -- 重複查詢會回傳不同順序，畫面上的列表就會無故跳動。
 CREATE INDEX idx_orders_recent
-    ON orders (placed_at DESC, id DESC);
+    ON orders (received_at DESC, id DESC);
 
 CREATE TABLE order_lines (
     id UUID PRIMARY KEY,

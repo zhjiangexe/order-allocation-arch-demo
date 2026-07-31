@@ -120,7 +120,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   @DisplayName("業務異動失敗時應連同翻譯後的 Outbox 一起回滾")
   void shouldRollbackBusinessChangeAndTranslatedOutboxTogether() {
     UUID orderId = UUID.randomUUID();
-    Instant placedAt = Instant.parse("2026-07-24T10:00:00Z");
+    Instant receivedAt = Instant.parse("2026-07-24T10:00:00Z");
     TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 
     transaction.executeWithoutResult(status -> {
@@ -128,12 +128,12 @@ class InboxRepoOutboxPersistenceIntegrationTest {
       jdbcTemplate.update("""
           INSERT INTO orders (
               id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone,
-              ship_to_address, promised_delivery_date, status, placed_at, version)
+              ship_to_address, promised_delivery_date, status, received_at, version)
           VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號',
                   DATE '2026-08-01', ?, ?, ?)
           """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, OrderFixtures.NODE_ID,
           "PENDING",
-          Timestamp.from(placedAt), 0L);
+          Timestamp.from(receivedAt), 0L);
       eventPublisher.publishEvent(new OrderPlaced(
           orderId,
           OrderFixtures.OWNER_ID,
@@ -141,7 +141,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
           "100",
           java.time.LocalDate.of(2026, 8, 1),
           java.util.List.of(new LineSnapshot(1, "SKU-1", 3)),
-          placedAt));
+          receivedAt));
       status.setRollbackOnly();
     });
 

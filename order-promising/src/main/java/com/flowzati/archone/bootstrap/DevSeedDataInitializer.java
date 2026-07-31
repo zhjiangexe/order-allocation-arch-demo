@@ -124,6 +124,13 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID.fromString("00000000-0000-0000-0000-000000000303");
   private static final Instant PARTIALLY_RESERVED_AT = Instant.parse("2026-01-01T00:00:00Z");
   private static final Instant BACKORDERED_SINCE = Instant.parse("2026-01-01T00:00:00Z");
+  /**
+   * 上游說客戶下單的時刻，比我們收到早 90 分鐘——上游批次送單造成的延遲。
+   *
+   * <p>刻意早於收單時刻（{@code PARTIALLY_RESERVED_AT.minusSeconds(1)}）而不是相同：兩個值
+   * 一樣的話，畫面上分不出「上游真的送了時間」與「我們把收單時刻填了進去」。
+   */
+  private static final Instant UPSTREAM_PLACED_AT = Instant.parse("2025-12-31T22:29:59Z");
 
   private final OwnerRepository ownerRepository;
   private final ProductRepository productRepository;
@@ -292,22 +299,29 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         2));
   }
 
+  /**
+   * 已配置的單，**帶上游的下單時刻**：上游比我們早 90 分鐘收到這張單。
+   *
+   * <p>與下方的缺貨單刻意成對——一張有、一張沒有，操作台上就同時看得到兩種情形，而
+   * 「上游沒送時顯示為空」這件事只有在畫面上真的有一列是空的時候才驗得到。
+   */
   private Order allocatedOrder(
       UUID orderId, UUID lineId, UUID ownerId, UUID nodeId, String externalOrderNo,
       String skuCode, int quantity) {
     return order(orderId, lineId, ownerId, nodeId, externalOrderNo, skuCode, quantity,
-        OrderStatus.ALLOCATED, PARTIALLY_RESERVED_AT, null);
+        OrderStatus.ALLOCATED, UPSTREAM_PLACED_AT, PARTIALLY_RESERVED_AT, null);
   }
 
+  /** 缺貨排隊中的單，**不帶上游的下單時刻**——上游沒有義務送這個值。 */
   private Order backorderedOrder(
       UUID orderId, UUID lineId, UUID ownerId, UUID nodeId, String externalOrderNo,
       String skuCode, int quantity) {
     return order(orderId, lineId, ownerId, nodeId, externalOrderNo, skuCode, quantity,
-        OrderStatus.BACKORDERED, null, BACKORDERED_SINCE);
+        OrderStatus.BACKORDERED, null, null, BACKORDERED_SINCE);
   }
 
   /**
-   * 唯一的訂單建構出口。兩個 {@code Instant} 相鄰且都可為 null，直接讓呼叫端填很容易對調，
+   * 唯一的訂單建構出口。三個 {@code Instant} 相鄰且都可為 null，直接讓呼叫端填很容易對調，
    * 因此對外只開放上面兩個語意化的入口。
    */
   private Order order(
@@ -319,6 +333,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       String skuCode,
       int quantity,
       OrderStatus status,
+      Instant placedAt,
       Instant allocatedAt,
       Instant backOrderedSince
   ) {
@@ -333,6 +348,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
             lineId, 1, ownerId, skuCode, quantity, status, backOrderedSince)),
         status,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
+        placedAt,
         allocatedAt,
         backOrderedSince,
         null,

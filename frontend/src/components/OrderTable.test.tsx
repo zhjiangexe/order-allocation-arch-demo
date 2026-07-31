@@ -78,7 +78,9 @@ function order(overrides: Partial<OrderView> & Pick<OrderView, 'orderId' | 'owne
     promisedDeliveryDate: '2026-08-03',
     lines: [{ lineNo: 1, skuCode: 'SKU-AVAILABLE', quantity: 3, status: 'PENDING' }],
     status: 'PENDING',
-    placedAt: '2026-07-27T10:00:00Z',
+    receivedAt: '2026-07-27T10:00:00Z',
+    // 預設不帶上游的下單時刻——「上游沒送」是常態，讓它成為預設值，要驗有值的測試自己覆蓋。
+    placedAt: null,
     allocatedAt: null,
     backOrderedSince: null,
     cancelledAt: null,
@@ -153,5 +155,45 @@ describe('OrderTable', () => {
 
     expect(screen.getByText(OWNER_A.ownerId.slice(-12))).toBeInTheDocument();
     expect(screen.getAllByText('SKU-AVAILABLE')).toHaveLength(1);
+  });
+
+  it('上游有送下單時刻時，與收單時刻分別顯示', () => {
+    render(
+      <OrderTable
+        orders={[order({
+          orderId: 'ffffffff-0000-0000-0000-00000000000f',
+          ownerId: OWNER_A.ownerId,
+          receivedAt: '2026-07-27T10:00:00Z',
+          placedAt: '2026-07-27T08:30:00Z',
+        })]}
+        catalog={CATALOG}
+      />,
+    );
+
+    const row = screen.getAllByRole('row')[1]!;
+    const cells = within(row).getAllByRole('cell');
+    // 收單與上游下單是相鄰的兩欄，值必須不同——相同的話看的人分不出上游是否真的送了。
+    expect(cells[5]!.textContent).not.toEqual(cells[6]!.textContent);
+    expect(cells[5]!.textContent).not.toEqual('—');
+    expect(cells[6]!.textContent).not.toEqual('—');
+  });
+
+  it('上游沒送下單時刻時該欄留白，不重複收單時刻', () => {
+    render(
+      <OrderTable
+        orders={[order({
+          orderId: 'ffffffff-1111-0000-0000-00000000000f',
+          ownerId: OWNER_A.ownerId,
+          receivedAt: '2026-07-27T10:00:00Z',
+          placedAt: null,
+        })]}
+        catalog={CATALOG}
+      />,
+    );
+
+    const row = screen.getAllByRole('row')[1]!;
+    const cells = within(row).getAllByRole('cell');
+    expect(cells[5]!.textContent).not.toEqual('—');
+    expect(cells[6]!.textContent).toEqual('—');
   });
 });

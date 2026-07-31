@@ -17,6 +17,10 @@ import java.util.UUID;
  *
  * <p>需求以 {@code lines} 表達而不是單一 SKU 與數量——訂單的形狀本來就是行的集合，事件
  * 沿用同一個形狀，下游不需要知道「目前每張單只有一行」這件事。
+ *
+ * <p>時間戳是 {@code receivedAt}——**我們收到這張單的時刻**，不是上游說客戶下單的時刻。事件
+ * 描述的是「這件事在我們系統裡何時發生」；上游的下單時刻是訂單的屬性而非事件的屬性，需要它
+ * 的消費端重讀訂單就拿得到，而且它可能根本不存在（上游沒有義務送）。
  */
 public record OrderPlaced(
     UUID orderId,
@@ -25,6 +29,6 @@ public record OrderPlaced(
     String shipToZone,
     LocalDate promisedDeliveryDate,
     List<LineSnapshot> lines,
-    Instant placedAt
+    Instant receivedAt
 ) implements DomainEvent {
 }

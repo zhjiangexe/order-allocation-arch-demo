@@ -59,7 +59,7 @@ class OrderControllerTest {
       """;
 
   private static final String SKU = "SKU-AVAILABLE";
-  private static final Instant PLACED_AT = Instant.parse("2026-07-26T10:00:00Z");
+  private static final Instant RECEIVED_AT = Instant.parse("2026-07-26T10:00:00Z");
 
   @Autowired
   private MockMvcTester mvc;
@@ -79,7 +79,7 @@ class OrderControllerTest {
   void shouldPlaceOrderFromJsonBodyAndReturnFullOrderRepresentation() {
     UUID orderId = UUID.randomUUID();
     when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
-        .thenReturn(OrderFixtures.pendingOrder(orderId, SKU, 3, PLACED_AT));
+        .thenReturn(OrderFixtures.pendingOrder(orderId, SKU, 3, RECEIVED_AT));
 
     MvcTestResultAssert response = assertThat(mvc.post().uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)
@@ -93,7 +93,10 @@ class OrderControllerTest {
     response.bodyJson().extractingPath("$.shipToZone").isEqualTo("100");
     response.bodyJson().extractingPath("$.promisedDeliveryDate").isEqualTo("2026-08-01");
     response.bodyJson().extractingPath("$.status").isEqualTo("PENDING");
-    response.bodyJson().extractingPath("$.placedAt").isEqualTo(PLACED_AT.toString());
+    response.bodyJson().extractingPath("$.receivedAt").isEqualTo(RECEIVED_AT.toString());
+    // 上游沒送下單時刻時回 null，不重複收單時刻——否則呼叫端分不出「上游真的送了同一個
+    // 時間」與「我們補了一個」。
+    response.bodyJson().extractingPath("$.placedAt").isNull();
 
     // SKU 與數量移進行裡，訂單頂層不再有它們
     response.bodyJson().extractingPath("$.lines.length()").isEqualTo(1);
@@ -180,7 +183,7 @@ class OrderControllerTest {
                 OrderStatus.PENDING, null),
             OrderLine.rehydrate(UUID.randomUUID(), 2, ownerId, "SKU-B", 7,
                 OrderStatus.PENDING, null)),
-        OrderStatus.PENDING, PLACED_AT, null, null, null, null);
+        OrderStatus.PENDING, RECEIVED_AT, null, null, null, null, null);
     when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(twoLineOrder));
 
     MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
@@ -199,7 +202,7 @@ class OrderControllerTest {
   @DisplayName("訂單只帶貨主識別碼，不帶名稱——名稱由呼叫端用它已載入的主檔自行解析")
   void carriesOwnerIdButNotOwnerName() {
     when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(
-        OrderFixtures.pendingOrder(UUID.randomUUID(), SKU, 3, PLACED_AT)));
+        OrderFixtures.pendingOrder(UUID.randomUUID(), SKU, 3, RECEIVED_AT)));
 
     MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
 
@@ -215,7 +218,7 @@ class OrderControllerTest {
   void shouldListRecentOrdersWithDefaultLimit() {
     UUID orderId = UUID.randomUUID();
     when(listRecentOrdersUsecase.listRecent(20))
-        .thenReturn(List.of(OrderFixtures.pendingOrder(orderId, SKU, 3, PLACED_AT)));
+        .thenReturn(List.of(OrderFixtures.pendingOrder(orderId, SKU, 3, RECEIVED_AT)));
 
     MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
 

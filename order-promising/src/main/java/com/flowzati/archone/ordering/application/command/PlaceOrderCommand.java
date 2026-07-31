@@ -1,5 +1,6 @@
 package com.flowzati.archone.ordering.application.command;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -13,6 +14,9 @@ import java.util.UUID;
  * <p>行不帶行號:上游單的行號是要保留的原始結構,但目前的下單入口沒有上游單據,行號由收單
  * 依序產生。之後若接上真正的上游系統,行號改由這裡帶入,{@code order_lines.line_no} 不必
  * 改變。
+ *
+ * <p><b>不帶收單時刻。</b>那是我們的事實,由 usecase 以系統時鐘寫入——讓呼叫端提供它,等於
+ * 讓外部決定我們何時收到一張單,而排序訂單先後靠的正是那個值。
  */
 public record PlaceOrderCommand(
     UUID ownerId,
@@ -21,6 +25,8 @@ public record PlaceOrderCommand(
     String shipToAddress,
     LocalDate promisedDeliveryDate,
     UUID fulfillmentNodeId,
+    /** 上游說客戶下單的時刻。可為 {@code null}——上游沒有義務送這個值。 */
+    Instant placedAt,
     List<Line> lines
 ) {
 

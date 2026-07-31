@@ -116,13 +116,13 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     UUID stockPoolId = UUID.randomUUID();
     UUID firstOrderId = UUID.randomUUID();
     UUID secondOrderId = UUID.randomUUID();
-    Instant placedAt = Instant.now().minusSeconds(1);
+    Instant receivedAt = Instant.now().minusSeconds(1);
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-CONCURRENT", 3, 0));
-    orderRepository.save(OrderFixtures.pendingOrder(firstOrderId, "SKU-CONCURRENT", 3, placedAt));
-    orderRepository.save(OrderFixtures.pendingOrder(secondOrderId, "SKU-CONCURRENT", 3, placedAt));
+    orderRepository.save(OrderFixtures.pendingOrder(firstOrderId, "SKU-CONCURRENT", 3, receivedAt));
+    orderRepository.save(OrderFixtures.pendingOrder(secondOrderId, "SKU-CONCURRENT", 3, receivedAt));
 
-    OrderPlacedIntegrationEvent firstEvent = new OrderPlacedIntegrationEvent(UUID.randomUUID(), firstOrderId, placedAt);
-    OrderPlacedIntegrationEvent secondEvent = new OrderPlacedIntegrationEvent(UUID.randomUUID(), secondOrderId, placedAt);
+    OrderPlacedIntegrationEvent firstEvent = new OrderPlacedIntegrationEvent(UUID.randomUUID(), firstOrderId, receivedAt);
+    OrderPlacedIntegrationEvent secondEvent = new OrderPlacedIntegrationEvent(UUID.randomUUID(), secondOrderId, receivedAt);
     conflictInjector.blockFirstTwoAllocationAttempts();
 
     ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -159,10 +159,10 @@ class AllocationConcurrencyEndToEndIntegrationTest {
   void shouldRollbackAllocationWhenConcurrencyRetryIsExhausted() {
     UUID stockPoolId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
-    Instant placedAt = Instant.now().minusSeconds(1);
+    Instant receivedAt = Instant.now().minusSeconds(1);
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-EXHAUSTED", 3, 0));
-    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-EXHAUSTED", 3, placedAt));
-    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt);
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-EXHAUSTED", 3, receivedAt));
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
     double metricBefore = exhaustedMetricCount();
     conflictInjector.failFirstAllocationAttempts(3);
 

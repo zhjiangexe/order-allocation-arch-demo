@@ -95,11 +95,11 @@ class AllocationWorkflowEndToEndIntegrationTest {
   void shouldAllocateOrderFromKafkaIntegrationEventAndWriteOutbox() throws Exception {
     UUID orderId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
-    Instant placedAt = Instant.now().minusSeconds(1);
-    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, placedAt));
+    Instant receivedAt = Instant.now().minusSeconds(1);
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-AVAILABLE", 10, 0));
 
-    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, placedAt);
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
     consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();

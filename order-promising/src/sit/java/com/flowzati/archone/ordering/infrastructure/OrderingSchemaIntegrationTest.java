@@ -40,7 +40,7 @@ class OrderingSchemaIntegrationTest {
 
   private static final UUID OWNER_ID = uuid(1);
   private static final UUID OTHER_OWNER_ID = uuid(2);
-  private static final Instant PLACED_AT = Instant.parse("2026-07-27T08:00:00Z");
+  private static final Instant RECEIVED_AT = Instant.parse("2026-07-27T08:00:00Z");
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -293,7 +293,7 @@ class OrderingSchemaIntegrationTest {
     @DisplayName("最近訂單 index 應保留，方向與 ORDER BY 一致")
     void keepsTheRecentOrdersIndex() {
       assertThat(indexDefinition("orders", "idx_orders_recent"))
-          .contains("(placed_at DESC, id DESC)");
+          .contains("(received_at DESC, id DESC)");
     }
 
     @Test
@@ -411,10 +411,10 @@ class OrderingSchemaIntegrationTest {
     jdbcTemplate.update("""
         INSERT INTO orders (
             id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone, ship_to_address,
-            promised_delivery_date, status, placed_at)
+            promised_delivery_date, status, received_at)
         VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', ?, 'PENDING', ?)
         """, id, ownerId, externalOrderNo, nodeId,
-        Date.valueOf(LocalDate.of(2026, 8, 1)), Timestamp.from(PLACED_AT));
+        Date.valueOf(LocalDate.of(2026, 8, 1)), Timestamp.from(RECEIVED_AT));
   }
 
   private void seedLine(

@@ -79,7 +79,13 @@ export interface OrderView {
   promisedDeliveryDate: string;
   lines: OrderLineView[];
   status: OrderStatus;
-  placedAt: string;
+  /** 我們收到這張單的時刻。永遠有值，訂單列表就是依它排序的。 */
+  receivedAt: string;
+  /**
+   * 上游說客戶下單的時刻。上游沒送時為 null——**不會**被補成 receivedAt，因為補了就與
+   * 「上游真的送了同一個時間」看起來一樣。
+   */
+  placedAt: string | null;
   allocatedAt: string | null;
   backOrderedSince: string | null;
   cancelledAt: string | null;

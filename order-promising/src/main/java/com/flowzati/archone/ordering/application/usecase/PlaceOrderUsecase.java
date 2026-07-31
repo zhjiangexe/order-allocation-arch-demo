@@ -36,14 +36,17 @@ public class PlaceOrderUsecase {
   @Transactional
   public Order placeOrder(PlaceOrderCommand command) {
     UUID orderId = IdGenerator.nextId();
-    Instant placedAt = Instant.now();
+    // 收單時刻一律取自我們的時鐘，不接受呼叫端提供：訂單先後的排序靠它，讓外部決定就等於
+    // 讓外部決定誰先被配到貨。上游的下單時刻則原樣收下，不做修正也不在缺漏時補值。
+    Instant receivedAt = Instant.now();
     Order placedOrder = Order.place(
         orderId,
         command.ownerId(),
         command.externalOrderNo(),
         toDeliveryTerms(command),
         toLines(command),
-        placedAt);
+        receivedAt,
+        command.placedAt());
     orderRepository.save(placedOrder);
     placedOrder.releaseDomainEvents().forEach(publisher::publishEvent);
     return placedOrder;

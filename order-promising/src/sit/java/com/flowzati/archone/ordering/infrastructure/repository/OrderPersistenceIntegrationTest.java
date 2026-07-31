@@ -51,7 +51,7 @@ import org.springframework.test.context.ActiveProfiles;
 @DisplayName("Order PostgreSQL persistence adapter")
 class OrderPersistenceIntegrationTest {
 
-  private static final Instant PLACED_AT = Instant.parse("2026-07-23T08:00:00Z");
+  private static final Instant RECEIVED_AT = Instant.parse("2026-07-23T08:00:00Z");
   private static final Instant BACKORDERED_AT = Instant.parse("2026-07-23T08:01:00Z");
 
   @Autowired
@@ -77,7 +77,7 @@ class OrderPersistenceIntegrationTest {
   void persistsAndRestoresOrder() {
     UUID orderId = uuid(1);
     Order order = OrderFixtures.backorderedOrder(
-        orderId, OrderFixtures.OWNER_ID, "SKU-1", 3, PLACED_AT, BACKORDERED_AT, null);
+        orderId, OrderFixtures.OWNER_ID, "SKU-1", 3, RECEIVED_AT, BACKORDERED_AT, null);
 
     repositoryAdapter.save(order);
     jpaRepository.flush();
@@ -89,7 +89,9 @@ class OrderPersistenceIntegrationTest {
     assertThat(restored.getOwnerId()).isEqualTo(OrderFixtures.OWNER_ID);
     assertThat(restored.getDemand()).isEqualTo(Map.of("SKU-1", 3));
     assertThat(restored.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(restored.getPlacedAt()).isEqualTo(PLACED_AT);
+    assertThat(restored.getReceivedAt()).isEqualTo(RECEIVED_AT);
+    // fixture 不帶上游的下單時刻，往返之後仍然不帶。
+    assertThat(restored.getPlacedAt()).isNull();
     assertThat(restored.getAllocatedAt()).isNull();
     assertThat(restored.getBackOrderedSince()).isEqualTo(BACKORDERED_AT);
     assertThat(restored.getCancelledAt()).isNull();
@@ -160,7 +162,7 @@ class OrderPersistenceIntegrationTest {
   @Test
   @DisplayName("訂單行指向該貨主沒有的 SKU 時應被外鍵擋下")
   void rejectsLineReferencingASkuTheOwnerDoesNotHave() {
-    Order order = OrderFixtures.pendingOrder(uuid(1), "SKU-NOT-IN-CATALOG", 3, PLACED_AT);
+    Order order = OrderFixtures.pendingOrder(uuid(1), "SKU-NOT-IN-CATALOG", 3, RECEIVED_AT);
 
     // 應用層刻意不預先查主檔：多一層檢查只換到更好的錯誤訊息，卻多一條「檢查通過但
     // 寫入時已被刪除」的競爭路徑。完整性由外鍵保證。
@@ -206,7 +208,8 @@ class OrderPersistenceIntegrationTest {
         List.of(OrderLine.create(
             uuid(12), 1, OrderFixtures.OTHER_OWNER_ID, "SKU-1", 3)),
         OrderStatus.PENDING,
-        PLACED_AT, null, null, null, null));
+        RECEIVED_AT,
+        null, null, null, null, null));
     jpaRepository.flush();
 
     assertThat(jdbcTemplate.queryForObject(
@@ -217,11 +220,11 @@ class OrderPersistenceIntegrationTest {
   @Test
   @DisplayName("應以下單時間遞減取最近訂單，並在時間相同時以 ID 穩定排序")
   void findsRecentOrdersInStableDescendingOrder() {
-    // 前三筆刻意共用同一個 placed_at：沒有 id 作為 tie-breaker 的話，重複查詢的順序不保證一致
+    // 前三筆刻意共用同一個 received_at：沒有 id 作為 tie-breaker 的話，重複查詢的順序不保證一致
     persistOrder(uuid(1), "SKU-1", OrderStatus.PENDING, null, null);
     persistOrder(uuid(2), "SKU-1", OrderStatus.PENDING, null, null);
     persistOrder(uuid(3), "SKU-2", OrderStatus.PENDING, null, null);
-    persistOrderAt(uuid(4), "SKU-1", PLACED_AT.plusSeconds(1));
+    persistOrderAt(uuid(4), "SKU-1", RECEIVED_AT.plusSeconds(1));
     entityManager.clear();
 
     assertThat(repositoryAdapter.findRecent(10)).extracting(Order::getId)
@@ -243,7 +246,7 @@ class OrderPersistenceIntegrationTest {
           AND indexname = 'idx_orders_recent'
         """, String.class);
 
-    assertThat(indexDefinition).contains("(placed_at DESC, id DESC)");
+    assertThat(indexDefinition).contains("(received_at DESC, id DESC)");
   }
 
   /** 一張指定上游單號的訂單——上游單號正是 unique constraint 的一半。 */
@@ -255,7 +258,8 @@ class OrderPersistenceIntegrationTest {
         OrderFixtures.deliveryTerms(),
         List.of(OrderLine.create(UUID.randomUUID(), 1, OrderFixtures.OWNER_ID, "SKU-1", 3)),
         OrderStatus.PENDING,
-        PLACED_AT, null, null, null, null);
+        RECEIVED_AT,
+        null, null, null, null, null);
   }
 
   private void persistOrder(
@@ -265,7 +269,7 @@ class OrderPersistenceIntegrationTest {
       Instant allocatedAt,
       Instant backorderedSince
   ) {
-    persistOrder(id, OrderFixtures.OWNER_ID, sku, status, allocatedAt, backorderedSince, PLACED_AT);
+    persistOrder(id, OrderFixtures.OWNER_ID, sku, status, allocatedAt, backorderedSince, RECEIVED_AT);
   }
 
   private void persistOrder(
@@ -275,7 +279,7 @@ class OrderPersistenceIntegrationTest {
       OrderStatus status,
       Instant allocatedAt,
       Instant backorderedSince,
-      Instant placedAt
+      Instant receivedAt
   ) {
     jpaRepository.saveAndFlush(new OrderEntity(
         id,
@@ -288,7 +292,9 @@ class OrderPersistenceIntegrationTest {
         List.of(new OrderLineEntity(
             UUID.randomUUID(), 1, ownerId, sku, 1, status, backorderedSince)),
         status,
-        placedAt,
+        receivedAt,
+        // 上游的下單時刻——這些 fixture 一律不帶，它們驗的是排序與狀態，與上游時間無關。
+        null,
         allocatedAt,
         backorderedSince,
         null,
@@ -296,8 +302,8 @@ class OrderPersistenceIntegrationTest {
     ));
   }
 
-  private void persistOrderAt(UUID id, String sku, Instant placedAt) {
-    persistOrder(id, OrderFixtures.OWNER_ID, sku, OrderStatus.PENDING, null, null, placedAt);
+  private void persistOrderAt(UUID id, String sku, Instant receivedAt) {
+    persistOrder(id, OrderFixtures.OWNER_ID, sku, OrderStatus.PENDING, null, null, receivedAt);
   }
 
   private static UUID uuid(int suffix) {

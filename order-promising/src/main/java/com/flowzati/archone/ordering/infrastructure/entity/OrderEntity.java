@@ -27,7 +27,7 @@ import java.util.UUID;
         name = "uq_orders_owner_external_no",
         columnNames = {"owner_id", "external_order_no"}
     ),
-    indexes = @Index(name = "idx_orders_recent", columnList = "placed_at,id")
+    indexes = @Index(name = "idx_orders_recent", columnList = "received_at,id")
 )
 public class OrderEntity {
 
@@ -69,7 +69,11 @@ public class OrderEntity {
   @Column(nullable = false)
   private OrderStatus status;
 
-  @Column(name = "placed_at", nullable = false)
+  @Column(name = "received_at", nullable = false)
+  private Instant receivedAt;
+
+  /** 上游說客戶下單的時刻。可空——上游沒有義務送這個值。刻意不參與任何排序。 */
+  @Column(name = "placed_at")
   private Instant placedAt;
 
   @Column(name = "allocated_at")
@@ -98,6 +102,7 @@ public class OrderEntity {
       UUID fulfillmentNodeId,
       List<OrderLineEntity> lines,
       OrderStatus status,
+      Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
       Instant backorderedSince,
@@ -113,6 +118,7 @@ public class OrderEntity {
     this.fulfillmentNodeId = fulfillmentNodeId;
     this.lines = lines;
     this.status = status;
+    this.receivedAt = receivedAt;
     this.placedAt = placedAt;
     this.allocatedAt = allocatedAt;
     this.backorderedSince = backorderedSince;
@@ -154,6 +160,10 @@ public class OrderEntity {
 
   public OrderStatus getStatus() {
     return status;
+  }
+
+  public Instant getReceivedAt() {
+    return receivedAt;
   }
 
   public Instant getPlacedAt() {
