@@ -8,8 +8,8 @@ import java.util.UUID;
 /**
  * 下單命令的 JSON request body。
  *
- * <p>欄位規則由 {@code Order} aggregate 與資料庫的約束驗證，不在此重複——包括「恰好一筆
- * 行」這條收單政策,以及行的 SKU 必須存在於該貨主的主檔。
+ * <p>欄位規則由 {@code Order} aggregate 與資料庫的約束驗證，不在此重複——包括「至少一筆行」，
+ * 以及行的 SKU 必須存在於該貨主的主檔。行數沒有上限，同一個 SKU 也可以出現在多行上。
  *
  * <p><b>沒有收單時刻。</b>那是我們的事實，由 usecase 以系統時鐘寫入。呼叫端能提供的只有
  * {@code placedAt}——上游系統說客戶何時下的單。

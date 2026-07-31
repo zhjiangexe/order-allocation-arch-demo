@@ -15,12 +15,11 @@ import org.junit.jupiter.api.Test;
 /**
  * 訂單行的存取規則。
  *
- * <p>收單目前只收一行，因此「取第一行」在今天完全正確、不會有任何測試失敗，卻會在放寬多行
- * 時安靜地只處理第一行。這支測試把那種寫法變成建置失敗。
+ * <p>收單已經收多行，所以「取第一行」現在會**安靜地丟掉其餘的行**——它編譯得過、跑得動，
+ * 只是配少了。這支測試把那種寫法變成建置失敗。
  *
- * <p>要摺成單一值的地方一律走 {@code Order.requireSingleSku()} 或
- * {@code LineSnapshot.requireSingleSku()}——它們以集合運算取值並在假設破裂時拋錯，而不是
- * 以位置存取，所以這條規則不需要為它們開例外。
+ * <p>要把整張單摺成單一值的地方一律走 {@code getDemand()} 之類的集合運算：它們看得到每一
+ * 行，所以這條規則不需要為它們開例外。
  */
 @DisplayName("Ordering architecture")
 class OrderingArchitectureTest {

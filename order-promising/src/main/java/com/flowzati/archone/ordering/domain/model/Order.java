@@ -77,11 +77,13 @@ public class Order {
   /**
    * 收單。
    *
-   * <p><strong>刻意限定恰好一筆 line。</strong> 這是收單政策，不是 domain invariant——
-   * 儲存的 schema 允許任意筆數，{@link #rehydrate} 也不施加這個限制。三者態度不同是刻意的：
-   * schema 不設限，R8 放寬時才不必搬遷結構；{@code rehydrate} 不設限，它的職責是還原資料庫
-   * 裡的任何東西，而那也讓測試今天就能造出多行訂單，把讀取、映射、序列化的多行路徑一直
-   * 驗著。
+   * <p><strong>至少一筆 line</strong>，由 {@code validateState} 一併把關——收單與還原對這件事
+   * 的態度相同，因為零行的訂單根本不是儲存能持有的狀態。收單曾經比還原嚴格（「恰好一筆」），
+   * 那個不對稱隨著限制解除而消失。
+   *
+   * <p>行數以外不設限：兩行不同 SKU、兩行同一個 SKU 都收。同 SKU 的兩行不合併也不拒絕——
+   * 需求是它們的<strong>加總</strong>（見 {@link #getDemand()}），而上游的行結構是它自己的
+   * 事，我們沒有立場改寫。
    *
    * @param receivedAt 我們收到這張單的時刻，由呼叫端以系統時鐘取得
    * @param placedAt 上游說客戶下單的時刻，可為 {@code null}
@@ -95,10 +97,6 @@ public class Order {
       Instant receivedAt,
       Instant placedAt
   ) {
-    if (lines == null || lines.size() != 1) {
-      throw new IllegalArgumentException(
-          "Order intake accepts exactly one line per order; multi-line intake is not enabled");
-    }
     Order order = new Order(
         id, ownerId, externalOrderNo, deliveryTerms, lines, OrderStatus.PENDING, receivedAt,
         placedAt, null, null, null, null);
@@ -115,7 +113,7 @@ public class Order {
     return order;
   }
 
-  /** 由儲存還原。**不施加**「恰好一筆」的限制，理由見 {@link #place}。 */
+  /** 由儲存還原。 */
   public static Order rehydrate(
       UUID id,
       UUID ownerId,
@@ -165,30 +163,6 @@ public class Order {
     return quantity;
   }
 
-  /**
-   * 這張單唯一涉及的 SKU，語意是<strong>「此呼叫端踩在『每張單只碰一個 SKU』這個假設上」
-   * </strong>。
-   *
-   * <p>存在的理由是有些地方非要把整張單摺成一個值不可——outbox 的 partition key、配貨重試的
-   * context 標籤，以及「用哪個 SKU 去撈庫存池」。它們今天成立是因為收單只收一行。
-   *
-   * <p><strong>這是單 SKU 假設，不是單行假設。</strong> 同一個 SKU 的兩行對這些呼叫端毫無
-   * 影響——它們要的是「哪一個 SKU」，而不是「哪一行」。用行數當判準會拒絕一批其實處理得了
-   * 的訂單，也會讓 R8 的待修清單虛胖。
-   *
-   * <p>把假設集中在一個有名字的方法上，而不是散落成各處的 {@code getDemand().keySet()} 取
-   * 首個：R8 放寬多行時，搜尋這個方法的呼叫點就是完整的待修清單。以字串黑名單禁止位置存取
-   * 則做不到——{@code stream().findFirst()} 或「迴圈第一圈就 break」都繞得過。
-   */
-  public String requireSingleSku() {
-    java.util.Set<String> skuCodes = getDemand().keySet();
-    if (skuCodes.size() != 1) {
-      throw new IllegalStateException(
-          "This caller assumes a single-SKU order, but the order spans " + skuCodes.size()
-              + " SKUs");
-    }
-    return skuCodes.iterator().next();
-  }
 
   public void markAllocated(Instant allocatedAt) {
     if (status != OrderStatus.PENDING && status != OrderStatus.BACKORDERED) {

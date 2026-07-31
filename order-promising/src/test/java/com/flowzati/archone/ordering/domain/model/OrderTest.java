@@ -209,25 +209,46 @@ class OrderTest {
   }
 
   @Nested
-  @DisplayName("收單政策：恰好一筆行")
-  class SingleLineIntakePolicy {
+  @DisplayName("收單政策：至少一筆行")
+  class IntakeLinePolicy {
 
     @Test
-    @DisplayName("零筆或兩筆行的收單應被拒絕，且不留下任何資料")
-    void rejectsIntakeThatIsNotExactlyOneLine() {
-      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(), receivedAt, null))
+    @DisplayName("零筆行的收單應被拒絕——沒有需求可配的訂單只會讓下游每一段都得處理它")
+    void rejectsIntakeWithoutAnyLine() {
+      assertThatThrownBy(() -> Order.place(
+          orderId, ownerId, "EXT-1", delivery(), List.of(), receivedAt, null))
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("exactly one line");
-      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(),
-          List.of(line(1, "SKU-1", 1), line(2, "SKU-2", 1)), receivedAt, null))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("exactly one line");
-      assertThatThrownBy(() -> Order.place(orderId, ownerId, "EXT-1", delivery(), null, receivedAt, null))
+          .hasMessageContaining("at least one line");
+      assertThatThrownBy(() -> Order.place(
+          orderId, ownerId, "EXT-1", delivery(), null, receivedAt, null))
           .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    @DisplayName("rehydrate 不受此限制——它的職責是還原資料庫裡的任何東西")
+    @DisplayName("兩行不同 SKU 應被接受，且事件帶出兩條行")
+    void acceptsTwoLinesNamingDifferentSkus() {
+      Order order = Order.place(orderId, ownerId, "EXT-1", delivery(),
+          List.of(line(1, "SKU-1", 3), line(2, "SKU-2", 7)), receivedAt, null);
+
+      assertThat(order.getLines()).extracting(OrderLine::getSkuCode)
+          .containsExactly("SKU-1", "SKU-2");
+      assertThat(order.getDemand()).containsExactlyInAnyOrderEntriesOf(
+          Map.of("SKU-1", 3, "SKU-2", 7));
+    }
+
+    @Test
+    @DisplayName("兩行同一個 SKU 應被接受，需求是它們的加總")
+    void acceptsTwoLinesNamingTheSameSku() {
+      // 不合併也不拒絕：上游的行結構是它自己的事，我們沒有立場改寫。要配的是加總。
+      Order order = Order.place(orderId, ownerId, "EXT-1", delivery(),
+          List.of(line(1, "SKU-1", 3), line(2, "SKU-1", 7)), receivedAt, null);
+
+      assertThat(order.getLines()).hasSize(2);
+      assertThat(order.getDemand()).containsExactly(Map.entry("SKU-1", 10));
+    }
+
+    @Test
+    @DisplayName("rehydrate 同樣還原得出多行")
     void rehydrationReconstructsMultipleLines() {
       Order order = twoLineOrder();
 
@@ -295,35 +316,6 @@ class OrderTest {
     }
   }
 
-  @Nested
-  @DisplayName("requireSingleSku：把單 SKU 假設集中在一個名字上")
-  class SingleSkuAssumption {
-
-    @Test
-    @DisplayName("只涉及一個 SKU 時應回傳它")
-    void returnsTheOnlySku() {
-      assertThat(pendingOrder().requireSingleSku()).isEqualTo("SKU-1");
-    }
-
-    @Test
-    @DisplayName("同一個 SKU 的兩行仍然成立——判準是 SKU 的個數，不是行數")
-    void holdsForTwoLinesOfTheSameSku() {
-      Order order = Order.rehydrate(
-          orderId, ownerId, "EXT-1", delivery(),
-          List.of(line(1, "SKU-1", 3), line(2, "SKU-1", 7)),
-          OrderStatus.PENDING, receivedAt, null, null, null, null, null);
-
-      assertThat(order.requireSingleSku()).isEqualTo("SKU-1");
-    }
-
-    @Test
-    @DisplayName("跨多個 SKU 時應明確拋錯，而不是安靜取用第一個")
-    void failsLoudlyWhenTheAssumptionBreaks() {
-      assertThatThrownBy(() -> twoLineOrder().requireSingleSku())
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("single-SKU");
-    }
-  }
 
   @Nested
   @DisplayName("行的狀態與時間戳跟隨 header")

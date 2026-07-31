@@ -112,7 +112,7 @@ class OrderControllerTest {
   void rejectsCommandsTheAggregateRefuses() {
     when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
         .thenThrow(new IllegalArgumentException(
-            "Order intake accepts exactly one line per order"));
+            "Order must contain at least one line"));
 
     assertThat(mvc.post().uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)

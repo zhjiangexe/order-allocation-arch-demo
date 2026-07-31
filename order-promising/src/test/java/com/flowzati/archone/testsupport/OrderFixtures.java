@@ -6,6 +6,8 @@ import com.flowzati.archone.ordering.domain.model.OrderLine;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -177,6 +179,23 @@ public final class OrderFixtures {
   ) {
     return order(orderId, ownerId, skuCode, quantity, OrderStatus.BACKORDERED, receivedAt,
         null, backorderedAt, version);
+  }
+
+  /**
+   * 一張跨多個 SKU 的待配訂單，每個 SKU 各一行。
+   *
+   * <p>{@code quantitiesBySku} 的**迭代順序就是行號的順序**，所以要 {@code LinkedHashMap}
+   * 或 {@code List.of} 造出來的 Map。行號在整籃配貨裡不影響結果（要嘛整張配、要嘛整張不
+   * 配），但斷言常常照行號寫。
+   */
+  public static Order pendingMultiSkuOrder(
+      UUID orderId, Instant receivedAt, Map<String, Integer> quantitiesBySku) {
+    List<OrderLine> lines = new ArrayList<>();
+    quantitiesBySku.forEach((skuCode, quantity) -> lines.add(OrderLine.rehydrate(
+        UUID.randomUUID(), lines.size() + 1, OWNER_ID, skuCode, quantity, OrderStatus.PENDING)));
+    return Order.rehydrate(
+        orderId, OWNER_ID, "EXT-" + orderId, deliveryTerms(), lines,
+        OrderStatus.PENDING, receivedAt, null, null, null, null, null);
   }
 
   /** 一張已配到貨的訂單。 */
