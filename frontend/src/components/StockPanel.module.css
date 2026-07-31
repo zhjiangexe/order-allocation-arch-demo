@@ -90,9 +90,65 @@
   font-size: 0.9rem;
 }
 
+.requery {
+  font-size: 0.85rem;
+}
+
 .eventId {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
+}
+
+/*
+  展開鍵長得像文字而不是按鈕：它就在貨品名稱的位置上，做成一般按鈕會讓那一格看起來有兩件
+  東西。可聚焦與 aria-expanded 仍然照舊，所以鍵盤與螢幕閱讀器不受影響。
+*/
+.expander {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* 展開的那一列讓給批次表，內縮以看得出從屬關係。 */
+.batchCell {
+  padding: 0.25rem 0.6rem 0.75rem 2rem;
+  background: var(--accent-surface);
+}
+
+.batchTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.batchTable th,
+.batchTable td {
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.batchTable th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/*
+  已過期不為零時標紅：那一格就是在手與可承諾對不起來的差額，也是「要報廢還是要進貨」
+  唯一的線索。為零時保持一般顏色——沒有過期貨不是一件要提醒的事。
+*/
+.expiredCell {
+  color: crimson;
+  font-weight: 600;
 }
 
 /* 批次列表。欄位順序與配貨取用的順序一致，第一列就是下一張單會吃到的那一批。 */

@@ -1,0 +1,107 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 45%);
+  z-index: 10;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(32rem, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 1rem 1.25rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/*
+  已知的三個維度。做成定義列表而不是一行字：它們是三件各自獨立的事實，而讀的人要對得上
+  「我點的是哪一列」。
+*/
+.context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 4px;
+  background: var(--accent-surface);
+}
+
+.context div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.context dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.context dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.skuValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+  background: var(--surface);
+  color: inherit;
+}
+
+.quantity {
+  width: 7rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
