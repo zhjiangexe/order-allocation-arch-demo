@@ -275,185 +275,6 @@ selection rather than relying on the backend to reject it.
 | not selected | — | — | — | 1 | blocked in the form, no request sent |
 
 ---
-### Requirement: Stock state and replenishment share one page keyed by SKU
-
-The stock page SHALL query and replenish through one SKU field, because they are one
-continuous action: see that nothing can be promised, add stock, look again.
-
-**The query result SHALL be a list of stock rows, not a single set of numbers.** Each
-row SHALL show its warehouse, arrival date, expiry date, on-hand, reserved,
-available-to-promise, and whether it has expired. Expired rows SHALL be
-shown with the reason rather than hidden — hiding them makes "we hold stock we cannot
-ship" look identical to "we hold nothing", and those call for different actions.
-
-**The rows SHALL be listed in the order the backend returned them, and the page SHALL
-NOT re-sort them.** That order groups the rows by warehouse and runs earliest-expiry-first
-within each, which is the order allocation would draw on them — so the page answers
-"which of these goes first" without the viewer reconstructing the rule.
-
-Re-sorting client-side would make the page state a consumption order of its own, which
-could disagree with the one allocation actually follows while looking equally
-authoritative. The tie-breaks reach down to row identity, so the page could not reproduce
-the real order even if it tried.
-
-Both query and replenishment SHALL require an owner. Stock is held per owner; a SKU
-code alone names two owners' goods at once.
-
-Replenishment SHALL additionally require a warehouse, an arrival date and an expiry
-date, because those complete the identity of the row being added to. The form SHALL
-prevent submission when any of them is missing rather than relying on the backend to
-reject it.
-
-#### Scenario: A SKU held in three rows shows three rows in consumption order
-
-- **WHEN** the viewer queries a SKU their selected owner holds in three rows
-- **THEN** three rows appear, ordered as allocation would consume them, each showing
-  its warehouse, dates and quantities
-
-#### Scenario: An expired row is shown with its reason
-
-- **GIVEN** one of the rows has passed its expiry date
-- **WHEN** the viewer queries that SKU
-- **THEN** that row is present and marked as expired
-
-##### Example: replenishment fields required before submission
-
-| Owner | Warehouse | Arrival date | Expiry date | Quantity | Result |
-| --- | --- | --- | --- | --- | --- |
-| selected | selected | set | set | 1 | submitted |
-| selected | not selected | set | set | 1 | blocked in the form, no request sent |
-| selected | selected | missing | set | 1 | blocked in the form, no request sent |
-| selected | selected | set | missing | 1 | blocked in the form, no request sent |
-| not selected | — | — | — | 1 | blocked in the form, no request sent |
-
-
-<!-- @trace
-source: add-batch-stock-and-fefo
-updated: 2026-07-30
-code:
-  - frontend/src/components/StockPanel.tsx
-  - docs/execution-roadmap.md
-  - e2e/perf/k6/results/hot-sku-burst-20260730T164656.json
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/OrderAllocatedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/event/LineSnapshot.java
-  - e2e/perf/run.sh
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/StockReplenishedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/BackorderWakeRequestedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinator.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/infrastructure/repository/jpa/JpaOrderRepository.java
-  - e2e/perf/k6/hot-sku-burst.js
-  - e2e/perf/kafka-connect/register-outbox-connector.sh
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolController.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/OrderLine.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/model/StockPool.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/command/WakeBackordersCommand.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/model/ReservationStatus.java
-  - order-promising/src/main/java/com/flowzati/archone/common/outbox/StockContentionKey.java
-  - frontend/vite.config.ts
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/event/OrderCancelled.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/StockReplenishedIntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
-  - order-promising/src/main/java/com/flowzati/archone/common/outbox/OutboxAggregateTypes.java
-  - order-promising/src/main/resources/application-dev.properties
-  - frontend/src/api/catalog.ts
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/event/OrderCancelledIntegrationEvent.java
-  - order-promising/src/main/resources/db/migration/V4__create_stock_reservations.sql
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/jpa/JpaStockReservationRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationResult.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/BatchPick.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/BackorderWakeRequestedIntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/common/messaging/kafka/IntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationRequest.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/StockReservationRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/common/messaging/kafka/KafkaIntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/common/configuration/CommonConfiguration.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/entity/StockPoolEntity.java
-  - order-promising/src/main/java/com/flowzati/archone/common/time/BusinessCalendar.java
-  - docs/stock-reservation-design.md
-  - frontend/src/api/client.ts
-  - order-promising/src/main/resources/db/migration/V3__create_stock_pools.sql
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/usecase/CancelOrderUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/jpa/JpaStockRepository.java
-  - e2e/perf/k6/results/hot-sku-burst-20260730T164603.json
-  - frontend/README.md
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/event/BackorderWakeContinuationRequired.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/model/StockReservation.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/repository/OrderRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/event/OrderAllocationCompleted.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/translator/AllocationDomainEventTranslator.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/repository/StockReservationRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/repository/StockPoolRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/event/translator/OrderingDomainEventTranslator.java
-  - order-promising/src/main/resources/db/migration/V2__create_ordering_tables.sql
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/OrderAllocation.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationOutcome.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/OrderPlacedIntegrationEventHandler.java
-  - e2e/perf/docker-compose.yml
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/mapper/StockReservationMapper.java
-  - order-promising/src/main/java/com/flowzati/archone/common/messaging/kafka/KafkaIntegrationEventDispatcher.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/event/OrderPlacedIntegrationEvent.java
-  - docs/dom-promising-scope.md
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolResponse.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/OrderCancelledIntegrationEventHandler.java
-  - frontend/src/api/types.ts
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/command/ReplenishStockCommand.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/mapper/StockPoolMapper.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/demo/ReplenishmentProbeController.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/ReleaseReservationUsecase.java
-  - order-promising/src/main/resources/application.properties
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/BackorderCreatedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/infrastructure/repository/OrderRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationService.java
-  - e2e/perf/README.md
-  - docs/system-layer-map.md
-  - order-promising/src/main/resources/db/migration/V2__create_stock_pools.sql
-  - order-promising/src/main/resources/db/migration/V3__create_ordering_tables.sql
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/GetStockPoolUsecase.java
-  - frontend/src/pages/StockPage.tsx
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/Order.java
-  - frontend/src/components/StockPanel.module.css
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/entity/StockReservationEntity.java
-tests:
-  - order-promising/src/test/java/com/flowzati/archone/demo/ReplenishmentProbeControllerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationFifoGuaranteeScopeIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/model/StockFixtures.java
-  - order-promising/src/test/java/com/flowzati/archone/common/time/BusinessCalendarTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/model/StockPoolTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecaseTest.java
-  - order-promising/src/test/java/com/flowzati/archone/common/event/EventSeparationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/ReleaseReservationUsecaseTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/model/StockReservationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolControllerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/infrastructure/repository/StockReservationPersistenceIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/application/usecase/InboundCommandTransactionIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/common/outbox/OutboxCdcIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/common/outbox/DomainEventTranslatorTest.java
-  - order-promising/src/test/java/com/flowzati/archone/demo/DemoConfigControllerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/demo/ReplenishmentProbeEndToEndIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationConcurrencyEndToEndIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/infrastructure/mapper/StockPoolMapperTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationKafkaIntegrationEventConsumerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolPersistenceIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/application/usecase/CancelOrderUsecaseTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/ordering/infrastructure/repository/OrderPersistenceIntegrationTest.java
-  - frontend/src/components/StockPanel.test.tsx
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationServiceTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinatorTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/domain/model/OrderTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecaseTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationSelectorTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/common/outbox/OutboxAggregateQueryIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationHotSkuConcurrencyIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/infrastructure/mapper/StockReservationMapperTest.java
--->
-
----
 ### Requirement: Data is fetched only in response to a user action
 
 Every backend request SHALL be traceable to an explicit user action: opening a
@@ -617,4 +438,151 @@ tests:
   - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
   - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationSelectorTest.java
   - order-promising/src/test/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinatorTest.java
+-->
+
+---
+### Requirement: Stock state and replenishment share one page keyed to a warehouse
+
+The stock page SHALL query by owner and warehouse, and SHALL replenish from the row of
+the goods being replenished. Query and replenishment remain one continuous action — see
+that nothing can be promised, add stock, look again — but the question the page answers
+is now the one a warehouse asks: what is held here, and what is missing.
+
+**The result SHALL be a line per specification, not per batch.** Each line SHALL show its
+goods and four quantities: on-hand, reserved, available-to-promise, and expired.
+
+**On-hand SHALL include expired batches and available-to-promise SHALL NOT.** On-hand is
+a physical fact about the warehouse; available-to-promise is what allocation can actually
+honour, and allocation never draws on an expired batch. The two therefore need not sum
+with reserved, and the expired column SHALL account for the difference — that difference
+is what separates "write it off" from "order more".
+
+**Each line SHALL be expandable into its batches**, and the batches SHALL carry arrival
+date, expiry date, on-hand, reserved, available-to-promise and whether they have expired.
+Expired batches SHALL be shown with the reason rather than hidden — hiding them makes "we
+hold stock we cannot ship" look identical to "we hold nothing", and those call for
+different actions.
+
+**The batches SHALL be listed in the order the backend returned them, and the page SHALL
+NOT re-sort them.** That order runs earliest-expiry-first, which is the order allocation
+would draw on them — so the page answers "which of these goes first" without the viewer
+reconstructing the rule. Re-sorting client-side would state a consumption order of its
+own, which could disagree with the one allocation follows while looking equally
+authoritative; the tie-breaks reach down to batch identity, so the page could not
+reproduce the real order even if it tried.
+
+**Every specification the owner has SHALL be listed, including those the warehouse holds
+none of**, showing zero. Those zeros are the answer to "what is this warehouse missing",
+and they are what makes the replenish action reachable for goods that have never been
+stocked here.
+
+**Stock held under a SKU code the catalog does not know SHALL also be listed**, named by
+its code alone. The catalog and the stock are separate records with no reference between
+them, so a warehouse can hold goods the catalog has never heard of. Listing only what the
+catalog knows would under-report what the warehouse physically holds — and the quantity
+missing from the screen would be exactly the quantity nobody can account for.
+
+**The lines SHALL be ordered by product then specification, and that order SHALL NOT
+depend on the quantities.** Replenishment is observed by querying again, so a line that
+moved because its numbers changed is a line whose change cannot be seen.
+
+Replenishment SHALL open from a line, and SHALL show the owner, warehouse and goods as
+fixed context that cannot be edited — they are already settled by the query and the line,
+and letting them differ would mean writing to something other than what was clicked.
+The arrival date, expiry date and quantity SHALL be the only inputs, and the two dates
+SHALL be prefilled from that specification's earliest-expiring batch **that has not
+expired**, so that submitting unchanged adds to an existing batch and changing them opens
+a new one. Expired batches SHALL be skipped: they sort first by expiry, and adding stock
+to one would put it where allocation can never reach it. A specification whose batches are
+all expired, or which has none, SHALL leave the dates empty.
+
+The form SHALL prevent submission when a date or the quantity is missing rather than
+relying on the backend to reject it.
+
+**Submitting SHALL close the window and SHALL NOT re-query.** Replenishment is accepted
+rather than applied, so an immediate re-query can show numbers that have not moved yet,
+and the viewer could not tell that from numbers that will not move. The page SHALL
+instead state that the replenishment was accepted and that the result requires querying
+again.
+
+#### Scenario: A specification held in three batches shows one line that expands to three
+
+- **WHEN** the viewer queries an owner and warehouse where one specification is held in
+  three batches
+- **THEN** one line appears for that specification, and expanding it shows three batches
+  ordered as allocation would consume them
+
+#### Scenario: Expired stock is visible without expanding
+
+- **GIVEN** a specification is held in four batches, one of them expired
+- **WHEN** the viewer queries that owner and warehouse
+- **THEN** that line's expired quantity is non-zero, and its available-to-promise
+  excludes the expired batch
+
+#### Scenario: A specification the warehouse holds none of is still listed
+
+- **WHEN** the viewer queries an owner and warehouse holding none of one of that owner's
+  specifications
+- **THEN** that specification appears with zero quantities and can still be replenished
+
+#### Scenario: Stock under a code the catalog does not know is still listed
+
+- **GIVEN** a warehouse holds stock under a SKU code absent from the owner's catalog
+- **WHEN** the viewer queries that owner and warehouse
+- **THEN** that stock appears as its own line, identified by its code
+
+#### Scenario: Replenishment opens with the batch it will add to
+
+- **GIVEN** a specification held in batches
+- **WHEN** the viewer opens replenishment from that line
+- **THEN** the owner, warehouse and goods are shown but not editable, and the dates are
+  those of its earliest-expiring unexpired batch
+
+#### Scenario: An expired batch is not offered as the one to add to
+
+- **GIVEN** a specification whose earliest-expiring batch has expired
+- **WHEN** the viewer opens replenishment from that line
+- **THEN** the dates are those of the earliest batch that has not expired
+
+#### Scenario: Submitting does not pretend the stock has changed
+
+- **WHEN** the viewer submits a replenishment
+- **THEN** the window closes, the page reports that it was accepted, and the listed
+  quantities are unchanged until the viewer queries again
+
+##### Example: how a line's four quantities relate
+
+| Batches | On-hand | Reserved | Available | Expired |
+| --- | --- | --- | --- | --- |
+| 60 all reserved, 40 with 20 reserved, 30 free | 130 | 80 | 50 | 0 |
+| the same plus an expired batch of 25 | 155 | 80 | 50 | 25 |
+| none held here | 0 | 0 | 0 | 0 |
+
+第二列是這個欄位存在的理由：在手多了 25 而可承諾一件都沒多——**那 25 件出不了貨**。
+
+<!-- @trace
+source: key-the-stock-page-to-a-warehouse
+updated: 2026-07-31
+code:
+  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolController.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/GetStockPoolUsecase.java
+  - frontend/src/api/types.ts
+  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolResponse.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/repository/StockPoolRepository.java
+  - frontend/src/components/ReplenishDialog.tsx
+  - frontend/src/api/client.ts
+  - frontend/src/components/StockPanel.tsx
+  - frontend/src/components/StockPanel.module.css
+  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/jpa/JpaStockRepository.java
+  - frontend/README.md
+  - frontend/src/api/stockLines.ts
+  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolRepositoryImpl.java
+  - frontend/src/components/ReplenishDialog.module.css
+  - frontend/src/pages/StockPage.tsx
+tests:
+  - order-promising/src/test/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolControllerTest.java
+  - frontend/src/api/stockLines.test.ts
+  - frontend/src/pages/StockPage.test.tsx
+  - frontend/src/components/StockPanel.test.tsx
+  - order-promising/src/sit/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolPersistenceIntegrationTest.java
 -->
