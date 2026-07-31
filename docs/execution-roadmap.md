@@ -797,6 +797,43 @@ R3 archive 時任務 10.3 未勾。**它不是被放棄，是條件不具備**�
 
 兩項一起做，因為它們共用同一次環境準備（關掉其他負載 → `down` 重建 → 暖機一輪 → 正式一輪）。
 
+### 配貨服務對「一組批」的 feature envy
+
+`AllocationService` 對傳進來的 `Map<String, List<StockPool>>` 做了七處 map 形狀的操作：
+`keySet().containsAll`、`removeAll`、`values().stream().allMatch(List::isEmpty)`、`forEach`
+加總 ATP、`get(sku).isEmpty()`、`get(sku)` 取批、`forEach` 驗每個批掛對 SKU。**沒有一個是
+「配貨」**，全是「這組庫存怎麼查」。
+
+該抽的是那個 map 而不是 `(Demand, batches)` 這一對。配對物件套不上喚醒那條路（它是
+`List<Demand>` 對一組批），而且配對本身沒有自己的不變式——唯一能寫的「這兩者相容」有更自然的
+擁有者：庫存回答「我是不是這筆需求的合法供給」。
+
+抽成 `AllocatableStock` 之後該搬過去的：建構時驗「每個批掛在自己的 SKU 鍵下」（現在那個 map
+從 repository 組出來到進配貨為止**沒有任何人檢查**）、`batchesOf(skuCode)` 缺鍵即拋錯、
+`availableBySku()`、以及涵蓋檢查。
+
+**順帶一個實際的缺陷**：`allocate(demand, batchesBySku, now)` 的 `now` **完全沒被用到**——
+`requireBatchesCoverDemand`、`planPicks`、`applyPicks`、`outcomeFor` 都不收時間，
+`AllocationResult` 也不帶。`allocateBackorders` 的 `now` 才是真的有用（餵給
+`AllocationRequest.decisionAt`）。這個參數應該直接拿掉。
+
+沒有排程是因為它不修任何 bug——但它動的是 `AllocationService` 的介面與 repository 的回傳型別，
+混進任何一個功能 change 都會讓那個 change 讀不出來，所以要自己一個。
+
+### SIT 的 Postgres container 是 Spring bean，每個 context 各起一個
+
+`PostgreSQLTestConfiguration` 把 `PostgreSQLContainer` 宣告成 `@Bean`，所以**每一個不同的
+Spring context 都會起一個 container**。SIT 有 16 個 test class 各自帶 context 設定，快取命中
+不了的組合就各起一份。
+
+症狀是跑 SIT 時 docker 反覆起停 Postgres，看起來像有東西在無限重開。實際不會壞掉，只是慢，
+而且在 context 設定變動時特別明顯。
+
+修法是把 container 改成 `static` 欄位加手動 `start()`（Testcontainers 的 singleton container
+模式），生命週期綁 JVM 而不是 Spring context。要注意的是 `@ServiceConnection` 會失效，得改回
+`@DynamicPropertySource` 或自己設 datasource 屬性——那是這個修法唯一有分量的取捨：換來的是
+container 只起一次，付出的是連線設定不再由 Spring Boot 自動接。
+
 ### 倉別時區
 
 見 [system-layer-map.md](system-layer-map.md) 的「倉別時區：已識別但未排程」。
