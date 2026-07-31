@@ -10,28 +10,40 @@ interface PlaceOrderFormProps {
   pending: boolean;
 }
 
+/** 表單裡的一條行：選到一半也是合法的中間狀態，所以三個欄位都可以是空的。 */
+interface DraftLine {
+  /** 只給 React 當 key 用。行號由後端依序產生，不由這裡決定。 */
+  key: number;
+  productCode: string;
+  skuCode: string;
+  quantity: string;
+}
+
 /**
- * 商品以「款 → 規格」兩段選擇，而不是輸入 SKU 代碼。
+ * 一張訂單是一籃行，而不是一件商品。
  *
- * 在 3PL 裡 SKU 代碼由貨主自訂、跨貨主撞號，讓人手打就可能送出屬於別的貨主的代碼——那會被
- * 資料庫的外鍵擋下，但那是在一次無謂的往返之後。逐層選擇讓那種輸入從一開始就不存在。
+ * 商品以「款 → 規格」兩段選擇，而不是輸入 SKU 代碼。在 3PL 裡 SKU 代碼由貨主自訂、跨貨主
+ * 撞號，讓人手打就可能送出屬於別的貨主的代碼——那會被資料庫的外鍵擋下，但那是在一次無謂的
+ * 往返之後。逐層選擇讓那種輸入從一開始就不存在。
  *
- * 切換貨主時清空倉庫、款與規格：三者在別的貨主底下都不成立，留著只會讓表單能送出跨貨主的
- * 組合。
+ * 切換貨主時清空倉庫與**每一條行**：三者在別的貨主底下都不成立，留著只會讓表單能送出跨貨主
+ * 的組合。倉庫尤其要清——兩個貨主可能共用同一個倉，留著看起來像「還有效」，但它是否有效取決
+ * 於指派關係。
  *
- * 倉庫同樣用選的不用打——打字可以打出該貨主沒掛的倉，那會被資料庫的複合外鍵擋下，換來
- * 一次沒有必要的往返。
+ * 倉庫同樣用選的不用打——打字可以打出該貨主沒掛的倉，那會被資料庫的複合外鍵擋下，換來一次
+ * 沒有必要的往返。
  *
- * 三層選項都讀 `catalog`，不自己發請求：訂單列表為了把代碼還原成看得懂的字，本來就已經把
- * 整份主檔載進來了，表單再抓一次只會抓到同一批資料。因此選貨主、選款都不產生任何往返。
+ * 三層選項都讀 `catalog`，不自己發請求：訂單列表為了把代碼還原成看得懂的字，本來就已經把整份
+ * 主檔載進來了，表單再抓一次只會抓到同一批資料。因此選貨主、選款都不產生任何往返。
+ *
+ * 同一個規格出現在兩條行上是允許的，不是被容忍的：收單接受它，需求讀成兩者的加總。在這裡擋
+ * 下只會讓操作台拒絕系統處理得了的訂單。
  */
 export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormProps) {
   const ownerId = useId();
   const nodeId = useId();
   const externalOrderNoId = useId();
-  const productId = useId();
-  const skuId = useId();
-  const quantityId = useId();
+  const lineFieldId = useId();
   const zoneId = useId();
   const addressId = useId();
   const promisedId = useId();
@@ -39,9 +51,8 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
   const [selectedOwner, setSelectedOwner] = useState('');
   const [selectedNode, setSelectedNode] = useState('');
   const [externalOrderNo, setExternalOrderNo] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState('');
-  const [selectedSku, setSelectedSku] = useState('');
-  const [quantity, setQuantity] = useState('1');
+  const [lines, setLines] = useState<DraftLine[]>([emptyLine(0)]);
+  const [nextKey, setNextKey] = useState(1);
   const [shipToZone, setShipToZone] = useState('100');
   const [shipToAddress, setShipToAddress] = useState('台北市中正區重慶南路一段 122 號');
   const [promisedDeliveryDate, setPromisedDeliveryDate] = useState(defaultPromisedDate());
@@ -49,25 +60,35 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
 
   const nodes = catalog.nodesOf(selectedOwner);
   const products = catalog.productsOf(selectedOwner);
-  const skus = catalog.skusOf(selectedOwner, selectedProduct);
 
   function handleOwnerChange(value: string) {
     setSelectedOwner(value);
-    // 換貨主等於換一整組主檔——倉庫、款、規格在新貨主底下都不成立。倉庫尤其要清：
-    // 兩個貨主可能共用同一個倉，留著看起來像「還有效」，但它是否有效取決於指派關係。
     setSelectedNode('');
-    setSelectedProduct('');
-    setSelectedSku('');
+    // 每一條行都清掉，不只第一條——留下任何一條都等於留著一個屬於別的貨主的商品。
+    setLines([emptyLine(nextKey)]);
+    setNextKey(nextKey + 1);
   }
 
-  function handleProductChange(value: string) {
-    setSelectedProduct(value);
-    setSelectedSku('');
+  function updateLine(key: number, patch: Partial<DraftLine>) {
+    setLines(lines.map((line) => (line.key === key ? { ...line, ...patch } : line)));
+  }
+
+  function addLine() {
+    setLines([...lines, emptyLine(nextKey)]);
+    setNextKey(nextKey + 1);
+  }
+
+  function removeLine(key: number) {
+    // 最後一條留著：沒有需求的訂單送不出去，把行數歸零只會讓表單進入一個無法送出的狀態。
+    if (lines.length === 1) {
+      return;
+    }
+    setLines(lines.filter((line) => line.key !== key));
   }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const reason = validate(selectedOwner, selectedNode, externalOrderNo, selectedSku, quantity);
+    const reason = validate(selectedOwner, selectedNode, externalOrderNo, lines);
     setInvalidReason(reason);
     if (reason !== null) {
       return;
@@ -79,7 +100,10 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
       shipToZone: shipToZone.trim(),
       shipToAddress: shipToAddress.trim(),
       promisedDeliveryDate,
-      lines: [{ skuCode: selectedSku, quantity: Number(quantity) }],
+      lines: lines.map((line) => ({
+        skuCode: line.skuCode,
+        quantity: Number(line.quantity),
+      })),
     });
   }
 
@@ -131,52 +155,77 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
         />
       </div>
 
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor={productId}>款</label>
-        <select
-          id={productId}
-          className={styles.input}
-          value={selectedProduct}
-          onChange={(event) => handleProductChange(event.target.value)}
-          disabled={selectedOwner === ''}
-        >
-          <option value="">請選擇</option>
-          {products.map((product) => (
-            <option key={product.productId} value={product.productCode}>
-              {product.name}（{product.temperatureZone}）
-            </option>
-          ))}
-        </select>
-      </div>
+      <fieldset className={styles.lines}>
+        <legend className={styles.label}>訂單行</legend>
+        {lines.map((line, index) => (
+          <div className={styles.line} key={line.key}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor={`${lineFieldId}-product-${line.key}`}>
+                第 {index + 1} 行・款
+              </label>
+              <select
+                id={`${lineFieldId}-product-${line.key}`}
+                className={styles.input}
+                value={line.productCode}
+                onChange={(event) =>
+                  // 換款就清掉規格：舊的規格屬於舊的款，留著會送出兩者對不上的組合。
+                  updateLine(line.key, { productCode: event.target.value, skuCode: '' })}
+                disabled={selectedOwner === ''}
+              >
+                <option value="">請選擇</option>
+                {products.map((product) => (
+                  <option key={product.productId} value={product.productCode}>
+                    {product.name}（{product.temperatureZone}）
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor={skuId}>規格</label>
-        <select
-          id={skuId}
-          className={styles.input}
-          value={selectedSku}
-          onChange={(event) => setSelectedSku(event.target.value)}
-          disabled={selectedProduct === ''}
-        >
-          <option value="">請選擇</option>
-          {skus.map((sku) => (
-            <option key={sku.skuId} value={sku.skuCode}>
-              {sku.specName}（{sku.skuCode}・{sku.weightGram}g）
-            </option>
-          ))}
-        </select>
-      </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor={`${lineFieldId}-sku-${line.key}`}>
+                第 {index + 1} 行・規格
+              </label>
+              <select
+                id={`${lineFieldId}-sku-${line.key}`}
+                className={styles.input}
+                value={line.skuCode}
+                onChange={(event) => updateLine(line.key, { skuCode: event.target.value })}
+                disabled={line.productCode === ''}
+              >
+                <option value="">請選擇</option>
+                {catalog.skusOf(selectedOwner, line.productCode).map((sku) => (
+                  <option key={sku.skuId} value={sku.skuCode}>
+                    {sku.specName}（{sku.skuCode}・{sku.weightGram}g）
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor={quantityId}>數量</label>
-        <input
-          id={quantityId}
-          className={`${styles.input} ${styles.quantity}`}
-          value={quantity}
-          onChange={(event) => setQuantity(event.target.value)}
-          inputMode="numeric"
-        />
-      </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor={`${lineFieldId}-quantity-${line.key}`}>
+                第 {index + 1} 行・數量
+              </label>
+              <input
+                id={`${lineFieldId}-quantity-${line.key}`}
+                className={`${styles.input} ${styles.quantity}`}
+                value={line.quantity}
+                onChange={(event) => updateLine(line.key, { quantity: event.target.value })}
+                inputMode="numeric"
+              />
+            </div>
+
+            <button
+              type="button"
+              className={styles.removeLine}
+              onClick={() => removeLine(line.key)}
+              disabled={lines.length === 1}
+            >
+              移除第 {index + 1} 行
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={addLine}>新增訂單行</button>
+      </fieldset>
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor={zoneId}>配送分區</label>
@@ -222,13 +271,15 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
 /**
  * 送出前擋掉不完整的選擇與非正整數數量，這種輸入不發出請求——讓後端回 400 也行，但那會在
  * 操作台上製造一次沒有必要的往返，也讓「這是輸入錯誤」的回饋慢一拍。
+ *
+ * **任一條行不完整就擋下整張單**，而不是只送完整的那幾條：使用者填了那一條，就是要它。
+ * 靜靜丟掉它送出其餘的，會讓對方拿到一張少東西的訂單卻以為送對了。
  */
 function validate(
   ownerId: string,
   nodeId: string,
   externalOrderNo: string,
-  skuCode: string,
-  quantity: string,
+  lines: DraftLine[],
 ): string | null {
   if (ownerId === '') {
     return '請選擇貨主';
@@ -239,14 +290,20 @@ function validate(
   if (externalOrderNo.trim() === '') {
     return '上游單號不可為空';
   }
-  if (skuCode === '') {
-    return '請選擇款與規格';
-  }
-  const parsed = Number(quantity);
-  if (quantity.trim() === '' || !Number.isInteger(parsed) || parsed <= 0) {
-    return '數量必須是正整數';
+  for (const [index, line] of lines.entries()) {
+    if (line.skuCode === '') {
+      return `第 ${index + 1} 行：請選擇款與規格`;
+    }
+    const parsed = Number(line.quantity);
+    if (line.quantity.trim() === '' || !Number.isInteger(parsed) || parsed <= 0) {
+      return `第 ${index + 1} 行：數量必須是正整數`;
+    }
   }
   return null;
+}
+
+function emptyLine(key: number): DraftLine {
+  return { key, productCode: '', skuCode: '', quantity: '1' };
 }
 
 function defaultPromisedDate(): string {
