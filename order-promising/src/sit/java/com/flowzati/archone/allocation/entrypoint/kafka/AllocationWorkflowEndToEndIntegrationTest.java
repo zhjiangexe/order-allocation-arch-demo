@@ -91,7 +91,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
   @BeforeEach
   void seedCatalogForOrders() {
-    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-AVAILABLE", "SKU-FIFO", "SKU-PARTIALLY-RESERVED");
+    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID,
+        "SKU-AVAILABLE", "SKU-FIFO", "SKU-PARTIALLY-RESERVED", "SKU-BASKET-A", "SKU-BASKET-B");
   }
 
   @Test
@@ -189,6 +190,124 @@ class AllocationWorkflowEndToEndIntegrationTest {
     assertThat(activeReservationsOf(secondOrderId)).isEmpty();
     assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox ->
         assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName()));
+  }
+
+  @Test
+  @DisplayName("跨兩個 SKU 的單只要一個不足就整張掛帳，另一個 SKU 的庫存一件都不得被預留")
+  void shouldReserveNothingWhenOneSkuOfAMultiSkuOrderFallsShort() throws Exception {
+    UUID orderId = IdGenerator.nextId();
+    UUID plentifulId = UUID.randomUUID();
+    UUID scarceId = UUID.randomUUID();
+    Instant receivedAt = Instant.now().minusSeconds(1);
+    orderRepository.save(OrderFixtures.pendingMultiSkuOrder(orderId, receivedAt,
+        new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 10, "SKU-BASKET-B", 5))));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(plentifulId, "SKU-BASKET-A", 100, 0));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(scarceId, "SKU-BASKET-B", 3, 0));
+
+    OrderPlacedIntegrationEvent event =
+        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
+    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    outcomeDrain().drain();
+
+    // 「有貨卻不配」正是 ship-complete 的內容：為一張出不去的單鎖住 A 的 10 件，只會讓後面
+    // 一張本來出得了的單拿不到。整籃原子性必須在真實的資料庫路徑上成立，不只在領域測試裡。
+    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
+    assertThat(activeReservationsOf(orderId)).isEmpty();
+    assertThat(stockPoolRepository.findById(plentifulId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isZero());
+    assertThat(stockPoolRepository.findById(scarceId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isZero());
+  }
+
+  @Test
+  @DisplayName("跨兩個 SKU 的單在兩者都足夠時整張配到，兩條行各有自己的預留")
+  void shouldAllocateTheWholeBasketWhenEverySkuIsCovered() throws Exception {
+    UUID orderId = IdGenerator.nextId();
+    UUID firstPoolId = UUID.randomUUID();
+    UUID secondPoolId = UUID.randomUUID();
+    Instant receivedAt = Instant.now().minusSeconds(1);
+    orderRepository.save(OrderFixtures.pendingMultiSkuOrder(orderId, receivedAt,
+        new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 10, "SKU-BASKET-B", 5))));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(firstPoolId, "SKU-BASKET-A", 100, 0));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(secondPoolId, "SKU-BASKET-B", 100, 0));
+
+    OrderPlacedIntegrationEvent event =
+        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
+    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    assertThat(outcomeDrain().drain()).isPositive();
+
+    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
+    // 預留的粒度是行 × 批：兩條行各自有一筆，摺成一筆就丟掉了出貨時要的「哪一批為哪一行鎖」。
+    assertThat(activeReservationsOf(orderId)).hasSize(2);
+    assertThat(stockPoolRepository.findById(firstPoolId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isEqualTo(10));
+    assertThat(stockPoolRepository.findById(secondPoolId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isEqualTo(5));
+  }
+
+  @Test
+  @DisplayName("同一張單同一個 SKU 的兩行應以加總配一次，不得扣兩次")
+  void shouldCountTwoLinesOfTheSameSkuOnceAsTheirSum() throws Exception {
+    UUID orderId = IdGenerator.nextId();
+    UUID poolId = UUID.randomUUID();
+    Instant receivedAt = Instant.now().minusSeconds(1);
+    Order order = Order.rehydrate(
+        orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, OrderFixtures.deliveryTerms(),
+        java.util.List.of(
+            com.flowzati.archone.ordering.domain.model.OrderLine.rehydrate(
+                UUID.randomUUID(), 1, OrderFixtures.OWNER_ID, "SKU-BASKET-A", 4,
+                OrderStatus.PENDING),
+            com.flowzati.archone.ordering.domain.model.OrderLine.rehydrate(
+                UUID.randomUUID(), 2, OrderFixtures.OWNER_ID, "SKU-BASKET-A", 6,
+                OrderStatus.PENDING)),
+        OrderStatus.PENDING, receivedAt, null, null, null, null, null);
+    orderRepository.save(order);
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(poolId, "SKU-BASKET-A", 10, 0));
+
+    OrderPlacedIntegrationEvent event =
+        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
+    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    assertThat(outcomeDrain().drain()).isPositive();
+
+    // roadmap 曾記載一支缺 DISTINCT 的佇列查詢，會讓同一張單出現兩次而扣兩次量。取代它的
+    // 兩段式查詢在結構上排除了這件事——但那是副作用而非目標，所以要有一支測試明確守著。
+    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(allocated ->
+        assertThat(allocated.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
+    assertThat(stockPoolRepository.findById(poolId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isEqualTo(10));
+    assertThat(activeReservationsOf(orderId)).hasSize(2);
+  }
+
+  @Test
+  @DisplayName("補 A 之後，缺 B 的隊首仍不配，且 A 一件都不得被預留")
+  void shouldJudgeACandidatesOtherSkuAgainstItsOwnStock() throws Exception {
+    UUID poolId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
+    Instant backorderedAt = Instant.now().minusSeconds(4);
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(poolId, "SKU-BASKET-A", 0, 0));
+    Order order = OrderFixtures.pendingMultiSkuOrder(orderId, backorderedAt.minusSeconds(1),
+        new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 1, "SKU-BASKET-B", 1)));
+    order.markBackOrdered(backorderedAt);
+    order.releaseDomainEvents();
+    orderRepository.save(order);
+
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
+        UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-BASKET-A",
+        StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 5);
+    consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS, event));
+    outcomeDrain().drain();
+
+    // 喚醒是由 A 觸發的，但候選單還要 B——而 B 一批都沒有。只看被補的那個 SKU 的實作會在
+    // 這裡把整張單配掉。
+    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(woken ->
+        assertThat(woken.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
+    assertThat(activeReservationsOf(orderId)).isEmpty();
+    assertThat(stockPoolRepository.findById(poolId)).hasValueSatisfying(pool -> {
+      assertThat(pool.getOnHandQuantity()).isEqualTo(5);
+      assertThat(pool.getReservedQuantity()).isZero();
+    });
   }
 
   private Order backorderedOrder(UUID orderId, String sku, int quantity, Instant backorderedAt) {

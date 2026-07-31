@@ -121,11 +121,11 @@ class DevSeedDataIntegrationTest {
 
     initializer.run(null);
 
-    // 六批（近／中早／中晚／已過期／空／部分預留）、三張單、三筆預留。
+    // 七批（近／中早／中晚／已過期／空／部分預留／乙貨主充足）、四張單、三筆預留。
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_pools", Integer.class))
-        .isEqualTo(6);
+        .isEqualTo(7);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM orders", Integer.class))
-        .isEqualTo(3);
+        .isEqualTo(4);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_reservations", Integer.class))
         .isEqualTo(3);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM owners", Integer.class))
@@ -213,10 +213,32 @@ class DevSeedDataIntegrationTest {
 
     assertThat(queue)
         .extracting(com.flowzati.archone.allocation.domain.model.Demand::orderId)
-        .containsExactly(DevSeedDataInitializer.BACKORDERED_ORDER_ID);
+        .containsExactlyInAnyOrder(
+            DevSeedDataInitializer.BACKORDERED_ORDER_ID,
+            DevSeedDataInitializer.BASKET_ORDER_ID);
 
     // 缺貨對象的庫存池必須真的是空的，否則「試過、沒貨」這個狀態自相矛盾
     assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_POOL_ID).availableToPromise()).isZero();
+  }
+
+  @Test
+  @DisplayName("種子必須有一張「有貨卻不配」的多 SKU 單——ship-complete 在畫面上唯一的證據")
+  void seedsAMultiSkuOrderBlockedByOneOfItsSkus() {
+    assertThat(orderRepository.findById(DevSeedDataInitializer.BASKET_ORDER_ID))
+        .hasValueSatisfying(order -> {
+          assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+          assertThat(order.getDemand()).containsOnlyKeys(
+              DevSeedDataInitializer.AVAILABLE_SKU, DevSeedDataInitializer.EMPTY_SKU);
+        });
+
+    // 這一條才是重點：充足的那一行**一件都沒被鎖住**。整張配或整張不配，所以卡在 SKU-EMPTY
+    // 的這張單不會為自己留下 SKU-AVAILABLE 的 5 件——那 5 件留給後面配得出去的單。
+    assertThat(batch(DevSeedDataInitializer.SECOND_OWNER_AVAILABLE_STOCK_POOL_ID))
+        .satisfies(pool -> {
+          assertThat(pool.getOnHandQuantity()).isEqualTo(50);
+          assertThat(pool.getReservedQuantity()).isZero();
+        });
+    assertThat(activeReservationsOf(DevSeedDataInitializer.BASKET_ORDER_ID)).isEmpty();
   }
 
   @Test

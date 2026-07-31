@@ -101,6 +101,9 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID.fromString("00000000-0000-0000-0000-000000000105");
   public static final UUID EXPIRED_STOCK_POOL_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000106");
+  /** 乙貨主南部倉的 {@link #AVAILABLE_SKU}：**充足**，卻配不出去——見 {@link #BASKET_ORDER_ID}。 */
+  public static final UUID SECOND_OWNER_AVAILABLE_STOCK_POOL_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000107");
 
   public static final UUID PARTIALLY_RESERVED_ORDER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000201");
@@ -109,6 +112,15 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   /** 需求 80 件，跨近效期的 60 與中效期的 20——多批取用與多筆預留唯一的資料來源。 */
   public static final UUID SPANNING_ORDER_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000205");
+  /**
+   * 一張跨兩個 SKU 的缺貨單：{@link #AVAILABLE_SKU} 很充足，{@link #EMPTY_SKU} 一件都沒有。
+   *
+   * <p><b>操作台一打開就看得到「有貨卻不配」</b>，而那正是 ship-complete 的內容——整張配或
+   * 整張不配，所以充足的那一行一件都不會被鎖住。這是全域最反直覺的一條規則，種子裡沒有它的
+   * 話，要看到得自己先湊出一張多 SKU 的單再讓其中一個缺貨。
+   */
+  public static final UUID BASKET_ORDER_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000207");
 
   private static final UUID PARTIALLY_RESERVED_LINE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000202");
@@ -116,6 +128,10 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID.fromString("00000000-0000-0000-0000-000000000204");
   private static final UUID SPANNING_LINE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000206");
+  private static final UUID BASKET_PLENTIFUL_LINE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000208");
+  private static final UUID BASKET_SHORT_LINE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000209");
   private static final UUID PARTIALLY_RESERVED_RESERVATION_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000301");
   private static final UUID SPANNING_NEAR_RESERVATION_ID =
@@ -232,9 +248,14 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     batch(EXPIRED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
         today.minusMonths(12), today.minusDays(1), 25, 0);
 
-    // 乙貨主南部倉：on-hand 0。補這個 SKU 會喚醒下面那張缺貨單。
+    // 乙貨主南部倉：on-hand 0。補這個 SKU 會喚醒下面那兩張缺貨單。
     batch(EMPTY_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_NODE_ID, EMPTY_SKU,
         today.minusMonths(2), today.plusMonths(3), 0, 0);
+
+    // 同一個貨主同一個倉的另一個 SKU，**一件都沒被預留**——即使跨 SKU 那張單需要它 5 件。
+    // 整張單卡在 SKU-EMPTY，所以這 50 件動都不動。
+    batch(SECOND_OWNER_AVAILABLE_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_NODE_ID, AVAILABLE_SKU,
+        today.minusMonths(1), today.plusMonths(8), 50, 0);
 
     batch(PARTIALLY_RESERVED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, PARTIALLY_RESERVED_SKU,
         today.minusMonths(2), today.plusMonths(9), 20, 5);
@@ -300,6 +321,21 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         "SEED-B-0001",
         EMPTY_SKU,
         2));
+
+    // 乙貨主：一張跨兩個 SKU 的缺貨單。SKU-AVAILABLE 在同一個倉有 50 件、要 5 件；
+    // SKU-EMPTY 一件都沒有、要 3 件。整張因此掛帳，而那 50 件一件都不會被鎖住。
+    //
+    // 這是操作台上唯一一處「有貨卻不配」的證據。少了它，ship-complete 只在測試裡成立。
+    orderRepository.save(backorderedBasket(
+        BASKET_ORDER_ID,
+        SECOND_OWNER_ID,
+        SOUTH_NODE_ID,
+        "SEED-B-0002",
+        List.of(
+            OrderLine.rehydrate(BASKET_PLENTIFUL_LINE_ID, 1, SECOND_OWNER_ID, AVAILABLE_SKU, 5,
+                OrderStatus.BACKORDERED),
+            OrderLine.rehydrate(BASKET_SHORT_LINE_ID, 2, SECOND_OWNER_ID, EMPTY_SKU, 3,
+                OrderStatus.BACKORDERED))));
   }
 
   /**
@@ -323,9 +359,32 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         OrderStatus.BACKORDERED, null, null, BACKORDERED_SINCE);
   }
 
+  /** 缺貨排隊中的多行單。行由呼叫端給定——這種單存在的理由就是它那幾條行的組合。 */
+  private Order backorderedBasket(
+      UUID orderId, UUID ownerId, UUID nodeId, String externalOrderNo, List<OrderLine> lines) {
+    return Order.rehydrate(
+        orderId,
+        ownerId,
+        externalOrderNo,
+        deliveryTerms(nodeId),
+        lines,
+        OrderStatus.BACKORDERED,
+        PARTIALLY_RESERVED_AT.minusSeconds(1),
+        null,
+        null,
+        BACKORDERED_SINCE,
+        null,
+        null);
+  }
+
+  private static DeliveryTerms deliveryTerms(UUID nodeId) {
+    return new DeliveryTerms(
+        nodeId, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5));
+  }
+
   /**
-   * 唯一的訂單建構出口。三個 {@code Instant} 相鄰且都可為 null，直接讓呼叫端填很容易對調，
-   * 因此對外只開放上面兩個語意化的入口。
+   * 唯一的單行訂單建構出口。三個 {@code Instant} 相鄰且都可為 null，直接讓呼叫端填很容易
+   * 對調，因此對外只開放上面兩個語意化的入口。
    */
   private Order order(
       UUID orderId,
@@ -344,8 +403,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         orderId,
         ownerId,
         externalOrderNo,
-        new DeliveryTerms(
-            nodeId, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5)),
+        deliveryTerms(nodeId),
         List.of(OrderLine.rehydrate(lineId, 1, ownerId, skuCode, quantity, status)),
         status,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
