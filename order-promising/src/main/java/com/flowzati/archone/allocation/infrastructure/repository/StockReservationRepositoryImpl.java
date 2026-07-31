@@ -24,12 +24,10 @@ public class StockReservationRepositoryImpl implements StockReservationRepositor
     repository.save(StockReservationMapper.toEntity(reservation));
   }
 
+
   @Override
-  public List<StockReservation> findActiveByOrderLineIds(Collection<UUID> orderLineIds) {
-    if (orderLineIds.isEmpty()) {
-      return List.of();
-    }
-    return repository.findByOrderLineIdInAndStatus(orderLineIds, ReservationStatus.ACTIVE)
+  public List<StockReservation> findActiveByOrderId(UUID orderId) {
+    return repository.findByOrderIdAndStatus(orderId, ReservationStatus.ACTIVE)
         .stream()
         .map(StockReservationMapper::toDomain)
         .toList();

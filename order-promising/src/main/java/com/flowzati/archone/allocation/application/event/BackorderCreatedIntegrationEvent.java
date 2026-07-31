@@ -1,5 +1,7 @@
 package com.flowzati.archone.allocation.application.event;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import java.time.Instant;
 import java.util.UUID;
@@ -26,10 +28,11 @@ public final class BackorderCreatedIntegrationEvent extends IntegrationEvent {
   private final UUID orderId;
   private final Instant backorderedSince;
 
+  @JsonCreator
   public BackorderCreatedIntegrationEvent(
-      UUID eventId,
-      UUID orderId,
-      Instant backorderedSince
+      @JsonProperty("eventId") UUID eventId,
+      @JsonProperty("orderId") UUID orderId,
+      @JsonProperty("backorderedSince") Instant backorderedSince
   ) {
     super(eventId);
     if (orderId == null) {

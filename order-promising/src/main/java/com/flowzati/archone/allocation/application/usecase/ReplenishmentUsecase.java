@@ -10,8 +10,8 @@ import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.time.BusinessCalendar;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.allocation.domain.model.Demand;
+import com.flowzati.archone.allocation.domain.repository.DemandRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -43,7 +43,7 @@ public class ReplenishmentUsecase {
 
   private final Clock clock;
   private final InboxRepo inboxRepo;
-  private final OrderRepository orderRepository;
+  private final DemandRepository demandRepository;
   private final StockPoolRepository stockPoolRepository;
   private final OrderAllocationCoordinator allocationCoordinator;
   private final ApplicationEventPublisher eventPublisher;
@@ -54,7 +54,7 @@ public class ReplenishmentUsecase {
       Clock clock,
       BusinessCalendar businessCalendar,
       InboxRepo inboxRepo,
-      OrderRepository orderRepository,
+      DemandRepository demandRepository,
       StockPoolRepository stockPoolRepository,
       OrderAllocationCoordinator allocationCoordinator,
       ApplicationEventPublisher eventPublisher,
@@ -73,7 +73,7 @@ public class ReplenishmentUsecase {
     this.clock = clock;
     this.businessCalendar = businessCalendar;
     this.inboxRepo = inboxRepo;
-    this.orderRepository = orderRepository;
+    this.demandRepository = demandRepository;
     this.stockPoolRepository = stockPoolRepository;
     this.allocationCoordinator = allocationCoordinator;
     this.eventPublisher = eventPublisher;
@@ -160,8 +160,13 @@ public class ReplenishmentUsecase {
       return;
     }
 
-    List<Order> backorders =
-        orderRepository.findBackordersBySkuInFifoOrder(ownerId, skuCode, wakeLimit);
+    // 佇列的範圍含倉別：庫存按 (貨主, 倉, SKU, 入庫日, 效期) 持有，別的倉的單這次補貨滿足
+    // 不了。把它們撈進來不會出錯，但會佔滿以張數計的上限然後被跳過——浪費隨倉數線性成長。
+    //
+    // 回的是整張單（含別的 SKU 的待配行），不是命中這個 SKU 的行：一張單整批配到或整批不配，
+    // 而上限數的也是張數，兩者的維度因此一致。
+    List<Demand> backorders = demandRepository.findOutstandingDemandInFifoOrder(
+        ownerId, nodeId, skuCode, wakeLimit);
     if (backorders.isEmpty()) {
       return;
     }

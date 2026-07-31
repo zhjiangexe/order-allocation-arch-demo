@@ -256,6 +256,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         5));
     stockReservationRepository.save(StockReservation.create(
         PARTIALLY_RESERVED_RESERVATION_ID,
+        PARTIALLY_RESERVED_ORDER_ID,
         PARTIALLY_RESERVED_LINE_ID,
         PARTIALLY_RESERVED_STOCK_POOL_ID,
         5,
@@ -273,10 +274,12 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         AVAILABLE_SKU,
         80));
     stockReservationRepository.save(StockReservation.create(
-        SPANNING_NEAR_RESERVATION_ID, SPANNING_LINE_ID, NEAR_EXPIRY_STOCK_POOL_ID, 60,
+        SPANNING_NEAR_RESERVATION_ID, SPANNING_ORDER_ID, SPANNING_LINE_ID,
+        NEAR_EXPIRY_STOCK_POOL_ID, 60,
         PARTIALLY_RESERVED_AT));
     stockReservationRepository.save(StockReservation.create(
-        SPANNING_MID_RESERVATION_ID, SPANNING_LINE_ID, MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, 20,
+        SPANNING_MID_RESERVATION_ID, SPANNING_ORDER_ID, SPANNING_LINE_ID,
+        MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, 20,
         PARTIALLY_RESERVED_AT));
 
     // 乙貨主：一張缺貨排隊中的單。SKU 代碼與甲貨主相同但指的是另一個商品（麥茶 1L）。
@@ -343,9 +346,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         externalOrderNo,
         new DeliveryTerms(
             nodeId, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5)),
-        // 行的 backorderedSince 恆等於 header——採 ship-complete 後所有行一起缺貨
-        List.of(OrderLine.rehydrate(
-            lineId, 1, ownerId, skuCode, quantity, status, backOrderedSince)),
+        List.of(OrderLine.rehydrate(lineId, 1, ownerId, skuCode, quantity, status)),
         status,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
         placedAt,

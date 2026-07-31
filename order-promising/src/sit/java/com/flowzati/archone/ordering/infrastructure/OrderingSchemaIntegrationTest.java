@@ -73,12 +73,16 @@ class OrderingSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("order_lines 不應有 allocated_at——ship-complete 下它恆等於 header 且無 index 需要它")
-    void doesNotCreateLineLevelAllocatedAt() {
+    @DisplayName("order_lines 不應有任何時間戳——ship-complete 下都恆等於 header 且無人讀")
+    void doesNotCreateLineLevelTimestamps() {
       assertThat(columnNames("order_lines"))
-          .contains("line_no", "owner_id", "sku_code", "quantity", "status", "backordered_since")
-          // assigned_node_id 已砍：一張單只從一個倉出、明細不可跨倉，它永遠等於 header
-          .doesNotContain("allocated_at", "assigned_node_id");
+          .contains("line_no", "owner_id", "sku_code", "quantity", "status")
+          // assigned_node_id 已砍：一張單只從一個倉出、明細不可跨倉，它永遠等於 header。
+          //
+          // backordered_since 也砍了：它的存在理由是「單表 FIFO index」，而那個查詢從來就是
+          // join、排序取自 header——欄位從未被讀到。佇列改以 order_id 排序後連理由的形狀
+          // 都不在了。
+          .doesNotContain("allocated_at", "assigned_node_id", "backordered_since");
     }
   }
 
@@ -274,12 +278,14 @@ class OrderingSchemaIntegrationTest {
   class Indexes {
 
     @Test
-    @DisplayName("FIFO index 應建在 order_lines 上，欄位順序固定且不含 status")
-    void createsBackorderFifoIndexOnOrderLines() {
-      String indexDefinition = indexDefinition("order_lines", "idx_order_lines_backorder_fifo");
+    @DisplayName("待配佇列的 index 應建在 order_lines 上，以 order_id 收尾且不含 status")
+    void createsDemandFifoIndexOnOrderLines() {
+      String indexDefinition = indexDefinition("order_lines", "idx_order_lines_demand_fifo");
 
+      // 排序鍵是 order_id：UUID v7 把時間戳編在主鍵裡，所以它的大小順序就是訂單進入系統的
+      // 順序，也就是 FIFO 要的順序。不需要時間欄位，也不需要 tie-breaker。
       assertThat(indexDefinition)
-          .contains("(owner_id, sku_code, backordered_since, id)")
+          .contains("(owner_id, sku_code, order_id)")
           .doesNotContain("status");
     }
 

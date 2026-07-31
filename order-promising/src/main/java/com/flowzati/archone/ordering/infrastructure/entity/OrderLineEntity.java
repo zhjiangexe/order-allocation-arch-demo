@@ -8,7 +8,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
-import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -16,7 +15,7 @@ import java.util.UUID;
     name = "order_lines",
     indexes = @Index(
         name = "idx_order_lines_backorder_fifo",
-        columnList = "owner_id,sku_code,backordered_since,id"
+        columnList = "owner_id,sku_code,order_id"
     )
 )
 public class OrderLineEntity {
@@ -41,8 +40,6 @@ public class OrderLineEntity {
   @Column(nullable = false)
   private OrderStatus status;
 
-  @Column(name = "backordered_since")
-  private Instant backorderedSince;
 
   protected OrderLineEntity() {
   }
@@ -53,8 +50,7 @@ public class OrderLineEntity {
       UUID ownerId,
       String skuCode,
       int quantity,
-      OrderStatus status,
-      Instant backorderedSince
+      OrderStatus status
   ) {
     this.id = id;
     this.lineNo = lineNo;
@@ -62,7 +58,6 @@ public class OrderLineEntity {
     this.skuCode = skuCode;
     this.quantity = quantity;
     this.status = status;
-    this.backorderedSince = backorderedSince;
   }
 
   public UUID getId() {
@@ -90,7 +85,4 @@ public class OrderLineEntity {
     return status;
   }
 
-  public Instant getBackorderedSince() {
-    return backorderedSince;
-  }
 }

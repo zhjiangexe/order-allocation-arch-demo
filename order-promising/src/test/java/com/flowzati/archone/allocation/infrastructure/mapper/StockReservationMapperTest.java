@@ -19,11 +19,13 @@ class StockReservationMapperTest {
   @DisplayName("應將完整 RELEASED reservation 映射至 entity")
   void mapsDomainToEntity() {
     UUID reservationId = UUID.randomUUID();
+    UUID orderId = UUID.randomUUID();
     UUID orderLineId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     Instant releasedAt = RESERVED_AT.plusSeconds(60);
     StockReservation reservation = StockReservation.rehydrate(
         reservationId,
+        UUID.randomUUID(),
         orderLineId,
         stockPoolId,
         3,
@@ -49,10 +51,12 @@ class StockReservationMapperTest {
   @DisplayName("應由 entity 還原完整 ACTIVE reservation")
   void mapsEntityToDomain() {
     UUID reservationId = UUID.randomUUID();
+    UUID orderId = UUID.randomUUID();
     UUID orderLineId = UUID.randomUUID();
     UUID stockPoolId = UUID.randomUUID();
     StockReservationEntity entity = new StockReservationEntity(
         reservationId,
+        orderId,
         orderLineId,
         stockPoolId,
         3,

@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
@@ -60,6 +61,9 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   private static final int FIRST_REPLENISH_QUANTITY = 30;
   private static final int NEW_ORDER_QUANTITY = 10;
   private static final int SECOND_REPLENISH_QUANTITY = 70;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
@@ -136,7 +140,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   }
 
   private UUID seedQueuedOrder() {
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     Instant backorderedAt = Instant.now().minusSeconds(3600);
     orderRepository.save(OrderFixtures.backorderedOrder(
         orderId, SKU, QUEUED_ORDER_QUANTITY, backorderedAt.minusSeconds(1), backorderedAt));
@@ -144,7 +148,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   }
 
   private UUID placeNewOrder() throws Exception {
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     Instant receivedAt = Instant.now();
     orderRepository.save(
         OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
@@ -161,6 +165,10 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   }
 
   private OrderStatus statusOf(UUID orderId) {
+    // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
+    // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
+    outcomeDrain().drain();
+
     return orderRepository.findById(orderId).orElseThrow().getStatus();
   }
 
@@ -176,5 +184,9 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     record.headers()
         .add("eventType", event.getClass().getSimpleName().getBytes(StandardCharsets.UTF_8));
     return record;
+  }
+
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
   }
 }

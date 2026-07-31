@@ -1,14 +1,14 @@
 package com.flowzati.archone.allocation.domain.service;
 
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.allocation.domain.model.Demand;
 import java.util.List;
 
-/** 補貨喚醒時，一張被配到的訂單與它取用的批。 */
-public record OrderAllocation(Order order, List<BatchPick> picks) {
+/** 補貨喚醒時，一筆被滿足的需求與它取用的批。 */
+public record OrderAllocation(Demand demand, List<BatchPick> picks) {
 
   public OrderAllocation {
-    if (order == null) {
-      throw new IllegalArgumentException("Order is required");
+    if (demand == null) {
+      throw new IllegalArgumentException("Demand is required");
     }
     picks = List.copyOf(picks);
     if (picks.isEmpty()) {

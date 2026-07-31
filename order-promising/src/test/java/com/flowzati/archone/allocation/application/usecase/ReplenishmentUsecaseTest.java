@@ -15,10 +15,13 @@ import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.time.BusinessCalendar;
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
+import com.flowzati.archone.allocation.domain.model.Demand;
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.event.OrderAllocated;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.allocation.domain.repository.DemandRepository;
+import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +62,7 @@ class ReplenishmentUsecaseTest {
   private final LocalDate today = LocalDate.of(2026, 7, 22);
 
   private StockPoolRepository stockPoolRepository;
-  private OrderRepository orderRepository;
+  private DemandRepository demandRepository;
   private StockReservationRepository stockReservationRepository;
   private InboxRepo inboxRepo;
   private ApplicationEventPublisher eventPublisher;
@@ -68,7 +71,7 @@ class ReplenishmentUsecaseTest {
   @BeforeEach
   void setUp() {
     stockPoolRepository = mock(StockPoolRepository.class);
-    orderRepository = mock(OrderRepository.class);
+    demandRepository = mock(DemandRepository.class);
     stockReservationRepository = mock(StockReservationRepository.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
     inboxRepo = mock(InboxRepo.class);
@@ -76,7 +79,6 @@ class ReplenishmentUsecaseTest {
     OrderAllocationCoordinator coordinator = new OrderAllocationCoordinator(
         new AllocationService(),
         stockPoolRepository,
-        orderRepository,
         stockReservationRepository,
         eventPublisher
     );
@@ -85,7 +87,7 @@ class ReplenishmentUsecaseTest {
         Clock.fixed(fixedNow, ZoneId.of("UTC")),
         new BusinessCalendar(Clock.fixed(fixedNow, ZoneId.of("UTC")), "Asia/Taipei"),
         inboxRepo,
-        orderRepository,
+        demandRepository,
         stockPoolRepository,
         coordinator,
         eventPublisher,
@@ -143,26 +145,23 @@ class ReplenishmentUsecaseTest {
     StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenIdentityMatch(batch);
-    Order backorderedOrder = backorderedOrder(5);
-    givenBackorders(List.of(backorderedOrder));
+    Demand backorderedDemand = backorderedDemand(5);
+    givenBackorders(List.of(backorderedDemand));
     // 喚醒讀到的是同一個批物件——upsert 先把數量加上去，喚醒才查。
     givenAllocatableBatches(List.of(batch));
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(inboxRepo).claimIfNew(message(eventId));
-    verify(orderRepository).save(backorderedOrder);
+    verify(eventPublisher).publishEvent(allocationCompletedFor(backorderedDemand));
     ArgumentCaptor<StockReservation> reservationCaptor =
         ArgumentCaptor.forClass(StockReservation.class);
     verify(stockReservationRepository).save(reservationCaptor.capture());
-    verify(eventPublisher, atLeastOnce()).publishEvent(any(OrderAllocated.class));
 
-    assertThat(backorderedOrder.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(backorderedOrder.getAllocatedAt()).isEqualTo(fixedNow);
     assertThat(batch.availableToPromise()).isEqualTo(5); // 0 + 10 - 5 = 5
     assertThat(reservationCaptor.getValue()).satisfies(reservation -> {
       assertThat(reservation.getOrderLineId())
-          .isEqualTo(backorderedOrder.getLines().get(0).getId());
+          .isEqualTo(backorderedDemand.lines().getFirst().orderLineId());
       assertThat(reservation.getStockPoolId()).isEqualTo(batch.getId());
       assertThat(reservation.getQuantity()).isEqualTo(5);
       assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
@@ -177,21 +176,21 @@ class ReplenishmentUsecaseTest {
     StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenIdentityMatch(batch);
-    Order first = backorderedOrder(3);
-    Order blocked = backorderedOrder(4);
+    Demand first = backorderedDemand(3);
+    Demand blocked = backorderedDemand(4);
     givenBackorders(List.of(first, blocked));
     givenAllocatableBatches(List.of(batch));
 
     replenishmentUsecase.handle(inbound(event(eventId, 5)));
 
     // 0 + 5 = 5；first(3) 配到，剩 2；blocked(4) 配不到，且 FIFO 之下就此停住。
-    assertThat(first.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(blocked.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(batch.availableToPromise()).isEqualTo(2);
 
-    verify(orderRepository).save(first);
+    // 「被配到」的觀察點是事件，不是訂單狀態——配貨已經不寫訂單了。blocked 沒有事件，
+    // 正是 head-of-line blocking 的內容：它沒有被跳過去換後面配得到的單。
+    verify(eventPublisher).publishEvent(allocationCompletedFor(first));
+    verify(eventPublisher, never()).publishEvent(allocationCompletedFor(blocked));
     verify(stockReservationRepository).save(any(StockReservation.class));
-    verify(orderRepository, never()).save(blocked);
   }
 
   @Test
@@ -208,7 +207,7 @@ class ReplenishmentUsecaseTest {
 
     verify(stockPoolRepository).save(batch);
     assertThat(batch.availableToPromise()).isEqualTo(10);
-    verify(orderRepository, never()).save(any());
+    verify(eventPublisher, never()).publishEvent(any(OrderAllocationCompleted.class));
     verify(stockReservationRepository, never()).save(any());
     verify(eventPublisher, never()).publishEvent(any());
   }
@@ -221,7 +220,7 @@ class ReplenishmentUsecaseTest {
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenIdentityMatch(batch);
     givenAllocatableBatches(List.of(batch));
-    givenBackorders(IntStream.range(0, WAKE_LIMIT).mapToObj(i -> backorderedOrder(1)).toList());
+    givenBackorders(IntStream.range(0, WAKE_LIMIT).mapToObj(i -> backorderedDemand(1)).toList());
 
     replenishmentUsecase.handle(inbound(event(eventId, WAKE_LIMIT)));
 
@@ -241,7 +240,7 @@ class ReplenishmentUsecaseTest {
     givenAllocatableBatches(List.of(batch));
     // 佇列首張要 100 件、庫存只有 10：卡住了，但再送一次結果完全相同。以「還有沒有配到的
     // 單」當續做條件的話，這張單會讓續做無限循環。
-    givenBackorders(List.of(backorderedOrder(100)));
+    givenBackorders(List.of(backorderedDemand(100)));
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
@@ -255,8 +254,8 @@ class ReplenishmentUsecaseTest {
     StockPool batch = StockFixtures.unexpiredBatch(SKU, 10, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenAllocatableBatches(List.of(batch));
-    Order order = backorderedOrder(4);
-    givenBackorders(List.of(order));
+    Demand queued = backorderedDemand(4);
+    givenBackorders(List.of(queued));
 
     replenishmentUsecase.handleWake(new InboundCommand<>(
         new com.flowzati.archone.allocation.application.command.WakeBackordersCommand(
@@ -264,7 +263,8 @@ class ReplenishmentUsecaseTest {
         message(eventId)));
 
     assertThat(batch.getOnHandQuantity()).isEqualTo(10);
-    assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
+    // 佇列確實被餵完了——續做只是接著配，不是重新補一次貨。
+    verify(eventPublisher).publishEvent(allocationCompletedFor(queued));
     verify(stockPoolRepository, never()).findByIdentity(any(), any(), any(), any(), any());
   }
 
@@ -278,7 +278,7 @@ class ReplenishmentUsecaseTest {
 
     verify(inboxRepo).claimIfNew(message(eventId));
     verifyNoInteractions(
-        stockPoolRepository, orderRepository, stockReservationRepository, eventPublisher);
+        stockPoolRepository, stockReservationRepository, eventPublisher);
   }
 
   @Test
@@ -295,7 +295,7 @@ class ReplenishmentUsecaseTest {
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(stockPoolRepository).save(any(StockPool.class));
-    verifyNoInteractions(orderRepository, stockReservationRepository, eventPublisher);
+    verifyNoInteractions(demandRepository, stockReservationRepository, eventPublisher);
   }
 
   private void givenIdentityMatch(StockPool batch) {
@@ -309,17 +309,25 @@ class ReplenishmentUsecaseTest {
         OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, today)).thenReturn(batches);
   }
 
-  private void givenBackorders(List<Order> orders) {
-    when(orderRepository.findBackordersBySkuInFifoOrder(
-        OrderFixtures.OWNER_ID, SKU, WAKE_LIMIT)).thenReturn(orders);
+  private void givenBackorders(List<Demand> demands) {
+    when(demandRepository.findOutstandingDemandInFifoOrder(
+        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, WAKE_LIMIT)).thenReturn(demands);
   }
 
-  private Order backorderedOrder(int quantity) {
-    Order order =
-        OrderFixtures.pendingOrder(UUID.randomUUID(), SKU, quantity, fixedNow.minusSeconds(2));
-    order.markBackOrdered(fixedNow.minusSeconds(1));
-    order.releaseDomainEvents();
-    return order;
+  /**
+   * 一筆還欠貨的需求。
+   *
+   * <p>不再造 {@code Order}——配貨看不到訂單，也不改它的狀態。「這張單被配到了」現在的觀察點
+   * 是 {@code OrderAllocationCompleted} 事件，見 {@link #allocationCompletedFor}。
+   */
+  private Demand backorderedDemand(int quantity) {
+    return DemandFixtures.demand(
+        IdGenerator.nextId(), SKU, quantity, fixedNow.minusSeconds(2));
+  }
+
+  /** 這筆需求配到了——由事件斷言，那是配貨對外唯一的陳述。 */
+  private OrderAllocationCompleted allocationCompletedFor(Demand demand) {
+    return new OrderAllocationCompleted(demand.orderId(), fixedNow);
   }
 
   private StockReplenishedIntegrationEvent event(UUID eventId, int quantity) {

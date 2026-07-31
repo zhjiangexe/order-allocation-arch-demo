@@ -1,5 +1,6 @@
 package com.flowzati.archone.common.messaging;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboxRepoImpl;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
@@ -93,7 +94,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   @DisplayName("Outbox 應保存不可變的完整事件 payload")
   void shouldPersistImmutableOutboxEventPayload() {
     UUID eventId = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     Instant occurredAt = Instant.parse("2026-07-24T10:00:00Z");
     outboxRepo.append(new Outbox(
         eventId,
@@ -119,7 +120,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   @DisplayName("業務異動失敗時應連同翻譯後的 Outbox 一起回滾")
   void shouldRollbackBusinessChangeAndTranslatedOutboxTogether() {
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     Instant receivedAt = Instant.parse("2026-07-24T10:00:00Z");
     TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 

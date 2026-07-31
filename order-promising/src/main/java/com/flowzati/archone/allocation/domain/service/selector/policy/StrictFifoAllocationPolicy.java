@@ -2,7 +2,7 @@ package com.flowzati.archone.allocation.domain.service.selector.policy;
 
 import com.flowzati.archone.allocation.domain.service.selector.context.BasicAllocationContext;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationPolicy;
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.allocation.domain.model.Demand;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -11,26 +11,26 @@ public final class StrictFifoAllocationPolicy
     implements AllocationPolicy<BasicAllocationContext> {
 
   @Override
-  public List<Order> selectOrders(
-      List<Order> candidates,
+  public List<Demand> selectOrders(
+      List<Demand> candidates,
       BasicAllocationContext context
   ) {
     requireValidCandidates(candidates);
 
     int remaining = context.availableToPromise();
-    List<Order> selected = new ArrayList<>();
-    for (Order order : candidates) {
-      int demand = order.getDemandFor(context.skuCode());
-      if (demand > remaining) {
+    List<Demand> selected = new ArrayList<>();
+    for (Demand candidate : candidates) {
+      int required = candidate.demandFor(context.skuCode());
+      if (required > remaining) {
         break;
       }
-      selected.add(order);
-      remaining -= demand;
+      selected.add(candidate);
+      remaining -= required;
     }
     return List.copyOf(selected);
   }
 
-  private static void requireValidCandidates(List<Order> candidates) {
+  private static void requireValidCandidates(List<Demand> candidates) {
     if (candidates == null) {
       throw new IllegalArgumentException("Allocation candidates are required");
     }

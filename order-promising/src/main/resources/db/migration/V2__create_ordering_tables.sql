@@ -182,12 +182,13 @@ CREATE TABLE order_lines (
     --
     -- 放寬多行之後仍然如此：多行是一張單有多個 SKU，不是多個倉。
     status VARCHAR(32) NOT NULL,
-    -- 這一行進入缺貨的時間。從 R8 提前，理由是 index 而非領域事實：採 ship-complete 後
-    -- 所有 line 在同一交易內一起配到或一起缺貨，所以此欄恆等於 header 的值。它在這裡
-    -- 純粹是為了建出下方的單表 FIFO index。
+    -- 刻意沒有 backordered_since，也沒有 allocated_at。兩者都會恆等於 header（ship-complete
+    -- 下所有行一起配到或一起缺貨），而都沒有讀取者。
     --
-    -- 對應地不建 line 層級的 allocated_at：同樣恆等於 header，但沒有任何 index 需要它。
-    backordered_since TIMESTAMPTZ,
+    -- backordered_since 曾經在這裡，理由寫的是「為了建出單表 FIFO index」——但那個查詢從來
+    -- 就不是單表：它 join orders，篩選用行的 owner_id 與 sku_code，排序取自 header。欄位因此
+    -- 從未被讀到，index 的排序段也從未被探到。排序鍵改用 order_id 之後（見下方 index），
+    -- 連那個理由的形狀都不存在了。
     CONSTRAINT uq_order_lines_order_line_no UNIQUE (order_id, line_no),
     CONSTRAINT fk_order_lines_order FOREIGN KEY (order_id) REFERENCES orders(id),
     CONSTRAINT fk_order_lines_sku
@@ -195,21 +196,30 @@ CREATE TABLE order_lines (
     CONSTRAINT ck_order_lines_quantity_positive CHECK (quantity > 0)
 );
 
--- 此複合 index 配合待配佇列查詢：
+-- 此複合 index 配合待配需求的佇列查詢：
 -- WHERE owner_id = ? AND sku_code = ?
--- ORDER BY backordered_since ASC, id ASC
+-- ORDER BY order_id
 --
--- 從 R8 提前。不提前就沒有 FIFO index 可用——篩選鍵（owner_id、sku_code）在 line、
--- 排序鍵在 header，橫跨兩張表的「篩選 ＋ 排序」無法用單一複合 index 覆蓋。留在 R8 等於
--- 此階段到 R8 全程無 index，壓測基準會斷掉且無法歸因。
+-- **排序鍵是 order_id，因為它是 UUID v7**（見 IdGenerator）：時間戳編在主鍵裡，所以它的
+-- 大小順序就是訂單進入系統的順序，也就是 FIFO 要的順序。不需要任何時間欄位，也不需要
+-- tie-breaker——主鍵本身就唯一。
 --
--- 欄位順序沿用等值篩選在前、排序鍵其次、id 作為 tie-breaker 的原則。含 owner_id 是必要
--- 的：不同貨主的 backorder 隊列必須分開排序，A 貨主的單不應該被 B 貨主的單卡住。
+-- 為什麼是「進入系統的順序」而不是別的：在一張單抵達之前，系統對它一無所知，不可能為它
+-- 保留任何東西。上游給的下單時刻（orders.placed_at）不能拿來排——它可空，而且由一個我們
+-- 控制不了時鐘與送單排程的系統決定，一張三天前下單、今天才同步過來的單會插到已經等候
+-- 一天的單前面。
 --
--- 刻意不含 status，這是與被它取代的 idx_orders_backorder_fifo 唯一的實質差異。舊查詢是
--- WHERE status = 'BACKORDERED'，但 R4 之後待配佇列不能依 status 過濾——ordering 的配貨
--- 狀態落後於 allocation 的決策，拿它當閘門會重複預留。而 status 若夾在 sku_code 與
--- backordered_since 之間，index 掃出的列會先按 status 分組再按時間排序，查詢不篩 status
--- 時 PostgreSQL 仍得排序一次，index 等於白建。
-CREATE INDEX idx_order_lines_backorder_fifo
-    ON order_lines (owner_id, sku_code, backordered_since, id);
+-- 這一支取代的舊 index 第三欄是 order_lines.backordered_since，而那個欄位從來沒被查詢
+-- 讀到——舊查詢的排序取自 orders，跨表因此探不到這裡的排序段。欄位數相同，只是換成一個
+-- 真的會被用上的排序鍵。
+--
+-- 含 owner_id 是必要的：不同貨主的佇列必須分開排序，A 貨主的單不應該被 B 貨主的單卡住。
+--
+-- 刻意不含 status：待配佇列不能依 status 過濾——ordering 的配貨狀態落後於 allocation 的
+-- 決策，拿它當閘門會重複預留。「還欠什麼」由 demand_lines 對 stock_reservations 的
+-- NOT EXISTS 決定。
+--
+-- **倉別不在這支 index 裡**，因為它在 orders 上：查詢會 join 之後才過濾掉別的倉。要不要
+-- 把倉別物化到行上換取完全覆蓋，留待有實際查詢計畫與資料量之後再決定。
+CREATE INDEX idx_order_lines_demand_fifo
+    ON order_lines (owner_id, sku_code, order_id);

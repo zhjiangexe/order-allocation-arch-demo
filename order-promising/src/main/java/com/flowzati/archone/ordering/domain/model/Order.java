@@ -216,8 +216,8 @@ public class Order {
 
     status = OrderStatus.BACKORDERED;
     this.backOrderedSince = backorderedSince;
-    // line 的 backorderedSince 恆等於 header 的值，存在只為了單表 FIFO index。
-    lines.forEach(line -> line.markBackOrdered(backorderedSince));
+    // 行不存缺貨時刻——它會恆等於 header，而沒有讀取者。
+    lines.forEach(OrderLine::markBackOrdered);
     events.add(new OrderBackordered(id, ownerId, toLineSnapshots(), backorderedSince));
   }
 

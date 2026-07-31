@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
@@ -52,6 +53,9 @@ class AllocationWorkflowEndToEndIntegrationTest {
   private ObjectMapper objectMapper;
 
   @Autowired
+  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+
+  @Autowired
   private OrderRepository orderRepository;
 
   @Autowired
@@ -93,7 +97,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
   @Test
   @DisplayName("下單整合事件應完成配置、寫入 Inbox 並建立 Outbox")
   void shouldAllocateOrderFromKafkaIntegrationEventAndWriteOutbox() throws Exception {
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
     Instant receivedAt = Instant.now().minusSeconds(1);
     orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
@@ -101,6 +105,12 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
     consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+
+    // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
+    // Debezium，所以這裡自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
+    //
+    // 這一步不只是為了讓斷言通過：它同時驗證 ordering 的 consumer 真的消費得了那些事件。
+    assertThat(outcomeDrain().drain()).isPositive();
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
@@ -121,7 +131,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
   @Test
   @DisplayName("取消整合事件應釋放有效 Reservation 與 ATP")
   void shouldReleaseActiveReservationFromKafkaCancellationEvent() throws Exception {
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
     UUID reservationId = UUID.randomUUID();
     Instant reservedAt = Instant.now().minusSeconds(1);
@@ -132,7 +142,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
         StockFixtures.unexpiredBatch(stockPoolId, "SKU-PARTIALLY-RESERVED", 10, 4));
     // 預留指向**行**而不是訂單：外鍵是 fk_stock_reservations_order_line。
     stockReservationRepository.save(StockReservation.create(
-        reservationId, order.getLines().get(0).getId(), stockPoolId, 4, reservedAt));
+        reservationId,
+        orderId, order.getLines().get(0).getId(), stockPoolId, 4, reservedAt));
 
     OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, Instant.now());
     consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
@@ -151,8 +162,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
   @DisplayName("補貨整合事件應只按嚴格 FIFO 配置可完整滿足的前段訂單")
   void shouldAllocateOnlyFifoPrefixWhenReplenishingFromKafkaIntegrationEvent() throws Exception {
     UUID stockPoolId = UUID.randomUUID();
-    UUID firstOrderId = UUID.randomUUID();
-    UUID secondOrderId = UUID.randomUUID();
+    UUID firstOrderId = IdGenerator.nextId();
+    UUID secondOrderId = IdGenerator.nextId();
     Instant firstBackorderedAt = Instant.now().minusSeconds(4);
     Instant secondBackorderedAt = firstBackorderedAt.plusSeconds(1);
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-FIFO", 0, 0));
@@ -163,6 +174,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
             UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-FIFO",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 5);
     consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS, event));
+    outcomeDrain().drain();
 
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
     assertThat(orderRepository.findById(firstOrderId)).hasValueSatisfying(order ->
@@ -201,9 +213,10 @@ class AllocationWorkflowEndToEndIntegrationTest {
    */
   private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
       activeReservationsOf(java.util.UUID orderId) {
-    return orderRepository.findById(orderId)
-        .map(order -> stockReservationRepository.findActiveByOrderLineIds(
-            order.getLines().stream().map(line -> line.getId()).toList()))
-        .orElse(java.util.List.of());
+    return stockReservationRepository.findActiveByOrderId(orderId);
+  }
+
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
   }
 }

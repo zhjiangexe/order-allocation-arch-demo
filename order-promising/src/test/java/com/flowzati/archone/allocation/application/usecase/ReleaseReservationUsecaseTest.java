@@ -37,7 +37,6 @@ class ReleaseReservationUsecaseTest {
   private final Instant now = Instant.parse("2026-07-24T01:00:00Z");
 
   private InboxRepo inboxRepo;
-  private OrderRepository orderRepository;
   private StockReservationRepository reservationRepository;
   private StockPoolRepository stockPoolRepository;
   private OrderAllocationCoordinator coordinator;
@@ -46,13 +45,11 @@ class ReleaseReservationUsecaseTest {
   @BeforeEach
   void setUp() {
     inboxRepo = mock(InboxRepo.class);
-    orderRepository = mock(OrderRepository.class);
     reservationRepository = mock(StockReservationRepository.class);
     stockPoolRepository = mock(StockPoolRepository.class);
     coordinator = mock(OrderAllocationCoordinator.class);
     usecase = new ReleaseReservationUsecase(
         inboxRepo,
-        orderRepository,
         reservationRepository,
         stockPoolRepository,
         coordinator,
@@ -69,7 +66,7 @@ class ReleaseReservationUsecaseTest {
     usecase.handle(inbound(UUID.randomUUID(), messageId));
 
     verifyNoInteractions(
-        orderRepository, reservationRepository, stockPoolRepository, coordinator);
+        reservationRepository, stockPoolRepository, coordinator);
   }
 
   @Test
@@ -78,26 +75,28 @@ class ReleaseReservationUsecaseTest {
     UUID messageId = UUID.randomUUID();
     Order order = allocatedOrder();
     when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
-    when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
-    when(reservationRepository.findActiveByOrderLineIds(lineIds(order))).thenReturn(List.of());
+    when(reservationRepository.findActiveByOrderId(order.getId())).thenReturn(List.of());
 
     usecase.handle(inbound(order.getId(), messageId));
 
-    verify(reservationRepository).findActiveByOrderLineIds(lineIds(order));
+    verify(reservationRepository).findActiveByOrderId(order.getId());
     verifyNoInteractions(stockPoolRepository, coordinator);
   }
 
   @Test
-  @DisplayName("找不到訂單時應為合法 no-op——取消一張不存在的單沒有東西要釋放")
-  void shouldDoNothingWhenOrderDoesNotExist() {
+  @DisplayName("這張單沒有有效預留時應為合法 no-op——沒有東西要釋放")
+  void shouldDoNothingWhenTheOrderHoldsNoReservation() {
     UUID messageId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
     when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
-    when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+    // 不再先查訂單存不存在——預留是 allocation 自己的資料，直接問它就好。訂單不存在、
+    // 訂單存在但沒配到、預留已經釋放過，三種情形在這裡是同一件事：沒有東西要釋放。
+    when(reservationRepository.findActiveByOrderId(orderId)).thenReturn(List.of());
 
     usecase.handle(inbound(orderId, messageId));
 
-    verifyNoInteractions(reservationRepository, stockPoolRepository, coordinator);
+    verify(reservationRepository).findActiveByOrderId(orderId);
+    verifyNoInteractions(stockPoolRepository, coordinator);
   }
 
   @Test
@@ -109,12 +108,13 @@ class ReleaseReservationUsecaseTest {
     StockPool near = StockFixtures.unexpiredBatch("SKU-1", 60, 60);
     StockPool far = StockFixtures.unexpiredBatch("SKU-1", 40, 20);
     StockReservation onNear = StockReservation.create(
+        UUID.randomUUID(),
         UUID.randomUUID(), lineId, near.getId(), 60, now.minusSeconds(1));
     StockReservation onFar = StockReservation.create(
+        UUID.randomUUID(),
         UUID.randomUUID(), lineId, far.getId(), 20, now.minusSeconds(1));
     when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
-    when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
-    when(reservationRepository.findActiveByOrderLineIds(lineIds(order)))
+    when(reservationRepository.findActiveByOrderId(order.getId()))
         .thenReturn(List.of(onNear, onFar));
     when(stockPoolRepository.findById(near.getId())).thenReturn(Optional.of(near));
     when(stockPoolRepository.findById(far.getId())).thenReturn(Optional.of(far));
@@ -135,10 +135,10 @@ class ReleaseReservationUsecaseTest {
     Order order = allocatedOrder();
     UUID stockPoolId = UUID.randomUUID();
     StockReservation reservation = StockReservation.create(
+        UUID.randomUUID(),
         UUID.randomUUID(), order.getLines().get(0).getId(), stockPoolId, 3, now.minusSeconds(1));
     when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
-    when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
-    when(reservationRepository.findActiveByOrderLineIds(lineIds(order)))
+    when(reservationRepository.findActiveByOrderId(order.getId()))
         .thenReturn(List.of(reservation));
     when(stockPoolRepository.findById(stockPoolId)).thenReturn(Optional.empty());
 
@@ -157,10 +157,9 @@ class ReleaseReservationUsecaseTest {
     UUID lineId = order.getLines().get(0).getId();
     StockPool batch = StockFixtures.unexpiredBatch("SKU-1", 60, 30);
     when(inboxRepo.claimIfNew(message(messageId))).thenReturn(true);
-    when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
-    when(reservationRepository.findActiveByOrderLineIds(lineIds(order))).thenReturn(List.of(
-        StockReservation.create(UUID.randomUUID(), lineId, batch.getId(), 20, now.minusSeconds(1)),
-        StockReservation.create(UUID.randomUUID(), lineId, batch.getId(), 10, now.minusSeconds(1))));
+    when(reservationRepository.findActiveByOrderId(order.getId())).thenReturn(List.of(
+        StockReservation.create(UUID.randomUUID(), UUID.randomUUID(), lineId, batch.getId(), 20, now.minusSeconds(1)),
+        StockReservation.create(UUID.randomUUID(), UUID.randomUUID(), lineId, batch.getId(), 10, now.minusSeconds(1))));
     when(stockPoolRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
 
     usecase.handle(inbound(order.getId(), messageId));
@@ -174,9 +173,6 @@ class ReleaseReservationUsecaseTest {
         UUID.randomUUID(), "SKU-1", 80, now.minusSeconds(10), now.minusSeconds(5));
   }
 
-  private static List<UUID> lineIds(Order order) {
-    return order.getLines().stream().map(line -> line.getId()).toList();
-  }
 
   private MessageMetadata message(UUID eventId) {
     return new MessageMetadata(eventId, "OrderCancelledIntegrationEvent");

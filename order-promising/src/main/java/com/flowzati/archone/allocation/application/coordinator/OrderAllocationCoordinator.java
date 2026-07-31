@@ -12,8 +12,8 @@ import com.flowzati.archone.allocation.domain.service.AllocationService;
 import com.flowzati.archone.allocation.domain.service.BatchPick;
 import com.flowzati.archone.allocation.domain.service.OrderAllocation;
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.allocation.domain.model.Demand;
+import com.flowzati.archone.allocation.domain.event.OrderBackorderRecorded;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -27,7 +27,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 應用層服務：負責跨多個聚合根 (Order, StockPool, StockReservation) 的分配流程協調與持久化。
+ * 應用層服務：負責 StockPool 與 StockReservation 的分配流程協調與持久化。
+ *
+ * <p><b>不碰訂單聚合根。</b>配貨結果以領域事件陳述，由 ordering 收到對外事件後自己推進狀態。
  */
 @Component
 public class OrderAllocationCoordinator {
@@ -51,41 +53,43 @@ public class OrderAllocationCoordinator {
 
   private final AllocationService allocationService;
   private final StockPoolRepository stockPoolRepository;
-  private final OrderRepository orderRepository;
   private final StockReservationRepository stockReservationRepository;
   private final ApplicationEventPublisher eventPublisher;
 
   public OrderAllocationCoordinator(
       AllocationService allocationService,
       StockPoolRepository stockPoolRepository,
-      OrderRepository orderRepository,
       StockReservationRepository stockReservationRepository,
       ApplicationEventPublisher eventPublisher) {
     this.allocationService = allocationService;
     this.stockPoolRepository = stockPoolRepository;
-    this.orderRepository = orderRepository;
     this.stockReservationRepository = stockReservationRepository;
     this.eventPublisher = eventPublisher;
   }
 
-  /** 配一張單，成功就連同預留一起寫入並發事件。 */
+  /** 配一筆需求，成功就連同預留一起寫入並發事件。 */
   public AllocationOutcome allocateOrder(
-      Order order, List<StockPool> allocatableBatches, Instant now) {
-    AllocationResult result = allocationService.allocate(order, allocatableBatches, now);
+      Demand demand, List<StockPool> allocatableBatches, Instant now) {
+    AllocationResult result = allocationService.allocate(demand, allocatableBatches, now);
     if (!result.isAllocated()) {
       return result.outcome();
     }
 
-    List<StockReservation> reservations = reservationsFor(result.picks(), now);
-    persistAllocation(List.of(order), result.picks(), reservations);
-    publishAllocationCompleted(order);
+    OrderAllocation allocation = new OrderAllocation(demand, result.picks());
+    List<StockReservation> reservations = reservationsFor(allocation, now);
+    persistAllocation(result.picks(), reservations);
+    publishAllocationCompleted(demand.orderId(), now);
     return AllocationOutcome.ALLOCATED;
   }
 
-  public void backorderOrder(Order order, Instant now) {
-    order.markBackOrdered(now);
-    orderRepository.save(order);
-    publishDomainEvents(List.of(order));
+  /**
+   * 記錄這筆需求現在滿足不了。
+   *
+   * <p><b>不碰訂單。</b>它只發一個事實，由 ordering 收到之後自己把訂單推進到缺貨——一個交易
+   * 只修改一個 aggregate，而 {@code orders} 只有 ordering 寫。
+   */
+  public void backorderOrder(Demand demand, Instant now) {
+    eventPublisher.publishEvent(new OrderBackorderRecorded(demand.orderId(), now));
   }
 
   /**
@@ -123,8 +127,8 @@ public class OrderAllocationCoordinator {
     return true;
   }
 
-  public List<Order> allocateBackorders(
-      List<Order> backorders,
+  public List<Demand> allocateBackorders(
+      List<Demand> backorders,
       List<StockPool> allocatableBatches,
       Instant now
   ) {
@@ -134,17 +138,18 @@ public class OrderAllocationCoordinator {
       return List.of();
     }
 
-    List<Order> allocatedOrders = allocations.stream().map(OrderAllocation::order).toList();
+    List<Demand> allocated = allocations.stream().map(OrderAllocation::demand).toList();
     List<BatchPick> picks = allocations.stream().flatMap(a -> a.picks().stream()).toList();
 
-    // picks 與 reservations 之間**沒有位置關係**，兩者各自獨立使用：前者算出要寫哪些批，
-    // 後者是要寫的預留。曾經有一段以 .get(i) 對齊兩者的程式，那是為了組事件的批次清單；
-    // 清單移除之後那個對齊需求就消失了，連帶一個以 record 當 HashMap key 的脆弱處也不見了。
-    List<StockReservation> reservations = reservationsFor(picks, now);
+    // 逐 allocation 建預留，因為每一筆預留要記下它屬於哪一張單——而那個對應只有在還沒把
+    // picks 攤平之前看得到。攤平後的 picks 只用來決定要寫哪些批。
+    List<StockReservation> reservations = allocations.stream()
+        .flatMap(allocation -> reservationsFor(allocation, now).stream())
+        .toList();
 
-    persistAllocation(allocatedOrders, picks, reservations);
-    allocatedOrders.forEach(this::publishAllocationCompleted);
-    return allocatedOrders;
+    persistAllocation(picks, reservations);
+    allocated.forEach(demand -> publishAllocationCompleted(demand.orderId(), now));
+    return allocated;
   }
 
   /**
@@ -153,10 +158,11 @@ public class OrderAllocationCoordinator {
    * <p>{@link BatchPick} 已經是這個粒度，所以這裡是一對一的映射；把它摺成一張單一筆會在這裡
    * 就丟掉「哪一批是為哪一條行鎖的」，而出貨時要的正是那個資訊。
    */
-  private List<StockReservation> reservationsFor(List<BatchPick> picks, Instant now) {
-    return picks.stream()
+  private List<StockReservation> reservationsFor(OrderAllocation allocation, Instant now) {
+    return allocation.picks().stream()
         .map(pick -> StockReservation.create(
             IdGenerator.nextId(),
+            allocation.demand().orderId(),
             pick.orderLineId(),
             pick.batch().getId(),
             pick.quantity(),
@@ -164,22 +170,20 @@ public class OrderAllocationCoordinator {
         .toList();
   }
 
-  private void persistAllocation(
-      List<Order> orders,
-      List<BatchPick> picks,
-      List<StockReservation> reservations
-  ) {
+  /**
+   * 只寫 allocation 自己的兩張表。
+   *
+   * <p>訂單不在這裡寫，也不在別處寫：配貨結果經事件送回 ordering。因此這個交易只碰
+   * {@code stock_pools} 與 {@code stock_reservations}。
+   */
+  private void persistAllocation(List<BatchPick> picks, List<StockReservation> reservations) {
     Map<UUID, StockPool> touched = new LinkedHashMap<>();
     picks.forEach(pick -> touched.put(pick.batch().getId(), pick.batch()));
 
     saveInWriteOrder(touched.values());
-    orders.stream()
-        .sorted(Comparator.comparing(Order::getId))
-        .forEach(orderRepository::save);
     reservations.stream()
         .sorted(Comparator.comparing(StockReservation::getId))
         .forEach(stockReservationRepository::save);
-    publishDomainEvents(orders);
   }
 
   private void saveInWriteOrder(Collection<StockPool> batches) {
@@ -219,19 +223,15 @@ public class OrderAllocationCoordinator {
   }
 
   /**
-   * 三個聚合根都寫入之後才發，這是它與 {@code OrderAllocated} 的差別。
+   * 庫存與預留都寫入之後才發，這是它與 ordering 的 {@code OrderAllocated} 的差別。
+   *
+   * <p>時間戳由呼叫端傳入而不是從訂單讀——訂單不在這裡，而配貨的時刻本來就是這一次交易的
+   * {@code now}。
    *
    * <p>不帶配到哪些批：對外事件不帶，這裡也就沒有東西要帶（理由見
    * {@code OrderAllocatedIntegrationEvent}）。
    */
-  private void publishAllocationCompleted(Order order) {
-    eventPublisher.publishEvent(
-        new OrderAllocationCompleted(order.getId(), order.getAllocatedAt()));
-  }
-
-  private void publishDomainEvents(List<Order> orders) {
-    orders.stream()
-        .flatMap(order -> order.releaseDomainEvents().stream())
-        .forEach(eventPublisher::publishEvent);
+  private void publishAllocationCompleted(UUID orderId, Instant allocatedAt) {
+    eventPublisher.publishEvent(new OrderAllocationCompleted(orderId, allocatedAt));
   }
 }

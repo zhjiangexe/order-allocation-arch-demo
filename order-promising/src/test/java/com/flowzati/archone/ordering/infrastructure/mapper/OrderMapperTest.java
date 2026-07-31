@@ -58,7 +58,6 @@ class OrderMapperTest {
       assertThat(line.getSkuCode()).isEqualTo("SKU-1");
       assertThat(line.getQuantity()).isEqualTo(3);
       assertThat(line.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-      assertThat(line.getBackorderedSince()).isEqualTo(BACKORDERED_AT);
     });
   }
 
@@ -114,9 +113,9 @@ class OrderMapperTest {
         OrderFixtures.deliveryTerms(),
         List.of(
             OrderLine.rehydrate(
-                UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3, OrderStatus.PENDING, null),
+                UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3, OrderStatus.PENDING),
             OrderLine.rehydrate(
-                UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7, OrderStatus.PENDING, null)),
+                UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7, OrderStatus.PENDING)),
         OrderStatus.PENDING,
         RECEIVED_AT,
         null, null, null, null, null);
@@ -133,6 +132,6 @@ class OrderMapperTest {
   private static OrderLineEntity lineEntity(
       int lineNo, String skuCode, int quantity, OrderStatus status) {
     return new OrderLineEntity(
-        UUID.randomUUID(), lineNo, OWNER_ID, skuCode, quantity, status, null);
+        UUID.randomUUID(), lineNo, OWNER_ID, skuCode, quantity, status);
   }
 }

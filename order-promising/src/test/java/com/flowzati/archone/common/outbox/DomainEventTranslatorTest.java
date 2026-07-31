@@ -12,7 +12,7 @@ import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEve
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.ordering.domain.event.OrderBackordered;
+import com.flowzati.archone.allocation.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.time.Instant;
@@ -167,7 +167,7 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new AllocationDomainEventTranslator(appender)
-        .translate(new OrderBackordered(orderId, OWNER_ID, LINES, occurredAt));
+        .translate(new OrderBackorderRecorded(orderId, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());

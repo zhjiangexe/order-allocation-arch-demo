@@ -55,6 +55,8 @@ import org.springframework.test.context.ActiveProfiles;
 class StockReservationPersistenceIntegrationTest {
 
   private static final Instant RESERVED_AT = Instant.parse("2026-07-24T08:00:00Z");
+  /** 這些測試都圍繞同一張單——以訂單查預留才查得到，那正是取消釋放走的路徑。 */
+  private static final UUID ORDER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000f1");
   private static final UUID STOCK_POOL_ID = uuid(10);
   /** 第二個批次：一條行跨兩批時要用到，也是唯一鍵「行 × 批」的另一半。 */
   private static final UUID SECOND_STOCK_POOL_ID = uuid(20);
@@ -78,13 +80,14 @@ class StockReservationPersistenceIntegrationTest {
     UUID reservationId = uuid(1);
     UUID lineId = persistReferences(uuid(11));
     StockReservation reservation = StockReservation.create(
-        reservationId, lineId, STOCK_POOL_ID, 3, RESERVED_AT);
+        reservationId,
+        ORDER_ID, lineId, STOCK_POOL_ID, 3, RESERVED_AT);
 
     repositoryAdapter.save(reservation);
     jpaRepository.flush();
     entityManager.clear();
 
-    StockReservation restored = onlyActiveFor(lineId);
+    StockReservation restored = onlyActiveForOrder();
 
     assertThat(restored.getId()).isEqualTo(reservationId);
     assertThat(restored.getOrderLineId()).isEqualTo(lineId);
@@ -102,15 +105,15 @@ class StockReservationPersistenceIntegrationTest {
     UUID lineId = persistReferences(uuid(11));
 
     repositoryAdapter.save(
-        StockReservation.create(uuid(1), lineId, STOCK_POOL_ID, 60, RESERVED_AT));
+        StockReservation.create(uuid(1), ORDER_ID, lineId, STOCK_POOL_ID, 60, RESERVED_AT));
     repositoryAdapter.save(
-        StockReservation.create(uuid(2), lineId, SECOND_STOCK_POOL_ID, 20, RESERVED_AT));
+        StockReservation.create(uuid(2), ORDER_ID, lineId, SECOND_STOCK_POOL_ID, 20, RESERVED_AT));
     jpaRepository.flush();
     entityManager.clear();
 
     // 這是分批之後 schema 必須允許的事。舊的 UNIQUE (order_id) 會擋下第二筆，而那條規則
     // 表達的是「一張單一筆預留」——分批之後它不再成立。
-    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(lineId)))
+    assertThat(repositoryAdapter.findActiveByOrderId(ORDER_ID))
         .hasSize(2)
         .extracting(StockReservation::getQuantity)
         .containsExactlyInAnyOrder(60, 20);
@@ -122,11 +125,11 @@ class StockReservationPersistenceIntegrationTest {
     UUID reservationId = uuid(1);
     UUID lineId = persistReferences(uuid(11));
     repositoryAdapter.save(
-        StockReservation.create(reservationId, lineId, STOCK_POOL_ID, 3, RESERVED_AT));
+        StockReservation.create(reservationId, ORDER_ID, lineId, STOCK_POOL_ID, 3, RESERVED_AT));
     jpaRepository.flush();
     entityManager.clear();
 
-    StockReservation active = onlyActiveFor(lineId);
+    StockReservation active = onlyActiveForOrder();
     Instant releasedAt = RESERVED_AT.plusSeconds(60);
     active.release(releasedAt);
     repositoryAdapter.save(active);
@@ -135,29 +138,29 @@ class StockReservationPersistenceIntegrationTest {
 
     StockReservationEntity entity = jpaRepository.findById(reservationId).orElseThrow();
 
-    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(lineId))).isEmpty();
+    assertThat(repositoryAdapter.findActiveByOrderId(ORDER_ID)).isEmpty();
     assertThat(entity.getStatus()).isEqualTo(ReservationStatus.RELEASED);
     assertThat(entity.getReleasedAt()).isEqualTo(releasedAt);
     assertThat(entity.getVersion()).isEqualTo(1L);
   }
 
   @Test
-  @DisplayName("findActiveByOrderLineIds 應只回傳 ACTIVE reservation")
+  @DisplayName("findActiveByOrderId 應只回傳 ACTIVE reservation")
   void findsOnlyActiveReservations() {
     UUID activeLineId = persistReferences(uuid(11));
     UUID releasedLineId = persistReferences(uuid(12));
     jpaRepository.saveAndFlush(new StockReservationEntity(
-        uuid(1), activeLineId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
+        uuid(1), ORDER_ID, activeLineId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
         RESERVED_AT, null, null
     ));
     jpaRepository.saveAndFlush(new StockReservationEntity(
-        uuid(2), releasedLineId, STOCK_POOL_ID, 3, ReservationStatus.RELEASED,
+        uuid(2), ORDER_ID, releasedLineId, STOCK_POOL_ID, 3, ReservationStatus.RELEASED,
         RESERVED_AT, RESERVED_AT.plusSeconds(60), null
     ));
     entityManager.clear();
 
-    // 一次問兩條行，只有 ACTIVE 那筆回來——過濾在資料庫做，呼叫端不必自己挑。
-    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(activeLineId, releasedLineId)))
+    // 同一張單的兩條行，只有 ACTIVE 那筆回來——過濾在資料庫做，呼叫端不必自己挑。
+    assertThat(repositoryAdapter.findActiveByOrderId(ORDER_ID))
         .extracting(StockReservation::getId)
         .containsExactly(uuid(1));
   }
@@ -165,7 +168,7 @@ class StockReservationPersistenceIntegrationTest {
   @Test
   @DisplayName("找不到 ACTIVE reservation 時應忠實回傳空清單")
   void returnsEmptyWhenNoActiveReservationExists() {
-    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of(uuid(11)))).isEmpty();
+    assertThat(repositoryAdapter.findActiveByOrderId(uuid(11))).isEmpty();
   }
 
   @Test
@@ -173,7 +176,7 @@ class StockReservationPersistenceIntegrationTest {
   void returnsEmptyWithoutQueryingForAnEmptyIdList() {
     // 一張沒有行的訂單在這個系統裡不存在，但呼叫端（ReleaseReservationUsecase）不該為了
     // 這件事多寫一個 if——空的 IN (...) 在某些方言下是語法錯誤，所以擋在 adapter 裡。
-    assertThat(repositoryAdapter.findActiveByOrderLineIds(List.of())).isEmpty();
+    assertThat(repositoryAdapter.findActiveByOrderId(uuid(99))).isEmpty();
   }
 
   @Test
@@ -182,11 +185,11 @@ class StockReservationPersistenceIntegrationTest {
     UUID reservationId = uuid(1);
     UUID lineId = persistReferences(uuid(11));
     jpaRepository.saveAndFlush(new StockReservationEntity(
-        reservationId, lineId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
+        reservationId, ORDER_ID, lineId, STOCK_POOL_ID, 3, ReservationStatus.ACTIVE,
         RESERVED_AT, null, null
     ));
     entityManager.clear();
-    StockReservation staleReservation = onlyActiveFor(lineId);
+    StockReservation staleReservation = onlyActiveForOrder();
 
     jdbcTemplate.update(
         "UPDATE stock_reservations SET version = version + 1 WHERE id = ?",
@@ -288,11 +291,11 @@ class StockReservationPersistenceIntegrationTest {
         .hasMessageContaining("fk_stock_reservations_stock_pool");
   }
 
-  private StockReservation onlyActiveFor(UUID orderLineId) {
-    List<StockReservation> active =
-        repositoryAdapter.findActiveByOrderLineIds(List.of(orderLineId));
+  /** 這張單目前唯一的有效預留。以訂單查，那是取消釋放走的路徑。 */
+  private StockReservation onlyActiveForOrder() {
+    List<StockReservation> active = repositoryAdapter.findActiveByOrderId(ORDER_ID);
     assertThat(active).hasSize(1);
-    return active.get(0);
+    return active.getFirst();
   }
 
   /**
@@ -344,10 +347,11 @@ class StockReservationPersistenceIntegrationTest {
   ) {
     jdbcTemplate.update("""
         INSERT INTO stock_reservations (
-            id, order_line_id, stock_pool_id, quantity, status, reserved_at, released_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            id, order_id, order_line_id, stock_pool_id, quantity, status, reserved_at, released_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         id,
+        ORDER_ID,
         orderLineId,
         stockPoolId,
         quantity,

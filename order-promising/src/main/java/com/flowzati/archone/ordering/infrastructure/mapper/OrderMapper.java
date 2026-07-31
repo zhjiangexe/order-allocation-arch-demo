@@ -62,8 +62,7 @@ public final class OrderMapper {
             line.getOwnerId(),
             line.getSkuCode(),
             line.getQuantity(),
-            line.getStatus(),
-            line.getBackorderedSince()))
+            line.getStatus()))
         .toList();
   }
 
@@ -75,8 +74,7 @@ public final class OrderMapper {
             line.getOwnerId(),
             line.getSkuCode(),
             line.getQuantity(),
-            line.getStatus(),
-            line.getBackorderedSince()))
+            line.getStatus()))
         .toList();
   }
 }

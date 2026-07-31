@@ -6,8 +6,8 @@ import com.flowzati.archone.allocation.domain.service.selector.AllocationContext
 import com.flowzati.archone.allocation.domain.service.selector.AllocationContextFactory;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationPolicy;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.allocation.domain.model.Demand;
+import com.flowzati.archone.testsupport.DemandFixtures;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -21,8 +21,8 @@ class AllocationSelectorTest {
   void createsTypedContextBeforeInvokingPolicy() {
     Instant decisionAt = Instant.parse("2026-07-24T02:00:00Z");
     AllocationRequest request = new AllocationRequest("SKU-1", 5, decisionAt);
-    Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, decisionAt.minusSeconds(1));
-    order.releaseDomainEvents();
+    Demand demand = DemandFixtures.demand(
+        UUID.randomUUID(), "SKU-1", 3, decisionAt.minusSeconds(1));
 
     AllocationContextFactory<TestAllocationContext> contextFactory = source ->
         new TestAllocationContext(source.availableToPromise(), source.decisionAt());
@@ -34,9 +34,9 @@ class AllocationSelectorTest {
     AllocationSelector selector =
         AllocationSelector.contextual(policy, contextFactory);
 
-    List<Order> selected = selector.select(List.of(order), request);
+    List<Demand> selected = selector.select(List.of(demand), request);
 
-    assertThat(selected).containsExactly(order);
+    assertThat(selected).containsExactly(demand);
   }
 
   private record TestAllocationContext(

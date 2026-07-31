@@ -9,6 +9,15 @@ CREATE TABLE stock_reservations (
     id UUID PRIMARY KEY,
     -- 指向行而非訂單。訂單層級的參照在多行放寬後會失去意義，而 R8 之前它也已經
     -- 表達不了「這一批是為哪一條行鎖的」。
+    -- 這筆預留是為哪一張單鎖的。
+    --
+    -- 值可以從 order_line_id join order_lines 得到，但那條路徑要求 allocation 認識 ordering
+    -- 的表——而取消時「釋放這張單的全部預留」是 allocation 自己的動作，它不該為此去問別人。
+    -- 值不可變（一筆預留屬於哪張單不會改），所以沒有同步成本。
+    --
+    -- 刻意不建外鍵指向 orders：那會讓 allocation 的 schema 依賴 ordering 的表。完整性由
+    -- order_line_id 的外鍵保證——行存在就蘊含它的訂單存在。
+    order_id UUID NOT NULL,
     order_line_id UUID NOT NULL,
     stock_pool_id UUID NOT NULL,
     quantity INTEGER NOT NULL,
@@ -42,5 +51,7 @@ CREATE TABLE stock_reservations (
 
 -- 「這條行預留了哪些批」與「這批被哪些行預留」都要查得快。前者是釋放與出貨的入口，
 -- 後者是對帳與診斷的入口。
+-- 取消時以訂單釋放全部預留：一條行跨三批就有三筆，全部都要放。
+CREATE INDEX idx_stock_reservations_order ON stock_reservations (order_id);
 CREATE INDEX idx_stock_reservations_line ON stock_reservations (order_line_id);
 CREATE INDEX idx_stock_reservations_pool ON stock_reservations (stock_pool_id);

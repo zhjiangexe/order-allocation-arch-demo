@@ -340,7 +340,6 @@ class OrderTest {
       assertThat(order.getBackOrderedSince()).isEqualTo(backorderedAt);
       assertThat(order.getLines()).allSatisfy(line -> {
         assertThat(line.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-        assertThat(line.getBackorderedSince()).isEqualTo(backorderedAt);
       });
     }
 
@@ -354,7 +353,6 @@ class OrderTest {
 
       assertThat(order.getLines()).allSatisfy(line -> {
         assertThat(line.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
-        assertThat(line.getBackorderedSince()).isNull();
       });
     }
 

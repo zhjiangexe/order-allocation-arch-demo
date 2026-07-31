@@ -1,6 +1,5 @@
 package com.flowzati.archone.ordering.domain.model;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -15,25 +14,16 @@ import java.util.UUID;
  * {@code (owner_id, sku_code)} → {@code skus}——那個外鍵必須帶著貨主才擋得住跨貨主的錯誤組合。
  * 值不可變，所以沒有同步成本。
  *
- * <p><b>{@code status} 與 {@code backorderedSince} 目前沒有讀取者。</b>採 ship-complete 之後兩者
- * 都恆等於 header，而缺貨佇列的查詢（{@code findBackordersBySkuInFifoOrder}）實際產生的 SQL 是：
+ * <p><b>沒有任何時間戳。</b>採 ship-complete 之後 line 的缺貨時刻與配貨時刻都恆等於 header，
+ * 而兩者都沒有讀取者。
  *
- * <pre>
- * from orders o left join order_lines l on o.id = l.order_id
- * where l.owner_id = ? and l.sku_code = ? and o.status = ?
- * order by o.backordered_since, o.id
- * </pre>
+ * <p>缺貨時刻曾經存在，理由寫的是「單表 FIFO index 需要」——**那句話是錯的**：那個查詢 join
+ * {@code orders}，篩選只用行的 {@code owner_id} 與 {@code sku_code}，排序取自 header。欄位因此
+ * 從未被讀到，index 的排序段也從未被探到。待配佇列改以 {@code order_id}（UUID v7，等於到達
+ * 順序）排序之後，連那個理由的形狀都不存在了。
  *
- * 篩選只用到行的 {@code owner_id} 與 {@code sku_code}；狀態與排序都取自 {@code orders}。所以
- * {@code backorderedSince} 曾被註記為「單表 FIFO index 需要」——**那句話是錯的，那個查詢不是
- * 單表而是 join**。{@code status} 則只被 REST 回應逐行揭露，而它與 header 相同，對客戶端沒有
- * 提供新資訊。
- *
- * <p>兩者要不要留是 R8 的決定（見 roadmap）——留著就是儲存的衍生值、第二個可能與 header 不合
- * 的真相來源；砍掉則牽動 API 契約與 {@code idx_order_lines_backorder_fifo} 的欄位。
- *
- * <p>刻意沒有 line 層級的 {@code allocatedAt}：採 ship-complete 之後它恆等於 header，而
- * 沒有任何查詢需要以它排序，那會是純冗餘欄位。
+ * <p>{@code status} 留著：它被 REST 回應逐行揭露。與 header 相同，對客戶端沒有提供新資訊，但
+ * 放寬多行之後畫面不必改契約就能逐行顯示。
  */
 public class OrderLine {
 
@@ -43,7 +33,6 @@ public class OrderLine {
   private final String skuCode;
   private final int quantity;
   private OrderStatus status;
-  private Instant backorderedSince;
 
   private OrderLine(
       UUID id,
@@ -51,8 +40,7 @@ public class OrderLine {
       UUID ownerId,
       String skuCode,
       int quantity,
-      OrderStatus status,
-      Instant backorderedSince
+      OrderStatus status
   ) {
     if (id == null) {
       throw new IllegalArgumentException("Order line ID is required");
@@ -78,18 +66,17 @@ public class OrderLine {
     this.skuCode = skuCode;
     this.quantity = quantity;
     this.status = status;
-    this.backorderedSince = backorderedSince;
   }
 
   /**
-   * 新的一行，狀態必為 {@code PENDING}、無缺貨時間。
+   * 新的一行，狀態必為 {@code PENDING}。
    *
    * <p>與 {@link #rehydrate} 的分工同 {@code StockReservation}：前者強制新建時的初始狀態，
    * 後者還原儲存裡的任何狀態。
    */
   public static OrderLine create(
       UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
-    return new OrderLine(id, lineNo, ownerId, skuCode, quantity, OrderStatus.PENDING, null);
+    return new OrderLine(id, lineNo, ownerId, skuCode, quantity, OrderStatus.PENDING);
   }
 
   /** 由儲存還原。不施加任何超出欄位有效性的限制。 */
@@ -99,10 +86,9 @@ public class OrderLine {
       UUID ownerId,
       String skuCode,
       int quantity,
-      OrderStatus status,
-      Instant backorderedSince
+      OrderStatus status
   ) {
-    return new OrderLine(id, lineNo, ownerId, skuCode, quantity, status, backorderedSince);
+    return new OrderLine(id, lineNo, ownerId, skuCode, quantity, status);
   }
 
   /**
@@ -121,12 +107,10 @@ public class OrderLine {
    */
   void markAllocated() {
     status = OrderStatus.ALLOCATED;
-    backorderedSince = null;
   }
 
-  void markBackOrdered(Instant backorderedSince) {
+  void markBackOrdered() {
     status = OrderStatus.BACKORDERED;
-    this.backorderedSince = backorderedSince;
   }
 
   void cancel() {
@@ -157,7 +141,4 @@ public class OrderLine {
     return status;
   }
 
-  public Instant getBackorderedSince() {
-    return backorderedSince;
-  }
 }

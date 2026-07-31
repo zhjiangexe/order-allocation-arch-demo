@@ -12,7 +12,7 @@ import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
 import com.flowzati.archone.common.outbox.OutboxAppender;
 import com.flowzati.archone.common.outbox.OutboxDelivery;
 import com.flowzati.archone.common.outbox.StockContentionKey;
-import com.flowzati.archone.ordering.domain.event.OrderBackordered;
+import com.flowzati.archone.allocation.domain.event.OrderBackorderRecorded;
 
 import java.util.UUID;
 import org.springframework.context.event.EventListener;
@@ -42,18 +42,25 @@ public class AllocationDomainEventTranslator {
     );
   }
 
+  /**
+   * 缺貨。
+   *
+   * <p><b>監聽的是 allocation 自己的事實，不是 ordering 的 {@code OrderBackordered}。</b>
+   * 後者現在由 ordering 消費這則對外事件之後才產生——監聽它會讓「發事件 → ordering 改狀態 →
+   * 產生領域事件 → 又發事件」無限循環下去。兩個 context 各發各的，循環因此形成不了。
+   */
   @EventListener
-  public void translate(OrderBackordered event) {
+  public void translate(OrderBackorderRecorded event) {
     BackorderCreatedIntegrationEvent integration = new BackorderCreatedIntegrationEvent(
         IdGenerator.nextId(),
         event.orderId(),
-        event.backorderedSince());
+        event.backorderedAt());
     outboxAppender.append(
         integration,
         OutboxAggregateTypes.ORDER,
         event.orderId().toString(),
         deliveryKeyedByOrder(event.orderId()),
-        event.backorderedSince()
+        event.backorderedAt()
     );
   }
 

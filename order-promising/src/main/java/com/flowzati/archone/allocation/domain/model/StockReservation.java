@@ -6,6 +6,8 @@ import java.util.UUID;
 public class StockReservation {
 
   private final UUID id;
+  /** 這筆預留為哪一張單而鎖。取消時要能一次找出一張單的全部預留，而不必去問 ordering。 */
+  private final UUID orderId;
   private final UUID orderLineId;
   private final UUID stockPoolId;
   private final int quantity;
@@ -16,6 +18,7 @@ public class StockReservation {
 
   private StockReservation(
       UUID id,
+      UUID orderId,
       UUID orderLineId,
       UUID stockPoolId,
       int quantity,
@@ -24,10 +27,11 @@ public class StockReservation {
       Instant releasedAt,
       Long version
   ) {
-    validateIdentity(id, orderLineId, stockPoolId);
+    validateIdentity(id, orderId, orderLineId, stockPoolId);
     validateQuantity(quantity);
     validateState(status, reservedAt, releasedAt);
     this.id = id;
+    this.orderId = orderId;
     this.orderLineId = orderLineId;
     this.stockPoolId = stockPoolId;
     this.quantity = quantity;
@@ -39,6 +43,7 @@ public class StockReservation {
 
   public static StockReservation create(
       UUID id,
+      UUID orderId,
       UUID orderLineId,
       UUID stockPoolId,
       int quantity,
@@ -46,6 +51,7 @@ public class StockReservation {
   ) {
     return new StockReservation(
         id,
+        orderId,
         orderLineId,
         stockPoolId,
         quantity,
@@ -58,6 +64,7 @@ public class StockReservation {
 
   public static StockReservation rehydrate(
       UUID id,
+      UUID orderId,
       UUID orderLineId,
       UUID stockPoolId,
       int quantity,
@@ -68,6 +75,7 @@ public class StockReservation {
   ) {
     return new StockReservation(
         id,
+        orderId,
         orderLineId,
         stockPoolId,
         quantity,
@@ -100,6 +108,10 @@ public class StockReservation {
     return orderLineId;
   }
 
+  public UUID getOrderId() {
+    return orderId;
+  }
+
   public UUID getStockPoolId() {
     return stockPoolId;
   }
@@ -124,9 +136,13 @@ public class StockReservation {
     return version;
   }
 
-  private static void validateIdentity(UUID id, UUID orderLineId, UUID stockPoolId) {
+  private static void validateIdentity(
+      UUID id, UUID orderId, UUID orderLineId, UUID stockPoolId) {
     if (id == null) {
       throw new IllegalArgumentException("Reservation ID is required");
+    }
+    if (orderId == null) {
+      throw new IllegalArgumentException("Order ID is required");
     }
     if (orderLineId == null) {
       throw new IllegalArgumentException("Order line ID is required");

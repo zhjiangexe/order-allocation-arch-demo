@@ -49,6 +49,9 @@ class DevSeedDataIntegrationTest {
   private StockReservationRepository stockReservationRepository;
 
   @Autowired
+  private com.flowzati.archone.allocation.domain.repository.DemandRepository demandRepository;
+
+  @Autowired
   private JdbcTemplate jdbcTemplate;
 
   @Autowired
@@ -200,13 +203,17 @@ class DevSeedDataIntegrationTest {
     // 固化成種子等於展示一個穩定狀態下不存在的東西；更糟的是那張單繞過下單 usecase 直接
     // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在，補貨也不會碰它（只處理
     // BACKORDERED）。照操作台 README 的 demo 流程補貨後畫面毫無變化，看起來像壞掉。
-    List<Order> queue = orderRepository.findBackordersBySkuInFifoOrder(
-        DevSeedDataInitializer.SECOND_OWNER_ID, DevSeedDataInitializer.EMPTY_SKU, 1_000);
+    // 佇列現在由 demand_lines 回答，範圍含倉別——種子那張單在南部倉。
+    List<com.flowzati.archone.allocation.domain.model.Demand> queue =
+        demandRepository.findOutstandingDemandInFifoOrder(
+            DevSeedDataInitializer.SECOND_OWNER_ID,
+            DevSeedDataInitializer.SOUTH_NODE_ID,
+            DevSeedDataInitializer.EMPTY_SKU,
+            1_000);
 
-    assertThat(queue).extracting(Order::getId)
+    assertThat(queue)
+        .extracting(com.flowzati.archone.allocation.domain.model.Demand::orderId)
         .containsExactly(DevSeedDataInitializer.BACKORDERED_ORDER_ID);
-    assertThat(queue.getFirst().getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(queue.getFirst().getBackOrderedSince()).isNotNull();
 
     // 缺貨對象的庫存池必須真的是空的，否則「試過、沒貨」這個狀態自相矛盾
     assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_POOL_ID).availableToPromise()).isZero();
@@ -283,10 +290,7 @@ class DevSeedDataIntegrationTest {
    */
   private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
       activeReservationsOf(java.util.UUID orderId) {
-    return orderRepository.findById(orderId)
-        .map(order -> stockReservationRepository.findActiveByOrderLineIds(
-            order.getLines().stream().map(line -> line.getId()).toList()))
-        .orElse(java.util.List.of());
+    return stockReservationRepository.findActiveByOrderId(orderId);
   }
 
   /** 依 id 取那一批。種子的日期相對於今天計算，所以用 id 取比用五維鍵拼出來可靠。 */

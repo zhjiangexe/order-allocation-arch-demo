@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,6 +79,9 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
   private static final int BLOCKER_QUANTITY = 999;
   private static final int FIRST_REPLENISH_QUANTITY = FITTING_ORDERS_BEFORE_BLOCKER;
   private static final int SECOND_REPLENISH_QUANTITY = BLOCKER_QUANTITY + FITTING_ORDERS_AFTER_BLOCKER;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
@@ -214,6 +218,36 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
         assertThat(pool.getReservedQuantity()).isZero());
   }
 
+  @Test
+  @Timeout(value = 60, unit = TimeUnit.SECONDS)
+  @DisplayName("別的倉的更早訂單不得進入本輪——它們這次補貨滿足不了，卻會佔滿以張數計的上限")
+  void excludesOrdersShippingFromAnotherWarehouse() {
+    UUID stockPoolId = UUID.randomUUID();
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, FIFO_SKU, 0, 0));
+
+    // **先種別的倉的單**，所以它們的 order_id 較小、在佇列裡排更前面。少了倉別篩選，它們
+    // 會排在最前面被讀進來，然後因為查不到自己那個倉的批次而一張張被跳過——不會出錯，
+    // 但整個上限就這樣被用光，真正配得到的單一張都輪不到。
+    List<UUID> otherWarehouseOrders = new java.util.ArrayList<>();
+    for (int i = 0; i < WAKE_LIMIT; i++) {
+      UUID orderId = IdGenerator.nextId();
+      orderRepository.save(OrderFixtures.backorderedOrderAt(
+          OrderFixtures.OTHER_NODE_ID, orderId, OrderFixtures.OWNER_ID, FIFO_SKU, 1,
+          Instant.now().minusSeconds(7200), Instant.now().minusSeconds(7200)));
+      otherWarehouseOrders.add(orderId);
+    }
+    UUID mine = seedBackorderedOrder(1, Instant.now().minusSeconds(60), 0);
+
+    consume(replenish(1));
+    drainContinuations();
+
+    // 補的是本倉的一件，該配到的是本倉那張——即使它在佇列裡排在最後面。
+    assertThat(statusOf(mine)).isEqualTo(OrderStatus.ALLOCATED);
+    assertThat(otherWarehouseOrders)
+        .withFailMessage("別的倉的訂單不該被這次補貨碰到")
+        .allSatisfy(id -> assertThat(statusOf(id)).isEqualTo(OrderStatus.BACKORDERED));
+  }
+
   /** 建立 FIFO 排序穩定的 1,000 張 BACKORDERED Order：前 500 張、blocker、後 499 張。 */
   private BackorderQueue seedBackorderQueue() {
     Instant firstBackorderedAt = Instant.now().minusSeconds(3600);
@@ -231,7 +265,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
   }
 
   private UUID seedBackorderedOrder(int quantity, Instant firstBackorderedAt, int fifoPosition) {
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     Instant backorderedAt = firstBackorderedAt.plusMillis(fifoPosition);
     Order order = OrderFixtures.backorderedOrder(
         orderId, FIFO_SKU, quantity, backorderedAt.minusSeconds(1), backorderedAt);
@@ -240,10 +274,18 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
   }
 
   private OrderStatus statusOf(UUID orderId) {
+    // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
+    // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
+    outcomeDrain().drain();
+
     return orderRepository.findById(orderId).orElseThrow().getStatus();
   }
 
   private void assertReconciledState(UUID stockPoolId, ExpectedState expected) {
+    // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
+    // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
+    outcomeDrain().drain();
+
     // 1) Order 結果：ALLOCATED／BACKORDERED 的張數要精準對上這個階段的預期。
     Integer allocatedCount = jdbcTemplate.queryForObject(
         """
@@ -383,5 +425,9 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
       int reserved,
       int inboxCount,
       int outboxAllocatedCount) {
+  }
+
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
   }
 }

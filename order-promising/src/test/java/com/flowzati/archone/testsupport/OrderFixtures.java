@@ -52,10 +52,20 @@ public final class OrderFixtures {
         ON CONFLICT (id) DO NOTHING
         """, NODE_ID, "WH-TEST", "測試倉");
     jdbcTemplate.update("""
+        INSERT INTO fulfillment_nodes (id, code, name)
+        VALUES (?, ?, ?)
+        ON CONFLICT (id) DO NOTHING
+        """, OTHER_NODE_ID, "WH-FIXTURE-ALT", "共用 fixture 的第二個倉");
+    jdbcTemplate.update("""
         INSERT INTO owner_nodes (owner_id, node_id)
         VALUES (?, ?)
         ON CONFLICT DO NOTHING
         """, ownerId, NODE_ID);
+    jdbcTemplate.update("""
+        INSERT INTO owner_nodes (owner_id, node_id)
+        VALUES (?, ?)
+        ON CONFLICT DO NOTHING
+        """, ownerId, OTHER_NODE_ID);
     jdbcTemplate.update("""
         INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
         VALUES (?, ?, ?, ?, 'AMBIENT')
@@ -68,6 +78,44 @@ public final class OrderFixtures {
           ON CONFLICT (owner_id, sku_code) DO NOTHING
           """, UUID.randomUUID(), ownerId, skuCode, PRODUCT_CODE, skuCode);
     }
+  }
+
+  /**
+   * 另一個倉。跨倉的佇列範圍要驗，就必須有第二個倉可用。
+   *
+   * <p>id 與 code 都刻意避開 {@code StockPoolPersistenceIntegrationTest} 自己建的那個倉
+   * （{@code ...b2} / {@code WH-TEST-2}）——兩邊同時 seed 會先撞主鍵、再撞 code 的 unique。
+   * 共用 fixture 的固定值要在整個 SIT 範圍內唯一，取名帶 {@code FIXTURE} 讓來源一眼可辨。
+   */
+  public static final UUID OTHER_NODE_ID =
+      UUID.fromString("00000000-0000-0000-0000-0000000000bf");
+
+  public static DeliveryTerms deliveryTerms(UUID nodeId) {
+    return new DeliveryTerms(
+        nodeId,
+        "100",
+        "台北市中正區重慶南路一段 122 號",
+        LocalDate.of(2026, 8, 1));
+  }
+
+  /** 一張從指定倉出貨、已在佇列裡的單。 */
+  public static Order backorderedOrderAt(
+      UUID nodeId, UUID orderId, UUID ownerId, String skuCode, int quantity,
+      Instant receivedAt, Instant backorderedAt) {
+    return Order.rehydrate(
+        orderId,
+        ownerId,
+        "EXT-" + orderId,
+        deliveryTerms(nodeId),
+        List.of(OrderLine.rehydrate(
+            UUID.randomUUID(), 1, ownerId, skuCode, quantity, OrderStatus.BACKORDERED)),
+        OrderStatus.BACKORDERED,
+        receivedAt,
+        null,
+        null,
+        backorderedAt,
+        null,
+        null);
   }
 
   public static DeliveryTerms deliveryTerms() {
@@ -166,7 +214,7 @@ public final class OrderFixtures {
         "EXT-" + orderId,
         deliveryTerms(),
         List.of(OrderLine.rehydrate(
-            UUID.randomUUID(), 1, ownerId, skuCode, quantity, status, backorderedSince)),
+            UUID.randomUUID(), 1, ownerId, skuCode, quantity, status)),
         status,
         receivedAt,
         // 上游的下單時刻——fixture 一律不帶。需要它的測試自己造，因為「上游有沒有送」正是

@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,6 +70,9 @@ class AllocationHotSkuConcurrencyIntegrationTest {
   private static final int ON_HAND_QUANTITY = 10;
   private static final int MAX_RECOVERY_ROUNDS = 5;
 
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
 
@@ -121,7 +125,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
 
     List<OrderPlacedIntegrationEvent> events = new ArrayList<>(TOTAL_ORDERS);
     for (int i = 0; i < TOTAL_ORDERS; i++) {
-      UUID orderId = UUID.randomUUID();
+      UUID orderId = IdGenerator.nextId();
       orderRepository.save(OrderFixtures.pendingOrder(orderId, HOT_SKU, 1, receivedAt));
       events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt));
     }
@@ -235,6 +239,10 @@ class AllocationHotSkuConcurrencyIntegrationTest {
   }
 
   private void assertReconciledState(UUID stockPoolId) {
+    // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
+    // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
+    outcomeDrain().drain();
+
     // 1) Order 結果：10 件庫存只夠 10 張訂單成功，其餘 990 張應該進 BACKORDERED，不能有第三種狀態
     //    或有訂單卡在 PENDING（代表事件遺失或漏處理）。
     Integer allocatedCount = jdbcTemplate.queryForObject(
@@ -284,10 +292,24 @@ class AllocationHotSkuConcurrencyIntegrationTest {
       assertThat(pool.availableToPromise()).isZero();
     });
 
-    // 4) Inbox 結果：1,000 個 eventId 都要有一筆 claim，代表沒有事件被靜默遺失，
+    // 4) Inbox 結果：1,000 個下單事件都要有一筆 claim，代表沒有事件被靜默遺失，
     //    也沒有殘留任何「rollback 後沒被成功重送」的半途狀態。
-    Integer inboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_inbox", Integer.class);
+    //
+    //    **以事件型別篩選，不數總筆數。** 現在有兩個 context 各自去重：allocation 消費
+    //    OrderPlaced，ordering 消費配貨結果（OrderAllocated／BackorderCreated）。總筆數
+    //    因此是 2,000，而那個數字混了兩件事——這裡要問的是「配貨端收齊了嗎」。
+    Integer inboxCount = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM event_inbox WHERE event_type = ?",
+        Integer.class, OrderPlacedIntegrationEvent.class.getSimpleName());
     assertThat(inboxCount).isEqualTo(TOTAL_ORDERS);
+
+    //    ordering 側也該收齊：每張單一則結果事件，一則都不能少。
+    Integer orderingClaims = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM event_inbox WHERE event_type IN (?, ?)",
+        Integer.class,
+        OrderAllocatedIntegrationEvent.class.getSimpleName(),
+        BackorderCreatedIntegrationEvent.class.getSimpleName());
+    assertThat(orderingClaims).isEqualTo(TOTAL_ORDERS);
 
     // 5) Outbox 結果：對外發布的 Integration Event 總數要等於送出的事件數，且種類分佈要對上
     //    Order 的最終結果（10 筆 Allocated + 990 筆 Backorder），不能多也不能少。
@@ -373,5 +395,9 @@ class AllocationHotSkuConcurrencyIntegrationTest {
       invocations.set(0);
       firstWaveGate = new CountDownLatch(2);
     }
+  }
+
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
   }
 }

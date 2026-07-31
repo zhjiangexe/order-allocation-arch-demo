@@ -105,23 +105,11 @@ class OrderPersistenceIntegrationTest {
     assertThat(repositoryAdapter.findById(uuid(1))).isEmpty();
   }
 
-  @Test
-  @DisplayName("應只查同 SKU 的 BACKORDERED orders 並以時間及 ID 穩定排序")
-  void findsBackordersInStableFifoOrder() {
-    Instant later = BACKORDERED_AT.plusSeconds(1);
-    persistOrder(uuid(3), "SKU-1", OrderStatus.BACKORDERED, null, later);
-    persistOrder(uuid(2), "SKU-1", OrderStatus.BACKORDERED, null, BACKORDERED_AT);
-    persistOrder(uuid(1), "SKU-1", OrderStatus.BACKORDERED, null, BACKORDERED_AT);
-    persistOrder(uuid(4), "SKU-2", OrderStatus.BACKORDERED, null, BACKORDERED_AT);
-    persistOrder(uuid(5), "SKU-1", OrderStatus.PENDING, null, null);
-    entityManager.clear();
-
-    List<Order> result = repositoryAdapter.findBackordersBySkuInFifoOrder(com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, "SKU-1", 1_000);
-
-    assertThat(result).extracting(Order::getId)
-        .containsExactly(uuid(1), uuid(2), uuid(3));
-    assertThat(result).allMatch(order -> order.getStatus() == OrderStatus.BACKORDERED);
-  }
+  // 「查同 SKU 的缺貨佇列」那支測試移除了：那個查詢已不在 OrderRepository 上。
+  //
+  // 待配佇列現在由 demand_lines view 回答，而它的範圍、排序與「還欠什麼」的判準都不同——
+  // 含倉別、依 order_id（UUID v7，等於到達順序）排序、以有無預留決定而不是看訂單狀態。
+  // 對應的測試屬於 DemandRepository 的 SIT。
 
   @Test
   @DisplayName("stale Order snapshot 寫回時應被 optimistic locking 拒絕")
@@ -290,7 +278,7 @@ class OrderPersistenceIntegrationTest {
         LocalDate.of(2026, 8, 1),
         OrderFixtures.NODE_ID,
         List.of(new OrderLineEntity(
-            UUID.randomUUID(), 1, ownerId, sku, 1, status, backorderedSince)),
+            UUID.randomUUID(), 1, ownerId, sku, 1, status)),
         status,
         receivedAt,
         // 上游的下單時刻——這些 fixture 一律不帶，它們驗的是排序與狀態，與上游時間無關。

@@ -21,6 +21,7 @@ import java.util.UUID;
         columnNames = {"order_line_id", "stock_pool_id"}
     ),
     indexes = {
+        @Index(name = "idx_stock_reservations_order", columnList = "order_id"),
         @Index(name = "idx_stock_reservations_line", columnList = "order_line_id"),
         @Index(name = "idx_stock_reservations_pool", columnList = "stock_pool_id")
     }
@@ -29,6 +30,9 @@ public class StockReservationEntity {
 
   @Id
   private UUID id;
+
+  @Column(name = "order_id", nullable = false)
+  private UUID orderId;
 
   @Column(name = "order_line_id", nullable = false)
   private UUID orderLineId;
@@ -58,6 +62,7 @@ public class StockReservationEntity {
 
   public StockReservationEntity(
       UUID id,
+      UUID orderId,
       UUID orderLineId,
       UUID stockPoolId,
       int quantity,
@@ -67,6 +72,7 @@ public class StockReservationEntity {
       Long version
   ) {
     this.id = id;
+    this.orderId = orderId;
     this.orderLineId = orderLineId;
     this.stockPoolId = stockPoolId;
     this.quantity = quantity;
@@ -82,6 +88,10 @@ public class StockReservationEntity {
 
   public UUID getOrderLineId() {
     return orderLineId;
+  }
+
+  public UUID getOrderId() {
+    return orderId;
   }
 
   public UUID getStockPoolId() {

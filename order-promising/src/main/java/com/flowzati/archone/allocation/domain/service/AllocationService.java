@@ -1,9 +1,9 @@
 package com.flowzati.archone.allocation.domain.service;
 
+import com.flowzati.archone.allocation.domain.model.Demand;
+import com.flowzati.archone.allocation.domain.model.DemandLine;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationSelector;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -20,8 +20,12 @@ import java.util.UUID;
  * repository，因為批數只會隨時間成長，把配不到的批載進記憶體只為了在這裡丟掉是錯的方向；
  * 而且那個順序正是索引的順序，資料庫本來就排好了。
  *
- * <p>本服務**不查資料庫、不寫資料庫**。它只做決策並改動傳進來的聚合根，持久化與事件由
- * {@code OrderAllocationCoordinator} 負責。
+ * <p>本服務**不查資料庫、不寫資料庫**。它只做決策並改動傳進來的 {@link StockPool}，持久化與
+ * 事件由 {@code OrderAllocationCoordinator} 負責。
+ *
+ * <p><b>它不認識訂單聚合根。</b>需求以 {@link Demand} 傳入——那是 allocation 自己的唯讀模型，
+ * 來自 {@code demand_lines} view。配貨結果不寫回訂單，而是發事件由 ordering 自己推進狀態：
+ * 一個交易只該修改一個 aggregate。
  */
 public class AllocationService {
 
@@ -42,18 +46,19 @@ public class AllocationService {
    * 套用必須分開**——邊算邊扣的話，需求 80 而可配只有 50 時會先扣掉 50 才發現配不到，那 50
    * 件就被一張出不了貨的單鎖住，而後面一張本來出得了的小單反而拿不到貨。
    */
-  public AllocationResult allocate(Order order, List<StockPool> allocatableBatches, Instant now) {
-    requireBatchesMatchDemand(order, allocatableBatches);
+  public AllocationResult allocate(
+      Demand demand, List<StockPool> allocatableBatches, Instant now) {
+    requireBatchesMatchDemand(demand, allocatableBatches);
     if (allocatableBatches.isEmpty()) {
       return AllocationResult.notAllocated(AllocationOutcome.NO_ALLOCATABLE_STOCK);
     }
 
-    List<BatchPick> picks = planPicks(order, allocatableBatches);
+    List<BatchPick> picks = planPicks(demand, allocatableBatches);
     if (picks.isEmpty()) {
       return AllocationResult.notAllocated(AllocationOutcome.INSUFFICIENT_ATP);
     }
 
-    applyPicks(order, picks, now);
+    applyPicks(picks);
     return AllocationResult.allocated(picks);
   }
 
@@ -66,11 +71,11 @@ public class AllocationService {
    * 可用量自然就是扣掉之後的。
    */
   public List<OrderAllocation> allocateBackorders(
-      List<Order> candidates,
+      List<Demand> candidates,
       List<StockPool> allocatableBatches,
       Instant now
   ) {
-    candidates.forEach(order -> requireBatchesMatchDemand(order, allocatableBatches));
+    candidates.forEach(demand -> requireBatchesMatchDemand(demand, allocatableBatches));
     if (allocatableBatches.isEmpty()) {
       return List.of();
     }
@@ -82,13 +87,13 @@ public class AllocationService {
     );
 
     List<OrderAllocation> allocations = new ArrayList<>();
-    for (Order order : allocationSelector.select(candidates, request)) {
-      List<BatchPick> picks = planPicks(order, allocatableBatches);
+    for (Demand demand : allocationSelector.select(candidates, request)) {
+      List<BatchPick> picks = planPicks(demand, allocatableBatches);
       if (picks.isEmpty()) {
         continue;
       }
-      applyPicks(order, picks, now);
-      allocations.add(new OrderAllocation(order, picks));
+      applyPicks(picks);
+      allocations.add(new OrderAllocation(demand, picks));
     }
 
     return allocations;
@@ -104,12 +109,12 @@ public class AllocationService {
    * <p>跨訂單不需要同樣的累計——上一張單的 {@code reserve()} 已經寫回批次上了，這一張看到的
    * 可用量本來就是扣掉之後的。再累計一次就是重複扣。
    */
-  private List<BatchPick> planPicks(Order order, List<StockPool> allocatableBatches) {
+  private List<BatchPick> planPicks(Demand demand, List<StockPool> allocatableBatches) {
     List<BatchPick> picks = new ArrayList<>();
     Map<UUID, Integer> planned = new HashMap<>();
 
-    for (OrderLine line : order.getLines()) {
-      int remaining = line.getQuantity();
+    for (DemandLine line : demand.lines()) {
+      int remaining = line.quantity();
       for (StockPool batch : allocatableBatches) {
         if (remaining == 0) {
           break;
@@ -120,7 +125,7 @@ public class AllocationService {
           continue;
         }
         int quantity = Math.min(available, remaining);
-        picks.add(new BatchPick(line.getId(), batch, quantity));
+        picks.add(new BatchPick(line.orderLineId(), batch, quantity));
         planned.merge(batch.getId(), quantity, Integer::sum);
         remaining -= quantity;
       }
@@ -132,16 +137,19 @@ public class AllocationService {
     return picks;
   }
 
-  private void applyPicks(Order order, List<BatchPick> picks, Instant now) {
-    order.markAllocated(now);
+  /**
+   * 只動庫存。**訂單的狀態不在這裡改**——配貨結果經事件送回 ordering，由它自己推進。
+   */
+  private void applyPicks(List<BatchPick> picks) {
     picks.forEach(pick -> pick.batch().reserve(pick.quantity()));
   }
 
   /**
    * 這張單的需求必須<strong>恰好</strong>落在傳進來的這一組批上。
    *
-   * <p>檢查三件事：所有批屬於同一個 {@code (貨主, 倉, SKU)}、那個貨主就是訂單的貨主、且該
-   * SKU 集合等於訂單的需求集合。寫成「包含」而不是「等於」的話，一張跨多個 SKU 的訂單會通過
+   * <p>檢查四件事：所有批屬於同一個 {@code (貨主, 倉, SKU)}、那個貨主與倉就是這筆需求的貨主
+   * 與倉、且該 SKU 集合等於需求的 SKU 集合。倉別現在也查——需求帶得出倉別之後，「拿別倉的批
+   * 去配」就從查不出來變成查得出來。寫成「包含」而不是「等於」的話，一張跨多個 SKU 的訂單會通過
    * 檢查，然後只扣其中一個 SKU 的量而整張單被標為已配——那是靜默的錯，不會有任何測試失敗，
    * 因為單行訂單下兩種寫法完全等價。
    *
@@ -149,7 +157,7 @@ public class AllocationService {
    * {@code (貨主, 倉, SKU)} 的批，所以跨 SKU 的訂單在這一層就必須被擋下；讓它能被配貨屬於
    * 後續 change 的工作（見 roadmap R8）。
    */
-  private void requireBatchesMatchDemand(Order order, List<StockPool> batches) {
+  private void requireBatchesMatchDemand(Demand demand, List<StockPool> batches) {
     if (batches.isEmpty()) {
       return;
     }
@@ -162,11 +170,14 @@ public class AllocationService {
     if (!homogeneous) {
       throw new IllegalArgumentException("Batches must share one owner, node and SKU");
     }
-    if (!order.getOwnerId().equals(first.getOwnerId())) {
-      throw new IllegalArgumentException("Order and batches must belong to the same owner");
+    if (!demand.ownerId().equals(first.getOwnerId())) {
+      throw new IllegalArgumentException("Demand and batches must belong to the same owner");
     }
-    if (!order.getDemand().keySet().equals(Set.of(first.getSkuCode()))) {
-      throw new IllegalArgumentException("Order and batch SKU must match");
+    if (!demand.nodeId().equals(first.getNodeId())) {
+      throw new IllegalArgumentException("Demand and batches must belong to the same node");
+    }
+    if (!demand.totalsBySku().keySet().equals(Set.of(first.getSkuCode()))) {
+      throw new IllegalArgumentException("Demand and batch SKU must match");
     }
   }
 }

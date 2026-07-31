@@ -56,6 +56,9 @@ class OutboxAggregateQueryIntegrationTest {
 
   private static final String SKU = "SKU-CHAIN";
 
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+
   @Autowired
   private PlaceOrderUsecase placeOrderUsecase;
 
@@ -104,6 +107,7 @@ class OutboxAggregateQueryIntegrationTest {
     backorderIt(orderId);
     replenishStock();
 
+    outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
 
@@ -149,6 +153,7 @@ class OutboxAggregateQueryIntegrationTest {
     consumer.consumeOrderingEvent(record(
         OrderingEventTopics.ORDER_EVENTS,
         new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, order.getReceivedAt())));
+    outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(backordered ->
         assertThat(backordered.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
   }
@@ -179,5 +184,15 @@ class OutboxAggregateQueryIntegrationTest {
     record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
     record.headers().add("eventType", event.getClass().getSimpleName().getBytes(StandardCharsets.UTF_8));
     return record;
+  }
+
+  /**
+   * 把 outbox 的配貨結果餵回 ordering。
+   *
+   * <p>配貨只寫自己的表並發事件，訂單狀態由 ordering 收到後推進；SIT 沒有 Debezium，那一段
+   * 得自己走完——production 裡是 Kafka 做這件事。
+   */
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
   }
 }

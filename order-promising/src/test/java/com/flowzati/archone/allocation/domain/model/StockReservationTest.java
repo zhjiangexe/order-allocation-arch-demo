@@ -24,6 +24,7 @@ class StockReservationTest {
 
     StockReservation reservation = StockReservation.create(
         id,
+        UUID.randomUUID(),
         orderLineId,
         STOCK_POOL_ID,
         3,
@@ -101,6 +102,7 @@ class StockReservationTest {
             UUID.randomUUID(),
             UUID.randomUUID(),
             UUID.randomUUID(),
+            UUID.randomUUID(),
             quantity,
             RESERVED_AT
         )
@@ -114,13 +116,13 @@ class StockReservationTest {
     UUID id = UUID.randomUUID();
     UUID orderLineId = UUID.randomUUID();
 
-    assertThatThrownBy(() -> StockReservation.create(null, orderLineId, UUID.randomUUID(), 1, RESERVED_AT))
+    assertThatThrownBy(() -> StockReservation.create(null, UUID.randomUUID(), orderLineId, UUID.randomUUID(), 1, RESERVED_AT))
         .hasMessage("Reservation ID is required");
-    assertThatThrownBy(() -> StockReservation.create(id, null, UUID.randomUUID(), 1, RESERVED_AT))
+    assertThatThrownBy(() -> StockReservation.create(id, UUID.randomUUID(), null, UUID.randomUUID(), 1, RESERVED_AT))
         .hasMessage("Order line ID is required");
-    assertThatThrownBy(() -> StockReservation.create(id, orderLineId, null, 1, RESERVED_AT))
+    assertThatThrownBy(() -> StockReservation.create(id, UUID.randomUUID(), orderLineId, null, 1, RESERVED_AT))
         .hasMessage("Stock pool ID is required");
-    assertThatThrownBy(() -> StockReservation.create(id, orderLineId, UUID.randomUUID(), 1, null))
+    assertThatThrownBy(() -> StockReservation.create(id, UUID.randomUUID(), orderLineId, UUID.randomUUID(), 1, null))
         .hasMessage("Reserved time is required");
   }
 
@@ -129,6 +131,7 @@ class StockReservationTest {
   void rejectsActiveStateWithReleasedTime() {
     assertThatThrownBy(
         () -> StockReservation.rehydrate(
+            UUID.randomUUID(),
             UUID.randomUUID(),
             UUID.randomUUID(),
             UUID.randomUUID(),
@@ -150,6 +153,7 @@ class StockReservationTest {
             UUID.randomUUID(),
             UUID.randomUUID(),
             UUID.randomUUID(),
+            UUID.randomUUID(),
             1,
             ReservationStatus.RELEASED,
             RESERVED_AT,
@@ -161,6 +165,7 @@ class StockReservationTest {
 
     assertThatThrownBy(
         () -> StockReservation.rehydrate(
+            UUID.randomUUID(),
             UUID.randomUUID(),
             UUID.randomUUID(),
             UUID.randomUUID(),
@@ -183,6 +188,7 @@ class StockReservationTest {
 
     StockReservation reservation = StockReservation.rehydrate(
         id,
+        UUID.randomUUID(),
         orderLineId,
         STOCK_POOL_ID,
         3,
@@ -205,6 +211,7 @@ class StockReservationTest {
   private StockReservation activeReservation() {
     return StockReservation.create(
         STOCK_POOL_ID,
+        UUID.randomUUID(),
         UUID.randomUUID(),
         UUID.randomUUID(),
         3,

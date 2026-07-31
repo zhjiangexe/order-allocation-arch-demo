@@ -1,9 +1,9 @@
 package com.flowzati.archone.allocation.domain.service.selector;
 
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.allocation.domain.model.Demand;
 import java.util.List;
 
 public interface AllocationPolicy<C extends AllocationContext> {
 
-  List<Order> selectOrders(List<Order> candidates, C context);
+  List<Demand> selectOrders(List<Demand> candidates, C context);
 }

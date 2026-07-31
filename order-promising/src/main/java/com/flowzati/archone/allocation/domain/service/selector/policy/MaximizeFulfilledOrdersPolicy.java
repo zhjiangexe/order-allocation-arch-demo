@@ -2,7 +2,7 @@ package com.flowzati.archone.allocation.domain.service.selector.policy;
 
 import com.flowzati.archone.allocation.domain.service.selector.context.BasicAllocationContext;
 import com.flowzati.archone.allocation.domain.service.selector.AllocationPolicy;
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.allocation.domain.model.Demand;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -12,22 +12,22 @@ public final class MaximizeFulfilledOrdersPolicy
     implements AllocationPolicy<BasicAllocationContext> {
 
   @Override
-  public List<Order> selectOrders(
-      List<Order> candidates,
+  public List<Demand> selectOrders(
+      List<Demand> candidates,
       BasicAllocationContext context
   ) {
-    List<Order> smallestFirst = new ArrayList<>(candidates);
-    smallestFirst.sort(Comparator.comparingInt(order -> order.getDemandFor(context.skuCode())));
+    List<Demand> smallestFirst = new ArrayList<>(candidates);
+    smallestFirst.sort(Comparator.comparingInt(candidate -> candidate.demandFor(context.skuCode())));
 
     int remaining = context.availableToPromise();
-    List<Order> selected = new ArrayList<>();
-    for (Order order : smallestFirst) {
-      int demand = order.getDemandFor(context.skuCode());
-      if (demand > remaining) {
+    List<Demand> selected = new ArrayList<>();
+    for (Demand candidate : smallestFirst) {
+      int required = candidate.demandFor(context.skuCode());
+      if (required > remaining) {
         break;
       }
-      selected.add(order);
-      remaining -= demand;
+      selected.add(candidate);
+      remaining -= required;
     }
     return List.copyOf(selected);
   }

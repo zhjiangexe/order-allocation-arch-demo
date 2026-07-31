@@ -1,5 +1,6 @@
 package com.flowzati.archone.demo;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -57,6 +58,9 @@ class ReplenishmentProbeEndToEndIntegrationTest {
   @LocalServerPort
   private int port;
 
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+
   @Autowired
   private ObjectMapper objectMapper;
 
@@ -97,6 +101,7 @@ class ReplenishmentProbeEndToEndIntegrationTest {
 
     awaitAllocated(List.of(firstOrderId, secondOrderId));
     // 補貨量剛好吃完前兩張；第三張要不到，證明喚醒佇列走的是嚴格 FIFO 而不是能配就配
+    outcomeDrain().drain();
     assertThat(statusOf(blockedOrderId)).isEqualTo(OrderStatus.BACKORDERED);
   }
 
@@ -135,7 +140,7 @@ class ReplenishmentProbeEndToEndIntegrationTest {
   }
 
   private UUID backorder(Instant backorderedAt, int quantity) {
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     orderRepository.save(OrderFixtures.backorderedOrder(
         orderId, SKU, quantity, backorderedAt.minusSeconds(1), backorderedAt));
     return orderId;
@@ -146,13 +151,19 @@ class ReplenishmentProbeEndToEndIntegrationTest {
    * consumer group 的暖機時間——把兩者混在一起會讓這個斷言變得沒有意義。
    */
   private void awaitListenersAssigned() {
+    outcomeDrain().drain();
     await(Duration.ofSeconds(60), () -> listenerRegistry.getListenerContainers().stream()
         .allMatch(MessageListenerContainer::isRunning));
   }
 
   private void awaitAllocated(List<UUID> orderIds) {
-    await(DECISION_WINDOW,
-        () -> orderIds.stream().allMatch(id -> statusOf(id) == OrderStatus.ALLOCATED));
+    // 每一輪都 drain：探針是非同步的，第一次輪詢時 outbox 裡還不見得有配貨結果。
+    // 同一個 drain 實例貫穿整個等待，已餵過的事件不會重送。
+    var drain = outcomeDrain();
+    await(DECISION_WINDOW, () -> {
+      drain.drain();
+      return orderIds.stream().allMatch(id -> statusOf(id) == OrderStatus.ALLOCATED);
+    });
     assertThat(orderIds)
         .withFailMessage(() -> "訂單未在 " + DECISION_WINDOW.toSeconds() + " 秒內完成配置。"
             // 這兩個數字能分辨「訊息沒送到 consumer」與「送到了但處理失敗回滾」
@@ -180,5 +191,15 @@ class ReplenishmentProbeEndToEndIntegrationTest {
         throw new IllegalStateException("Interrupted while awaiting condition", exception);
       }
     }
+  }
+
+  /**
+   * 把 outbox 的配貨結果餵回 ordering。
+   *
+   * <p>配貨只寫自己的表並發事件，訂單狀態由 ordering 收到後推進；SIT 沒有 Debezium，那一段
+   * 得自己走完——production 裡是 Kafka 做這件事。
+   */
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
   }
 }

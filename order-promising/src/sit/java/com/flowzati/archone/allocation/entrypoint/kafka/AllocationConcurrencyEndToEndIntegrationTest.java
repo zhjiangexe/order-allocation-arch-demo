@@ -1,5 +1,6 @@
 package com.flowzati.archone.allocation.entrypoint.kafka;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +59,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import({PostgreSQLTestConfiguration.class, AllocationConcurrencyEndToEndIntegrationTest.ConflictConfiguration.class})
 class AllocationConcurrencyEndToEndIntegrationTest {
 
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
 
@@ -114,8 +118,8 @@ class AllocationConcurrencyEndToEndIntegrationTest {
   @DisplayName("兩張訂單競爭同一 ATP 時應重試並收斂為一張配置、一張欠單")
   void shouldRetryConcurrentAllocationWithoutOverselling() throws Exception {
     UUID stockPoolId = UUID.randomUUID();
-    UUID firstOrderId = UUID.randomUUID();
-    UUID secondOrderId = UUID.randomUUID();
+    UUID firstOrderId = IdGenerator.nextId();
+    UUID secondOrderId = IdGenerator.nextId();
     Instant receivedAt = Instant.now().minusSeconds(1);
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-CONCURRENT", 3, 0));
     orderRepository.save(OrderFixtures.pendingOrder(firstOrderId, "SKU-CONCURRENT", 3, receivedAt));
@@ -134,6 +138,9 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     } finally {
       executor.shutdownNow();
     }
+
+    // 先把配貨結果餵回 ordering，訂單狀態才會推進——讀狀態一定要在這之後。
+    outcomeDrain().drain();
 
     List<OrderStatus> statuses = List.of(
         orderRepository.findById(firstOrderId).orElseThrow().getStatus(),
@@ -158,7 +165,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
   @DisplayName("三次技術衝突耗盡時應回滾業務資料與 Inbox Outbox 並記錄 metric")
   void shouldRollbackAllocationWhenConcurrencyRetryIsExhausted() {
     UUID stockPoolId = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
     Instant receivedAt = Instant.now().minusSeconds(1);
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-EXHAUSTED", 3, 0));
     orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-EXHAUSTED", 3, receivedAt));
@@ -170,6 +177,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         .isInstanceOf(AllocationConcurrencyExhaustedException.class);
 
     assertThat(conflictInjector.invocations()).isEqualTo(3);
+    outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
@@ -271,9 +279,16 @@ class AllocationConcurrencyEndToEndIntegrationTest {
    */
   private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
       activeReservationsOf(java.util.UUID orderId) {
-    return orderRepository.findById(orderId)
-        .map(order -> stockReservationRepository.findActiveByOrderLineIds(
-            order.getLines().stream().map(line -> line.getId()).toList()))
-        .orElse(java.util.List.of());
+    return stockReservationRepository.findActiveByOrderId(orderId);
+  }
+
+  /**
+   * 把 outbox 的配貨結果餵回 ordering。
+   *
+   * <p>配貨只寫自己的表並發事件，訂單狀態由 ordering 收到後推進；SIT 沒有 Debezium，那一段
+   * 得自己走完——production 裡是 Kafka 做這件事。
+   */
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
   }
 }
