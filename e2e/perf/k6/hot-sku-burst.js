@@ -1,5 +1,5 @@
 // Demo-01 的真實壓測版本：VUS 個虛擬使用者各下一張同一個熱門 SKU 的訂單，輪詢
-// GET /orders/{id} 直到分配決策出爐，延遲用持久化的 placedAt -> allocatedAt/
+// GET /orders/{id} 直到分配決策出爐，延遲用持久化的 receivedAt -> allocatedAt/
 // backOrderedSince 時間戳計算（比輪詢 wall time 精準）。
 //
 // 前置：HOT_SKU 要先用 `run.sh seed` 種好——它會一併建立壓測貨主的主檔與倉庫指派。
@@ -116,12 +116,17 @@ export default function (data) {
     return;
   }
 
-  // 用持久化時間戳算延遲，不是輪詢發現的時間點，避免被 POLL_INTERVAL_MS 的粒度污染
-  const placedAtMs = Date.parse(finalOrder.placedAt);
+  // 用持久化時間戳算延遲，不是輪詢發現的時間點，避免被 POLL_INTERVAL_MS 的粒度污染。
+  //
+  // **起點是 receivedAt（我們收到這張單的時刻），不是 placedAt。** 後者現在是「上游說客戶
+  // 下單的時刻」，壓測不送它，所以它是 null——Date.parse(null) 得到 NaN，延遲全部變成 NaN，
+  // k6 會丟警告然後把門檻當成「零個樣本」通過。那是最糟的綠燈：數字看起來完美（p99=0s），
+  // 實際上什麼都沒量到。
+  const receivedAtMs = Date.parse(finalOrder.receivedAt);
   const decidedAtIso = finalOrder.status === 'ALLOCATED'
     ? finalOrder.allocatedAt
     : finalOrder.backOrderedSince;
-  decisionLatencyMs.add(Date.parse(decidedAtIso) - placedAtMs);
+  decisionLatencyMs.add(Date.parse(decidedAtIso) - receivedAtMs);
 
   if (finalOrder.status === 'ALLOCATED') {
     allocatedTotal.add(1);
