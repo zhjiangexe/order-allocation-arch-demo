@@ -612,6 +612,11 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 
 **依賴**：R1、**R3 任務 8（補貨喚醒的批次上限）**　**不可與 R3 並行**　**規模**：約 20 檔（配貨演算法重寫，非原估的 15）
 
+> **實際範圍是演算法，不是結構。** 任務 4 已由 R3 解決（partition key 改粗成 `(貨主, 倉)`），
+> 任務 6、7 由 R4 解決或消失（`demand_lines` view 取代了那支會產生重複列的查詢）。剩下的是
+> 整籃可滿足性、per-SKU 的餘量、跨 SKU 的取批——全部落在 `AllocationService` 與挑單政策裡，
+> 一個 migration 都沒有。
+
 對 R3 的依賴只有一項但是硬的：多行之後一次補貨喚醒涉及的 `StockPool` 數量由佇列內容
 決定，沒有批次上限就是無界，死鎖排序鍵無從先算（見任務 3）。
 
@@ -655,38 +660,27 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
    集合的入口——每張候選單還要載入全部 SKU 的需求、取得對應的全部 `StockPool`,才能做
    ship-complete 的整籃判斷。一次補貨交易涉及的池數量因此由**佇列內容**決定而非事件決定。
    前提是 R3 任務 5.3 的喚醒上限已在位,否則池的數量無界,死鎖排序鍵無從先算。
-6. **修 `findBackordersBySkuInFifoOrder` 的重複列——這一項會造成超賣。** 實際產生的 SQL 是
-   `orders left join order_lines` 且**沒有 `DISTINCT`**:
+6. ~~修 `findBackordersBySkuInFifoOrder` 的重複列~~ → **R4 移除了那支查詢，這一項消失。**
+   原本的內容是：那支查詢的 SQL 是 `orders left join order_lines` 且沒有 `DISTINCT`，一張單
+   兩行同 SKU 時 join 會 match 兩次，同一張單造出兩個 domain 物件 → 兩筆預留、扣兩次庫存 →
+   **超賣**。
 
-   ```sql
-   from orders o left join order_lines l on o.id = l.order_id
-   where l.owner_id = ? and l.sku_code = ? and o.status = ?
-   order by o.backordered_since, o.id
-   ```
+   取代它的是 `demand_lines` view 上的兩段式查詢（先 `SELECT DISTINCT d.orderId` 取出這一輪
+   的訂單，再一次載入它們的全部行），在結構上排除了重複列。**但那是 R4 的副作用而非它的
+   目標**，所以本 change 留了一支 SIT 明確守著：一張單兩行同 SKU，只扣一次量。
 
-   一張單有**兩行同一個 SKU**時 join 會 match 兩次,同一張單在結果裡出現兩次 → mapper 造出
-   兩個 domain 物件,兩個的狀態都是 `BACKORDERED` → 兩個都通過 `markAllocated` →
-   **兩筆預留、扣兩次庫存 → 超賣**。
+7. ~~決定 `order_lines.status` 與 `order_lines.backordered_since` 要不要留~~ → **R4 已經處理
+   掉 `backordered_since`**（它的存在理由是「單表 FIFO index」，而該查詢從來就是 join、排序
+   取自 header，欄位因此從未被讀到）。
 
-   而「一張單兩行同 SKU」是**設計上合法的**:`Order.getDemand()` 本來就把同 SKU 的多行加總,
-   `requireSingleSku` 的 Javadoc 也明說那是單 SKU 假設而非單行假設。
+   `order_lines.status` **留著，不在本 change 決定**。它唯一的讀取者仍是 REST 回應逐行揭露，
+   而 ship-complete 之下它恆等於 header。留著的理由沒有改變：ship-complete 若日後變成可設定
+   的政策（部分配貨，業界的常態做法），行的狀態就會合法地與 header 不同。多行本身不改變這個
+   判斷——它改變的只是「一張單有幾行」，不是「行的狀態能不能與 header 不同」。
 
-   **今天碰不到只因為收單強制一行,而且不會有任何測試失敗**——單行環境下那個 join 永遠只
-   match 一次。修法是加 `DISTINCT` 或改成先查 id 再載入。順帶:喚醒上限數的是列數,重複的列
-   會吃掉配額,讓每輪實際處理的訂單數少於上限。
-7. **決定 `order_lines.status` 與 `order_lines.backordered_since` 要不要留。** 兩者目前
-   **沒有任何 predicate 讀取**（見上面那段 SQL:篩選只用到行的 `owner_id` 與 `sku_code`,
-   狀態與排序都取自 `orders`）。`status` 唯一的讀取者是 REST 回應逐行揭露,而 ship-complete
-   之下它恆等於 header,對客戶端沒有提供新資訊。
-
-   留著就是儲存的衍生值、第二個可能與 header 不合的真相來源——那正是 `StockPool` 的 ATP
-   明文拒絕的模式。砍掉則牽動 API 契約與 `idx_order_lines_backorder_fifo` 的欄位（該 index
-   的後兩欄 `backordered_since, id` 對現行查詢是死重量）。
-
-   **這件事必須在 R8 決定而不是更早**,因為 ship-complete 若日後變成可設定的政策（部分配貨,
-   業界的常態做法),行的狀態就會合法地與 header 不同,那時兩個欄位都變成必要。
 8. `AmendOrderUsecase`、`SplitOrderUsecase`（**可拆成獨立的更小 change**）
-9. 前端：訂單列表一列改為可展開的多列
+9. 前端：下單表單加行編輯器（可新增／移除行，換貨主清空**每一條**行，任一行不完整即擋下
+   送出）。訂單列表**不必改**——它早就以 `lines` 為來源渲染，每一行的商品與數量都看得到
 10. 測試：整籃原子性、head-of-line blocking 在多 SKU 下的行為；**一張單兩行同 SKU 時只被配一次**（任務 6 的迴歸）
 
 ### 驗收
@@ -735,6 +729,19 @@ SKU**（一次配貨從碰一個 SKU 的多批次變成多個 SKU 的多批次�
 ## 已識別但未排程
 
 以下不屬於 R1～R8 任何一個 change，但已經知道要做，記在這裡以免被當成新發現重新推導一遍。
+
+### head-of-line blocking 的吞吐：緩解是保留額度，不是跳過
+
+`StrictFifoAllocationPolicy` 遇到隊首配不到就 `break`，後面的單一律不配——即使它們配得到。
+多 SKU 之後這件事更容易發生：隊首可能只是缺其中一個 SKU。
+
+**若吞吐成為問題，緩解是替隊首保留額度**——佔住它需要的量，後面的單用剩下的。先來先服務因此
+仍然成立，只是不再獨佔整批庫存。
+
+**不是把 `break` 改成 `continue`。** 那看起來只有一個字，但它讓隊首在後面不斷有小單時永遠
+等下去——而「永遠等下去」在缺貨佇列裡不會有任何錯誤訊號，只會表現成一張越來越舊的單。
+
+這一條寫在這裡是因為那個改動太便宜：任何一次「優化吞吐」的重構都可能順手做掉它。
 
 ### 取消的入口，以及「釋放後喚醒佇列」
 

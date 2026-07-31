@@ -57,38 +57,6 @@ cannot be changed independently, because the order is the consistency boundary.
   a quantity, and carries no SKU or quantity of its own
 
 ---
-### Requirement: Order intake accepts exactly one line per order
-
-Placing an order SHALL be rejected unless it carries exactly one line. This is an
-intake policy, not a structural constraint: the persistence schema SHALL permit any
-number of lines, and rehydrating an order from storage SHALL NOT enforce the limit.
-
-The asymmetry is deliberate. Rehydration must be able to reconstruct whatever the
-database holds, and the schema permits many lines so that relaxing the intake policy
-later requires no structural migration. It also means a multi-line order can be
-constructed in tests today, keeping the multi-line read path exercised from the start.
-
-#### Scenario: Intake rejects an order that does not carry exactly one line
-
-- **WHEN** an order is placed with zero lines, or with two or more lines
-- **THEN** the order is rejected and nothing is persisted
-
-##### Example: line counts at intake and at rehydration
-
-| Lines | Intake | Rehydration |
-| --- | --- | --- |
-| 0 | rejected | rejected — an order without demand is not a state storage can hold |
-| 1 | accepted | accepted |
-| 2 | rejected | accepted |
-
-#### Scenario: Rehydration reconstructs a multi-line order
-
-- **GIVEN** stored data describing one order with two lines
-- **WHEN** that order is rehydrated
-- **THEN** the order is reconstructed with both lines, mapped and serialised
-  correctly, even though intake would have rejected it
-
----
 ### Requirement: An allocation outcome applies to a whole order, never to part of it
 
 An order SHALL be allocated only when its whole demand can be satisfied. When it cannot,
@@ -473,3 +441,89 @@ already been satisfied.
 - **WHEN** a replenishment for the same owner, warehouse and SKU is processed
 - **THEN** that order does not appear among the candidates, because its lines already hold a
   reservation
+
+---
+### Requirement: Order intake accepts one or more lines
+
+Placing an order SHALL be rejected unless it carries at least one line. There SHALL be no
+upper bound: an order may carry several lines, naming several SKU codes, and the same SKU
+code may appear on more than one line.
+
+An order without demand SHALL be rejected at intake and SHALL NOT be reconstructible from
+storage either — it is not a state the system holds.
+
+**The same SKU on two lines SHALL be legitimate**, not merely tolerated. Upstream systems
+split a quantity across lines for their own reasons (different price tiers, different
+customer references), and an order's demand is read as quantities aggregated per SKU, so
+two lines naming one SKU are indistinguishable from one line carrying their sum.
+
+#### Scenario: An order carrying two SKUs is accepted
+
+- **WHEN** an order is placed with two lines naming different SKU codes
+- **THEN** the order is persisted with both lines
+
+#### Scenario: An order carrying the same SKU twice is accepted
+
+- **WHEN** an order is placed with two lines naming the same SKU code
+- **THEN** the order is persisted with both lines, and its demand for that SKU is the sum
+
+#### Scenario: An order without lines is still rejected
+
+- **WHEN** an order is placed with zero lines
+- **THEN** the order is rejected and nothing is persisted
+
+##### Example: line counts at intake and at rehydration
+
+| Lines | Intake | Rehydration |
+| --- | --- | --- |
+| 0 | rejected | rejected — an order without demand is not a state storage can hold |
+| 1 | accepted | accepted |
+| 2, different SKUs | accepted | accepted |
+| 2, same SKU | accepted | accepted |
+
+**Intake and rehydration no longer disagree.** They differed only because of the
+single-line policy; with it gone, both accept exactly the orders the schema permits.
+
+<!-- @trace
+source: allocate-multi-sku-orders-as-one-basket
+updated: 2026-07-31
+code:
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/policy/StrictFifoAllocationPolicy.java
+  - order-promising/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/policy/MaximizeFulfilledOrdersPolicy.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/context/BasicAllocationContext.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinator.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecase.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/context/BasicAllocationContextFactory.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationRequest.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationResult.java
+  - order-promising/src/main/java/com/flowzati/archone/ordering/entrypoint/rest/PlaceOrderRequest.java
+  - frontend/src/components/OrderTable.tsx
+  - frontend/src/components/PlaceOrderForm.module.css
+  - frontend/src/components/PlaceOrderForm.tsx
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationService.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/SkuQuantities.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/repository/StockPoolRepository.java
+  - docs/execution-roadmap.md
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationPlan.java
+  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/Order.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/jpa/JpaStockRepository.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolRepositoryImpl.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecase.java
+tests:
+  - frontend/src/components/PlaceOrderForm.test.tsx
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationServiceTest.java
+  - order-promising/src/test/java/com/flowzati/archone/ordering/OrderingArchitectureTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecaseTest.java
+  - order-promising/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationPlanTest.java
+  - order-promising/src/test/java/com/flowzati/archone/ordering/entrypoint/rest/OrderControllerTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/selector/AllocationPolicyTest.java
+  - order-promising/src/test/java/com/flowzati/archone/ordering/domain/model/OrderTest.java
+  - order-promising/src/test/java/com/flowzati/archone/testsupport/OrderFixtures.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecaseTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/SkuQuantitiesTest.java
+  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationSelectorTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinatorTest.java
+-->

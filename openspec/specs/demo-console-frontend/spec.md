@@ -513,3 +513,108 @@ the dev server only, and SHALL NOT be hardcoded in application source.
   origin, the backend receives the corresponding request at its own origin, no
   `OPTIONS` preflight is recorded, and the backend origin appears only in dev
   server configuration — never in application source
+
+---
+### Requirement: The order form composes a basket of several lines
+
+The order form SHALL let the viewer add and remove lines, each naming a product, one of that
+product's specifications, and a quantity. An order SHALL be submittable with one line or with
+several.
+
+The per-line rules SHALL be the ones already stated for a single line: goods chosen in two
+steps rather than typed, selectable products restricted to the selected owner, quantity sent
+as a number, and submission prevented for a non-positive quantity or an incomplete selection.
+Changing the owner SHALL discard **every** line, since none of their goods is valid under a
+different owner.
+
+**The form SHALL show why a multi-line order was not allocated.** An order is allocated whole
+or not at all, so an order can be backordered while one of its SKUs is plentiful — that is
+counter-intuitive enough that seeing it is the point. The list SHALL therefore make each
+line's goods and quantity visible on the order's row, as it already does for a single line.
+
+Two lines naming the same specification SHALL be permitted. Intake accepts them and reads the
+demand as their sum; forbidding it here would make the console reject orders the system
+handles.
+
+#### Scenario: An order with two different specifications is submitted and listed
+
+- **WHEN** the viewer adds a second line naming a different specification and submits
+- **THEN** the recent-orders list shows that order with both lines and status `PENDING`
+
+#### Scenario: Removing a line leaves the rest intact
+
+- **GIVEN** the form holds three lines
+- **WHEN** the viewer removes the middle one
+- **THEN** the remaining two keep their own selections and quantities
+
+#### Scenario: The last line cannot be removed
+
+- **GIVEN** the form holds one line
+- **WHEN** the viewer attempts to remove it
+- **THEN** the line remains, because an order without demand cannot be submitted
+
+#### Scenario: Changing the owner clears every line
+
+- **GIVEN** the form holds two lines with selections made under one owner
+- **WHEN** the viewer selects a different owner
+- **THEN** every line's product and specification selection is cleared
+
+#### Scenario: An incomplete line blocks submission even when the others are complete
+
+- **GIVEN** the form holds two lines, one complete and one without a specification
+- **WHEN** the viewer submits
+- **THEN** the form does not send the request
+
+##### Example: what the basket makes visible
+
+| Order | Stock | Outcome |
+| --- | --- | --- |
+| A×10 + B×5 | A: 100, B: 100 | allocated — both lines reserved |
+| A×10 + B×5 | A: 100, B: 3 | **backordered — neither line reserved, though A is plentiful** |
+| A×10 | A: 100 | allocated |
+
+第二列是這個表格存在的理由：**有貨卻不配**，而那正是 ship-complete 的內容。
+
+<!-- @trace
+source: allocate-multi-sku-orders-as-one-basket
+updated: 2026-07-31
+code:
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/policy/StrictFifoAllocationPolicy.java
+  - order-promising/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/policy/MaximizeFulfilledOrdersPolicy.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/context/BasicAllocationContext.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinator.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecase.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/selector/context/BasicAllocationContextFactory.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationRequest.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationResult.java
+  - order-promising/src/main/java/com/flowzati/archone/ordering/entrypoint/rest/PlaceOrderRequest.java
+  - frontend/src/components/OrderTable.tsx
+  - frontend/src/components/PlaceOrderForm.module.css
+  - frontend/src/components/PlaceOrderForm.tsx
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationService.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/SkuQuantities.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/repository/StockPoolRepository.java
+  - docs/execution-roadmap.md
+  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationPlan.java
+  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/Order.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/jpa/JpaStockRepository.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolRepositoryImpl.java
+  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecase.java
+tests:
+  - frontend/src/components/PlaceOrderForm.test.tsx
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationServiceTest.java
+  - order-promising/src/test/java/com/flowzati/archone/ordering/OrderingArchitectureTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecaseTest.java
+  - order-promising/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationPlanTest.java
+  - order-promising/src/test/java/com/flowzati/archone/ordering/entrypoint/rest/OrderControllerTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/selector/AllocationPolicyTest.java
+  - order-promising/src/test/java/com/flowzati/archone/ordering/domain/model/OrderTest.java
+  - order-promising/src/test/java/com/flowzati/archone/testsupport/OrderFixtures.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecaseTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/SkuQuantitiesTest.java
+  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationSelectorTest.java
+  - order-promising/src/test/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinatorTest.java
+-->
