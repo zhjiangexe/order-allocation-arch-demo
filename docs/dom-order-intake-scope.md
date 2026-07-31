@@ -333,11 +333,12 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 ```sql
 CREATE VIEW demand_lines AS
 SELECT ol.order_id,
-       ol.id                AS order_line_id,
+       ol.id                 AS order_line_id,
        ol.owner_id,
+       o.fulfillment_node_id AS node_id,         -- 配貨要它才找得到批次
        ol.sku_code,
        ol.quantity,
-       ol.backordered_since AS queued_at
+       o.received_at                             -- 供顯示，不是排序鍵
   FROM order_lines ol
   JOIN orders o ON o.id = ol.order_id
  WHERE o.cancelled_at IS NULL                    -- ordering 是權威，即時正確
@@ -346,6 +347,21 @@ SELECT ol.order_id,
       WHERE sr.order_line_id = ol.id
         AND sr.status IN ('ACTIVE', 'CONSUMED'));
 ```
+
+**這份定義寫於 R2 的倉別與 R3 的分批之前，實作時補了兩處。**
+
+**加 `node_id`。** 庫存按 `(貨主, 倉, SKU, 入庫日, 效期)` 持有，配貨的批次查詢要倉別才找得到
+批。佇列的範圍也因此含倉別——別的倉的單這次補貨滿足不了，撈進來只會佔滿以張數計的喚醒上限
+然後被跳過，而浪費隨倉數線性成長。
+
+**排序鍵是 `order_id`，不是任何時間欄位。** 它是 UUID v7，時間戳編在主鍵裡，值等於訂單進入
+系統的時刻——而佇列的順序只能是到達順序：在一張單抵達之前，系統對它一無所知，不可能為它保留
+任何東西。原本寫的 `ol.backordered_since` 是系統的**處理**時間（retry 與 rebalance 都會改變
+它），而 `placed_at` 在後續的 change 之後成了「上游說客戶下單的時刻」——可空，且由我們控制不了
+的時鐘決定，一張三天前下單、今天才同步過來的單會插到已經等候一天的單前面。
+
+**這個保證架在「識別碼時間有序」上**，換回 UUID v4 佇列會靜默變成亂序，因此有一支測試專門釘住
+它（`IdGeneratorTest`）。
 
 **刻意不出現 `ol.status`。** 寫入是非同步的（allocation 發事實 → ordering 收到後才改
 `Order`），所以 ordering 的配貨狀態**落後於** allocation 的決策：

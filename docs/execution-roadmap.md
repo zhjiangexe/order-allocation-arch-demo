@@ -520,7 +520,9 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
   安靜跳過，且 allocation 的預留已由取消事件釋放
 - **超賣防線不受影響**：壓測仍為 500 配到／500 缺貨、不超賣。這條線在 `StockPool`
   aggregate 與樂觀鎖，與「誰改 `Order`」無關
-- 既有的配貨、缺貨、補貨重配流程行為完全不變
+- **配貨、缺貨、補貨重配的結果不變，但兩處行為刻意改了**：FIFO 的排序鍵由
+  `backordered_since` 改為 `order_id`（UUID v7，等於到達順序），補貨喚醒的佇列範圍加上倉別。
+  前者讓系統的處理抖動不再決定客戶之間的先後，後者讓別的倉的單不再佔滿以張數計的喚醒上限
 
 ---
 
@@ -593,8 +595,11 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
 對 R3 的依賴只有一項但是硬的：多行之後一次補貨喚醒涉及的 `StockPool` 數量由佇列內容
 決定，沒有批次上限就是無界，死鎖排序鍵無從先算（見任務 3）。
 
-`order_lines`、line 層級的 `backordered_since` 與 FIFO index 都已在 R1 完成，本 change
-**不搬遷任何結構、不加任何欄位、不改任何 index**。
+`order_lines` 已在 R1 完成，本 change **不搬遷任何結構、不加任何欄位、不改任何 index**。
+
+~~line 層級的 `backordered_since` 與 FIFO index 都已在 R1 完成~~ → **R4 已經改掉這兩樣**：
+那個欄位的存在理由是「單表 FIFO index」，而該查詢從來就是 join、排序取自 header，欄位因此
+從未被讀到；index 隨之改為 `(owner_id, sku_code, order_id)`——排序鍵換成 UUID v7 的主鍵。
 
 **但它不是「只移除一個檢查」。** 採 ship-complete（見
 [dom-promising-scope.md](dom-promising-scope.md)）之後，多行訂單的配貨必須是**整籃原子
