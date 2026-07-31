@@ -73,14 +73,17 @@ export function listSkus(ownerId: string, productCode: string): Promise<SkuView[
 }
 
 /**
- * 某貨主某 SKU 的所有批。
+ * 某貨主在某倉手上的全部批，依 SKU 分組。
  *
- * `ownerId` 是必要參數而非選用篩選——SKU 代碼由貨主自訂、跨貨主撞號，少了它後端會把兩個
- * 貨主的貨混在同一份清單裡（實際上後端直接回 `400`）。
+ * 兩個參數都是必要的，都不是選用篩選（缺任一個後端回 `400`）。少了 `ownerId`，回應會把兩個
+ * 貨主的貨混在一起——SKU 代碼由貨主自訂、跨貨主撞號。少了 `nodeId`，回的是一個沒有任何一次
+ * 配貨取用得了的池：配貨從不跨倉。
+ *
+ * 這個倉什麼都沒放時回 200 與空清單，不是 404。
  */
-export function getStockPool(ownerId: string, sku: string): Promise<StockPoolView> {
+export function getStockInWarehouse(ownerId: string, nodeId: string): Promise<StockPoolView> {
   return request<StockPoolView>(
-    `/stock-pool/${encodeURIComponent(sku)}?ownerId=${encodeURIComponent(ownerId)}`,
+    `/stock-pool?ownerId=${encodeURIComponent(ownerId)}&nodeId=${encodeURIComponent(nodeId)}`,
   );
 }
 

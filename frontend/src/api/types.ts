@@ -110,7 +110,6 @@ export interface PlaceOrderCommand {
  */
 export interface StockBatchView {
   stockPoolId: string;
-  nodeId: string;
   /** ISO 日期（`2026-01-05`）。同效期時它決定 FEFO 的先後。 */
   inDate: string;
   expiryDate: string;
@@ -120,15 +119,25 @@ export interface StockBatchView {
   expired: boolean;
 }
 
+/** 一個規格在這個倉的所有批，**依配貨會取用的順序**（效期、入庫日）。 */
+export interface SkuStockView {
+  sku: string;
+  batches: StockBatchView[];
+}
+
 /**
- * 某貨主某 SKU 手上的所有批，**依配貨會取用的順序**（倉別、效期、入庫日）。
+ * 某貨主在某倉手上的全部批，依 SKU 分組。
  *
  * 過期的批會在清單裡並標記，不是被濾掉——濾掉會讓「有 100 件但一件都出不了」與「什麼都
  * 沒有」在畫面上長得一樣。
+ *
+ * 分組是**陣列**不是物件：JSON 物件的鍵順序沒有保證，而後端刻意把同一個 SKU 的批排在一起、
+ * 組內依效期。用物件表達等於把那個順序交給序列化決定。
+ *
+ * 這個倉一批都沒有時 `skus` 是空陣列，不是 404——「什麼都沒放」是正常答案。
  */
 export interface StockPoolView {
-  sku: string;
-  batches: StockBatchView[];
+  skus: SkuStockView[];
 }
 
 /**
