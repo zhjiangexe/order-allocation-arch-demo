@@ -27,7 +27,7 @@
 ## 依賴圖
 
 ```text
-R1 訂單資料模型 ─────┬──▶ R5 收單冪等
+R1 訂單資料模型 ─────┬──▶ R5 收單冪等（已滿足，不執行）
                      ├──▶ R8 放寬多筆 line
                      │
 R2 倉庫主檔（極簡）──┴──▶ R3 庫存分批 + FEFO ──▶ R4 編排權歸位
@@ -40,10 +40,10 @@ R2 倉庫主檔（極簡）──┴──▶ R3 庫存分批 + FEFO ──▶ R
 | --- | --- | --- |
 | **R1** 訂單資料模型 | — | R2 |
 | **R2** 倉庫主檔（極簡） | — | R1 |
-| **R3** 庫存分批 + FEFO | R1、R2 | R5、R8 |
-| **R4** 編排權歸位 | **R3** | R5、R8（**不可與 R3 並行**） |
-| **R5** 收單冪等 | R1 | 任何 |
-| **R7** 履約層最小版 + 出貨閉環 | R3、R4 | R5、R8 |
+| **R3** 庫存分批 + FEFO | R1、R2 | R8 |
+| **R4** 編排權歸位 | **R3** | R8（**不可與 R3 並行**） |
+| ~~**R5** 收單冪等~~ | — | **已滿足，不執行**——見下方該節 |
+| **R7** 履約層最小版 + 出貨閉環 | R3、R4 | R8 |
 | **R8** 放寬多筆 line | R1 | 任何 |
 
 **R6 Sourcing 決策已移出範圍**，見下方「為什麼沒有 R6」。
@@ -77,7 +77,7 @@ R2 完成後除了倉庫頁沒有任何行為變化——它是純主檔。這�
 | **M1** | R1 + R2 + R3 | **完整的 supply-demand allocation**：批次、FEFO、貨主隔離、跨倉庫存歸屬、有貨但不可售 |
 | **M2** | M1 + R4 | 編排權歸位，寫入改為非同步 |
 | **M3** | M2 + R7 | 兩本帳、短揀對帳 |
-| 隨時 | R5、R8 | 冪等防護、多品項 |
+| 隨時 | R8 | 多品項 |
 
 **M1 是最短的可展示路徑，也是演算法密度最高的一段。** 系統實際會算的決策只有兩個
 （配哪批貨、裝幾箱），M1 完成的是第一個；第二個見 [system-layer-map.md](system-layer-map.md)
@@ -104,7 +104,7 @@ change 不動 `stock_pools`。
 | --- | --- | --- |
 | `order_lines.backordered_since` | R8 | **不提前就沒有 FIFO index 可用**——篩選鍵在 line、排序鍵在 header，跨表無法用單一複合 index 覆蓋。`allocated_at` **不放 line**，ship-complete 下它恆等於 header 且無 index 需要它 |
 | `idx_order_lines_backorder_fifo` | R8 任務 5 | 同上。留在 R8 等於 R1～R8 全程無 index，壓測基準會斷掉且無法歸因 |
-| `UNIQUE (owner_id, external_order_no)` | R5 | 一行 constraint。把 R1～R5 之間的「靜默建立重複訂單」變成「明確報錯」 |
+| `UNIQUE (owner_id, external_order_no)` | R1（原訂 R5） | 一行 constraint。把「靜默建立重複訂單」變成「明確報錯」——而那個報錯後來成為最終行為，見 R5 那一節 |
 | `orders.fulfilled_at` | R7 | 一個 nullable 欄位，讓 `orders` 只被 ALTER 一次。**這項最弱**，純粹省一次遷移 |
 
 逐欄位與逐方法的展開見
@@ -115,7 +115,7 @@ line 時間戳的聚合規則。
 
 1. Migration：建 `owners`（含 `allow_split_shipment`）、`products`（PK `(owner_id, product_code)`，含 `temperature_zone`）、`skus`（PK `(owner_id, sku_code)`，FK 指向 `products`，含 `spec_name`、`weight_gram`）、`order_lines`（含反正規化的 `owner_id`、line 層級的 `status`／`backordered_since`／`assigned_node_id`）。**建表順序：`products` 先於 `skus`**，FK 的被指向方在前。（R1 已完成。其中 `allow_split_shipment` 與 `assigned_node_id` 兩欄於 R2 砍除，理由見「為什麼沒有 R6」）
 2. Migration：`orders` 加 `owner_id`、`external_order_no`、`ship_to_zone`、`ship_to_address`、`promised_delivery_date`、`requested_node_id`（R2 更名為 `fulfillment_node_id`）、`fulfilled_at`；砍 `sku`、`quantity`
-3. Migration：**`UNIQUE (owner_id, external_order_no)`**（從 R5 提前）與 **`idx_order_lines_backorder_fifo (owner_id, sku_code, backordered_since, id)`**（從 R8 提前，**不含 `status`**——待配佇列的查詢刻意不依 status 過濾，見 R1 詳細文件）。舊的 `idx_orders_backorder_fifo` 會隨 `DROP COLUMN sku` 被 PostgreSQL 自動移除
+3. Migration：**`UNIQUE (owner_id, external_order_no)`**（從 R5 提前）與 **待配佇列的 index**（從 R8 提前，**不含 `status`**——待配佇列的查詢刻意不依 status 過濾，見 R1 詳細文件；R4 之後它是 `idx_order_lines_demand_fifo (owner_id, sku_code, order_id)`，排序鍵換成了時間有序的主鍵）。舊的 `idx_orders_backorder_fifo` 會隨 `DROP COLUMN sku` 被 PostgreSQL 自動移除
 4. Domain：`Owner`、`Product`、`Sku`、`OrderLine`；`Order` 改為持有 line 集合（**每張單先只有一筆**）
 5. Infrastructure：四組 entity／mapper／repository
 6. Application：`PlaceOrderUsecase` 接受 line；`GetOrderUsecase`、`ListRecentOrdersUsecase`、`OrderDetail` 回傳 line
@@ -526,21 +526,41 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
 
 ---
 
-## R5 收單冪等
+## R5 收單冪等——**以拒絕達成，不另開 change**
 
-**依賴**：R1　**並行**：任何　**規模**：約 5 檔
+**狀態**：**已滿足，不執行**（決定於 R4 完成後）
 
-**欄位與 unique constraint 已在 R1 完成**，本 change 只做行為。
+### 目標已經達成
 
-### 任務
+R5 的驗收條件是「同一 `(owner_id, external_order_no)` 重送 N 次，訂單表只有一列，庫存只扣
+一次」。**現況完全滿足**：`uq_orders_owner_external_no` 擋下第二次寫入，`OrderController` 把
+它轉成 `409`，沒有第二列，也沒有第二次配貨。`OrderControllerTest` 有一支測試蓋著這個行為。
 
-1. `PlaceOrderUsecase`：重送時回傳既有訂單，而非讓 unique constraint 拋錯
-2. `OrderController`、`PlaceOrderRequest`
-3. 測試：同一鍵送兩次只建立一筆，且回傳同一筆
+欄位與 constraint 在 R1 就建好了，而 R3 期間又把「靜默建立重複訂單」改成了「明確報錯」。剩下
+的只有「要不要把報錯換成回傳既有訂單」——而那個換法被否決了。
 
-### 驗收
+### 為什麼不做「重送回傳既有訂單」
 
-- 同一 `(owner_id, external_order_no)` 重送 N 次，訂單表只有一列，庫存只扣一次
+原任務寫的是「重送時回傳既有訂單，而非讓 unique constraint 拋錯」。**不做，因為它與
+`POST /orders` 的語意衝突。**
+
+收單是**新增**：一個上游單號對應一張新的訂單。同一個唯一鍵的第二次請求是與既有狀態衝突，
+而 `409` 正是那件事的 HTTP 語意。改成回傳既有訂單，等於把新增偷偷變成 upsert——而 upsert
+的前提是「內容相同就是同一件事」，那個前提在收單上不成立：
+
+```text
+上游送：PO-1001, SKU-A × 10
+後來送：PO-1001, SKU-A × 20   ← 改量？還是 bug？
+```
+
+回 200 加既有訂單，上游會以為 20 件收下了，實際上只有 10 件。倉儲場景下那是出貨數量的差錯。
+要支援它，需要的是一條明確的**修改路徑**（語意是「改這張單」而不是「再送一次」），那不在
+現在的範圍。
+
+### 這個決定的有效期
+
+上游真的需要安全重送時，正確的做法是補修改路徑或讓上游換單號，**不是**把 `POST` 變成冪等
+upsert。如果哪天要重開這一項，先問的應該是「內容不符時怎麼辦」，而不是「怎麼讓它不拋錯」。
 
 ---
 
@@ -682,14 +702,21 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
 若單人依序執行，這是衝突最少的一條路：
 
 ```text
-1. R1 訂單資料模型
-2. R2 倉庫主檔（極簡）        ← 可與 1 並行
-3. R3 庫存分批 + FEFO         ← M1 達成，演算法可展示
-4. R5 收單冪等                ← 小，插在此處換氣
-5. R4 編排權歸位              ← 依賴 R3（view 引用 order_line_id 與 CONSUMED）　M2 達成
+1. R1 訂單資料模型                                        ✓ 完成
+2. R2 倉庫主檔（極簡）        ← 可與 1 並行               ✓ 完成
+3. R3 庫存分批 + FEFO         ← M1 達成，演算法可展示     ✓ 完成
+4. R4 編排權歸位              ← 依賴 R3　M2 達成          ✓ 完成
+5. R8 放寬多筆 line
 6. R7 履約層最小版 + 出貨閉環  ← M3 達成
-7. R8 放寬多筆 line
 ```
+
+**R5 不在序列裡**：它的驗收條件已由 R1 的 unique constraint 加上 `409` 達成，而「重送回傳既有
+訂單」被否決——收單是新增，不是 upsert。見該節。
+
+**R8 與 R7 的先後在 R4 之後改了**。原本 R8 排最後，理由是「先在單 line 下把決策模型與兩本帳
+做對」；但 R4 已經把型別（`Demand` 持有 `List<DemandLine>`）與查詢（以訂單分組）做成多行的
+形狀，剩下的只有配貨演算法本身。**R8 先做，R7 就直接面對多行的世界**，不必在履約層完成後再
+回頭驗一次多行的組合狀況。
 
 R8 排最後的理由：它會讓 **R3 與 R7** 同時面對多行的組合狀況。先在單 line 下把決策
 模型與兩本帳做對，再放寬維度。這不是「先做簡化版再升級」——R8 加的是輸入的維度，不會
