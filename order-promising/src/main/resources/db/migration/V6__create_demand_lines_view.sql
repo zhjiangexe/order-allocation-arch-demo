@@ -33,25 +33,25 @@ SELECT ol.order_id,
    AND sl.usage = 'INTERNAL'
  -- 取消由 ordering 發起並同步寫入，所以這個判準即時正確。
  WHERE o.cancelled_at IS NULL
-   -- 「還欠什麼」由 allocation 自己的資料決定，不看 ordering 的配貨狀態。
+   -- 「這條行被執行層接手了嗎」——由 move 的存在回答。
    --
-   -- **刻意不含 ol.status。** 寫入是非同步的（allocation 發事實 → ordering 收到後才改
-   -- Order），所以 ordering 的配貨狀態落後於 allocation 的決策：
+   -- **這個 view 的問題換了。** 它原本問「還欠什麼」，判準是「沒有有效預留」。有了搬運之後
+   -- 那個問題有了更好的家：一段還在等貨的 move 自己就說得出來。這裡問的因此變窄——**哪些行
+   -- 執行層還沒接手**——而它存在的理由是執行層沒有別的辦法知道：宣告新訂單的事件只帶識別碼
+   -- （EventSeparationTest 釘死了「事件是通知，不是狀態傳輸」），而反方向讓 ordering 直接寫
+   -- stock_moves 是邊界的反面。
    --
-   --   1. allocation 讀到需求、配貨成功、發出事件
-   --   2. ordering 還沒處理該事件 → order_lines.status 仍是 BACKORDERED
-   --   3. 另一筆補貨進來、又讀到同一筆需求 → 重複預留
+   -- 於是有兩個佇列：這個 view 回答「還沒被接手」，stock_moves.state = 'CONFIRMED' 回答
+   -- 「還在等貨」。
    --
-   -- 讀不到那個欄位比讀得到而約定不用更強：後者會被一次「順手加上 status 過濾」的修改推翻。
+   -- **不看 state——任何狀態的 move 都算已接手。** 尤其 DONE：它現在沒有產生者，但少了這個
+   -- 涵蓋，R7 每一張已出貨的單都會重新變成待接手的需求而被接手第二次，**而那一刻不會有任何
+   -- 測試失敗**，因為出貨流程還不存在。這與原本 CONSUMED 的判斷完全相同。
+   --
+   -- （原本這裡有一段解釋「刻意不含 ol.status，因為 ordering 的配貨狀態非同步落後於
+   -- allocation 的決策」。**那個理由消失了**：新謂詞讀的是執行層自己寫的表，沒有時間差。
+   -- 保留不看 ol.status 的做法，但它現在只是「不需要」而不是「不能」。）
    AND NOT EXISTS (
      SELECT 1
-       FROM stock_reservations sr
-      WHERE sr.order_line_id = ol.id
-        -- ACTIVE：配到、尚未出貨。CONSUMED：出貨後扣帳（R3 加了型別，R7 才開始產生）。
-        --
-        -- **CONSUMED 現在不會出現，但謂詞必須現在就寫對。** 少了它，R7 每一張已出貨的訂單
-        -- 都會重新變成待配需求而被配第二次——而那一刻不會有任何測試失敗，因為出貨流程還不
-        -- 存在。RELEASED（取消時釋放）不算已滿足，該行要重新回到佇列。
-        --
-        -- 日後再擴充 ReservationStatus 必須回頭檢查這一行。
-        AND sr.status IN ('ACTIVE', 'CONSUMED'));
+       FROM stock_moves m
+      WHERE m.order_line_id = ol.id);

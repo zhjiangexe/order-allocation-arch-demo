@@ -108,6 +108,41 @@ Odoo 的 `stock_move.sale_line_id` 就是那道參照——**move 指回需求�
 | 適合查什麼 | 今天要出的作業、某波次、某客戶的交貨 | SKU 缺貨、預留量、某訂單行、庫存流向 |
 | 日後會長出什麼 | 作業員、波次、整單 backorder、列印簽收 | 批號、成本、報廢、上下游鏈 |
 
+### 三者是三個獨立實體，不是一個聚合
+
+這一點查證過 Odoo 19 的原始碼，五個判準全部指向同一個方向：
+
+| 聚合根該有的性質 | Odoo 19 實況 |
+| --- | --- |
+| 子實體的外鍵 required | `move.picking_id` 與 `move_line.move_id` **都可空**，且盤點、報廢、製造、維修都會產生沒有單據的搬運 |
+| 根持有並強制不變式 | `picking.state` 是 **stored computed**，由底下的搬運 fold 上來；picking **沒有任何 `@api.constrains`** |
+| 所有變更經由根 | `_action_confirm` / `_action_assign` / `_action_done` / `_action_cancel` **全定義在 `stock.move`**；排程器、補貨規則、盤點、鏈式取消都直接對搬運操作 |
+| 子實體不可跨根搬移 | 欠交單直接把未完成的搬運 `write({'picking_id': 新的})`——**搬運會在單據之間搬家** |
+| 根是建立入口 | **相反**：先有搬運，才 `Picking.create()` 再把它們掛上去 |
+
+原始碼的註解自己說了：`State of a picking depends on the state of its related stock.move`。
+
+**因此持久化不照聚合切，照「誰有獨立的生命週期」切**：`StockMoveRepository`（搬運與它的明細
+——本系統的明細 `move_id` 是 NOT NULL，沒有獨立生命週期）與 `StockPickingRepository`（單據）。
+
+### ship-complete 是我們自己加的，Odoo 不保證
+
+Odoo 用 `stock.picking.move_type = 'one'` 表達「全備妥才出」。查證的結果是**它在整棵 19.0
+原始碼裡只被四個地方讀，而且沒有任何一處會拋錯**：兩處決定日期取 min 還是 max、一處決定合併
+搬運時的日期、一處讓狀態收斂成 `confirmed`（畫面顯示 Waiting 而非 Ready）。
+
+實際行為是：
+
+- **預留照樣是部分的**——`_action_assign()` 逐 move 預留，完全不看 `move_type`
+- **驗證鈕在未備妥時依然可按**（畫面上有兩顆，一顆就是給那個狀態用的）
+- 真的部分出了，用**欠交單拆單**收尾，而不是拒絕
+
+所以 Odoo 把 ship-complete 當成「衍生狀態的收斂規則 + 作業提示」。
+
+**本系統把它當成硬性規則**：配不到就整張不配、充足的那個 SKU 一件都不預留，而
+`AllocationService` 的整籃判斷會擋下違反的情形。**這不是偏離 Odoo，是比它嚴格**——寫下來
+是因為下一個對照 Odoo 的人會以為這條規則可以放寬成「提示 + 拆單」。
+
 這條分界管的是後面三個 change：change 2 決定兩張表各拿哪些欄位、change 3 的入庫 picking
 靠它才說得清為什麼沒有訂單、change 4 的狀態歸屬（`BACKORDERED` 要去哪）也依賴它。
 
@@ -115,21 +150,37 @@ Odoo 的 `stock_move.sale_line_id` 就是那道參照——**move 指回需求�
 由底下的 move 彙總；它 store 只為了畫面篩選。存起來就有兩份要對齊的真相，而 ship-complete
 下一張單的所有 move 同進同出，彙總本來就是 trivial 的。
 
-### 需求與執行的連結在 `move` 上，不在 `picking` 上
+### 需求與執行的連結是兩層，不是一層
 
-**`stock_pickings` 不帶 `order_id`。** 唯一的連結是 `stock_moves.order_line_id`（可空），
-對應 Odoo 的 `stock_move.sale_line_id`。「這張 picking 服務哪些訂單」由它底下的 move 推導。
+Odoo 19 的實際 schema：
 
-兩個理由：
+```text
+stock_picking.sale_id        訂單「單頭」的連結
+stock_move.sale_line_id      訂單「行」的連結
+stock_move                   —— 沒有 sale_id
+```
 
-1. **picking 的組成規則答不出這一欄。** Odoo 把 move 併成 picking 的鍵是
-   `(reference, 起點, 終點, 作業類型)`——**不同訂單的 move 只要起訖與作業類型相同就會併進
-   同一張 picking**。即使本系統不打算跨訂單併單，把欄位放在一個結構上答不出它的層級是錯的。
-2. **那會是第二個真相來源。** `picking.order_id` 與它底下 move 的 `order_line_id` 可以不
-   一致，而不一致時沒有規則說該信誰。
+本系統照這個形狀：`stock_pickings.order_id` 與 `stock_moves.order_line_id`，兩層都有。
 
-入庫的 picking 底下所有 move 的 `order_line_id` 都是 `NULL`——**這就是「沒有訂單」的表達
-方式**，不需要另一個欄位。
+> 本文原本寫的是「連結只在 move 上，picking 上沒有」，理由是 Odoo 的 `sale_id` 是捷徑、
+> 可能與底下 move 指向的訂單不一致。**那個風險來自跨單合併，而本系統明確不合併**——一張出庫
+> 單就是一張 picking，所以它是單據的身分而不是重複的參照。
+>
+> 而它是**必要的**：配貨要發帶 `orderId` 的結果事件，而 move 只有 `order_line_id`；從行推到
+> 單要 join `order_lines`，那正是邊界規則禁止的。
+
+**但分組不用它。** ship-complete 的整單判斷以 `picking_id` 分組——單表 group by，熱路徑
+（補貨喚醒佇列）因此一個 join 都沒有。`order_id` 只在配到之後要發事件時才查，而那時只有
+少數幾張單。
+
+`picking_id` 本來就是更自然的分組鍵：picking 的意思就是「這些 move 是同一份工作」，而
+ship-complete 判斷的正是一份工作能不能整個完成。用 `order_id` 分組會讓 picking 變成裝飾。
+
+**兩者都不建外鍵指向 `orders`**：執行層的 schema 不依賴需求層的表。完整性由 move 的
+`order_line_id` 外鍵保證——行存在就蘊含它的訂單存在。
+
+**若日後真要跨單合併，`picking.order_id` 必須拿掉**，分組改由一個有自己身分的群組實體承擔。
+屆時它才會退化成 Odoo 那種捷徑。
 
 ### 這推翻了本文先前的兩個決定
 

@@ -100,9 +100,16 @@ scope 文件原本寫「view 廢除」。**那個結論是錯的**，理由是�
 | `scheduled_at` | `sku_code`、`demand_quantity` |
 | — | `state` |
 
-**訂單的連結在 move 上，picking 上沒有。** Odoo 的 `stock_picking.sale_id` 是追溯用的捷徑，
-而 `stock_move.sale_line_id` 才是精確來源。本系統只取精確的那一個——捷徑會成為第二個真相，
-而它與底下 move 不一致時沒有規則說該信誰。
+**訂單的連結兩層都有**，與 Odoo 19 的實際 schema 一致：`stock_picking.sale_id` 是單頭的
+連結、`stock_move.sale_line_id` 是行的連結，而 `stock_move` **沒有** `sale_id`。
+
+它在 picking 上不是捷徑：捷徑之所以危險是因為 Odoo 會跨單合併，單頭與底下的 move 可能分屬
+不同的單；本系統不合併，一張出庫單就是一張 picking。而它是必要的——配貨要發帶 `orderId` 的
+結果事件，而 move 只有 `order_line_id`，從行推到單得 join `order_lines`，那是邊界禁止的。
+
+**但 ship-complete 的分組不用它，用 `picking_id`。** 單表 group by，熱路徑（補貨喚醒佇列）
+因此一個 join 都沒有；`order_id` 只在配到之後發事件時才查。`picking_id` 也是更自然的分組
+鍵——picking 的意思就是「這些 move 是同一份工作」。
 
 ### picking 不帶 state，狀態由底下的 move 彙總
 
