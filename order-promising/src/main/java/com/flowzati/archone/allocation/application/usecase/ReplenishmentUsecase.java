@@ -93,7 +93,7 @@ public class ReplenishmentUsecase {
     ReplenishStockCommand command = inbound.command();
 
     upsertBatch(command);
-    wake(command.ownerId(), command.nodeId(), command.sku());
+    wake(command.ownerId(), command.nodeId(), command.locationId(), command.sku());
   }
 
   /**
@@ -105,7 +105,7 @@ public class ReplenishmentUsecase {
       return;
     }
     WakeBackordersCommand command = inbound.command();
-    wake(command.ownerId(), command.nodeId(), command.sku());
+    wake(command.ownerId(), command.nodeId(), command.locationId(), command.sku());
   }
 
   /**
@@ -116,7 +116,7 @@ public class ReplenishmentUsecase {
   private void upsertBatch(ReplenishStockCommand command) {
     Optional<StockPool> byIdentity = stockPoolRepository.findByIdentity(
         command.ownerId(),
-        command.nodeId(),
+        command.locationId(),
         command.sku(),
         command.inDate(),
         command.expiryDate()
@@ -129,7 +129,7 @@ public class ReplenishmentUsecase {
       stockPool = new StockPool(
           IdGenerator.nextId(),
           command.ownerId(),
-          command.nodeId(),
+          command.locationId(),
           command.sku(),
           command.inDate(),
           command.expiryDate(),
@@ -153,12 +153,16 @@ public class ReplenishmentUsecase {
    *
    * <p>反過來若以「還有沒有沒配到的單」當條件，同樣會無限循環。
    */
-  private void wake(UUID ownerId, UUID nodeId, String skuCode) {
+  /**
+   * @param nodeId 只用於續做事件——它對外，必須說倉
+   * @param locationId 所有查詢用它——庫存與需求都以位置為準
+   */
+  private void wake(UUID ownerId, UUID nodeId, UUID locationId, String skuCode) {
     Instant now = clock.instant();
 
     // 先確認補的這個 SKU 真的有量可配——沒有的話這一輪根本不必開始。
     if (stockPoolRepository
-        .findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCode, businessCalendar.today())
+        .findAllocatableBatchesInFefoOrder(ownerId, locationId, skuCode, businessCalendar.today())
         .isEmpty()) {
       return;
     }
@@ -169,7 +173,7 @@ public class ReplenishmentUsecase {
     // 回的是整張單（含別的 SKU 的待配行），不是命中這個 SKU 的行：一張單整批配到或整批不配，
     // 而上限數的也是張數，兩者的維度因此一致。
     List<Demand> backorders = demandRepository.findOutstandingDemandInFifoOrder(
-        ownerId, nodeId, skuCode, wakeLimit);
+        ownerId, locationId, skuCode, wakeLimit);
     if (backorders.isEmpty()) {
       return;
     }
@@ -183,7 +187,7 @@ public class ReplenishmentUsecase {
         .flatMap(demand -> demand.totalsBySku().keySet().stream())
         .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
     Map<String, List<StockPool>> batchesBySku = stockPoolRepository.findAllocatableBatchesBySku(
-        ownerId, nodeId, skuCodes, businessCalendar.today());
+        ownerId, locationId, skuCodes, businessCalendar.today());
 
     int wokenCount =
         allocationCoordinator.allocateBackorders(backorders, batchesBySku, now).size();

@@ -17,7 +17,7 @@ public class GetStockPoolUsecase {
   }
 
   /**
-   * 某貨主在某倉手上的所有批，依 SKU 分組——**含已過期的**。
+   * 某貨主在某個內部位置手上的所有批，依 SKU 分組——**含已過期的**。
    *
    * <p>過期的批要留在結果裡並標記，不能靜默略過：「有 100 件但一件都出不了」與
    * 「什麼都沒有」在畫面上必須分得出來，因為前者要報廢、後者要進貨。
@@ -30,7 +30,7 @@ public class GetStockPoolUsecase {
    * 外鍵都沒有；為了回一個更精確的錯誤而讓 allocation 開始讀 catalog，代價遠大於收穫。未指派
    * 的組合本來就查不到任何批，回空與回 404 對呼叫端的下一步沒有差別。
    */
-  public Map<String, List<StockPool>> getBatchesInWarehouse(UUID ownerId, UUID nodeId) {
-    return stockPoolRepository.findBatchesInWarehouse(ownerId, nodeId);
+  public Map<String, List<StockPool>> getBatchesInLocation(UUID ownerId, UUID locationId) {
+    return stockPoolRepository.findBatchesInLocation(ownerId, locationId);
   }
 }

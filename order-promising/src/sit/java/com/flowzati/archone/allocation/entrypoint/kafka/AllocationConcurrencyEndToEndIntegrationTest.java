@@ -105,6 +105,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     jdbcTemplate.execute("DELETE FROM products");
     jdbcTemplate.execute("DELETE FROM owner_nodes");
     jdbcTemplate.execute("DELETE FROM owners");
+    jdbcTemplate.execute("DELETE FROM stock_locations");
     jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
   }
 

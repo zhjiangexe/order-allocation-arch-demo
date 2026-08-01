@@ -199,7 +199,7 @@ public class AllocationService {
         if (!batch.getOwnerId().equals(demand.ownerId())) {
           throw new IllegalArgumentException("Demand and batches must belong to the same owner");
         }
-        if (!batch.getNodeId().equals(demand.nodeId())) {
+        if (!batch.getLocationId().equals(demand.locationId())) {
           throw new IllegalArgumentException("Demand and batches must belong to the same node");
         }
       }

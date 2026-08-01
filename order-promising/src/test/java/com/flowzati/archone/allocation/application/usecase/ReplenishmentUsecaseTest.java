@@ -102,7 +102,7 @@ class ReplenishmentUsecaseTest {
     StockPool existing = StockFixtures.unexpiredBatch(SKU, 4, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, IN_DATE, EXPIRY_DATE))
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
         .thenReturn(Optional.of(existing));
     givenAllocatableBatches(List.of(existing));
     givenBackorders(List.of());
@@ -119,7 +119,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, IN_DATE, EXPIRY_DATE))
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
         .thenReturn(Optional.empty());
     givenAllocatableBatches(List.of());
 
@@ -130,7 +130,7 @@ class ReplenishmentUsecaseTest {
     verify(stockPoolRepository).save(captor.capture());
     StockPool created = captor.getValue();
     assertThat(created.getOwnerId()).isEqualTo(OrderFixtures.OWNER_ID);
-    assertThat(created.getNodeId()).isEqualTo(OrderFixtures.NODE_ID);
+    assertThat(created.getLocationId()).isEqualTo(OrderFixtures.LOCATION_ID);
     assertThat(created.getSkuCode()).isEqualTo(SKU);
     assertThat(created.getInDate()).isEqualTo(IN_DATE);
     assertThat(created.getExpiryDate()).isEqualTo(EXPIRY_DATE);
@@ -259,7 +259,7 @@ class ReplenishmentUsecaseTest {
 
     replenishmentUsecase.handleWake(new InboundCommand<>(
         new com.flowzati.archone.allocation.application.command.WakeBackordersCommand(
-            OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU),
+            OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, OrderFixtures.LOCATION_ID, SKU),
         message(eventId)));
 
     assertThat(batch.getOnHandQuantity()).isEqualTo(10);
@@ -287,7 +287,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, IN_DATE, EXPIRY_DATE))
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
         .thenReturn(Optional.empty());
     // 可售批查詢在資料庫就把過期的濾掉了，因此這裡回空。
     givenAllocatableBatches(List.of());
@@ -300,7 +300,7 @@ class ReplenishmentUsecaseTest {
 
   private void givenIdentityMatch(StockPool batch) {
     when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, IN_DATE, EXPIRY_DATE))
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
         .thenReturn(Optional.of(batch));
   }
 
@@ -310,15 +310,15 @@ class ReplenishmentUsecaseTest {
    */
   private void givenAllocatableBatches(List<StockPool> batches) {
     when(stockPoolRepository.findAllocatableBatchesInFefoOrder(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, today)).thenReturn(batches);
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, today)).thenReturn(batches);
     when(stockPoolRepository.findAllocatableBatchesBySku(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, java.util.Set.of(SKU), today))
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, java.util.Set.of(SKU), today))
         .thenReturn(java.util.Map.of(SKU, batches));
   }
 
   private void givenBackorders(List<Demand> demands) {
     when(demandRepository.findOutstandingDemandInFifoOrder(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, WAKE_LIMIT)).thenReturn(demands);
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, WAKE_LIMIT)).thenReturn(demands);
   }
 
   /**
@@ -349,7 +349,7 @@ class ReplenishmentUsecaseTest {
 
   private ReplenishStockCommand command(StockReplenishedIntegrationEvent event) {
     return new ReplenishStockCommand(
-        event.getOwnerId(), event.getNodeId(), event.getSku(),
+        event.getOwnerId(), event.getNodeId(), OrderFixtures.LOCATION_ID, event.getSku(),
         event.getInDate(), event.getExpiryDate(), event.getQuantity());
   }
 

@@ -85,6 +85,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     jdbcTemplate.execute("DELETE FROM products");
     jdbcTemplate.execute("DELETE FROM owner_nodes");
     jdbcTemplate.execute("DELETE FROM owners");
+    jdbcTemplate.execute("DELETE FROM stock_locations");
     jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
   }
 
@@ -190,6 +191,47 @@ class AllocationWorkflowEndToEndIntegrationTest {
     assertThat(activeReservationsOf(secondOrderId)).isEmpty();
     assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox ->
         assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName()));
+  }
+
+  @Test
+  @DisplayName("取消的單不得被補貨喚醒，貨要落到它後面那張活著的單上")
+  void shouldNotWakeACancelledOrderAndShouldGiveTheStockToTheNextLiveOne() throws Exception {
+    // **這條守的是行為，不是某個查詢的謂詞。** 取消的單不再是需求，補貨因此看不見它——
+    // 而驗證它的方式是「貨去了哪裡」，那個問題不管待配需求是由 view 推導、還是由搬運的
+    // 狀態回答，都問得出來。
+    //
+    // 兩張單刻意都缺同一個 SKU、取消的那張排在前面、補的量只夠一張：
+    // 若取消沒有被排除，FIFO 會讓已取消的那張先配到，活著的那張就拿不到貨——**兩個斷言
+    // 會同時翻面**，而不是只有一個。
+    UUID stockPoolId = UUID.randomUUID();
+    UUID cancelledOrderId = IdGenerator.nextId();
+    UUID liveOrderId = IdGenerator.nextId();
+    Instant earlier = Instant.now().minusSeconds(4);
+
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-FIFO", 0, 0));
+
+    Order cancelled = backorderedOrder(cancelledOrderId, "SKU-FIFO", 3, earlier);
+    cancelled.cancel(Instant.now().minusSeconds(2));
+    orderRepository.save(cancelled);
+    orderRepository.save(backorderedOrder(liveOrderId, "SKU-FIFO", 3, earlier.plusSeconds(1)));
+
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
+        UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID,
+        com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-FIFO",
+        StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3);
+    consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS, event));
+    outcomeDrain().drain();
+
+    assertThat(orderRepository.findById(cancelledOrderId)).hasValueSatisfying(order ->
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED));
+    assertThat(activeReservationsOf(cancelledOrderId)).isEmpty();
+
+    assertThat(orderRepository.findById(liveOrderId)).hasValueSatisfying(order ->
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
+    assertThat(activeReservationsOf(liveOrderId)).isNotEmpty();
+
+    assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isEqualTo(3));
   }
 
   @Test

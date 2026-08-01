@@ -26,9 +26,9 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
 
   @Override
   public List<StockPool> findAllocatableBatchesInFefoOrder(
-      UUID ownerId, UUID nodeId, String skuCode, LocalDate today) {
+      UUID ownerId, UUID locationId, String skuCode, LocalDate today) {
     return repository
-        .findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCode, today)
+        .findAllocatableBatchesInFefoOrder(ownerId, locationId, skuCode, today)
         .stream()
         .map(StockPoolMapper::toDomain)
         .toList();
@@ -36,7 +36,7 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
 
   @Override
   public java.util.Map<String, List<StockPool>> findAllocatableBatchesBySku(
-      UUID ownerId, UUID nodeId, java.util.Collection<String> skuCodes, LocalDate today) {
+      UUID ownerId, UUID locationId, java.util.Collection<String> skuCodes, LocalDate today) {
     if (skuCodes.isEmpty()) {
       return java.util.Map.of();
     }
@@ -45,7 +45,7 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
     java.util.Map<String, List<StockPool>> grouped = new java.util.LinkedHashMap<>();
     skuCodes.forEach(skuCode -> grouped.put(skuCode, new java.util.ArrayList<>()));
 
-    repository.findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCodes, today).stream()
+    repository.findAllocatableBatchesInFefoOrder(ownerId, locationId, skuCodes, today).stream()
         .map(StockPoolMapper::toDomain)
         .forEach(batch -> grouped.get(batch.getSkuCode()).add(batch));
 
@@ -54,13 +54,13 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
   }
 
   @Override
-  public java.util.Map<String, List<StockPool>> findBatchesInWarehouse(UUID ownerId, UUID nodeId) {
+  public java.util.Map<String, List<StockPool>> findBatchesInLocation(UUID ownerId, UUID locationId) {
     // LinkedHashMap 而不是 groupingBy 的預設 HashMap：查詢已經把同一個 SKU 的批排在一起且
     // 組內是 FEFO，用會重排鍵的 map 收就把那個順序丟掉一半。
     //
     // 同理，回傳**不能**包成 Map.copyOf——它的迭代順序未定義，一路排好的鍵在最後一步就散了。
     java.util.Map<String, List<StockPool>> bySku = new java.util.LinkedHashMap<>();
-    repository.findByOwnerIdAndNodeIdOrderBySkuCodeAscExpiryDateAscInDateAscIdAsc(ownerId, nodeId)
+    repository.findByOwnerIdAndLocationIdOrderBySkuCodeAscExpiryDateAscInDateAscIdAsc(ownerId, locationId)
         .stream()
         .map(StockPoolMapper::toDomain)
         .forEach(batch -> bySku
@@ -73,10 +73,10 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
 
   @Override
   public Optional<StockPool> findByIdentity(
-      UUID ownerId, UUID nodeId, String skuCode, LocalDate inDate, LocalDate expiryDate) {
+      UUID ownerId, UUID locationId, String skuCode, LocalDate inDate, LocalDate expiryDate) {
     return repository
-        .findByOwnerIdAndNodeIdAndSkuCodeAndInDateAndExpiryDate(
-            ownerId, nodeId, skuCode, inDate, expiryDate)
+        .findByOwnerIdAndLocationIdAndSkuCodeAndInDateAndExpiryDate(
+            ownerId, locationId, skuCode, inDate, expiryDate)
         .map(StockPoolMapper::toDomain);
   }
 

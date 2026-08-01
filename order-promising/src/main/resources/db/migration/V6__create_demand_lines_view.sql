@@ -1,24 +1,36 @@
 -- 待配需求。ordering 側發布，allocation 唯讀消費並映射成它自己的 Demand / DemandLine。
 --
 -- 這是兩個 context 之間的介面。allocation 因此不 import ordering 的 Order，也不出現
--- orders／order_lines 這兩個表名——它查的是這個 view，架構測試的「不得出現該表名」不需要
--- 為讀取開例外。
+-- orders／order_lines 這兩個表名——架構測試的「不得出現該表名」不需要為讀取開例外。
 --
 -- 為什麼是 view 而不是投影表：投影表要自己維護、有延遲、要對帳，而換到的唯一好處是「已
 -- 滿足」變成自己的欄位、不依賴他人的 enum。把那個謂詞放進 view 定義之後，好處的大部分被
 -- 抵銷——謂詞仍要隨 ReservationStatus 演進更新，但只有一個地方要改。
 --
 -- 為什麼是 view 而不是 Port 介面：多一層介面，換到的東西 view 也給。
+--
+-- **倉→位置的解析放在這裡。** 訂單說倉（下單只決定倉，位置屬於執行層），配貨說位置。轉換
+-- 放在兩者交會處，兩邊各自只需要一套詞彙；放進 repository 則會讓 allocation 同時認識倉與
+-- 位置，而它只需要後者。
 CREATE VIEW demand_lines AS
 SELECT ol.order_id,
        ol.id       AS order_line_id,
        ol.owner_id,
-       o.fulfillment_node_id AS node_id,
+       sl.id       AS location_id,
        ol.sku_code,
        ol.quantity,
        o.received_at
   FROM order_lines ol
   JOIN orders o ON o.id = ol.order_id
+  -- INNER JOIN 是刻意的：倉沒有內部位置時，那張單的需求不會出現在這裡。
+  --
+  -- 那是一個目前寫不出來的狀態（位置沒有寫入介面，種子保證每個倉都有一個），但若它發生，
+  -- 「不出現」與「出現卻永遠配不到」的結果相同——貨不可能存在於一個不存在的位置。選前者是
+  -- 因為 LEFT JOIN 會讓 location_id 為 NULL 的列流進配貨，而每個下游都得處理那個不會發生
+  -- 的狀態。
+  JOIN stock_locations sl
+    ON sl.warehouse_id = o.fulfillment_node_id
+   AND sl.usage = 'INTERNAL'
  -- 取消由 ordering 發起並同步寫入，所以這個判準即時正確。
  WHERE o.cancelled_at IS NULL
    -- 「還欠什麼」由 allocation 自己的資料決定，不看 ordering 的配貨狀態。

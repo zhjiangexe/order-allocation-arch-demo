@@ -1,7 +1,10 @@
--- 訂單層的七張表：貨主、商品主檔、倉庫主檔、訂單、訂單行。
+-- 訂單層的八張表：貨主、商品主檔、倉庫主檔、位置、訂單、訂單行。
 --
--- 建表順序固定為 owners → products → skus → fulfillment_nodes → owner_nodes →
--- orders → order_lines，FK 的被指向方一律在前。這個順序不可任意調換。
+-- 建表順序固定為 owners → products → skus → fulfillment_nodes → stock_locations →
+-- owner_nodes → orders → order_lines，FK 的被指向方一律在前。這個順序不可任意調換。
+--
+-- stock_locations 排在這裡而不是自己一個 migration：它同時被 V3 的庫存與本檔的 owner_nodes
+-- 之後各表指向，必須在兩者之前。另開一個較晚的版本會讓被指向方排在指向方後面。
 --
 -- 本檔原本只建 orders，且 orders 直接持有 sku 與 quantity。此 schema 尚未部署至任何
 -- 環境，因此改寫為最終形狀而非以 ALTER 疊加——否則 migration 歷史會記錄一段「建了又砍」
@@ -78,6 +81,71 @@ CREATE TABLE fulfillment_nodes (
     name VARCHAR(255) NOT NULL,
     CONSTRAINT uq_fulfillment_nodes_code UNIQUE (code)
 );
+
+-- 位置：搬運的端點。
+--
+-- 庫存掛在位置上而不是倉上，因為**倉當不了搬運的端點**——「供應商」與「客戶」不是本系統
+-- 經營的倉，卻必須是移動的合法另一端，否則入庫與出庫表達不出來：
+--
+--   入庫      Vendors ──────────────> 某倉/庫存
+--   出庫      某倉/庫存 ─────────────> Customers
+--   盤盈虧    Inventory adjustment ─> 某倉/庫存
+--
+-- 三者都是位置之間的移動，全域總量因此守恆。詳見 docs/dom-stock-movement-scope.md。
+--
+-- **虛擬位置在此階段沒有任何讀者**——還沒有東西移動貨。現在就建，是因為 usage 的值域必須
+-- 一次定完：晚一步引入等於同時改 CHECK 約束與回頭補種子資料，把兩個獨立的失效模式放進
+-- 同一次改動。參考資料多一列的成本是零，欄位多一個的成本是每個讀取端都要處理它。
+CREATE TABLE stock_locations (
+    id UUID PRIMARY KEY,
+    -- 可空：虛擬位置不屬於任何倉。
+    --
+    -- 這一欄是實體欄位而不是沿樹推導。Odoo 的 stock.location.warehouse_id 也是 computed
+    -- 但 store=True——它走過「查詢時算」再改成「存欄位」這條路，因為每次規則查找都要讀它。
+    -- 本系統不做樹，這一欄直接就是答案。
+    warehouse_id UUID,
+    code VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    -- internal 才算公司庫存；其餘三種是虛擬位置，只用來當搬運的另一端。
+    --
+    -- 用 CHECK 而不是外鍵指向分類表：這四個值不是設定，是程式邏輯的分支。可設定的值域會讓
+    -- 「新增第五種用途」看起來像資料維護，實際上每個分支都要跟著改。Odoo 同樣以 selection
+    -- 表達而非關聯表。
+    usage VARCHAR(32) NOT NULL,
+
+    CONSTRAINT uq_stock_locations_code UNIQUE (code),
+    -- 讓別的表能以複合外鍵「只准指向某一種用途的位置」。stock_pools 用它來保證庫存只掛在
+    -- INTERNAL 位置上——CHECK 做不到那件事（不能有子查詢），而外鍵可以。
+    CONSTRAINT uq_stock_locations_id_usage UNIQUE (id, usage),
+    CONSTRAINT fk_stock_locations_warehouse
+        FOREIGN KEY (warehouse_id) REFERENCES fulfillment_nodes(id),
+    CONSTRAINT ck_stock_locations_usage
+        CHECK (usage IN ('INTERNAL', 'SUPPLIER', 'CUSTOMER', 'INVENTORY')),
+    -- 兩個方向都要擋。只擋一邊時，另一邊的髒資料會安靜地存在——「有倉的虛擬位置」會讓
+    -- 「這個倉有哪些位置」多出一個不該在的答案，而那個錯誤不會有任何路徑報錯。
+    CONSTRAINT ck_stock_locations_warehouse_by_usage CHECK (
+        (usage =  'INTERNAL' AND warehouse_id IS NOT NULL)
+     OR (usage <> 'INTERNAL' AND warehouse_id IS NULL)
+    )
+
+    -- **刻意沒有 parent_id 與 parent_path。**
+    --
+    -- 樹在 Odoo 的用途是儲區階層與「沿樹往上找到所屬倉」，而本系統一倉一位置，warehouse_id
+    -- 直接就是答案，沒有查詢會沿樹走。日後要加收貨暫存或出貨暫存區時，orders 已經指倉、
+    -- stock_pools 已經指位置，兩者都不用動，只是多幾列位置加上一個 parent_id。
+    --
+    -- **刻意沒有 active。** Odoo 建倉時把 Input／QC／Output／Packing 全建出來、靠 active
+    -- 切換收發貨步數。本系統不做多步，加一個恆為 true 的欄位等於讓每個讀取端多處理一個
+    -- 不會發生的狀態——與 fulfillment_nodes 拒絕 status 的判準相同。
+);
+
+-- 一個倉最多一個 internal 位置。
+--
+-- WHERE 子句不可省略：虛擬位置的 warehouse_id 為 NULL，而 PostgreSQL 把 NULL 視為互不相同，
+-- 少了它三個虛擬位置仍然建得起來——所以拿掉不會立刻壞，會在「某個倉不小心有兩個庫存位置」
+-- 時才壞，而那時倉→位置的解析會從一次查表變成不定的選擇。
+CREATE UNIQUE INDEX uq_stock_locations_internal_per_warehouse
+    ON stock_locations (warehouse_id) WHERE usage = 'INTERNAL';
 
 -- 貨主與倉庫的多對多指派。一個貨主可以從多個倉出貨，一個倉服務多個貨主——後者是 3PL 的
 -- 定義性特徵。

@@ -11,7 +11,10 @@ import com.flowzati.archone.catalog.domain.model.TemperatureZone;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.catalog.domain.repository.ProductRepository;
 import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
+import com.flowzati.archone.catalog.domain.model.LocationUsage;
+import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
+import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;
 import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
@@ -75,6 +78,25 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID.fromString("00000000-0000-0000-0000-000000000012");
   public static final UUID SOUTH_NODE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000013");
+
+  /**
+   * 位置：每個倉一個內部位置，加上三個不屬於任何倉的虛擬位置。
+   *
+   * <p>虛擬位置是搬運的另一端——入庫從供應商來、出庫往客戶去，而那兩個地方不是本系統經營
+   * 的倉。此階段沒有任何東西讀它們，但值域必須一次定完，理由見 {@code seedLocations()}。
+   */
+  public static final UUID NORTH_STOCK_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000021");
+  public static final UUID CENTRAL_STOCK_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000022");
+  public static final UUID SOUTH_STOCK_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000023");
+  public static final UUID VENDORS_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000024");
+  public static final UUID CUSTOMERS_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000025");
+  public static final UUID INVENTORY_ADJUSTMENT_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000026");
 
   public static final String AMBIENT_PRODUCT_CODE = "P-TEA";
   public static final String FROZEN_PRODUCT_CODE = "P-DUMPLING";
@@ -152,6 +174,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final ProductRepository productRepository;
   private final SkuRepository skuRepository;
   private final FulfillmentNodeRepository fulfillmentNodeRepository;
+  private final StockLocationRepository stockLocationRepository;
   private final StockPoolRepository stockPoolRepository;
   private final OrderRepository orderRepository;
   private final StockReservationRepository stockReservationRepository;
@@ -162,6 +185,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       ProductRepository productRepository,
       SkuRepository skuRepository,
       FulfillmentNodeRepository fulfillmentNodeRepository,
+      StockLocationRepository stockLocationRepository,
       StockPoolRepository stockPoolRepository,
       OrderRepository orderRepository,
       StockReservationRepository stockReservationRepository,
@@ -171,6 +195,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     this.productRepository = productRepository;
     this.skuRepository = skuRepository;
     this.fulfillmentNodeRepository = fulfillmentNodeRepository;
+    this.stockLocationRepository = stockLocationRepository;
     this.stockPoolRepository = stockPoolRepository;
     this.orderRepository = orderRepository;
     this.stockReservationRepository = stockReservationRepository;
@@ -230,6 +255,36 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     fulfillmentNodeRepository.assign(FIRST_OWNER_ID, CENTRAL_NODE_ID);
     fulfillmentNodeRepository.assign(SECOND_OWNER_ID, CENTRAL_NODE_ID);
     fulfillmentNodeRepository.assign(SECOND_OWNER_ID, SOUTH_NODE_ID);
+
+    seedLocations();
+  }
+
+  /**
+   * 位置：每個倉一個內部位置，加上三個虛擬位置。
+   *
+   * <p><b>三個虛擬位置在此階段沒有任何讀者</b>——還沒有東西移動貨。它們現在就建，是因為
+   * {@code usage} 的值域必須一次定完：晚一步引入等於同時改 CHECK 約束與回頭補種子資料，
+   * 把兩個獨立的失效模式放進同一次改動。參考資料多一列的成本是零，欄位多一個的成本是每個
+   * 讀取端都要處理它。
+   *
+   * <p>命名沿用 {@code <倉代碼>/Stock}：一眼看得出屬於哪個倉，而不需要位置樹。虛擬位置沒有
+   * 倉，因此是裸名——用途已經由 {@code usage} 說了，前綴只是重複。
+   */
+  private void seedLocations() {
+    stockLocationRepository.save(
+        StockLocation.internal(NORTH_STOCK_LOCATION_ID, NORTH_NODE_ID, "WH-NORTH/Stock", "北部倉／庫存"));
+    stockLocationRepository.save(
+        StockLocation.internal(CENTRAL_STOCK_LOCATION_ID, CENTRAL_NODE_ID, "WH-CENTRAL/Stock", "中部倉／庫存"));
+    stockLocationRepository.save(
+        StockLocation.internal(SOUTH_STOCK_LOCATION_ID, SOUTH_NODE_ID, "WH-SOUTH/Stock", "南部倉／庫存"));
+
+    stockLocationRepository.save(
+        StockLocation.virtual(VENDORS_LOCATION_ID, "Vendors", "供應商", LocationUsage.SUPPLIER));
+    stockLocationRepository.save(
+        StockLocation.virtual(CUSTOMERS_LOCATION_ID, "Customers", "客戶", LocationUsage.CUSTOMER));
+    stockLocationRepository.save(
+        StockLocation.virtual(INVENTORY_ADJUSTMENT_LOCATION_ID, "Inventory adjustment", "盤點調整",
+            LocationUsage.INVENTORY));
   }
 
   private void seedStockPools() {
@@ -237,27 +292,27 @@ public class DevSeedDataInitializer implements ApplicationRunner {
 
     // 甲貨主北部倉的 SKU-AVAILABLE 分成四批。近效期那批已被跨批訂單全部吃掉（60/60），
     // 中效期早入庫那批被吃掉 20——因此畫面上同時看得到「配完的批」與「配一半的批」。
-    batch(NEAR_EXPIRY_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+    batch(NEAR_EXPIRY_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(2), today.plusMonths(1), 60, 60);
-    batch(MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+    batch(MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(2), today.plusMonths(6), 40, 20);
     // 與上一批同效期、晚一個月入庫。兩者的先後只由入庫日決定，這是 tie-breaker 的唯一證據。
-    batch(MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+    batch(MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(1), today.plusMonths(6), 30, 0);
     // 有貨但已過期，配不到。不刪除、不隱藏——倉庫裡真的有這 25 件。
-    batch(EXPIRED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, AVAILABLE_SKU,
+    batch(EXPIRED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(12), today.minusDays(1), 25, 0);
 
     // 乙貨主南部倉：on-hand 0。補這個 SKU 會喚醒下面那兩張缺貨單。
-    batch(EMPTY_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_NODE_ID, EMPTY_SKU,
+    batch(EMPTY_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, EMPTY_SKU,
         today.minusMonths(2), today.plusMonths(3), 0, 0);
 
     // 同一個貨主同一個倉的另一個 SKU，**一件都沒被預留**——即使跨 SKU 那張單需要它 5 件。
     // 整張單卡在 SKU-EMPTY，所以這 50 件動都不動。
-    batch(SECOND_OWNER_AVAILABLE_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_NODE_ID, AVAILABLE_SKU,
+    batch(SECOND_OWNER_AVAILABLE_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(1), today.plusMonths(8), 50, 0);
 
-    batch(PARTIALLY_RESERVED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_NODE_ID, PARTIALLY_RESERVED_SKU,
+    batch(PARTIALLY_RESERVED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PARTIALLY_RESERVED_SKU,
         today.minusMonths(2), today.plusMonths(9), 20, 5);
   }
 
@@ -308,7 +363,10 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     // 狀態是 BACKORDERED 而不是 PENDING，這是刻意的。PENDING 的語意是「還沒試過配置」，
     // 在真實系統裡是收單到消費之間的毫秒級過渡；把它固化成種子資料等於展示一個穩定狀態
     // 下不存在的東西，而且那張單永遠不會動——它繞過下單 usecase 直接寫入，沒有
-    // OrderPlaced 事件，配置端從不知道它存在，補貨也不會喚醒它（補貨只處理 BACKORDERED）。
+    // OrderPlaced 事件，配置端從不知道它存在。
+    //
+    // （原本這裡寫「補貨只處理 BACKORDERED」，那已不成立：佇列改由 demand_lines 回答之後
+    // 刻意不看 status，PENDING 與 BACKORDERED 對它完全等價。）
     //
     // BACKORDERED 則三件事同時成立：它進得了 FIFO 佇列，補 SKU-EMPTY 真的會喚醒它；
     // 語意一致，因為那個庫存池的 on-hand 是 0；撞號展示也還在，兩個貨主都有 SKU-EMPTY。
@@ -425,13 +483,14 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   }
 
   private void batch(
-      UUID id, UUID ownerId, UUID nodeId, String skuCode,
+      UUID id, UUID ownerId, UUID locationId, String skuCode,
       LocalDate inDate, LocalDate expiryDate, int onHandQuantity, int reservedQuantity) {
     if (stockPoolRepository.findById(id).isPresent()) {
       return;
     }
     stockPoolRepository.save(new StockPool(
-        id, ownerId, nodeId, skuCode, inDate, expiryDate, onHandQuantity, reservedQuantity, null));
+        id, ownerId, locationId, skuCode, inDate, expiryDate, onHandQuantity, reservedQuantity,
+        null));
   }
 
   private static UUID uuid(int suffix) {

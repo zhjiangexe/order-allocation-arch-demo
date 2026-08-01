@@ -21,7 +21,7 @@ class StockPoolMapperTest {
   void mapsDomainToEntity() {
     UUID id = UUID.randomUUID();
     StockPool stockPool = new StockPool(
-        id, StockFixtures.OWNER_ID, StockFixtures.NODE_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 10, 4, 7L);
+        id, StockFixtures.OWNER_ID, StockFixtures.LOCATION_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 10, 4, 7L);
 
     StockPoolEntity entity = StockPoolMapper.toEntity(stockPool);
 
@@ -29,7 +29,7 @@ class StockPoolMapperTest {
     // 而兩者都不是在這一層就看得出來的錯。
     assertThat(entity.getId()).isEqualTo(id);
     assertThat(entity.getOwnerId()).isEqualTo(StockFixtures.OWNER_ID);
-    assertThat(entity.getNodeId()).isEqualTo(StockFixtures.NODE_ID);
+    assertThat(entity.getLocationId()).isEqualTo(StockFixtures.LOCATION_ID);
     assertThat(entity.getSkuCode()).isEqualTo("SKU-1");
     assertThat(entity.getInDate()).isEqualTo(IN_DATE);
     assertThat(entity.getExpiryDate()).isEqualTo(EXPIRY_DATE);
@@ -43,13 +43,13 @@ class StockPoolMapperTest {
   void mapsEntityToDomain() {
     UUID id = UUID.randomUUID();
     StockPoolEntity entity = new StockPoolEntity(
-        id, StockFixtures.OWNER_ID, StockFixtures.NODE_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 10, 4, 7L);
+        id, StockFixtures.OWNER_ID, StockFixtures.LOCATION_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 10, 4, 7L);
 
     StockPool stockPool = StockPoolMapper.toDomain(entity);
 
     assertThat(stockPool.getId()).isEqualTo(id);
     assertThat(stockPool.getOwnerId()).isEqualTo(StockFixtures.OWNER_ID);
-    assertThat(stockPool.getNodeId()).isEqualTo(StockFixtures.NODE_ID);
+    assertThat(stockPool.getLocationId()).isEqualTo(StockFixtures.LOCATION_ID);
     assertThat(stockPool.getSkuCode()).isEqualTo("SKU-1");
     assertThat(stockPool.getInDate()).isEqualTo(IN_DATE);
     assertThat(stockPool.getExpiryDate()).isEqualTo(EXPIRY_DATE);

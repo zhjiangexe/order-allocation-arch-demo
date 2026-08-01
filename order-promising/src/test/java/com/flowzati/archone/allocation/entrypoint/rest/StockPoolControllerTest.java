@@ -1,6 +1,9 @@
 package com.flowzati.archone.allocation.entrypoint.rest;
 
 import com.flowzati.archone.allocation.application.usecase.GetStockPoolUsecase;
+import com.flowzati.archone.catalog.domain.model.LocationUsage;
+import com.flowzati.archone.catalog.domain.model.StockLocation;
+import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.common.time.BusinessCalendar;
@@ -58,6 +61,9 @@ class StockPoolControllerTest {
 
   @MockitoBean
   private GetStockPoolUsecase getStockPoolUsecase;
+
+  @MockitoBean
+  private StockLocationRepository stockLocationRepository;
 
   @Test
   @DisplayName("一個 SKU 分成三批時應逐批回報，並保持配貨會取用的順序")
@@ -164,8 +170,17 @@ class StockPoolControllerTest {
     assertThat(mvc.get().uri("/stock-pool?ownerId=" + StockFixtures.OWNER_ID)).hasStatus(400);
   }
 
+  /** 倉 → 位置的解析。倉與位置刻意取不同的 UUID，拿錯就會 stub 不中而失敗。 */
+  private void givenTheWarehouseResolvesToItsInternalLocation() {
+    when(stockLocationRepository.findInternalOf(StockFixtures.NODE_ID))
+        .thenReturn(java.util.Optional.of(new StockLocation(
+            StockFixtures.LOCATION_ID, StockFixtures.NODE_ID, "WH-TEST/Stock", "測試倉／庫存",
+            LocationUsage.INTERNAL)));
+  }
+
   private void givenWarehouseHolds(Map<String, List<StockPool>> batchesBySku) {
-    when(getStockPoolUsecase.getBatchesInWarehouse(StockFixtures.OWNER_ID, StockFixtures.NODE_ID))
+    givenTheWarehouseResolvesToItsInternalLocation();
+    when(getStockPoolUsecase.getBatchesInLocation(StockFixtures.OWNER_ID, StockFixtures.LOCATION_ID))
         .thenReturn(batchesBySku);
   }
 }

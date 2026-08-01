@@ -25,7 +25,7 @@ public interface JpaStockRepository extends JpaRepository<StockPoolEntity, UUID>
   @Query("""
       SELECT b FROM StockPoolEntity b
       WHERE b.ownerId = :ownerId
-        AND b.nodeId = :nodeId
+        AND b.locationId = :locationId
         AND b.skuCode = :skuCode
         AND b.expiryDate >= :today
         AND b.onHandQuantity > b.reservedQuantity
@@ -33,7 +33,7 @@ public interface JpaStockRepository extends JpaRepository<StockPoolEntity, UUID>
       """)
   List<StockPoolEntity> findAllocatableBatchesInFefoOrder(
       @Param("ownerId") UUID ownerId,
-      @Param("nodeId") UUID nodeId,
+      @Param("locationId") UUID locationId,
       @Param("skuCode") String skuCode,
       @Param("today") LocalDate today);
 
@@ -50,7 +50,7 @@ public interface JpaStockRepository extends JpaRepository<StockPoolEntity, UUID>
   @Query("""
       SELECT b FROM StockPoolEntity b
       WHERE b.ownerId = :ownerId
-        AND b.nodeId = :nodeId
+        AND b.locationId = :locationId
         AND b.skuCode IN :skuCodes
         AND b.expiryDate >= :today
         AND b.onHandQuantity > b.reservedQuantity
@@ -58,7 +58,7 @@ public interface JpaStockRepository extends JpaRepository<StockPoolEntity, UUID>
       """)
   List<StockPoolEntity> findAllocatableBatchesInFefoOrder(
       @Param("ownerId") UUID ownerId,
-      @Param("nodeId") UUID nodeId,
+      @Param("locationId") UUID locationId,
       @Param("skuCodes") Collection<String> skuCodes,
       @Param("today") LocalDate today);
 
@@ -66,9 +66,9 @@ public interface JpaStockRepository extends JpaRepository<StockPoolEntity, UUID>
    * 庫存頁用：不篩選，過期與預留光的都要在。以 {@code skuCode} 為第一排序鍵讓同一個 SKU 的
    * 批相鄰，組內則是 FEFO——那正是配貨會取用它們的順序。
    */
-  List<StockPoolEntity> findByOwnerIdAndNodeIdOrderBySkuCodeAscExpiryDateAscInDateAscIdAsc(
-      UUID ownerId, UUID nodeId);
+  List<StockPoolEntity> findByOwnerIdAndLocationIdOrderBySkuCodeAscExpiryDateAscInDateAscIdAsc(
+      UUID ownerId, UUID locationId);
 
-  Optional<StockPoolEntity> findByOwnerIdAndNodeIdAndSkuCodeAndInDateAndExpiryDate(
-      UUID ownerId, UUID nodeId, String skuCode, LocalDate inDate, LocalDate expiryDate);
+  Optional<StockPoolEntity> findByOwnerIdAndLocationIdAndSkuCodeAndInDateAndExpiryDate(
+      UUID ownerId, UUID locationId, String skuCode, LocalDate inDate, LocalDate expiryDate);
 }

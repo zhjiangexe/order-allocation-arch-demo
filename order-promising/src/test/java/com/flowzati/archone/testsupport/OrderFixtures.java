@@ -26,6 +26,16 @@ public final class OrderFixtures {
   public static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
   /** 出貨倉。所有 fixture 共用一個——倉別在收單後不參與任何決策，區分它沒有價值。 */
   public static final UUID NODE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+  /**
+   * 與 {@link #NODE_ID} **刻意取不同的值**。
+   *
+   * <p>庫存與待配需求都以位置查，而倉只用於對外的事件。兩者若在測試裡共用同一個 UUID，
+   * 一個「不小心拿倉去查庫存」的實作會安靜通過——正是這個改動最容易踩的錯。
+   */
+  public static final UUID LOCATION_ID = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
+  /** 第二個倉的內部位置。與 {@link #OTHER_NODE_ID} 刻意不同值。 */
+  public static final UUID OTHER_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-0000000000c2");
   public static final UUID OTHER_OWNER_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000a2");
   public static final String PRODUCT_CODE = "P-TEST";
@@ -68,6 +78,19 @@ public final class OrderFixtures {
         VALUES (?, ?)
         ON CONFLICT DO NOTHING
         """, ownerId, OTHER_NODE_ID);
+    // 每個倉一個內部位置：stock_pools.location_id 有複合外鍵指向 (id, usage)，庫存因此
+    // 只掛得上 INTERNAL 的位置。倉與位置刻意取不同的 UUID——拿倉去查庫存會查不到而失敗，
+    // 那正是這一步最容易踩的錯。
+    jdbcTemplate.update("""
+        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        VALUES (?, ?, ?, ?, 'INTERNAL')
+        ON CONFLICT (id) DO NOTHING
+        """, LOCATION_ID, NODE_ID, "WH-TEST/Stock", "測試倉／庫存");
+    jdbcTemplate.update("""
+        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        VALUES (?, ?, ?, ?, 'INTERNAL')
+        ON CONFLICT (id) DO NOTHING
+        """, OTHER_LOCATION_ID, OTHER_NODE_ID, "WH-FIXTURE-ALT/Stock", "第二個倉／庫存");
     jdbcTemplate.update("""
         INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
         VALUES (?, ?, ?, ?, 'AMBIENT')

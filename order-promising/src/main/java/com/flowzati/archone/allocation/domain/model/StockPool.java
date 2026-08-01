@@ -17,12 +17,17 @@ import java.util.UUID;
  * 沒有合併規則要定義，也就沒有規則會定錯。
  *
  * <p>可承諾量（ATP）是算出來的，不儲存——存了就是第二個真相來源，而它遲早會與第一個不合。
+ *
+ * <p><b>但在手量與預留量是物化的，不是 {@code SUM(moves)}。</b>引入異動之後仍然如此：一列
+ * 庫存是被異動寫出來的餘額，不是它們的檢視。這一點必須寫在這裡，因為「餘額由異動推導」是
+ * 下一步最自然的誤讀——而守著這個餘額的樂觀鎖正是補貨與喚醒序列化的機制，見
+ * {@code docs/dom-promising-scope.md} 的「決定二」。Odoo 的 {@code stock.quant} 也是物化餘額。
  */
 public class StockPool {
 
   private final UUID id;
   private final UUID ownerId;
-  private final UUID nodeId;
+  private final UUID locationId;
   private final String skuCode;
   private final LocalDate inDate;
   private final LocalDate expiryDate;
@@ -33,7 +38,7 @@ public class StockPool {
   public StockPool(
       UUID id,
       UUID ownerId,
-      UUID nodeId,
+      UUID locationId,
       String skuCode,
       LocalDate inDate,
       LocalDate expiryDate,
@@ -44,7 +49,7 @@ public class StockPool {
     if (ownerId == null) {
       throw new IllegalArgumentException("Owner ID is required");
     }
-    if (nodeId == null) {
+    if (locationId == null) {
       throw new IllegalArgumentException("Fulfillment node ID is required");
     }
     if (skuCode == null || skuCode.isBlank()) {
@@ -59,7 +64,7 @@ public class StockPool {
     validateQuantities(onHandQuantity, reservedQuantity);
     this.id = id;
     this.ownerId = ownerId;
-    this.nodeId = nodeId;
+    this.locationId = locationId;
     this.skuCode = skuCode;
     this.inDate = inDate;
     this.expiryDate = expiryDate;
@@ -148,8 +153,8 @@ public class StockPool {
     return ownerId;
   }
 
-  public UUID getNodeId() {
-    return nodeId;
+  public UUID getLocationId() {
+    return locationId;
   }
 
   public String getSkuCode() {

@@ -44,7 +44,7 @@ class AllocationBoundaryArchitectureTest {
 
   /** allocation 擁有的表名，ordering 不該碰。 */
   private static final Pattern ALLOCATION_TABLE_NAME =
-      Pattern.compile("\\b(stock_pools|stock_reservations)\\b");
+      Pattern.compile("\\b(stock_pools|stock_reservations|stock_locations)\\b");
 
   @Test
   @DisplayName("allocation 不得認識 ordering 的訂單聚合根——它看到的需求來自 demand_lines")

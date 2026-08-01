@@ -17,11 +17,11 @@ import org.hibernate.annotations.UpdateTimestamp;
     name = "stock_pools",
     uniqueConstraints = @UniqueConstraint(
         name = "uq_stock_pools_batch",
-        columnNames = {"owner_id", "node_id", "sku_code", "in_date", "expiry_date"}
+        columnNames = {"owner_id", "location_id", "sku_code", "in_date", "expiry_date"}
     ),
     indexes = @Index(
         name = "idx_stock_pools_fefo",
-        columnList = "owner_id,node_id,sku_code,expiry_date,in_date,id"
+        columnList = "owner_id,location_id,sku_code,expiry_date,in_date,id"
     )
 )
 public class StockPoolEntity {
@@ -32,8 +32,8 @@ public class StockPoolEntity {
   @Column(name = "owner_id", nullable = false)
   private UUID ownerId;
 
-  @Column(name = "node_id", nullable = false)
-  private UUID nodeId;
+  @Column(name = "location_id", nullable = false)
+  private UUID locationId;
 
   @Column(name = "sku_code", nullable = false)
   private String skuCode;
@@ -64,7 +64,7 @@ public class StockPoolEntity {
   public StockPoolEntity(
       UUID id,
       UUID ownerId,
-      UUID nodeId,
+      UUID locationId,
       String skuCode,
       LocalDate inDate,
       LocalDate expiryDate,
@@ -74,7 +74,7 @@ public class StockPoolEntity {
   ) {
     this.id = id;
     this.ownerId = ownerId;
-    this.nodeId = nodeId;
+    this.locationId = locationId;
     this.skuCode = skuCode;
     this.inDate = inDate;
     this.expiryDate = expiryDate;
@@ -91,8 +91,8 @@ public class StockPoolEntity {
     return ownerId;
   }
 
-  public UUID getNodeId() {
-    return nodeId;
+  public UUID getLocationId() {
+    return locationId;
   }
 
   public String getSkuCode() {

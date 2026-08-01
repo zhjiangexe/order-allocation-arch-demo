@@ -62,10 +62,12 @@ class StockPoolPersistenceIntegrationTest {
 
   private static final Instant OLD_UPDATED_AT = Instant.parse("2000-01-01T00:00:00Z");
   private static final UUID STOCK_POOL_ID = uuid(1);
-  // 排序是 node_id ASC，所以這個值必須大於 OrderFixtures.NODE_ID（…b1），
-  // 否則「第一個倉先出現」的斷言就與被驗證的規則無關了。
+  // 排序是 location_id ASC，所以這個值必須大於 OrderFixtures.LOCATION_ID（…c1），
+  // 否則「第一個位置先出現」的斷言就與被驗證的規則無關了。
   private static final UUID SECOND_NODE_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000b2");
+  private static final UUID SECOND_LOCATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-0000000000c2");
   private static final String SKU = "SKU-1";
   /** 分組要驗得出「同一個倉的兩個 SKU 各自成組」，所以需要第二個代碼。 */
   private static final String SECOND_SKU = "SKU-2";
@@ -96,11 +98,11 @@ class StockPoolPersistenceIntegrationTest {
 
     StockPool byId = repositoryAdapter.findById(STOCK_POOL_ID).orElseThrow();
     StockPool byIdentity = repositoryAdapter.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU,
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU,
         StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON).orElseThrow();
 
     assertThat(byId.getOwnerId()).isEqualTo(OrderFixtures.OWNER_ID);
-    assertThat(byId.getNodeId()).isEqualTo(OrderFixtures.NODE_ID);
+    assertThat(byId.getLocationId()).isEqualTo(OrderFixtures.LOCATION_ID);
     assertThat(byId.getSkuCode()).isEqualTo(SKU);
     assertThat(byId.getInDate()).isEqualTo(StockFixtures.ARRIVED_ON);
     assertThat(byId.getExpiryDate()).isEqualTo(StockFixtures.EXPIRES_ON);
@@ -153,8 +155,8 @@ class StockPoolPersistenceIntegrationTest {
     persistBatch(uuid(4), TODAY.plusMonths(2), 40, 40);
 
     // 過期與預留光的都要在——濾掉會讓「有貨但出不了」與「什麼都沒有」在畫面上長得一樣。
-    assertThat(repositoryAdapter.findBatchesInWarehouse(OrderFixtures.OWNER_ID,
-        OrderFixtures.NODE_ID))
+    assertThat(repositoryAdapter.findBatchesInLocation(OrderFixtures.OWNER_ID,
+        OrderFixtures.LOCATION_ID))
         .hasEntrySatisfying(SKU, batches -> assertThat(batches).hasSize(3));
   }
 
@@ -171,8 +173,8 @@ class StockPoolPersistenceIntegrationTest {
     persistBatchOfSku(SKU, firstSkuLater, TODAY.plusMonths(6));
     persistBatchOfSku(SKU, firstSkuEarlier, TODAY.plusMonths(1));
 
-    Map<String, List<StockPool>> held = repositoryAdapter.findBatchesInWarehouse(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID);
+    Map<String, List<StockPool>> held = repositoryAdapter.findBatchesInLocation(
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID);
 
     // 組內才是真正的取用順序。這個順序是查詢的保證而不是呼叫端的責任：tie-break 一路到 id，
     // 而 id 存在的目的是讓順序可重現、本身不帶任何呼叫端排得出來的意義。
@@ -191,11 +193,11 @@ class StockPoolPersistenceIntegrationTest {
   void excludesBatchesHeldInAnotherWarehouse() {
     insertNode(SECOND_NODE_ID, "WH-TEST-2", "第二測試倉");
     UUID here = uuid(2);
-    persistBatchAtNode(OrderFixtures.NODE_ID, here, TODAY.plusMonths(1), 10, 0);
-    persistBatchAtNode(SECOND_NODE_ID, uuid(3), TODAY.plusMonths(1), 10, 0);
+    persistBatchAtNode(OrderFixtures.LOCATION_ID, here, TODAY.plusMonths(1), 10, 0);
+    persistBatchAtNode(SECOND_LOCATION_ID, uuid(3), TODAY.plusMonths(1), 10, 0);
 
-    assertThat(repositoryAdapter.findBatchesInWarehouse(OrderFixtures.OWNER_ID,
-        OrderFixtures.NODE_ID))
+    assertThat(repositoryAdapter.findBatchesInLocation(OrderFixtures.OWNER_ID,
+        OrderFixtures.LOCATION_ID))
         .hasEntrySatisfying(SKU, batches ->
             assertThat(batches).extracting(StockPool::getId).containsExactly(here));
   }
@@ -205,7 +207,7 @@ class StockPoolPersistenceIntegrationTest {
   void answersAnEmptyWarehouseWithAnEmptyGrouping() {
     insertNode(SECOND_NODE_ID, "WH-TEST-2", "第二測試倉");
 
-    assertThat(repositoryAdapter.findBatchesInWarehouse(OrderFixtures.OWNER_ID, SECOND_NODE_ID))
+    assertThat(repositoryAdapter.findBatchesInLocation(OrderFixtures.OWNER_ID, SECOND_NODE_ID))
         .isEmpty();
   }
 
@@ -219,11 +221,11 @@ class StockPoolPersistenceIntegrationTest {
     jdbcTemplate.execute("SET LOCAL enable_seqscan = off");
     String plan = String.join("\n", jdbcTemplate.queryForList("""
         EXPLAIN SELECT * FROM stock_pools
-        WHERE owner_id = ? AND node_id = ? AND sku_code = ? AND expiry_date >= ?
+        WHERE owner_id = ? AND location_id = ? AND sku_code = ? AND expiry_date >= ?
           AND on_hand_quantity > reserved_quantity
         ORDER BY expiry_date, in_date, id
         """, String.class,
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, Date.valueOf(TODAY)));
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, Date.valueOf(TODAY)));
 
     assertThat(plan).contains("idx_stock_pools_fefo");
     // 出現 Sort 就代表索引的欄位順序與 ORDER BY 不一致，資料庫得把結果再排一次。
@@ -359,7 +361,7 @@ class StockPoolPersistenceIntegrationTest {
 
   private List<StockPool> allocatable() {
     return repositoryAdapter.findAllocatableBatchesInFefoOrder(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, TODAY);
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, TODAY);
   }
 
   private StockPoolEntity persistBatch(
@@ -371,13 +373,13 @@ class StockPoolPersistenceIntegrationTest {
   private StockPoolEntity persistBatch(
       UUID id, LocalDate expiryDate, LocalDate inDate, int onHandQuantity,
       int reservedQuantity) {
-    return persistBatchAtNode(OrderFixtures.NODE_ID, id, expiryDate, inDate, onHandQuantity,
+    return persistBatchAtNode(OrderFixtures.LOCATION_ID, id, expiryDate, inDate, onHandQuantity,
         reservedQuantity);
   }
 
   private StockPoolEntity persistBatchOfSku(String skuCode, UUID id, LocalDate expiryDate) {
     StockPoolEntity saved = jpaRepository.saveAndFlush(new StockPoolEntity(
-        id, OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, skuCode, StockFixtures.ARRIVED_ON,
+        id, OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, skuCode, StockFixtures.ARRIVED_ON,
         expiryDate, 10, 0, null));
     entityManager.clear();
     return saved;
@@ -399,12 +401,19 @@ class StockPoolPersistenceIntegrationTest {
     return saved;
   }
 
-  /** {@code stock_pools.node_id} 外鍵指向 {@code fulfillment_nodes}，所以倉要先存在。 */
+  /** {@code stock_pools.location_id} 外鍵指向 {@code stock_locations}，所以位置要先存在。 */
+  /** 建倉，順帶建它的內部位置——庫存掛在位置上，少了它外鍵過不了。 */
   private void insertNode(UUID nodeId, String code, String name) {
     jdbcTemplate.update("""
         INSERT INTO fulfillment_nodes (id, code, name)
         VALUES (?, ?, ?)
+        ON CONFLICT DO NOTHING
         """, nodeId, code, name);
+    jdbcTemplate.update("""
+        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        VALUES (?, ?, ?, ?, 'INTERNAL')
+        ON CONFLICT DO NOTHING
+        """, SECOND_LOCATION_ID, nodeId, code + "/Stock", name + "／庫存");
   }
 
   private void setOldUpdatedAt(UUID id) {
@@ -421,10 +430,10 @@ class StockPoolPersistenceIntegrationTest {
       int onHandQuantity, int reservedQuantity) {
     jdbcTemplate.update("""
         INSERT INTO stock_pools (
-            id, owner_id, node_id, sku_code, in_date, expiry_date,
+            id, owner_id, location_id, sku_code, in_date, expiry_date,
             on_hand_quantity, reserved_quantity)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, id, ownerId, OrderFixtures.NODE_ID, skuCode,
+        """, id, ownerId, OrderFixtures.LOCATION_ID, skuCode,
         Date.valueOf(inDate), Date.valueOf(expiryDate), onHandQuantity, reservedQuantity);
   }
 

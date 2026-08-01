@@ -28,7 +28,7 @@ public interface StockPoolRepository {
    * 依據。
    */
   List<StockPool> findAllocatableBatchesInFefoOrder(
-      UUID ownerId, UUID nodeId, String skuCode, LocalDate today);
+      UUID ownerId, UUID locationId, String skuCode, LocalDate today);
 
   /**
    * 多個 SKU 的可配批，**依 SKU 分組**回傳，每組內仍是 FEFO 順序。
@@ -37,7 +37,7 @@ public interface StockPoolRepository {
    * 兩者意義不同——空清單是普通的缺貨，缺鍵會讓配貨誤判成「呼叫端組錯了輸入」。
    */
   java.util.Map<String, List<StockPool>> findAllocatableBatchesBySku(
-      UUID ownerId, UUID nodeId, java.util.Collection<String> skuCodes, LocalDate today);
+      UUID ownerId, UUID locationId, java.util.Collection<String> skuCodes, LocalDate today);
 
   /**
    * 某貨主在某倉手上的**全部**批，依 SKU 分組，每組內是 FEFO 順序。
@@ -54,7 +54,7 @@ public interface StockPoolRepository {
    * <p>一批都沒有時回空 map，不是例外。「這個倉什麼都沒放」是正常答案，而且那正是新倉上線
    * 時的狀態。
    */
-  java.util.Map<String, List<StockPool>> findBatchesInWarehouse(UUID ownerId, UUID nodeId);
+  java.util.Map<String, List<StockPool>> findBatchesInLocation(UUID ownerId, UUID locationId);
 
   /**
    * 依五個身分維度取那一列。
@@ -63,7 +63,7 @@ public interface StockPoolRepository {
    * 鍵決定，沒有另一套邏輯要維護，也就沒有另一套邏輯會與鍵不一致。
    */
   Optional<StockPool> findByIdentity(
-      UUID ownerId, UUID nodeId, String skuCode, LocalDate inDate, LocalDate expiryDate);
+      UUID ownerId, UUID locationId, String skuCode, LocalDate inDate, LocalDate expiryDate);
 
   int save(StockPool stockPool);
 }

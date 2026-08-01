@@ -19,19 +19,19 @@ import java.util.UUID;
 public final class DemandFixtures {
 
   public static final UUID OWNER_ID = OrderFixtures.OWNER_ID;
-  public static final UUID NODE_ID = OrderFixtures.NODE_ID;
+  public static final UUID LOCATION_ID = OrderFixtures.LOCATION_ID;
 
   private DemandFixtures() {
   }
 
   /** 一張單一條行的需求，用預設的貨主與倉。 */
   public static Demand demand(UUID orderId, String skuCode, int quantity, Instant receivedAt) {
-    return demand(orderId, OWNER_ID, NODE_ID, skuCode, quantity, receivedAt);
+    return demand(orderId, OWNER_ID, LOCATION_ID, skuCode, quantity, receivedAt);
   }
 
   public static Demand demand(
       UUID orderId, UUID ownerId, String skuCode, int quantity, Instant receivedAt) {
-    return demand(orderId, ownerId, NODE_ID, skuCode, quantity, receivedAt);
+    return demand(orderId, ownerId, LOCATION_ID, skuCode, quantity, receivedAt);
   }
 
   public static Demand demand(
@@ -53,7 +53,7 @@ public final class DemandFixtures {
    * R8 放寬時才第一次執行到那條路徑。
    */
   public static Demand multiLineDemand(UUID orderId, Instant receivedAt, DemandLine... lines) {
-    return new Demand(orderId, OWNER_ID, NODE_ID, receivedAt, List.of(lines));
+    return new Demand(orderId, OWNER_ID, LOCATION_ID, receivedAt, List.of(lines));
   }
 
   public static DemandLine line(String skuCode, int quantity) {

@@ -36,7 +36,7 @@ public final class DemandMapper {
       demands.add(new Demand(
           first.getOrderId(),
           first.getOwnerId(),
-          first.getNodeId(),
+          first.getLocationId(),
           first.getReceivedAt(),
           orderRows.stream().map(DemandMapper::toLine).toList()));
     }

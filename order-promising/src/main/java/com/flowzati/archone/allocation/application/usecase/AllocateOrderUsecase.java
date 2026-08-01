@@ -70,7 +70,7 @@ public class AllocateOrderUsecase {
     // 會讓其餘的行看起來都缺貨。
     Map<String, List<StockPool>> batchesBySku = stockPoolRepository.findAllocatableBatchesBySku(
         demand.ownerId(),
-        demand.nodeId(),
+        demand.locationId(),
         demand.totalsBySku().keySet(),
         businessCalendar.today());
 

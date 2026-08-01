@@ -329,11 +329,11 @@ class StockReservationPersistenceIntegrationTest {
   private void insertStockPool(UUID id, java.time.LocalDate expiryDate) {
     jdbcTemplate.update("""
         INSERT INTO stock_pools (
-            id, owner_id, node_id, sku_code, in_date, expiry_date,
+            id, owner_id, location_id, sku_code, in_date, expiry_date,
             on_hand_quantity, reserved_quantity)
         VALUES (?, ?, ?, ?, ?, ?, 100, 0)
         ON CONFLICT (id) DO NOTHING
-        """, id, OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU,
+        """, id, OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU,
         Date.valueOf(StockFixtures.ARRIVED_ON), Date.valueOf(expiryDate));
   }
 

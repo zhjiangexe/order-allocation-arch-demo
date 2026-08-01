@@ -85,6 +85,7 @@ class DevSeedDataIntegrationTest {
     jdbcTemplate.execute("DELETE FROM products");
     jdbcTemplate.execute("DELETE FROM owner_nodes");
     jdbcTemplate.execute("DELETE FROM owners");
+    jdbcTemplate.execute("DELETE FROM stock_locations");
     jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
   }
 
@@ -201,13 +202,15 @@ class DevSeedDataIntegrationTest {
   void seedsABackorderThatReplenishmentCanActuallyWake() {
     // 這一條守的是「種子訂單不是 PENDING」。PENDING 在真實系統裡是收單到消費之間的過渡，
     // 固化成種子等於展示一個穩定狀態下不存在的東西；更糟的是那張單繞過下單 usecase 直接
-    // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在，補貨也不會碰它（只處理
-    // BACKORDERED）。照操作台 README 的 demo 流程補貨後畫面毫無變化，看起來像壞掉。
-    // 佇列現在由 demand_lines 回答，範圍含倉別——種子那張單在南部倉。
+    // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在。照操作台 README 的 demo 流程
+    // 補貨後畫面毫無變化，看起來像壞掉。
+    //
+    // 佇列由 demand_lines 回答，而它**刻意不看 status**——PENDING 與 BACKORDERED 對佇列
+    // 完全等價。範圍含位置，種子那張單在南部倉的內部位置。
     List<com.flowzati.archone.allocation.domain.model.Demand> queue =
         demandRepository.findOutstandingDemandInFifoOrder(
             DevSeedDataInitializer.SECOND_OWNER_ID,
-            DevSeedDataInitializer.SOUTH_NODE_ID,
+            DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID,
             DevSeedDataInitializer.EMPTY_SKU,
             1_000);
 
@@ -283,6 +286,41 @@ class DevSeedDataIntegrationTest {
     return fulfillmentNodeRepository.findByOwner(ownerId).stream()
         .map(FulfillmentNode::getId)
         .toList();
+  }
+
+  @Test
+  @DisplayName("每個種子倉應恰有一個 internal 位置，且三種虛擬用途各恰有一列")
+  void seedsOneInternalLocationPerWarehouseAndEveryVirtualLocation() {
+    List<UUID> seededNodeIds = jdbcTemplate.queryForList(
+        "SELECT id FROM fulfillment_nodes", UUID.class);
+    assertThat(seededNodeIds).isNotEmpty();
+
+    // 每個倉恰有一個——不是「至少一個」。倉→位置的解析要是一次查表而不是不定的選擇。
+    for (UUID nodeId : seededNodeIds) {
+      assertThat(internalLocationCountOf(nodeId))
+          .as("倉 %s 的 internal 位置數", nodeId)
+          .isEqualTo(1);
+    }
+
+    // 虛擬位置在這個階段沒有任何讀者——還沒有東西移動貨。它們現在就要在，是因為 usage 的
+    // 值域必須一次定完：晚一步引入等於同時改 CHECK 約束與回頭補種子資料。
+    assertThat(locationCountOfUsage("SUPPLIER")).isEqualTo(1);
+    assertThat(locationCountOfUsage("CUSTOMER")).isEqualTo(1);
+    assertThat(locationCountOfUsage("INVENTORY")).isEqualTo(1);
+  }
+
+  private int internalLocationCountOf(UUID nodeId) {
+    Integer count = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM stock_locations WHERE warehouse_id = ? AND usage = 'INTERNAL'",
+        Integer.class,
+        nodeId);
+    return count == null ? 0 : count;
+  }
+
+  private int locationCountOfUsage(String usage) {
+    Integer count = jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM stock_locations WHERE usage = ?", Integer.class, usage);
+    return count == null ? 0 : count;
   }
 
   @Test

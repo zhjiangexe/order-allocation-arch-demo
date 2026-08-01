@@ -9,9 +9,9 @@ import java.util.UUID;
  * 餵完。共用 {@code ReplenishStockCommand} 並塞一個 0 的話，那個 0 會需要在每一個讀到數量的
  * 地方被特判，而「數量必須為正」這條檢查也就守不住了。
  */
-public record WakeBackordersCommand(UUID ownerId, UUID nodeId, String sku) {
+public record WakeBackordersCommand(UUID ownerId, UUID nodeId, UUID locationId, String sku) {
   public WakeBackordersCommand {
-    if (ownerId == null || nodeId == null) {
+    if (ownerId == null || nodeId == null || locationId == null) {
       throw new IllegalArgumentException("Owner ID and node ID are required");
     }
     if (sku == null || sku.isBlank()) {

@@ -23,7 +23,10 @@ public final class StockFixtures {
   // 直接引用訂單 fixture 的貨主與倉，而不是各寫一組相同的 UUID。配貨要求「批與訂單同一個
   // 貨主」，兩邊各自寫死的話，其中一邊改了另一邊沒改，所有配貨測試會一起失敗而原因不明顯。
   public static final UUID OWNER_ID = OrderFixtures.OWNER_ID;
+  /** 倉。只有對外的查詢參數與事件用得到它。 */
   public static final UUID NODE_ID = OrderFixtures.NODE_ID;
+  /** 該倉的內部位置。庫存掛在這裡——與 {@link #NODE_ID} 刻意不同值。 */
+  public static final UUID LOCATION_ID = OrderFixtures.LOCATION_ID;
 
   /** 不指定日期時用的入庫日與效期。效期在 {@link #TODAY} 之後，所以預設是未過期的。 */
   public static final LocalDate ARRIVED_ON = LocalDate.of(2026, 1, 5);
@@ -48,7 +51,7 @@ public final class StockFixtures {
   public static StockPool unexpiredBatch(
       UUID id, String skuCode, int onHandQuantity, int reservedQuantity) {
     return new StockPool(
-        id, OWNER_ID, NODE_ID, skuCode, ARRIVED_ON, EXPIRES_ON,
+        id, OWNER_ID, LOCATION_ID, skuCode, ARRIVED_ON, EXPIRES_ON,
         onHandQuantity, reservedQuantity, null);
   }
 
@@ -61,7 +64,7 @@ public final class StockFixtures {
   public static StockPool batchExpiringOn(
       String skuCode, LocalDate expiryDate, int onHandQuantity, int reservedQuantity) {
     return new StockPool(
-        UUID.randomUUID(), OWNER_ID, NODE_ID, skuCode, ARRIVED_ON, expiryDate,
+        UUID.randomUUID(), OWNER_ID, LOCATION_ID, skuCode, ARRIVED_ON, expiryDate,
         onHandQuantity, reservedQuantity, null);
   }
 
@@ -78,7 +81,7 @@ public final class StockFixtures {
       String skuCode, LocalDate inDate, LocalDate expiryDate,
       int onHandQuantity, int reservedQuantity) {
     return new StockPool(
-        UUID.randomUUID(), OWNER_ID, NODE_ID, skuCode, inDate, expiryDate,
+        UUID.randomUUID(), OWNER_ID, LOCATION_ID, skuCode, inDate, expiryDate,
         onHandQuantity, reservedQuantity, null);
   }
 
@@ -90,7 +93,7 @@ public final class StockFixtures {
    */
   public static StockPool expiredBatch(String skuCode, int onHandQuantity) {
     return new StockPool(
-        UUID.randomUUID(), OWNER_ID, NODE_ID, skuCode, ARRIVED_ON, TODAY.minusDays(1),
+        UUID.randomUUID(), OWNER_ID, LOCATION_ID, skuCode, ARRIVED_ON, TODAY.minusDays(1),
         onHandQuantity, 0, null);
   }
 
@@ -104,7 +107,7 @@ public final class StockFixtures {
   public static java.util.Optional<StockPool> reloadUnexpiredBatch(
       com.flowzati.archone.allocation.domain.repository.StockPoolRepository repository,
       String skuCode) {
-    return repository.findByIdentity(OWNER_ID, NODE_ID, skuCode, ARRIVED_ON, EXPIRES_ON);
+    return repository.findByIdentity(OWNER_ID, LOCATION_ID, skuCode, ARRIVED_ON, EXPIRES_ON);
   }
 
   /**

@@ -22,14 +22,14 @@ public class DemandRepositoryImpl implements DemandRepository {
 
   @Override
   public List<Demand> findOutstandingDemandInFifoOrder(
-      UUID ownerId, UUID nodeId, String skuCode, int limit) {
+      UUID ownerId, UUID locationId, String skuCode, int limit) {
     if (limit <= 0) {
       throw new IllegalArgumentException("Limit must be positive");
     }
 
     // ① 選單：哪幾張單進入本輪，依到達順序。
     List<UUID> orderIds = repository.findOrderIdsWithOutstandingDemand(
-        ownerId, nodeId, skuCode, Limit.of(limit));
+        ownerId, locationId, skuCode, Limit.of(limit));
     if (orderIds.isEmpty()) {
       return List.of();
     }

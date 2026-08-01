@@ -36,8 +36,8 @@ public class DemandLineEntity {
   @Column(name = "owner_id")
   private UUID ownerId;
 
-  @Column(name = "node_id")
-  private UUID nodeId;
+  @Column(name = "location_id")
+  private UUID locationId;
 
   @Column(name = "sku_code")
   private String skuCode;
@@ -63,8 +63,8 @@ public class DemandLineEntity {
     return ownerId;
   }
 
-  public UUID getNodeId() {
-    return nodeId;
+  public UUID getLocationId() {
+    return locationId;
   }
 
   public String getSkuCode() {

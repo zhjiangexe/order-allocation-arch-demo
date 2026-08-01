@@ -29,13 +29,13 @@ public interface JpaDemandLineRepository extends JpaRepository<DemandLineEntity,
       SELECT DISTINCT d.orderId
         FROM DemandLineEntity d
        WHERE d.ownerId = :ownerId
-         AND d.nodeId = :nodeId
+         AND d.locationId = :locationId
          AND d.skuCode = :skuCode
        ORDER BY d.orderId
       """)
   List<UUID> findOrderIdsWithOutstandingDemand(
       @Param("ownerId") UUID ownerId,
-      @Param("nodeId") UUID nodeId,
+      @Param("locationId") UUID locationId,
       @Param("skuCode") String skuCode,
       Limit limit);
 

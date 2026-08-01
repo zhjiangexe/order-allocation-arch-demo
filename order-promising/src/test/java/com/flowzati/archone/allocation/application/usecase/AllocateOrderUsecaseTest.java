@@ -141,7 +141,7 @@ class AllocateOrderUsecaseTest {
     // 過期篩選與 FEFO 排序都在資料庫做——批數只會隨時間成長，把不可售的載進記憶體只為了
     // 丟掉是錯的方向。
     then(stockPoolRepository).should().findAllocatableBatchesBySku(
-        DemandFixtures.OWNER_ID, DemandFixtures.NODE_ID, Set.of("SKU-1"),
+        DemandFixtures.OWNER_ID, DemandFixtures.LOCATION_ID, Set.of("SKU-1"),
         TODAY_IN_TAIPEI);
   }
 
@@ -183,7 +183,7 @@ class AllocateOrderUsecaseTest {
 
   private void givenAllocatableBatches(StockPool... batches) {
     given(stockPoolRepository.findAllocatableBatchesBySku(
-        DemandFixtures.OWNER_ID, DemandFixtures.NODE_ID, Set.of("SKU-1"),
+        DemandFixtures.OWNER_ID, DemandFixtures.LOCATION_ID, Set.of("SKU-1"),
         TODAY_IN_TAIPEI)).willReturn(Map.of("SKU-1", List.of(batches)));
   }
 

@@ -1,6 +1,8 @@
 package com.flowzati.archone.allocation.entrypoint.rest;
 
 import com.flowzati.archone.allocation.application.usecase.GetStockPoolUsecase;
+import com.flowzati.archone.catalog.domain.model.StockLocation;
+import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.common.time.BusinessCalendar;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,11 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class StockPoolController {
 
   private final GetStockPoolUsecase getStockPoolUsecase;
+  private final StockLocationRepository stockLocationRepository;
   private final BusinessCalendar businessCalendar;
 
   public StockPoolController(
-      GetStockPoolUsecase getStockPoolUsecase, BusinessCalendar businessCalendar) {
+      GetStockPoolUsecase getStockPoolUsecase,
+      StockLocationRepository stockLocationRepository, BusinessCalendar businessCalendar) {
     this.getStockPoolUsecase = getStockPoolUsecase;
+    this.stockLocationRepository = stockLocationRepository;
     this.businessCalendar = businessCalendar;
   }
 
@@ -41,6 +46,22 @@ public class StockPoolController {
       @RequestParam UUID nodeId
   ) {
     return StockPoolResponse.from(
-        getStockPoolUsecase.getBatchesInWarehouse(ownerId, nodeId), businessCalendar.today());
+        getStockPoolUsecase.getBatchesInLocation(ownerId, internalLocationOf(nodeId)),
+        businessCalendar.today());
   }
+
+  /**
+   * 倉 → 該倉的內部位置。查詢參數維持 {@code nodeId}——操作台問的是「這個倉放了什麼」，
+   * 它不需要認識倉裡的位置編排。
+   *
+   * <p>倉沒有內部位置時回一個不存在的位置 id，讓查詢自然回空。這與「倉存在但什麼都沒放」
+   * 的結果相同，而那本來就是正常答案（見 usecase 的 javadoc）——為了區分兩者而回 404，
+   * 會讓一個新倉剛上線時的畫面看起來像壞掉。
+   */
+  private UUID internalLocationOf(UUID nodeId) {
+    return stockLocationRepository.findInternalOf(nodeId)
+        .map(StockLocation::getId)
+        .orElse(new UUID(0L, 0L));
+  }
+
 }

@@ -85,6 +85,7 @@ class InboundCommandTransactionIntegrationTest {
     jdbcTemplate.execute("DELETE FROM products");
     jdbcTemplate.execute("DELETE FROM owner_nodes");
     jdbcTemplate.execute("DELETE FROM owners");
+    jdbcTemplate.execute("DELETE FROM stock_locations");
     jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
   }
 
@@ -200,7 +201,9 @@ class InboundCommandTransactionIntegrationTest {
 
     assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(
         new ReplenishStockCommand(
-            com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1",
+            com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID,
+            com.flowzati.archone.testsupport.OrderFixtures.NODE_ID,
+            com.flowzati.archone.testsupport.OrderFixtures.LOCATION_ID, "SKU-1",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3),
         new MessageMetadata(eventId, "StockReplenishedIntegrationEvent"))))
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);

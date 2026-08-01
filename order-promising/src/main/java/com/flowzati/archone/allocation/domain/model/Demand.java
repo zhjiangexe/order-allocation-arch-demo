@@ -31,7 +31,7 @@ import java.util.UUID;
 public record Demand(
     UUID orderId,
     UUID ownerId,
-    UUID nodeId,
+    UUID locationId,
     Instant receivedAt,
     List<DemandLine> lines
 ) {
@@ -43,7 +43,7 @@ public record Demand(
     if (ownerId == null) {
       throw new IllegalArgumentException("Owner ID is required");
     }
-    if (nodeId == null) {
+    if (locationId == null) {
       throw new IllegalArgumentException("Fulfillment node ID is required");
     }
     if (receivedAt == null) {

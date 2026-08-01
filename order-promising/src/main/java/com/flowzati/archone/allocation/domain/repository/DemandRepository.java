@@ -33,7 +33,7 @@ public interface DemandRepository {
    * @param limit 最多回幾張單，必須為正
    */
   List<Demand> findOutstandingDemandInFifoOrder(
-      UUID ownerId, UUID nodeId, String skuCode, int limit);
+      UUID ownerId, UUID locationId, String skuCode, int limit);
 
   /**
    * 某一張單還欠的東西。全部配到（或訂單已取消）時回 empty。

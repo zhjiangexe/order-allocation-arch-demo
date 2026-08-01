@@ -12,7 +12,7 @@ public final class StockPoolMapper {
     return new StockPoolEntity(
         stockPool.getId(),
         stockPool.getOwnerId(),
-        stockPool.getNodeId(),
+        stockPool.getLocationId(),
         stockPool.getSkuCode(),
         stockPool.getInDate(),
         stockPool.getExpiryDate(),
@@ -26,7 +26,7 @@ public final class StockPoolMapper {
     return new StockPool(
         entity.getId(),
         entity.getOwnerId(),
-        entity.getNodeId(),
+        entity.getLocationId(),
         entity.getSkuCode(),
         entity.getInDate(),
         entity.getExpiryDate(),

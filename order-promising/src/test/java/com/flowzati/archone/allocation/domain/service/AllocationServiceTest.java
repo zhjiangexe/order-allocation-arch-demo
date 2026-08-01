@@ -274,7 +274,7 @@ class AllocationServiceTest {
   @DisplayName("批次屬於別的貨主時應拒絕——跨貨主偷吃在這一層就要擋下")
   void rejectsBatchesBelongingToAnotherOwner() {
     StockPool foreign = new StockPool(
-        UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OTHER_OWNER_ID, StockFixtures.NODE_ID, "SKU-1",
+        UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OTHER_OWNER_ID, StockFixtures.LOCATION_ID, "SKU-1",
         EARLY_ARRIVAL, FAR_EXPIRY, 100, 0, 0L);
     Demand order = pendingDemand(3);
 
