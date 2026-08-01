@@ -96,6 +96,43 @@ CREATE TABLE fulfillment_nodes (
 -- **虛擬位置在此階段沒有任何讀者**——還沒有東西移動貨。現在就建，是因為 usage 的值域必須
 -- 一次定完：晚一步引入等於同時改 CHECK 約束與回頭補種子資料，把兩個獨立的失效模式放進
 -- 同一次改動。參考資料多一列的成本是零，欄位多一個的成本是每個讀取端都要處理它。
+--
+-- ---------------------------------------------------------------------------------------
+-- 與 Odoo `stock_location` 的欄位對照：本表只有五欄，而 Odoo 有二十餘欄。下一個拿 Odoo
+-- schema 來比對的人會逐欄問「為什麼沒有」，因此把「沒有」分成四類寫在這裡。
+--
+-- (1) 已有等價物
+--     complete_name  →  本表的 code 就是 'WH-NORTH/Stock'，路徑已編在名字裡。Odoo 需要
+--                       它是因為有樹要組路徑；沒有樹，一個欄位就到位。
+--
+-- (2) 需要樹才有意義
+--     location_id（parent）、parent_path
+--                    →  見下方「刻意沒有 parent_id 與 parent_path」。
+--
+-- (3) 需要本系統沒有的功能
+--     cyclic_inventory_frequency / last_inventory_date / next_inventory_date
+--                    →  循環盤點。系統裡沒有盤點流程。
+--     storage_category_id / putaway_rule_ids
+--                    →  上架規則的容量與相容性否決權。沒有 putaway。
+--     replenish_location
+--                    →  標記「補貨規則的目標位置」。沒有 reordering rule。
+--     barcode        →  掃描作業面。沒有。
+--     create_uid / write_uid / create_date / write_date
+--                    →  Odoo 每張表都掛這四欄；本 repo 不做通用稽核欄位，
+--                       fulfillment_nodes 也沒有。要加是整個 schema 一起加。
+--
+-- (4) **與 3PL 的定位牴觸**——這一類最容易被當成遺漏而「補上」
+--     company_id     →  Odoo 的隔離維度是法人；我們是貨主，而一個位置本來就服務多個
+--                       貨主——那是 3PL 的定義性特徵，不是要修掉的缺陷。
+--     valuation_account_id
+--                    →  **3PL 不擁有貨，永遠不對它持有的東西估值。** Odoo 有存貨估值
+--                       是因為貨是它的；在這裡那是貨主帳上的事。
+--
+-- 唯一日後可能翻案的是 removal_strategy_id（Odoo 可逐位置設 FIFO/LIFO/FEFO）。現在 FEFO
+-- 寫死在查詢與 idx_stock_pools_fefo 裡。**翻案的條件不是「想換策略」，而是同一套系統同時
+-- 需要兩種取貨順序**（例如某貨主 FEFO、另一個指定批號）。在那之前，一個恆為 FEFO 的欄位
+-- 只會讓人以為它可設定。
+-- ---------------------------------------------------------------------------------------
 CREATE TABLE stock_locations (
     id UUID PRIMARY KEY,
     -- 可空：虛擬位置不屬於任何倉。

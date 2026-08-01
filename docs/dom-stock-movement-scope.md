@@ -97,6 +97,24 @@ Odoo 的 `stock_move.sale_line_id` 就是那道參照——**move 指回需求�
 `order` 回答「貨主要什麼」，`picking` 回答「倉庫做了哪一趟搬運」。入庫沒有人要，但倉庫確實
 搬了。
 
+### `picking` 與 `move` 是兩種真相，不只是單頭與明細
+
+| | `stock_pickings` | `stock_moves` |
+| --- | --- | --- |
+| 一句話 | 一張倉庫作業單 | 作業單中一個 SKU 的一段移動 |
+| 是誰的真相 | **倉庫任務** | **庫存數量** |
+| 有 SKU 與數量嗎 | 沒有 | 有 |
+| 直接影響庫存嗎 | 否，透過底下的 move | **是** |
+| 適合查什麼 | 今天要出的作業、某波次、某客戶的交貨 | SKU 缺貨、預留量、某訂單行、庫存流向 |
+| 日後會長出什麼 | 作業員、波次、整單 backorder、列印簽收 | 批號、成本、報廢、上下游鏈 |
+
+這條分界管的是後面三個 change：change 2 決定兩張表各拿哪些欄位、change 3 的入庫 picking
+靠它才說得清為什麼沒有訂單、change 4 的狀態歸屬（`BACKORDERED` 要去哪）也依賴它。
+
+**`picking` 的狀態是算出來的，不是寫進去的。** Odoo 的 `stock.picking.state` 是 computed，
+由底下的 move 彙總；它 store 只為了畫面篩選。存起來就有兩份要對齊的真相，而 ship-complete
+下一張單的所有 move 同進同出，彙總本來就是 trivial 的。
+
 ### 需求與執行的連結在 `move` 上，不在 `picking` 上
 
 **`stock_pickings` 不帶 `order_id`。** 唯一的連結是 `stock_moves.order_line_id`（可空），
@@ -157,6 +175,20 @@ Odoo 的 `stock_move.sale_line_id` 就是那道參照——**move 指回需求�
 
 當初被否決的「雙軌」仍然否決：兩張表都是 move、`move_id` 要指哪一張沒有正確答案。現在的
 形狀不是雙軌——只有一張 move 表，需求不是 move。
+
+### 因此有兩個佇列，不是一個
+
+| | 回答什麼 | 屬於誰 |
+| --- | --- | --- |
+| `demand_lines` view | 哪些行**還沒有 move**——還沒被執行層接手 | 跨界的投影 |
+| `stock_moves.state = CONFIRMED` | 哪些搬運**還在等貨** | 執行層自己的資料 |
+
+**view 不會因為 move 出現而廢除。** 執行層要知道一張新單有哪些行，只能讀——
+`OrderPlacedIntegrationEvent` 只帶 `orderId`（`EventSeparationTest` 釘死了「事件是通知，不是
+狀態傳輸」），而讓 ordering 反過來直接寫 `stock_moves` 是邊界的反面。
+
+它的謂詞從「無有效預留」換成「無 move」。而檔頭那段「刻意不含 `ol.status`，因為 ordering 的
+狀態落後於 allocation 的決策」的理由**消失了**——執行層讀的是自己寫的東西，沒有那個時間差。
 
 ---
 
