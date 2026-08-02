@@ -605,7 +605,7 @@ Odoo 19 的事實（已在 19.0 原始碼查證）：
 | --- | --- | --- | --- |
 | 1 | ✅ **位置模型**（已交付：`hold-stock-in-locations`） | 建 `stock_locations`（每倉一個 `internal` + `supplier`／`customer`／`inventory` 三個虛擬）；`stock_pools.node_id` → `location_id`。**`orders` 完全不動，對外契約與前端完全不動** | — |
 | 2 | ✅ **搬運單據與異動**（已交付：`record-every-movement`） | 建 `stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`；`stock_reservations` 遷入 move_lines；`demand_lines` view 改寫；換掉邊界護欄 | 1 |
-| 2.5 | **依搬運的動作重組流程** | 三支 usecase 退回真正的 usecase；`OrderAllocationCoordinator` 消失。**不改任何行為、不動 schema、不動對外契約** | 2 |
+| 2.5 | ✅ **依搬運的動作重組流程**（已交付：`separate-the-movement-actions`） | 三支 usecase 退回真正的 usecase；`OrderAllocationCoordinator` 消失。**不改任何行為、不動 schema、不動對外契約** | 2 |
 | 3 | **入庫走 move** | 補貨改為產生 inbound picking + move；**`stock_pools` 封閉直接寫入**，只能由 move 寫 | 2.5 |
 | 4 | **界線與命名** | `ordering` / `inventory` 界線落實；`BACKORDERED` 改由執行層狀態承接；對外契約更新 | 3 |
 

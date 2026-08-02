@@ -33,13 +33,17 @@ public class StockMoveRepositoryImpl implements StockMoveRepository {
   }
 
   @Override
-  public void saveAll(Collection<StockMove> moves) {
-    // 以 id 排序寫入，與庫存列的 WRITE_ORDER 同一個判準：同一批交易若以不同順序碰同一組列，
-    // 併發下就有死鎖的機會。搬運的爭用遠低於庫存，但一致的順序不花任何成本。
-    moves.stream()
+  public List<StockMove> saveAll(Collection<StockMove> moves) {
+    // 以 id 排序寫入，與庫存列的全序同一個判準：同一批交易若以不同順序碰同一組列，併發下
+    // 就有死鎖的機會。搬運的爭用遠低於庫存，但一致的順序不花任何成本。
+    //
+    // 回傳寫入後的樣子（帶版號），呼叫端才有辦法在同一個交易裡對同一列寫第二次。
+    return moves.stream()
         .sorted(Comparator.comparing(StockMove::getId))
         .map(StockMoveMapper::toEntity)
-        .forEach(moveRepository::save);
+        .map(moveRepository::save)
+        .map(StockMoveMapper::toDomain)
+        .toList();
   }
 
   @Override

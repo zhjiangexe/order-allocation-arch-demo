@@ -60,7 +60,7 @@ public final class MovementFixtures {
   /** 一段還在等貨的出庫搬運。 */
   public static StockMove waitingMove(
       UUID pickingId, String skuCode, UUID orderLineId, int quantity, Instant createdAt) {
-    return StockMove.needing(
+    return StockMove.confirmed(
         IdGenerator.nextId(),
         pickingId,
         OrderFixtures.OWNER_ID,

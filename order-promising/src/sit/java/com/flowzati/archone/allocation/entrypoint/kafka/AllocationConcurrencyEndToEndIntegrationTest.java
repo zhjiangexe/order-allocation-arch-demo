@@ -5,7 +5,7 @@ import com.flowzati.archone.allocation.domain.model.StockFixtures;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.application.movement.MovementAssigner;
 import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.retry.AllocationConcurrencyExhaustedException;
@@ -228,8 +228,14 @@ class AllocationConcurrencyEndToEndIntegrationTest {
       forcedFailures = attempts;
     }
 
-    @Around("execution(* com.flowzati.archone.allocation.application.coordinator."
-        + "OrderAllocationCoordinator.allocateOrder(..))")
+    // 切在「鎖定一張單」上——交易之內、庫存被寫入之後。這個位置決定了注入的衝突會不會被
+    // 重試機制看見；往外移到 usecase 就會落在交易之外，往內移到 AllocationService 則碰不到
+    // 持久化。
+    //
+    // **切點是字串，指錯不會編譯失敗，只會靜默匹配不到任何東西**——那時每一條斷言都仍然
+    // 執行，只是重試次數變成 0。元件改名或搬家時，這一行必須跟著改。
+    @Around("execution(* com.flowzati.archone.allocation.application.movement."
+        + "MovementAssigner.assign(..))")
     public Object injectConflict(ProceedingJoinPoint joinPoint) throws Throwable {
       int invocation = invocations.incrementAndGet();
       CountDownLatch latch = concurrentAttempts;

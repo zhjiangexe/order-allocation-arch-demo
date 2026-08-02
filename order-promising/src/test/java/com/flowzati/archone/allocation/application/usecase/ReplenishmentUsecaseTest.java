@@ -1,10 +1,9 @@
 package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
-import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.application.movement.MovementAssigner;
 import com.flowzati.archone.allocation.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
-import com.flowzati.archone.allocation.application.query.WaitingDemandFinder;
 import com.flowzati.archone.allocation.domain.model.MoveState;
 import com.flowzati.archone.allocation.domain.model.StockMove;
 import com.flowzati.archone.allocation.domain.model.StockMoveLine;
@@ -29,6 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
@@ -66,7 +66,7 @@ class ReplenishmentUsecaseTest {
   private final LocalDate today = LocalDate.of(2026, 7, 22);
 
   private StockPoolRepository stockPoolRepository;
-  private WaitingDemandFinder waitingDemandFinder;
+  private MovementAssigner movementAssigner;
   private StockMoveRepository stockMoveRepository;
   private InboxRepo inboxRepo;
   private ApplicationEventPublisher eventPublisher;
@@ -75,25 +75,18 @@ class ReplenishmentUsecaseTest {
   @BeforeEach
   void setUp() {
     stockPoolRepository = mock(StockPoolRepository.class);
-    waitingDemandFinder = mock(WaitingDemandFinder.class);
+    movementAssigner = mock(MovementAssigner.class);
     stockMoveRepository = mock(StockMoveRepository.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
     inboxRepo = mock(InboxRepo.class);
-
-    OrderAllocationCoordinator coordinator = new OrderAllocationCoordinator(
-        new AllocationService(),
-        stockPoolRepository,
-        stockMoveRepository,
-        eventPublisher
-    );
 
     replenishmentUsecase = new ReplenishmentUsecase(
         Clock.fixed(fixedNow, ZoneId.of("UTC")),
         new BusinessCalendar(Clock.fixed(fixedNow, ZoneId.of("UTC")), "Asia/Taipei"),
         inboxRepo,
-        waitingDemandFinder,
+        stockMoveRepository,
         stockPoolRepository,
-        coordinator,
+        movementAssigner,
         eventPublisher,
         WAKE_LIMIT
     );
@@ -109,7 +102,7 @@ class ReplenishmentUsecaseTest {
         OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
         .thenReturn(Optional.of(existing));
     givenAllocatableBatches(List.of(existing));
-    givenBackorders(List.of());
+    givenAnEmptyQueue();
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
@@ -143,60 +136,26 @@ class ReplenishmentUsecaseTest {
   }
 
   @Test
-  @DisplayName("當收到新的補充事件時，應補充庫存並分配等待中的訂單")
-  void shouldReplenishAndAllocateWhenEventIsNew() {
+  @DisplayName("當收到新的補充事件時，應先補庫存再把佇列交給鎖定那一步")
+  void shouldReplenishThenHandTheQueueToAssignment() {
     UUID eventId = UUID.randomUUID();
     StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenIdentityMatch(batch);
-    Demand backorderedDemand = backorderedDemand(5);
-    givenBackorders(List.of(backorderedDemand));
     // 喚醒讀到的是同一個批物件——upsert 先把數量加上去，喚醒才查。
     givenAllocatableBatches(List.of(batch));
+    givenQueue(1, List.of(backorderedDemand(5)));
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(inboxRepo).claimIfNew(message(eventId));
-    verify(eventPublisher).publishEvent(allocationCompletedFor(backorderedDemand));
+    assertThat(batch.getOnHandQuantity()).isEqualTo(10);
 
-    assertThat(batch.availableToPromise()).isEqualTo(5); // 0 + 10 - 5 = 5
-
-    // 喚醒不新建搬運，只把等著的那一段轉成已鎖定——它在收單時就存在了。
-    StockMove woken = savedMoves().getFirst();
-    assertThat(woken.getState()).isEqualTo(MoveState.ASSIGNED);
-    assertThat(woken.getAssignedAt()).isEqualTo(fixedNow);
-    assertThat(woken.getOrderLineId())
-        .isEqualTo(backorderedDemand.lines().getFirst().orderLineId());
-
-    StockMoveLine line = savedLines().getFirst();
-    assertThat(line.moveId()).isEqualTo(woken.getId());
-    assertThat(line.stockPoolId()).isEqualTo(batch.getId());
-    assertThat(line.quantity()).isEqualTo(5);
-  }
-
-  @Test
-  @DisplayName("當補充庫存不足以分配所有訂單時，應按順序部分分配")
-  void shouldAllocatePartiallyWhenReplenishedStockIsLimited() {
-    UUID eventId = UUID.randomUUID();
-    StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
-    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    givenIdentityMatch(batch);
-    Demand first = backorderedDemand(3);
-    Demand blocked = backorderedDemand(4);
-    givenBackorders(List.of(first, blocked));
-    givenAllocatableBatches(List.of(batch));
-
-    replenishmentUsecase.handle(inbound(event(eventId, 5)));
-
-    // 0 + 5 = 5；first(3) 配到，剩 2；blocked(4) 配不到，且 FIFO 之下就此停住。
-    assertThat(batch.availableToPromise()).isEqualTo(2);
-
-    // 「被配到」的觀察點是事件，不是訂單狀態——配貨已經不寫訂單了。blocked 沒有事件，
-    // 正是 head-of-line blocking 的內容：它沒有被跳過去換後面配得到的單。
-    verify(eventPublisher).publishEvent(allocationCompletedFor(first));
-    verify(eventPublisher, never()).publishEvent(allocationCompletedFor(blocked));
-    // 只有配到的那一張留下明細——被卡住的那張連一條都沒有。
-    assertThat(savedLines()).hasSize(1);
+    // **順序是這支 usecase 的責任**：庫存要先加進去，佇列才看得到那些量。反過來的話，
+    // 這一輪讀到的可承諾量還是補貨前的，整輪會什麼都配不到。
+    InOrder inOrder = org.mockito.Mockito.inOrder(stockPoolRepository, movementAssigner);
+    inOrder.verify(stockPoolRepository).save(batch);
+    inOrder.verify(movementAssigner).assignAll(any(), eq(fixedNow));
   }
 
   @Test
@@ -207,15 +166,13 @@ class ReplenishmentUsecaseTest {
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenIdentityMatch(batch);
     givenAllocatableBatches(List.of(batch));
-    givenBackorders(List.of());
+    givenAnEmptyQueue();
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(stockPoolRepository).save(batch);
     assertThat(batch.availableToPromise()).isEqualTo(10);
-    verify(eventPublisher, never()).publishEvent(any(OrderAllocationCompleted.class));
-    verify(stockMoveRepository, never()).saveAll(any());
-    verify(stockMoveRepository, never()).saveLines(any());
+    verifyNoInteractions(movementAssigner);
     verify(eventPublisher, never()).publishEvent(any());
   }
 
@@ -227,7 +184,8 @@ class ReplenishmentUsecaseTest {
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenIdentityMatch(batch);
     givenAllocatableBatches(List.of(batch));
-    givenBackorders(IntStream.range(0, WAKE_LIMIT).mapToObj(i -> backorderedDemand(1)).toList());
+    givenQueue(WAKE_LIMIT,
+        IntStream.range(0, WAKE_LIMIT).mapToObj(i -> backorderedDemand(1)).toList());
 
     replenishmentUsecase.handle(inbound(event(eventId, WAKE_LIMIT)));
 
@@ -245,9 +203,9 @@ class ReplenishmentUsecaseTest {
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenIdentityMatch(batch);
     givenAllocatableBatches(List.of(batch));
-    // 佇列首張要 100 件、庫存只有 10：卡住了，但再送一次結果完全相同。以「還有沒有配到的
-    // 單」當續做條件的話，這張單會讓續做無限循環。
-    givenBackorders(List.of(backorderedDemand(100)));
+    // 讀滿了上限，卻一張都沒配到——head-of-line blocker 卡在隊首就是這個形狀。再送一次結果
+    // 完全相同，所以判準必須是「配到幾張」而不是「讀到幾張」，否則這裡會無限續做。
+    givenQueue(WAKE_LIMIT, List.of());
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
@@ -262,7 +220,7 @@ class ReplenishmentUsecaseTest {
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
     givenAllocatableBatches(List.of(batch));
     Demand queued = backorderedDemand(4);
-    givenBackorders(List.of(queued));
+    givenQueue(1, List.of(queued));
 
     replenishmentUsecase.handleWake(new InboundCommand<>(
         new com.flowzati.archone.allocation.application.command.WakeBackordersCommand(
@@ -271,7 +229,7 @@ class ReplenishmentUsecaseTest {
 
     assertThat(batch.getOnHandQuantity()).isEqualTo(10);
     // 佇列確實被餵完了——續做只是接著配，不是重新補一次貨。
-    verify(eventPublisher).publishEvent(allocationCompletedFor(queued));
+    verify(movementAssigner).assignAll(any(), eq(fixedNow));
     verify(stockPoolRepository, never()).findByIdentity(any(), any(), any(), any(), any());
   }
 
@@ -284,7 +242,7 @@ class ReplenishmentUsecaseTest {
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(inboxRepo).claimIfNew(message(eventId));
-    verifyNoInteractions(stockPoolRepository, stockMoveRepository, eventPublisher);
+    verifyNoInteractions(stockPoolRepository, stockMoveRepository, movementAssigner, eventPublisher);
   }
 
   @Test
@@ -301,7 +259,7 @@ class ReplenishmentUsecaseTest {
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(stockPoolRepository).save(any(StockPool.class));
-    verifyNoInteractions(waitingDemandFinder, stockMoveRepository, eventPublisher);
+    verifyNoInteractions(stockMoveRepository, movementAssigner, eventPublisher);
   }
 
   private void givenIdentityMatch(StockPool batch) {
@@ -323,40 +281,26 @@ class ReplenishmentUsecaseTest {
   }
 
   /**
-   * 佇列裡的單，以及它們各自那一段還在等貨的搬運。
+   * 佇列裡有這些還在等貨的搬運，而鎖定那一步會配到 {@code allocated} 這幾張。
    *
-   * <p>兩者要一起 stub：佇列本來就是**從搬運投影出來的**，配貨接著會去找同一批搬運把它們轉成
-   * 已鎖定。只給前者的話，配貨會在找不到搬運時拋錯——而那個錯是對的。
+   * <p><b>兩者分開 stub 是刻意的。</b>「讀到幾張」與「配到幾張」在這支 usecase 裡是不同的量，
+   * 而續做的終止條件依賴後者——head-of-line blocker 卡住時每一輪都讀滿上限卻配不到任何一張，
+   * 以讀取數當判準就會無限續做。合成一個 stub，這個區別在測試裡就消失了。
    */
-  private void givenBackorders(List<Demand> demands) {
-    when(waitingDemandFinder.findWaiting(
-        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, WAKE_LIMIT)).thenReturn(demands);
-
-    List<StockMove> moves = new ArrayList<>();
-    demands.forEach(demand -> {
-      UUID pickingId = IdGenerator.nextId();
-      demand.lines().forEach(line -> moves.add(MovementFixtures.waitingMove(
-          pickingId, line.skuCode(), line.orderLineId(), line.quantity(),
-          fixedNow.minusSeconds(2))));
-    });
-    when(stockMoveRepository.findByOrderLineIds(any())).thenAnswer(invocation -> {
-      java.util.Collection<?> ids = invocation.getArgument(0);
-      return moves.stream().filter(move -> ids.contains(move.getOrderLineId())).toList();
-    });
+  private void givenQueue(int waitingCount, List<Demand> allocated) {
+    List<StockMove> waiting = IntStream.range(0, waitingCount)
+        .mapToObj(i -> MovementFixtures.waitingMove(
+            IdGenerator.nextId(), SKU, IdGenerator.nextId(), 1, fixedNow.minusSeconds(2)))
+        .toList();
+    when(stockMoveRepository.findWaitingInFifoOrder(
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, WAKE_LIMIT)).thenReturn(waiting);
+    when(movementAssigner.assignAll(waiting, fixedNow)).thenReturn(allocated);
   }
 
-  @SuppressWarnings("unchecked")
-  private List<StockMove> savedMoves() {
-    ArgumentCaptor<Collection<StockMove>> captor = ArgumentCaptor.forClass(Collection.class);
-    verify(stockMoveRepository).saveAll(captor.capture());
-    return List.copyOf(captor.getValue());
-  }
-
-  @SuppressWarnings("unchecked")
-  private List<StockMoveLine> savedLines() {
-    ArgumentCaptor<Collection<StockMoveLine>> captor = ArgumentCaptor.forClass(Collection.class);
-    verify(stockMoveRepository).saveLines(captor.capture());
-    return List.copyOf(captor.getValue());
+  private void givenAnEmptyQueue() {
+    when(stockMoveRepository.findWaitingInFifoOrder(
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, WAKE_LIMIT))
+        .thenReturn(List.of());
   }
 
   /**

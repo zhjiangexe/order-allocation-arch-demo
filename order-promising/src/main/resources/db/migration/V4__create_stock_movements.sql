@@ -184,7 +184,10 @@ CREATE TABLE stock_moves (
     -- Odoo 的七個狀態取了四個，沒取的三個理由分成兩種：
     --
     -- 本系統的規則下**不可能發生**——
-    --   **沒有 WAITING（等上一段）**：沒有上一段。它與依賴關係表是同一件事的兩半，一起到來。
+    --   **沒有 WAITING（等上一段）**：因為本系統是純 MTS。Odoo 的 _action_confirm 就是這樣
+    --   分岔的——move 有上游才進 waiting，沒有就進 confirmed；出庫是「庫存位置 → 客戶」單段，
+    --   連 Odoo 自己算出來的也會是 confirmed。入庫走 move 之後也不會變：move 等的是「庫存
+    --   出現」，不是「某一段特定的搬運完成」。它與依賴關係表是同一件事的兩半，一起到來。
     --   **沒有 PARTIALLY_AVAILABLE**：ship-complete 下整批配到或整批不配，部分可用不是一個
     --   會停留的狀態。
     --

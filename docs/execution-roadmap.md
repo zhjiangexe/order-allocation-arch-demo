@@ -854,6 +854,55 @@ R3 archive 時任務 10.3 未勾。**它不是被放棄，是條件不具備**�
 沒有排程是因為它不修任何 bug——但它動的是 `AllocationService` 的介面與 repository 的回傳型別，
 混進任何一個功能 change 都會讓那個 change 讀不出來，所以要自己一個。
 
+#### 第二個物件：`AllocationAttempt`——`planned` 需要一個擁有者
+
+上面說的是**資源**（可以動用的庫存），但這個過程還有第二段藏起來的狀態：`planPicks` 裡的
+`Map<UUID, Integer> planned`——「**這張單已規劃、但還沒寫回 `StockPool` 的取用量**」。
+
+它是全系統最微妙的一段邏輯。少了它，同一張單的第二行會看到第一行還沒扣掉的可用量，兩行都
+算得出「夠」，然後其中一行在 `reserve()` 時炸掉——或更糟，兩行都成功而超賣。**而這在單行下
+完全碰不到**，所以現在沒有任何測試會因為它壞掉而變紅。
+
+它目前是一個私有方法裡的區域變數。該有的形狀：
+
+```java
+AllocationAttempt attempt = stock.attemptFor(demand);   // planned 住在這裡，不外洩
+AllocationPlan plan = attempt.finish();                 // 可行，或帶著每個 SKU 的缺口
+plan.apply();                                           // 取代 applyPicks
+```
+
+`plan.apply()` 這一步不只是搬家：**「規劃與套用分開」現在只靠服務內部的執行順序保證，改成
+型別之後它是結構性的**——可以拿著一個計畫而不套用，而拿不到「套用了一半」的東西。
+
+之後 `allocate` 剩五行，`requireBatchesCoverDemand` / `planPicks` / `applyPicks` / `outcomeFor`
+四個私有方法全部消失（各自搬進上面兩個物件）。
+
+**不要再多了**：`SkuQuantities`、`BatchPick`、`AllocationResult`、`AllocationPlan` 已經存在而且
+夠用。目標是這兩個，不是五個。底層也不貧血——`StockPool.reserve()` 自己守著不變式；貧血的是
+協調那一層。
+
+#### 觸發點：R8 之前
+
+`planned` 的危害要等**放寬多筆 line** 才碰得到。等到那時才做，等於讓 R8 的人在同一個 change
+裡既改配貨演算法又補型別保護——而那個 bug 的症狀是超賣，不是編譯錯誤。
+
+#### Odoo 19 在這一段沒有可以照抄的形狀
+
+查過 19.0 的原始碼（`stock/models/stock_move.py` 的 `_action_assign`）：它**一次一個 move**，
+迴圈前不建任何依商品分組的結構，拿不夠就把該 move 標成 `partially_available` 繼續下一個。
+
+**我們的 map 是 ship-complete 的產物**——要在動任何庫存之前知道整籃湊不湊得滿，就必須先把所有
+SKU 的批一起握在手上。Odoo 沒有這個需求，所以沒有這個型別。
+
+但它給了兩個關於封裝的提示：
+
+- 它的「可以拿的庫存」是 `stock.quant._gather(...)` 回傳的 **quant recordset**，不是 dict；
+  而「拿」這個動作掛在庫存自己身上（`_update_reserved_quantity`），不是呼叫端算好再寫回去
+- **取用順序是一個具名方法**：`_get_removal_strategy_order('fifo')` → `'in_date ASC, id'`；
+  FEFO 甚至不在 `stock` 模組裡，是 `product_expiry` 覆寫同一個方法加上 `'removal_date, in_date, id'`。
+  策略可替換，因為它有名字——而我們的 FEFO 排序鍵現在散在 repository 的 JPQL、
+  `StockWriteOrder` 的比較器與註解三個地方
+
 ### SIT 的 Postgres container 是 Spring bean，每個 context 各起一個
 
 `PostgreSQLTestConfiguration` 把 `PostgreSQLContainer` 宣告成 `@Bean`，所以**每一個不同的

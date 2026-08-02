@@ -2,16 +2,16 @@ package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
 import com.flowzati.archone.allocation.application.command.WakeBackordersCommand;
-import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
+import com.flowzati.archone.allocation.application.movement.MovementAssigner;
 import com.flowzati.archone.allocation.domain.event.BackorderWakeContinuationRequired;
-import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.time.BusinessCalendar;
-import com.flowzati.archone.allocation.domain.model.Demand;
-import com.flowzati.archone.allocation.application.query.WaitingDemandFinder;
+import com.flowzati.archone.allocation.domain.model.StockPool;
+import com.flowzati.archone.allocation.domain.model.StockMove;
+import com.flowzati.archone.allocation.domain.repository.StockMoveRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -20,8 +20,6 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,9 +43,9 @@ public class ReplenishmentUsecase {
 
   private final Clock clock;
   private final InboxRepo inboxRepo;
-  private final WaitingDemandFinder waitingDemandFinder;
+  private final StockMoveRepository stockMoveRepository;
   private final StockPoolRepository stockPoolRepository;
-  private final OrderAllocationCoordinator allocationCoordinator;
+  private final MovementAssigner movementAssigner;
   private final ApplicationEventPublisher eventPublisher;
   private final BusinessCalendar businessCalendar;
   private final int wakeLimit;
@@ -56,9 +54,9 @@ public class ReplenishmentUsecase {
       Clock clock,
       BusinessCalendar businessCalendar,
       InboxRepo inboxRepo,
-      WaitingDemandFinder waitingDemandFinder,
+      StockMoveRepository stockMoveRepository,
       StockPoolRepository stockPoolRepository,
-      OrderAllocationCoordinator allocationCoordinator,
+      MovementAssigner movementAssigner,
       ApplicationEventPublisher eventPublisher,
       // 上限太大則交易長、鎖範圍不可預測；太小則續做事件頻繁、每輪的固定成本被攤薄。
       //
@@ -75,9 +73,9 @@ public class ReplenishmentUsecase {
     this.clock = clock;
     this.businessCalendar = businessCalendar;
     this.inboxRepo = inboxRepo;
-    this.waitingDemandFinder = waitingDemandFinder;
+    this.stockMoveRepository = stockMoveRepository;
     this.stockPoolRepository = stockPoolRepository;
-    this.allocationCoordinator = allocationCoordinator;
+    this.movementAssigner = movementAssigner;
     this.eventPublisher = eventPublisher;
     if (wakeLimit <= 0) {
       throw new IllegalArgumentException("Replenishment wake limit must be positive");
@@ -167,30 +165,20 @@ public class ReplenishmentUsecase {
       return;
     }
 
-    // 佇列的範圍含倉別：庫存按 (貨主, 倉, SKU, 入庫日, 效期) 持有，別的倉的單這次補貨滿足
+    // 佇列的範圍含位置：庫存按 (貨主, 位置, SKU, 入庫日, 效期) 持有，別的倉的單這次補貨滿足
     // 不了。把它們撈進來不會出錯，但會佔滿以張數計的上限然後被跳過——浪費隨倉數線性成長。
     //
-    // 回的是整張單（含別的 SKU 的待配行），不是命中這個 SKU 的行：一張單整批配到或整批不配，
-    // 而上限數的也是張數，兩者的維度因此一致。
-    List<Demand> backorders =
-        waitingDemandFinder.findWaiting(ownerId, locationId, skuCode, wakeLimit);
-    if (backorders.isEmpty()) {
+    // 回的是整張單據的全部搬運（含別的 SKU 的），不是命中這個 SKU 的那些：一張單整批配到或
+    // 整批不配，而上限數的也是單據張數，兩者的維度因此一致。
+    List<StockMove> waiting =
+        stockMoveRepository.findWaitingInFifoOrder(ownerId, locationId, skuCode, wakeLimit);
+    if (waiting.isEmpty()) {
       return;
     }
 
-    // 第三段查詢：候選單可能需要別的 SKU，整籃判斷要看它們**全部**的庫存。
-    //
-    // 查詢次數固定為三次（選單 → 取行 → 取批），不隨候選單數成長；逐張各自查會是 N+1，
-    // 而一輪最多 wakeLimit 張。更重要的是死鎖：本輪要碰哪些庫存列必須在進入交易前全部
-    // 已知，WRITE_ORDER 的全序才算得出來。
-    Set<String> skuCodes = backorders.stream()
-        .flatMap(demand -> demand.totalsBySku().keySet().stream())
-        .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
-    Map<String, List<StockPool>> batchesBySku = stockPoolRepository.findAllocatableBatchesBySku(
-        ownerId, locationId, skuCodes, businessCalendar.today());
-
-    int wokenCount =
-        allocationCoordinator.allocateBackorders(backorders, batchesBySku, now).size();
+    // 讀出來的搬運直接交給鎖定那一步——它要投影成需求、取批、決策、轉狀態，而那些全是同一個
+    // 動作的步驟。這裡不必也不該知道它們。
+    int wokenCount = movementAssigner.assignAll(waiting, now).size();
 
     if (wokenCount >= wakeLimit) {
       requestContinuation(ownerId, nodeId, skuCode, now);

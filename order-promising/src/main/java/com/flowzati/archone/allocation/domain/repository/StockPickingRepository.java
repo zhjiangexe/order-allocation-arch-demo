@@ -3,7 +3,6 @@ package com.flowzati.archone.allocation.domain.repository;
 import com.flowzati.archone.allocation.domain.model.StockPicking;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -16,11 +15,20 @@ import java.util.UUID;
  */
 public interface StockPickingRepository {
 
-  void save(StockPicking picking, UUID orderId);
+  void save(StockPicking picking);
 
   /** 一張訂單的作業單。取消時用來找出要取消哪些搬運。 */
   List<StockPicking> findByOrderId(UUID orderId);
 
-  /** 這些單據各自服務哪張訂單——配到之後要發帶 orderId 的事件時用。 */
-  Map<UUID, UUID> findOrderIdsByIds(Collection<UUID> pickingIds);
+  /**
+   * 依識別碼取單據。
+   *
+   * <p>喚醒佇列時用：手上是一批搬運，而它們只帶得動 {@code pickingId}——要發出「這張單配好
+   * 了」的事實得先知道是哪張訂單。
+   *
+   * <p>回的是單據本身而不是 {@code Map<pickingId, orderId>}。曾經是後者，因為那時
+   * {@link StockPicking} 沒有 {@code orderId} 欄位，讀出來就丟掉了——一個特化的方法只為了把
+   * 型別自己扔掉的東西撈回來。
+   */
+  List<StockPicking> findByIds(Collection<UUID> pickingIds);
 }

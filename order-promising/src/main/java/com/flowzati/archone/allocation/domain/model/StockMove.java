@@ -75,7 +75,7 @@ public class StockMove {
     // 狀態與時間戳要對得上，與資料庫的 CHECK 同一個判準：一個沒有被綁住的時間戳遲早會
     // 出現「狀態說配到了，時刻卻是空的」這種對不起來的實例。
     if (state == MoveState.CONFIRMED && assignedAt != null) {
-      throw new IllegalArgumentException("A movement still needing goods cannot have been assigned");
+      throw new IllegalArgumentException("A confirmed movement cannot have been assigned");
     }
     if ((state == MoveState.ASSIGNED || state == MoveState.DONE) && assignedAt == null) {
       throw new IllegalArgumentException("An assigned movement must say when it was assigned");
@@ -94,8 +94,19 @@ public class StockMove {
     this.version = version;
   }
 
-  /** 收單時建立：要貨，還沒拿到。 */
-  public static StockMove needing(
+  /**
+   * 收單時建立的那一段：需求已確認、庫存還沒保留。
+   *
+   * <p><b>形容詞，不是動詞。</b>{@code confirm(...)} 會暗示一步轉換，而這裡沒有起點——Odoo 的
+   * {@code _action_confirm()} 做的是 {@code draft → confirmed}，本系統沒有草稿階段（理由見
+   * {@link MoveState}）。動詞會招來兩個找不到的東西：那一步轉換，以及 {@code confirmed} 與
+   * {@code waiting} 的分岔。
+   *
+   * <p>名字直接取自 {@link MoveState#CONFIRMED}，不另創說法。<b>建立的意圖由
+   * {@code MovementRecorder} 那一層說</b>——它才是解析作業類型、組單據、決定起訖的地方；這裡
+   * 只回答「這個實例從哪個狀態開始」。
+   */
+  public static StockMove confirmed(
       UUID id,
       UUID pickingId,
       UUID ownerId,
@@ -120,7 +131,7 @@ public class StockMove {
       return false;
     }
     if (state != MoveState.CONFIRMED) {
-      throw new IllegalStateException("Only a movement needing goods can be assigned, was " + state);
+      throw new IllegalStateException("Only a confirmed movement can be assigned, was " + state);
     }
     if (assignedAt == null) {
       throw new IllegalArgumentException("Assigned time is required");
@@ -147,10 +158,6 @@ public class StockMove {
     // 「這一段曾經配到過」與「它現在鎖著貨」在讀取端分不開。
     assignedAt = null;
     return true;
-  }
-
-  public boolean isWaitingForGoods() {
-    return state == MoveState.CONFIRMED;
   }
 
   public UUID getId() {

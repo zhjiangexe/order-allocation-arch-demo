@@ -23,7 +23,14 @@ public interface StockMoveRepository {
 
   void save(StockMove move);
 
-  void saveAll(Collection<StockMove> moves);
+  /**
+   * 寫入這些搬運，並**回傳寫入後的它們**。
+   *
+   * <p>回傳值不是方便，是必要的：同一個交易裡「建立、接著鎖定」會對同一列寫兩次，而第二次
+   * 必須知道第一次之後的版號才會是更新而不是新增。傳入的物件是剛建構出來的，版號為空——
+   * 拿它去寫第二次，持久層會當成一列全新的資料。
+   */
+  List<StockMove> saveAll(Collection<StockMove> moves);
 
   void saveLines(Collection<StockMoveLine> lines);
 

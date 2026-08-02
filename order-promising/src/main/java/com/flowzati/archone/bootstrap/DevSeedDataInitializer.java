@@ -548,13 +548,13 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   /** 一張出庫作業單。起訖取自作業類型的預設值。 */
   private void picking(UUID id, UUID orderId, UUID typeId, UUID ownerId, UUID stockLocationId) {
     stockPickingRepository.save(
-        new StockPicking(id, typeId, ownerId, stockLocationId, CUSTOMERS_LOCATION_ID), orderId);
+        new StockPicking(id, typeId, ownerId, orderId, stockLocationId, CUSTOMERS_LOCATION_ID));
   }
 
   /** 一段還在等貨的搬運：收單時的狀態。 */
   private void waitingMove(
       UUID id, UUID pickingId, UUID ownerId, UUID from, String sku, UUID orderLineId, int qty) {
-    stockMoveRepository.save(StockMove.needing(
+    stockMoveRepository.save(StockMove.confirmed(
         id, pickingId, ownerId, sku, from, CUSTOMERS_LOCATION_ID, orderLineId, qty,
         PARTIALLY_RESERVED_AT));
   }
@@ -562,7 +562,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   /** 一段已鎖定的搬運。明細另外建——一段跨幾批就有幾條。 */
   private void assignedMove(
       UUID id, UUID pickingId, UUID ownerId, UUID from, String sku, UUID orderLineId, int qty) {
-    StockMove move = StockMove.needing(
+    StockMove move = StockMove.confirmed(
         id, pickingId, ownerId, sku, from, CUSTOMERS_LOCATION_ID, orderLineId, qty,
         PARTIALLY_RESERVED_AT);
     move.assign(PARTIALLY_RESERVED_AT);

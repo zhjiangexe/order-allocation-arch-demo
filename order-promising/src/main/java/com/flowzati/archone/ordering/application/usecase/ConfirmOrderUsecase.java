@@ -11,6 +11,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 /**
  * 把配貨的結果套到訂單上——**訂單狀態的唯一推進者**。
  *
@@ -61,11 +63,14 @@ public class ConfirmOrderUsecase {
     }
     RecordBackorderCommand command = inbound.command();
 
-    Order order = orderRepository.findById(command.orderId()).orElse(null);
-    if (order == null || isSettled(order)) {
+    Optional<Order> orderOpt = orderRepository.findById(command.orderId());
+    if (orderOpt.isEmpty()) {
       return;
     }
-
+    Order order = orderOpt.get();
+    if (isSettled(order)) {
+      return;
+    }
     order.markBackOrdered(command.backorderedAt());
     orderRepository.save(order);
     releaseEvents(order);

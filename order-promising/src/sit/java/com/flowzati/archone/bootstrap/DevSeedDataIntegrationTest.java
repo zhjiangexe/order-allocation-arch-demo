@@ -46,7 +46,10 @@ class DevSeedDataIntegrationTest {
   private OrderRepository orderRepository;
 
   @Autowired
-  private com.flowzati.archone.allocation.application.query.WaitingDemandFinder waitingDemandFinder;
+  private com.flowzati.archone.allocation.domain.repository.StockMoveRepository stockMoveRepository;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.allocation.domain.repository.StockPickingRepository stockPickingRepository;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -198,15 +201,22 @@ class DevSeedDataIntegrationTest {
     // 佇列現在由**還在等貨的搬運**回答，而不是訂單——訂單狀態因此更加無關：PENDING 與
     // BACKORDERED 對佇列完全等價，理由從「view 刻意不看 status」變成「佇列根本不讀 orders」。
     // 範圍含位置，種子那張單在南部倉的內部位置。
-    List<com.flowzati.archone.allocation.domain.model.Demand> queue =
-        waitingDemandFinder.findWaiting(
+    //
+    // 走的是補貨那條路徑用的同兩支查詢：先取還在等貨的搬運，再由它們的單據回推是哪幾張單。
+    List<com.flowzati.archone.allocation.domain.model.StockMove> waiting =
+        stockMoveRepository.findWaitingInFifoOrder(
             DevSeedDataInitializer.SECOND_OWNER_ID,
             DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID,
             DevSeedDataInitializer.EMPTY_SKU,
             1_000);
+    List<UUID> queuedOrders = stockPickingRepository.findByIds(
+        waiting.stream()
+            .map(com.flowzati.archone.allocation.domain.model.StockMove::getPickingId)
+            .collect(java.util.stream.Collectors.toSet())).stream()
+        .map(com.flowzati.archone.allocation.domain.model.StockPicking::orderId)
+        .toList();
 
-    assertThat(queue)
-        .extracting(com.flowzati.archone.allocation.domain.model.Demand::orderId)
+    assertThat(queuedOrders)
         .containsExactlyInAnyOrder(
             DevSeedDataInitializer.BACKORDERED_ORDER_ID,
             DevSeedDataInitializer.BASKET_ORDER_ID);
