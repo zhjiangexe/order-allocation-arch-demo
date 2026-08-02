@@ -37,14 +37,31 @@ class AllocationBoundaryArchitectureTest {
    * ordering 擁有的表名。
    *
    * <p>{@code demand_lines} 不在此列：那是 ordering 發布給 allocation 的介面，查它正是這個
-   * 設計要的。也因此這條規則不需要為讀取開任何例外——allocation 沒有任何理由提到那兩張表。
+   * 設計要的。
    */
   private static final Pattern ORDERING_TABLE_NAME =
       Pattern.compile("\\b(orders|order_lines)\\b");
 
+  /**
+   * ordering 的行上，除了識別碼以外的欄位。
+   *
+   * <p><b>邊界的性質變了，所以規則跟著換，而不是為舊規則開例外。</b>搬運持有
+   * {@code order_line_id}——那是需求與執行之間唯一的連結（對應 Odoo 的
+   * {@code stock_move.sale_line_id}）。從「不知道對方存在」變成「持有對方的識別碼」之後，
+   * 「不得出現 {@code order_lines}」這條規則已經擋不住真正該擋的東西了：持有 id 是允許的，
+   * 但**沿著它去讀那條行的其他欄位不行**。
+   *
+   * <p>因此改成正面列出那些欄位。{@code sku_code}、{@code quantity} 不在此列——它們同時是
+   * allocation 自己表上的欄位名，列進來只會擋到自己的 SQL。真正只屬於 ordering 的是這些。
+   */
+  private static final Pattern ORDERING_ONLY_COLUMN = Pattern.compile(
+      "\\b(line_no|external_order_no|ship_to_zone|ship_to_address|promised_delivery_date"
+          + "|cancelled_at|backordered_since|allocated_at|placed_at)\\b");
+
   /** allocation 擁有的表名，ordering 不該碰。 */
-  private static final Pattern ALLOCATION_TABLE_NAME =
-      Pattern.compile("\\b(stock_pools|stock_reservations|stock_locations)\\b");
+  private static final Pattern ALLOCATION_TABLE_NAME = Pattern.compile(
+      "\\b(stock_pools|stock_locations|stock_pickings|stock_picking_types"
+          + "|stock_moves|stock_move_lines)\\b");
 
   @Test
   @DisplayName("allocation 不得認識 ordering 的訂單聚合根——它看到的需求來自 demand_lines")
@@ -69,7 +86,31 @@ class AllocationBoundaryArchitectureTest {
   }
 
   @Test
-  @DisplayName("ordering 的程式碼不得出現 stock_pools／stock_reservations——每張表只有一個 module 寫")
+  @DisplayName("allocation 可以持有 order_line_id，但不得讀那條行的其他欄位")
+  void allocationHoldsTheOrderLineIdAndNothingElseFromThatLine() {
+    List<String> violations = sourcesUnder(ALLOCATION_ROOT)
+        .filter(source -> ORDERING_ONLY_COLUMN.matcher(stripComments(readSource(source))).find())
+        .map(Path::toString)
+        .toList();
+
+    assertThat(violations).isEmpty();
+  }
+
+  @Test
+  @DisplayName("order_line_id 這個例外必須真的被用到——沒有用到的例外只是裝飾")
+  void theOrderLineIdExceptionIsActuallyExercised() {
+    // 上一條允許了一件事，這一條確認那件事真的發生。少了它，有人日後把連結拿掉、改回用
+    // 訂單 id 對應，上面那條規則仍然全綠——而邊界已經悄悄退回舊的形狀。
+    List<String> holders = sourcesUnder(ALLOCATION_ROOT)
+        .filter(source -> stripComments(readSource(source)).contains("orderLineId"))
+        .map(Path::toString)
+        .toList();
+
+    assertThat(holders).isNotEmpty();
+  }
+
+  @Test
+  @DisplayName("ordering 的程式碼不得出現 allocation 的任何一張表——每張表只有一個 module 寫")
   void orderingDoesNotNameAllocationTables() {
     List<String> violations = sourcesUnder(ORDERING_ROOT)
         .filter(source -> ALLOCATION_TABLE_NAME.matcher(stripComments(readSource(source))).find())

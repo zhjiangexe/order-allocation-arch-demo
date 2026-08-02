@@ -24,7 +24,7 @@ class AllocationSelectorTest {
     AllocationRequest request =
         new AllocationRequest(SkuQuantities.of(Map.of("SKU-1", 5)), decisionAt);
     Demand demand = DemandFixtures.demand(
-        UUID.randomUUID(), "SKU-1", 3, decisionAt.minusSeconds(1));
+        UUID.randomUUID(), "SKU-1", 3);
 
     AllocationContextFactory<TestAllocationContext> contextFactory = source ->
         new TestAllocationContext(source.availableBySku(), source.decisionAt());

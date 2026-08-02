@@ -18,8 +18,9 @@ SELECT ol.order_id,
        ol.owner_id,
        sl.id       AS location_id,
        ol.sku_code,
-       ol.quantity,
-       o.received_at
+       ol.quantity
+-- **不含 received_at。** 「這張單等了多久」現在由搬運的 created_at 回答，那是執行層自己寫的
+-- 資料；view 再複製一份過來，就會有兩個時間可以拿來排序，而它們在重送與補單時會分岔。
   FROM order_lines ol
   JOIN orders o ON o.id = ol.order_id
   -- INNER JOIN 是刻意的：倉沒有內部位置時，那張單的需求不會出現在這裡。

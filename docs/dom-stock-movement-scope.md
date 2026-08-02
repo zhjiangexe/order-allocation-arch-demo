@@ -1,10 +1,13 @@
 # 庫存異動模型：需求與執行分成兩層
 
-本文記錄一個跨越四個 change 的決定：**把庫存從「一個可被加減的數字」改成有來源與目的的
+本文記錄一個跨越五個 change 的決定：**把庫存從「一個可被加減的數字」改成有來源與目的的
 異動流水**，並把「貨主要什麼」與「倉庫做什麼」分成兩層。概念與命名對齊 Odoo 19。
 
-決定散落在四個 change 裡，但共用同一組前提。寫在這裡，各 change 的 design 才不必各自重述，
+決定散落在五個 change 裡，但共用同一組前提。寫在這裡，各 change 的 design 才不必各自重述，
 也才不會在第三個 change 時發現第一個的前提已經被改掉。
+
+（原本規劃四個。第 2 個做完後浮現的流程重組被編為 2.5——**刻意不重新編號**，因為「第四個
+change」在既有文件裡被引用了十幾處，指的一直是界線與命名那一個。）
 
 ---
 
@@ -596,17 +599,51 @@ Odoo 19 的事實（已在 19.0 原始碼查證）：
 
 ---
 
-## 四個 change 的順序
+## 五個 change 的順序
 
 | # | change | 內容 | 依賴 |
 | --- | --- | --- | --- |
 | 1 | ✅ **位置模型**（已交付：`hold-stock-in-locations`） | 建 `stock_locations`（每倉一個 `internal` + `supplier`／`customer`／`inventory` 三個虛擬）；`stock_pools.node_id` → `location_id`。**`orders` 完全不動，對外契約與前端完全不動** | — |
-| 2 | **搬運單據與異動** | 建 `stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`；`stock_reservations` 遷入 move_lines；`demand_lines` view 改寫；換掉邊界護欄 | 1 |
-| 3 | **入庫走 move** | 補貨改為產生 inbound picking + move；**`stock_pools` 封閉直接寫入**，只能由 move 寫 | 2 |
+| 2 | ✅ **搬運單據與異動**（已交付：`record-every-movement`） | 建 `stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`；`stock_reservations` 遷入 move_lines；`demand_lines` view 改寫；換掉邊界護欄 | 1 |
+| 2.5 | **依搬運的動作重組流程** | 三支 usecase 退回真正的 usecase；`OrderAllocationCoordinator` 消失。**不改任何行為、不動 schema、不動對外契約** | 2 |
+| 3 | **入庫走 move** | 補貨改為產生 inbound picking + move；**`stock_pools` 封閉直接寫入**，只能由 move 寫 | 2.5 |
 | 4 | **界線與命名** | `ordering` / `inventory` 界線落實；`BACKORDERED` 改由執行層狀態承接；對外契約更新 | 3 |
 
 **不可合併成一個 change。** 每一個都比 `allocate-multi-sku-orders-as-one-basket` 大；而第 3 個
 的「封閉直接寫入」是整串的目的，它必須在一個能被單獨驗證的邊界上發生。
+
+### 決定七：流程照「搬運的動作」切，不照「usecase / coordinator / service」切
+
+第 2 個 change 做完之後，`AllocateOrderUsecase` 有十個依賴，其中四個只為「建立搬運」存在；
+`OrderAllocationCoordinator` 有四個方法，其中 `releaseMoves` 完全不碰 `allocationService`；而
+取批查詢在收單與補貨兩條入口各寫了一次。這不是「參數太多」的計數問題——是**搬運的四個動作
+散在三個不同的層**。
+
+Odoo 19 把它們全放在 `stock.move` 上：`_action_confirm` / `_action_assign` / `_action_done` /
+`_action_cancel`。照同一組動作切：
+
+| 動作 | Odoo | 元件 | 內容 |
+| --- | --- | --- | --- |
+| ① 建立 | `_action_confirm` | `MovementRecorder` | 位置→倉→作業類型 → 建 picking → 建 `CONFIRMED` 搬運 |
+| ② 鎖定 | `_action_assign` | `MovementAssigner` | 取批 → `AllocationService` → 轉 `ASSIGNED`、造明細 → 寫入 → 發事件 |
+| ③ 完成 | `_action_done` | `MovementCompleter`（R7，還沒有） | — |
+| ④ 取消 | `_action_cancel` | `MovementCanceller` | 找 picking → 濾掉 `DONE` → 還量 → 取消 → 刪明細 |
+
+放在 `allocation/application/movement/`。動詞取 `record` / `assign` / `cancel`，與 spec 的用詞
+（*Every movement of goods is **recorded***）及 `MoveState` 的值域對得起來。
+
+**決定性的論據是第 3 個 change。** 入庫要做的是同一件 ①——解析作業類型、建 picking、建搬運
+——但它**完全不配貨**：沒有 `Demand`、沒有 ATP 判斷。① 若繼續內聯在配貨的 usecase 裡，入庫
+只剩兩條路：複製一份，或把入庫硬塞進一支名為「配貨」的 usecase。因此這一段**必須排在第 3 個
+change 之前**。
+
+**`AllocationService` 一個字都不動。** 它已經是純決策、不碰 IO，切法改變的是誰去呼叫它。
+
+**`backorderOrder` 留在 usecase 而不是進 ②**：收單配不到要掛帳，補貨配不到不重發——兩條路徑
+的處置本來就不同，把它放進共用的 ② 會逼出一個布林參數。
+
+**`WRITE_ORDER` 要從私有欄位抽成共用的具名常數。** 防死鎖的全序是全系統的規則，②④ 都要用，
+R7 的 ③ 還會有第三個。它現在只有 `OrderAllocationCoordinator` 知道，而抄錯不會有測試紅。
 
 ---
 

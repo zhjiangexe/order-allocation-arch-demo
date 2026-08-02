@@ -20,4 +20,11 @@ public interface StockLocationRepository {
    * 型別就是在說謊。
    */
   Optional<StockLocation> findInternalOf(UUID warehouseId);
+
+  /**
+   * 反方向：這個位置屬於哪個倉。
+   *
+   * <p>建立出庫單時要用——作業類型以倉為鍵（Odoo 也是），而配貨手上只有位置。
+   */
+  Optional<StockLocation> findById(UUID locationId);
 }

@@ -110,6 +110,6 @@ class AllocationPolicyTest {
   }
 
   private static Demand demand(com.flowzati.archone.allocation.domain.model.DemandLine... lines) {
-    return DemandFixtures.multiLineDemand(IdGenerator.nextId(), NOW.minusSeconds(10), lines);
+    return DemandFixtures.multiLineDemand(IdGenerator.nextId(), lines);
   }
 }

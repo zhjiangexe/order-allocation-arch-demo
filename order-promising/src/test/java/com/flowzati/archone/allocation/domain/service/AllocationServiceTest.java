@@ -151,8 +151,8 @@ class AllocationServiceTest {
   @DisplayName("FIFO 首單無法完整預留時應立即停止，不可跳過去分配較小後單")
   void stopsAtHeadOfLineWhenFirstOrderCannotBeFullyReserved() {
     StockPool batch = stockPool(3, 0);
-    Demand first = backorderedDemand(4, 3);
-    Demand smallerLaterOrder = backorderedDemand(2, 2);
+    Demand first = backorderedDemand(4);
+    Demand smallerLaterOrder = backorderedDemand(2);
 
     List<OrderAllocation> allocations = allocationService.allocateBackorders(
         List.of(first, smallerLaterOrder),
@@ -168,9 +168,9 @@ class AllocationServiceTest {
   @DisplayName("分配前單後遇到不足應停止，後續可滿足的小單也不可跳單")
   void preservesAllocatedPrefixAndStopsAfterFirstInsufficientOrder() {
     StockPool batch = stockPool(5, 0);
-    Demand first = backorderedDemand(3, 3);
-    Demand blocked = backorderedDemand(4, 2);
-    Demand smallerLaterOrder = backorderedDemand(1, 1);
+    Demand first = backorderedDemand(3);
+    Demand blocked = backorderedDemand(4);
+    Demand smallerLaterOrder = backorderedDemand(1);
 
     List<Demand> allocatedDemands = demands(allocationService.allocateBackorders(
         List.of(first, blocked, smallerLaterOrder),
@@ -187,8 +187,8 @@ class AllocationServiceTest {
   @DisplayName("ATP 足以供應所有 FIFO orders 時應回傳完整 allocated prefix 且沒有阻塞單")
   void allocatesAllOrdersWhenAtpIsSufficient() {
     StockPool batch = stockPool(10, 0);
-    Demand first = backorderedDemand(3, 2);
-    Demand second = backorderedDemand(5, 1);
+    Demand first = backorderedDemand(3);
+    Demand second = backorderedDemand(5);
 
     List<Demand> allocatedDemands = demands(allocationService.allocateBackorders(
         List.of(first, second),
@@ -205,8 +205,8 @@ class AllocationServiceTest {
   void spreadsWokenOrdersAcrossBatchesWithoutDoubleCounting() {
     StockPool near = StockFixtures.batchExpiringOn("SKU-1", NEAR_EXPIRY, 10, 0);
     StockPool far = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 10, 0);
-    Demand first = backorderedDemand(8, 3);
-    Demand second = backorderedDemand(8, 2);
+    Demand first = backorderedDemand(8);
+    Demand second = backorderedDemand(8);
 
     List<OrderAllocation> allocations =
         allocationService.allocateBackorders(List.of(first, second), grouped(first, near, far), NOW);
@@ -225,9 +225,9 @@ class AllocationServiceTest {
     AllocationService maximizingService =
         new AllocationService(AllocationSelector.maximizeFulfilledOrders());
     StockPool batch = stockPool(5, 0);
-    Demand largeFirst = backorderedDemand(6, 3);
-    Demand second = backorderedDemand(2, 2);
-    Demand third = backorderedDemand(3, 1);
+    Demand largeFirst = backorderedDemand(6);
+    Demand second = backorderedDemand(2);
+    Demand third = backorderedDemand(3);
 
     List<Demand> allocatedDemands = demands(maximizingService.allocateBackorders(
         List.of(largeFirst, second, third),
@@ -244,7 +244,7 @@ class AllocationServiceTest {
   void rejectsBatchFiledUnderTheWrongSku() {
     StockPool batch = stockPool(10, 0);
     Demand order = DemandFixtures.demand(
-        IdGenerator.nextId(), "OTHER-SKU", 3, NOW.minusSeconds(1));
+        IdGenerator.nextId(), "OTHER-SKU", 3);
 
     // 分組之後「SKU 不符」只剩這一種形狀：鍵說是 OTHER-SKU，裡面躺的卻是 SKU-1 的批。
     assertThatThrownBy(
@@ -366,7 +366,7 @@ class AllocationServiceTest {
     StockPool plentiful = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 100, 0);
     StockPool scarce = StockFixtures.batchExpiringOn("SKU-2", FAR_EXPIRY, 3, 0);
     Demand order = DemandFixtures.multiLineDemand(
-        IdGenerator.nextId(), NOW.minusSeconds(10),
+        IdGenerator.nextId(),
         DemandFixtures.line("SKU-1", 10),
         DemandFixtures.line("SKU-2", 5));
 
@@ -385,7 +385,7 @@ class AllocationServiceTest {
     StockPool first = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 100, 0);
     StockPool second = StockFixtures.batchExpiringOn("SKU-2", FAR_EXPIRY, 100, 0);
     Demand order = DemandFixtures.multiLineDemand(
-        IdGenerator.nextId(), NOW.minusSeconds(10),
+        IdGenerator.nextId(),
         DemandFixtures.line("SKU-1", 10),
         DemandFixtures.line("SKU-2", 5));
 
@@ -405,7 +405,7 @@ class AllocationServiceTest {
     StockPool shortA = StockFixtures.batchExpiringOn("SKU-2", FAR_EXPIRY, 3, 0);
     StockPool shortB = StockFixtures.batchExpiringOn("SKU-3", FAR_EXPIRY, 1, 0);
     Demand order = DemandFixtures.multiLineDemand(
-        IdGenerator.nextId(), NOW.minusSeconds(10),
+        IdGenerator.nextId(),
         DemandFixtures.line("SKU-1", 10),
         DemandFixtures.line("SKU-2", 5),
         DemandFixtures.line("SKU-3", 4));
@@ -424,7 +424,7 @@ class AllocationServiceTest {
   void treatsAnEmptyGroupAsOrdinaryStockOut() {
     StockPool plentiful = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 100, 0);
     Demand order = DemandFixtures.multiLineDemand(
-        IdGenerator.nextId(), NOW.minusSeconds(10),
+        IdGenerator.nextId(),
         DemandFixtures.line("SKU-1", 10),
         DemandFixtures.line("SKU-2", 5));
 
@@ -441,7 +441,7 @@ class AllocationServiceTest {
   @DisplayName("指名的每一個 SKU 都一批不剩時才算「沒得配」，其中一個賣光仍是「不夠配」")
   void separatesNothingAllocatableFromNotEnough() {
     Demand order = DemandFixtures.multiLineDemand(
-        IdGenerator.nextId(), NOW.minusSeconds(10),
+        IdGenerator.nextId(),
         DemandFixtures.line("SKU-1", 10),
         DemandFixtures.line("SKU-2", 5));
 
@@ -493,7 +493,6 @@ class AllocationServiceTest {
   private Demand twoSkuOrder() {
     return DemandFixtures.multiLineDemand(
         IdGenerator.nextId(),
-        NOW.minusSeconds(10),
         DemandFixtures.line("SKU-1", 3),
         DemandFixtures.line("SKU-2", 5));
   }
@@ -502,26 +501,26 @@ class AllocationServiceTest {
   private Demand sameSkuTwoLineOrder(int firstQuantity, int secondQuantity) {
     return DemandFixtures.multiLineDemand(
         IdGenerator.nextId(),
-        NOW.minusSeconds(10),
         DemandFixtures.line("SKU-1", firstQuantity),
         DemandFixtures.line("SKU-1", secondQuantity));
   }
 
   private Demand pendingDemand(int quantity) {
     return DemandFixtures.demand(
-        IdGenerator.nextId(), "SKU-1", quantity, NOW.minusSeconds(4));
+        IdGenerator.nextId(), "SKU-1", quantity);
   }
 
   /**
    * 一筆已在佇列裡的需求。
    *
-   * <p>{@code secondsAgo} 保留在簽章上但**不再影響順序**——佇列的順序由 {@code orderId}
-   * 決定（UUID v7，等於到達順序），而這裡是照呼叫順序產生 id 的，所以「先造的先配」仍然
-   * 成立。進入缺貨的時刻不再是排序鍵：那是系統的處理時間，retry 就會改變它。
+   * <p>曾經帶一個 {@code secondsAgo} 參數，現在連簽章上都沒有了：需求已經不帶時間戳。順序由
+   * {@code orderId} 決定（UUID v7，等於到達順序），而這裡是照呼叫順序產生 id 的，所以
+   * 「先造的先配」仍然成立。進入缺貨的時刻從來就不是排序鍵——那是系統的處理時間，retry 就會
+   * 改變它。
    */
-  private Demand backorderedDemand(int quantity, int secondsAgo) {
+  private Demand backorderedDemand(int quantity) {
     return DemandFixtures.demand(
-        IdGenerator.nextId(), "SKU-1", quantity, NOW.minusSeconds(5 + secondsAgo));
+        IdGenerator.nextId(), "SKU-1", quantity);
   }
 
   /**

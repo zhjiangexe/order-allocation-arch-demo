@@ -776,8 +776,12 @@ A 單取消 → 10 件釋放回來
 B 單永遠掛著   ← 直到有人補貨
 ```
 
-`OrderAllocationCoordinator.releaseReservations()` 不發任何事件，`ReleaseReservationUsecase`
+`OrderAllocationCoordinator.releaseMoves()` 不發任何事件，`ReleaseReservationUsecase`
 沒有喚醒邏輯。釋放出來的貨閒著，而佇列裡有人在等。**這與事件延遲無關**——等再久也不會發生。
+
+> 方法名在「搬運單據與異動」那個 change 由 `releaseReservations` 改為 `releaseMoves`；
+> `OrderAllocationCoordinator` 本身會在接下來的流程重組裡消失，屆時這段邏輯落在
+> `MovementCanceller`。缺口與修法都不受影響。
 
 修法的機制**已經在手上**：R3 為「喚醒上限的續做」加的 `BackorderWakeRequestedIntegrationEvent`
 語意正好通用——「這個 `(貨主, 倉, SKU)` 的庫存有變動，去喚醒佇列」。釋放成功後對每個受影響的
@@ -794,6 +798,19 @@ B 單永遠掛著   ← 直到有人補貨
 
 訂單已 `CANCELLED` 而庫存仍 `reserved`，直到 Kafka 往返完成（量級是幾十到幾百毫秒）。窗口內
 ATP 被低估，後果是「某張單本來配得到卻掛帳了」——**保守方向的錯，不會超賣**。
+
+**「搬運單據與異動」之後，同一個窗口多了一個反方向的後果。** 舊的待配佇列由 `demand_lines`
+回答，那個 view 讀 `orders.cancelled_at`，而取消由 ordering 同步寫入——所以取消一落地，那張單
+立刻離開佇列，窗口內只會少配、不會誤配。新佇列讀的是 `stock_moves.state`，而搬運要等
+`OrderCancelled` 被消費才轉成 `CANCELLED`：**窗口內一次補貨可以把貨配給一張已取消的單。**
+
+後果有界且不會壞任何東西：`ConfirmOrderUsecase.isSettled` 早就把「已取消」當成合理競爭而靜默
+略過，接著釋放把量還回去。真正的殘留是它會走到上一節那個既有缺口——**貨變回可用，卻沒有人
+喚醒佇列**，所以排隊中的下一張單要等到下一次補貨。修好上一節，這條路徑的殘留也一併消失。
+
+消除窗口本身只有一個做法：讓佇列查詢 join `orders`。**否決**——那是把剛拆掉的跨 context 讀取
+放回系統最熱的那條路徑上，代價遠大於一個會自癒的窗口。Odoo 也是同一個形狀：取消訂單連帶取消
+它的 move，而預留那條路徑不讀訂單。
 
 曾考慮在 `CancelOrderUsecase` 裡同步 release 以消掉窗口，否決：`ordering` 會直接操作
 `allocation` 的聚合根、一個交易跨兩個聚合根，而那正是 R4「編排權歸位」要斷開的耦合方向。

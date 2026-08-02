@@ -15,6 +15,7 @@ import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEve
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.nio.charset.StandardCharsets;
@@ -94,18 +95,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
   @AfterEach
   void clearDatabase() {
     conflictSynchronizer.reset();
-    jdbcTemplate.execute("DELETE FROM event_outbox");
-    jdbcTemplate.execute("DELETE FROM event_inbox");
-    jdbcTemplate.execute("DELETE FROM stock_reservations");
-    jdbcTemplate.execute("DELETE FROM order_lines");
-    jdbcTemplate.execute("DELETE FROM orders");
-    jdbcTemplate.execute("DELETE FROM stock_pools");
-    jdbcTemplate.execute("DELETE FROM skus");
-    jdbcTemplate.execute("DELETE FROM products");
-    jdbcTemplate.execute("DELETE FROM owner_nodes");
-    jdbcTemplate.execute("DELETE FROM owners");
-    jdbcTemplate.execute("DELETE FROM stock_locations");
-    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
+    SitDatabase.clear(jdbcTemplate);
   }
 
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
@@ -261,14 +251,22 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     assertThat(allocatedCount).isEqualTo(ON_HAND_QUANTITY);
     assertThat(backorderedCount).isEqualTo(TOTAL_ORDERS - ON_HAND_QUANTITY);
 
-    // 2) Reservation 結果：ACTIVE 筆數、總量都要精確等於庫存數，且 order_id 不重複——
+    // 2) 鎖定結果：明細筆數、總量都要精確等於庫存數，且 order_id 不重複——
     //    這是直接偵測「超賣」與「同一張訂單被重複建立 reservation」的斷言。
+    // 「還有效」不再是一個狀態欄位——**明細存在就代表鎖著**，釋放是刪除那一列。因此三個
+    // 查詢都不帶條件；少了那個 WHERE 正是這次遷移在這裡的全部內容。
+    //
+    // 區域變數仍叫 reservation：命名收斂集中在第四個 change，這裡動它會讓「斷言一字未改」
+    // 這件事變得難以核對。
     Integer activeReservationCount = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+        "SELECT count(*) FROM stock_move_lines", Integer.class);
     Integer activeReservationQuantity = jdbcTemplate.queryForObject(
-        "SELECT coalesce(sum(quantity), 0) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
-    Integer distinctReservedOrders = jdbcTemplate.queryForObject(
-        "SELECT count(DISTINCT order_line_id) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+        "SELECT coalesce(sum(quantity), 0) FROM stock_move_lines", Integer.class);
+    Integer distinctReservedOrders = jdbcTemplate.queryForObject("""
+        SELECT count(DISTINCT m.order_line_id)
+          FROM stock_move_lines ml
+          JOIN stock_moves m ON m.id = ml.move_id
+        """, Integer.class);
     assertThat(activeReservationCount).isEqualTo(ON_HAND_QUANTITY);
     assertThat(activeReservationQuantity).isEqualTo(ON_HAND_QUANTITY);
     assertThat(distinctReservedOrders).isEqualTo(ON_HAND_QUANTITY);

@@ -79,6 +79,10 @@ CREATE TABLE stock_picking_types (
 --
 -- **刻意沒有 version。** 沒有併發寫入 picking 的路徑。會被搶的是庫存列，樂觀鎖在那裡。
 --
+-- **刻意沒有 reference 與 scheduled_at。** 兩者都沒有讀者：沒有任何畫面顯示單據，而佇列的
+-- 排序用的是搬運的到達順序而不是排程日。Odoo 的 origin 與 scheduled_date 有讀者（作業畫面
+-- 與排程器），我們現在沒有那兩樣。等真的有單據畫面時再加，屆時它們會帶著讀取端一起進來。
+--
 -- 此外沒有：作業員（沒有現場作業）、波次（波次管理的是作業單，而還沒有作業）、backorder_id
 -- （分批出貨屬 R7）、列印與簽收（沒有作業文件）、move_type（ship-complete 恆等於「全備妥
 -- 才出」，一個永遠同值的欄位沒有讀者）。
@@ -100,9 +104,6 @@ CREATE TABLE stock_pickings (
     -- 這個虛擬位置。庫存是「持有」，搬運是「移動」，而移動的一端經常在公司之外。
     from_location_id UUID NOT NULL,
     to_location_id UUID NOT NULL,
-    -- 上游給的參照。不是本系統產生的單號。
-    reference VARCHAR(128),
-    scheduled_at TIMESTAMPTZ,
 
     CONSTRAINT fk_stock_pickings_type
         FOREIGN KEY (picking_type_id) REFERENCES stock_picking_types(id),
@@ -180,9 +181,17 @@ CREATE TABLE stock_moves (
     -- move」，而已完成的 move 也算有——少了它，R7 每一張已出貨的單都會重新變成待接手的需求，
     -- 而**那一刻不會有任何測試失敗**。與 stock_reservations.CONSUMED 當初的判斷相同。
     --
-    -- **沒有 WAITING（等上一段）**：沒有上一段。它與依賴關係表是同一件事的兩半，一起到來。
-    -- **沒有 PARTIALLY_AVAILABLE**：ship-complete 下整批配到或整批不配，部分可用不是一個
-    -- 會停留的狀態。
+    -- Odoo 的七個狀態取了四個，沒取的三個理由分成兩種：
+    --
+    -- 本系統的規則下**不可能發生**——
+    --   **沒有 WAITING（等上一段）**：沒有上一段。它與依賴關係表是同一件事的兩半，一起到來。
+    --   **沒有 PARTIALLY_AVAILABLE**：ship-complete 下整批配到或整批不配，部分可用不是一個
+    --   會停留的狀態。
+    --
+    -- 只是**現在還沒有**——
+    --   **沒有 DRAFT**：Odoo 有它是因為單據可以先組出來、編輯，再按下按鈕才確認；這裡的搬運
+    --   由收單事件建立，建立即已確認。出庫哪天要先起草再放行，這個值就得加回來——放寬 CHECK
+    --   不必動既有的列，所以現在不預留。
     CONSTRAINT ck_stock_moves_state
         CHECK (state IN ('CONFIRMED', 'ASSIGNED', 'DONE', 'CANCELLED')),
     -- 狀態與時間戳要對得上：還在等貨就不該有配到的時刻，配到了就該有。

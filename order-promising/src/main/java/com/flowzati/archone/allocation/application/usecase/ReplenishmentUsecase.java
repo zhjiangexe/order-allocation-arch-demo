@@ -11,7 +11,7 @@ import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.allocation.domain.model.Demand;
-import com.flowzati.archone.allocation.domain.repository.DemandRepository;
+import com.flowzati.archone.allocation.application.query.WaitingDemandFinder;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -45,7 +45,7 @@ public class ReplenishmentUsecase {
 
   private final Clock clock;
   private final InboxRepo inboxRepo;
-  private final DemandRepository demandRepository;
+  private final WaitingDemandFinder waitingDemandFinder;
   private final StockPoolRepository stockPoolRepository;
   private final OrderAllocationCoordinator allocationCoordinator;
   private final ApplicationEventPublisher eventPublisher;
@@ -56,7 +56,7 @@ public class ReplenishmentUsecase {
       Clock clock,
       BusinessCalendar businessCalendar,
       InboxRepo inboxRepo,
-      DemandRepository demandRepository,
+      WaitingDemandFinder waitingDemandFinder,
       StockPoolRepository stockPoolRepository,
       OrderAllocationCoordinator allocationCoordinator,
       ApplicationEventPublisher eventPublisher,
@@ -75,7 +75,7 @@ public class ReplenishmentUsecase {
     this.clock = clock;
     this.businessCalendar = businessCalendar;
     this.inboxRepo = inboxRepo;
-    this.demandRepository = demandRepository;
+    this.waitingDemandFinder = waitingDemandFinder;
     this.stockPoolRepository = stockPoolRepository;
     this.allocationCoordinator = allocationCoordinator;
     this.eventPublisher = eventPublisher;
@@ -172,8 +172,8 @@ public class ReplenishmentUsecase {
     //
     // 回的是整張單（含別的 SKU 的待配行），不是命中這個 SKU 的行：一張單整批配到或整批不配，
     // 而上限數的也是張數，兩者的維度因此一致。
-    List<Demand> backorders = demandRepository.findOutstandingDemandInFifoOrder(
-        ownerId, locationId, skuCode, wakeLimit);
+    List<Demand> backorders =
+        waitingDemandFinder.findWaiting(ownerId, locationId, skuCode, wakeLimit);
     if (backorders.isEmpty()) {
       return;
     }

@@ -15,6 +15,8 @@ import com.flowzati.archone.common.integration.IntegrationEvent;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.MovementFixtures;
+import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.nio.charset.StandardCharsets;
@@ -100,18 +102,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
 
   @AfterEach
   void clearDatabase() {
-    jdbcTemplate.execute("DELETE FROM event_outbox");
-    jdbcTemplate.execute("DELETE FROM event_inbox");
-    jdbcTemplate.execute("DELETE FROM stock_reservations");
-    jdbcTemplate.execute("DELETE FROM order_lines");
-    jdbcTemplate.execute("DELETE FROM orders");
-    jdbcTemplate.execute("DELETE FROM stock_pools");
-    jdbcTemplate.execute("DELETE FROM skus");
-    jdbcTemplate.execute("DELETE FROM products");
-    jdbcTemplate.execute("DELETE FROM owner_nodes");
-    jdbcTemplate.execute("DELETE FROM owners");
-    jdbcTemplate.execute("DELETE FROM stock_locations");
-    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
+    SitDatabase.clear(jdbcTemplate);
   }
 
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
@@ -232,7 +223,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     List<UUID> otherWarehouseOrders = new java.util.ArrayList<>();
     for (int i = 0; i < WAKE_LIMIT; i++) {
       UUID orderId = IdGenerator.nextId();
-      orderRepository.save(OrderFixtures.backorderedOrderAt(
+      MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, OrderFixtures.backorderedOrderAt(
           OrderFixtures.OTHER_NODE_ID, orderId, OrderFixtures.OWNER_ID, FIFO_SKU, 1,
           Instant.now().minusSeconds(7200), Instant.now().minusSeconds(7200)));
       otherWarehouseOrders.add(orderId);
@@ -270,7 +261,9 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     Instant backorderedAt = firstBackorderedAt.plusMillis(fifoPosition);
     Order order = OrderFixtures.backorderedOrder(
         orderId, FIFO_SKU, quantity, backorderedAt.minusSeconds(1), backorderedAt);
-    orderRepository.save(order);
+    // 訂單與它的作業單、還在等貨的搬運要一起寫——佇列讀的是搬運，只存訂單造出來的是一張
+    // 任何佇列都看不見的單。
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, order);
     return orderId;
   }
 
@@ -303,13 +296,21 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     assertThat(allocatedCount).isEqualTo(expected.allocated());
     assertThat(backorderedCount).isEqualTo(expected.backordered());
 
-    // 2) Reservation 結果：ACTIVE 筆數、總量都要精確等於這個階段累積補貨量，且 order_id 不重複。
+    // 2) 鎖定結果：明細筆數、總量都要精確等於這個階段累積補貨量，且 order_id 不重複。
+    // 「還有效」不再是一個狀態欄位——**明細存在就代表鎖著**，釋放是刪除那一列。因此三個
+    // 查詢都不帶條件；少了那個 WHERE 正是這次遷移在這裡的全部內容。
+    //
+    // 區域變數仍叫 reservation：命名收斂集中在第四個 change，這裡動它會讓「斷言一字未改」
+    // 這件事變得難以核對。
     Integer activeReservationCount = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+        "SELECT count(*) FROM stock_move_lines", Integer.class);
     Integer activeReservationQuantity = jdbcTemplate.queryForObject(
-        "SELECT coalesce(sum(quantity), 0) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
-    Integer distinctReservedOrders = jdbcTemplate.queryForObject(
-        "SELECT count(DISTINCT order_line_id) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class);
+        "SELECT coalesce(sum(quantity), 0) FROM stock_move_lines", Integer.class);
+    Integer distinctReservedOrders = jdbcTemplate.queryForObject("""
+        SELECT count(DISTINCT m.order_line_id)
+          FROM stock_move_lines ml
+          JOIN stock_moves m ON m.id = ml.move_id
+        """, Integer.class);
     assertThat(activeReservationCount).isEqualTo(expected.reservationCount());
     assertThat(activeReservationQuantity).isEqualTo(expected.reservationQuantity());
     assertThat(distinctReservedOrders).isEqualTo(expected.reservationCount());

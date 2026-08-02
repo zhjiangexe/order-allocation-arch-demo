@@ -3,6 +3,7 @@ package com.flowzati.archone.bootstrap;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,16 +31,7 @@ class DevSeedDataProfileIntegrationTest {
 
   @AfterEach
   void clearDatabase() {
-    jdbcTemplate.execute("DELETE FROM stock_reservations");
-    jdbcTemplate.execute("DELETE FROM order_lines");
-    jdbcTemplate.execute("DELETE FROM orders");
-    jdbcTemplate.execute("DELETE FROM stock_pools");
-    jdbcTemplate.execute("DELETE FROM skus");
-    jdbcTemplate.execute("DELETE FROM products");
-    jdbcTemplate.execute("DELETE FROM owner_nodes");
-    jdbcTemplate.execute("DELETE FROM owners");
-    jdbcTemplate.execute("DELETE FROM stock_locations");
-    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
+    SitDatabase.clear(jdbcTemplate);
   }
 
   @Test

@@ -212,6 +212,14 @@ class StockMovementSchemaIntegrationTest {
     }
 
     @Test
+    @DisplayName("picking 沒有參照與排程日——兩者都沒有讀者")
+    void carriesNoUnreadFields() {
+      // 沒有任何畫面顯示單據，佇列的排序也用搬運的到達順序而不是排程日。等真的有單據畫面
+      // 時再加，屆時它們會帶著讀取端一起進來。
+      assertThat(columnNames("stock_pickings")).doesNotContain("reference", "scheduled_at");
+    }
+
+    @Test
     @DisplayName("move 沒有 previous_move_id——線性假設不進 schema")
     void doesNotChainMovesLinearly() {
       // 一筆補貨支撐多個下游、多來源匯入一個下游、拆分與部分完成，任何一個出現都會讓
@@ -297,9 +305,9 @@ class StockMovementSchemaIntegrationTest {
         Date.valueOf(LocalDate.of(2026, 1, 1)), Date.valueOf(LocalDate.of(2027, 1, 1)));
     jdbcTemplate.update(
         "INSERT INTO stock_pickings (id, picking_type_id, owner_id, order_id, from_location_id, "
-            + "to_location_id, reference, scheduled_at) VALUES (?, ?, ?, ?, ?, ?, 'EXT-1', ?)",
+            + "to_location_id) VALUES (?, ?, ?, ?, ?, ?)",
         pickingId(), PICKING_TYPE_ID, OWNER_ID, ORDER_ID, INTERNAL_LOCATION_ID,
-        CUSTOMER_LOCATION_ID, Timestamp.from(Instant.now()));
+        CUSTOMER_LOCATION_ID);
   }
 
   private void insertPickingType(UUID id, String code, UUID from, UUID to) {

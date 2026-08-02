@@ -1,11 +1,11 @@
 package com.flowzati.archone.allocation.application.coordinator;
 
 import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.allocation.domain.model.ReservationStatus;
+import com.flowzati.archone.allocation.domain.model.StockMove;
+import com.flowzati.archone.allocation.domain.model.StockMoveLine;
 import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.model.StockReservation;
+import com.flowzati.archone.allocation.domain.repository.StockMoveRepository;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.domain.service.AllocationOutcome;
 import com.flowzati.archone.allocation.domain.service.AllocationResult;
 import com.flowzati.archone.allocation.domain.service.AllocationService;
@@ -25,9 +25,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
- * 應用層服務：負責 StockPool 與 StockReservation 的分配流程協調與持久化。
+ * 應用層服務：負責庫存與搬運的配貨流程協調與持久化。
  *
  * <p><b>不碰訂單聚合根。</b>配貨結果以領域事件陳述，由 ordering 收到對外事件後自己推進狀態。
  */
@@ -53,17 +54,17 @@ public class OrderAllocationCoordinator {
 
   private final AllocationService allocationService;
   private final StockPoolRepository stockPoolRepository;
-  private final StockReservationRepository stockReservationRepository;
+  private final StockMoveRepository stockMoveRepository;
   private final ApplicationEventPublisher eventPublisher;
 
   public OrderAllocationCoordinator(
       AllocationService allocationService,
       StockPoolRepository stockPoolRepository,
-      StockReservationRepository stockReservationRepository,
+      StockMoveRepository stockMoveRepository,
       ApplicationEventPublisher eventPublisher) {
     this.allocationService = allocationService;
     this.stockPoolRepository = stockPoolRepository;
-    this.stockReservationRepository = stockReservationRepository;
+    this.stockMoveRepository = stockMoveRepository;
     this.eventPublisher = eventPublisher;
   }
 
@@ -75,9 +76,8 @@ public class OrderAllocationCoordinator {
       return result.outcome();
     }
 
-    OrderAllocation allocation = new OrderAllocation(demand, result.picks());
-    List<StockReservation> reservations = reservationsFor(allocation, now);
-    persistAllocation(result.picks(), reservations);
+    AssignedMoves assignMoves = assign(result.picks(), now);
+    persistAllocation(result.picks(), assignMoves, now);
     publishAllocationCompleted(demand.orderId(), now);
     return AllocationOutcome.ALLOCATED;
   }
@@ -93,37 +93,42 @@ public class OrderAllocationCoordinator {
   }
 
   /**
-   * 釋放一張單的所有有效預留。
+   * 取消一張單的搬運，把鎖住的量還給庫存。
    *
-   * <p>參數是清單而不是單筆：一條行跨三批就有三筆預留，只釋放其中一筆會讓其餘批的量永遠鎖
-   * 在那裡，而且不會有任何錯誤浮現——庫存看起來只是「莫名其妙少了一些」。
+   * <p>參數是清單而不是單筆：一條行跨三批就有三條明細，只放其中一條會讓其餘批的量永遠鎖在
+   * 那裡，而且不會有任何錯誤浮現——庫存看起來只是「莫名其妙少了一些」。
+   *
+   * <p><b>明細是刪除，不是標記為已釋放。</b>一條被釋放的明細不表達任何事實：貨沒有動，也
+   * 沒有被鎖住。留著它等於讓每個讀取端都要記得過濾。釋放的歷史留在搬運的狀態上。
    */
-  public boolean releaseReservations(
-      List<StockReservation> reservations,
+  public boolean releaseMoves(
+      List<StockMove> moves,
+      List<StockMoveLine> lines,
       Map<UUID, StockPool> batchesById,
       Instant releasedAt
   ) {
-    List<StockReservation> released = new ArrayList<>();
     Map<UUID, StockPool> touched = new LinkedHashMap<>();
-    for (StockReservation reservation : reservations) {
-      StockPool batch = batchesById.get(reservation.getStockPoolId());
+    for (StockMoveLine line : lines) {
+      StockPool batch = batchesById.get(line.stockPoolId());
       if (batch == null) {
         throw new IllegalArgumentException(
-            "Stock pool not supplied for reservation " + reservation.getId());
+            "Stock pool not supplied for move line " + line.id());
       }
-      if (release(reservation, batch, releasedAt)) {
-        released.add(reservation);
-        touched.put(batch.getId(), batch);
+      if (line.quantity() > batch.getReservedQuantity()) {
+        throw new IllegalArgumentException("Quantity to release cannot exceed reserved quantity");
       }
+      batch.release(line.quantity());
+      touched.put(batch.getId(), batch);
     }
-    if (released.isEmpty()) {
+
+    List<StockMove> cancelled = moves.stream().filter(StockMove::cancel).toList();
+    if (cancelled.isEmpty() && touched.isEmpty()) {
       return false;
     }
 
     saveInWriteOrder(touched.values());
-    released.stream()
-        .sorted(Comparator.comparing(StockReservation::getId))
-        .forEach(stockReservationRepository::save);
+    stockMoveRepository.deleteLinesOf(cancelled.stream().map(StockMove::getId).toList());
+    stockMoveRepository.saveAll(cancelled);
     return true;
   }
 
@@ -141,85 +146,65 @@ public class OrderAllocationCoordinator {
     List<Demand> allocated = allocations.stream().map(OrderAllocation::demand).toList();
     List<BatchPick> picks = allocations.stream().flatMap(a -> a.picks().stream()).toList();
 
-    // 逐 allocation 建預留，因為每一筆預留要記下它屬於哪一張單——而那個對應只有在還沒把
-    // picks 攤平之前看得到。攤平後的 picks 只用來決定要寫哪些批。
-    List<StockReservation> reservations = allocations.stream()
-        .flatMap(allocation -> reservationsFor(allocation, now).stream())
-        .toList();
-
-    persistAllocation(picks, reservations);
+    persistAllocation(picks, assign(picks, now), now);
     allocated.forEach(demand -> publishAllocationCompleted(demand.orderId(), now));
     return allocated;
   }
 
   /**
-   * 一個 pick 一筆預留——粒度是訂單行 × 批次。
+   * 把配到貨的那些搬運轉為已鎖定，並寫出「從哪一批取用」的明細。
    *
-   * <p>{@link BatchPick} 已經是這個粒度，所以這裡是一對一的映射；把它摺成一張單一筆會在這裡
-   * 就丟掉「哪一批是為哪一條行鎖的」，而出貨時要的正是那個資訊。
+   * <p>粒度是**訂單行 × 批**——{@link BatchPick} 已經是這個粒度，所以明細與它一對一。摺成
+   * 一條行一列會丟掉「哪一批是為哪一條行鎖的」，而出貨時要的正是那個資訊。
+   *
+   * <p>搬運在收單時就已經建立（狀態為「還在等貨」），這裡只是轉狀態——**不是新建**。找不到
+   * 對應的搬運代表配貨演算法收到了一筆沒有搬運的需求，而那不該發生：需求本來就是從搬運投影
+   * 出來的。
    */
-  private List<StockReservation> reservationsFor(OrderAllocation allocation, Instant now) {
-    return allocation.picks().stream()
-        .map(pick -> StockReservation.create(
-            IdGenerator.nextId(),
-            allocation.demand().orderId(),
-            pick.orderLineId(),
-            pick.batch().getId(),
-            pick.quantity(),
-            now))
-        .toList();
+  private AssignedMoves assign(List<BatchPick> picks, Instant now) {
+    Map<UUID, StockMove> movesByLine = stockMoveRepository
+        .findByOrderLineIds(picks.stream().map(BatchPick::orderLineId).distinct().toList())
+        .stream()
+        .collect(Collectors.toMap(StockMove::getOrderLineId, move -> move, (a, b) -> a));
+
+    List<StockMoveLine> lines = new ArrayList<>();
+    Map<UUID, StockMove> touched = new LinkedHashMap<>();
+    for (BatchPick pick : picks) {
+      StockMove move = movesByLine.get(pick.orderLineId());
+      if (move == null) {
+        throw new IllegalStateException(
+            "No movement exists for order line " + pick.orderLineId());
+      }
+      move.assign(now);
+      touched.put(move.getId(), move);
+      lines.add(new StockMoveLine(
+          IdGenerator.nextId(), move.getId(), pick.batch().getId(), pick.quantity()));
+    }
+    return new AssignedMoves(List.copyOf(touched.values()), List.copyOf(lines));
+  }
+
+  private record AssignedMoves(List<StockMove> moves, List<StockMoveLine> lines) {
   }
 
   /**
-   * 只寫 allocation 自己的兩張表。
+   * 只寫 allocation 自己的表。
    *
    * <p>訂單不在這裡寫，也不在別處寫：配貨結果經事件送回 ordering。因此這個交易只碰
-   * {@code stock_pools} 與 {@code stock_reservations}。
+   * {@code stock_pools}、{@code stock_moves} 與 {@code stock_move_lines}。
+   *
+   * <p>庫存先寫、搬運後寫：庫存是會被搶的那一組列，先把它們鎖起來能縮短其他交易等待的窗口。
    */
-  private void persistAllocation(List<BatchPick> picks, List<StockReservation> reservations) {
+  private void persistAllocation(List<BatchPick> picks, AssignedMoves assigned, Instant now) {
     Map<UUID, StockPool> touched = new LinkedHashMap<>();
     picks.forEach(pick -> touched.put(pick.batch().getId(), pick.batch()));
 
     saveInWriteOrder(touched.values());
-    reservations.stream()
-        .sorted(Comparator.comparing(StockReservation::getId))
-        .forEach(stockReservationRepository::save);
+    stockMoveRepository.saveAll(assigned.moves());
+    stockMoveRepository.saveLines(assigned.lines());
   }
 
   private void saveInWriteOrder(Collection<StockPool> batches) {
     batches.stream().sorted(WRITE_ORDER).forEach(stockPoolRepository::save);
-  }
-
-  private boolean release(
-      StockReservation reservation,
-      StockPool stockPool,
-      Instant releasedAt
-  ) {
-    if (reservation == null) {
-      throw new IllegalArgumentException("Reservation is required");
-    }
-    if (stockPool == null) {
-      throw new IllegalArgumentException("Stock pool is required");
-    }
-    if (!reservation.getStockPoolId().equals(stockPool.getId())) {
-      throw new IllegalArgumentException("Reservation does not belong to stock pool");
-    }
-    if (reservation.getStatus() == ReservationStatus.RELEASED) {
-      return false;
-    }
-    if (releasedAt == null) {
-      throw new IllegalArgumentException("Released time is required");
-    }
-    if (releasedAt.isBefore(reservation.getReservedAt())) {
-      throw new IllegalArgumentException("Released time cannot be before reserved time");
-    }
-    if (reservation.getQuantity() > stockPool.getReservedQuantity()) {
-      throw new IllegalArgumentException("Quantity to release cannot exceed reserved quantity");
-    }
-
-    reservation.release(releasedAt);
-    stockPool.release(reservation.getQuantity());
-    return true;
   }
 
   /**

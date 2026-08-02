@@ -37,7 +37,6 @@ public final class DemandMapper {
           first.getOrderId(),
           first.getOwnerId(),
           first.getLocationId(),
-          first.getReceivedAt(),
           orderRows.stream().map(DemandMapper::toLine).toList()));
     }
     return List.copyOf(demands);

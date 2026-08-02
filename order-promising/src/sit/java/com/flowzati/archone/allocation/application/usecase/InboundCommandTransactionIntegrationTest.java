@@ -6,11 +6,7 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.allocation.application.command.ReleaseReservationCommand;
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
-import com.flowzati.archone.allocation.domain.model.ReservationStatus;
-import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
 import com.flowzati.archone.common.inbox.MessageMetadata;
@@ -18,6 +14,8 @@ import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRep
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.MovementFixtures;
+import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;
@@ -62,9 +60,6 @@ class InboundCommandTransactionIntegrationTest {
   private StockPoolRepository stockPoolRepository;
 
   @Autowired
-  private StockReservationRepository stockReservationRepository;
-
-  @Autowired
   private JpaEventInboxRepository inboxRepository;
 
   @Autowired
@@ -75,18 +70,7 @@ class InboundCommandTransactionIntegrationTest {
 
   @AfterEach
   void clearDatabase() {
-    jdbcTemplate.execute("DELETE FROM event_outbox");
-    jdbcTemplate.execute("DELETE FROM event_inbox");
-    jdbcTemplate.execute("DELETE FROM stock_reservations");
-    jdbcTemplate.execute("DELETE FROM order_lines");
-    jdbcTemplate.execute("DELETE FROM orders");
-    jdbcTemplate.execute("DELETE FROM stock_pools");
-    jdbcTemplate.execute("DELETE FROM skus");
-    jdbcTemplate.execute("DELETE FROM products");
-    jdbcTemplate.execute("DELETE FROM owner_nodes");
-    jdbcTemplate.execute("DELETE FROM owners");
-    jdbcTemplate.execute("DELETE FROM stock_locations");
-    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
+    SitDatabase.clear(jdbcTemplate);
   }
 
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
@@ -111,104 +95,116 @@ class InboundCommandTransactionIntegrationTest {
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
-    assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_reservations", Integer.class))
-        .isEqualTo(1);
+    // 一張作業單、一段已鎖定的搬運、一條明細——三者要在同一次 commit 裡一起出現。
+    assertThat(count("stock_pickings")).isEqualTo(1);
+    assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
+    assertThat(MovementFixtures.heldBy(jdbcTemplate, orderId)).hasSize(1);
     assertThat(outboxRepository.count()).isEqualTo(1);
   }
 
   @Test
-  @DisplayName("配置業務失敗時應回滾 Inbox claim 與 Order 狀態")
+  @DisplayName("配貨業務失敗時應回滾 Inbox claim，且不留下半張作業單")
   void shouldRollBackInboxClaimWhenBusinessHandlingFails() {
     UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    // 以**資料庫的 unique constraint** 逼出失敗：uq_stock_reservations_line_pool 不允許同一條
-    // 行對同一批有第二筆預留。先塞一筆 RELEASED 的，配貨要建新預留時就會撞上。
-    //
-    // RELEASED 是關鍵：demand_lines 的「已滿足」謂詞是 ACTIVE／CONSUMED，所以這條行仍然出現
-    // 在待配需求裡，配貨會走完整條路徑直到寫入才失敗——那正是要驗回滾的位置。
-    //
-    // **失敗來源換過兩次了。** 最早是「查無庫存池」，分批之後那變成缺貨（正常結果，不拋錯）；
-    // 接著改用「下單時間在未來」讓 markAllocated 拒絕，而配貨現在根本不呼叫那個方法——訂單
-    // 狀態由 ordering 收到事件後自己推進。兩次都不是壞在測試身上，是它依賴的檢查搬走了。
-    // 資料庫約束不會這樣消失：它與配貨的實作無關，只要預留還是「一條行對一批一筆」就成立。
-    Order pending = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now().minusSeconds(1));
-    orderRepository.save(pending);
+    orderRepository.save(
+        OrderFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now().minusSeconds(1)));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 0));
-    stockReservationRepository.save(StockReservation.rehydrate(
-        IdGenerator.nextId(), orderId, pending.getLines().getFirst().getId(), stockPoolId, 3,
-        ReservationStatus.RELEASED, Instant.now().minusSeconds(2), Instant.now().minusSeconds(1),
-        null));
+
+    // **失敗來源換過三次了，而這一次的理由與前兩次不同。**
+    //
+    // 最早是「查無庫存池」，分批之後那變成缺貨（正常結果，不拋錯）；接著改用「下單時間在未來」
+    // 讓 markAllocated 拒絕，而配貨已經不呼叫那個方法；再來改用預留的 unique constraint。
+    // 前兩次都是「它依賴的檢查搬走了」。
+    //
+    // 這一次不是搬走，是**沒有了**：收單即建搬運之後，配貨這個交易寫的全是**當場產生 id 的
+    // 新列**（作業單、搬運、明細），資料庫裡沒有任何既有的列能與它衝突。因此改用一個業務
+    // 前提：倉必須有出庫作業類型。它由 spec 保證，不會隨配貨的實作改變。
+    jdbcTemplate.update(
+        "DELETE FROM stock_picking_types WHERE warehouse_id = ?", OrderFixtures.NODE_ID);
 
     assertThatThrownBy(() -> allocateOrderUsecase.handle(inbound(orderId, eventId)))
-        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("has no outbound operation type");
 
     // 失敗發生在 inbox claim 之後，所以那筆 claim 必須跟著回滾——否則重送會被當成重複而丟棄，
-    // 那張單就永遠停在 PENDING。
+    // 那張單就永遠停在 PENDING 且沒有任何搬運。
     assertThat(inboxRepository.findById(eventId)).isEmpty();
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
-    // 只剩那筆預先塞的 RELEASED——配貨要建的那筆隨交易一起回滾了。
-    assertThat(jdbcTemplate.queryForObject(
-        "SELECT COUNT(*) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class)).isZero();
+    assertThat(count("stock_pickings")).isZero();
+    assertThat(count("stock_moves")).isZero();
   }
 
   @Test
-  @DisplayName("釋放 Reservation 失敗時應回滾 Inbox 與庫存狀態")
-  void shouldRollBackInboxClaimWhenReservationReleaseFails() {
+  @DisplayName("釋放失敗時應回滾 Inbox 與庫存，鎖住的量原封不動")
+  void shouldRollBackInboxClaimWhenReleaseFails() {
     UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
-    UUID reservationId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    Instant reservedAt = Instant.now().plusSeconds(60);
+    Instant allocatedAt = Instant.now().minusSeconds(1);
     Order order = OrderFixtures.allocatedOrder(
-        orderId, "SKU-1", 3, reservedAt.minusSeconds(1), reservedAt);
+        orderId, "SKU-1", 3, allocatedAt.minusSeconds(1), allocatedAt);
     orderRepository.save(order);
-    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 3, 3));
-    // 預留指向**行**而不是訂單：外鍵是 fk_stock_reservations_order_line。
-    stockReservationRepository.save(StockReservation.create(
-        reservationId,
-        orderId, order.getLines().get(0).getId(), stockPoolId, 3, reservedAt));
+    // 批只鎖了 2 件，明細卻說鎖了 3 件——釋放時 StockPool 會拒絕，因為那會讓預留量變成負的。
+    //
+    // 這是刻意造出來的不一致：正常路徑產不出它（配貨同時寫兩邊）。但要驗的是**交易邊界**，
+    // 失敗注入本來就得從外面塞。
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 2));
+    MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockPoolId, 3);
 
     assertThatThrownBy(() -> releaseReservationUsecase.handle(new InboundCommand<>(
         new ReleaseReservationCommand(orderId),
         new MessageMetadata(eventId, "OrderCancelledIntegrationEvent"))))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Released time cannot be before reserved time");
+        .hasMessage("Quantity to release cannot exceed reserved quantity");
 
     assertThat(inboxRepository.findById(eventId)).isEmpty();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
-        assertThat(pool.getReservedQuantity()).isEqualTo(3));
-    assertThat(activeReservationsOf(orderId)).singleElement().satisfies(reservation ->
-        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE));
+        assertThat(pool.getReservedQuantity()).isEqualTo(2));
+    // 搬運與明細都必須原封不動——一段已取消的搬運配著沒被刪的明細，是最難查的一種狀態。
+    assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
+    assertThat(MovementFixtures.heldBy(jdbcTemplate, orderId)).singleElement()
+        .satisfies(held -> assertThat(held.quantity()).isEqualTo(3));
   }
 
   @Test
-  @DisplayName("補貨配置失敗時應回滾 Inbox、庫存、訂單與 Reservation")
+  @DisplayName("補貨配置失敗時應回滾 Inbox、庫存與搬運")
   void shouldRollBackInboxClaimWhenReplenishmentAllocationFails() {
     UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    // 失敗來源同上一支：預留的 unique constraint，而不是任何配貨層的檢查。理由見那裡。
     Instant receivedAt = Instant.now().minusSeconds(60);
-    Order queued = OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt);
-    orderRepository.save(queued);
+    Order queued = MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate,
+        OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 0, 0));
-    stockReservationRepository.save(StockReservation.rehydrate(
-        IdGenerator.nextId(), orderId, queued.getLines().getFirst().getId(), stockPoolId, 3,
-        ReservationStatus.RELEASED, receivedAt, receivedAt.plusSeconds(1), null));
+
+    // 失敗來源：`uq_stock_move_lines_move_pool`。先替這張單那段還在等貨的搬運塞一條指向同一
+    // 批的明細，補貨喚醒配到貨、要寫明細時就會撞上。
+    //
+    // **這條路在上一支測試已經走不通了**（那裡的搬運是當場建的，id 事先不存在）；補貨這裡
+    // 還在，正是因為搬運早在收單時就建好了。
+    jdbcTemplate.update("""
+        INSERT INTO stock_move_lines (id, move_id, stock_pool_id, quantity)
+        SELECT ?, m.id, ?, 3
+          FROM stock_moves m
+          JOIN stock_pickings p ON p.id = m.picking_id
+         WHERE p.order_id = ?
+        """, IdGenerator.nextId(), stockPoolId, queued.getId());
 
     assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(
         new ReplenishStockCommand(
-            com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID,
-            com.flowzati.archone.testsupport.OrderFixtures.NODE_ID,
-            com.flowzati.archone.testsupport.OrderFixtures.LOCATION_ID, "SKU-1",
+            OrderFixtures.OWNER_ID,
+            OrderFixtures.NODE_ID,
+            OrderFixtures.LOCATION_ID, "SKU-1",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3),
         new MessageMetadata(eventId, "StockReplenishedIntegrationEvent"))))
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
     assertThat(inboxRepository.findById(eventId)).isEmpty();
+    // 補進去的 3 件也要回滾——庫存的加法與喚醒在同一個交易裡，那正是 FIFO 的實作機制。
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isZero();
       assertThat(pool.getReservedQuantity()).isZero();
@@ -216,11 +212,8 @@ class InboundCommandTransactionIntegrationTest {
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
-    // 只數 ACTIVE：預先塞的那筆 RELEASED 是失敗注入的裝置，本來就該留著。配貨要建的那筆
-    // 隨交易一起回滾了。
-    assertThat(jdbcTemplate.queryForObject(
-        "SELECT COUNT(*) FROM stock_reservations WHERE status = 'ACTIVE'", Integer.class))
-        .isZero();
+    // 搬運仍在等貨——它沒有被那次失敗的喚醒轉成已鎖定。
+    assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("CONFIRMED");
   }
 
   private InboundCommand<AllocateOrderCommand> inbound(UUID orderId, UUID eventId) {
@@ -229,15 +222,8 @@ class InboundCommandTransactionIntegrationTest {
         new MessageMetadata(eventId, "OrderPlacedIntegrationEvent"));
   }
 
-  /**
-   * 這張單目前還有效的預留。
-   *
-   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
-   * {@code ReleaseReservationUsecase} 走同一條路。
-   */
-  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
-      activeReservationsOf(java.util.UUID orderId) {
-    return stockReservationRepository.findActiveByOrderId(orderId);
+  private int count(String table) {
+    return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
   }
 
   /**

@@ -4,12 +4,14 @@ import com.flowzati.archone.allocation.application.command.ReplenishStockCommand
 import com.flowzati.archone.allocation.application.coordinator.OrderAllocationCoordinator;
 import com.flowzati.archone.allocation.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
-import com.flowzati.archone.allocation.domain.model.ReservationStatus;
+import com.flowzati.archone.allocation.application.query.WaitingDemandFinder;
+import com.flowzati.archone.allocation.domain.model.MoveState;
+import com.flowzati.archone.allocation.domain.model.StockMove;
+import com.flowzati.archone.allocation.domain.model.StockMoveLine;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.model.StockFixtures;
-import com.flowzati.archone.allocation.domain.model.StockReservation;
+import com.flowzati.archone.allocation.domain.repository.StockMoveRepository;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.allocation.domain.service.AllocationService;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
@@ -20,8 +22,8 @@ import com.flowzati.archone.allocation.domain.model.Demand;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.event.OrderAllocated;
-import com.flowzati.archone.allocation.domain.repository.DemandRepository;
 import com.flowzati.archone.testsupport.DemandFixtures;
+import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +35,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,8 +66,8 @@ class ReplenishmentUsecaseTest {
   private final LocalDate today = LocalDate.of(2026, 7, 22);
 
   private StockPoolRepository stockPoolRepository;
-  private DemandRepository demandRepository;
-  private StockReservationRepository stockReservationRepository;
+  private WaitingDemandFinder waitingDemandFinder;
+  private StockMoveRepository stockMoveRepository;
   private InboxRepo inboxRepo;
   private ApplicationEventPublisher eventPublisher;
   private ReplenishmentUsecase replenishmentUsecase;
@@ -71,15 +75,15 @@ class ReplenishmentUsecaseTest {
   @BeforeEach
   void setUp() {
     stockPoolRepository = mock(StockPoolRepository.class);
-    demandRepository = mock(DemandRepository.class);
-    stockReservationRepository = mock(StockReservationRepository.class);
+    waitingDemandFinder = mock(WaitingDemandFinder.class);
+    stockMoveRepository = mock(StockMoveRepository.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
     inboxRepo = mock(InboxRepo.class);
 
     OrderAllocationCoordinator coordinator = new OrderAllocationCoordinator(
         new AllocationService(),
         stockPoolRepository,
-        stockReservationRepository,
+        stockMoveRepository,
         eventPublisher
     );
 
@@ -87,7 +91,7 @@ class ReplenishmentUsecaseTest {
         Clock.fixed(fixedNow, ZoneId.of("UTC")),
         new BusinessCalendar(Clock.fixed(fixedNow, ZoneId.of("UTC")), "Asia/Taipei"),
         inboxRepo,
-        demandRepository,
+        waitingDemandFinder,
         stockPoolRepository,
         coordinator,
         eventPublisher,
@@ -154,19 +158,20 @@ class ReplenishmentUsecaseTest {
 
     verify(inboxRepo).claimIfNew(message(eventId));
     verify(eventPublisher).publishEvent(allocationCompletedFor(backorderedDemand));
-    ArgumentCaptor<StockReservation> reservationCaptor =
-        ArgumentCaptor.forClass(StockReservation.class);
-    verify(stockReservationRepository).save(reservationCaptor.capture());
 
     assertThat(batch.availableToPromise()).isEqualTo(5); // 0 + 10 - 5 = 5
-    assertThat(reservationCaptor.getValue()).satisfies(reservation -> {
-      assertThat(reservation.getOrderLineId())
-          .isEqualTo(backorderedDemand.lines().getFirst().orderLineId());
-      assertThat(reservation.getStockPoolId()).isEqualTo(batch.getId());
-      assertThat(reservation.getQuantity()).isEqualTo(5);
-      assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
-      assertThat(reservation.getReservedAt()).isEqualTo(fixedNow);
-    });
+
+    // 喚醒不新建搬運，只把等著的那一段轉成已鎖定——它在收單時就存在了。
+    StockMove woken = savedMoves().getFirst();
+    assertThat(woken.getState()).isEqualTo(MoveState.ASSIGNED);
+    assertThat(woken.getAssignedAt()).isEqualTo(fixedNow);
+    assertThat(woken.getOrderLineId())
+        .isEqualTo(backorderedDemand.lines().getFirst().orderLineId());
+
+    StockMoveLine line = savedLines().getFirst();
+    assertThat(line.moveId()).isEqualTo(woken.getId());
+    assertThat(line.stockPoolId()).isEqualTo(batch.getId());
+    assertThat(line.quantity()).isEqualTo(5);
   }
 
   @Test
@@ -190,7 +195,8 @@ class ReplenishmentUsecaseTest {
     // 正是 head-of-line blocking 的內容：它沒有被跳過去換後面配得到的單。
     verify(eventPublisher).publishEvent(allocationCompletedFor(first));
     verify(eventPublisher, never()).publishEvent(allocationCompletedFor(blocked));
-    verify(stockReservationRepository).save(any(StockReservation.class));
+    // 只有配到的那一張留下明細——被卡住的那張連一條都沒有。
+    assertThat(savedLines()).hasSize(1);
   }
 
   @Test
@@ -208,7 +214,8 @@ class ReplenishmentUsecaseTest {
     verify(stockPoolRepository).save(batch);
     assertThat(batch.availableToPromise()).isEqualTo(10);
     verify(eventPublisher, never()).publishEvent(any(OrderAllocationCompleted.class));
-    verify(stockReservationRepository, never()).save(any());
+    verify(stockMoveRepository, never()).saveAll(any());
+    verify(stockMoveRepository, never()).saveLines(any());
     verify(eventPublisher, never()).publishEvent(any());
   }
 
@@ -277,8 +284,7 @@ class ReplenishmentUsecaseTest {
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(inboxRepo).claimIfNew(message(eventId));
-    verifyNoInteractions(
-        stockPoolRepository, stockReservationRepository, eventPublisher);
+    verifyNoInteractions(stockPoolRepository, stockMoveRepository, eventPublisher);
   }
 
   @Test
@@ -295,7 +301,7 @@ class ReplenishmentUsecaseTest {
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(stockPoolRepository).save(any(StockPool.class));
-    verifyNoInteractions(demandRepository, stockReservationRepository, eventPublisher);
+    verifyNoInteractions(waitingDemandFinder, stockMoveRepository, eventPublisher);
   }
 
   private void givenIdentityMatch(StockPool batch) {
@@ -316,9 +322,41 @@ class ReplenishmentUsecaseTest {
         .thenReturn(java.util.Map.of(SKU, batches));
   }
 
+  /**
+   * 佇列裡的單，以及它們各自那一段還在等貨的搬運。
+   *
+   * <p>兩者要一起 stub：佇列本來就是**從搬運投影出來的**，配貨接著會去找同一批搬運把它們轉成
+   * 已鎖定。只給前者的話，配貨會在找不到搬運時拋錯——而那個錯是對的。
+   */
   private void givenBackorders(List<Demand> demands) {
-    when(demandRepository.findOutstandingDemandInFifoOrder(
+    when(waitingDemandFinder.findWaiting(
         OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, WAKE_LIMIT)).thenReturn(demands);
+
+    List<StockMove> moves = new ArrayList<>();
+    demands.forEach(demand -> {
+      UUID pickingId = IdGenerator.nextId();
+      demand.lines().forEach(line -> moves.add(MovementFixtures.waitingMove(
+          pickingId, line.skuCode(), line.orderLineId(), line.quantity(),
+          fixedNow.minusSeconds(2))));
+    });
+    when(stockMoveRepository.findByOrderLineIds(any())).thenAnswer(invocation -> {
+      java.util.Collection<?> ids = invocation.getArgument(0);
+      return moves.stream().filter(move -> ids.contains(move.getOrderLineId())).toList();
+    });
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<StockMove> savedMoves() {
+    ArgumentCaptor<Collection<StockMove>> captor = ArgumentCaptor.forClass(Collection.class);
+    verify(stockMoveRepository).saveAll(captor.capture());
+    return List.copyOf(captor.getValue());
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<StockMoveLine> savedLines() {
+    ArgumentCaptor<Collection<StockMoveLine>> captor = ArgumentCaptor.forClass(Collection.class);
+    verify(stockMoveRepository).saveLines(captor.capture());
+    return List.copyOf(captor.getValue());
   }
 
   /**
@@ -328,8 +366,7 @@ class ReplenishmentUsecaseTest {
    * 是 {@code OrderAllocationCompleted} 事件，見 {@link #allocationCompletedFor}。
    */
   private Demand backorderedDemand(int quantity) {
-    return DemandFixtures.demand(
-        IdGenerator.nextId(), SKU, quantity, fixedNow.minusSeconds(2));
+    return DemandFixtures.demand(IdGenerator.nextId(), SKU, quantity);
   }
 
   /** 這筆需求配到了——由事件斷言，那是配貨對外唯一的陳述。 */

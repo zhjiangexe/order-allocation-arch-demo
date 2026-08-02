@@ -1,6 +1,5 @@
 package com.flowzati.archone.allocation.domain.model;
 
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,9 +19,9 @@ import java.util.UUID;
  * <p><b>刻意不帶狀態。</b>ordering 的配貨狀態落後於 allocation 的決策（它由事件推進），拿它
  * 當閘門會讓同一筆需求被預留兩次。
  *
- * <p><b>{@code receivedAt} 不是排序鍵。</b>佇列的順序由 {@code orderId} 決定（UUID v7，時間
- * 戳編在主鍵裡，等於到達順序）。帶著 {@code receivedAt} 是為了讓 policy 與畫面說得出「這張單
- * 等了多久」，那是值得顯示的事實，但排序另有其人。
+ * <p><b>沒有時間戳。</b>佇列的順序由到達順序決定（主鍵是 UUID v7，時間編在裡面），而
+ * 「這張單等多久了」現在由搬運的 {@code createdAt} 回答——那是執行層自己的資料，不必從
+ * 需求這一側複製一份過來。
  *
  * <p><b>{@code lines} 是這張單「還欠」的全部行，不是命中某個 SKU 的那些。</b>一張單整批配到
  * 或整批不配（ship-complete），所以決策需要看見它的每一條行；只給命中該 SKU 的行，就無從判斷
@@ -32,7 +31,6 @@ public record Demand(
     UUID orderId,
     UUID ownerId,
     UUID locationId,
-    Instant receivedAt,
     List<DemandLine> lines
 ) {
 
@@ -45,9 +43,6 @@ public record Demand(
     }
     if (locationId == null) {
       throw new IllegalArgumentException("Fulfillment node ID is required");
-    }
-    if (receivedAt == null) {
-      throw new IllegalArgumentException("Received time is required");
     }
     if (lines == null || lines.isEmpty()) {
       throw new IllegalArgumentException("Demand must contain at least one line");

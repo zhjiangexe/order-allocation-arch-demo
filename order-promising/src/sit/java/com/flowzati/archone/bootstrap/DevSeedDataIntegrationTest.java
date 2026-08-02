@@ -8,12 +8,12 @@ import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
 import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.allocation.domain.model.ReservationStatus;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.MovementFixtures;
+import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,10 +46,7 @@ class DevSeedDataIntegrationTest {
   private OrderRepository orderRepository;
 
   @Autowired
-  private StockReservationRepository stockReservationRepository;
-
-  @Autowired
-  private com.flowzati.archone.allocation.domain.repository.DemandRepository demandRepository;
+  private com.flowzati.archone.allocation.application.query.WaitingDemandFinder waitingDemandFinder;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -77,16 +74,7 @@ class DevSeedDataIntegrationTest {
 
   @AfterEach
   void clearDatabase() {
-    jdbcTemplate.execute("DELETE FROM stock_reservations");
-    jdbcTemplate.execute("DELETE FROM order_lines");
-    jdbcTemplate.execute("DELETE FROM orders");
-    jdbcTemplate.execute("DELETE FROM stock_pools");
-    jdbcTemplate.execute("DELETE FROM skus");
-    jdbcTemplate.execute("DELETE FROM products");
-    jdbcTemplate.execute("DELETE FROM owner_nodes");
-    jdbcTemplate.execute("DELETE FROM owners");
-    jdbcTemplate.execute("DELETE FROM stock_locations");
-    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
+    SitDatabase.clear(jdbcTemplate);
   }
 
   @Test
@@ -112,22 +100,25 @@ class DevSeedDataIntegrationTest {
     });
     assertThat(orderRepository.findById(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
         .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
-    assertThat(activeReservationsOf(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
-        .singleElement().satisfies(reservation -> {
-          assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
-          assertThat(reservation.getQuantity()).isEqualTo(5);
-          assertThat(reservation.getStockPoolId())
+    assertThat(heldBy(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
+        .singleElement().satisfies(held -> {
+          assertThat(held.quantity()).isEqualTo(5);
+          assertThat(held.stockPoolId())
               .isEqualTo(DevSeedDataInitializer.PARTIALLY_RESERVED_STOCK_POOL_ID);
         });
+    // 明細存在就代表鎖著——沒有狀態要驗，狀態在搬運上。
+    assertThat(MovementFixtures.moveStatesOf(
+        jdbcTemplate, DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
+        .containsExactly("ASSIGNED");
 
     initializer.run(null);
 
-    // 七批（近／中早／中晚／已過期／空／部分預留／乙貨主充足）、四張單、三筆預留。
+    // 七批（近／中早／中晚／已過期／空／部分預留／乙貨主充足）、四張單、三條明細。
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_pools", Integer.class))
         .isEqualTo(7);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM orders", Integer.class))
         .isEqualTo(4);
-    assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_reservations", Integer.class))
+    assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_move_lines", Integer.class))
         .isEqualTo(3);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM owners", Integer.class))
         .isEqualTo(2);
@@ -185,11 +176,10 @@ class DevSeedDataIntegrationTest {
           assertThat(order.getDemandFor(DevSeedDataInitializer.AVAILABLE_SKU)).isEqualTo(80);
         });
 
-    // 80 件 = 近效期 60 + 中效期 20，所以是兩筆預留，各指向不同的批。
-    assertThat(activeReservationsOf(DevSeedDataInitializer.SPANNING_ORDER_ID))
+    // 80 件 = 近效期 60 + 中效期 20，所以是兩條明細，各指向不同的批。
+    assertThat(heldBy(DevSeedDataInitializer.SPANNING_ORDER_ID))
         .hasSize(2)
-        .extracting(reservation -> reservation.getStockPoolId(),
-            reservation -> reservation.getQuantity())
+        .extracting(held -> held.stockPoolId(), held -> held.quantity())
         .containsExactlyInAnyOrder(
             org.assertj.core.groups.Tuple.tuple(
                 DevSeedDataInitializer.NEAR_EXPIRY_STOCK_POOL_ID, 60),
@@ -205,10 +195,11 @@ class DevSeedDataIntegrationTest {
     // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在。照操作台 README 的 demo 流程
     // 補貨後畫面毫無變化，看起來像壞掉。
     //
-    // 佇列由 demand_lines 回答，而它**刻意不看 status**——PENDING 與 BACKORDERED 對佇列
-    // 完全等價。範圍含位置，種子那張單在南部倉的內部位置。
+    // 佇列現在由**還在等貨的搬運**回答，而不是訂單——訂單狀態因此更加無關：PENDING 與
+    // BACKORDERED 對佇列完全等價，理由從「view 刻意不看 status」變成「佇列根本不讀 orders」。
+    // 範圍含位置，種子那張單在南部倉的內部位置。
     List<com.flowzati.archone.allocation.domain.model.Demand> queue =
-        demandRepository.findOutstandingDemandInFifoOrder(
+        waitingDemandFinder.findWaiting(
             DevSeedDataInitializer.SECOND_OWNER_ID,
             DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID,
             DevSeedDataInitializer.EMPTY_SKU,
@@ -241,7 +232,7 @@ class DevSeedDataIntegrationTest {
           assertThat(pool.getOnHandQuantity()).isEqualTo(50);
           assertThat(pool.getReservedQuantity()).isZero();
         });
-    assertThat(activeReservationsOf(DevSeedDataInitializer.BASKET_ORDER_ID)).isEmpty();
+    assertThat(heldBy(DevSeedDataInitializer.BASKET_ORDER_ID)).isEmpty();
   }
 
   @Test
@@ -342,15 +333,13 @@ class DevSeedDataIntegrationTest {
   }
 
   /**
-   * 這張單目前還有效的預留。
+   * 這張單目前鎖住了哪些量。
    *
-   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
-   * {@code ReleaseReservationUsecase} 走同一條路。回的是清單而不是單筆：一條行跨三批就有
-   * 三筆預留。
+   * <p>路徑是作業單 → 搬運 → 明細，與 {@code ReleaseReservationUsecase} 走同一條。回的是清單
+   * 而不是單筆：一條行跨三批就有三條明細。
    */
-  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
-      activeReservationsOf(java.util.UUID orderId) {
-    return stockReservationRepository.findActiveByOrderId(orderId);
+  private java.util.List<MovementFixtures.HeldQuantity> heldBy(java.util.UUID orderId) {
+    return MovementFixtures.heldBy(jdbcTemplate, orderId);
   }
 
   /** 依 id 取那一批。種子的日期相對於今天計算，所以用 id 取比用五維鍵拼出來可靠。 */

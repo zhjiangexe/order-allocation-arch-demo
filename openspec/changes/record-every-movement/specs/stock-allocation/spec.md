@@ -14,8 +14,10 @@ ledger** 與 **Every movement of goods is recorded with both of its ends** 共�
 角色從「還欠什麼」變成「哪些行還沒被接手」，兩者的消費者也不同。
 
 **Migration**: 由下方的 **Outstanding demand is decided by whether a movement exists** 取代。
-**保留的**：不看訂單自己的配貨狀態、取消由 ordering 同步寫入因此即時正確、值域必須一次寫對
-（`CONSUMED` 的角色由搬運的完成狀態接手）、謂詞只表達在一個地方。
+**保留的**：不看訂單自己的配貨狀態、值域必須一次寫對（`CONSUMED` 的角色由搬運的完成狀態
+接手）、謂詞只表達在一個地方。
+**沒有完全保留的**：「取消即時生效」。它對這個 view 仍然成立（謂詞照舊讀
+`orders.cancelled_at`），但**補貨佇列已經不讀這個 view 了**——見下方「取消的即時性只剩一半」。
 **改變的**：判準由「有無有效預留」變成「有無 move」；而「刻意不含 `ol.status`」那條理由
 **消失了**——執行層讀的是自己寫的資料，沒有非同步的時間差。
 
@@ -76,6 +78,19 @@ writes itself, so there is no lag to guard against.
 
 Allocation SHALL draw its queue from movements needing goods, ordered as it ordered demand
 before, and SHALL satisfy them by assigning stock and recording which batches were drawn on.
+
+**A cancelled order SHALL leave the queue when its movements are cancelled, not when the
+order is.** This is a real narrowing and it is recorded rather than hidden. The published
+view still excludes cancelled orders synchronously, but the queue no longer reads that view:
+it reads movement state, and movements are cancelled by handling the cancellation event.
+Between ordering writing the cancellation and execution consuming it, a replenishment can
+still assign stock to that order — the release then frees it again.
+
+Nothing is corrupted by this: the quantity returns, and the order never ships. What is lost
+is exactness of fairness inside that window, bounded by consumer lag. The alternative —
+having the queue join the order table — would reintroduce the cross-context read this whole
+migration removed, on the hottest path in the system. Odoo has the same shape: cancelling a
+sale order cancels its moves, and nothing consults the order from the reservation path.
 
 The batch selection, the strict ordering, the whole-order rule and the bound on how many
 orders one replenishment wakes SHALL all be unchanged. **What changes is the shape of the

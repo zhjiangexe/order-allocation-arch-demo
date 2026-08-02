@@ -4,7 +4,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.Instant;
 import java.util.UUID;
 import org.hibernate.annotations.Immutable;
 
@@ -45,9 +44,6 @@ public class DemandLineEntity {
   @Column(name = "quantity")
   private int quantity;
 
-  @Column(name = "received_at")
-  private Instant receivedAt;
-
   protected DemandLineEntity() {
   }
 
@@ -73,9 +69,5 @@ public class DemandLineEntity {
 
   public int getQuantity() {
     return quantity;
-  }
-
-  public Instant getReceivedAt() {
-    return receivedAt;
   }
 }

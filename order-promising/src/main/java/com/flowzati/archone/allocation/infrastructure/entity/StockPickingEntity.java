@@ -4,7 +4,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -44,26 +43,19 @@ public class StockPickingEntity {
   @Column(name = "to_location_id", nullable = false)
   private UUID toLocationId;
 
-  @Column(name = "reference")
-  private String reference;
-
-  @Column(name = "scheduled_at")
-  private Instant scheduledAt;
 
   protected StockPickingEntity() {
   }
 
   public StockPickingEntity(
       UUID id, UUID pickingTypeId, UUID ownerId, UUID orderId,
-      UUID fromLocationId, UUID toLocationId, String reference, Instant scheduledAt) {
+      UUID fromLocationId, UUID toLocationId) {
     this.id = id;
     this.pickingTypeId = pickingTypeId;
     this.ownerId = ownerId;
     this.orderId = orderId;
     this.fromLocationId = fromLocationId;
     this.toLocationId = toLocationId;
-    this.reference = reference;
-    this.scheduledAt = scheduledAt;
   }
 
   public UUID getId() {
@@ -90,11 +82,4 @@ public class StockPickingEntity {
     return toLocationId;
   }
 
-  public String getReference() {
-    return reference;
-  }
-
-  public Instant getScheduledAt() {
-    return scheduledAt;
-  }
 }

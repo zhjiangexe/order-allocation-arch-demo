@@ -12,14 +12,12 @@ public final class StockPickingMapper {
   public static StockPickingEntity toEntity(StockPicking picking, UUID orderId) {
     return new StockPickingEntity(
         picking.id(), picking.pickingTypeId(), picking.ownerId(), orderId,
-        picking.fromLocationId(), picking.toLocationId(),
-        picking.reference(), picking.scheduledAt());
+        picking.fromLocationId(), picking.toLocationId());
   }
 
   public static StockPicking toDomain(StockPickingEntity entity) {
     return new StockPicking(
         entity.getId(), entity.getPickingTypeId(), entity.getOwnerId(),
-        entity.getFromLocationId(), entity.getToLocationId(),
-        entity.getReference(), entity.getScheduledAt());
+        entity.getFromLocationId(), entity.getToLocationId());
   }
 }

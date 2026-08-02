@@ -1,5 +1,6 @@
 package com.flowzati.archone.testsupport;
 
+import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
 import com.flowzati.archone.ordering.domain.model.OrderLine;
@@ -22,6 +23,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>需要特定貨主的測試（例如跨貨主隔離）改用帶 {@code ownerId} 的多載。
  */
 public final class OrderFixtures {
+
+  // **識別碼一律用 IdGenerator（UUID v7），不用 randomUUID。**
+  //
+  // 正式路徑的訂單與訂單行都由 PlaceOrderUsecase 以 v7 產生，時間編在主鍵裡——待配佇列的
+  // FIFO 排序鍵就是它。fixture 若改用 randomUUID，佇列的順序在測試裡會變成隨機的，而症狀是
+  // 「FIFO 測試偶爾失敗」或更糟：碰巧通過。
 
   public static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
   /** 出貨倉。所有 fixture 共用一個——倉別在收單後不參與任何決策，區分它沒有價值。 */
@@ -91,6 +98,28 @@ public final class OrderFixtures {
         VALUES (?, ?, ?, ?, 'INTERNAL')
         ON CONFLICT (id) DO NOTHING
         """, OTHER_LOCATION_ID, OTHER_NODE_ID, "WH-FIXTURE-ALT/Stock", "第二個倉／庫存");
+    // 兩個虛擬位置。出庫的終點是 CUSTOMER，它不屬於任何倉——「只能指向內部位置」那條約束
+    // 只在庫存上，搬運的兩端本來就可能在公司之外。
+    //
+    // code 帶 FIXTURE 前綴：開發種子也建 Customers／Vendors，而 code 有 unique 約束。跑在
+    // 種子 profile 上的 SIT 兩邊都會 seed，撞的是 code 而不是 id，ON CONFLICT (id) 擋不住。
+    jdbcTemplate.update("""
+        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        VALUES (?, NULL, ?, ?, 'CUSTOMER')
+        ON CONFLICT (id) DO NOTHING
+        """, MovementFixtures.CUSTOMERS_LOCATION_ID, "FIXTURE/Customers", "共用 fixture 的客戶");
+    jdbcTemplate.update("""
+        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        VALUES (?, NULL, ?, ?, 'SUPPLIER')
+        ON CONFLICT (id) DO NOTHING
+        """, MovementFixtures.SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "共用 fixture 的供應商");
+    // 每個倉一個出庫作業類型。**收單即建搬運之後這是必要主檔**——少了它，收單會拋
+    // 「這個倉沒有出庫作業類型」，而不是安靜地少建一張單。
+    seedOutboundType(jdbcTemplate,
+        MovementFixtures.OUTBOUND_TYPE_ID, NODE_ID, LOCATION_ID, "測試倉出貨");
+    seedOutboundType(jdbcTemplate,
+        MovementFixtures.OTHER_OUTBOUND_TYPE_ID, OTHER_NODE_ID, OTHER_LOCATION_ID,
+        "第二個倉出貨");
     jdbcTemplate.update("""
         INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
         VALUES (?, ?, ?, ?, 'AMBIENT')
@@ -103,6 +132,16 @@ public final class OrderFixtures {
           ON CONFLICT (owner_id, sku_code) DO NOTHING
           """, UUID.randomUUID(), ownerId, skuCode, PRODUCT_CODE, skuCode);
     }
+  }
+
+  private static void seedOutboundType(
+      JdbcTemplate jdbcTemplate, UUID id, UUID warehouseId, UUID stockLocationId, String name) {
+    jdbcTemplate.update("""
+        INSERT INTO stock_picking_types
+            (id, warehouse_id, code, name, default_from_location_id, default_to_location_id)
+        VALUES (?, ?, 'OUTBOUND', ?, ?, ?)
+        ON CONFLICT (id) DO NOTHING
+        """, id, warehouseId, name, stockLocationId, MovementFixtures.CUSTOMERS_LOCATION_ID);
   }
 
   /**
@@ -133,7 +172,7 @@ public final class OrderFixtures {
         "EXT-" + orderId,
         deliveryTerms(nodeId),
         List.of(OrderLine.rehydrate(
-            UUID.randomUUID(), 1, ownerId, skuCode, quantity, OrderStatus.BACKORDERED)),
+            IdGenerator.nextId(), 1, ownerId, skuCode, quantity, OrderStatus.BACKORDERED)),
         OrderStatus.BACKORDERED,
         receivedAt,
         null,
@@ -156,7 +195,7 @@ public final class OrderFixtures {
   }
 
   public static OrderLine line(UUID ownerId, int lineNo, String skuCode, int quantity) {
-    return OrderLine.create(UUID.randomUUID(), lineNo, ownerId, skuCode, quantity);
+    return OrderLine.create(IdGenerator.nextId(), lineNo, ownerId, skuCode, quantity);
   }
 
   /**
@@ -215,7 +254,7 @@ public final class OrderFixtures {
       UUID orderId, Instant receivedAt, Map<String, Integer> quantitiesBySku) {
     List<OrderLine> lines = new ArrayList<>();
     quantitiesBySku.forEach((skuCode, quantity) -> lines.add(OrderLine.rehydrate(
-        UUID.randomUUID(), lines.size() + 1, OWNER_ID, skuCode, quantity, OrderStatus.PENDING)));
+        IdGenerator.nextId(), lines.size() + 1, OWNER_ID, skuCode, quantity, OrderStatus.PENDING)));
     return Order.rehydrate(
         orderId, OWNER_ID, "EXT-" + orderId, deliveryTerms(), lines,
         OrderStatus.PENDING, receivedAt, null, null, null, null, null);
@@ -256,7 +295,7 @@ public final class OrderFixtures {
         "EXT-" + orderId,
         deliveryTerms(),
         List.of(OrderLine.rehydrate(
-            UUID.randomUUID(), 1, ownerId, skuCode, quantity, status)),
+            IdGenerator.nextId(), 1, ownerId, skuCode, quantity, status)),
         status,
         receivedAt,
         // 上游的下單時刻——fixture 一律不帶。需要它的測試自己造，因為「上游有沒有送」正是

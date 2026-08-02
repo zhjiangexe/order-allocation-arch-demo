@@ -1,6 +1,5 @@
 package com.flowzati.archone.allocation.domain.model;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -20,9 +19,7 @@ public record StockPicking(
     UUID pickingTypeId,
     UUID ownerId,
     UUID fromLocationId,
-    UUID toLocationId,
-    String reference,
-    Instant scheduledAt
+    UUID toLocationId
 ) {
 
   public StockPicking {

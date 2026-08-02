@@ -11,7 +11,6 @@ import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrati
 import com.flowzati.archone.allocation.application.retry.AllocationConcurrencyExhaustedException;
 import com.flowzati.archone.allocation.domain.model.StockPool;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
 import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
@@ -19,6 +18,8 @@ import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.MovementFixtures;
+import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -75,9 +76,6 @@ class AllocationConcurrencyEndToEndIntegrationTest {
   private StockPoolRepository stockPoolRepository;
 
   @Autowired
-  private StockReservationRepository stockReservationRepository;
-
-  @Autowired
   private JpaEventInboxRepository inboxRepository;
 
   @Autowired
@@ -95,18 +93,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
   @AfterEach
   void clearDatabase() {
     conflictInjector.reset();
-    jdbcTemplate.execute("DELETE FROM event_outbox");
-    jdbcTemplate.execute("DELETE FROM event_inbox");
-    jdbcTemplate.execute("DELETE FROM stock_reservations");
-    jdbcTemplate.execute("DELETE FROM order_lines");
-    jdbcTemplate.execute("DELETE FROM orders");
-    jdbcTemplate.execute("DELETE FROM stock_pools");
-    jdbcTemplate.execute("DELETE FROM skus");
-    jdbcTemplate.execute("DELETE FROM products");
-    jdbcTemplate.execute("DELETE FROM owner_nodes");
-    jdbcTemplate.execute("DELETE FROM owners");
-    jdbcTemplate.execute("DELETE FROM stock_locations");
-    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
+    SitDatabase.clear(jdbcTemplate);
   }
 
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
@@ -152,8 +139,8 @@ class AllocationConcurrencyEndToEndIntegrationTest {
       assertThat(pool.getReservedQuantity()).isLessThanOrEqualTo(pool.getOnHandQuantity());
     });
     // 恰好一張拿到預留：兩張都拿到代表超賣，都沒拿到代表兩張都白白重試到耗盡。
-    assertThat(!activeReservationsOf(firstOrderId).isEmpty()
-        ^ !activeReservationsOf(secondOrderId).isEmpty()).isTrue();
+    assertThat(!heldBy(firstOrderId).isEmpty()
+        ^ !heldBy(secondOrderId).isEmpty()).isTrue();
     assertThat(inboxRepository.findById(firstEvent.getEventId())).isPresent();
     assertThat(inboxRepository.findById(secondEvent.getEventId())).isPresent();
     assertThat(outboxRepository.findAll().stream().map(outbox -> outbox.getEventType()))
@@ -183,7 +170,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
-    assertThat(activeReservationsOf(orderId)).isEmpty();
+    assertThat(heldBy(orderId)).isEmpty();
     assertThat(inboxRepository.findById(event.getEventId())).isEmpty();
     assertThat(outboxRepository.count()).isZero();
     assertThat(exhaustedMetricCount()).isEqualTo(metricBefore + 1.0);
@@ -272,15 +259,13 @@ class AllocationConcurrencyEndToEndIntegrationTest {
   }
 
   /**
-   * 這張單目前還有效的預留。
+   * 這張單目前鎖住了哪些量。
    *
-   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
-   * {@code ReleaseReservationUsecase} 走同一條路。回的是清單而不是單筆：一條行跨三批就有
-   * 三筆預留。
+   * <p>路徑是作業單 → 搬運 → 明細，與 {@code ReleaseReservationUsecase} 走同一條。回的是清單
+   * 而不是單筆：一條行跨三批就有三條明細。
    */
-  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
-      activeReservationsOf(java.util.UUID orderId) {
-    return stockReservationRepository.findActiveByOrderId(orderId);
+  private java.util.List<MovementFixtures.HeldQuantity> heldBy(java.util.UUID orderId) {
+    return MovementFixtures.heldBy(jdbcTemplate, orderId);
   }
 
   /**

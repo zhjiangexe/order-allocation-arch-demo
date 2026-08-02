@@ -9,9 +9,7 @@ import com.flowzati.archone.allocation.application.event.PromisingEventTopics;
 import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.model.StockReservation;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.repository.StockReservationRepository;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
@@ -21,6 +19,8 @@ import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.testsupport.MovementFixtures;
+import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.nio.charset.StandardCharsets;
@@ -62,9 +62,6 @@ class AllocationWorkflowEndToEndIntegrationTest {
   private StockPoolRepository stockPoolRepository;
 
   @Autowired
-  private StockReservationRepository stockReservationRepository;
-
-  @Autowired
   private JpaEventInboxRepository inboxRepository;
 
   @Autowired
@@ -75,18 +72,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
   @AfterEach
   void clearDatabase() {
-    jdbcTemplate.execute("DELETE FROM event_outbox");
-    jdbcTemplate.execute("DELETE FROM event_inbox");
-    jdbcTemplate.execute("DELETE FROM stock_reservations");
-    jdbcTemplate.execute("DELETE FROM order_lines");
-    jdbcTemplate.execute("DELETE FROM orders");
-    jdbcTemplate.execute("DELETE FROM stock_pools");
-    jdbcTemplate.execute("DELETE FROM skus");
-    jdbcTemplate.execute("DELETE FROM products");
-    jdbcTemplate.execute("DELETE FROM owner_nodes");
-    jdbcTemplate.execute("DELETE FROM owners");
-    jdbcTemplate.execute("DELETE FROM stock_locations");
-    jdbcTemplate.execute("DELETE FROM fulfillment_nodes");
+    SitDatabase.clear(jdbcTemplate);
   }
 
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
@@ -119,10 +105,12 @@ class AllocationWorkflowEndToEndIntegrationTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(3));
-    assertThat(activeReservationsOf(orderId)).singleElement().satisfies(reservation -> {
-      assertThat(reservation.getStockPoolId()).isEqualTo(stockPoolId);
-      assertThat(reservation.getQuantity()).isEqualTo(3);
+    assertThat(heldBy(orderId)).singleElement().satisfies(held -> {
+      assertThat(held.stockPoolId()).isEqualTo(stockPoolId);
+      assertThat(held.quantity()).isEqualTo(3);
     });
+    // 搬運在收單那一刻就建好了，這裡是它被轉成已鎖定。
+    assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
     assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox -> {
       assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName());
       assertThat(outbox.getRoute()).isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
@@ -135,17 +123,14 @@ class AllocationWorkflowEndToEndIntegrationTest {
   void shouldReleaseActiveReservationFromKafkaCancellationEvent() throws Exception {
     UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
-    UUID reservationId = UUID.randomUUID();
     Instant reservedAt = Instant.now().minusSeconds(1);
     Order order = OrderFixtures.allocatedOrder(
         orderId, "SKU-PARTIALLY-RESERVED", 4, reservedAt.minusSeconds(1), reservedAt);
     orderRepository.save(order);
     stockPoolRepository.save(
         StockFixtures.unexpiredBatch(stockPoolId, "SKU-PARTIALLY-RESERVED", 10, 4));
-    // 預留指向**行**而不是訂單：外鍵是 fk_stock_reservations_order_line。
-    stockReservationRepository.save(StockReservation.create(
-        reservationId,
-        orderId, order.getLines().get(0).getId(), stockPoolId, 4, reservedAt));
+    // 搬運指向**行**（外鍵 fk_stock_moves_order_line），而單據指向訂單——取消要從單據找起。
+    MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockPoolId, 4);
 
     OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, Instant.now());
     consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
@@ -153,10 +138,10 @@ class AllocationWorkflowEndToEndIntegrationTest {
     assertThat(inboxRepository.findById(event.getEventId())).isPresent();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
-    assertThat(activeReservationsOf(orderId)).isEmpty();
-    assertThat(jdbcTemplate.queryForObject(
-        "SELECT status FROM stock_reservations WHERE id = ?", String.class, reservationId))
-        .isEqualTo("RELEASED");
+    // **明細被刪除，不是被標成已釋放**——一條被釋放的明細不表達任何事實。釋放的歷史留在
+    // 搬運的狀態上，所以這裡兩個都要驗：沒有明細了，而搬運說得出它為什麼沒有。
+    assertThat(heldBy(orderId)).isEmpty();
+    assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("CANCELLED");
     assertThat(outboxRepository.count()).isZero();
   }
 
@@ -169,8 +154,10 @@ class AllocationWorkflowEndToEndIntegrationTest {
     Instant firstBackorderedAt = Instant.now().minusSeconds(4);
     Instant secondBackorderedAt = firstBackorderedAt.plusSeconds(1);
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-FIFO", 0, 0));
-    orderRepository.save(backorderedOrder(firstOrderId, "SKU-FIFO", 3, firstBackorderedAt));
-    orderRepository.save(backorderedOrder(secondOrderId, "SKU-FIFO", 3, secondBackorderedAt));
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate,
+        backorderedOrder(firstOrderId, "SKU-FIFO", 3, firstBackorderedAt));
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate,
+        backorderedOrder(secondOrderId, "SKU-FIFO", 3, secondBackorderedAt));
 
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
             UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-FIFO",
@@ -187,8 +174,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
       assertThat(pool.getOnHandQuantity()).isEqualTo(5);
       assertThat(pool.getReservedQuantity()).isEqualTo(3);
     });
-    assertThat(activeReservationsOf(firstOrderId)).isNotEmpty();
-    assertThat(activeReservationsOf(secondOrderId)).isEmpty();
+    assertThat(heldBy(firstOrderId)).isNotEmpty();
+    assertThat(heldBy(secondOrderId)).isEmpty();
     assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox ->
         assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName()));
   }
@@ -210,10 +197,23 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-FIFO", 0, 0));
 
+    // **取消的那張要走完整條路：先排進佇列，再讓取消事件把它的搬運取消。**
+    //
+    // 這一段在這個 change 裡變重了。舊模型下佇列是 demand_lines，它讀 orders.cancelled_at，
+    // 所以「訂單被標成取消」本身就足以讓它離開佇列；只存一張 CANCELLED 的訂單就測得到。
+    // 現在佇列讀的是搬運，而取消是**由取消事件把搬運轉成 CANCELLED**——不送那則事件，這張
+    // 單就只是一張沒有搬運的單，不在佇列裡的理由與「被排除」無關，這條測試會變成恆真。
+    // 先取消再一次寫入：訂單只存一次（第二次 save 會撞主鍵，聚合根的 version 不會自己回填）。
+    // 最終狀態與「先排隊、後取消」完全相同——搬運存在、訂單已取消、取消事件尚未被消費。
     Order cancelled = backorderedOrder(cancelledOrderId, "SKU-FIFO", 3, earlier);
     cancelled.cancel(Instant.now().minusSeconds(2));
-    orderRepository.save(cancelled);
-    orderRepository.save(backorderedOrder(liveOrderId, "SKU-FIFO", 3, earlier.plusSeconds(1)));
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, cancelled);
+    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS,
+        new OrderCancelledIntegrationEvent(
+            UUID.randomUUID(), cancelledOrderId, Instant.now().minusSeconds(2))));
+
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate,
+        backorderedOrder(liveOrderId, "SKU-FIFO", 3, earlier.plusSeconds(1)));
 
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
         UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID,
@@ -224,11 +224,11 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     assertThat(orderRepository.findById(cancelledOrderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED));
-    assertThat(activeReservationsOf(cancelledOrderId)).isEmpty();
+    assertThat(heldBy(cancelledOrderId)).isEmpty();
 
     assertThat(orderRepository.findById(liveOrderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
-    assertThat(activeReservationsOf(liveOrderId)).isNotEmpty();
+    assertThat(heldBy(liveOrderId)).isNotEmpty();
 
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(3));
@@ -255,7 +255,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 一張本來出得了的單拿不到。整籃原子性必須在真實的資料庫路徑上成立，不只在領域測試裡。
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
-    assertThat(activeReservationsOf(orderId)).isEmpty();
+    assertThat(heldBy(orderId)).isEmpty();
     assertThat(stockPoolRepository.findById(plentifulId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
     assertThat(stockPoolRepository.findById(scarceId)).hasValueSatisfying(pool ->
@@ -282,7 +282,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     // 預留的粒度是行 × 批：兩條行各自有一筆，摺成一筆就丟掉了出貨時要的「哪一批為哪一行鎖」。
-    assertThat(activeReservationsOf(orderId)).hasSize(2);
+    assertThat(heldBy(orderId)).hasSize(2);
     assertThat(stockPoolRepository.findById(firstPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(10));
     assertThat(stockPoolRepository.findById(secondPoolId)).hasValueSatisfying(pool ->
@@ -319,7 +319,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         assertThat(allocated.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     assertThat(stockPoolRepository.findById(poolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(10));
-    assertThat(activeReservationsOf(orderId)).hasSize(2);
+    assertThat(heldBy(orderId)).hasSize(2);
   }
 
   @Test
@@ -333,7 +333,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 1, "SKU-BASKET-B", 1)));
     order.markBackOrdered(backorderedAt);
     order.releaseDomainEvents();
-    orderRepository.save(order);
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, order);
 
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
         UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-BASKET-A",
@@ -345,7 +345,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 這裡把整張單配掉。
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(woken ->
         assertThat(woken.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
-    assertThat(activeReservationsOf(orderId)).isEmpty();
+    assertThat(heldBy(orderId)).isEmpty();
     assertThat(stockPoolRepository.findById(poolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(5);
       assertThat(pool.getReservedQuantity()).isZero();
@@ -366,15 +366,13 @@ class AllocationWorkflowEndToEndIntegrationTest {
   }
 
   /**
-   * 這張單目前還有效的預留。
+   * 這張單目前鎖住了哪些量。
    *
-   * <p>{@code stock_reservations} 指向 {@code order_lines}，所以要先從訂單取行的 id——與
-   * {@code ReleaseReservationUsecase} 走同一條路。回的是清單而不是單筆：一條行跨三批就有
-   * 三筆預留。
+   * <p>路徑是作業單 → 搬運 → 明細，與 {@code ReleaseReservationUsecase} 走同一條。回的是清單
+   * 而不是單筆：一條行跨三批就有三條明細。
    */
-  private java.util.List<com.flowzati.archone.allocation.domain.model.StockReservation>
-      activeReservationsOf(java.util.UUID orderId) {
-    return stockReservationRepository.findActiveByOrderId(orderId);
+  private java.util.List<MovementFixtures.HeldQuantity> heldBy(java.util.UUID orderId) {
+    return MovementFixtures.heldBy(jdbcTemplate, orderId);
   }
 
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
