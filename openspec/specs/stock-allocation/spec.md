@@ -6,64 +6,6 @@ TBD - created by archiving change 'add-batch-stock-and-fefo'. Update Purpose aft
 
 ## Requirements
 
-### Requirement: Stock is held per owner, warehouse, arrival and expiry
-
-A stock row SHALL be identified by its owner, its warehouse, its SKU code, the date the
-goods arrived, and the date they expire. Two rows differing in any one of those five are
-different stock and SHALL NOT be merged.
-
-The expiry date SHALL be mandatory. A nullable expiry inside a uniqueness constraint is
-a trap in PostgreSQL, where NULLs compare as distinct: two same-day arrivals of a
-non-perishable SKU would become two rows rather than one, silently.
-
-The arrival date SHALL participate in identity rather than being a mere attribute.
-Keeping it in identity means every replenishment either matches an existing row exactly
-or creates a new one — there is no merge rule to define, and therefore none to get
-wrong.
-
-Quantities SHALL be held per row: on-hand and reserved. Available-to-promise SHALL be
-derived from them at read time and SHALL NOT be stored, because a stored derivation is
-a second source of truth that can disagree with the first.
-
-**Resolving that identity SHALL happen while completing an inbound movement, and a row
-SHALL be opened holding nothing.** The five dimensions and the rule over them are unchanged;
-what changes is who applies them. Arriving goods previously had two paths — add to the
-matching row, or create a row already holding the arrival — and the second was a way to put
-stock into the system without recording a movement. There is now one path: find or open the
-row, then let the movement's line put the quantity into it.
-
-A row holding nothing is a normal state, not a defect. It is what a stock row looks like
-between being identified and being filled, and it is also what remains after everything in
-it has been shipped.
-
-#### Scenario: Two owners holding the same SKU code hold separate stock
-
-- **GIVEN** two owners each hold stock of the same SKU code in the same warehouse
-- **WHEN** their stock is read
-- **THEN** each owner sees only their own
-
-#### Scenario: A replenishment matching all five dimensions adds to the existing row
-
-- **GIVEN** a stock row for an owner, location, SKU, arrival date and expiry date
-- **WHEN** a replenishment arrives naming all five identically
-- **THEN** that row holds more than before
-- **AND** no second row is created
-
-#### Scenario: A replenishment differing in arrival date opens a new row
-
-- **GIVEN** a stock row for an owner, location, SKU, arrival date and expiry date
-- **WHEN** a replenishment arrives naming a different arrival date
-- **THEN** a second row exists
-- **AND** the two are allocated from separately, earliest expiry first
-
-#### Scenario: A newly opened row holds nothing until a movement line fills it
-
-- **GIVEN** a replenishment naming five dimensions that match no existing row
-- **WHEN** the row is opened
-- **THEN** it holds nothing
-- **AND** it holds the arrival's quantity only once the movement's line has been applied
-
----
 ### Requirement: A stock row references a SKU its owner actually holds
 
 A stock row's owner and SKU code together SHALL reference an existing SKU in the
@@ -1251,3 +1193,114 @@ compatible order; releasing and waking assemble their sets from entirely differe
 - **GIVEN** rows supplied to a write in an order opposite to the global one
 - **WHEN** they are written
 - **THEN** they are written in the global order, not the order supplied
+
+---
+### Requirement: Stock is held per owner, location, arrival and expiry
+
+A stock row SHALL be identified by its owner, its location, its SKU code, the date the
+goods arrived, and the date they expire. Two rows differing in any one of those five are
+different stock and SHALL NOT be merged.
+
+**The location SHALL have usage `internal`.** Stock is what the company holds, and only
+internal locations count towards that. A row in a virtual location would be quantity the
+system claims to hold in a place it does not operate.
+
+The expiry date SHALL be mandatory. A nullable expiry inside a uniqueness constraint is
+a trap in PostgreSQL, where NULLs compare as distinct: two same-day arrivals of a
+non-perishable SKU would become two rows rather than one, silently.
+
+The arrival date SHALL participate in identity rather than being a mere attribute.
+Keeping it in identity means every replenishment either matches an existing row exactly
+or creates a new one — there is no merge rule to define, and therefore none to get
+wrong.
+
+Quantities SHALL be held per row: on-hand and reserved. Available-to-promise SHALL be
+derived from them at read time and SHALL NOT be stored, because a stored derivation is
+a second source of truth that can disagree with the first.
+
+**The quantities SHALL remain materialised on the row rather than summed from movements.**
+This holds even once movements exist: a stock row is a balance that movements write, not a
+view over them. The optimistic-lock version guarding that balance is the mechanism by which
+replenishment and queue-waking serialise against concurrent orders — see the second of the
+three replenishment decisions in `docs/dom-promising-scope.md`. Deriving the balance at
+read time would remove the row that lock is taken on.
+
+**Resolving that identity SHALL happen while completing an inbound movement, and a row
+SHALL be opened holding nothing.** The five dimensions and the rule over them are unchanged;
+what changes is who applies them. Arriving goods previously had two paths — add to the
+matching row, or create a row already holding the arrival — and the second was a way to put
+stock into the system without recording a movement. There is now one path: find or open the
+row, then let the movement's line put the quantity into it.
+
+A row holding nothing is a normal state, not a defect. It is what a stock row looks like
+between being identified and being filled, and it is also what remains after everything in
+it has been shipped.
+
+#### Scenario: Two owners holding the same SKU code hold separate stock
+
+- **GIVEN** two owners each hold stock of the same SKU code in the same location
+- **WHEN** one owner's order consumes that stock
+- **THEN** the other owner's available-to-promise is unchanged
+
+#### Scenario: Same-day arrivals of different expiry stay separate
+
+- **WHEN** two deliveries of one SKU arrive at one location on the same day with
+  different expiry dates
+- **THEN** they are held as two rows, each carrying its own expiry
+
+#### Scenario: An identical arrival adds to the existing row
+
+- **GIVEN** stock exists for an owner, location, SKU, arrival date and expiry date
+- **WHEN** a replenishment arrives naming all five identically
+- **THEN** its quantity is added to that row and no second row is created
+
+#### Scenario: Stock cannot be held in a virtual location
+
+- **WHEN** a stock row is written against a location whose usage is not `internal`
+- **THEN** the write is refused
+
+---
+### Requirement: Allocation draws stock from a location, and demand is published with one
+
+Allocation SHALL select candidate stock by owner, **location**, and SKU code. It SHALL NOT
+select by warehouse.
+
+The two coincide while a warehouse has one internal location, and that is exactly why the
+distinction has to be stated now: a query keyed on the warehouse would keep passing every
+test until a second internal location appeared, and would then draw on stock the order was
+never meant to reach.
+
+**The published demand SHALL carry the location, resolved from the order's warehouse.**
+Orders name warehouses; allocation speaks locations. Resolving it where the two meet keeps
+each side to one vocabulary — were the demand to publish a warehouse, allocation would have
+to understand both, and every query would carry the conversion.
+
+The FEFO ordering SHALL be unchanged — expiry date, then arrival date, then row identity —
+and the covering index SHALL keep that column order, with location in the position
+warehouse held.
+
+**The scope of a backorder queue SHALL likewise be keyed to the location.** A queue that
+spans locations spends its bound on orders that were never candidates, which is the same
+reason it was scoped to one warehouse before.
+
+#### Scenario: Allocation ignores stock in another location
+
+- **GIVEN** an owner holds allocatable stock of one SKU in two internal locations
+- **WHEN** an order sourced from one of them is allocated
+- **THEN** only that location's stock is drawn on, and the other location's
+  available-to-promise is unchanged
+
+#### Scenario: FEFO order is unchanged by the move to locations
+
+- **GIVEN** several batches of one SKU in one location with differing expiry and arrival
+  dates
+- **WHEN** they are listed for allocation
+- **THEN** they appear ordered by expiry date, then arrival date, then identity
+
+#### Scenario: A newly opened row holds nothing until a movement line fills it
+
+- **GIVEN** a replenishment naming five dimensions that match no existing row
+- **WHEN** the row is opened
+- **THEN** it holds nothing
+- **AND** it holds the arrival's quantity only once the movement's line has been applied
+
