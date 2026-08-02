@@ -145,10 +145,10 @@ F4 只做箱單記錄，不做裝箱演算法。若要做，須先在 `skus` 補
 | 步驟 | 動作 |
 | --- | --- |
 | 1 | `Shipment` → `CANCELLED` |
-| 2 | 已 `PICKED` 的 `PickTask` 逐一回架，`LocationStock` 復原 |
-| 3 | 回架完成後，發事實給訂單層執行 `StockPool.release()` |
+| 2 | 已 `PICKED` 的 `PickTask` 逐一回架 |
+| 3 | 回架完成後，發事實給庫存側取消那段出庫搬運（`MovementCanceller`） |
 
-**順序不可顛倒。** 若先 release 邏輯帳，會出現「ATP 顯示可用、但貨還在出貨區」的
+**順序不可顛倒。** 若先取消搬運、把量還給庫存，會出現「ATP 顯示可用、但貨還在出貨區」的
 視窗，此時新訂單可能配到不存在的可揀庫存。
 
 判斷「揀到哪了」讀 `PickTask` 狀態，`StockPool` 不持有此資訊——同一事實只記一處。
@@ -167,11 +167,15 @@ F4 只做箱單記錄，不做裝箱演算法。若要做，須先在 `skus` 補
 
 ## F6：收貨上架
 
-最小版的儲位庫存由 seed 直接建立。深做版補上入庫路徑：
+最小版的儲位庫存由 seed 直接建立。深做版補上上架這一段：
 
 ```text
-GoodsReceived ──▶ 選儲位規則 ──▶ LocationStock += q ──▶ StockPool.replenish()
+GoodsReceived ──▶ 選儲位規則 ──▶ 入庫搬運的目的地改為該儲位
 ```
+
+**不是第二條寫庫存的路徑。** 收貨已經走 `MovementRecorder.recordInbound` +
+`MovementCompleter`，上架要做的只是把那段搬運的**目的地**從倉層的內部位置換成具體儲位——
+數量仍然只由搬運的明細寫入。
 
 | 動作 | 內容 |
 | --- | --- |
@@ -180,11 +184,13 @@ GoodsReceived ──▶ 選儲位規則 ──▶ LocationStock += q ──▶ S
 
 規則型，不做 ABC 分類或動線最佳化。
 
-### 這一項修正了最小版的一個妥協
+### 這一項讓補貨探針有了正規的對應路徑
 
-最小版讓 `ReplenishmentUsecase` 同時寫入 `LocationStock` 以維持對帳等式——那是為了
-保留 demo 探針而做的權宜。F6 完成後，補貨可以走正規的收貨上架路徑，
-`ReplenishmentUsecase` 是否保留成為獨立的決定。
+補貨探針（`ReplenishmentUsecase`）本來就是 demo 用的捷徑——它直接送一則「貨到了」的事件。
+F6 完成後，同一段搬運可以由真實的收貨上架流程產生，探針是否保留成為獨立的決定。
+
+**兩者寫的是同一組表**（`stock_pickings` / `stock_moves` / `stock_move_lines` /
+`stock_pools`），所以不存在「兩本帳要對齊」的問題——那個問題在庫存異動模型之前才有。
 
 ## F7：盤點任務
 
@@ -210,7 +216,7 @@ GoodsReceived ──▶ 選儲位規則 ──▶ LocationStock += q ──▶ S
 | F3 | `ShipmentStatus` 加三態 | enum 新增值；`ShipmentDeparted` 契約不變 |
 | F4 | 新表 | 不動既有 |
 | F5 | 新流程 | 讀既有的 `PickTask` 狀態，不改它 |
-| F6 | 新流程 | 寫既有的 `LocationStock`，不改結構 |
+| F6 | 新流程 | 改入庫搬運的**目的地**，不改結構 |
 | F7 | 新表 | 不動既有 |
 
 **跨層契約完全不變。** `OrderAllocated`、`ShipmentDeparted`、`ShortPickDetected`、

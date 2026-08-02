@@ -75,45 +75,42 @@
 上下兩層都要用它，中間不可能簡單。但「不簡單」不等於要做完整 IMS——現行 `StockPool` 已在
 扮演這個角色，需要的是把它做對，不是新增一層。
 
-### 兩本帳的分工
+### 一本帳，兩種粒度的問法
 
-| | `StockPool` | `LocationStock` |
-| --- | --- | --- |
-| 粒度 | `(owner, node, skuCode, inDate, expiryDate)` 批次層 | `(location, owner, skuCode, inDate, expiryDate)` 儲位×批次層 |
-| 回答 | 這個批次還能承諾多少？ | 這個批次實際放在哪一格？ |
-| 性質 | 邏輯帳 | 實體帳 |
-| 維護者 | 訂單層 | 履約層 |
+**這一節原本寫的是「兩本帳」**——邏輯帳 `StockPool` 與實體帳 `LocationStock`，中間靠一條
+對帳等式維繫。庫存異動模型交付之後那個框架不成立了：只有一本帳。
+
+| | `stock_pools` |
+| --- | --- |
+| 粒度 | `(owner, location, sku, in_date, expiry)` |
+| 回答 | 這一批貨放在哪、還能承諾多少 |
+| 維護者 | 執行層（`stock`），而且**只能由搬運的明細改** |
+
+位置本身分層：現在是「一倉一個內部位置」，R7 讓它長出 `parent_id` 之後，庫存列就掛在
+**儲位**上。於是同一張表回答兩種問題：
 
 ```text
-node（北倉）· A貨主 · SKU-A
-  ├── StockPool(效期 2026-08-01, GOOD) = onHand 60, reserved 30
-  │     └── LocationStock (A-01-02) = 40
-  │         LocationStock (A-03-01) = 20
-  │                            合計 60 ── 必須等於上面的 onHand
-  │
-  ├── StockPool(效期 2026-09-15, GOOD)    = onHand 40  ← 同 SKU，不同批次
-  └── StockPool(效期 2026-08-01, DAMAGED) = onHand  5  ← 同批次，不良品
-
-node（北倉）· B貨主 · SKU-A
-  └── StockPool(...)                                   ← 同 SKU，不同貨主
-                                                          與 A 貨主不可互相調用
+北倉 · A貨主 · SKU-A · 效期 2026-08-01
+  ├── 儲位 A-01-02  onHand 40, reserved 20
+  └── 儲位 A-03-01  onHand 20, reserved 10
+       這個批次在這個倉還能承諾多少？ → 對子樹加總
+       這個批次實際放在哪一格？       → 直接讀那一列
 ```
 
-**對帳等式**：同一批次（`owner, node, skuCode, inDate, expiryDate` 五個維度全同）的所有儲位實體量總和，
-必須等於該筆 `StockPool.onHand`。短揀就是這個等式破掉的時候。
+**沒有對帳等式，因為沒有第二本帳可對。** 短揀仍然是真實的——帳上 10 個、只揀到 8 個——但
+它的修正方式是**再記一段搬運**（盤點調整），而不是「修其中一本帳讓兩本對齊」。
 
-**兩本帳的身分必須一致**，否則等式無從成立——這是 `LocationStock` 也要帶入庫日與效期的
-理由，不只是為了知道揀哪一批。批號與品質狀態兩本帳都不帶，理由見
-[execution-roadmap.md](execution-roadmap.md) 的 R3 動工前第 1、5 件（2026-07-29 定案）。
+這是 Odoo 的形狀：quant 掛在最細的位置上，而
+`_get_available_quantity(..., strict=False)` 對子樹加總。它沒有第二張表。
 
-**兩本帳都必須含貨主。** `LocationStock` 少了 `ownerId`，儲位上就分不出哪些貨是誰
-的，回架與盤點都無從對應。這在 3PL 是資料事故等級的缺陷，不是選配。
+> **連帶：配貨查詢要改成子樹比對。** 現在是 `location_id = <倉的內部位置>` 的等值篩選；
+> 儲位化之後要變成「這個倉底下的所有位置」。Odoo 用 `parent_path LIKE` 做這件事。這是
+> R7 開工時要一併處理的，不是事後補。
 
-IMS 所稱的「全網視圖」是對所有 `StockPool` 的聚合查詢，不是第三張表。
+**貨主必須在鍵裡。** 少了 `owner_id`，儲位上就分不出哪些貨是誰的，回架與盤點都無從對應。
+這在 3PL 是資料事故等級的缺陷，不是選配。
 
-`StockPool` 目前只有 `sku`，沒有貨主、節點、效期或良品狀態。那是待修的缺陷，不是
-設計選擇。四個維度應在同一次 migration 補齊，見
-[dom-promising-scope.md](dom-promising-scope.md)。
+IMS 所稱的「全網視圖」是對庫存列的聚合查詢，不是第三張表。
 
 ### 設計原則：同一事實只記一處
 
@@ -136,21 +133,21 @@ IMS 所稱的「全網視圖」是對所有 `StockPool` 的聚合查詢，不是
 **批次清單**由 ② 的 FEFO 配對產生。一個 order line 可能吃到多個批次，因此事件帶的是
 清單而非單值，履約層據此產生對應的 `PickTask`。
 
-### 交會點 2：出庫 → 邏輯帳扣減
+### 交會點 2：出庫 → 在庫量遞減
 
-`StockPool.onHandQuantity` 目前**只有 `replenish()` 一條遞增路徑，沒有任何遞減路徑**。
-`release()` 只動 `reservedQuantity`（取消退回）。系統的貨從未真正出去過。
+在庫量目前**只有遞增路徑，沒有任何遞減路徑**——`release()` 只動 `reservedQuantity`
+（取消退回）。系統的貨從未真正出去過。
 
 ```text
-[履約層] ShipmentDeparted ──Kafka──▶ [訂單層] StockPool.consume()
-                                              onHand -= q 且 reserved -= q
-                                              Reservation → CONSUMED
+[履約層] ShipmentDeparted ──Kafka──▶ [stock] MovementCompleter 完成那段出庫搬運
+                                              由明細扣掉 onHand 與 reserved
+                                              搬運 → DONE
 ```
 
 | 缺 | 內容 |
 | --- | --- |
-| `StockPool.consume(int)` | onHand 與 reserved 同步遞減 |
-| `ReservationStatus.CONSUMED` | 與 `RELEASED`（取消退回）語意分離 |
+| `MovementCompleter` 出庫的那一半 | 目前遇到來源是內部位置的搬運會拋 `not implemented until shipping exists`——那句話就是留給 R7 的 |
+| `StockPool.consume` 的憑證 | 它現在還收數字；`receive` 已經改成收明細，R7 接上時兩者一起收斂 |
 
 **扣帳時機採「離倉時扣」而非「揀貨時扣」。** 揀貨後貨仍在倉庫內，物理上未離開；
 出貨區的貨在取消時仍可回架。以離倉為界，`onHand` 的語意始終是「這個節點倉庫裡實際
@@ -158,12 +155,15 @@ IMS 所稱的「全網視圖」是對所有 `StockPool` 的聚合查詢，不是
 
 ### 交會點 3：短揀 —— 兩帳分歧的回饋路徑
 
-系統記錄儲位上有 10 個，揀貨員只找到 8 個。這是唯一將四件事串起來的場景：
+系統記錄儲位上有 10 個，揀貨員只找到 8 個。這是唯一將四件事串起來的場景。
+
+**修正的方式是再記一段搬運，不是改數字**——那正是「在庫量只能由搬運改」這條不變式在異常
+路徑上的樣子。少掉的 2 個去了 `INVENTORY` 這個虛擬位置，而它至今沒有讀者，等的就是這裡。
 
 | 觸發 | 層 | 動作 |
 | --- | --- | --- |
-| 實揀數 < 應揀數 | 履約層 | `PickTask` 記錄短揀，修正 `LocationStock` |
-| 邏輯帳失真 | 庫存 | 修正 `StockPool.onHandQuantity` |
+| 實揀數 < 應揀數 | 履約層 | `PickTask` 記錄短揀並發事實 |
+| 帳與實物不符 | stock | **再記一段搬運**（盤點調整：庫存 → `INVENTORY` 虛擬位置）把在庫量修正到實際值 |
 | 訂單無法足額履約 | 訂單層 ① | **整批退回重新決策**。採 ship-complete，不做部分出貨 |
 | 需改由他倉出貨 | 上游 | 由貨主重新指定倉別後重下單。系統不做 re-source（③ 已移出範圍） |
 | 帳差需人工確認 | 履約層 | 產生盤點任務（**最小版不做**，見 [fulfillment-full-scope.md](fulfillment-full-scope.md) F7） |
@@ -175,9 +175,9 @@ IMS 所稱的「全網視圖」是對所有 `StockPool` 的聚合查詢，不是
 
 | 取消時機 | 補償 | 最小版 |
 | --- | --- | --- |
-| 未產生 `PickTask` | `StockPool.release()`，reservation → `RELEASED` | ✓ |
+| 未產生 `PickTask` | `MovementCanceller`：取消搬運、刪除明細、把量還給庫存 | ✓ |
 | `PickTask` 未開始 | 取消 `PickTask`，同上 | ✓ |
-| 已揀貨、未離倉 | **須先回架（putback）**，`LocationStock` 復原後才 release | **不存在**——最小版揀貨確認即出貨，無此窗口 |
+| 已揀貨、未離倉 | **須先回架（putback）**，貨回到儲位後才取消搬運 | **不存在**——最小版揀貨確認即出貨，無此窗口 |
 | 已離倉 | **不允許取消**。逆物流不在範圍內，此路徑無補償手段 | ✓ |
 
 最後一列須在狀態機上明確禁止，否則會出現無法補償的路徑。
@@ -194,7 +194,7 @@ IMS 所稱的「全網視圖」是對所有 `StockPool` 的聚合查詢，不是
 | --- | --- | --- |
 | `Order` | 訂單層 | `PENDING` → `ALLOCATED` → `FULFILLED`；分支 `BACKORDERED`、`CANCELLED`。**沒有 `PARTIALLY_ALLOCATED`**——採 ship-complete，整單全有全無，見 [dom-promising-scope.md](dom-promising-scope.md) |
 | `Shipment` | 履約層 | 最小版兩態：`CREATED` → `DEPARTED`；深做版補 `PICKING` → `PICKED` → `PACKED` |
-| `StockReservation` | 訂單層 | `ACTIVE` → `RELEASED`（取消退回）或 `CONSUMED`（出貨用掉） |
+| `StockMove` | stock | `CONFIRMED`（要貨）→ `ASSIGNED`（鎖到貨）→ `DONE`（貨真的動了）；分支 `CANCELLED`。**沒有 `WAITING` 也沒有 `PARTIALLY_AVAILABLE`**，理由見 `MoveState` 的 javadoc |
 
 ### 用詞決定
 
@@ -205,7 +205,7 @@ IMS 所稱的「全網視圖」是對所有 `StockPool` 的聚合查詢，不是
 | 不用 `DISPATCHED` / `HANDED_OVER` / `TENDERED` | 前者宣告了承運商才能宣告的事；後二者描述「我與他人之間發生了什麼」，跳出了狀態機的語法線 |
 | 不用 `PICKED_UP` | 與 `PICKED` 在同一狀態機內嚴重混淆 |
 | Order 終態用 `FULFILLED`，不與 `DEPARTED` 共用 | 兩者是不同事實。拆單後一張 Order 對多個 Shipment，**全部 Shipment 皆 `DEPARTED` 時 Order 才 `FULFILLED`**，此關係需要兩個詞才能表達 |
-| Reservation 終態用 `CONSUMED` | 描述的主體是**預留額度**而非庫存——額度本來就是拿來用掉的。與 `RELEASED` 形成「用掉 vs 還回去」的清楚對比，且不與另兩個聚合的終態撞名 |
+| 搬運終態用 `DONE`，取消用 `CANCELLED` | 沿用 Odoo 的 `stock.move` 值域。曾經這裡是預留的 `CONSUMED` / `RELEASED`，而預留已經不是一個獨立的東西——它是搬運被鎖定的狀態，所以那組詞連同型別一起消失了 |
 
 保留 `DELIVERED` 一詞不用。若日後接入 TMS，該詞有位置可放，不需回頭改語意。
 若日後加入集貨區作業，`STAGED` 可插入 `PACKED` 與 `DEPARTED` 之間，風格一致。
@@ -334,10 +334,10 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 | 邊界強制力 | 靠慣例與 review | **編譯期強制** |
 | 能否防止履約層直接 import `Order` | 否 | 是 |
 
-本專案已有前例：`OrderAllocationCoordinator:29` 注入 `OrderRepository`、
-`AllocationService:58` 呼叫 `order.markAllocated()`——兩者都是因為 `ordering` 與
-`allocation` 同在一個 module，package 邊界擋不住。履約層量級更大，同樣的錯誤更難
-回頭。另外 `order-promising` 這個 module 名稱已界定範圍，將履約層納入會使名稱失效。
+本專案有過那個前例：配貨曾經注入 `OrderRepository`、由 domain service 直接呼叫
+`order.markAllocated()`——兩者都是因為 `ordering` 與執行層同在一個 module，package 邊界
+擋不住。後來以事件斷開並補了架構測試，但那是**事後檢查**；module 邊界在編譯期就擋下來。
+履約層量級更大，同樣的錯誤更難回頭。另外 `order-promising` 這個 module 名稱已界定範圍，將履約層納入會使名稱失效。
 
 仍為**單一 Spring Boot 應用**，由 `bootstrap` 同時依賴兩個 module。這不是「先合併
 之後再拆服務」的過渡安排——module 邊界已提供拆分所需的全部準備，是否拆為獨立部署
@@ -353,7 +353,7 @@ YMS、庫內移動、補貨策略。
 | `fulfillment` | **採用**。語意剛好是「把已配貨的訂單變成實際出貨」；與 DOM 分工清楚（DOM 決策、fulfillment 執行）；且與既有 `order-promising` 同為**能力導向**命名 |
 | `warehouse` | 偏廣，暗示涵蓋庫內全部作業 |
 | `wms` | 承諾過大，且是系統導向、與既有命名風格不一致 |
-| `outbound` | 語意精準，但 putaway（上架）屬入庫作業，會被名稱排除——而沒有 putaway 就沒有 `LocationStock` |
+| `outbound` | 語意精準，但 putaway（上架）屬入庫作業，會被名稱排除——而沒有 putaway，貨就永遠只掛在倉層的位置上，進不到儲位 |
 
 文件中仍以「履約層／WMS 範疇」對應產業分層，但 module 與 package 一律用
 `fulfillment`。

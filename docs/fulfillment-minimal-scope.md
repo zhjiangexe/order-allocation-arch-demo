@@ -35,7 +35,7 @@
 ## 前提
 
 **本系統是 3PL**：倉庫不擁有貨。同一儲位上可能同時放著不同貨主的同一 SKU，兩者不可
-互相調用。因此 `LocationStock` 與所有揀貨指令都必須帶 `ownerId`。
+互相調用。因此庫存列與所有揀貨指令都必須帶 `ownerId`。
 
 ---
 
@@ -81,18 +81,18 @@
 | --- | --- | --- |
 | `Shipment` | **一次交付**，粒度為 `(order, node)`，兩態 | `DEPARTED` 後不可變更 |
 | `PickTask` | 為滿足某條 line，從一個儲位揀一個批次 | 實揀數不得超過應揀數 |
-| `LocationStock` | 一個儲位上某批次的實體量 | 數量不得為負 |
+**沒有第三個聚合。** 「某個儲位上某批次有多少」是 `stock_pools` 回答的——它由 `stock`
+擁有，而履約層**不寫它**（見「跨層交會點」）。這一節原本有一個 `LocationStock` 聚合，
+那個框架在庫存異動模型交付後不成立了：庫存只有一本帳，儲位只是它的位置維度變細。
 
-`Location` 是主檔而非聚合——最小版不解析階層，它只提供 `code` 供顯示與排序。
+儲位本身是 `stock_locations` 長出的一層，不是新的主檔——最小版不解析階層，`code` 只供
+顯示與排序。
 
 ### 欄位
 
 ```text
-Location                              主檔
-  id, nodeId, code
-
-LocationStock
-  (locationId, ownerId, skuCode, inDate, expiryDate) 複合主鍵, quantity, version
+儲位          stock_locations 加一層（parent_id 指向倉的內部位置）
+儲位上的量     stock_pools，位置維度指到儲位——不是新表
 
 Shipment
   id, orderId, ownerId, nodeId, status, createdAt, departedAt
@@ -102,11 +102,12 @@ PickTask
   requestedQty, pickedQty, status, confirmedAt
 ```
 
-`ownerId` 出現在 `LocationStock`、`Shipment`、`PickTask` 三處，因為三者都必須能回答
-「這是誰的貨」。少了它，同一儲位上兩個貨主的同一 SKU 就無法區分，揀貨會揀到別人的
-貨——這在 3PL 是資料事故等級的缺陷。
+`ownerId` 出現在 `Shipment`、`PickTask` 與庫存列上，因為三者都必須能回答「這是誰的貨」。
+少了它，同一儲位上兩個貨主的同一 SKU 就無法區分，揀貨會揀到別人的貨——這在 3PL 是資料
+事故等級的缺陷。
 
-`Location` **不帶 `ownerId`**：儲位是倉庫的物理設施，不屬於任何貨主。
+**儲位本身不帶 `ownerId`**：它是倉庫的物理設施，不屬於任何貨主。`stock_locations` 現在
+就沒有這個欄位。
 
 ### `Shipment` 的粒度是 `(order, node)`
 
@@ -140,8 +141,8 @@ Order 1 · Line A（需求 20）
 `ShipmentLine(shipmentId, orderLineId, …)` 作為彙總明細後，`PickTask` 不需要改動。
 判準與「可升級性」一節的三處預防相同。
 
-`LocationStock.version` 需要樂觀鎖——兩個揀貨員同時揀同一儲位是真實的併發場景，與
-既有 `StockPool` 的熱點 SKU 是同一類問題。
+儲位層的庫存列同樣需要樂觀鎖——兩個揀貨員同時揀同一儲位是真實的併發場景，與熱點 SKU
+是同一類問題。**`stock_pools` 本來就有 `version`**，所以這一項不必另外設計。
 
 ### 狀態機
 
@@ -184,12 +185,15 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | # | 觸發 | 動作 | 產出 |
 | --- | --- | --- | --- |
 | 1 | `OrderAllocated`（含 `ownerId`、`nodeId`、**批次清單**） | 建立 `Shipment`，狀態 `CREATED` | — |
-| 2 | 同上，同交易 | 依批次清單在 `LocationStock` 中定位儲位，產生 `PickTask` | `PickTask` 清單 |
-| 3 | 揀貨員回報實揀數 | `LocationStock` 遞減，`PickTask` → `PICKED` | — |
+| 2 | 同上，同交易 | 依鎖定的明細定位儲位，產生 `PickTask` | `PickTask` 清單 |
+| 3 | 揀貨員回報實揀數 | `PickTask` → `PICKED`。**履約層不動庫存** | — |
 | 4 | 全部 `PickTask` 皆 `PICKED` | `Shipment` → `DEPARTED` | **`ShipmentDeparted`** |
 
-第 4 步的事件由訂單層消費，執行 `StockPool.consume()` 與 reservation → `CONSUMED`。
-契約定義於 [system-layer-map.md 交會點 2](system-layer-map.md)。
+第 4 步的事件由 `stock` 消費，**完成那段出庫搬運**，由它的明細扣掉在庫量。契約定義於
+[system-layer-map.md 交會點 2](system-layer-map.md)。
+
+**第 3 步刻意不動庫存。** 揀貨後貨仍在倉庫內，在庫量還沒有變；而「揀到哪了」由
+`PickTask` 的狀態回答，不需要在庫存上多記一個欄位。
 
 ### 取位規則
 
@@ -218,14 +222,17 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | # | 層 | 動作 |
 | --- | --- | --- |
 | 1 | 履約層 | `PickTask.pickedQty = 8`，狀態 → `SHORT_PICKED` |
-| 2 | 履約層 | `LocationStock` 修正為**實際值** |
-| 3 | 履約層 | 發 `ShortPickDetected(ownerId, nodeId, sku, expectedQty, actualQty)` |
-| 4 | 訂單層 | 修正 `StockPool.onHandQuantity`，對帳等式恢復 |
-| 5 | 訂單層 ① | **整批退回重新決策**（採 ship-complete，不做部分出貨） |
-| 6 | 訂單層 ③ | re-source 至他節點 |
+| 2 | 履約層 | 發 `ShortPickDetected(ownerId, nodeId, sku, expectedQty, actualQty)` |
+| 3 | stock | **再記一段盤點調整搬運**（庫存 → `INVENTORY` 虛擬位置），把在庫量修正到實際值 |
+| 4 | 訂單層 ① | **整批退回重新決策**（採 ship-complete，不做部分出貨） |
+| 5 | 訂單層 ③ | re-source 至他節點 |
 
-第 2 步的細節容易做錯：`LocationStock` 不能用「原值減去實揀數」，因為原值本身就是
-錯的。正確做法是設為揀貨員回報的實際剩餘量，或設為 0（全揀光仍不足）。
+**履約層不自己修庫存**，它發事實。這與出貨那條路徑一致，也是「在庫量只能由搬運改」這條
+不變式在異常路徑上的樣子——少掉的那 2 個去了 `INVENTORY` 虛擬位置，而它至今沒有讀者，
+等的就是這裡。
+
+第 3 步的細節容易做錯：調整的量**不能用「原值減去實揀數」**，因為原值本身就是錯的。
+正確做法是把在庫量設為揀貨員回報的實際剩餘量（差額即為調整搬運的數量）。
 
 ### 第 5 步的決策歸屬
 
@@ -288,18 +295,22 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | `ConfirmPickUsecase` | 揀貨回報，含短揀分支；全部完成時發 `ShipmentDeparted` |
 | `CancelShipmentUsecase` | 消費 `OrderCancelled` |
 | `ListPickTasksUsecase` | 查詢，操作台用 |
-| `GetLocationStockUsecase` | 查詢，操作台用 |
+| ~~`GetLocationStockUsecase`~~ | **不需要**——儲位上的庫存就是 `stock_pools`，已有 `GetStockPoolUsecase` |
 
-共 6 支，其中 2 支是查詢。
+共 5 支，其中 1 支是查詢。
 
 ### 資料表
 
 | 表 | 說明 |
 | --- | --- |
-| `locations` | 儲位主檔，`(node_id, code)` unique |
-| `location_stock` | `(location_id, owner_id, sku_code, in_date, expiry_date)` 複合主鍵，含 `version` 樂觀鎖——身分必須與 `stock_pools` 一致，否則對帳等式不成立 |
 | `shipments` | 出貨單，兩態 |
 | `pick_tasks` | 揀貨任務，含 `order_line_id` |
+
+**只有兩張新表。** 原本還規劃 `locations` 與 `location_stock`——前者現在是
+`stock_locations` 長出 `parent_id`（Odoo 也只有一棵樹），後者不存在，因為只有一本帳。
+
+`stock_locations` 加 `parent_id` **屬於 `stock` 的 migration，不是履約層的**——履約層不擁有
+位置，它只是使用者。
 
 ### 事件
 
@@ -318,9 +329,10 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 `fulfillment` module **不得依賴** `order-promising`。所有跨層通訊經 Kafka 事件，
 不直接 import `Order`、`StockPool` 或其 repository。
 
-此規則由 Gradle module 邊界在編譯期強制。本專案已有反例：
-`OrderAllocationCoordinator:29` 注入 `OrderRepository`、`AllocationService:58` 呼叫
-`order.markAllocated()`——皆因同在一個 module，package 邊界擋不住。
+此規則由 Gradle module 邊界在編譯期強制。**本專案有過那個反例**：配貨曾經注入
+`OrderRepository`、由 domain service 直接呼叫 `order.markAllocated()`——皆因同在一個
+module，package 邊界擋不住。後來以事件斷開，並補了一支架構測試守著；但那支測試是**事後
+檢查**，而 module 邊界是編譯期就擋下來。
 
 ---
 
@@ -330,12 +342,13 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | --- | --- | --- |
 | 儲位 | 每節點 3～4 個 | 少於 3 個無法展示「同 SKU 分散多儲位」的取位規則 |
 | 分散情境 | 1 | 一個 SKU 分散三個儲位，且總量剛好不足以滿足某張單 |
-| **帳差情境** | 1 | 預先埋一筆 `LocationStock` 與 `StockPool` 不符的資料，供短揀展示 |
+| **帳差情境** | 1 | 預先埋一筆「帳上有、實際少」的庫存，供短揀展示 |
 
-W3 上架不做，儲位庫存由 seed 直接建立。連帶：既有的
-`ReplenishmentUsecase` 直接呼叫 `StockPool.replenish()` 會**破壞對帳等式**——邏輯帳
-增加了，實體帳沒有對應儲位。處理方式是讓它同時寫入 `LocationStock`，保留 demo 探針
-的價值。這是履約層對訂單層唯一的反向影響。
+W3 上架不做，儲位上的庫存由 seed 直接建立。
+
+**補貨探針不必特別處理。** 它走的是收貨那條正規路徑（建入庫搬運再完成它），寫的與揀貨
+讀的是同一組表——沒有第二本帳要對齊。這一段原本記著一個權宜（讓補貨同時寫實體帳），
+那個問題隨兩本帳一起消失了。
 
 ---
 
@@ -348,10 +361,13 @@ W3 上架不做，儲位庫存由 seed 直接建立。連帶：既有的
 | 待揀任務清單 | 出貨單、儲位、貨主、SKU、應揀數 |
 | 回報實揀數 | 輸入框 |
 | **刻意短揀的按鈕** | 一鍵回報少於應揀數 |
-| **對帳差異顯示** | `LocationStock` 總和 vs `StockPool.onHand`，不符時標示 |
+| **帳差的修正過程** | 短揀後那一段盤點調整搬運：從哪裡調、調多少、在庫量如何被改到實際值 |
 
-最後兩項是這一頁最有價值的控制項——它們是唯一能讓觀看者看見兩本帳、以及看見帳差
-如何被偵測與修正的方式。若操作台只能走順利路徑，W7 做了也展示不出來。
+最後兩項是這一頁最有價值的控制項——它們是唯一能讓觀看者看見**異常也走搬運**的方式。
+若操作台只能走順利路徑，W7 做了也展示不出來。
+
+（原本這裡是「對帳差異顯示：實體帳總和 vs 邏輯帳」。只有一本帳之後沒有兩個數字可比，
+要展示的東西因此換成**修正的過程**而不是差異本身。）
 
 ---
 

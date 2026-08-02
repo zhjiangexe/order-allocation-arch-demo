@@ -21,7 +21,7 @@
 
 ## 現況與缺口
 
-② 是三個職責中唯一已實作的：`StockPool`、`StockReservation`、`AllocationService`、
+② 是三個職責中唯一已實作的：`StockPool`、`StockMove` 與它的明細、`AllocationService`、
 `AllocationPolicy` 抽象、樂觀鎖重試、backorder 與補貨後的 FIFO 重配都已完成。
 
 三個缺口：
@@ -63,10 +63,13 @@
 | **2 Hard** | 預留時就指定批次 | **WMS／3PL 主流**，尤其食品藥品 |
 | **3 兩階段** | 收單時 soft 檢查 ATP，出貨前才 hard 決定批次 | SAP 等大型系統 |
 
-**本系統已經是流派 2。** `StockReservation` 持有 `stockPoolId`，指向特定的庫存池——
-批次化是這個模型的自然延伸，不是換流派。
+**本系統已經是流派 2。** 鎖定的明細持有 `stockPoolId`，指向特定的庫存列——批次化是這個
+模型的自然延伸，不是換流派。
 
-證據在 `ReleaseReservationUsecase:53`：
+（那份明細當初叫 `StockReservation`，現在是 `stock_move_lines`：預留不再是與搬運平行的
+另一本帳，而是搬運被鎖定時產生的明細。指向特定批次這件事不變。）
+
+證據在取消那條路徑：
 
 ```java
 StockPool stockPool = stockPoolRepository.findById(reservation.getStockPoolId())
@@ -125,8 +128,8 @@ FEFO 依 `expiry_date` 排序、`in_date` 作 tie-breaker（同效期不同日�
 | `StockPool` 的 key 加批次維度 | **採用**（2026-07-29 定為 `(inDate, expiryDate)` 兩維，批號與品質狀態不做） |
 | 保留 `StockPool` 為聚合視圖，另建 `StockLot` 明細表 | 不採用 |
 
-不採用第二案的理由：它會製造**第三本帳**（`StockPool` 總量、`StockLot` 明細、
-`LocationStock` 實體），違反已定的「同一事實只記一處」原則。ATP 本來就該從批次算出
+不採用第二案的理由：它會製造**第三本帳**（`StockPool` 總量、`StockLot` 明細、儲位層的
+實體數量），違反已定的「同一事實只記一處」原則。ATP 本來就該從批次算出
 來，聚合值是查詢結果而非儲存值。
 
 ### `group` 取代 `damagedQuantity`
@@ -240,15 +243,17 @@ line）之前不產生任何可觀察差異。但它改變段 C 的性質：段 
 `release()` 只動 `reservedQuantity`（取消退回）。系統的貨從未真正出去過。
 
 ```java
-public void reserve(int q)    { reservedQuantity += q; }   // 只動 reserved
-public void release(int q)    { reservedQuantity -= q; }   // 取消退回，只動 reserved
-public void replenish(int q)  { onHandQuantity   += q; }   // 唯一寫 onHand 之處
+public void reserve(int q)              { reservedQuantity += q; }  // 只動 reserved
+public void release(int q)              { reservedQuantity -= q; }  // 取消退回，只動 reserved
+public void receive(StockMoveLine line) { onHandQuantity   += ...; }  // 唯一寫 onHand 之處
 ```
+
+`receive` 收的是**一條搬運明細**而不是一個數字——「在庫量只能由搬運改」因此是型別上的事實。
 
 | 缺 | 內容 |
 | --- | --- |
-| `StockPool.consume(int)` | onHand 與 reserved 同步遞減 |
-| `ReservationStatus.CONSUMED` | 與 `RELEASED`（取消退回）語意分離。目前只有 `ACTIVE` / `RELEASED` |
+| `MovementCompleter` 出庫的那一半 | 完成一段來源是內部位置的搬運，由它的明細扣掉在庫量。目前遇到出庫方向會拋 `not implemented until shipping exists` |
+| `StockPool.consume` 的憑證 | 它現在還收數字。R7 接上時與 `receive` 一起收斂成「憑明細」 |
 
 觸發者是履約層的 `ShipmentDeparted` 事件。契約與扣帳時機定義於
 [system-layer-map.md 交會點 2](system-layer-map.md)。
@@ -257,10 +262,10 @@ public void replenish(int q)  { onHandQuantity   += q; }   // 唯一寫 onHand �
 
 ---
 
-## Reservation 要帶批次
+## 鎖定的明細要帶批次
 
-`StockReservation` 目前記錄 `stockPoolId` 與 `quantity`。批次化之後，**一張訂單的
-一個 line 可能吃到多個批次**：
+鎖定的明細記錄 `stockPoolId` 與 `quantity`。批次化之後，**一張訂單的一個 line 可能吃到
+多個批次**：
 
 ```text
 需求 20 個
@@ -268,20 +273,20 @@ public void replenish(int q)  { onHandQuantity   += q; }   // 唯一寫 onHand �
   └── 批次 B（效期 2026-09-15）取  8 個
 ```
 
-因此 reservation 的粒度是「一個 line × 一個批次」，而非「一張訂單」。這連帶影響：
+因此明細的粒度是「一個 line × 一個批次」，而非「一張訂單」。這連帶影響：
 
 | 影響 | 說明 |
 | --- | --- |
-| `StockReservation.orderId` → `orderLineId` | **FK 變更**，見下 |
-| `StockReservation` 數量 | 一張單可能對應多筆 |
-| `consume()` 的觸發 | 出貨時逐筆 consume，各自扣對應批次 |
+| 明細掛在**行**上而不是訂單上 | **FK 變更**，見下。現在的形狀是 `stock_moves.order_line_id` |
+| 一張單可能對應多筆明細 | 跨批取用時每一批一條 |
+| 出貨的扣帳 | 逐條明細扣對應批次——那是 `MovementCompleter` 出庫的那一半，R7 才實作 |
 | 履約層的 `PickTask` | 必須帶批次維度，才知道去揀哪一批 |
 
 最後一項是跨層契約：`OrderAllocated` 事件要帶批次資訊，否則履約層不知道該揀哪批貨。
 
 ### `order_lines` 必須與本段同時建立
 
-`StockReservation` 掛 `orderLineId` 需要 `order_lines` 存在。若先掛 `orderId`、等
+明細掛 `orderLineId` 需要 `order_lines` 存在。若先掛 `orderId`、等
 多品項時再改，就是一次 **FK 搬遷**——與履約層 `PickTask` 掛 `orderId` vs `shipmentId`
 是完全同構的問題。
 
@@ -318,20 +323,22 @@ OrderRepository.findBackordersBySkuInFifoOrder(sku)
 排序語意寫進方法名、由 DB index 支撐。`findSellableBatchesInFefoOrder` 是同一個做法，
 排序責任歸屬不需另行討論。
 
-### `ReplenishmentUsecase` 是最大的改動
+### 補貨進來的是新的一批貨
 
-補貨進來的是**新的一批貨**（有自己的效期），不是往既有批次加數量：
+補貨不是往既有批次加數量，而是**帶著自己效期的一批貨**：
 
 ```text
-現在   findBySku(sku).replenish(qty)          ← 找到那一列，加數量
+最早    findBySku(sku).replenish(qty)     ← 找到那一列，加數量
 
-之後   upsert(owner, node, sku, inDate, expiryDate, qty)
-         同批次已存在 → 加到既有列
-         不存在       → 建立新列
+批次化  五維識別（貨主、位置、SKU、入庫日、效期）
+          命中 → 加到既有列
+          沒有 → 開一列
+
+現在    收貨走搬運：建入庫單據與搬運 → 完成它 → 由明細把量放進那一列
+          五維識別的規則不變，只是搬到了「完成搬運」那一步
 ```
 
-`ReplenishStockCommand` 因此要加 `expireDate` 與 `group`，usecase 從「查詢＋呼叫
-domain 方法」變成 upsert。
+`ReplenishStockCommand` 因此帶 `inDate` 與 `expiryDate`。
 
 連帶好處：操作台的補貨探針要能輸入效期，而這讓「**補一批新效期的貨進來，看 FEFO
 排序改變**」成為可展示的操作。
@@ -437,8 +444,8 @@ bug 修掉。
 ```
 
 **解法是固定更新順序。** 配貨既然已依 `expireDate` 排序取用，只要保證寫入順序也照
-這個排序，就不會交錯。這要在 `OrderAllocationCoordinator` 的持久化段落明確寫死，
-不能依賴集合的自然順序。
+這個排序，就不會交錯。這條全序現在有一份具名的定義
+（`StockWriteOrder.BY_GLOBAL_ORDER`），三個寫入庫存列的地方共用它，不能依賴集合的自然順序。
 
 既有的 `AllocationRetryExecutor` 處理的是樂觀鎖衝突，**處理不了死鎖**——死鎖在 DB
 層就 abort 了，重試邏輯看到的是不同的例外類型。
@@ -478,51 +485,19 @@ key；名字說的是**序列化什麼**而不是**用哪幾個欄位**，所以
 
 ---
 
-## 影響檔案
+## 影響檔案（已交付，不再維護清單）
 
-### 結構性必改
+P1／P2 的批次化與 FEFO 已經交付，其後又經過庫存異動模型的五個 change——當初那份逐檔清單
+（`StockReservationEntity`、`ReservationStatus`、`OrderAllocationCoordinator` 等）**列的檔案
+多半已不存在**，留著只會誤導。
 
-| 檔案 | 原因 |
-| --- | --- |
-| `allocation/domain/model/StockPool.java` | key 加 `expireDate`、`group`；加 `consume()` |
-| `allocation/domain/model/ReservationStatus.java` | 加 `CONSUMED` |
-| `allocation/domain/model/StockReservation.java` | 粒度變為 line × 批次 |
-| `allocation/domain/service/AllocationService.java` | 加入批次篩選與 FEFO 配對；`allocate()` 回傳多筆批次分配而非單一結果 |
-| `allocation/domain/service/AllocationOutcome.java` | 需區分「完全無批次」與「有批次但全不可售」——兩者的畫面訊息不同 |
-| `allocation/domain/repository/StockPoolRepository.java` | `findBySku` 改為批次查詢，見「Repository 介面的改動」 |
-| `allocation/application/command/ReplenishStockCommand.java` | 加 `expireDate`、`group` |
+現況以程式碼為準，結構的說明見 `docs/dom-stock-movement-scope.md`。當時記下的兩件仍然成立
+的事：
 
-### 簽章傳染
-
-`OrderAllocationCoordinator`、`AllocateOrderUsecase`、`ReleaseReservationUsecase`、
-`ReplenishmentUsecase`、`GetStockPoolUsecase`、`AllocationRequest`、
-`AllocationSelector`、`AllocationPolicy` 與兩個 policy 實作、`OrderAllocationCompleted`
-
-### 持久層與契約
-
-| 類別 | 檔案 |
-| --- | --- |
-| Entity／Mapper | `StockPoolEntity`、`StockPoolMapper`、`StockReservationEntity`、`StockReservationMapper` |
-| Repository | `StockPoolRepository(+Impl)`、`JpaStockRepository`、`StockReservationRepository(+Impl)`、`JpaStockReservationRepository` |
-| Migration | `stock_pools` 的 unique key 改為 `(owner_id, node_id, sku_code, in_date, expiry_date)`；建立 `order_lines`；`stock_reservations` 的 FK 改為 `order_line_id` |
-| Kafka | `OrderAllocatedIntegrationEvent` 加批次資訊；`BackorderCreatedIntegrationEvent`；**`OrderingDomainEventTranslator` 的 partition key 改為 `ownerId:skuCode`** |
-| REST | `StockPoolController`、`StockPoolResponse`（改為批次列表） |
-| 其他 | `bootstrap/DevSeedDataInitializer`、`e2e/perf/k6/*`、`frontend/` |
-
-**`stock_pools` 的四個維度擴張——貨主、節點、效期、良品狀態——應在同一次 migration
-完成。** 分次做等於對同一組 unique constraint 與所有查詢改四輪，中間狀態沒有價值。
-該次 migration 的完整清單（含 `order_lines` 與 `stock_reservations` 的 FK）見
-[system-layer-map.md 的「第一步」](system-layer-map.md)。
-
-### 測試前提失效
-
-`AllocationHotSkuConcurrencyIntegrationTest`、
-`AllocationFifoReplenishmentBatchIntegrationTest`、
-`AllocationConcurrencyEndToEndIntegrationTest` 的前提（單池熱點競爭）在批次化後失效。
-熱點的定義從「一個 SKU」變成「一個批次」，需重新設計。
-
-`AllocationFifoReplenishmentBatchIntegrationTest` 另有一個語意問題：補貨後的重配順序
-是訂單的 FIFO（外層），與批次的 FEFO（內層）是兩件事，測試須明確區分。
+- **`stock_pools` 的維度擴張要在同一次 migration 完成**，分次做等於對同一組 unique
+  constraint 與所有查詢改四輪，中間狀態沒有價值
+- **熱點的定義從「一個 SKU」變成「一個批次」**——併發測試的前提因此改變，而它們現在種的是
+  單一批次，正是為了讓競爭真的發生
 
 ---
 

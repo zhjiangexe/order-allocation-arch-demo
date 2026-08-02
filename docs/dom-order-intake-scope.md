@@ -195,11 +195,13 @@ order_lines
 
 | 表 | 現況 | 目標 |
 | --- | --- | --- |
-| `stock_pools` | `UNIQUE (sku)` | `UNIQUE (owner_id, node_id, sku_code, in_date, expiry_date)` |
-| `location_stock` | 不存在 | `(location_id, owner_id, sku_code, in_date, expiry_date)` 複合主鍵——身分必須與 `stock_pools` 一致，否則對帳等式不成立 |
+| `stock_pools` | `UNIQUE (sku)` | `UNIQUE (owner_id, location_id, sku_code, in_date, expiry_date)` |
 
-`stock_pools` 共有**四個**維度要擴張——貨主、節點、效期、良品狀態——**應在同一次
-migration 完成**。分次做等於對同一組 unique constraint 與所有查詢改四輪，中間狀態
+（第二維後來從倉換成**位置**；R7 讓位置長出儲位那一層之後，同一張表就同時回答「這個倉還
+能承諾多少」與「實際放在哪一格」——**沒有第二張儲位庫存表**。）
+
+`stock_pools` 共有**四個**維度要擴張——貨主、位置、效期、良品狀態（良品狀態最終不做）
+——**應在同一次 migration 完成**。分次做等於對同一組 unique constraint 與所有查詢改四輪，中間狀態
 沒有任何價值。
 
 ### 為何不改名為 `stock_batches`
@@ -281,9 +283,9 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 
 | 檔案 : 行 | 現在做的事 |
 | --- | --- |
-| `OrderAllocationCoordinator:29` | 注入 `OrderRepository`，持有他層的 repository |
-| `OrderAllocationCoordinator:64` | `order.markBackOrdered(now)` |
-| `OrderAllocationCoordinator:169` | `publishDomainEvents(orders)`，代發他層的 domain event |
+| 配貨的協調者（當時的 `OrderAllocationCoordinator`） | 注入 `OrderRepository`，持有他層的 repository |
+| 同上 | `order.markBackOrdered(now)` |
+| 同上 | `publishDomainEvents(orders)`，代發他層的 domain event |
 | `AllocationService:58` | `order.markAllocated(now)`，domain service 跨層改他層 aggregate |
 | `AllocateOrderUsecase:47-54` | 載入 `Order` 後由 `order.getSku()` 反查 `StockPool` |
 | `ReplenishmentUsecase:54` | `orderRepository.findBackordersBySkuInFifoOrder(sku)` |
@@ -324,9 +326,8 @@ migration 完成**。分次做等於對同一組 unique constraint 與所有查�
 | 「已滿足」的謂詞集中在一處 | 見下節。散在 Java 裡會被人忘記更新 |
 | 無重複、無延遲、無對帳負擔 | 這是投影表要付的代價 |
 
-投影表唯一的優勢是「已滿足」變成自己維護的欄位、不依賴他人的 enum。把謂詞放進 view
-定義之後，那個優勢的大部分被抵銷——謂詞仍然要隨 `ReservationStatus` 演進更新，但只有
-一個地方要改。
+投影表唯一的優勢是「已滿足」變成自己維護的欄位、不依賴他人的型別。把謂詞放進 view
+定義之後，那個優勢的大部分被抵銷——謂詞仍然要隨執行層的模型演進更新，但只有一個地方要改。
 
 ### view 的定義：兩個權威來源，各管一半
 
@@ -343,12 +344,12 @@ SELECT ol.order_id,
   JOIN orders o ON o.id = ol.order_id
  WHERE o.cancelled_at IS NULL                    -- ordering 是權威，即時正確
    AND NOT EXISTS (                              -- allocation 自己的資料才是「已滿足」的權威
-     SELECT 1 FROM stock_reservations sr
-      WHERE sr.order_line_id = ol.id
-        AND sr.status IN ('ACTIVE', 'CONSUMED'));
+     SELECT 1 FROM stock_moves m
+      WHERE m.order_line_id = ol.id);
 ```
 
-**這份定義寫於 R2 的倉別與 R3 的分批之前，實作時補了兩處。**
+**這份定義寫於 R2 的倉別與 R3 的分批之前，實作時補了兩處**；而庫存異動模型之後，謂詞本身
+也換了——見下節。
 
 **加 `node_id`。** 庫存按 `(貨主, 倉, SKU, 入庫日, 效期)` 持有，配貨的批次查詢要倉別才找得到
 批。佇列的範圍也因此含倉別——別的倉的單這次補貨滿足不了，撈進來只會佔滿以張數計的喚醒上限
@@ -383,22 +384,25 @@ SELECT ol.order_id,
 
 一句話：**ordering 知道客人訂了什麼，allocation 知道自己滿足了什麼。**
 
-### 「已滿足」的謂詞：`ACTIVE` 或 `CONSUMED`
+### 「已滿足」的謂詞：這條行有沒有搬運
 
-| Reservation 狀態 | 何時 | 算已滿足嗎 |
-| --- | --- | --- |
-| `ACTIVE` | 配到、尚未出貨 | **是** |
-| `CONSUMED` | 出貨後扣帳（R3 新增型別、R7 開始使用） | **是**——貨已經出去了 |
-| `RELEASED` | 取消時釋放 | 否 |
+謂詞換過一次。原本它問的是「有沒有有效的預留」，要逐一列舉預留的狀態；現在問的是
+**「這條行有沒有被執行層接手」**，而那只有一個條件：
 
-**只寫 `ACTIVE` 會在 R7 出事**：出貨後 reservation 轉為 `CONSUMED`，該需求會重新出現在
-view 裡而被再次配貨。而 R3 引入 `CONSUMED` 型別時**不會有任何測試提醒你**——出貨流程要到
-R7 才存在。因此 R3 的檢查清單要包含「同步更新 view 定義」。
+```sql
+NOT EXISTS (SELECT 1 FROM stock_moves m WHERE m.order_line_id = ol.id)
+```
+
+**任何狀態的搬運都算有**——包括已完成的。這一點是載重的：漏了它，每一張已出貨的單都會
+重新變成待接手的需求，**而那一刻不會有任何測試失敗**（出貨要到 R7 才存在）。
+
+當初的版本要列舉三個預留狀態（配到未出貨、出貨後扣帳、取消釋放），而列舉是會漏的——
+換成「有沒有」之後，這個漏法在結構上就不存在了。
 
 ### migration 放在哪：R4，且 R4 因此依賴 R3
 
-view 引用了兩樣 **R3 才存在**的東西：`sr.order_line_id`（R3 才把 FK 從 `order_id` 改過來）
-與 `CONSUMED`（R3 新增的 enum 值）。所以它最早只能在 R3 之後，而 R4 才有消費者。
+view 引用了 **R3 才存在**的東西：執行層那一側掛在**行**上而不是訂單上（R3 才把 FK 從
+`order_id` 改過來）。所以它最早只能在 R3 之後，而 R4 才有消費者。
 
 **連帶：R4 的依賴從「無」改為「R3」。** 建議序列本來就是 R3 → R4，禁忌 #3 也已禁止兩者
 並行，這只是把事實寫進依賴表。
@@ -414,7 +418,7 @@ view 引用了兩樣 **R3 才存在**的東西：`sr.order_line_id`（R3 才把 
 
 | 防線 | 作用 |
 | --- | --- |
-| view 的 `NOT EXISTS` | 已有 ACTIVE／CONSUMED 預留的 line 直接從 `demand_lines` 消失 |
+| view 的 `NOT EXISTS` | 已經有搬運的 line 直接從 `demand_lines` 消失 |
 | `StockPool` 樂觀鎖 ＋ `AllocationRetryExecutor` | 兩交易同時通過 view 時，一方 version 衝突 → 重讀 view → 該 line 已被排除 → 跳過 |
 
 ### 寫入為什麼走事件而不是同步呼叫
@@ -422,9 +426,9 @@ view 引用了兩樣 **R3 才存在**的東西：`sr.order_line_id`（R3 才把 
 allocation 不呼叫 ordering,只發事實;`Order` 的狀態由 ordering 收到事實後自己推進。
 三個理由,第一個與 module 邊界無關:
 
-**（一）一個交易只修改一個 aggregate。** 現況一個交易同時改 `Order`、`StockPool`、
-`StockReservation` 三個 aggregate,這違反 aggregate 作為一致性邊界的規則——即使兩個
-context 在同一個 module 裡也一樣違反。
+**（一）一個交易只修改一個 aggregate。** 當時一個交易同時改 `Order`、`StockPool` 與預留
+三者,這違反 aggregate 作為一致性邊界的規則——即使兩個 context 在同一個 module 裡也一樣
+違反。
 
 **（二）事件本來就要發。** `OrderAllocatedIntegrationEvent` 與
 `BackorderCreatedIntegrationEvent` 已經在發布到 `promising.allocation-events`,那是
@@ -462,15 +466,16 @@ ordering 收到 OrderAllocated → order.markAllocated() 拋
 | 表 | 誰寫 | 觸發 |
 | --- | --- | --- |
 | `orders`、`order_lines` | **ordering** | 收單、取消、**收到配貨結果事件** |
-| `stock_pools`、`stock_reservations` | **allocation** | 配貨、釋放、補貨、出庫消耗 |
+| `stock_pools` 與搬運的四張表 | **stock** | 配貨、釋放、補貨、出庫消耗 |
 | `event_outbox`、`event_inbox` | 各自 | 各自的 translator／handler |
 
 現況的違反處就在第一列:`orders` 同時被 ordering（下單、取消）與 allocation
 （`markAllocated`、`markBackOrdered`）寫入。
 
-`stock_reservations` 的 FK 指向 `order_line_id`（R3）是**持有參照**,不是寫入,兩者不同。
+執行層的 FK 指向 `order_line_id`（R3）是**持有參照**,不是寫入,兩者不同。這條線後來被寫進
+架構測試：持有 `order_line_id` 可以，沿著它去讀那條行的其他欄位不行。
 
-這也給了段 A 一個比 grep import 更有意義的驗收條件：**allocation 的程式碼不得出現
+這也給了段 A 一個比 grep import 更有意義的驗收條件：**執行層的程式碼不得出現
 `orders`／`order_lines` 這兩個表名（含 SQL 字串與 JdbcTemplate）**。只檢查 Java import
 擋不住繞過型別直接寫表。
 
