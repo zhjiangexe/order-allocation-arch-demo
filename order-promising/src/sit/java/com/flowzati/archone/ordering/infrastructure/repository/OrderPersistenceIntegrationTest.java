@@ -139,8 +139,8 @@ class OrderPersistenceIntegrationTest {
     persistOrder(uuid(1), "SKU-1", OrderStatus.PENDING, null, null);
 
     assertThatThrownBy(() -> jdbcTemplate.update("""
-        INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity, status)
-        VALUES (?, ?, 2, ?, ?, ?, 'PENDING')
+        INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity)
+        VALUES (?, ?, 2, ?, ?, ?)
         """, uuid(9), uuid(1), OrderFixtures.OWNER_ID, "SKU-2", quantity))
         .isInstanceOf(DataIntegrityViolationException.class)
         .rootCause()
@@ -278,7 +278,7 @@ class OrderPersistenceIntegrationTest {
         LocalDate.of(2026, 8, 1),
         OrderFixtures.NODE_ID,
         List.of(new OrderLineEntity(
-            UUID.randomUUID(), 1, ownerId, sku, 1, status)),
+            UUID.randomUUID(), 1, ownerId, sku, 1)),
         status,
         receivedAt,
         // 上游的下單時刻——這些 fixture 一律不帶，它們驗的是排序與狀態，與上游時間無關。

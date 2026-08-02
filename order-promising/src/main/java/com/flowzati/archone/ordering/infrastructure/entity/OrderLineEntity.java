@@ -1,10 +1,7 @@
 package com.flowzati.archone.ordering.infrastructure.entity;
 
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -36,11 +33,6 @@ public class OrderLineEntity {
   private int quantity;
 
 
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
-  private OrderStatus status;
-
-
   protected OrderLineEntity() {
   }
 
@@ -49,15 +41,13 @@ public class OrderLineEntity {
       int lineNo,
       UUID ownerId,
       String skuCode,
-      int quantity,
-      OrderStatus status
+      int quantity
   ) {
     this.id = id;
     this.lineNo = lineNo;
     this.ownerId = ownerId;
     this.skuCode = skuCode;
     this.quantity = quantity;
-    this.status = status;
   }
 
   public UUID getId() {
@@ -78,11 +68,6 @@ public class OrderLineEntity {
 
   public int getQuantity() {
     return quantity;
-  }
-
-
-  public OrderStatus getStatus() {
-    return status;
   }
 
 }

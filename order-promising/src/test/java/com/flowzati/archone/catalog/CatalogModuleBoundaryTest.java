@@ -31,7 +31,7 @@ class CatalogModuleBoundaryTest {
 
   private static final List<String> FORBIDDEN_IMPORTS = List.of(
       "import com.flowzati.archone.ordering",
-      "import com.flowzati.archone.allocation"
+      "import com.flowzati.archone.stock"
   );
 
   /**
@@ -47,7 +47,7 @@ class CatalogModuleBoundaryTest {
       List.of("@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping");
 
   @Test
-  @DisplayName("catalog 不應 import ordering 或 allocation")
+  @DisplayName("catalog 不應 import ordering 或 stock")
   void doesNotDependOnOrderingOrAllocation() {
     List<String> violations = javaSources()
         .flatMap(source -> FORBIDDEN_IMPORTS.stream()

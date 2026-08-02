@@ -1,12 +1,12 @@
 package com.flowzati.archone.bootstrap;
 
-import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.model.StockMove;
-import com.flowzati.archone.allocation.domain.model.StockMoveLine;
-import com.flowzati.archone.allocation.domain.model.StockPicking;
-import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.domain.repository.StockMoveRepository;
-import com.flowzati.archone.allocation.domain.repository.StockPickingRepository;
+import com.flowzati.archone.stock.domain.model.StockPool;
+import com.flowzati.archone.stock.domain.model.StockMove;
+import com.flowzati.archone.stock.domain.model.StockMoveLine;
+import com.flowzati.archone.stock.domain.model.StockPicking;
+import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
+import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
+import com.flowzati.archone.stock.domain.repository.StockPickingRepository;
 import com.flowzati.archone.catalog.domain.model.Owner;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
@@ -452,10 +452,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         SOUTH_NODE_ID,
         "SEED-B-0002",
         List.of(
-            OrderLine.rehydrate(BASKET_PLENTIFUL_LINE_ID, 1, SECOND_OWNER_ID, AVAILABLE_SKU, 5,
-                OrderStatus.BACKORDERED),
-            OrderLine.rehydrate(BASKET_SHORT_LINE_ID, 2, SECOND_OWNER_ID, EMPTY_SKU, 3,
-                OrderStatus.BACKORDERED))));
+            OrderLine.create(BASKET_PLENTIFUL_LINE_ID, 1, SECOND_OWNER_ID, AVAILABLE_SKU, 5),
+            OrderLine.create(BASKET_SHORT_LINE_ID, 2, SECOND_OWNER_ID, EMPTY_SKU, 3))));
     // 一張單兩段搬運，兩段都還在等貨——即使其中一個 SKU 的庫存很充足。**ship-complete 在
     // 資料上的樣子就是這個**：充足的那一段也停在「等貨」，一件都沒有被鎖住。
     picking(uuid(404), BASKET_ORDER_ID, SOUTH_OUTBOUND_TYPE_ID,
@@ -532,7 +530,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         ownerId,
         externalOrderNo,
         deliveryTerms(nodeId),
-        List.of(OrderLine.rehydrate(lineId, 1, ownerId, skuCode, quantity, status)),
+        List.of(OrderLine.create(lineId, 1, ownerId, skuCode, quantity)),
         status,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
         placedAt,

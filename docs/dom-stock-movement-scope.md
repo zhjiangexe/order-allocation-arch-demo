@@ -1,5 +1,9 @@
 # 庫存異動模型：需求與執行分成兩層
 
+> **五個 change 全部交付。** 庫存從「一個可被加減的數字」變成有來源與目的的異動流水，而
+> 在庫量的增加在型別上只剩一個入口：`StockPool.receive(StockMoveLine)`。剩下的待辦都在
+> `docs/execution-roadmap.md` 的「已識別但未排程」。
+
 本文記錄一個跨越五個 change 的決定：**把庫存從「一個可被加減的數字」改成有來源與目的的
 異動流水**，並把「貨主要什麼」與「倉庫做什麼」分成兩層。概念與命名對齊 Odoo 19。
 
@@ -286,7 +290,7 @@ REST 在讀取時組合。它的好處是真相只有一份，而且 R7 的 `FUL
 狀態傳輸」），而讓 ordering 反過來直接寫 `stock_moves` 是邊界的反面。
 
 它的謂詞從「無有效預留」換成「無 move」。而檔頭那段「刻意不含 `ol.status`，因為 ordering 的
-狀態落後於 allocation 的決策」的理由**消失了**——執行層讀的是自己寫的東西，沒有那個時間差。
+狀態落後於執行層的決策」的理由**消失了**——執行層讀的是自己寫的東西，沒有那個時間差。
 
 ---
 
@@ -535,12 +539,12 @@ packaging、SO line、reordering rule——沒有 partner／owner。
 | Context | 擁有 |
 | --- | --- |
 | `ordering` | **需求**：`orders`、`order_lines`、收單、取消 |
-| `allocation` → 更名 `inventory` | **執行與庫存**：`stock_locations`、`stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`、`stock_pools` |
+| `allocation` → 更名 `stock`（已完成） | **執行與庫存**：`stock_locations`、`stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`、`stock_pools` |
 
 `stock_moves.order_line_id` 跨過這條線。**這道參照的紀律是：執行層持有需求行的 id，但不讀
 它的任何其他欄位。**
 
-現有的 `AllocationBoundaryArchitectureTest` 禁止 allocation 的原始碼出現 `order_lines` 字面
+現有的 `AllocationBoundaryArchitectureTest` 禁止 `stock` 的原始碼出現 `order_lines` 字面
 字串（連 SQL 都掃），而新的外鍵必然要提到它。**危險不在測試變紅，在它被「加一個例外」修掉**
 ——那支測試的註解寫著「這條規則不需要為讀取開任何例外」，開了第一個例外它就從硬性約束退化
 成裝飾。
@@ -668,7 +672,7 @@ Odoo 19 的事實（已在 19.0 原始碼查證）：
 | 2 | ✅ **搬運單據與異動**（已交付：`record-every-movement`） | 建 `stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`；`stock_reservations` 遷入 move_lines；`demand_lines` view 改寫；換掉邊界護欄 | 1 |
 | 2.5 | ✅ **依搬運的動作重組流程**（已交付：`separate-the-movement-actions`） | 三支 usecase 退回真正的 usecase；`OrderAllocationCoordinator` 消失。**不改任何行為、不動 schema、不動對外契約** | 2 |
 | 3 | ✅ **入庫走 move**（已交付：`receive-goods-as-movement`） | 補貨改為產生 inbound picking + move；**`stock_pools` 封閉直接寫入**，只能由 move 寫 | 2.5 |
-| 4 | **界線與命名** | `ordering` / `inventory` 界線落實；**刪 `order_lines.status`**；對外契約更新 | 3 |
+| 4 | ✅ **界線與命名**（已交付：`settle-the-stock-context`） | `ordering` / `stock` 界線落實；**刪 `order_lines.status`**；對外契約更新 | 3 |
 
 **不可合併成一個 change。** 每一個都比 `allocate-multi-sku-orders-as-one-basket` 大；而第 3 個
 的「封閉直接寫入」是整串的目的，它必須在一個能被單獨驗證的邊界上發生。
@@ -690,7 +694,7 @@ Odoo 19 把它們全放在 `stock.move` 上：`_action_confirm` / `_action_assig
 | ③ 完成 | `_action_done` | `MovementCompleter`（R7，還沒有） | — |
 | ④ 取消 | `_action_cancel` | `MovementCanceller` | 找 picking → 濾掉 `DONE` → 還量 → 取消 → 刪明細 |
 
-放在 `allocation/application/movement/`。動詞取 `record` / `assign` / `cancel`，與 spec 的用詞
+放在 `stock/application/movement/`。動詞取 `record` / `assign` / `cancel`，與 spec 的用詞
 （*Every movement of goods is **recorded***）及 `MoveState` 的值域對得起來。
 
 **決定性的論據是第 3 個 change。** 入庫要做的是同一件 ①——解析作業類型、建 picking、建搬運

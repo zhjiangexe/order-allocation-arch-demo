@@ -329,35 +329,12 @@ class OrderTest {
 
       order.markBackOrdered(backorderedAt);
 
+      // 逐行的狀態已經不存在了——它恆等於 header，而「恆等於別人的東西不該有自己的欄位」。
+      // 對外仍然逐行揭露，由 header 導出，那條性質由 OrderControllerTest 守著。
       assertThat(order.getBackOrderedSince()).isEqualTo(backorderedAt);
-      assertThat(order.getLines()).allSatisfy(line -> {
-        assertThat(line.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-      });
     }
 
-    @Test
-    @DisplayName("配置後所有行一起成為 ALLOCATED，且不留下欠單時間")
-    void mirrorsAllocationAcrossAllLines() {
-      Order order = twoLineOrder();
-      order.markBackOrdered(receivedAt.plusSeconds(10));
 
-      order.markAllocated(receivedAt.plusSeconds(20));
-
-      assertThat(order.getLines()).allSatisfy(line -> {
-        assertThat(line.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
-      });
-    }
-
-    @Test
-    @DisplayName("取消後所有行一起成為 CANCELLED")
-    void mirrorsCancellationAcrossAllLines() {
-      Order order = twoLineOrder();
-
-      order.cancel(receivedAt.plusSeconds(10));
-
-      assertThat(order.getLines())
-          .allSatisfy(line -> assertThat(line.getStatus()).isEqualTo(OrderStatus.CANCELLED));
-    }
   }
 
   /**

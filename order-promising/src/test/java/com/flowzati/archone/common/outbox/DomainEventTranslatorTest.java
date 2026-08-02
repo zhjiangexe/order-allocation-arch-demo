@@ -1,18 +1,18 @@
 package com.flowzati.archone.common.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.flowzati.archone.allocation.application.event.PromisingEventTopics;
-import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
-import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.allocation.application.event.translator.AllocationDomainEventTranslator;
-import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
-import com.flowzati.archone.allocation.domain.event.BackorderWakeContinuationRequired;
-import com.flowzati.archone.allocation.domain.event.OrderAllocationCompleted;
+import com.flowzati.archone.stock.application.event.PromisingEventTopics;
+import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.translator.AllocationDomainEventTranslator;
+import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.domain.event.BackorderWakeContinuationRequired;
+import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.allocation.domain.event.OrderBackorderRecorded;
+import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.time.Instant;

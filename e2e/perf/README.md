@@ -68,7 +68,7 @@ VUS 的壓測。`up` 是預設的 subcommand，因此直接 `./e2e/perf/run.sh` 
 
 重試與 DLT 架構（`AllocationConcurrencyExhaustedException` → 4 次指數退避重送 →
 `DeadLetterPublishingRecoverer`）的設計與取捨見
-[`AllocationKafkaErrorHandlingConfiguration`](../../order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/configuration/AllocationKafkaErrorHandlingConfiguration.java)
+[`AllocationKafkaErrorHandlingConfiguration`](../../order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/configuration/AllocationKafkaErrorHandlingConfiguration.java)
 的 Javadoc。兩輪即時驗證：
 
 | 情境 | app 層重試用盡 | container 層退避救回 | 真正落 DLT |

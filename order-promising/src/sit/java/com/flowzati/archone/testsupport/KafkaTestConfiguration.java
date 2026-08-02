@@ -1,6 +1,6 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.test.context.TestConfiguration;

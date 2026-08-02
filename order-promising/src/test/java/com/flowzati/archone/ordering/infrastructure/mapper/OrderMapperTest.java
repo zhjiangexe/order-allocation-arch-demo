@@ -57,7 +57,6 @@ class OrderMapperTest {
       assertThat(line.getOwnerId()).isEqualTo(OWNER_ID);
       assertThat(line.getSkuCode()).isEqualTo("SKU-1");
       assertThat(line.getQuantity()).isEqualTo(3);
-      assertThat(line.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     });
   }
 
@@ -74,7 +73,7 @@ class OrderMapperTest {
         "台北市中正區重慶南路一段 122 號",
         LocalDate.of(2026, 8, 1),
         NODE_ID,
-        List.of(lineEntity(1, "SKU-1", 3, OrderStatus.CANCELLED)),
+        List.of(lineEntity(1, "SKU-1", 3)),
         OrderStatus.CANCELLED,
         RECEIVED_AT,
         UPSTREAM_PLACED_AT,
@@ -112,10 +111,10 @@ class OrderMapperTest {
         "EXT-1",
         OrderFixtures.deliveryTerms(),
         List.of(
-            OrderLine.rehydrate(
-                UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3, OrderStatus.PENDING),
-            OrderLine.rehydrate(
-                UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7, OrderStatus.PENDING)),
+            OrderLine.create(
+                UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3),
+            OrderLine.create(
+                UUID.randomUUID(), 2, OWNER_ID, "SKU-2", 7)),
         OrderStatus.PENDING,
         RECEIVED_AT,
         null, null, null, null, null);
@@ -129,9 +128,7 @@ class OrderMapperTest {
     assertThat(restored.getDemand()).isEqualTo(Map.of("SKU-1", 3, "SKU-2", 7));
   }
 
-  private static OrderLineEntity lineEntity(
-      int lineNo, String skuCode, int quantity, OrderStatus status) {
-    return new OrderLineEntity(
-        UUID.randomUUID(), lineNo, OWNER_ID, skuCode, quantity, status);
+  private static OrderLineEntity lineEntity(int lineNo, String skuCode, int quantity) {
+    return new OrderLineEntity(UUID.randomUUID(), lineNo, OWNER_ID, skuCode, quantity);
   }
 }

@@ -1,6 +1,6 @@
 package com.flowzati.archone.bootstrap;
 
-import com.flowzati.archone.allocation.domain.model.StockPool;
+import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.common.time.BusinessCalendar;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -8,7 +8,7 @@ import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
 import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
+import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -46,10 +46,10 @@ class DevSeedDataIntegrationTest {
   private OrderRepository orderRepository;
 
   @Autowired
-  private com.flowzati.archone.allocation.domain.repository.StockMoveRepository stockMoveRepository;
+  private com.flowzati.archone.stock.domain.repository.StockMoveRepository stockMoveRepository;
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.allocation.domain.repository.StockPickingRepository stockPickingRepository;
+  private com.flowzati.archone.stock.domain.repository.StockPickingRepository stockPickingRepository;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -203,7 +203,7 @@ class DevSeedDataIntegrationTest {
     // 範圍含位置，種子那張單在南部倉的內部位置。
     //
     // 走的是補貨那條路徑用的同兩支查詢：先取還在等貨的搬運，再由它們的單據回推是哪幾張單。
-    List<com.flowzati.archone.allocation.domain.model.StockMove> waiting =
+    List<com.flowzati.archone.stock.domain.model.StockMove> waiting =
         stockMoveRepository.findWaitingInFifoOrder(
             DevSeedDataInitializer.SECOND_OWNER_ID,
             DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID,
@@ -211,9 +211,9 @@ class DevSeedDataIntegrationTest {
             1_000);
     List<UUID> queuedOrders = stockPickingRepository.findByIds(
         waiting.stream()
-            .map(com.flowzati.archone.allocation.domain.model.StockMove::getPickingId)
+            .map(com.flowzati.archone.stock.domain.model.StockMove::getPickingId)
             .collect(java.util.stream.Collectors.toSet())).stream()
-        .map(com.flowzati.archone.allocation.domain.model.StockPicking::orderId)
+        .map(com.flowzati.archone.stock.domain.model.StockPicking::orderId)
         .toList();
 
     assertThat(queuedOrders)
@@ -345,7 +345,7 @@ class DevSeedDataIntegrationTest {
   /**
    * 這張單目前鎖住了哪些量。
    *
-   * <p>路徑是作業單 → 搬運 → 明細，與 {@code ReleaseReservationUsecase} 走同一條。回的是清單
+   * <p>路徑是作業單 → 搬運 → 明細，與 {@code CancelMovementsUsecase} 走同一條。回的是清單
    * 而不是單筆：一條行跨三批就有三條明細。
    */
   private java.util.List<MovementFixtures.HeldQuantity> heldBy(java.util.UUID orderId) {

@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.entrypoint.kafka;
 
-import com.flowzati.archone.allocation.application.event.PromisingEventTopics;
+import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;

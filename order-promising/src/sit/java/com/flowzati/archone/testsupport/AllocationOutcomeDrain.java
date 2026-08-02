@@ -1,6 +1,6 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.allocation.application.event.PromisingEventTopics;
+import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;

@@ -73,16 +73,20 @@ class OrderingSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("order_lines 不應有任何時間戳——ship-complete 下都恆等於 header 且無人讀")
-    void doesNotCreateLineLevelTimestamps() {
+    @DisplayName("order_lines 不應有狀態也不應有時間戳——三者都恆等於 header 且無人讀")
+    void doesNotCreateLineLevelStatusOrTimestamps() {
       assertThat(columnNames("order_lines"))
-          .contains("line_no", "owner_id", "sku_code", "quantity", "status")
+          .contains("line_no", "owner_id", "sku_code", "quantity")
           // assigned_node_id 已砍：一張單只從一個倉出、明細不可跨倉，它永遠等於 header。
           //
           // backordered_since 也砍了：它的存在理由是「單表 FIFO index」，而那個查詢從來就是
           // join、排序取自 header——欄位從未被讀到。佇列改以 order_id 排序後連理由的形狀
           // 都不在了。
-          .doesNotContain("allocated_at", "assigned_node_id", "backordered_since");
+          //
+          // status 是最後被拿掉的一個。它的理由是「REST 逐行揭露，放寬多行之後不必改契約
+          // 就能逐行顯示」——但 ship-complete 保證所有行同進同出，多行之後值仍然恆等於
+          // header。契約照舊逐行揭露，改由 header 導出。
+          .doesNotContain("allocated_at", "assigned_node_id", "backordered_since", "status");
     }
   }
 
@@ -426,8 +430,8 @@ class OrderingSchemaIntegrationTest {
   private void seedLine(
       UUID id, UUID orderId, int lineNo, UUID ownerId, String skuCode, int quantity) {
     jdbcTemplate.update("""
-        INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity, status)
-        VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
+        INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity)
+        VALUES (?, ?, ?, ?, ?, ?)
         """, id, orderId, lineNo, ownerId, skuCode, quantity);
   }
 

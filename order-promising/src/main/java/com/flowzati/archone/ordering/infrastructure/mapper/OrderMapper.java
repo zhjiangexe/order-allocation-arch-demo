@@ -61,20 +61,18 @@ public final class OrderMapper {
             line.getLineNo(),
             line.getOwnerId(),
             line.getSkuCode(),
-            line.getQuantity(),
-            line.getStatus()))
+            line.getQuantity()))
         .toList();
   }
 
   private static List<OrderLine> toDomainLines(List<OrderLineEntity> lines) {
     return lines.stream()
-        .map(line -> OrderLine.rehydrate(
+        .map(line -> OrderLine.create(
             line.getId(),
             line.getLineNo(),
             line.getOwnerId(),
             line.getSkuCode(),
-            line.getQuantity(),
-            line.getStatus()))
+            line.getQuantity()))
         .toList();
   }
 }

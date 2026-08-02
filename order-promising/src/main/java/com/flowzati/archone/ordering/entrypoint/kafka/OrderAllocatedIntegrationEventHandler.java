@@ -1,7 +1,7 @@
 package com.flowzati.archone.ordering.entrypoint.kafka;
 
-import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.allocation.application.event.PromisingEventTopics;
+import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;

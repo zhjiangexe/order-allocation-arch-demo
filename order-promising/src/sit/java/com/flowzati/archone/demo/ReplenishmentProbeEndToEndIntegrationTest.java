@@ -1,14 +1,14 @@
 package com.flowzati.archone.demo;
 
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.allocation.domain.model.StockFixtures;
+import com.flowzati.archone.stock.domain.model.StockFixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
+import com.flowzati.archone.stock.domain.model.StockPool;
+import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;

@@ -179,10 +179,8 @@ class OrderControllerTest {
         "EXT-MULTI",
         OrderFixtures.deliveryTerms(),
         List.of(
-            OrderLine.rehydrate(UUID.randomUUID(), 1, ownerId, "SKU-A", 3,
-                OrderStatus.PENDING),
-            OrderLine.rehydrate(UUID.randomUUID(), 2, ownerId, "SKU-B", 7,
-                OrderStatus.PENDING)),
+            OrderLine.create(UUID.randomUUID(), 1, ownerId, "SKU-A", 3),
+            OrderLine.create(UUID.randomUUID(), 2, ownerId, "SKU-B", 7)),
         OrderStatus.PENDING, RECEIVED_AT, null, null, null, null, null);
     when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(twoLineOrder));
 
@@ -196,6 +194,34 @@ class OrderControllerTest {
     response.bodyJson().extractingPath("$[0].lines[1].lineNo").isEqualTo(2);
     response.bodyJson().extractingPath("$[0].lines[1].skuCode").isEqualTo("SKU-B");
     response.bodyJson().extractingPath("$[0].lines[1].quantity").isEqualTo(7);
+  }
+
+  @Test
+  @DisplayName("逐行的狀態由 header 導出——行上不再存它，但契約照樣揭露")
+  void derivesEachLineStatusFromTheHeader() {
+    // **這條性質原本由 OrderLine 自己的欄位保證**，而那是同一份資料存兩次：ship-complete
+    // 之下一張單的所有行同進同出，值恆等於 header。欄位拿掉之後，性質搬到這裡。
+    //
+    // 刻意用非 PENDING 的狀態：PENDING 是新建的行本來就會有的值，拿它驗導出等於什麼都沒驗。
+    UUID orderId = UUID.randomUUID();
+    UUID ownerId = OrderFixtures.OWNER_ID;
+    Order backordered = Order.rehydrate(
+        orderId,
+        ownerId,
+        "EXT-DERIVED",
+        OrderFixtures.deliveryTerms(),
+        List.of(
+            OrderLine.create(UUID.randomUUID(), 1, ownerId, "SKU-A", 3),
+            OrderLine.create(UUID.randomUUID(), 2, ownerId, "SKU-B", 7)),
+        OrderStatus.BACKORDERED, RECEIVED_AT, null, null, RECEIVED_AT.plusSeconds(1), null, null);
+    when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(backordered));
+
+    MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
+
+    response.hasStatus(200);
+    response.bodyJson().extractingPath("$[0].status").isEqualTo("BACKORDERED");
+    response.bodyJson().extractingPath("$[0].lines[0].status").isEqualTo("BACKORDERED");
+    response.bodyJson().extractingPath("$[0].lines[1].status").isEqualTo("BACKORDERED");
   }
 
   @Test

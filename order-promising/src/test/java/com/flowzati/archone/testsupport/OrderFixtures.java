@@ -187,8 +187,8 @@ public final class OrderFixtures {
         ownerId,
         "EXT-" + orderId,
         deliveryTerms(nodeId),
-        List.of(OrderLine.rehydrate(
-            IdGenerator.nextId(), 1, ownerId, skuCode, quantity, OrderStatus.BACKORDERED)),
+        List.of(OrderLine.create(
+            IdGenerator.nextId(), 1, ownerId, skuCode, quantity)),
         OrderStatus.BACKORDERED,
         receivedAt,
         null,
@@ -269,8 +269,8 @@ public final class OrderFixtures {
   public static Order pendingMultiSkuOrder(
       UUID orderId, Instant receivedAt, Map<String, Integer> quantitiesBySku) {
     List<OrderLine> lines = new ArrayList<>();
-    quantitiesBySku.forEach((skuCode, quantity) -> lines.add(OrderLine.rehydrate(
-        IdGenerator.nextId(), lines.size() + 1, OWNER_ID, skuCode, quantity, OrderStatus.PENDING)));
+    quantitiesBySku.forEach((skuCode, quantity) -> lines.add(OrderLine.create(
+        IdGenerator.nextId(), lines.size() + 1, OWNER_ID, skuCode, quantity)));
     return Order.rehydrate(
         orderId, OWNER_ID, "EXT-" + orderId, deliveryTerms(), lines,
         OrderStatus.PENDING, receivedAt, null, null, null, null, null);
@@ -310,8 +310,8 @@ public final class OrderFixtures {
         ownerId,
         "EXT-" + orderId,
         deliveryTerms(),
-        List.of(OrderLine.rehydrate(
-            IdGenerator.nextId(), 1, ownerId, skuCode, quantity, status)),
+        List.of(OrderLine.create(
+            IdGenerator.nextId(), 1, ownerId, skuCode, quantity)),
         status,
         receivedAt,
         // 上游的下單時刻——fixture 一律不帶。需要它的測試自己造，因為「上游有沒有送」正是

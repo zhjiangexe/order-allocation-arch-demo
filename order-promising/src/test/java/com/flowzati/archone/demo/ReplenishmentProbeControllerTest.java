@@ -1,6 +1,6 @@
 package com.flowzati.archone.demo;
 
-import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.common.configuration.CommonConfiguration;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

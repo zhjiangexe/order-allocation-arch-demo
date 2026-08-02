@@ -2,8 +2,8 @@ package com.flowzati.archone.demo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
-import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.outbox.StockContentionKey;
 import java.time.LocalDate;

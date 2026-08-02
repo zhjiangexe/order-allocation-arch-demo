@@ -1,9 +1,9 @@
 package com.flowzati.archone.common.event;
 
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
-import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.common.ddd.DomainEvent;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;

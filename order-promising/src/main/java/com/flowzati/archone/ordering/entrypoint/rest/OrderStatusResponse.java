@@ -2,6 +2,7 @@ package com.flowzati.archone.ordering.entrypoint.rest;
 
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderLine;
+import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -63,7 +64,7 @@ public record OrderStatusResponse(
         order.getDeliveryTerms().shipToZone(),
         order.getDeliveryTerms().shipToAddress(),
         order.getDeliveryTerms().promisedDeliveryDate(),
-        order.getLines().stream().map(OrderStatusResponse::toLine).toList(),
+        order.getLines().stream().map(line -> toLine(line, order.getStatus())).toList(),
         order.getStatus().name(),
         order.getReceivedAt(),
         order.getPlacedAt(),
@@ -72,8 +73,14 @@ public record OrderStatusResponse(
         order.getCancelledAt());
   }
 
-  private static Line toLine(OrderLine line) {
-    return new Line(line.getLineNo(), line.getSkuCode(), line.getQuantity(),
-        line.getStatus().name());
+  /**
+   * 逐行的狀態**由 header 導出**，不是行自己存的。
+   *
+   * <p>ship-complete 之下一張單的所有行同進同出，所以那個值恆等於 header——存在行上是同一份
+   * 資料存兩次。契約保留這個欄位（值一個字沒變，前端因此不動），但它現在只有一個可能出錯的
+   * 地方，而不是兩個。
+   */
+  private static Line toLine(OrderLine line, OrderStatus orderStatus) {
+    return new Line(line.getLineNo(), line.getSkuCode(), line.getQuantity(), orderStatus.name());
   }
 }

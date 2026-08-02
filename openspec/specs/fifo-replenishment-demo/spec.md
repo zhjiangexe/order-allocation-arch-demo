@@ -121,7 +121,7 @@ code:
   - docs/done/demo-02-fifo-replenishment-batch-implementation.md
   - docs/stock-reservation-design.md
 tests:
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
+  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
 -->
 
 ---
@@ -151,7 +151,7 @@ code:
   - docs/done/demo-02-fifo-replenishment-batch-implementation.md
   - docs/stock-reservation-design.md
 tests:
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
+  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
 -->
 
 ---
@@ -192,5 +192,5 @@ code:
   - docs/done/demo-02-fifo-replenishment-batch-implementation.md
   - docs/stock-reservation-design.md
 tests:
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
+  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
 -->

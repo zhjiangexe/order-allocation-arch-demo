@@ -1,6 +1,6 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.allocation.domain.model.StockMove;
+import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.catalog.domain.model.LocationUsage;
 import com.flowzati.archone.catalog.domain.model.PickingDirection;
 import com.flowzati.archone.catalog.domain.model.PickingType;

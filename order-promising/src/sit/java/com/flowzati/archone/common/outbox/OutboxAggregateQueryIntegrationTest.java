@@ -1,15 +1,15 @@
 package com.flowzati.archone.common.outbox;
 
-import com.flowzati.archone.allocation.domain.model.StockFixtures;
+import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.allocation.application.event.InventoryEventTopics;
-import com.flowzati.archone.allocation.application.event.BackorderCreatedIntegrationEvent;
-import com.flowzati.archone.allocation.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
-import com.flowzati.archone.allocation.domain.model.StockPool;
-import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
-import com.flowzati.archone.allocation.entrypoint.kafka.AllocationKafkaIntegrationEventConsumer;
+import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.stock.domain.model.StockPool;
+import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
+import com.flowzati.archone.stock.entrypoint.kafka.AllocationKafkaIntegrationEventConsumer;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;

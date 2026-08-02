@@ -176,8 +176,6 @@ public class Order {
 
     status = OrderStatus.ALLOCATED;
     this.allocatedAt = allocatedAt;
-    // 採 ship-complete：所有 line 一起配到，因此 line 的狀態與 header 恆等。
-    lines.forEach(OrderLine::markAllocated);
     events.add(new OrderAllocated(id, ownerId, allocatedAt));
   }
 
@@ -190,8 +188,6 @@ public class Order {
 
     status = OrderStatus.BACKORDERED;
     this.backOrderedSince = backorderedSince;
-    // 行不存缺貨時刻——它會恆等於 header，而沒有讀取者。
-    lines.forEach(OrderLine::markBackOrdered);
     events.add(new OrderBackordered(id, ownerId, toLineSnapshots(), backorderedSince));
   }
 
@@ -234,7 +230,6 @@ public class Order {
 
     status = OrderStatus.CANCELLED;
     this.cancelledAt = cancelledAt;
-    lines.forEach(OrderLine::cancel);
     events.add(new OrderCancelled(id, ownerId, deliveryTerms.fulfillmentNodeId(), cancelledAt));
     return true;
   }

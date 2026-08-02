@@ -286,9 +286,15 @@ CREATE TABLE order_lines (
     -- 才是 skus 的自然鍵，沒有它就建不出外鍵。
     --
     -- 放寬多行之後仍然如此：多行是一張單有多個 SKU，不是多個倉。
-    status VARCHAR(32) NOT NULL,
-    -- 刻意沒有 backordered_since，也沒有 allocated_at。兩者都會恆等於 header（ship-complete
-    -- 下所有行一起配到或一起缺貨），而都沒有讀取者。
+    -- **刻意沒有 status。** 它曾經在這裡，理由是「REST 逐行揭露，放寬多行之後畫面不必改
+    -- 契約就能逐行顯示」——那個理由不成立：ship-complete 保證一張單的所有行同進同出，多行
+    -- 之後那些值仍然恆等於 header。它不是反正規化，是同一份資料存兩次。
+    --
+    -- REST 仍然逐行揭露 status，改由 header 導出。值一個字沒變，前端因此不動；差別在它從
+    -- 「存起來的第二份真相」變成「讀取時的組合」。
+    --
+    -- 同理沒有 backordered_since，也沒有 allocated_at。兩者都會恆等於 header，而都沒有
+    -- 讀取者。
     --
     -- backordered_since 曾經在這裡，理由寫的是「為了建出單表 FIFO index」——但那個查詢從來
     -- 就不是單表：它 join orders，篩選用行的 owner_id 與 sku_code，排序取自 header。欄位因此
