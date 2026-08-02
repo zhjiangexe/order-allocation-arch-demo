@@ -206,13 +206,57 @@ ship-complete 判斷的正是一份工作能不能整個完成。用 `order_id` 
 - `OrderLine.java:25` 自承 `status` 留著**只因為 REST 要逐行揭露**，值恆等於 header。Odoo 的
   `sale.order.line` 沒有 state——狀態屬於 move
 - `Order.java:213-221` 的註解說「缺一條禁令：離倉後不得取消」，且「`OrderStatus` 還沒有
-  `FULFILLED`，那個狀態隨 R7 到來」。**拆分後那條禁令看 `stock_pickings.state`**，不必往
-  `OrderStatus` 塞 `FULFILLED`
+  `FULFILLED`，那個狀態隨 R7 到來」
 - `OrderingSchemaIntegrationTest` 有一支測試釘住「`orders` 不應有 `fulfilled_at`」，理由是
   「它是 R7 才產生的輸出」。**這條測試本來就在守拆分後的邊界，不要刪**
 
 > 附帶修正：`DevSeedDataInitializer.java:311` 的註解寫「補貨只處理 BACKORDERED」，**R4 之後
 > 已不成立**（佇列改查 view 且不看 status）。
+
+### 決定：`BACKORDERED` 與 `ALLOCATED` 都留為投影（不是合成）
+
+本節原本的說法會誤導——「找到了正確的位置」聽起來像是要把 `BACKORDERED` 從 `orders` 拿掉。
+搬運的表建好之後這個問題被重新問了一次，結論是**留**，但理由與範圍都要寫清楚。
+
+**兩者是同一個問題，不可以只拆一半。** 「配到了」與「缺貨中」都是執行層的事實
+（`MoveState.ASSIGNED` 與 `CONFIRMED`）。只拆掉 `BACKORDERED` 而留下 `ALLOCATED`，會得到一個
+更糟的模型：一半的執行事實在需求層、一半在執行層，而且沒有規則說哪些歸哪邊。
+
+曾經評估過的另一個方向是**讀取時合成**：`orders.status` 只留 `PENDING` / `CANCELLED`，履約
+狀態由 `stock_moves.state` 彙總後經一個發布檢視（`demand_lines` 的反方向）給 ordering 讀，
+REST 在讀取時組合。它的好處是真相只有一份，而且 R7 的 `FULFILLED` 不必新增任何東西。
+
+**否決的理由是訂單列表查詢。** 那條路徑是使用者直接感受得到的，而合成會讓它變成一個對每張單
+的搬運做 group by 的查詢。投影模式下它是單表讀取。這是唯一站得住的反對理由——不是「改動大」。
+
+#### 選了投影，就要接受它的固定成本
+
+**每多一個執行狀態，就要多一整條鏈**：狀態值 + 領域事件 + translator + ordering 的 handler +
+守衛。R7 的 `FULFILLED` 因此**要**往 `OrderStatus` 塞（本節上面那句「不必塞」是合成方向下的
+結論，在投影方向下不成立），而 `Order.cancel` 的「離倉後不得取消」也要靠它才守得住——現在
+那個守衛（允許從 PENDING／ALLOCATED／BACKORDERED 取消）是替身。
+
+#### 必須明寫真相的方向
+
+投影**保證**會偶爾與真相不一致——取消的非同步窗口就是既有的例子（見
+`docs/execution-roadmap.md`）。因此要有一條明文規則：
+
+> 兩者不一致時，**搬運的狀態贏**。`orders.status` 是投影，不是第二個真相。
+
+沒有這條，下一個人遇到不一致時會不知道該修哪一邊。
+
+#### 與 A/B 無關、無論如何都要做的兩件事
+
+1. **`order_lines.status` 刪掉。** 它連投影都不是——值恆等於 header，只為 REST 逐行揭露而
+   存在，而 ship-complete 之下它永遠不可能不同。Odoo 的 `sale.order.line` 也沒有 state。
+2. **`backordered_since` 檢討。** 「這張單等了多久」現在由 `stock_moves.created_at` 回答得更
+   準，那是執行層自己寫的資料。
+
+#### 重新評估的觸發點
+
+投影的成本隨執行狀態數線性成長，合成的成本隨訂單列表的查詢量成長。**當鏈的長度成為比查詢
+更大的負擔時**——具體地說，當第三個執行狀態（R7 的 `FULFILLED`）也要走完整條鏈之後——值得
+重新量一次那個列表查詢，再決定要不要換。
 
 ---
 
@@ -554,6 +598,23 @@ packaging、SO line、reordering rule——沒有 partner／owner。
 | **出庫實際發生**（`internal → customer` 的 `done`） | 屬於 R7。但 `usage='customer'` 的位置在第一個 change 就建好 |
 | **`availableToPromise` 更名** | ATP 是全業界標準術語，描述的是一個計算而非承諾行為 |
 | **`stock_pools` 改名 `stock_quants`** | `pool`（一群可互換的單位）與 `quant` 說的是同一件事，改名換不到精確度 |
+| **在虛擬位置上記庫存** | 見下 |
+
+### 只記內部側，因此驗不了總量守恆
+
+Odoo 的 quant 會在供應商位置留下**負數**，全域總量因此守恆——那是雙式簿記的完整形式。我們不
+會：`stock_pools` 有 `CHECK (location_usage = 'INTERNAL')`（第一個 change 定的），所以入庫是
+**純粹的加**，而 Odoo 是一減一加。
+
+理由不是遺漏：3PL 不擁有貨，記錄供應商手上還有多少沒有意義；虛擬位置存在只是為了讓搬運的
+兩端都說得出來。
+
+**但代價要寫清楚：我們驗不了「總量守恆」這條不變式。** 能驗的是較弱的一條——
+
+> 在庫量的每一次變動，都有一條 `stock_move_lines` 對得上。
+
+而那一條是由型別保證的：`StockPool` 上沒有任何以數量增加在庫量的方法，只有
+`receive(StockMoveLine)`。`StockPoolTest` 有一支用反射守著這件事。
 
 ### 三處刻意偏離 Odoo 的命名與結構
 
@@ -606,8 +667,8 @@ Odoo 19 的事實（已在 19.0 原始碼查證）：
 | 1 | ✅ **位置模型**（已交付：`hold-stock-in-locations`） | 建 `stock_locations`（每倉一個 `internal` + `supplier`／`customer`／`inventory` 三個虛擬）；`stock_pools.node_id` → `location_id`。**`orders` 完全不動，對外契約與前端完全不動** | — |
 | 2 | ✅ **搬運單據與異動**（已交付：`record-every-movement`） | 建 `stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`；`stock_reservations` 遷入 move_lines；`demand_lines` view 改寫；換掉邊界護欄 | 1 |
 | 2.5 | ✅ **依搬運的動作重組流程**（已交付：`separate-the-movement-actions`） | 三支 usecase 退回真正的 usecase；`OrderAllocationCoordinator` 消失。**不改任何行為、不動 schema、不動對外契約** | 2 |
-| 3 | **入庫走 move** | 補貨改為產生 inbound picking + move；**`stock_pools` 封閉直接寫入**，只能由 move 寫 | 2.5 |
-| 4 | **界線與命名** | `ordering` / `inventory` 界線落實；`BACKORDERED` 改由執行層狀態承接；對外契約更新 | 3 |
+| 3 | ✅ **入庫走 move**（已交付：`receive-goods-as-movement`） | 補貨改為產生 inbound picking + move；**`stock_pools` 封閉直接寫入**，只能由 move 寫 | 2.5 |
+| 4 | **界線與命名** | `ordering` / `inventory` 界線落實；**刪 `order_lines.status`**；對外契約更新 | 3 |
 
 **不可合併成一個 change。** 每一個都比 `allocate-multi-sku-orders-as-one-basket` 大；而第 3 個
 的「封閉直接寫入」是整串的目的，它必須在一個能被單獨驗證的邊界上發生。

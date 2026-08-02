@@ -58,13 +58,7 @@ public class MovementRecorder {
    * 讓那一步不必用 {@code order_line_id} 把同一批列再讀一次。
    */
   public List<StockMove> recordOutbound(Demand demand, Instant now) {
-    UUID warehouseId = stockLocationRepository.findById(demand.locationId())
-        .map(StockLocation::getWarehouseId)
-        .orElseThrow(() -> new IllegalStateException(
-            "Location " + demand.locationId() + " no longer exists"));
-    PickingType type = pickingTypeRepository.find(warehouseId, PickingDirection.OUTBOUND)
-        .orElseThrow(() -> new IllegalStateException(
-            "Warehouse " + warehouseId + " has no outbound operation type"));
+    PickingType type = operationTypeFor(demand.locationId(), PickingDirection.OUTBOUND);
 
     UUID pickingId = IdGenerator.nextId();
     stockPickingRepository.save(new StockPicking(
@@ -90,5 +84,57 @@ public class MovementRecorder {
     // 回傳寫入後的樣子，不是剛建構的那些：同一個交易裡接著鎖定會對同一列寫第二次，而那一次
     // 必須帶著第一次之後的版號，否則持久層會當成一列全新的資料。
     return stockMoveRepository.saveAll(created);
+  }
+
+  /**
+   * 為到貨建一張入庫作業單與一段搬運：供應商 → 該倉的庫存位置。
+   *
+   * <p><b>單據不帶訂單，搬運不帶訂單行。</b>沒有任何東西是透過這個系統訂的——貨是貨主的，
+   * 依貨主自己的安排到達。這正是那兩個欄位可空的理由，而在此之前它們從來沒有真的空過。
+   *
+   * <p><b>它不查可承諾量、不預留、不做整籃判斷。</b>那些屬於滿足需求，而這裡沒有需求被滿足。
+   * 這個方法與 {@link #recordOutbound} 分開的理由就在這一句。
+   *
+   * <p>與出庫同一個判準：倉沒有設入庫作業類型時拋錯，而不是靜默少建一張單。
+   */
+  public List<StockMove> recordInbound(
+      UUID ownerId, UUID locationId, String skuCode, int quantity, Instant now) {
+    PickingType type = operationTypeFor(locationId, PickingDirection.INBOUND);
+
+    UUID pickingId = IdGenerator.nextId();
+    stockPickingRepository.save(new StockPicking(
+        pickingId,
+        type.id(),
+        ownerId,
+        null,
+        type.defaultFromLocationId(),
+        type.defaultToLocationId()));
+
+    return stockMoveRepository.saveAll(List.of(StockMove.confirmed(
+        IdGenerator.nextId(),
+        pickingId,
+        ownerId,
+        skuCode,
+        type.defaultFromLocationId(),
+        type.defaultToLocationId(),
+        null,
+        quantity,
+        now)));
+  }
+
+  /**
+   * 位置 → 倉 → 該方向的作業類型。
+   *
+   * <p>作業類型以倉為鍵（Odoo 也是），而兩個入口手上都只有位置。
+   */
+  private PickingType operationTypeFor(UUID locationId, PickingDirection direction) {
+    UUID warehouseId = stockLocationRepository.findById(locationId)
+        .map(StockLocation::getWarehouseId)
+        .orElseThrow(() -> new IllegalStateException(
+            "Location " + locationId + " no longer exists"));
+    return pickingTypeRepository.find(warehouseId, direction)
+        .orElseThrow(() -> new IllegalStateException(
+            "Warehouse " + warehouseId + " has no " + direction.name().toLowerCase()
+                + " operation type"));
   }
 }

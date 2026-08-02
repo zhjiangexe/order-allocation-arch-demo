@@ -157,6 +157,71 @@ class MovementRecorderTest {
     verifyNoInteractions(pickingTypeRepository, stockPickingRepository, stockMoveRepository);
   }
 
+  @Test
+  @DisplayName("到貨建的是入庫單據：供應商 → 庫存位置，而且不帶訂單")
+  void shouldRecordAnInboundMovementCarryingNoOrder() {
+    givenAnInboundOperationType();
+
+    List<StockMove> recorded = recorder.recordInbound(
+        DemandFixtures.OWNER_ID, DemandFixtures.LOCATION_ID, "SKU-1", 10, now);
+
+    // **單據不帶訂單、搬運不帶訂單行**——沒有任何東西是透過這個系統訂的。這正是那兩個欄位
+    // 可空的理由，而在此之前它們從來沒有真的空過。
+    ArgumentCaptor<StockPicking> captor = ArgumentCaptor.forClass(StockPicking.class);
+    then(stockPickingRepository).should().save(captor.capture());
+    StockPicking picking = captor.getValue();
+    assertThat(picking.orderId()).isNull();
+    assertThat(picking.pickingTypeId()).isEqualTo(MovementFixtures.INBOUND_TYPE_ID);
+    assertThat(picking.fromLocationId()).isEqualTo(MovementFixtures.SUPPLIERS_LOCATION_ID);
+    assertThat(picking.toLocationId()).isEqualTo(DemandFixtures.LOCATION_ID);
+
+    StockMove move = recorded.getFirst();
+    assertThat(move.getOrderLineId()).isNull();
+    assertThat(move.getState()).isEqualTo(MoveState.CONFIRMED);
+    assertThat(move.getDemandQuantity()).isEqualTo(10);
+    assertThat(move.getFromLocationId()).isEqualTo(MovementFixtures.SUPPLIERS_LOCATION_ID);
+    assertThat(move.getToLocationId()).isEqualTo(DemandFixtures.LOCATION_ID);
+  }
+
+  @Test
+  @DisplayName("到貨不查可承諾量、不預留——那些屬於滿足需求")
+  void shouldNotConsultStockWhenRecordingAnArrival() {
+    givenAnInboundOperationType();
+
+    recorder.recordInbound(
+        DemandFixtures.OWNER_ID, DemandFixtures.LOCATION_ID, "SKU-1", 10, now);
+
+    // 這個元件根本沒有庫存的協作者可以查——那正是它能被入庫重用的理由。
+    assertThat(java.util.Arrays.stream(MovementRecorder.class.getDeclaredFields())
+        .map(field -> field.getType().getSimpleName()))
+        .doesNotContain("StockPoolRepository");
+  }
+
+  @Test
+  @DisplayName("倉沒有入庫作業類型時應拋錯，與出庫同一個判準")
+  void shouldFailWhenTheWarehouseHasNoInboundOperationType() {
+    given(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
+        .willReturn(Optional.of(MovementFixtures.internalLocation()));
+    given(pickingTypeRepository.find(StockFixtures.NODE_ID, PickingDirection.INBOUND))
+        .willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> recorder.recordInbound(
+        DemandFixtures.OWNER_ID, DemandFixtures.LOCATION_ID, "SKU-1", 10, now))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("has no inbound operation type");
+
+    verifyNoInteractions(stockPickingRepository, stockMoveRepository);
+  }
+
+  private void givenAnInboundOperationType() {
+    given(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
+        .willReturn(Optional.of(MovementFixtures.internalLocation()));
+    given(pickingTypeRepository.find(StockFixtures.NODE_ID, PickingDirection.INBOUND))
+        .willReturn(Optional.of(MovementFixtures.inboundType()));
+    given(stockMoveRepository.saveAll(org.mockito.ArgumentMatchers.any()))
+        .willAnswer(invocation -> List.copyOf(invocation.getArgument(0, Collection.class)));
+  }
+
   private void givenAnOutboundOperationType() {
     given(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
         .willReturn(Optional.of(MovementFixtures.internalLocation()));

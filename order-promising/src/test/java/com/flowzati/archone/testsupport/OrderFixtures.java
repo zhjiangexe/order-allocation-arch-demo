@@ -120,6 +120,12 @@ public final class OrderFixtures {
     seedOutboundType(jdbcTemplate,
         MovementFixtures.OTHER_OUTBOUND_TYPE_ID, OTHER_NODE_ID, OTHER_LOCATION_ID,
         "第二個倉出貨");
+    // 入庫類型：方向與出庫相反（供應商 → 庫存位置）。補貨走搬運之後才有讀者。
+    seedInboundType(jdbcTemplate,
+        MovementFixtures.INBOUND_TYPE_ID, NODE_ID, LOCATION_ID, "測試倉收貨");
+    seedInboundType(jdbcTemplate,
+        MovementFixtures.OTHER_INBOUND_TYPE_ID, OTHER_NODE_ID, OTHER_LOCATION_ID,
+        "第二個倉收貨");
     jdbcTemplate.update("""
         INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
         VALUES (?, ?, ?, ?, 'AMBIENT')
@@ -142,6 +148,16 @@ public final class OrderFixtures {
         VALUES (?, ?, 'OUTBOUND', ?, ?, ?)
         ON CONFLICT (id) DO NOTHING
         """, id, warehouseId, name, stockLocationId, MovementFixtures.CUSTOMERS_LOCATION_ID);
+  }
+
+  private static void seedInboundType(
+      JdbcTemplate jdbcTemplate, UUID id, UUID warehouseId, UUID stockLocationId, String name) {
+    jdbcTemplate.update("""
+        INSERT INTO stock_picking_types
+            (id, warehouse_id, code, name, default_from_location_id, default_to_location_id)
+        VALUES (?, ?, 'INBOUND', ?, ?, ?)
+        ON CONFLICT (id) DO NOTHING
+        """, id, warehouseId, name, MovementFixtures.SUPPLIERS_LOCATION_ID, stockLocationId);
   }
 
   /**

@@ -1,6 +1,7 @@
 package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.allocation.domain.model.StockMove;
+import com.flowzati.archone.catalog.domain.model.LocationUsage;
 import com.flowzati.archone.catalog.domain.model.PickingDirection;
 import com.flowzati.archone.catalog.domain.model.PickingType;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
@@ -37,6 +38,11 @@ public final class MovementFixtures {
   /** 第二個倉的出庫作業類型。跨倉的測試要它，否則第二個倉的單無處可去。 */
   public static final UUID OTHER_OUTBOUND_TYPE_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000e2");
+  /** 測試倉的入庫作業類型：供應商 → 庫存位置。 */
+  public static final UUID INBOUND_TYPE_ID =
+      UUID.fromString("00000000-0000-0000-0000-0000000000e3");
+  public static final UUID OTHER_INBOUND_TYPE_ID =
+      UUID.fromString("00000000-0000-0000-0000-0000000000e4");
 
   private MovementFixtures() {
   }
@@ -49,6 +55,25 @@ public final class MovementFixtures {
   public static PickingType outboundTypeAt(UUID id, UUID warehouseId, UUID stockLocationId) {
     return new PickingType(
         id, warehouseId, PickingDirection.OUTBOUND, "出貨", stockLocationId, CUSTOMERS_LOCATION_ID);
+  }
+
+  /** 測試倉的入庫類型：供應商 → 庫存位置。方向與出庫相反。 */
+  public static PickingType inboundType() {
+    return new PickingType(
+        INBOUND_TYPE_ID, OrderFixtures.NODE_ID, PickingDirection.INBOUND, "收貨",
+        SUPPLIERS_LOCATION_ID, OrderFixtures.LOCATION_ID);
+  }
+
+  /** 供應商位置。入庫的起點，不屬於任何倉。 */
+  public static StockLocation suppliersLocation() {
+    return StockLocation.virtual(
+        SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "共用 fixture 的供應商", LocationUsage.SUPPLIER);
+  }
+
+  /** 客戶位置。出庫的終點，不屬於任何倉。 */
+  public static StockLocation customersLocation() {
+    return StockLocation.virtual(
+        CUSTOMERS_LOCATION_ID, "FIXTURE/Customers", "共用 fixture 的客戶", LocationUsage.CUSTOMER);
   }
 
   /** 測試倉的內部位置。usecase 要靠它從位置反查倉。 */

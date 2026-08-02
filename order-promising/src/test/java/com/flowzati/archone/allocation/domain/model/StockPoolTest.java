@@ -3,6 +3,7 @@ package com.flowzati.archone.allocation.domain.model;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.common.IdGenerator;
 import java.time.LocalDate;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +16,17 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("StockPool ATP 領域模型")
 class StockPoolTest {
+
+  /**
+   * 一條指向這一列庫存的明細。
+   *
+   * <p>非正數的數量不必在這裡驗——{@link StockMoveLine} 自己的建構子就擋掉了，那是它的不變式
+   * 而不是庫存的。原本的 `replenish(int)` 要自己檢查，是因為它收的是一個裸數字。
+   */
+  private static StockMoveLine lineFor(StockPool stockPool, int quantity) {
+    return new StockMoveLine(
+        IdGenerator.nextId(), IdGenerator.nextId(), stockPool.getId(), quantity);
+  }
 
   @Test
   @DisplayName("ATP 應由實際在庫量扣除已預留量計算")
@@ -81,15 +93,42 @@ class StockPoolTest {
   }
 
   @Test
-  @DisplayName("補貨時只增加實際在庫量，不改變已預留量")
-  void replenishesOnHandWithoutChangingReservedQuantity() {
+  @DisplayName("收貨時只增加實際在庫量，不改變已預留量")
+  void receivesOnHandWithoutChangingReservedQuantity() {
     StockPool stockPool = StockFixtures.unexpiredBatch("SKU-1", 10, 7);
 
-    stockPool.replenish(5);
+    stockPool.receive(lineFor(stockPool, 5));
 
     assertThat(stockPool.getOnHandQuantity()).isEqualTo(15);
     assertThat(stockPool.getReservedQuantity()).isEqualTo(7);
     assertThat(stockPool.availableToPromise()).isEqualTo(8);
+  }
+
+  @Test
+  @DisplayName("明細指向別的庫存列時應拒絕——貨會記到別人的批上，而數量對得起來")
+  void rejectsALineThatAppliesToAnotherStockPool() {
+    StockPool stockPool = StockFixtures.unexpiredBatch("SKU-1", 10, 0);
+    StockPool other = StockFixtures.unexpiredBatch("SKU-1", 0, 0);
+
+    // 配錯的後果不是數量錯，是**效期與入庫日全錯**——而數量的總和仍然對得上，所以沒有任何
+    // 約束擋得下它。FEFO 會照那個錯的效期出貨。
+    assertThatThrownBy(() -> stockPool.receive(lineFor(other, 5)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("applies to stock pool");
+
+    assertThat(stockPool.getOnHandQuantity()).isEqualTo(10);
+  }
+
+  @Test
+  @DisplayName("在庫量的增加沒有不帶明細的入口")
+  void hasNoWayToIncreaseOnHandWithoutALine() {
+    // 這一條守的是型別，不是行為：`StockPool` 上不存在任何以數量增加在庫量的公開方法。
+    // 曾經那是 `replenish(int)`，而它讓任何拿得到 repository 的程式都能改庫存。
+    assertThat(java.util.Arrays.stream(StockPool.class.getMethods())
+        .filter(method -> method.getParameterCount() == 1)
+        .filter(method -> method.getParameterTypes()[0] == int.class)
+        .map(java.lang.reflect.Method::getName))
+        .containsExactlyInAnyOrder("reserve", "release", "consume", "canReserve");
   }
 
   @ParameterizedTest(name = "[{index}] onHand={0}, reserved={1}")
@@ -197,17 +236,6 @@ class StockPoolTest {
     assertThatThrownBy(() -> stockPool.release(quantity))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Quantity to release must be positive");
-  }
-
-  @ParameterizedTest(name = "[{index}] quantity={0}")
-  @ValueSource(ints = {0, -1})
-  @DisplayName("補貨時應拒絕非正數 quantity")
-  void rejectsNonPositiveReplenishQuantity(int quantity) {
-    StockPool stockPool = StockFixtures.unexpiredBatch("SKU-1", 10, 5);
-
-    assertThatThrownBy(() -> stockPool.replenish(quantity))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Quantity to replenish must be positive");
   }
 
   @Test

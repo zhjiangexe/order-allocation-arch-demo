@@ -111,6 +111,13 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID.fromString("00000000-0000-0000-0000-000000000032");
   public static final UUID SOUTH_OUTBOUND_TYPE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000033");
+  /** 每個倉一個入庫作業類型。補貨走搬運之後它們才有讀者。 */
+  public static final UUID NORTH_INBOUND_TYPE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000034");
+  public static final UUID CENTRAL_INBOUND_TYPE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000035");
+  public static final UUID SOUTH_INBOUND_TYPE_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000036");
 
   public static final String AMBIENT_PRODUCT_CODE = "P-TEA";
   public static final String FROZEN_PRODUCT_CODE = "P-DUMPLING";
@@ -281,21 +288,32 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   }
 
   /**
-   * 每個倉一個出庫作業類型。
+   * 每個倉一個出庫類型、一個入庫類型。
    *
-   * <p>只建出庫：入庫與內部調撥還沒有產生者。作業類型的值域一次定完（那是 CHECK 約束的事），
+   * <p>入庫在補貨走搬運之後才有讀者——在那之前這裡只建出庫。<b>內部調撥仍然不建</b>：
+   * 值域一次定完（那是 CHECK 約束的事），
    * 但**資料只建有讀者的那一種**——這與位置的判斷相反，因為位置的四種用途是搬運兩端的值域，
    * 而作業類型的每一筆都要有東西去用它。
    */
   private void seedPickingTypes() {
-    pickingType(NORTH_OUTBOUND_TYPE_ID, NORTH_NODE_ID, NORTH_STOCK_LOCATION_ID, "北部倉出貨");
-    pickingType(CENTRAL_OUTBOUND_TYPE_ID, CENTRAL_NODE_ID, CENTRAL_STOCK_LOCATION_ID, "中部倉出貨");
-    pickingType(SOUTH_OUTBOUND_TYPE_ID, SOUTH_NODE_ID, SOUTH_STOCK_LOCATION_ID, "南部倉出貨");
+    outboundType(NORTH_OUTBOUND_TYPE_ID, NORTH_NODE_ID, NORTH_STOCK_LOCATION_ID, "北部倉出貨");
+    outboundType(CENTRAL_OUTBOUND_TYPE_ID, CENTRAL_NODE_ID, CENTRAL_STOCK_LOCATION_ID, "中部倉出貨");
+    outboundType(SOUTH_OUTBOUND_TYPE_ID, SOUTH_NODE_ID, SOUTH_STOCK_LOCATION_ID, "南部倉出貨");
+
+    inboundType(NORTH_INBOUND_TYPE_ID, NORTH_NODE_ID, NORTH_STOCK_LOCATION_ID, "北部倉收貨");
+    inboundType(CENTRAL_INBOUND_TYPE_ID, CENTRAL_NODE_ID, CENTRAL_STOCK_LOCATION_ID, "中部倉收貨");
+    inboundType(SOUTH_INBOUND_TYPE_ID, SOUTH_NODE_ID, SOUTH_STOCK_LOCATION_ID, "南部倉收貨");
   }
 
-  private void pickingType(UUID id, UUID nodeId, UUID stockLocationId, String name) {
+  private void outboundType(UUID id, UUID nodeId, UUID stockLocationId, String name) {
     pickingTypeRepository.save(new PickingType(
         id, nodeId, PickingDirection.OUTBOUND, name, stockLocationId, CUSTOMERS_LOCATION_ID));
+  }
+
+  /** 入庫的方向與出庫相反：供應商 → 該倉的庫存位置。 */
+  private void inboundType(UUID id, UUID nodeId, UUID stockLocationId, String name) {
+    pickingTypeRepository.save(new PickingType(
+        id, nodeId, PickingDirection.INBOUND, name, VENDORS_LOCATION_ID, stockLocationId));
   }
 
   /**

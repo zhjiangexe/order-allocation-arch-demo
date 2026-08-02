@@ -454,10 +454,15 @@ class StockPoolPersistenceIntegrationTest {
         stockPool.release(1);
       }
     },
-    REPLENISH(11, 2) {
+    RECEIVE(11, 2) {
       @Override
       void apply(StockPool stockPool) {
-        stockPool.replenish(1);
+        // 收貨要一條指向這一列的明細當憑證——在庫量沒有不帶明細的入口。
+        stockPool.receive(new com.flowzati.archone.allocation.domain.model.StockMoveLine(
+            com.flowzati.archone.common.IdGenerator.nextId(),
+            com.flowzati.archone.common.IdGenerator.nextId(),
+            stockPool.getId(),
+            1));
       }
     },
     CONSUME(9, 1) {

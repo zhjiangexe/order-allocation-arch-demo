@@ -142,6 +142,29 @@ public class StockMove {
   }
 
   /**
+   * 貨真的動了。
+   *
+   * <p>只從已鎖定進入：完成的前提是貨已經在手上。收貨也一樣——它的鎖定那一步不預留任何東西，
+   * 但仍然要走過（Odoo 的 {@code _should_bypass_reservation} 分支就是那個形狀）。
+   *
+   * <p>冪等：已完成時回 {@code false}。取消過的則拋錯——那不是重送，是有人想完成一段已經
+   * 宣告不做的搬運。
+   */
+  public boolean complete(Instant completedAt) {
+    if (state == MoveState.DONE) {
+      return false;
+    }
+    if (state != MoveState.ASSIGNED) {
+      throw new IllegalStateException("Only an assigned movement can be completed, was " + state);
+    }
+    if (completedAt == null) {
+      throw new IllegalArgumentException("Completed time is required");
+    }
+    state = MoveState.DONE;
+    return true;
+  }
+
+  /**
    * 這一段不做了。
    *
    * <p>冪等，理由與 {@code Order.cancel} 相同：取消可能被重送，而第二次不該報錯。

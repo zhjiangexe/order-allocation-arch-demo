@@ -123,9 +123,9 @@ public class StockPool {
    * <p>與 {@link #reserve} 的差別是本質的：預留只鎖住額度、貨還在倉裡，消耗則是貨離開了。
    * 兩者分開，庫存才能同時回答「還能承諾多少」與「實際還有多少」。
    *
-   * <p><b>本階段不呼叫它</b>——它為履約層的兩本帳準備。現在就加是因為對應的
-   * {@code ReservationStatus.CONSUMED} 必須在本階段存在（下一個 change 的 view 會用它），
-   * 兩者分開做會讓那個狀態有名無實。
+   * <p><b>至今沒有任何生產者</b>——出貨屬 R7。它沒有跟著 {@link #receive} 改成收明細，是因為
+   * 它的憑證應該是**出貨**的明細，而那一半還沒有呼叫端：同一個型別上一半有憑證、一半沒有，
+   * 比兩邊都還沒改更難讀。R7 接上時兩者一起收斂。
    */
   public void consume(int quantity) {
     requirePositive(quantity, "Quantity to consume must be positive");
@@ -136,10 +136,28 @@ public class StockPool {
     onHandQuantity -= quantity;
   }
 
-  public void replenish(int quantity) {
-    requirePositive(quantity, "Quantity to replenish must be positive");
+  /**
+   * 收下一條搬運明細帶進來的貨。
+   *
+   * <p><b>參數是明細而不是數量，這是刻意的。</b>「在庫量只能由搬運改」因此是型別上的事實，
+   * 不是架構測試事後才抓得到的約定——沒有明細就叫不動這個方法，而明細只有完成搬運那一步會
+   * 建。曾經的 {@code replenish(int)} 讓任何拿得到 repository 的程式都能改庫存，而改錯了
+   * 不會留下痕跡。
+   *
+   * <p>取自 Odoo 19：{@code stock.move.line._action_done()} 的註解自己寫著「It'll actually
+   * move a quant」——動庫存的是明細，搬運那一層只負責篩選與轉狀態。
+   *
+   * <p>明細指向別的庫存列時拒絕。那是呼叫端配錯了，而配錯的後果是貨記在別人的批上——
+   * 效期與入庫日全錯，而數量對得起來，所以不會有任何約束擋下它。
+   */
+  public void receive(StockMoveLine line) {
+    if (!line.stockPoolId().equals(id)) {
+      throw new IllegalArgumentException(
+          "Move line " + line.id() + " applies to stock pool " + line.stockPoolId()
+              + ", not " + id);
+    }
     try {
-      onHandQuantity = Math.addExact(onHandQuantity, quantity);
+      onHandQuantity = Math.addExact(onHandQuantity, line.quantity());
     } catch (ArithmeticException exception) {
       throw new IllegalArgumentException("On-hand quantity exceeds supported range", exception);
     }

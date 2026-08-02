@@ -181,6 +181,84 @@ class AllocationWorkflowEndToEndIntegrationTest {
   }
 
   @Test
+  @DisplayName("補貨應留下一段已完成的入庫搬運，數量由它的明細加進庫存")
+  void shouldRecordTheArrivalAsACompletedInboundMovement() throws Exception {
+    UUID stockPoolId = UUID.randomUUID();
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-FIFO", 0, 0));
+
+    consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS,
+        new StockReplenishedIntegrationEvent(
+            UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-FIFO",
+            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 7)));
+
+    // 貨進來了——而且**有來源**。這是整串遷移的目的：在庫量的每一次變動都有一段搬運與一條
+    // 明細對得上，而不是一個沒有痕跡的加法。
+    assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
+        assertThat(pool.getOnHandQuantity()).isEqualTo(7));
+
+    assertThat(jdbcTemplate.queryForList("""
+        SELECT m.state, m.order_line_id, p.order_id, ml.stock_pool_id, ml.quantity
+          FROM stock_moves m
+          JOIN stock_pickings p ON p.id = m.picking_id
+          JOIN stock_picking_types t ON t.id = p.picking_type_id
+          JOIN stock_move_lines ml ON ml.move_id = m.id
+         WHERE t.code = 'INBOUND'
+        """)).singleElement().satisfies(row -> {
+          assertThat(row.get("state")).isEqualTo("DONE");
+          // 單據不帶訂單、搬運不帶訂單行——沒有任何東西是透過這個系統訂的。
+          assertThat(row.get("order_id")).isNull();
+          assertThat(row.get("order_line_id")).isNull();
+          assertThat(row.get("stock_pool_id")).isEqualTo(stockPoolId);
+          assertThat(row.get("quantity")).isEqualTo(7);
+        });
+  }
+
+  @Test
+  @DisplayName("入庫的搬運不得被補貨喚醒配貨——它不是待配需求")
+  void shouldNotOfferInboundMovementsToAllocation() throws Exception {
+    UUID stockPoolId = UUID.randomUUID();
+    UUID orderId = IdGenerator.nextId();
+    Instant earlier = Instant.now().minusSeconds(4);
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-FIFO", 0, 0));
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate,
+        backorderedOrder(orderId, "SKU-FIFO", 3, earlier));
+
+    // 補兩次：第一次留下一段已完成的入庫搬運，第二次的喚醒會把佇列讀出來——**而那段入庫
+    // 搬運與待配的那張單在同一個 (貨主, 位置, SKU) 上**。
+    //
+    // **守住這件事的是佇列的狀態篩選**（只取還在等貨的），不是 `MovementAssigner` 那句
+    // 「單據沒有訂單就跳過」——入庫的搬運在同一個交易裡就完成了，根本進不了佇列。拿掉
+    // 那個篩選這支測試會紅；拿掉那句跳過則不會，因為它到不了。
+    //
+    // 那句跳過仍然留著：它守的是「CONFIRMED 的入庫搬運」，而那在收貨與完成分兩段之後
+    // （多段收貨、或收貨失敗重試）就會出現。
+    for (int i = 0; i < 2; i++) {
+      consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS,
+          new StockReplenishedIntegrationEvent(
+              UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-FIFO",
+              StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3)));
+    }
+    outcomeDrain().drain();
+
+    // 那張真的單配到了，而且只配到它自己要的 3 件。
+    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
+    assertThat(heldBy(orderId)).singleElement()
+        .satisfies(held -> assertThat(held.quantity()).isEqualTo(3));
+
+    // 入庫的兩段搬運都停在已完成，沒有一段被轉成已鎖定。
+    assertThat(jdbcTemplate.queryForList("""
+        SELECT DISTINCT m.state
+          FROM stock_moves m
+          JOIN stock_pickings p ON p.id = m.picking_id
+         WHERE p.order_id IS NULL
+        """, String.class)).containsExactly("DONE");
+
+    // 出去的事件只有那一張單的——入庫沒有訂單，發不出也不該發任何配貨結果。
+    assertThat(outboxRepository.count()).isEqualTo(1);
+  }
+
+  @Test
   @DisplayName("取消的單不得被補貨喚醒，貨要落到它後面那張活著的單上")
   void shouldNotWakeACancelledOrderAndShouldGiveTheStockToTheNextLiveOne() throws Exception {
     // **這條守的是行為，不是某個查詢的謂詞。** 取消的單不再是需求，補貨因此看不見它——

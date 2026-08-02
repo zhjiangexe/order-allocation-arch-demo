@@ -302,10 +302,21 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     //
     // 區域變數仍叫 reservation：命名收斂集中在第四個 change，這裡動它會讓「斷言一字未改」
     // 這件事變得難以核對。
-    Integer activeReservationCount = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM stock_move_lines", Integer.class);
-    Integer activeReservationQuantity = jdbcTemplate.queryForObject(
-        "SELECT coalesce(sum(quantity), 0) FROM stock_move_lines", Integer.class);
+    // **只數為需求鎖住的那些明細。** 入庫走搬運之後，stock_move_lines 同時是收貨的紀錄——
+    // 不篩的話補進來的每一批都會被算成一筆預留。判準是「這條明細背後有訂單行」，那正是
+    // 「為某張單鎖的」的定義；收貨的搬運沒有訂單行。
+    Integer activeReservationCount = jdbcTemplate.queryForObject("""
+        SELECT count(*)
+          FROM stock_move_lines ml
+          JOIN stock_moves m ON m.id = ml.move_id
+         WHERE m.order_line_id IS NOT NULL
+        """, Integer.class);
+    Integer activeReservationQuantity = jdbcTemplate.queryForObject("""
+        SELECT coalesce(sum(ml.quantity), 0)
+          FROM stock_move_lines ml
+          JOIN stock_moves m ON m.id = ml.move_id
+         WHERE m.order_line_id IS NOT NULL
+        """, Integer.class);
     Integer distinctReservedOrders = jdbcTemplate.queryForObject("""
         SELECT count(DISTINCT m.order_line_id)
           FROM stock_move_lines ml

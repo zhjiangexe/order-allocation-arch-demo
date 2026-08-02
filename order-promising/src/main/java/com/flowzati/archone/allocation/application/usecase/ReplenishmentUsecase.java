@@ -3,6 +3,8 @@ package com.flowzati.archone.allocation.application.usecase;
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
 import com.flowzati.archone.allocation.application.command.WakeBackordersCommand;
 import com.flowzati.archone.allocation.application.movement.MovementAssigner;
+import com.flowzati.archone.allocation.application.movement.MovementCompleter;
+import com.flowzati.archone.allocation.application.movement.MovementRecorder;
 import com.flowzati.archone.allocation.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.allocation.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.IdGenerator;
@@ -45,6 +47,8 @@ public class ReplenishmentUsecase {
   private final InboxRepo inboxRepo;
   private final StockMoveRepository stockMoveRepository;
   private final StockPoolRepository stockPoolRepository;
+  private final MovementRecorder movementRecorder;
+  private final MovementCompleter movementCompleter;
   private final MovementAssigner movementAssigner;
   private final ApplicationEventPublisher eventPublisher;
   private final BusinessCalendar businessCalendar;
@@ -56,6 +60,8 @@ public class ReplenishmentUsecase {
       InboxRepo inboxRepo,
       StockMoveRepository stockMoveRepository,
       StockPoolRepository stockPoolRepository,
+      MovementRecorder movementRecorder,
+      MovementCompleter movementCompleter,
       MovementAssigner movementAssigner,
       ApplicationEventPublisher eventPublisher,
       // 上限太大則交易長、鎖範圍不可預測；太小則續做事件頻繁、每輪的固定成本被攤薄。
@@ -75,6 +81,8 @@ public class ReplenishmentUsecase {
     this.inboxRepo = inboxRepo;
     this.stockMoveRepository = stockMoveRepository;
     this.stockPoolRepository = stockPoolRepository;
+    this.movementRecorder = movementRecorder;
+    this.movementCompleter = movementCompleter;
     this.movementAssigner = movementAssigner;
     this.eventPublisher = eventPublisher;
     if (wakeLimit <= 0) {
@@ -90,7 +98,7 @@ public class ReplenishmentUsecase {
     }
     ReplenishStockCommand command = inbound.command();
 
-    upsertBatch(command);
+    receive(command);
     wake(command.ownerId(), command.nodeId(), command.locationId(), command.sku());
   }
 
@@ -107,36 +115,22 @@ public class ReplenishmentUsecase {
   }
 
   /**
-   * 依五維鍵 upsert：命中既有列就加數量，否則新開一列。
+   * 到貨：建一段入庫搬運，並完成它。
    *
-   * <p>沒有「差不多就併進去」的規則，因為根本沒有規則要定——五個維度全等才是同一批。
+   * <p><b>庫存的數量由完成那一步的明細去加</b>，這支 usecase 不碰它。曾經這裡是
+   * {@code stockPool.replenish(qty)} 加上一次 save——那是最後一條繞過搬運的路，而繞過去的
+   * 那些量在系統裡沒有任何痕跡。
+   *
+   * <p>五維識別（貨主、位置、SKU、入庫日、效期）的規則一個字沒變，只是搬到了完成那一步：
+   * 「貨落在哪一批」是搬運的一部分，不是收到訊息的一部分。
    */
-  private void upsertBatch(ReplenishStockCommand command) {
-    Optional<StockPool> byIdentity = stockPoolRepository.findByIdentity(
-        command.ownerId(),
-        command.locationId(),
-        command.sku(),
-        command.inDate(),
-        command.expiryDate()
-    );
-    StockPool stockPool;
-    if (byIdentity.isPresent()) {
-      stockPool = byIdentity.get();
-      stockPool.replenish(command.quantity());
-    } else {
-      stockPool = new StockPool(
-          IdGenerator.nextId(),
-          command.ownerId(),
-          command.locationId(),
-          command.sku(),
-          command.inDate(),
-          command.expiryDate(),
-          command.quantity(),
-          0,
-          null);
-    }
-    stockPoolRepository.save(stockPool);
-
+  private void receive(ReplenishStockCommand command) {
+    List<StockMove> incoming = movementRecorder.recordInbound(
+        command.ownerId(), command.locationId(), command.sku(), command.quantity(), clock.instant());
+    movementCompleter.complete(
+        incoming,
+        new MovementCompleter.BatchIdentity(command.inDate(), command.expiryDate()),
+        clock.instant());
   }
 
   /**

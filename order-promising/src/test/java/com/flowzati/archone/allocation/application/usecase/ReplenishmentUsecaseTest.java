@@ -2,6 +2,8 @@ package com.flowzati.archone.allocation.application.usecase;
 
 import com.flowzati.archone.allocation.application.command.ReplenishStockCommand;
 import com.flowzati.archone.allocation.application.movement.MovementAssigner;
+import com.flowzati.archone.allocation.application.movement.MovementCompleter;
+import com.flowzati.archone.allocation.application.movement.MovementRecorder;
 import com.flowzati.archone.allocation.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.allocation.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.allocation.domain.model.MoveState;
@@ -66,6 +68,8 @@ class ReplenishmentUsecaseTest {
   private final LocalDate today = LocalDate.of(2026, 7, 22);
 
   private StockPoolRepository stockPoolRepository;
+  private MovementRecorder movementRecorder;
+  private MovementCompleter movementCompleter;
   private MovementAssigner movementAssigner;
   private StockMoveRepository stockMoveRepository;
   private InboxRepo inboxRepo;
@@ -75,6 +79,8 @@ class ReplenishmentUsecaseTest {
   @BeforeEach
   void setUp() {
     stockPoolRepository = mock(StockPoolRepository.class);
+    movementRecorder = mock(MovementRecorder.class);
+    movementCompleter = mock(MovementCompleter.class);
     movementAssigner = mock(MovementAssigner.class);
     stockMoveRepository = mock(StockMoveRepository.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
@@ -86,92 +92,59 @@ class ReplenishmentUsecaseTest {
         inboxRepo,
         stockMoveRepository,
         stockPoolRepository,
+        movementRecorder,
+        movementCompleter,
         movementAssigner,
         eventPublisher,
         WAKE_LIMIT
     );
   }
 
-  @Test
-  @DisplayName("五維鍵命中既有批時應加到那一列，不另開新列")
-  void shouldAddToTheExistingBatchWhenAllFiveDimensionsMatch() {
-    UUID eventId = UUID.randomUUID();
-    StockPool existing = StockFixtures.unexpiredBatch(SKU, 4, 0);
-    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
-        .thenReturn(Optional.of(existing));
-    givenAllocatableBatches(List.of(existing));
-    givenAnEmptyQueue();
 
-    replenishmentUsecase.handle(inbound(event(eventId, 10)));
-
-    assertThat(existing.getOnHandQuantity()).isEqualTo(14);
-    verify(stockPoolRepository).save(existing);
-  }
 
   @Test
-  @DisplayName("五維鍵沒有命中時應新開一列，而不是併進最像的那一批")
-  void shouldOpenANewBatchWhenNoIdentityMatches() {
+  @DisplayName("當收到新的補充事件時，應先收貨再把佇列交給鎖定那一步")
+  void shouldReceiveThenHandTheQueueToAssignment() {
     UUID eventId = UUID.randomUUID();
+    StockPool batch = StockFixtures.unexpiredBatch(SKU, 10, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
-        .thenReturn(Optional.empty());
-    givenAllocatableBatches(List.of());
-
-    replenishmentUsecase.handle(inbound(event(eventId, 10)));
-
-    // 沒有「差不多就併進去」的規則，因為根本沒有規則要定——五個維度全等才是同一批。
-    ArgumentCaptor<StockPool> captor = ArgumentCaptor.forClass(StockPool.class);
-    verify(stockPoolRepository).save(captor.capture());
-    StockPool created = captor.getValue();
-    assertThat(created.getOwnerId()).isEqualTo(OrderFixtures.OWNER_ID);
-    assertThat(created.getLocationId()).isEqualTo(OrderFixtures.LOCATION_ID);
-    assertThat(created.getSkuCode()).isEqualTo(SKU);
-    assertThat(created.getInDate()).isEqualTo(IN_DATE);
-    assertThat(created.getExpiryDate()).isEqualTo(EXPIRY_DATE);
-    assertThat(created.getOnHandQuantity()).isEqualTo(10);
-    assertThat(created.getReservedQuantity()).isZero();
-  }
-
-  @Test
-  @DisplayName("當收到新的補充事件時，應先補庫存再把佇列交給鎖定那一步")
-  void shouldReplenishThenHandTheQueueToAssignment() {
-    UUID eventId = UUID.randomUUID();
-    StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
-    when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    givenIdentityMatch(batch);
-    // 喚醒讀到的是同一個批物件——upsert 先把數量加上去，喚醒才查。
+    List<StockMove> incoming = givenAnInboundMovement();
     givenAllocatableBatches(List.of(batch));
     givenQueue(1, List.of(backorderedDemand(5)));
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
     verify(inboxRepo).claimIfNew(message(eventId));
-    assertThat(batch.getOnHandQuantity()).isEqualTo(10);
 
-    // **順序是這支 usecase 的責任**：庫存要先加進去，佇列才看得到那些量。反過來的話，
-    // 這一輪讀到的可承諾量還是補貨前的，整輪會什麼都配不到。
-    InOrder inOrder = org.mockito.Mockito.inOrder(stockPoolRepository, movementAssigner);
-    inOrder.verify(stockPoolRepository).save(batch);
+    // **這支 usecase 不再自己加庫存**——它建一段入庫搬運並完成它，數量由完成那一步的明細
+    // 去加。曾經這裡是 stockPool.replenish(qty)，那是最後一條繞過搬運的路。
+    verify(movementRecorder).recordInbound(
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, 10, fixedNow);
+    verify(movementCompleter).complete(
+        incoming,
+        new MovementCompleter.BatchIdentity(IN_DATE, EXPIRY_DATE),
+        fixedNow);
+
+    // **順序是這支 usecase 的責任**：貨要先進來，佇列才看得到那些量。反過來的話，這一輪
+    // 讀到的可承諾量還是收貨前的，整輪會什麼都配不到。
+    InOrder inOrder = org.mockito.Mockito.inOrder(movementCompleter, movementAssigner);
+    inOrder.verify(movementCompleter).complete(any(), any(), eq(fixedNow));
     inOrder.verify(movementAssigner).assignAll(any(), eq(fixedNow));
   }
 
   @Test
-  @DisplayName("當沒有待處理訂單時，應僅更新庫存而不進行分配")
-  void shouldOnlyReplenishWhenNoPendingOrders() {
+  @DisplayName("當沒有待處理訂單時，貨照收但不進行分配")
+  void shouldOnlyReceiveWhenNoPendingOrders() {
     UUID eventId = UUID.randomUUID();
-    StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
+    StockPool batch = StockFixtures.unexpiredBatch(SKU, 10, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    givenIdentityMatch(batch);
+    givenAnInboundMovement();
     givenAllocatableBatches(List.of(batch));
     givenAnEmptyQueue();
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
-    verify(stockPoolRepository).save(batch);
-    assertThat(batch.availableToPromise()).isEqualTo(10);
+    verify(movementCompleter).complete(any(), any(), eq(fixedNow));
     verifyNoInteractions(movementAssigner);
     verify(eventPublisher, never()).publishEvent(any());
   }
@@ -182,7 +155,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    givenIdentityMatch(batch);
+    givenAnInboundMovement();
     givenAllocatableBatches(List.of(batch));
     givenQueue(WAKE_LIMIT,
         IntStream.range(0, WAKE_LIMIT).mapToObj(i -> backorderedDemand(1)).toList());
@@ -201,7 +174,7 @@ class ReplenishmentUsecaseTest {
     UUID eventId = UUID.randomUUID();
     StockPool batch = StockFixtures.unexpiredBatch(SKU, 0, 0);
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    givenIdentityMatch(batch);
+    givenAnInboundMovement();
     givenAllocatableBatches(List.of(batch));
     // 讀滿了上限，卻一張都沒配到——head-of-line blocker 卡在隊首就是這個形狀。再送一次結果
     // 完全相同，所以判準必須是「配到幾張」而不是「讀到幾張」，否則這裡會無限續做。
@@ -228,9 +201,9 @@ class ReplenishmentUsecaseTest {
         message(eventId)));
 
     assertThat(batch.getOnHandQuantity()).isEqualTo(10);
-    // 佇列確實被餵完了——續做只是接著配，不是重新補一次貨。
+    // 佇列確實被餵完了——續做只是接著配，不是重新收一次貨。
     verify(movementAssigner).assignAll(any(), eq(fixedNow));
-    verify(stockPoolRepository, never()).findByIdentity(any(), any(), any(), any(), any());
+    verifyNoInteractions(movementRecorder, movementCompleter);
   }
 
   @Test
@@ -250,22 +223,30 @@ class ReplenishmentUsecaseTest {
   void shouldNotWakeAnyOrderWhenTheReplenishedBatchIsAlreadyExpired() {
     UUID eventId = UUID.randomUUID();
     when(inboxRepo.claimIfNew(message(eventId))).thenReturn(true);
-    when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
-        .thenReturn(Optional.empty());
+    givenAnInboundMovement();
     // 可售批查詢在資料庫就把過期的濾掉了，因此這裡回空。
     givenAllocatableBatches(List.of());
 
     replenishmentUsecase.handle(inbound(event(eventId, 10)));
 
-    verify(stockPoolRepository).save(any(StockPool.class));
+    // **貨照收**——過期的貨倉庫裡真的有，記下來是對的；配不配得到是另一回事。
+    verify(movementCompleter).complete(any(), any(), eq(fixedNow));
+    // 守門查詢就擋下來了，佇列連查都不必查。
     verifyNoInteractions(stockMoveRepository, movementAssigner, eventPublisher);
   }
 
-  private void givenIdentityMatch(StockPool batch) {
-    when(stockPoolRepository.findByIdentity(
-        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, IN_DATE, EXPIRY_DATE))
-        .thenReturn(Optional.of(batch));
+  /**
+   * 到貨會建出一段入庫搬運。
+   *
+   * <p>「貨落在哪一批」不在這裡驗——那是完成那一步的責任，由 {@code MovementCompleterTest}
+   * 守著。這支測試只確認 usecase 有把事情交出去，以及交出去的順序。
+   */
+  private List<StockMove> givenAnInboundMovement() {
+    List<StockMove> incoming = List.of(MovementFixtures.waitingMove(
+        IdGenerator.nextId(), SKU, null, 10, fixedNow));
+    when(movementRecorder.recordInbound(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt(), any()))
+        .thenReturn(incoming);
+    return incoming;
   }
 
   /**
