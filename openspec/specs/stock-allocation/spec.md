@@ -25,150 +25,43 @@ Quantities SHALL be held per row: on-hand and reserved. Available-to-promise SHA
 derived from them at read time and SHALL NOT be stored, because a stored derivation is
 a second source of truth that can disagree with the first.
 
+**Resolving that identity SHALL happen while completing an inbound movement, and a row
+SHALL be opened holding nothing.** The five dimensions and the rule over them are unchanged;
+what changes is who applies them. Arriving goods previously had two paths — add to the
+matching row, or create a row already holding the arrival — and the second was a way to put
+stock into the system without recording a movement. There is now one path: find or open the
+row, then let the movement's line put the quantity into it.
+
+A row holding nothing is a normal state, not a defect. It is what a stock row looks like
+between being identified and being filled, and it is also what remains after everything in
+it has been shipped.
+
 #### Scenario: Two owners holding the same SKU code hold separate stock
 
 - **GIVEN** two owners each hold stock of the same SKU code in the same warehouse
-- **WHEN** one owner's order consumes that stock
-- **THEN** the other owner's available-to-promise is unchanged
+- **WHEN** their stock is read
+- **THEN** each owner sees only their own
 
-#### Scenario: Same-day arrivals of different expiry stay separate
+#### Scenario: A replenishment matching all five dimensions adds to the existing row
 
-- **WHEN** two deliveries of one SKU arrive at one warehouse on the same day with
-  different expiry dates
-- **THEN** they are held as two rows, each carrying its own expiry
-
-#### Scenario: An identical arrival adds to the existing row
-
-- **GIVEN** stock exists for an owner, warehouse, SKU, arrival date and expiry date
+- **GIVEN** a stock row for an owner, location, SKU, arrival date and expiry date
 - **WHEN** a replenishment arrives naming all five identically
-- **THEN** its quantity is added to that row and no second row is created
+- **THEN** that row holds more than before
+- **AND** no second row is created
 
+#### Scenario: A replenishment differing in arrival date opens a new row
 
-<!-- @trace
-source: add-batch-stock-and-fefo
-updated: 2026-07-30
-code:
-  - frontend/src/components/StockPanel.tsx
-  - docs/execution-roadmap.md
-  - e2e/perf/k6/results/hot-sku-burst-20260730T164656.json
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/OrderAllocatedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/event/LineSnapshot.java
-  - e2e/perf/run.sh
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/StockReplenishedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/BackorderWakeRequestedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinator.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/infrastructure/repository/jpa/JpaOrderRepository.java
-  - e2e/perf/k6/hot-sku-burst.js
-  - e2e/perf/kafka-connect/register-outbox-connector.sh
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolController.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/OrderLine.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/model/StockPool.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/command/WakeBackordersCommand.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/model/ReservationStatus.java
-  - order-promising/src/main/java/com/flowzati/archone/common/outbox/StockContentionKey.java
-  - frontend/vite.config.ts
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/event/OrderCancelled.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/StockReplenishedIntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
-  - order-promising/src/main/java/com/flowzati/archone/common/outbox/OutboxAggregateTypes.java
-  - order-promising/src/main/resources/application-dev.properties
-  - frontend/src/api/catalog.ts
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/event/OrderCancelledIntegrationEvent.java
-  - order-promising/src/main/resources/db/migration/V4__create_stock_reservations.sql
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/jpa/JpaStockReservationRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationResult.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/BatchPick.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/BackorderWakeRequestedIntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/common/messaging/kafka/IntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationRequest.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/StockReservationRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/common/messaging/kafka/KafkaIntegrationEventHandler.java
-  - order-promising/src/main/java/com/flowzati/archone/common/configuration/CommonConfiguration.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/entity/StockPoolEntity.java
-  - order-promising/src/main/java/com/flowzati/archone/common/time/BusinessCalendar.java
-  - docs/stock-reservation-design.md
-  - frontend/src/api/client.ts
-  - order-promising/src/main/resources/db/migration/V3__create_stock_pools.sql
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/usecase/CancelOrderUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/jpa/JpaStockRepository.java
-  - e2e/perf/k6/results/hot-sku-burst-20260730T164603.json
-  - frontend/README.md
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/event/BackorderWakeContinuationRequired.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/model/StockReservation.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/repository/OrderRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/event/OrderAllocationCompleted.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/translator/AllocationDomainEventTranslator.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/repository/StockReservationRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/repository/StockPoolRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/event/translator/OrderingDomainEventTranslator.java
-  - order-promising/src/main/resources/db/migration/V2__create_ordering_tables.sql
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/OrderAllocation.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationOutcome.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/OrderPlacedIntegrationEventHandler.java
-  - e2e/perf/docker-compose.yml
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/mapper/StockReservationMapper.java
-  - order-promising/src/main/java/com/flowzati/archone/common/messaging/kafka/KafkaIntegrationEventDispatcher.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/application/event/OrderPlacedIntegrationEvent.java
-  - docs/dom-promising-scope.md
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolResponse.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/entrypoint/kafka/OrderCancelledIntegrationEventHandler.java
-  - frontend/src/api/types.ts
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/command/ReplenishStockCommand.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/mapper/StockPoolMapper.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/demo/ReplenishmentProbeController.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/ReleaseReservationUsecase.java
-  - order-promising/src/main/resources/application.properties
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/event/BackorderCreatedIntegrationEvent.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/infrastructure/repository/OrderRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/allocation/domain/service/AllocationService.java
-  - e2e/perf/README.md
-  - docs/system-layer-map.md
-  - order-promising/src/main/resources/db/migration/V2__create_stock_pools.sql
-  - order-promising/src/main/resources/db/migration/V3__create_ordering_tables.sql
-  - order-promising/src/main/java/com/flowzati/archone/allocation/application/usecase/GetStockPoolUsecase.java
-  - frontend/src/pages/StockPage.tsx
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/Order.java
-  - frontend/src/components/StockPanel.module.css
-  - order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/entity/StockReservationEntity.java
-tests:
-  - order-promising/src/test/java/com/flowzati/archone/demo/ReplenishmentProbeControllerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationFifoGuaranteeScopeIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/model/StockFixtures.java
-  - order-promising/src/test/java/com/flowzati/archone/common/time/BusinessCalendarTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/model/StockPoolTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/ReplenishmentUsecaseTest.java
-  - order-promising/src/test/java/com/flowzati/archone/common/event/EventSeparationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/ReleaseReservationUsecaseTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/model/StockReservationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/entrypoint/rest/StockPoolControllerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/infrastructure/repository/StockReservationPersistenceIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/application/usecase/InboundCommandTransactionIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/common/outbox/OutboxCdcIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/common/outbox/DomainEventTranslatorTest.java
-  - order-promising/src/test/java/com/flowzati/archone/demo/DemoConfigControllerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/demo/ReplenishmentProbeEndToEndIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationConcurrencyEndToEndIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/infrastructure/mapper/StockPoolMapperTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationKafkaIntegrationEventConsumerTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/infrastructure/repository/StockPoolPersistenceIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/application/usecase/CancelOrderUsecaseTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/ordering/infrastructure/repository/OrderPersistenceIntegrationTest.java
-  - frontend/src/components/StockPanel.test.tsx
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationServiceTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/coordinator/OrderAllocationCoordinatorTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/domain/model/OrderTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/application/usecase/AllocateOrderUsecaseTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/domain/service/AllocationSelectorTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/common/outbox/OutboxAggregateQueryIntegrationTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/allocation/entrypoint/kafka/AllocationHotSkuConcurrencyIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/allocation/infrastructure/mapper/StockReservationMapperTest.java
--->
+- **GIVEN** a stock row for an owner, location, SKU, arrival date and expiry date
+- **WHEN** a replenishment arrives naming a different arrival date
+- **THEN** a second row exists
+- **AND** the two are allocated from separately, earliest expiry first
+
+#### Scenario: A newly opened row holds nothing until a movement line fills it
+
+- **GIVEN** a replenishment naming five dimensions that match no existing row
+- **WHEN** the row is opened
+- **THEN** it holds nothing
+- **AND** it holds the arrival's quantity only once the movement's line has been applied
 
 ---
 ### Requirement: A stock row references a SKU its owner actually holds
