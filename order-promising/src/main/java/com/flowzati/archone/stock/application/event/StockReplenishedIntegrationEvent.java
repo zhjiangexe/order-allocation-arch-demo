@@ -15,6 +15,14 @@ import java.util.UUID;
  *
  * <p>{@code ownerId} 同時決定要喚醒哪一個貨主的缺貨佇列：SKU 代碼由貨主自訂、跨貨主撞號，
  * 只憑 SKU 無法決定該喚醒誰的訂單。
+ *
+ * <p><b>「補貨」在這裡的意思是「上游已經點收完成」。</b>真實的入庫是四段——預約進貨
+ * （ASN）、到貨、**人工點收**、上架——而這個事件對應的是第三段之後的結果。前三段在本系統
+ * 之外，第四段（上架，把貨放進具體儲位）屬履約層，見
+ * {@code docs/fulfillment-full-scope.md} 的 F6。
+ *
+ * <p>所以事件名沒有錯，只是它的邊界要說清楚：**從我們看出去，貨就是進來了**。若哪天要把
+ * 點收納進系統，那是履約層的入庫作業，不是這個事件多幾個狀態。
  */
 public final class StockReplenishedIntegrationEvent extends IntegrationEvent {
   private final UUID ownerId;

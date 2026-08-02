@@ -590,7 +590,7 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 1. 新增 Gradle module `fulfillment`；`bootstrap` 同時依賴兩個 module
 2. Migration：`shipments`、`pick_tasks`（**只有兩張新表**，見下方「五個 change 之後改掉的三項」）
 3. Domain：`Shipment`（兩態，粒度 `(order, node)`）、`PickTask`（含 `orderLineId`）
-4. Usecase 五支：`CreateShipment`、`GeneratePickTasks`、`ConfirmPick`（含短揀分支）、`CancelShipment`、`ListPickTasks`。~~`GetLocationStock`~~ **刪除**——儲位層的庫存就是 `stock_pools`，已經有 `GetStockPoolUsecase`
+4. Usecase 五支：`CreateShipment`、`GeneratePickTasks`、`ConfirmPick`（含短揀分支）、`CancelShipment`、`ListPickTasks`。**`CreateShipment` 與 `GeneratePickTasks` 同交易＝即時釋出，那是政策不是必然**——見「已識別但未排程」的作業釋出。~~`GetLocationStock`~~ **刪除**——儲位層的庫存就是 `stock_pools`，已經有 `GetStockPoolUsecase`
 5. 取位規則：單一儲位優先 → 量多優先 → `code` 字典序（**第三條為了決定性，不可省**）
 6. 事件出：`ShipmentDeparted`、`ShortPickDetected`、`ShipmentCancelled`
 7. **庫存側**：`ShipmentDeparted` 的 handler 呼叫 `MovementCompleter` **完成那段出庫搬運**（**跨 module，寫在 order-promising 的 `stock`**）
@@ -949,6 +949,32 @@ Spring context 都會起一個 container**。SIT 有 16 個 test class 各自帶
 模式），生命週期綁 JVM 而不是 Spring context。要注意的是 `@ServiceConnection` 會失效，得改回
 `@DynamicPropertySource` 或自己設 datasource 屬性——那是這個修法唯一有分量的取捨：換來的是
 container 只起一次，付出的是連線設定不再由 Spring Boot 自動接。
+
+### 作業釋出（波次／截單）：自動化倉真正的自動化
+
+現在的行為是：**訂單一到，作業單立刻建立、貨立刻鎖定、工作立刻可以下到現場**。那是「單張
+即時揀貨」政策——它合法，但目前是**隱含的**，不是一個決策。
+
+真實的自動化倉，自動化的核心正是這個決策：**什麼時候把哪些單放到現場**。分組的依據是承運商
+截單時間、揀貨區域、優先序。
+
+#### 為什麼不放進 R7
+
+- **沒有量的時候，波次與沒有波次看不出差別**——一個波次裡一張單
+- R7 已經約 30 檔，而波次要加聚合、截單設定、觸發介面
+
+#### R7 要留的縫（一句話，現在就要）
+
+R7 的 `CreateShipment` 與 `GeneratePickTasks` **在同一個交易裡**。那個耦合要記成
+「即時釋出是一個政策」，而不是「必然如此」——日後在 `CREATED` 與 `DEPARTED` 之間插入
+`RELEASED`，才不必回頭拆交易。
+
+#### 觸發點
+
+任一成立即重新評估：
+
+- 單倉單日的訂單量讓「一張單一趟揀貨」變成浪費（揀貨員在倉庫裡走的路遠多於揀的貨）
+- 承運商截單需要把單分組交運
 
 ### route/rule：需求反向傳遞的那個階段
 

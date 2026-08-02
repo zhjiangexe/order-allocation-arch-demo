@@ -185,7 +185,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | # | 觸發 | 動作 | 產出 |
 | --- | --- | --- | --- |
 | 1 | `OrderAllocated`（含 `ownerId`、`nodeId`、**批次清單**） | 建立 `Shipment`，狀態 `CREATED` | — |
-| 2 | 同上，同交易 | 依鎖定的明細定位儲位，產生 `PickTask` | `PickTask` 清單 |
+| 2 | 同上，**同交易** | 依鎖定的明細定位儲位，產生 `PickTask` | `PickTask` 清單 |
 | 3 | 揀貨員回報實揀數 | `PickTask` → `PICKED`。**履約層不動庫存** | — |
 | 4 | 全部 `PickTask` 皆 `PICKED` | `Shipment` → `DEPARTED` | **`ShipmentDeparted`** |
 
@@ -194,6 +194,14 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 
 **第 3 步刻意不動庫存。** 揀貨後貨仍在倉庫內，在庫量還沒有變；而「揀到哪了」由
 `PickTask` 的狀態回答，不需要在庫存上多記一個欄位。
+
+**第 1、2 步同交易＝即時釋出，那是政策不是必然。** 訂單一到，工作立刻可以下到現場——真實的
+自動化倉會在中間插一個決策：什麼時候把哪些單放到現場（波次、承運商截單、揀貨區域）。最小版
+不做，理由是沒有量的時候波次與沒有波次看不出差別。
+
+**但要知道縫在哪**：日後在 `CREATED` 與 `DEPARTED` 之間插入 `RELEASED`，拆的就是這兩步的
+同交易。現在把它寫成政策，屆時才不必回頭找。見
+[execution-roadmap.md](execution-roadmap.md) 的「作業釋出（波次／截單）」。
 
 ### 取位規則
 
