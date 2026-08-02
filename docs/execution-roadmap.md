@@ -573,12 +573,12 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 
 ## R7 履約層最小版 + 出貨閉環
 
-**依賴**：R3、R4、**R8**　**規模**：約 35 檔（含新 module）　**里程碑**：M4
+**依賴**：R3、R4、**R8**、庫存異動模型（五個 change，已交付）　**規模**：約 30 檔（含新 module；少了兩張表與它們的 domain）　**里程碑**：M4
 
 > **刻意排在 M4，不接著 M3 做。** R8 完成後系統已經有一個完整、展示得出來的狀態（M3），所以
 > R7 不再是「補完最後一塊」而是「開下一塊」——那讓它可以等。
 >
-> 它也是唯一一個要新開 Gradle module、新增四張表的 change：一動就是 35 檔，而且中間沒有可展示
+> 它也是唯一一個要新開 Gradle module 的 change：一動就是三十幾檔，而且中間沒有可展示
 > 的中繼點（只有 `shipments` 沒有 `pick_tasks`，或反過來，都不構成一個看得懂的狀態）。要嘛整個
 > 做完，要嘛還沒開始。
 >
@@ -588,14 +588,14 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 ### 任務
 
 1. 新增 Gradle module `fulfillment`；`bootstrap` 同時依賴兩個 module
-2. Migration：`locations`（**code 必須用階層格式 `A-01-03-02-04`，但本版不解析**）、`location_stock`、`shipments`、`pick_tasks`
-3. Domain：`Shipment`（兩態，粒度 `(order, node)`）、`PickTask`（含 `orderLineId`）、`LocationStock`（含樂觀鎖）、`Location`
-4. Usecase 六支：`CreateShipment`、`GeneratePickTasks`、`ConfirmPick`（含短揀分支）、`CancelShipment`、`ListPickTasks`、`GetLocationStock`
+2. Migration：`shipments`、`pick_tasks`（**只有兩張新表**，見下方「五個 change 之後改掉的三項」）
+3. Domain：`Shipment`（兩態，粒度 `(order, node)`）、`PickTask`（含 `orderLineId`）
+4. Usecase 五支：`CreateShipment`、`GeneratePickTasks`、`ConfirmPick`（含短揀分支）、`CancelShipment`、`ListPickTasks`。~~`GetLocationStock`~~ **刪除**——儲位層的庫存就是 `stock_pools`，已經有 `GetStockPoolUsecase`
 5. 取位規則：單一儲位優先 → 量多優先 → `code` 字典序（**第三條為了決定性，不可省**）
 6. 事件出：`ShipmentDeparted`、`ShortPickDetected`、`ShipmentCancelled`
-7. **訂單層側**：`ShipmentDeparted` 的 handler 呼叫 `StockPool.consume()` 並將 reservation 轉為 `CONSUMED`（**跨 module，寫在 order-promising**）
-8. **訂單層側**：`ShortPickDetected` 的 handler 修正 `StockPool.onHandQuantity`
-9. `ReplenishmentUsecase` 同時寫入 `LocationStock`，維持對帳等式
+7. **庫存側**：`ShipmentDeparted` 的 handler 呼叫 `MovementCompleter` **完成那段出庫搬運**（**跨 module，寫在 order-promising 的 `stock`**）
+8. **庫存側**：`ShortPickDetected` 的 handler 修正在庫量——同樣經由搬運，不是直接改數字
+9. ~~`ReplenishmentUsecase` 同時寫入 `LocationStock`~~ **刪除**：補貨已經不直接寫庫存了，而且沒有第二份庫存要對帳
 10. Seed：每節點 3～4 儲位、一個 SKU 分散三儲位、**一筆預先埋好的帳差資料**
 11. 前端：揀貨頁——待揀清單、回報實揀數、**刻意短揀按鈕**、**對帳差異顯示**
 12. 測試：邊界斷言 `fulfillment` 不得依賴 `order-promising`
@@ -610,15 +610,48 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 
 ### 驗收
 
-- 出貨後 `StockPool.onHandQuantity` 確實遞減（**這是目前完全不存在的行為**）
-- 刻意短揀後：`LocationStock` 修正 → `StockPool` 修正 → 訂單重新決策，全鏈可在畫面上追蹤
-- 對帳等式在正常路徑下恆成立，短揀時可見破裂與修復
+- 出貨後在庫量確實遞減（**這是目前完全不存在的行為**），且**遞減有一段 `DONE` 的搬運與一條明細對得上**
+- 刻意短揀後：搬運修正 → 在庫量修正 → 訂單重新決策，全鏈可在畫面上追蹤
+- **`MovementCompleter` 遇到出庫方向不再拋錯**——那個 `not implemented until shipping exists` 就是留給 R7 的
 - **`FULFILLED` 的訂單取消時被拒絕**，且拒絕發生在領域層而不是靠呼叫端記得檢查
 
 ### 風險
 
-任務 7、8 跨 module，容易被誤放進 `fulfillment`。它們動的是 `StockPool`，屬訂單層，
-必須寫在 `order-promising`——`fulfillment` 只發事件。
+任務 7、8 跨 module，容易被誤放進 `fulfillment`。它們動的是庫存，屬 `stock`，必須寫在
+`order-promising`——`fulfillment` 只發事件。這與既有的三條規則一致：**寫別人的表從不、通知用
+事件、查別人的資料走對方發布的檢視**（`stock` 讀 `demand_lines` 就是第三條）。
+
+`fulfillment` 若需要「這條行配到哪幾批」來產生揀貨單，走的也是第三條——由 `stock` 發布一個
+檢視，而不是去 join `stock_move_lines`。
+
+### 五個 change 之後改掉的三項
+
+這一節原本的規劃寫在庫存異動模型之前（見 `docs/dom-stock-movement-scope.md`），有三處已經
+與現況衝突：
+
+| 原本規劃 | 為什麼不成立 | 改成 |
+| --- | --- | --- |
+| 新建 `locations` 表（階層 code） | `stock_locations` 已經存在。scope 文件對位置樹寫的是「日後要加時 `orders` 已指倉、`stock_pools` 已指位置，兩者都不用動」——儲位是**同一棵樹長出 `parent_id`**，不是第二個位置模型。Odoo 也只有一棵（`stock.location.parent_id`） | `stock_locations` 加 `parent_id`；`stock_pools.location_id` 指到更細的那一層 |
+| 新建 `location_stock` 表 + 對帳等式 | 那個等式的存在理由是「有兩份庫存」。只有一份就不需要對帳 | 刪除。庫存仍是 `stock_pools`，只是位置更細 |
+| handler 呼叫 `StockPool.consume()`、reservation 轉 `CONSUMED` | `stock_reservations` 與 `CONSUMED` 都不存在了；而且在庫量**在型別上**只能由搬運改 | handler 呼叫 `MovementCompleter` 完成那段出庫搬運，由它的明細去扣 |
+
+**`MovementCompleter` 已經替 R7 留好位置**：它現在遇到來源是內部位置的搬運會拋
+`not implemented until shipping exists`，而那句話就是這一節要兌現的東西。
+
+**其他 scope 文件還沒跟上。** 這一節已經對齊，但下列文件裡仍有 `LocationStock`、
+`stock_reservations`、`CONSUMED` 等已消失的東西——**開 R7 之前要先讀過它們**，否則會照著
+過期的規劃長出結構：
+
+| 文件 | 過期處 |
+| --- | --- |
+| `docs/fulfillment-minimal-scope.md` | 15 |
+| `docs/system-layer-map.md` | 13 |
+| `docs/dom-order-intake-scope.md` | 11 |
+| `docs/dom-promising-scope.md` | 6 |
+| `docs/fulfillment-full-scope.md` | 4 |
+
+沒有現在就改，是因為那幾份各有自己的推理脈絡，逐句讀過才改得對——而那是 R7 開工的第一步，
+不是這次順手的事。
 
 任務 13 的禁令容易漏：加一個 enum 值是機械動作，而「順手把 `cancel()` 的守門條件補上」不是。
 漏掉不會有任何測試失敗——因為那條路徑今天不存在，也就沒有測試在守它。
