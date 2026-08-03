@@ -42,13 +42,7 @@ public class AllocationDomainEventTranslator {
     );
   }
 
-  /**
-   * 缺貨。
-   *
-   * <p><b>監聽的是 allocation 自己的事實，不是 ordering 的 {@code OrderBackordered}。</b>
-   * 後者現在由 ordering 消費這則對外事件之後才產生——監聽它會讓「發事件 → ordering 改狀態 →
-   * 產生領域事件 → 又發事件」無限循環下去。兩個 context 各發各的，循環因此形成不了。
-   */
+  /** 將 allocation 記錄的缺貨事實轉成對外事件。 */
   @EventListener
   public void translate(OrderBackorderRecorded event) {
     BackorderCreatedIntegrationEvent integration = new BackorderCreatedIntegrationEvent(

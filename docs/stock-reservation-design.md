@@ -110,8 +110,8 @@ SR-08 ─> SR-09 ─┐
 - [x] **SR-05 — Allocate Order application flow**（依賴 SR-01～SR-04）
   - 定義／補齊 Order、StockPool 與 StockReservation ports；`AllocateOrderUsecase` 的輸入改為 `AllocateOrderCommand(orderId)`，而非直接處理 Integration Event。
   - 重構 `AllocationService`、`OrderAllocationCoordinator` 與 `AllocateOrderUsecase`。
-  - 成功時更新 StockPool、建立 ACTIVE reservation、標記 Order ALLOCATED，並發布完整的 `OrderAllocationCompleted` Domain Event。
-  - ATP 不足時不建立 reservation，標記 Order BACKORDERED，並發布 `OrderBackordered` Domain Event。
+  - 成功時更新 StockPool、建立 ACTIVE reservation，並發布 `OrderAllocationCompleted` Domain Event；ordering 消費對外事件後更新 Order 投影。
+  - ATP 不足時不建立 reservation，並發布 `OrderBackorderRecorded` Domain Event；ordering 消費對外事件後更新 Order 投影。
   - 作為 Integration Event 來源的 Domain Event 必須帶齊 translator 所需的業務資料；translator 不額外查詢 Repository 拼裝 payload。
   - 使用 mocked ports 完成成功、不足、非 PENDING Order 的 application tests；Integration Event、Inbox 與 Outbox 的測試屬於 SR-12／SR-14。
 
@@ -485,8 +485,8 @@ RELEASED ──重複取消──> no-op
 5. **先把整張單的取用計畫算完**（跨批依序取用直到湊滿），確認每一條行都湊得滿，才真正動
    `reserve()`。規劃與套用分開是 ship-complete 的實作機制：邊算邊扣的話，需求 80 而可配只有
    50 時會先扣掉 50 才發現配不到，那 50 件就被一張出不了貨的單鎖住。
-6. 成功時每一個取用建立一筆 `ACTIVE` `StockReservation`（行 × 批），並將 Order 標記為
-   `ALLOCATED`。**批次的寫入依 `(sku_code, expiry_date, in_date, id)` 排序**，不可依賴集合的
+6. 成功時每一個取用建立一筆 `ACTIVE` `StockReservation`（行 × 批）。**批次的寫入依
+   `(sku_code, expiry_date, in_date, id)` 排序**，不可依賴集合的
    自然順序——兩個交易以相反順序鎖同一組列就會死鎖。
 7. allocation flow 發布 `OrderAllocationCompleted` Domain Event；同 transaction 的 translator listener 將它轉成 `OrderAllocatedIntegrationEvent` 並寫入 Outbox。**那則對外事件只帶 `orderId` 與時間**，不帶批次清單——它描述的是會被取消釋放的狀態，而取消事件在另一個 topic、沒有順序保證；下游要知道配到哪些批就回頭讀 `stock_reservations`。
 8. Commit；commit 時由 `@Version` 偵測並行衝突。
@@ -495,8 +495,11 @@ RELEASED ──重複取消──> no-op
 
 1. **不修改任何一批** StockPool——跨批的總量不足時，一批都不預留。
 2. 不建立 StockReservation。
-3. 將 Order 標記為 `BACKORDERED` 並發布 `OrderBackordered` Domain Event。
+3. 發布 `OrderBackorderRecorded` Domain Event。
 4. translator listener 將它轉成 `BackorderCreatedIntegrationEvent` 並寫入 Outbox。
+
+ordering 消費 `OrderAllocatedIntegrationEvent`／`BackorderCreatedIntegrationEvent` 後，分別以
+`markAllocated()`／`markBackOrdered()` 更新 Order 投影；這兩個方法不再產生第二組 Domain Event。
 
 `StockPool` 以 `canReserve()` 表達單一批的 ATP capability query，並以 `reserve()` 執行預留；跨批的整籃判斷在 `AllocationService.planPicks()`。
 
@@ -633,8 +636,6 @@ Order Aggregate 目前的內部 Domain Events：
 | Domain Event | Payload |
 |---|---|
 | `OrderPlaced` | `orderId`, `ownerId`, `fulfillmentNodeId`, `shipToZone`, `promisedDeliveryDate`, `lines`, `placedAt` |
-| `OrderAllocated` | `orderId`, `ownerId`, `allocatedAt` |
-| `OrderBackordered` | `orderId`, `ownerId`, `lines`, `backorderedSince` |
 | `OrderCancelled` | `orderId`, `ownerId`, `fulfillmentNodeId`, `cancelledAt` |
 
 需求以 `lines` 表達而不是單一 `sku` 與 `quantity`——訂單的形狀本來就是行的集合。`OrderCancelled`
@@ -646,14 +647,12 @@ Order Aggregate 目前的內部 Domain Events：
 
 Domain Events 不包含 `eventId`、retry count、serialization type 或 Outbox metadata。
 
-Allocation flow 另發布下列跨 Aggregate 的 Domain Event。它不是 `Order` Aggregate 的事件，而是 Order、StockPool 與 StockReservation 已共同完成 allocation 的業務事實：
+Allocation flow 另發布下列 Domain Events。它們不是 `Order` Aggregate 的事件，而是 stock 對配置結果的陳述：
 
 | Domain Event | Payload | Translator 輸出 |
 |---|---|---|
 | `OrderAllocationCompleted` | `orderId`, `allocatedAt` | `OrderAllocatedIntegrationEvent` |
-
-它與 `OrderAllocated` 的差別在時機：後者由聚合根在狀態轉換時發出，前者由 coordinator 在三個
-聚合根都寫入之後發出。對外事件只能由後者觸發。
+| `OrderBackorderRecorded` | `orderId`, `backorderedAt` | `BackorderCreatedIntegrationEvent` |
 
 **四則訂單生命週期的對外事件都只帶 `(eventId, orderId, 時間戳)`**——`OrderPlaced`、
 `OrderCancelled`、`OrderAllocated`、`BackorderCreated`。消費端拿 `orderId` 回頭讀整張單，它反正
@@ -661,7 +660,8 @@ Allocation flow 另發布下列跨 Aggregate 的 Domain Event。它不是 `Order
 例外是**來自系統外部**的事件（`StockReplenishedIntegrationEvent`、
 `BackorderWakeRequestedIntegrationEvent`）：那裡沒有本地聚合根可讀，事實只存在於訊息裡。
 
-`OrderAllocationCompleted` 由 allocation flow 在完整配置完成後發布。`OrderAllocated` 仍可供 bounded context 內部使用，但不作為 `OrderAllocatedIntegrationEvent` 的翻譯來源；這可避免為了帶入 `reservationId` 而讓 `Order` Aggregate 耦合 StockReservation 的識別字。
+`OrderAllocationCompleted` 由 allocation flow 在完整配置完成後發布；ordering 只保存收到的結果，
+不重複陳述同一個業務事實。
 
 完整翻譯對應如下：
 
@@ -669,7 +669,7 @@ Allocation flow 另發布下列跨 Aggregate 的 Domain Event。它不是 `Order
 |---|---|
 | `OrderPlaced` | `OrderPlacedIntegrationEvent` |
 | `OrderAllocationCompleted` | `OrderAllocatedIntegrationEvent` |
-| `OrderBackordered` | `BackorderCreatedIntegrationEvent` |
+| `OrderBackorderRecorded` | `BackorderCreatedIntegrationEvent` |
 | `OrderCancelled` | `OrderCancelledIntegrationEvent` |
 
 `StockReplenishedIntegrationEvent` 是 Inventory 發出的輸入事件，Promising consumer 將它轉為 replenish command；Promising 不反向發布同名事件。

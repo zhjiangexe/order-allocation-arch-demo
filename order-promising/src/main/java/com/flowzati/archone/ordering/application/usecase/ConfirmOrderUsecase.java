@@ -7,7 +7,6 @@ import com.flowzati.archone.ordering.application.command.RecordBackorderCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,22 +20,19 @@ import java.util.Optional;
  *
  * <p><b>事件只帶識別碼與時間戳，狀態一律由重讀決定。</b>事件裡沒有任何東西被當成訂單的狀態，
  * 所以「事件說的」與「資料庫裡的」不可能互相矛盾。
+ *
+ * <p>這裡只更新 ordering 的查詢投影，不另行發布 ordering 事件；配貨結果的來源事實已由
+ * stock 發布。
  */
 @Service
 public class ConfirmOrderUsecase {
 
   private final OrderRepository orderRepository;
   private final InboxRepo inboxRepo;
-  private final ApplicationEventPublisher publisher;
 
-  public ConfirmOrderUsecase(
-      OrderRepository orderRepository,
-      InboxRepo inboxRepo,
-      ApplicationEventPublisher publisher
-  ) {
+  public ConfirmOrderUsecase(OrderRepository orderRepository, InboxRepo inboxRepo) {
     this.orderRepository = orderRepository;
     this.inboxRepo = inboxRepo;
-    this.publisher = publisher;
   }
 
   @Transactional
@@ -53,7 +49,6 @@ public class ConfirmOrderUsecase {
 
     order.markAllocated(command.allocatedAt());
     orderRepository.save(order);
-    releaseEvents(order);
   }
 
   @Transactional
@@ -68,12 +63,13 @@ public class ConfirmOrderUsecase {
       return;
     }
     Order order = orderOpt.get();
-    if (isSettled(order)) {
+    // 已經是缺貨就不再推一次。理由與 isSettled 相同（重送擋不住不同 eventId），但它不是「結束」
+    // ——缺貨還在等補貨。分開寫是為了不讓 isSettled 這個名字說謊。
+    if (isSettled(order) || order.getStatus() == OrderStatus.BACKORDERED) {
       return;
     }
     order.markBackOrdered(command.backorderedAt());
     orderRepository.save(order);
-    releaseEvents(order);
   }
 
   /**
@@ -89,16 +85,5 @@ public class ConfirmOrderUsecase {
   private static boolean isSettled(Order order) {
     return order.getStatus() == OrderStatus.CANCELLED
         || order.getStatus() == OrderStatus.ALLOCATED;
-  }
-
-  /**
-   * 推進狀態產生的領域事件照常發出。
-   *
-   * <p><b>它們不會再被翻譯成對外事件</b>——{@code AllocationDomainEventTranslator} 監聽的是
-   * allocation 自己的事實。若哪天有人讓某個 translator 監聽 ordering 的 {@code OrderAllocated}
-   * 或 {@code OrderBackordered}，就會形成「發事件 → 改狀態 → 產生事件 → 又發事件」的循環。
-   */
-  private void releaseEvents(Order order) {
-    order.releaseDomainEvents().forEach(publisher::publishEvent);
   }
 }

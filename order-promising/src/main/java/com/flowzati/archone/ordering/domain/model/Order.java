@@ -1,8 +1,6 @@
 package com.flowzati.archone.ordering.domain.model;
 
 import com.flowzati.archone.common.ddd.DomainEvent;
-import com.flowzati.archone.ordering.domain.event.OrderAllocated;
-import com.flowzati.archone.ordering.domain.event.OrderBackordered;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
@@ -164,6 +162,7 @@ public class Order {
   }
 
 
+  /** 將 stock 的配貨結果寫入訂單投影；來源事實已由 stock 發布，因此這裡不另發領域事件。 */
   public void markAllocated(Instant allocatedAt) {
     if (status != OrderStatus.PENDING && status != OrderStatus.BACKORDERED) {
       throw new IllegalStateException("Only pending or backordered orders can be allocated");
@@ -176,9 +175,9 @@ public class Order {
 
     status = OrderStatus.ALLOCATED;
     this.allocatedAt = allocatedAt;
-    events.add(new OrderAllocated(id, ownerId, allocatedAt));
   }
 
+  /** 將 stock 的缺貨結果寫入訂單投影；來源事實已由 stock 發布，因此這裡不另發領域事件。 */
   public void markBackOrdered(Instant backorderedSince) {
     if (status != OrderStatus.PENDING) {
       throw new IllegalStateException("Only pending orders can be backordered");
@@ -188,7 +187,6 @@ public class Order {
 
     status = OrderStatus.BACKORDERED;
     this.backOrderedSince = backorderedSince;
-    events.add(new OrderBackordered(id, ownerId, toLineSnapshots(), backorderedSince));
   }
 
   /**

@@ -206,11 +206,7 @@ public class MovementAssigner {
     return List.copyOf(demands);
   }
 
-  /**
-   * 庫存與搬運都寫入之後才發，這是它與 ordering 的 {@code OrderAllocated} 的差別。
-   *
-   * <p>不帶配到哪些批：對外事件不帶，這裡也就沒有東西要帶。
-   */
+  /** 庫存與搬運都寫入後發布；對外事件不帶批次明細，這裡也不重複攜帶。 */
   private void publishAllocationCompleted(UUID orderId, Instant allocatedAt) {
     eventPublisher.publishEvent(new OrderAllocationCompleted(orderId, allocatedAt));
   }

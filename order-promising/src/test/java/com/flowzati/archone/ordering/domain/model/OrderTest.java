@@ -1,8 +1,6 @@
 package com.flowzati.archone.ordering.domain.model;
 
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.ordering.domain.event.OrderAllocated;
-import com.flowzati.archone.ordering.domain.event.OrderBackordered;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import java.time.Instant;
@@ -59,7 +57,7 @@ class OrderTest {
   }
 
   @Test
-  @DisplayName("PENDING 訂單應可配置")
+  @DisplayName("PENDING 訂單應可配置且不另發領域事件")
   void shouldAllocatePendingOrder() {
     Instant allocatedAt = receivedAt.plusSeconds(10);
     Order order = pendingOrder();
@@ -68,12 +66,11 @@ class OrderTest {
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(order.getAllocatedAt()).isEqualTo(allocatedAt);
-    assertThat(order.releaseDomainEvents()).containsExactly(
-        new OrderAllocated(orderId, ownerId, allocatedAt));
+    assertThat(order.releaseDomainEvents()).isEmpty();
   }
 
   @Test
-  @DisplayName("PENDING 訂單應可轉為欠單")
+  @DisplayName("PENDING 訂單應可轉為欠單且不另發領域事件")
   void shouldBackorderPendingOrder() {
     Instant backorderedAt = receivedAt.plusSeconds(10);
     Order order = pendingOrder();
@@ -82,9 +79,7 @@ class OrderTest {
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(order.getBackOrderedSince()).isEqualTo(backorderedAt);
-    assertThat(order.releaseDomainEvents()).containsExactly(
-        new OrderBackordered(
-            orderId, ownerId, List.of(new LineSnapshot(1, "SKU-1", 3)), backorderedAt));
+    assertThat(order.releaseDomainEvents()).isEmpty();
   }
 
   @Test

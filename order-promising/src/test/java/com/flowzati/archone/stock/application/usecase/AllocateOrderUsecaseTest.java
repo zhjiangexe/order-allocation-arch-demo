@@ -164,9 +164,8 @@ class AllocateOrderUsecaseTest {
 
     // 缺貨是正常結果，不是訊息處理失敗。丟例外的話每一次缺貨都會走進重試與 DLT。
     //
-    // 發的是 allocation 自己的事實，不是 ordering 的 OrderBackordered——後者由 ordering 收到
-    // 對外事件後才產生。**留在這支 usecase 而不是交給鎖定那一步**：補貨路徑配不到時什麼都
-    // 不發，兩條路徑的處置不同。
+    // 缺貨事實留在這支 usecase，而不是交給鎖定那一步：補貨路徑配不到時什麼都不發，兩條
+    // 路徑的處置不同。
     then(eventPublisher).should()
         .publishEvent(new OrderBackorderRecorded(demand.orderId(), fixedNow));
   }
