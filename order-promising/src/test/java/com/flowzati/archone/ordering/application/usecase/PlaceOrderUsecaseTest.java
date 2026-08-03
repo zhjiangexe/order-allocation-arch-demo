@@ -1,5 +1,6 @@
 package com.flowzati.archone.ordering.application.usecase;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.ordering.domain.model.Order;
@@ -7,7 +8,9 @@ import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.testsupport.OrderFixtures;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,12 +24,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 class PlaceOrderUsecaseTest {
 
+  private static final Instant RECEIVED_AT = Instant.parse("2026-07-26T08:00:00Z");
+
   @Test
   @DisplayName("下單時應儲存訂單並發布下單 Domain Event")
   void shouldPersistOrderAndPublishDomainEvent() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, publisher);
+    PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, fixedClock(), publisher);
     ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
     ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
 
@@ -60,7 +65,7 @@ class PlaceOrderUsecaseTest {
 
     // 收單時刻由 usecase 以系統時鐘寫入，不接受呼叫端提供；命令沒給上游下單時刻，訂單就
     // 不帶它，而不是被補成收單時刻。
-    assertThat(persistedOrder.getReceivedAt()).isNotNull();
+    assertThat(persistedOrder.getReceivedAt()).isEqualTo(RECEIVED_AT);
     assertThat(persistedOrder.getPlacedAt()).isNull();
   }
 
@@ -69,7 +74,7 @@ class PlaceOrderUsecaseTest {
   void shouldPreserveUpstreamPlacedTime() {
     OrderRepository repository = mock(OrderRepository.class);
     ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, publisher);
+    PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, fixedClock(), publisher);
     Instant upstreamPlacedAt = Instant.parse("2026-07-26T06:30:00Z");
 
     Order order = usecase.placeOrder(new PlaceOrderCommand(
@@ -84,5 +89,9 @@ class PlaceOrderUsecaseTest {
 
     assertThat(order.getPlacedAt()).isEqualTo(upstreamPlacedAt);
     assertThat(order.getReceivedAt()).isAfter(upstreamPlacedAt);
+  }
+
+  private static AppClock fixedClock() {
+    return new AppClock(Clock.fixed(RECEIVED_AT, ZoneOffset.UTC), "Asia/Taipei");
   }
 }

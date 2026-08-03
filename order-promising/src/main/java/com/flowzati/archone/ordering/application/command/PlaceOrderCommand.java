@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.application.command;
 
+import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -31,5 +33,13 @@ public record PlaceOrderCommand(
 ) {
 
   public record Line(String skuCode, int quantity) {
+  }
+
+  public DeliveryTerms toDeliveryTerms() {
+    return new DeliveryTerms(
+        fulfillmentNodeId,
+        shipToZone,
+        shipToAddress,
+        promisedDeliveryDate);
   }
 }

@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.application.usecase;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.application.command.ReplenishStockCommand;
 import com.flowzati.archone.stock.application.command.WakeBackordersCommand;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
@@ -7,11 +8,8 @@ import com.flowzati.archone.stock.application.movement.MovementCompleter;
 import com.flowzati.archone.stock.application.movement.MovementRecorder;
 import com.flowzati.archone.stock.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.time.BusinessCalendar;
-import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import jakarta.transaction.Transactional;
@@ -22,7 +20,6 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -51,12 +48,12 @@ public class ReplenishmentUsecase {
   private final MovementCompleter movementCompleter;
   private final MovementAssigner movementAssigner;
   private final ApplicationEventPublisher eventPublisher;
-  private final BusinessCalendar businessCalendar;
+  private final AppClock appClock;
   private final int wakeLimit;
 
   public ReplenishmentUsecase(
       Clock clock,
-      BusinessCalendar businessCalendar,
+      AppClock appClock,
       InboxRepo inboxRepo,
       StockMoveRepository stockMoveRepository,
       StockPoolRepository stockPoolRepository,
@@ -77,7 +74,7 @@ public class ReplenishmentUsecase {
       @Value("${archone.allocation.replenishment-wake-limit:200}") int wakeLimit
   ) {
     this.clock = clock;
-    this.businessCalendar = businessCalendar;
+    this.appClock = appClock;
     this.inboxRepo = inboxRepo;
     this.stockMoveRepository = stockMoveRepository;
     this.stockPoolRepository = stockPoolRepository;
@@ -154,7 +151,7 @@ public class ReplenishmentUsecase {
 
     // 先確認補的這個 SKU 真的有量可配——沒有的話這一輪根本不必開始。
     if (stockPoolRepository
-        .findAllocatableBatchesInFefoOrder(ownerId, locationId, skuCode, businessCalendar.today())
+        .findAllocatableBatchesInFefoOrder(ownerId, locationId, skuCode, appClock.today())
         .isEmpty()) {
       return;
     }

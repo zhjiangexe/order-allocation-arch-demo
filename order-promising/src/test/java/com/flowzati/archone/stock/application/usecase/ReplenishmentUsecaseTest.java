@@ -1,35 +1,29 @@
 package com.flowzati.archone.stock.application.usecase;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.application.command.ReplenishStockCommand;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.application.movement.MovementCompleter;
 import com.flowzati.archone.stock.application.movement.MovementRecorder;
 import com.flowzati.archone.stock.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
-import com.flowzati.archone.stock.domain.model.MoveState;
 import com.flowzati.archone.stock.domain.model.StockMove;
-import com.flowzati.archone.stock.domain.model.StockMoveLine;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.stock.domain.service.AllocationService;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
-import com.flowzati.archone.ordering.domain.event.OrderAllocated;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -37,17 +31,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -88,7 +78,7 @@ class ReplenishmentUsecaseTest {
 
     replenishmentUsecase = new ReplenishmentUsecase(
         Clock.fixed(fixedNow, ZoneId.of("UTC")),
-        new BusinessCalendar(Clock.fixed(fixedNow, ZoneId.of("UTC")), "Asia/Taipei"),
+        new AppClock(Clock.fixed(fixedNow, ZoneId.of("UTC")), "Asia/Taipei"),
         inboxRepo,
         stockMoveRepository,
         stockPoolRepository,

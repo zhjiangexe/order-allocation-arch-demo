@@ -1,7 +1,8 @@
 package com.flowzati.archone.bootstrap;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.domain.model.StockPool;
-import com.flowzati.archone.common.time.BusinessCalendar;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
@@ -9,7 +10,6 @@ import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.MovementFixtures;
@@ -55,7 +55,7 @@ class DevSeedDataIntegrationTest {
   private JdbcTemplate jdbcTemplate;
 
   @Autowired
-  private BusinessCalendar businessCalendar;
+  private AppClock appClock;
 
   @Autowired
   private OwnerRepository ownerRepository;
@@ -144,10 +144,10 @@ class DevSeedDataIntegrationTest {
 
     // 不刪除、不隱藏：倉庫裡真的有這 25 件，而它與「什麼都沒有」要引導出不同的動作。
     assertThat(expired.getOnHandQuantity()).isEqualTo(25);
-    assertThat(expired.isExpired(businessCalendar.today())).isTrue();
+    assertThat(expired.isExpired(appClock.today())).isTrue();
     assertThat(stockPoolRepository.findAllocatableBatchesInFefoOrder(
         DevSeedDataInitializer.FIRST_OWNER_ID, DevSeedDataInitializer.NORTH_NODE_ID,
-        DevSeedDataInitializer.AVAILABLE_SKU, businessCalendar.today()))
+        DevSeedDataInitializer.AVAILABLE_SKU, appClock.today()))
         .extracting(StockPool::getId)
         .doesNotContain(DevSeedDataInitializer.EXPIRED_STOCK_POOL_ID);
   }

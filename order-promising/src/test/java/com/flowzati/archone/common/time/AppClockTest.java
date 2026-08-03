@@ -10,7 +10,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("營運日曆")
-class BusinessCalendarTest {
+class AppClockTest {
+
+  @Test
+  @DisplayName("目前瞬間應直接來自注入的 Clock")
+  void returnsTheInstantFromTheInjectedClock() {
+    Instant now = Instant.parse("2026-07-21T23:00:00Z");
+
+    assertThat(new AppClock(Clock.fixed(now, ZoneOffset.UTC), "Asia/Taipei").instant())
+        .isEqualTo(now);
+  }
 
   @Test
   @DisplayName("UTC 還停在昨天的那八小時內，今天應是營運時區的日期")
@@ -18,7 +27,7 @@ class BusinessCalendarTest {
     // 台北 2026-07-22 早上 7 點；UTC 此刻是 2026-07-21 23:00，仍停在前一天。
     Clock clock = Clock.fixed(Instant.parse("2026-07-21T23:00:00Z"), ZoneOffset.UTC);
 
-    BusinessCalendar calendar = new BusinessCalendar(clock, "Asia/Taipei");
+    AppClock calendar = new AppClock(clock, "Asia/Taipei");
 
     // 這正是效期比對會出錯的窗口：照 UTC 算的話，一批效期 07-21 的貨在台灣已經過期一天，
     // 系統卻還判定為可售，而且不會有任何錯誤浮現，貨就出去了。
@@ -31,7 +40,7 @@ class BusinessCalendarTest {
   void agreesWithTheBusinessZoneForTheRestOfTheDay() {
     Clock clock = Clock.fixed(Instant.parse("2026-07-22T06:00:00Z"), ZoneOffset.UTC);
 
-    assertThat(new BusinessCalendar(clock, "Asia/Taipei").today())
+    assertThat(new AppClock(clock, "Asia/Taipei").today())
         .isEqualTo(LocalDate.of(2026, 7, 22));
   }
 
@@ -40,8 +49,8 @@ class BusinessCalendarTest {
   void followsWhicheverBusinessZoneIsConfigured() {
     Clock clock = Clock.fixed(Instant.parse("2026-07-21T23:00:00Z"), ZoneOffset.UTC);
 
-    assertThat(new BusinessCalendar(clock, "UTC").today()).isEqualTo(LocalDate.of(2026, 7, 21));
-    assertThat(new BusinessCalendar(clock, "Asia/Taipei").today())
+    assertThat(new AppClock(clock, "UTC").today()).isEqualTo(LocalDate.of(2026, 7, 21));
+    assertThat(new AppClock(clock, "Asia/Taipei").today())
         .isEqualTo(LocalDate.of(2026, 7, 22));
   }
 }

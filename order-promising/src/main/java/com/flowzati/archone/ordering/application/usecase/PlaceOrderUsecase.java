@@ -1,9 +1,9 @@
 package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
 import com.flowzati.archone.ordering.domain.model.OrderLine;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
@@ -18,10 +18,15 @@ import org.springframework.stereotype.Service;
 public class PlaceOrderUsecase {
 
   private final OrderRepository orderRepository;
+  private final AppClock clock;
   private final ApplicationEventPublisher publisher;
 
-  public PlaceOrderUsecase(OrderRepository orderRepository, ApplicationEventPublisher publisher) {
+  public PlaceOrderUsecase(
+      OrderRepository orderRepository,
+      AppClock clock,
+      ApplicationEventPublisher publisher) {
     this.orderRepository = orderRepository;
+    this.clock = clock;
     this.publisher = publisher;
   }
 
@@ -38,12 +43,12 @@ public class PlaceOrderUsecase {
     UUID orderId = IdGenerator.nextId();
     // 收單時刻一律取自我們的時鐘，不接受呼叫端提供：訂單先後的排序靠它，讓外部決定就等於
     // 讓外部決定誰先被配到貨。上游的下單時刻則原樣收下，不做修正也不在缺漏時補值。
-    Instant receivedAt = Instant.now();
+    Instant receivedAt = clock.instant();
     Order placedOrder = Order.place(
         orderId,
         command.ownerId(),
         command.externalOrderNo(),
-        toDeliveryTerms(command),
+        command.toDeliveryTerms(),
         toLines(command),
         receivedAt,
         command.placedAt());
@@ -52,13 +57,6 @@ public class PlaceOrderUsecase {
     return placedOrder;
   }
 
-  private static DeliveryTerms toDeliveryTerms(PlaceOrderCommand command) {
-    return new DeliveryTerms(
-        command.fulfillmentNodeId(),
-        command.shipToZone(),
-        command.shipToAddress(),
-        command.promisedDeliveryDate());
-  }
 
   /** 行號依提交順序產生，從 1 起算。 */
   private static List<OrderLine> toLines(PlaceOrderCommand command) {

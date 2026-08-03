@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.application.movement;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.model.MoveState;
@@ -14,7 +15,6 @@ import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
 import com.flowzati.archone.stock.domain.service.AllocationService;
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import java.time.Clock;
@@ -70,7 +70,7 @@ class MovementAssignerTest {
         stockPoolRepository,
         stockMoveRepository,
         stockPickingRepository,
-        new BusinessCalendar(Clock.fixed(now, ZoneId.of("UTC")), "Asia/Taipei"),
+        new AppClock(Clock.fixed(now, ZoneId.of("UTC")), "Asia/Taipei"),
         eventPublisher
     );
   }

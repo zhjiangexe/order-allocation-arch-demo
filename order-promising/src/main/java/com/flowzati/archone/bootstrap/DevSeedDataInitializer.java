@@ -1,5 +1,6 @@
 package com.flowzati.archone.bootstrap;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
@@ -22,7 +23,6 @@ import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
 import com.flowzati.archone.catalog.domain.repository.PickingTypeRepository;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;
-import com.flowzati.archone.common.time.BusinessCalendar;
 import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderLine;
@@ -201,7 +201,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final StockMoveRepository stockMoveRepository;
   private final StockPickingRepository stockPickingRepository;
   private final PickingTypeRepository pickingTypeRepository;
-  private final BusinessCalendar businessCalendar;
+  private final AppClock appClock;
 
   public DevSeedDataInitializer(
       OwnerRepository ownerRepository,
@@ -214,7 +214,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       StockMoveRepository stockMoveRepository,
       StockPickingRepository stockPickingRepository,
       PickingTypeRepository pickingTypeRepository,
-      BusinessCalendar businessCalendar
+      AppClock appClock
   ) {
     this.ownerRepository = ownerRepository;
     this.productRepository = productRepository;
@@ -226,7 +226,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     this.stockMoveRepository = stockMoveRepository;
     this.stockPickingRepository = stockPickingRepository;
     this.pickingTypeRepository = pickingTypeRepository;
-    this.businessCalendar = businessCalendar;
+    this.appClock = appClock;
   }
 
   @Override
@@ -345,7 +345,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   }
 
   private void seedStockPools() {
-    LocalDate today = businessCalendar.today();
+    LocalDate today = appClock.today();
 
     // 甲貨主北部倉的 SKU-AVAILABLE 分成四批。近效期那批已被跨批訂單全部吃掉（60/60），
     // 中效期早入庫那批被吃掉 20——因此畫面上同時看得到「配完的批」與「配一半的批」。

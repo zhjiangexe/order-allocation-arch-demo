@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.application.movement;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.model.DemandLine;
@@ -17,7 +18,7 @@ import com.flowzati.archone.stock.domain.service.AllocationService;
 import com.flowzati.archone.stock.domain.service.BatchPick;
 import com.flowzati.archone.stock.domain.service.OrderAllocation;
 import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.time.BusinessCalendar;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,7 +50,7 @@ public class MovementAssigner {
   private final StockPoolRepository stockPoolRepository;
   private final StockMoveRepository stockMoveRepository;
   private final StockPickingRepository stockPickingRepository;
-  private final BusinessCalendar businessCalendar;
+  private final AppClock appClock;
   private final ApplicationEventPublisher eventPublisher;
 
   public MovementAssigner(
@@ -57,13 +58,13 @@ public class MovementAssigner {
       StockPoolRepository stockPoolRepository,
       StockMoveRepository stockMoveRepository,
       StockPickingRepository stockPickingRepository,
-      BusinessCalendar businessCalendar,
+      AppClock appClock,
       ApplicationEventPublisher eventPublisher) {
     this.allocationService = allocationService;
     this.stockPoolRepository = stockPoolRepository;
     this.stockMoveRepository = stockMoveRepository;
     this.stockPickingRepository = stockPickingRepository;
-    this.businessCalendar = businessCalendar;
+    this.appClock = appClock;
     this.eventPublisher = eventPublisher;
   }
 
@@ -124,7 +125,7 @@ public class MovementAssigner {
         .flatMap(demand -> demand.totalsBySku().keySet().stream())
         .collect(Collectors.toCollection(LinkedHashSet::new));
     return stockPoolRepository.findAllocatableBatchesBySku(
-        first.ownerId(), first.locationId(), skuCodes, businessCalendar.today());
+        first.ownerId(), first.locationId(), skuCodes, appClock.today());
   }
 
   /**

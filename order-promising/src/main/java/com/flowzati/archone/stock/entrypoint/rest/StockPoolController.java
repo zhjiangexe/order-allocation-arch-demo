@@ -1,9 +1,10 @@
 package com.flowzati.archone.stock.entrypoint.rest;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.application.usecase.GetStockPoolUsecase;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
-import com.flowzati.archone.common.time.BusinessCalendar;
+
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,14 +21,14 @@ public class StockPoolController {
 
   private final GetStockPoolUsecase getStockPoolUsecase;
   private final StockLocationRepository stockLocationRepository;
-  private final BusinessCalendar businessCalendar;
+  private final AppClock appClock;
 
   public StockPoolController(
       GetStockPoolUsecase getStockPoolUsecase,
-      StockLocationRepository stockLocationRepository, BusinessCalendar businessCalendar) {
+      StockLocationRepository stockLocationRepository, AppClock appClock) {
     this.getStockPoolUsecase = getStockPoolUsecase;
     this.stockLocationRepository = stockLocationRepository;
-    this.businessCalendar = businessCalendar;
+    this.appClock = appClock;
   }
 
   /**
@@ -47,7 +48,7 @@ public class StockPoolController {
   ) {
     return StockPoolResponse.from(
         getStockPoolUsecase.getBatchesInLocation(ownerId, internalLocationOf(nodeId)),
-        businessCalendar.today());
+        appClock.today());
   }
 
   /**

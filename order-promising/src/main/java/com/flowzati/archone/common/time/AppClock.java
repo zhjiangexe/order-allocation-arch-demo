@@ -1,6 +1,7 @@
 package com.flowzati.archone.common.time;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,11 +23,11 @@ import org.springframework.stereotype.Component;
  * 先設計；已記在 roadmap 的「已識別未排程」。
  */
 @Component
-public class BusinessCalendar {
+public class AppClock {
 
   private final Clock clock;
 
-  public BusinessCalendar(
+  public AppClock(
       Clock clock,
       @Value("${archone.business-zone:Asia/Taipei}") String businessZone
   ) {
@@ -35,5 +36,9 @@ public class BusinessCalendar {
 
   public LocalDate today() {
     return LocalDate.now(clock);
+  }
+
+  public Instant instant() {
+    return clock.instant();
   }
 }

@@ -1,12 +1,13 @@
 package com.flowzati.archone.stock.entrypoint.rest;
 
+import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.application.usecase.GetStockPoolUsecase;
 import com.flowzati.archone.catalog.domain.model.LocationUsage;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockPool;
-import com.flowzati.archone.common.time.BusinessCalendar;
+
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -49,8 +50,8 @@ class StockPoolControllerTest {
   @TestConfiguration
   static class FixedClockConfiguration {
     @Bean
-    BusinessCalendar businessCalendar() {
-      return new BusinessCalendar(
+    AppClock businessCalendar() {
+      return new AppClock(
           Clock.fixed(TODAY.atStartOfDay(BUSINESS_ZONE).toInstant(), ZoneOffset.UTC),
           BUSINESS_ZONE.getId());
     }

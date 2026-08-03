@@ -73,8 +73,7 @@ public class OrderLine {
    * 曾經兩個工廠並存，是為了讓新建強制初始狀態、還原接受儲存裡的任何狀態；狀態消失之後那個
    * 分工也跟著消失。
    */
-  public static OrderLine create(
-      UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
+  public static OrderLine create(UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
     return new OrderLine(id, lineNo, ownerId, skuCode, quantity);
   }
 
