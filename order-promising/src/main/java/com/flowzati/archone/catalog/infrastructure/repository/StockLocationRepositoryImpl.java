@@ -32,12 +32,12 @@ public class StockLocationRepositoryImpl implements StockLocationRepository {
   }
 
   @Override
-  public Optional<StockLocation> findInternalOf(UUID warehouseId) {
-    if (warehouseId == null) {
+  public Optional<StockLocation> findInternalOf(UUID facilityId) {
+    if (facilityId == null) {
       return Optional.empty();
     }
     return repository
-        .findByWarehouseIdAndUsage(warehouseId, LocationUsage.INTERNAL)
+        .findByFacilityIdAndUsage(facilityId, LocationUsage.INTERNAL)
         .map(StockLocationMapper::toDomain);
   }
 }

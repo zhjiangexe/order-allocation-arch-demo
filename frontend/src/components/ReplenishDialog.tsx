@@ -5,7 +5,7 @@ import styles from './ReplenishDialog.module.css';
 
 export interface ReplenishInput {
   ownerId: string;
-  nodeId: string;
+  facilityId: string;
   sku: string;
   inDate: string;
   expiryDate: string;
@@ -17,7 +17,7 @@ interface ReplenishDialogProps {
   /** 唯讀顯示用。識別碼由 {@link ReplenishDialogProps.onSubmit} 那一側補上。 */
   ownerName: string;
   nodeName: string;
-  onSubmit: (input: Omit<ReplenishInput, 'ownerId' | 'nodeId'>) => void;
+  onSubmit: (input: Omit<ReplenishInput, 'ownerId' | 'facilityId'>) => void;
   onClose: () => void;
 }
 

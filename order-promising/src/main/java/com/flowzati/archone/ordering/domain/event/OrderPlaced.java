@@ -11,8 +11,8 @@ import java.util.UUID;
  *
  * <p>帶 {@code ownerId} 是因為下游不該為了知道「這批貨屬於誰」而回頭查訂單。
  *
- * <p>帶 {@code fulfillmentNodeId} 是為了 partition key：庫存分倉之後，會競爭同一批庫存的
- * 訊息由 {@code ownerId/nodeId/skuCode} 三者決定，translator 從這個事件取值，因此倉別必須
+ * <p>帶 {@code facilityId} 是為了 partition key：庫存分倉之後，會競爭同一批庫存的
+ * 訊息由 {@code ownerId/facilityId/skuCode} 三者決定，translator 從這個事件取值，因此倉別必須
  * 在事件裡。現在加而不是等到需要時，是因為那時只要動 translator、不必改事件契約。
  *
  * <p>需求以 {@code lines} 表達而不是單一 SKU 與數量——訂單的形狀本來就是行的集合，事件
@@ -25,7 +25,7 @@ import java.util.UUID;
 public record OrderPlaced(
     UUID orderId,
     UUID ownerId,
-    UUID fulfillmentNodeId,
+    UUID facilityId,
     String shipToZone,
     LocalDate promisedDeliveryDate,
     List<LineSnapshot> lines,

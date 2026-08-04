@@ -41,7 +41,7 @@ import org.springframework.test.context.ActiveProfiles;
 class StockMovementSchemaIntegrationTest {
 
   private static final UUID OWNER_ID = uuid(1);
-  private static final UUID WAREHOUSE_ID = uuid(2);
+  private static final UUID FACILITY_ID = uuid(2);
   private static final UUID INTERNAL_LOCATION_ID = uuid(3);
   private static final UUID CUSTOMER_LOCATION_ID = uuid(4);
   private static final UUID PICKING_TYPE_ID = uuid(5);
@@ -271,18 +271,18 @@ class StockMovementSchemaIntegrationTest {
         "INSERT INTO skus (id, owner_id, sku_code, product_code, spec_name, weight_gram) "
             + "VALUES (?, ?, ?, 'P-A', 'spec', 100)", uuid(11), OWNER_ID, SKU);
     jdbcTemplate.update(
-        "INSERT INTO fulfillment_nodes (id, code, name) VALUES (?, 'WH-A', 'A')", WAREHOUSE_ID);
+        "INSERT INTO facilities (id, code, name) VALUES (?, 'WH-A', 'A')", FACILITY_ID);
     jdbcTemplate.update(
-        "INSERT INTO owner_nodes (owner_id, node_id) VALUES (?, ?)", OWNER_ID, WAREHOUSE_ID);
+        "INSERT INTO owner_facilities (owner_id, facility_id) VALUES (?, ?)", OWNER_ID, FACILITY_ID);
     jdbcTemplate.update(
-        "INSERT INTO stock_locations (id, warehouse_id, code, name, usage) "
+        "INSERT INTO stock_locations (id, facility_id, code, name, usage) "
             + "VALUES (?, ?, 'WH-A/Stock', 'WH-A/Stock', 'INTERNAL')",
-        INTERNAL_LOCATION_ID, WAREHOUSE_ID);
+        INTERNAL_LOCATION_ID, FACILITY_ID);
     jdbcTemplate.update(
-        "INSERT INTO stock_locations (id, warehouse_id, code, name, usage) "
+        "INSERT INTO stock_locations (id, facility_id, code, name, usage) "
             + "VALUES (?, NULL, 'Customers', 'Customers', 'CUSTOMER')", CUSTOMER_LOCATION_ID);
     jdbcTemplate.update(
-        "INSERT INTO stock_locations (id, warehouse_id, code, name, usage) "
+        "INSERT INTO stock_locations (id, facility_id, code, name, usage) "
             + "VALUES (?, NULL, 'Vendors', 'Vendors', 'SUPPLIER')", supplierLocationId());
   }
 
@@ -291,9 +291,9 @@ class StockMovementSchemaIntegrationTest {
     insertPickingType(PICKING_TYPE_ID, "OUTBOUND", INTERNAL_LOCATION_ID, CUSTOMER_LOCATION_ID);
     jdbcTemplate.update(
         "INSERT INTO orders (id, owner_id, external_order_no, ship_to_zone, ship_to_address, "
-            + "promised_delivery_date, fulfillment_node_id, status, received_at, version) "
+            + "promised_delivery_date, facility_id, status, received_at, version) "
             + "VALUES (?, ?, 'EXT-1', 'Z', 'addr', ?, ?, 'PENDING', ?, 0)",
-        ORDER_ID, OWNER_ID, Date.valueOf(LocalDate.of(2026, 12, 31)), WAREHOUSE_ID,
+        ORDER_ID, OWNER_ID, Date.valueOf(LocalDate.of(2026, 12, 31)), FACILITY_ID,
         Timestamp.from(Instant.now()));
     jdbcTemplate.update(
         "INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity) "
@@ -312,9 +312,9 @@ class StockMovementSchemaIntegrationTest {
 
   private void insertPickingType(UUID id, String code, UUID from, UUID to) {
     jdbcTemplate.update(
-        "INSERT INTO stock_picking_types (id, warehouse_id, code, name, "
+        "INSERT INTO stock_picking_types (id, facility_id, code, name, "
             + "default_from_location_id, default_to_location_id) VALUES (?, ?, ?, ?, ?, ?)",
-        id, WAREHOUSE_ID, code, code, from, to);
+        id, FACILITY_ID, code, code, from, to);
   }
 
   private void insertMove(UUID id, UUID from, UUID to, UUID orderLineId, String state) {

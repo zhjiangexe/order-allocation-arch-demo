@@ -24,8 +24,8 @@ public final class StockFixtures {
   // 貨主」，兩邊各自寫死的話，其中一邊改了另一邊沒改，所有配貨測試會一起失敗而原因不明顯。
   public static final UUID OWNER_ID = OrderFixtures.OWNER_ID;
   /** 倉。只有對外的查詢參數與事件用得到它。 */
-  public static final UUID NODE_ID = OrderFixtures.NODE_ID;
-  /** 該倉的內部位置。庫存掛在這裡——與 {@link #NODE_ID} 刻意不同值。 */
+  public static final UUID FACILITY_ID = OrderFixtures.FACILITY_ID;
+  /** 該倉的內部位置。庫存掛在這裡——與 {@link #FACILITY_ID} 刻意不同值。 */
   public static final UUID LOCATION_ID = OrderFixtures.LOCATION_ID;
 
   /** 不指定日期時用的入庫日與效期。效期在 {@link #TODAY} 之後，所以預設是未過期的。 */

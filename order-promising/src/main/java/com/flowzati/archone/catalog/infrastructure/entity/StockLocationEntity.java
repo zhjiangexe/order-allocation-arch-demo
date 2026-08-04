@@ -24,8 +24,8 @@ public class StockLocationEntity {
   private UUID id;
 
   /** 可空：虛擬位置不屬於任何倉。 */
-  @Column(name = "warehouse_id")
-  private UUID warehouseId;
+  @Column(name = "facility_id")
+  private UUID facilityId;
 
   @Column(nullable = false)
   private String code;
@@ -47,9 +47,9 @@ public class StockLocationEntity {
   }
 
   public StockLocationEntity(
-      UUID id, UUID warehouseId, String code, String name, LocationUsage usage) {
+      UUID id, UUID facilityId, String code, String name, LocationUsage usage) {
     this.id = id;
-    this.warehouseId = warehouseId;
+    this.facilityId = facilityId;
     this.code = code;
     this.name = name;
     this.usage = usage;
@@ -59,8 +59,8 @@ public class StockLocationEntity {
     return id;
   }
 
-  public UUID getWarehouseId() {
-    return warehouseId;
+  public UUID getFacilityId() {
+    return facilityId;
   }
 
   public String getCode() {

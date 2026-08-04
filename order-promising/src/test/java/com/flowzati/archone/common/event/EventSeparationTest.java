@@ -56,7 +56,7 @@ class EventSeparationTest {
         IntegrationEvent.class.getDeclaredField("eventId").getModifiers())).isTrue();
     assertThat(IntegrationEvent.class.getMethods())
         .noneMatch(method -> method.getName().equals("setEventId"));
-    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(null, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 1))
+    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(null, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 1))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -84,7 +84,7 @@ class EventSeparationTest {
         new OrderAllocatedIntegrationEvent(eventId, orderId, occurredAt);
     BackorderCreatedIntegrationEvent backorder =
         new BackorderCreatedIntegrationEvent(eventId, orderId, occurredAt);
-    StockReplenishedIntegrationEvent replenished = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 10);
+    StockReplenishedIntegrationEvent replenished = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 10);
 
     // 配貨結果事件是通知，不是狀態傳輸：帶得動的只有訂單識別與時間。要知道配到哪些批，
     // 回頭讀 stock_reservations——那份紀錄不會因為取消而與事件不一致。
@@ -101,7 +101,7 @@ class EventSeparationTest {
   void shouldRejectInvalidIntegrationEventPayloads() {
     assertThatThrownBy(() -> new OrderPlacedIntegrationEvent(eventId, null, occurredAt))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 0))
+    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 0))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new OrderAllocatedIntegrationEvent(eventId, orderId, null))
         .isInstanceOf(IllegalArgumentException.class);

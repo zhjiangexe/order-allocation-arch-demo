@@ -73,10 +73,10 @@ public class AllocationDomainEventTranslator {
    */
   @EventListener
   public void translate(BackorderWakeContinuationRequired event) {
-    String contentionKey = StockContentionKey.of(event.ownerId(), event.nodeId());
+    String contentionKey = StockContentionKey.of(event.ownerId(), event.facilityId());
     outboxAppender.append(
         new BackorderWakeRequestedIntegrationEvent(
-            IdGenerator.nextId(), event.ownerId(), event.nodeId(), event.skuCode()),
+            IdGenerator.nextId(), event.ownerId(), event.facilityId(), event.skuCode()),
         OutboxAggregateTypes.STOCK_POOL,
         contentionKey,
         new OutboxDelivery(InventoryEventTopics.STOCK_EVENTS, contentionKey),

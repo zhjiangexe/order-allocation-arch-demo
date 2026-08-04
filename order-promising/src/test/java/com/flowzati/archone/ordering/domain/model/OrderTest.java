@@ -19,7 +19,7 @@ class OrderTest {
 
   private final UUID orderId = UUID.randomUUID();
   private final UUID ownerId = UUID.fromString("00000000-0000-0000-0000-000000000001");
-  private final UUID nodeId = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+  private final UUID facilityId = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
   private final Instant receivedAt = Instant.parse("2026-07-23T00:00:00Z");
 
   @Test
@@ -33,7 +33,7 @@ class OrderTest {
         new OrderPlaced(
             orderId,
             ownerId,
-            nodeId,
+            facilityId,
             "100",
             LocalDate.of(2026, 8, 1),
             List.of(new LineSnapshot(1, "SKU-1", 3)),
@@ -53,7 +53,7 @@ class OrderTest {
     assertThat(delivery.shipToZone()).isEqualTo("100");
     assertThat(delivery.shipToAddress()).isEqualTo("台北市中正區重慶南路一段 122 號");
     assertThat(delivery.promisedDeliveryDate()).isEqualTo(LocalDate.of(2026, 8, 1));
-    assertThat(delivery.fulfillmentNodeId()).isEqualTo(nodeId);
+    assertThat(delivery.facilityId()).isEqualTo(facilityId);
   }
 
   @Test
@@ -111,7 +111,7 @@ class OrderTest {
     assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
     assertThat(order.releaseDomainEvents()).containsExactly(
         new OrderCancelled(
-            orderId, ownerId, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID,
+            orderId, ownerId, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID,
             cancelledAt));
   }
 
@@ -419,7 +419,7 @@ class OrderTest {
 
   private DeliveryTerms delivery() {
     return new DeliveryTerms(
-        nodeId,
+        facilityId,
         "100",
         "台北市中正區重慶南路一段 122 號",
         LocalDate.of(2026, 8, 1));

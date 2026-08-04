@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaPickingTypeRepository extends JpaRepository<PickingTypeEntity, UUID> {
 
-  Optional<PickingTypeEntity> findByWarehouseIdAndCode(UUID warehouseId, PickingDirection code);
+  Optional<PickingTypeEntity> findByFacilityIdAndCode(UUID facilityId, PickingDirection code);
 }

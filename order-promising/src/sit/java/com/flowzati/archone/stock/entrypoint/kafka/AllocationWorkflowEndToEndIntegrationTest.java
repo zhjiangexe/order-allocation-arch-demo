@@ -160,7 +160,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         backorderedOrder(secondOrderId, "SKU-FIFO", 3, secondBackorderedAt));
 
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
-            UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-FIFO",
+            UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-FIFO",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 5);
     consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS, event));
     outcomeDrain().drain();
@@ -188,7 +188,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS,
         new StockReplenishedIntegrationEvent(
-            UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-FIFO",
+            UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, "SKU-FIFO",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 7)));
 
     // 貨進來了——而且**有來源**。這是整串遷移的目的：在庫量的每一次變動都有一段搬運與一條
@@ -235,7 +235,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     for (int i = 0; i < 2; i++) {
       consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS,
           new StockReplenishedIntegrationEvent(
-              UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-FIFO",
+              UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, "SKU-FIFO",
               StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3)));
     }
     outcomeDrain().drain();
@@ -295,7 +295,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
         UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID,
-        com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-FIFO",
+        com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-FIFO",
         StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3);
     consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS, event));
     outcomeDrain().drain();
@@ -412,7 +412,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, order);
 
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
-        UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, "SKU-BASKET-A",
+        UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, "SKU-BASKET-A",
         StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 5);
     consumer.consumeInventoryEvent(record(InventoryEventTopics.STOCK_EVENTS, event));
     outcomeDrain().drain();

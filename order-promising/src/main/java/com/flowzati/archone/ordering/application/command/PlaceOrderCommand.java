@@ -26,7 +26,7 @@ public record PlaceOrderCommand(
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate,
-    UUID fulfillmentNodeId,
+    UUID facilityId,
     /** 上游說客戶下單的時刻。可為 {@code null}——上游沒有義務送這個值。 */
     Instant placedAt,
     List<Line> lines
@@ -37,7 +37,7 @@ public record PlaceOrderCommand(
 
   public DeliveryTerms toDeliveryTerms() {
     return new DeliveryTerms(
-        fulfillmentNodeId,
+        facilityId,
         shipToZone,
         shipToAddress,
         promisedDeliveryDate);

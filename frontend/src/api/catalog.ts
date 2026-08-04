@@ -1,4 +1,4 @@
-import type { FulfillmentNodeView, OwnerView, ProductView, SkuView } from './types';
+import type { FacilityView, OwnerView, ProductView, SkuView } from './types';
 
 /** 主檔查到的規格，附上所屬款的品名——列表要顯示「品名 · 規格」，而品名在款那一層。 */
 export interface CatalogSku extends SkuView {
@@ -9,7 +9,7 @@ export interface CatalogSku extends SkuView {
 export interface CatalogEntry {
   owner: OwnerView;
   /** 這個貨主能指定的出貨倉。空陣列代表它一個倉都沒掛，那種貨主下不了單。 */
-  nodes: readonly FulfillmentNodeView[];
+  facilities: readonly FacilityView[];
   products: readonly ProductView[];
   skus: readonly CatalogSku[];
 }
@@ -44,8 +44,8 @@ export class Catalog {
     return [...this.entries.values()].map((entry) => entry.owner);
   }
 
-  nodesOf(ownerId: string): readonly FulfillmentNodeView[] {
-    return this.entries.get(ownerId)?.nodes ?? [];
+  facilitiesOf(ownerId: string): readonly FacilityView[] {
+    return this.entries.get(ownerId)?.facilities ?? [];
   }
 
   productsOf(ownerId: string): readonly ProductView[] {
@@ -63,9 +63,9 @@ export class Catalog {
     return this.skuByOwnerAndCode.get(ownerId)?.get(skuCode);
   }
 
-  /** 查不到回 `undefined`，用途是把批次列表裡的 `nodeId` 換成看得懂的倉名。 */
-  findNode(ownerId: string, nodeId: string): FulfillmentNodeView | undefined {
-    return this.nodesOf(ownerId).find((node) => node.nodeId === nodeId);
+  /** 查不到回 `undefined`，用途是把批次列表裡的 `facilityId` 換成看得懂的倉名。 */
+  findFacility(ownerId: string, facilityId: string): FacilityView | undefined {
+    return this.facilitiesOf(ownerId).find((facility) => facility.facilityId === facilityId);
   }
 
   /**

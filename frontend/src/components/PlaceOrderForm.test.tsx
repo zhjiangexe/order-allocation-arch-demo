@@ -31,14 +31,14 @@ function catalogOf(...owners: OwnerView[]) {
         owner,
         // 兩個貨主共用中部倉，但各自還有一個自己的——過濾若以倉庫而非指派關係實作，
         // 這個安排會讓它露餡
-        nodes: isOwnerA
+        facilities: isOwnerA
           ? [
-              { nodeId: NODE_NORTH, code: 'WH-NORTH', name: '北部倉' },
-              { nodeId: NODE_CENTRAL, code: 'WH-CENTRAL', name: '中部倉' },
+              { facilityId: NODE_NORTH, code: 'WH-NORTH', name: '北部倉' },
+              { facilityId: NODE_CENTRAL, code: 'WH-CENTRAL', name: '中部倉' },
             ]
           : [
-              { nodeId: NODE_CENTRAL, code: 'WH-CENTRAL', name: '中部倉' },
-              { nodeId: NODE_SOUTH, code: 'WH-SOUTH', name: '南部倉' },
+              { facilityId: NODE_CENTRAL, code: 'WH-CENTRAL', name: '中部倉' },
+              { facilityId: NODE_SOUTH, code: 'WH-SOUTH', name: '南部倉' },
             ],
         products: [
           {
@@ -125,7 +125,7 @@ describe('PlaceOrderForm', () => {
     expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         ownerId: OWNER_A.ownerId,
-        fulfillmentNodeId: NODE_CENTRAL,
+        facilityId: NODE_CENTRAL,
         externalOrderNo: 'PO-8891',
         lines: [{ skuCode: 'SKU-AVAILABLE', quantity: 3 }],
       }),

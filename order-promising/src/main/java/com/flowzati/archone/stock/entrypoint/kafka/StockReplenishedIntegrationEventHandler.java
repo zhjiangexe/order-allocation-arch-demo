@@ -44,8 +44,8 @@ class StockReplenishedIntegrationEventHandler
   public void handleTyped(StockReplenishedIntegrationEvent event, MessageMetadata metadata) {
     ReplenishStockCommand command = new ReplenishStockCommand(
         event.getOwnerId(),
-        event.getNodeId(),
-        internalLocationOf(event.getNodeId()),
+        event.getFacilityId(),
+        internalLocationOf(event.getFacilityId()),
         event.getSku(),
         event.getInDate(),
         event.getExpiryDate(),
@@ -65,10 +65,10 @@ class StockReplenishedIntegrationEventHandler
    * <p>倉沒有內部位置時**拋錯而不是靜默略過**：那批貨無處可放，而「收下卻不記」會讓實體與帳
    * 從此對不上，且沒有任何訊號。
    */
-  private java.util.UUID internalLocationOf(java.util.UUID nodeId) {
-    return stockLocationRepository.findInternalOf(nodeId)
+  private java.util.UUID internalLocationOf(java.util.UUID facilityId) {
+    return stockLocationRepository.findInternalOf(facilityId)
         .map(com.flowzati.archone.catalog.domain.model.StockLocation::getId)
         .orElseThrow(() -> new IllegalStateException(
-            "Warehouse " + nodeId + " has no internal stock location"));
+            "Warehouse " + facilityId + " has no internal stock location"));
   }
 }

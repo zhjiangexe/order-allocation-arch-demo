@@ -20,7 +20,7 @@ public record PlaceOrderRequest(
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate,
-    UUID fulfillmentNodeId,
+    UUID facilityId,
     /**
      * 上游說客戶下單的時刻。可省略——上游系統沒有義務送這個值，省略時訂單就不帶它，
      * 不會被補成收單時刻。

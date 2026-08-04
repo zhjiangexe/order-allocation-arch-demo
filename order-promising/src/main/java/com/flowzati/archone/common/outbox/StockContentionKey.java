@@ -40,10 +40,10 @@ public final class StockContentionKey {
   private StockContentionKey() {
   }
 
-  public static String of(UUID ownerId, UUID nodeId) {
-    if (ownerId == null || nodeId == null) {
+  public static String of(UUID ownerId, UUID facilityId) {
+    if (ownerId == null || facilityId == null) {
       throw new IllegalArgumentException("Owner ID and node ID are required");
     }
-    return ownerId + "/" + nodeId;
+    return ownerId + "/" + facilityId;
   }
 }

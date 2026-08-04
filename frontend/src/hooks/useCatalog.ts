@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { Catalog, type CatalogEntry } from '../api/catalog';
-import { listNodes, listOwners, listProducts, listSkus } from '../api/client';
+import { listFacilities, listOwners, listProducts, listSkus } from '../api/client';
 
 /**
  * 進場載入一次主檔（貨主、倉庫、款、規格），供下拉選單、訂單列表的名稱解析、庫存頁的
@@ -23,8 +23,8 @@ export function useCatalog(): Catalog {
       const owners = await listOwners();
       const entries: CatalogEntry[] = await Promise.all(
         owners.map(async (owner) => {
-          const [nodes, products] = await Promise.all([
-            listNodes(owner.ownerId),
+          const [facilities, products] = await Promise.all([
+            listFacilities(owner.ownerId),
             listProducts(owner.ownerId),
           ]);
           const perProduct = await Promise.all(
@@ -33,7 +33,7 @@ export function useCatalog(): Catalog {
               return skus.map((sku) => ({ ...sku, productName: product.name }));
             }),
           );
-          return { owner, nodes, products, skus: perProduct.flat() };
+          return { owner, facilities, products, skus: perProduct.flat() };
         }),
       );
 

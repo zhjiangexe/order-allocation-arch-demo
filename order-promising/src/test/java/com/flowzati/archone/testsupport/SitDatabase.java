@@ -34,11 +34,11 @@ public final class SitDatabase {
         // 主檔
         "skus",
         "products",
-        "owner_nodes",
+        "owner_facilities",
         "owners",
         // 位置在最後，倉再最後：作業類型、單據、搬運、庫存全都指向位置。
         "stock_locations",
-        "fulfillment_nodes"
+        "facilities"
     }) {
       jdbcTemplate.execute("DELETE FROM " + table);
     }

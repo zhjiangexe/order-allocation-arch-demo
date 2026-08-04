@@ -21,7 +21,7 @@ public final class OrderMapper {
         delivery.shipToZone(),
         delivery.shipToAddress(),
         delivery.promisedDeliveryDate(),
-        delivery.fulfillmentNodeId(),
+        delivery.facilityId(),
         toLineEntities(order.getLines()),
         order.getStatus(),
         order.getReceivedAt(),
@@ -39,7 +39,7 @@ public final class OrderMapper {
         entity.getOwnerId(),
         entity.getExternalOrderNo(),
         new DeliveryTerms(
-            entity.getFulfillmentNodeId(),
+            entity.getFacilityId(),
             entity.getShipToZone(),
             entity.getShipToAddress(),
             entity.getPromisedDeliveryDate()),

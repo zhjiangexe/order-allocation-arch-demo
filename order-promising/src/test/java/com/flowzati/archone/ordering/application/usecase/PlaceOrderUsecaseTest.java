@@ -41,7 +41,7 @@ class PlaceOrderUsecaseTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         java.time.LocalDate.of(2026, 8, 1),
-        OrderFixtures.NODE_ID,
+        OrderFixtures.FACILITY_ID,
         null,
         List.of(new PlaceOrderCommand.Line("SKU-1", 3))));
 
@@ -56,7 +56,7 @@ class PlaceOrderUsecaseTest {
     assertThat(publishedEvents).containsExactly(new OrderPlaced(
         returnedOrder.getId(),
         OrderFixtures.OWNER_ID,
-        OrderFixtures.NODE_ID,
+        OrderFixtures.FACILITY_ID,
         "100",
         java.time.LocalDate.of(2026, 8, 1),
         List.of(new LineSnapshot(1, "SKU-1", 3)),
@@ -83,7 +83,7 @@ class PlaceOrderUsecaseTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         java.time.LocalDate.of(2026, 8, 1),
-        OrderFixtures.NODE_ID,
+        OrderFixtures.FACILITY_ID,
         upstreamPlacedAt,
         List.of(new PlaceOrderCommand.Line("SKU-1", 3))));
 

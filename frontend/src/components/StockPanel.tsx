@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 
 import type { StockLine } from '../api/stockLines';
 import type {
-  FulfillmentNodeView,
+  FacilityView,
   OwnerView,
   ReplenishmentAccepted,
   StockBatchView,
@@ -17,8 +17,8 @@ interface StockPanelProps {
   lines: AsyncState<StockLine[]>;
   replenishment: AsyncState<ReplenishmentAccepted>;
   owners: OwnerView[];
-  nodesOf: (ownerId: string) => readonly FulfillmentNodeView[];
-  onQuery: (ownerId: string, nodeId: string) => void;
+  facilitiesOf: (ownerId: string) => readonly FacilityView[];
+  onQuery: (ownerId: string, facilityId: string) => void;
   onReplenish: (input: ReplenishInput) => void;
   /** 改動貨主或倉別時作廢畫面上的結果——它屬於上一個組合。 */
   onScopeChange: () => void;
@@ -46,7 +46,7 @@ export function StockPanel({
   lines,
   replenishment,
   owners,
-  nodesOf,
+  facilitiesOf,
   onQuery,
   onReplenish,
   onScopeChange,
@@ -54,14 +54,14 @@ export function StockPanel({
   const ownerFieldId = useId();
   const nodeFieldId = useId();
   const [selectedOwner, setSelectedOwner] = useState('');
-  const [selectedNode, setSelectedNode] = useState('');
+  const [selectedFacility, setSelectedFacility] = useState('');
   const [replenishing, setReplenishing] = useState<StockLine | null>(null);
 
-  const canQuery = selectedOwner !== '' && selectedNode !== '';
+  const canQuery = selectedOwner !== '' && selectedFacility !== '';
 
   function changeScope(nextOwner: string, nextNode: string) {
     setSelectedOwner(nextOwner);
-    setSelectedNode(nextNode);
+    setSelectedFacility(nextNode);
     // 視窗屬於上一個組合的某一列，換了範圍就不該還開著。
     setReplenishing(null);
     onScopeChange();
@@ -99,21 +99,21 @@ export function StockPanel({
           <select
             id={nodeFieldId}
             className={styles.input}
-            value={selectedNode}
+            value={selectedFacility}
             onChange={(event) => changeScope(selectedOwner, event.target.value)}
             disabled={selectedOwner === ''}
           >
             <option value="">請選擇</option>
-            {nodesOf(selectedOwner).map((node) => (
-              <option key={node.nodeId} value={node.nodeId}>
-                {node.name}（{node.code}）
+            {facilitiesOf(selectedOwner).map((facility) => (
+              <option key={facility.facilityId} value={facility.facilityId}>
+                {facility.name}（{facility.code}）
               </option>
             ))}
           </select>
         </div>
         <button
           type="button"
-          onClick={() => onQuery(selectedOwner, selectedNode)}
+          onClick={() => onQuery(selectedOwner, selectedFacility)}
           disabled={!canQuery}
         >
           查詢庫存
@@ -137,7 +137,7 @@ export function StockPanel({
             <button
               type="button"
               className={styles.requery}
-              onClick={() => onQuery(selectedOwner, selectedNode)}
+              onClick={() => onQuery(selectedOwner, selectedFacility)}
               disabled={!canQuery}
             >
               重新查詢
@@ -156,12 +156,12 @@ export function StockPanel({
         <ReplenishDialog
           line={replenishing}
           ownerName={labelOf(owners.find((owner) => owner.ownerId === selectedOwner))}
-          nodeName={labelOf(nodesOf(selectedOwner).find((node) => node.nodeId === selectedNode))}
+          nodeName={labelOf(facilitiesOf(selectedOwner).find((facility) => facility.facilityId === selectedFacility))}
           onClose={() => setReplenishing(null)}
           onSubmit={(input) => {
             // 先關再送。視窗留著什麼都不會顯示——結果是非同步的，而「已受理」屬於列表那一層。
             setReplenishing(null);
-            onReplenish({ ...input, ownerId: selectedOwner, nodeId: selectedNode });
+            onReplenish({ ...input, ownerId: selectedOwner, facilityId: selectedFacility });
           }}
         />
       )}

@@ -38,7 +38,7 @@ import org.springframework.test.context.ActiveProfiles;
 class StockPoolSchemaIntegrationTest {
 
   private static final UUID OWNER_ID = uuid(1);
-  private static final UUID WAREHOUSE_ID = uuid(2);
+  private static final UUID FACILITY_ID = uuid(2);
   private static final UUID INTERNAL_LOCATION_ID = uuid(3);
   private static final UUID CUSTOMER_LOCATION_ID = uuid(4);
   private static final String SKU = "SKU-A";
@@ -57,14 +57,14 @@ class StockPoolSchemaIntegrationTest {
     void holdsALocationRatherThanAWarehouse() {
       assertThat(columnNames("stock_pools"))
           .contains("owner_id", "location_id", "sku_code", "in_date", "expiry_date")
-          .doesNotContain("node_id");
+          .doesNotContain("facility_id");
     }
 
     @Test
     @DisplayName("五維全等才是同一批——位置不同即為不同的貨")
     void treatsTwoLocationsAsDifferentStock() {
       seedCatalog();
-      insertLocation(uuid(30), WAREHOUSE_ID, "WH/Stock-2", "INTERNAL", uuid(20), "WH-2");
+      insertLocation(uuid(30), FACILITY_ID, "WH/Stock-2", "INTERNAL", uuid(20), "WH-2");
 
       insertPool(uuid(40), INTERNAL_LOCATION_ID, 10);
       insertPool(uuid(41), uuid(30), 10);
@@ -121,7 +121,7 @@ class StockPoolSchemaIntegrationTest {
       // 與 id，配貨結果不可重現，防死鎖的寫入排序也失去依據。
       assertThat(indexDefinitionOf("idx_stock_pools_fefo"))
           .contains("owner_id", "location_id", "sku_code", "expiry_date", "in_date", "id")
-          .doesNotContain("node_id");
+          .doesNotContain("facility_id");
     }
   }
 
@@ -135,23 +135,23 @@ class StockPoolSchemaIntegrationTest {
         "INSERT INTO skus (id, owner_id, sku_code, product_code, spec_name, weight_gram) "
             + "VALUES (?, ?, ?, 'P-A', 'spec', 100)", uuid(11), OWNER_ID, SKU);
     jdbcTemplate.update(
-        "INSERT INTO fulfillment_nodes (id, code, name) VALUES (?, 'WH-A', 'A')", WAREHOUSE_ID);
+        "INSERT INTO facilities (id, code, name) VALUES (?, 'WH-A', 'A')", FACILITY_ID);
 
-    insertLocation(INTERNAL_LOCATION_ID, WAREHOUSE_ID, "WH-A/Stock", "INTERNAL", null, null);
+    insertLocation(INTERNAL_LOCATION_ID, FACILITY_ID, "WH-A/Stock", "INTERNAL", null, null);
     insertLocation(CUSTOMER_LOCATION_ID, null, "Customers", "CUSTOMER", null, null);
   }
 
   private void insertLocation(
-      UUID id, UUID warehouseId, String code, String usage, UUID extraNodeId, String extraNodeCode) {
-    if (extraNodeId != null) {
+      UUID id, UUID facilityId, String code, String usage, UUID extraFacilityId, String extraNodeCode) {
+    if (extraFacilityId != null) {
       jdbcTemplate.update(
-          "INSERT INTO fulfillment_nodes (id, code, name) VALUES (?, ?, ?)",
-          extraNodeId, extraNodeCode, extraNodeCode);
-      warehouseId = extraNodeId;
+          "INSERT INTO facilities (id, code, name) VALUES (?, ?, ?)",
+          extraFacilityId, extraNodeCode, extraNodeCode);
+      facilityId = extraFacilityId;
     }
     jdbcTemplate.update(
-        "INSERT INTO stock_locations (id, warehouse_id, code, name, usage) VALUES (?, ?, ?, ?, ?)",
-        id, warehouseId, code, code, usage);
+        "INSERT INTO stock_locations (id, facility_id, code, name, usage) VALUES (?, ?, ?, ?, ?)",
+        id, facilityId, code, code, usage);
   }
 
   private void insertPool(UUID id, UUID locationId, int onHand) {

@@ -58,7 +58,7 @@ public class OrderController {
         request.shipToZone(),
         request.shipToAddress(),
         request.promisedDeliveryDate(),
-        request.fulfillmentNodeId(),
+        request.facilityId(),
         request.placedAt(),
         lines);
   }

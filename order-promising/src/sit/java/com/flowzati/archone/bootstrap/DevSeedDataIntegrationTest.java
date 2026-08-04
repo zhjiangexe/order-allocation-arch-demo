@@ -5,8 +5,8 @@ import com.flowzati.archone.stock.domain.model.StockPool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
-import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
+import com.flowzati.archone.catalog.domain.model.Facility;
+import com.flowzati.archone.catalog.domain.repository.FacilityRepository;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
@@ -61,7 +61,7 @@ class DevSeedDataIntegrationTest {
   private OwnerRepository ownerRepository;
 
   @Autowired
-  private FulfillmentNodeRepository fulfillmentNodeRepository;
+  private FacilityRepository facilityRepository;
 
   /**
    * 每支測試前重新 seed。
@@ -146,7 +146,7 @@ class DevSeedDataIntegrationTest {
     assertThat(expired.getOnHandQuantity()).isEqualTo(25);
     assertThat(expired.isExpired(appClock.today())).isTrue();
     assertThat(stockPoolRepository.findAllocatableBatchesInFefoOrder(
-        DevSeedDataInitializer.FIRST_OWNER_ID, DevSeedDataInitializer.NORTH_NODE_ID,
+        DevSeedDataInitializer.FIRST_OWNER_ID, DevSeedDataInitializer.NORTH_FACILITY_ID,
         DevSeedDataInitializer.AVAILABLE_SKU, appClock.today()))
         .extracting(StockPool::getId)
         .doesNotContain(DevSeedDataInitializer.EXPIRED_STOCK_POOL_ID);
@@ -270,8 +270,8 @@ class DevSeedDataIntegrationTest {
   @Test
   @DisplayName("兩貨主的倉庫指派應重疊但不相等，且有一個倉同時服務兩個貨主")
   void seedsOverlappingButUnequalWarehouseAssignments() {
-    List<UUID> first = nodeIdsOf(DevSeedDataInitializer.FIRST_OWNER_ID);
-    List<UUID> second = nodeIdsOf(DevSeedDataInitializer.SECOND_OWNER_ID);
+    List<UUID> first = facilityIdsOf(DevSeedDataInitializer.FIRST_OWNER_ID);
+    List<UUID> second = facilityIdsOf(DevSeedDataInitializer.SECOND_OWNER_ID);
 
     // 同一貨主有多個倉
     assertThat(first).hasSize(2);
@@ -283,23 +283,23 @@ class DevSeedDataIntegrationTest {
     assertThat(first).containsAnyElementsOf(second);
   }
 
-  private List<UUID> nodeIdsOf(UUID ownerId) {
-    return fulfillmentNodeRepository.findByOwner(ownerId).stream()
-        .map(FulfillmentNode::getId)
+  private List<UUID> facilityIdsOf(UUID ownerId) {
+    return facilityRepository.findByOwner(ownerId).stream()
+        .map(Facility::getId)
         .toList();
   }
 
   @Test
   @DisplayName("每個種子倉應恰有一個 internal 位置，且三種虛擬用途各恰有一列")
   void seedsOneInternalLocationPerWarehouseAndEveryVirtualLocation() {
-    List<UUID> seededNodeIds = jdbcTemplate.queryForList(
-        "SELECT id FROM fulfillment_nodes", UUID.class);
-    assertThat(seededNodeIds).isNotEmpty();
+    List<UUID> seededFacilityIds = jdbcTemplate.queryForList(
+        "SELECT id FROM facilities", UUID.class);
+    assertThat(seededFacilityIds).isNotEmpty();
 
     // 每個倉恰有一個——不是「至少一個」。倉→位置的解析要是一次查表而不是不定的選擇。
-    for (UUID nodeId : seededNodeIds) {
-      assertThat(internalLocationCountOf(nodeId))
-          .as("倉 %s 的 internal 位置數", nodeId)
+    for (UUID facilityId : seededFacilityIds) {
+      assertThat(internalLocationCountOf(facilityId))
+          .as("倉 %s 的 internal 位置數", facilityId)
           .isEqualTo(1);
     }
 
@@ -310,11 +310,11 @@ class DevSeedDataIntegrationTest {
     assertThat(locationCountOfUsage("INVENTORY")).isEqualTo(1);
   }
 
-  private int internalLocationCountOf(UUID nodeId) {
+  private int internalLocationCountOf(UUID facilityId) {
     Integer count = jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM stock_locations WHERE warehouse_id = ? AND usage = 'INTERNAL'",
+        "SELECT count(*) FROM stock_locations WHERE facility_id = ? AND usage = 'INTERNAL'",
         Integer.class,
-        nodeId);
+        facilityId);
     return count == null ? 0 : count;
   }
 

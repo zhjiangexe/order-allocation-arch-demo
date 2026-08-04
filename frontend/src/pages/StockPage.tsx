@@ -19,8 +19,8 @@ export function StockPage() {
    */
   const lines = useAsyncAction<[string, string], StockLine[]>(
     useCallback(
-      async (ownerId, nodeId) =>
-        warehouseStockLines(catalog, ownerId, await getStockInWarehouse(ownerId, nodeId)),
+      async (ownerId, facilityId) =>
+        warehouseStockLines(catalog, ownerId, await getStockInWarehouse(ownerId, facilityId)),
       [catalog],
     ),
   );
@@ -35,8 +35,8 @@ export function StockPage() {
           lines={lines.state}
           replenishment={replenishment.state}
           owners={catalog.owners}
-          nodesOf={(ownerId) => catalog.nodesOf(ownerId)}
-          onQuery={(ownerId, nodeId) => void lines.run(ownerId, nodeId)}
+          facilitiesOf={(ownerId) => catalog.facilitiesOf(ownerId)}
+          onQuery={(ownerId, facilityId) => void lines.run(ownerId, facilityId)}
           // **刻意不在成功後自動重查。** 補貨回 202，庫存變更走 Kafka——立刻重查很可能查到
           // 還沒變的數字，而畫面分不出「還沒處理到」與「處理完了但真的沒變」。
           onReplenish={(input) => void replenishment.run(input)}

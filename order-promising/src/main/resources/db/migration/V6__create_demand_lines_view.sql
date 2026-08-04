@@ -30,7 +30,7 @@ SELECT ol.order_id,
   -- 因為 LEFT JOIN 會讓 location_id 為 NULL 的列流進配貨，而每個下游都得處理那個不會發生
   -- 的狀態。
   JOIN stock_locations sl
-    ON sl.warehouse_id = o.fulfillment_node_id
+    ON sl.facility_id = o.facility_id
    AND sl.usage = 'INTERNAL'
  -- 取消由 ordering 發起並同步寫入，所以這個判準即時正確。
  WHERE o.cancelled_at IS NULL

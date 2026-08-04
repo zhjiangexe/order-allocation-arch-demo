@@ -26,7 +26,7 @@ import java.util.UUID;
  */
 public final class StockReplenishedIntegrationEvent extends IntegrationEvent {
   private final UUID ownerId;
-  private final UUID nodeId;
+  private final UUID facilityId;
   private final String sku;
   private final LocalDate inDate;
   private final LocalDate expiryDate;
@@ -36,7 +36,7 @@ public final class StockReplenishedIntegrationEvent extends IntegrationEvent {
   public StockReplenishedIntegrationEvent(
       @JsonProperty("eventId") UUID eventId,
       @JsonProperty("ownerId") UUID ownerId,
-      @JsonProperty("nodeId") UUID nodeId,
+      @JsonProperty("facilityId") UUID facilityId,
       @JsonProperty("sku") String sku,
       @JsonProperty("inDate") LocalDate inDate,
       @JsonProperty("expiryDate") LocalDate expiryDate,
@@ -46,7 +46,7 @@ public final class StockReplenishedIntegrationEvent extends IntegrationEvent {
     if (ownerId == null) {
       throw new IllegalArgumentException("Owner ID is required");
     }
-    if (nodeId == null) {
+    if (facilityId == null) {
       throw new IllegalArgumentException("Fulfillment node ID is required");
     }
     if (sku == null || sku.isBlank()) {
@@ -62,7 +62,7 @@ public final class StockReplenishedIntegrationEvent extends IntegrationEvent {
       throw new IllegalArgumentException("Replenishment quantity must be positive");
     }
     this.ownerId = ownerId;
-    this.nodeId = nodeId;
+    this.facilityId = facilityId;
     this.sku = sku;
     this.inDate = inDate;
     this.expiryDate = expiryDate;
@@ -73,8 +73,8 @@ public final class StockReplenishedIntegrationEvent extends IntegrationEvent {
     return ownerId;
   }
 
-  public UUID getNodeId() {
-    return nodeId;
+  public UUID getFacilityId() {
+    return facilityId;
   }
 
   public String getSku() {

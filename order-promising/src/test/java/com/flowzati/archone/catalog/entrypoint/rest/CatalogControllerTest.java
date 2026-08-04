@@ -3,11 +3,11 @@ package com.flowzati.archone.catalog.entrypoint.rest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.catalog.application.usecase.ListNodesForOwnerUsecase;
+import com.flowzati.archone.catalog.application.usecase.ListFacilitiesForOwnerUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListOwnersUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListProductsUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListSkusUsecase;
-import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
+import com.flowzati.archone.catalog.domain.model.Facility;
 import com.flowzati.archone.catalog.domain.model.Owner;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
@@ -28,8 +28,8 @@ class CatalogControllerTest {
 
   private static final UUID OWNER_A = UUID.fromString("00000000-0000-0000-0000-000000000001");
   private static final UUID OWNER_B = UUID.fromString("00000000-0000-0000-0000-000000000002");
-  private static final UUID NODE_NORTH = UUID.fromString("00000000-0000-0000-0000-000000000011");
-  private static final UUID NODE_CENTRAL = UUID.fromString("00000000-0000-0000-0000-000000000012");
+  private static final UUID NORTH_FACILITY_ID = UUID.fromString("00000000-0000-0000-0000-000000000011");
+  private static final UUID CENTRAL_FACILITY_ID = UUID.fromString("00000000-0000-0000-0000-000000000012");
 
   @Autowired
   private MockMvcTester mvc;
@@ -44,33 +44,33 @@ class CatalogControllerTest {
   private ListSkusUsecase listSkusUsecase;
 
   @MockitoBean
-  private ListNodesForOwnerUsecase listNodesForOwnerUsecase;
+  private ListFacilitiesForOwnerUsecase listFacilitiesForOwnerUsecase;
 
   @Test
   @DisplayName("應只列出該貨主已指派的倉庫")
   void listsOnlyTheOwnersAssignedNodes() {
-    when(listNodesForOwnerUsecase.listByOwner(OWNER_A)).thenReturn(List.of(
-        new FulfillmentNode(NODE_NORTH, "WH-NORTH", "北部倉"),
-        new FulfillmentNode(NODE_CENTRAL, "WH-CENTRAL", "中部倉")));
+    when(listFacilitiesForOwnerUsecase.listByOwner(OWNER_A)).thenReturn(List.of(
+        new Facility(NORTH_FACILITY_ID, "WH-NORTH", "北部倉"),
+        new Facility(CENTRAL_FACILITY_ID, "WH-CENTRAL", "中部倉")));
 
-    MvcTestResultAssert response = assertThat(mvc.get().uri("/owners/{id}/nodes", OWNER_A));
+    MvcTestResultAssert response = assertThat(mvc.get().uri("/owners/{id}/facilities", OWNER_A));
 
     response.hasStatusOk();
     response.bodyJson().extractingPath("$.length()").isEqualTo(2);
-    response.bodyJson().extractingPath("$[0].nodeId").isEqualTo(NODE_NORTH.toString());
+    response.bodyJson().extractingPath("$[0].facilityId").isEqualTo(NORTH_FACILITY_ID.toString());
     response.bodyJson().extractingPath("$[0].code").isEqualTo("WH-NORTH");
     response.bodyJson().extractingPath("$[0].name").isEqualTo("北部倉");
     // 契約不帶狀態、能力、產能——系統不做選倉決策，那些欄位不存在
     response.bodyJson().extractingPath("$[0]").asMap()
-        .containsOnlyKeys("nodeId", "code", "name");
+        .containsOnlyKeys("facilityId", "code", "name");
   }
 
   @Test
   @DisplayName("未知貨主應回空陣列而非 404——與款、規格的處理一致")
   void returnsEmptyListForUnknownOwner() {
-    when(listNodesForOwnerUsecase.listByOwner(OWNER_B)).thenReturn(List.of());
+    when(listFacilitiesForOwnerUsecase.listByOwner(OWNER_B)).thenReturn(List.of());
 
-    MvcTestResultAssert response = assertThat(mvc.get().uri("/owners/{id}/nodes", OWNER_B));
+    MvcTestResultAssert response = assertThat(mvc.get().uri("/owners/{id}/facilities", OWNER_B));
 
     response.hasStatusOk();
     response.bodyJson().extractingPath("$.length()").isEqualTo(0);

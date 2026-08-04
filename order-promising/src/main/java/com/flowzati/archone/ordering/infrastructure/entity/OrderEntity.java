@@ -49,8 +49,8 @@ public class OrderEntity {
   @Column(name = "promised_delivery_date", nullable = false)
   private LocalDate promisedDeliveryDate;
 
-  @Column(name = "fulfillment_node_id", nullable = false)
-  private UUID fulfillmentNodeId;
+  @Column(name = "facility_id", nullable = false)
+  private UUID facilityId;
 
   /**
    * 訂單與其行是同一個 aggregate：一起讀、一起寫、一起失效。以 cascade 表達這件事，讓
@@ -99,7 +99,7 @@ public class OrderEntity {
       String shipToZone,
       String shipToAddress,
       LocalDate promisedDeliveryDate,
-      UUID fulfillmentNodeId,
+      UUID facilityId,
       List<OrderLineEntity> lines,
       OrderStatus status,
       Instant receivedAt,
@@ -115,7 +115,7 @@ public class OrderEntity {
     this.shipToZone = shipToZone;
     this.shipToAddress = shipToAddress;
     this.promisedDeliveryDate = promisedDeliveryDate;
-    this.fulfillmentNodeId = fulfillmentNodeId;
+    this.facilityId = facilityId;
     this.lines = lines;
     this.status = status;
     this.receivedAt = receivedAt;
@@ -150,8 +150,8 @@ public class OrderEntity {
     return promisedDeliveryDate;
   }
 
-  public UUID getFulfillmentNodeId() {
-    return fulfillmentNodeId;
+  public UUID getFacilityId() {
+    return facilityId;
   }
 
   public List<OrderLineEntity> getLines() {

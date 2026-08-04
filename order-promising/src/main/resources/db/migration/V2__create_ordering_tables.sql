@@ -1,9 +1,9 @@
 -- 訂單層的八張表：貨主、商品主檔、倉庫主檔、位置、訂單、訂單行。
 --
--- 建表順序固定為 owners → products → skus → fulfillment_nodes → stock_locations →
--- owner_nodes → orders → order_lines，FK 的被指向方一律在前。這個順序不可任意調換。
+-- 建表順序固定為 owners → products → skus → facilities → stock_locations →
+-- owner_facilities → orders → order_lines，FK 的被指向方一律在前。這個順序不可任意調換。
 --
--- stock_locations 排在這裡而不是自己一個 migration：它同時被 V3 的庫存與本檔的 owner_nodes
+-- stock_locations 排在這裡而不是自己一個 migration：它同時被 V3 的庫存與本檔的 owner_facilities
 -- 之後各表指向，必須在兩者之前。另開一個較晚的版本會讓被指向方排在指向方後面。
 --
 -- 本檔原本只建 orders，且 orders 直接持有 sku 與 quantity。此 schema 尚未部署至任何
@@ -17,7 +17,7 @@
 
 -- 貨主只有身分。沒有 status——停用貨主在營運上是真的，但本階段沒有任何決策讀它，而一個
 -- 沒有讀者的欄位會讓下一個人以為它有意義。等收單真的要擋停用貨主時再加，屆時它會帶著
--- 一條會失敗的測試一起進來。同樣的判準也套用在 fulfillment_nodes 上。
+-- 一條會失敗的測試一起進來。同樣的判準也套用在 facilities 上。
 CREATE TABLE owners (
     id UUID PRIMARY KEY,
     code VARCHAR(64) NOT NULL,
@@ -73,13 +73,13 @@ CREATE INDEX idx_skus_product
 --
 -- 沒有 status、type、覆蓋範圍、處理能力、產能或截單時間——那些欄位全都是為了「系統選倉」
 -- 這個決策而存在，而本系統不做那件事：3PL 的出貨倉由合約決定，貨主在上游下單時就指定了。
--- 加一個沒有讀者的欄位比缺一個糟，因為下一個人會假設它有意義。orders.requested_node_id
+-- 加一個沒有讀者的欄位比缺一個糟，因為下一個人會假設它有意義。orders.requested_facility_id
 -- 就是前車之鑑：它帶著「R6 才讀」的註解存在了一整個 change，而 R6 沒有發生。
-CREATE TABLE fulfillment_nodes (
+CREATE TABLE facilities (
     id UUID PRIMARY KEY,
     code VARCHAR(64) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    CONSTRAINT uq_fulfillment_nodes_code UNIQUE (code)
+    CONSTRAINT uq_facilities_code UNIQUE (code)
 );
 
 -- 位置：搬運的端點。
@@ -119,7 +119,7 @@ CREATE TABLE fulfillment_nodes (
 --     barcode        →  掃描作業面。沒有。
 --     create_uid / write_uid / create_date / write_date
 --                    →  Odoo 每張表都掛這四欄；本 repo 不做通用稽核欄位，
---                       fulfillment_nodes 也沒有。要加是整個 schema 一起加。
+--                       facilities 也沒有。要加是整個 schema 一起加。
 --
 -- (4) **與 3PL 的定位牴觸**——這一類最容易被當成遺漏而「補上」
 --     company_id     →  Odoo 的隔離維度是法人；我們是貨主，而一個位置本來就服務多個
@@ -137,10 +137,10 @@ CREATE TABLE stock_locations (
     id UUID PRIMARY KEY,
     -- 可空：虛擬位置不屬於任何倉。
     --
-    -- 這一欄是實體欄位而不是沿樹推導。Odoo 的 stock.location.warehouse_id 也是 computed
+    -- 這一欄是實體欄位而不是沿樹推導。Odoo 的 stock.location.facility_id 也是 computed
     -- 但 store=True——它走過「查詢時算」再改成「存欄位」這條路，因為每次規則查找都要讀它。
     -- 本系統不做樹，這一欄直接就是答案。
-    warehouse_id UUID,
+    facility_id UUID,
     code VARCHAR(64) NOT NULL,
     name VARCHAR(255) NOT NULL,
     -- internal 才算公司庫存；其餘三種是虛擬位置，只用來當搬運的另一端。
@@ -155,34 +155,34 @@ CREATE TABLE stock_locations (
     -- INTERNAL 位置上——CHECK 做不到那件事（不能有子查詢），而外鍵可以。
     CONSTRAINT uq_stock_locations_id_usage UNIQUE (id, usage),
     CONSTRAINT fk_stock_locations_warehouse
-        FOREIGN KEY (warehouse_id) REFERENCES fulfillment_nodes(id),
+        FOREIGN KEY (facility_id) REFERENCES facilities(id),
     CONSTRAINT ck_stock_locations_usage
         CHECK (usage IN ('INTERNAL', 'SUPPLIER', 'CUSTOMER', 'INVENTORY')),
     -- 兩個方向都要擋。只擋一邊時，另一邊的髒資料會安靜地存在——「有倉的虛擬位置」會讓
     -- 「這個倉有哪些位置」多出一個不該在的答案，而那個錯誤不會有任何路徑報錯。
     CONSTRAINT ck_stock_locations_warehouse_by_usage CHECK (
-        (usage =  'INTERNAL' AND warehouse_id IS NOT NULL)
-     OR (usage <> 'INTERNAL' AND warehouse_id IS NULL)
+        (usage =  'INTERNAL' AND facility_id IS NOT NULL)
+     OR (usage <> 'INTERNAL' AND facility_id IS NULL)
     )
 
     -- **刻意沒有 parent_id 與 parent_path。**
     --
-    -- 樹在 Odoo 的用途是儲區階層與「沿樹往上找到所屬倉」，而本系統一倉一位置，warehouse_id
+    -- 樹在 Odoo 的用途是儲區階層與「沿樹往上找到所屬倉」，而本系統一倉一位置，facility_id
     -- 直接就是答案，沒有查詢會沿樹走。日後要加收貨暫存或出貨暫存區時，orders 已經指倉、
     -- stock_pools 已經指位置，兩者都不用動，只是多幾列位置加上一個 parent_id。
     --
     -- **刻意沒有 active。** Odoo 建倉時把 Input／QC／Output／Packing 全建出來、靠 active
     -- 切換收發貨步數。本系統不做多步，加一個恆為 true 的欄位等於讓每個讀取端多處理一個
-    -- 不會發生的狀態——與 fulfillment_nodes 拒絕 status 的判準相同。
+    -- 不會發生的狀態——與 facilities 拒絕 status 的判準相同。
 );
 
 -- 一個倉最多一個 internal 位置。
 --
--- WHERE 子句不可省略：虛擬位置的 warehouse_id 為 NULL，而 PostgreSQL 把 NULL 視為互不相同，
+-- WHERE 子句不可省略：虛擬位置的 facility_id 為 NULL，而 PostgreSQL 把 NULL 視為互不相同，
 -- 少了它三個虛擬位置仍然建得起來——所以拿掉不會立刻壞，會在「某個倉不小心有兩個庫存位置」
 -- 時才壞，而那時倉→位置的解析會從一次查表變成不定的選擇。
 CREATE UNIQUE INDEX uq_stock_locations_internal_per_warehouse
-    ON stock_locations (warehouse_id) WHERE usage = 'INTERNAL';
+    ON stock_locations (facility_id) WHERE usage = 'INTERNAL';
 
 -- 貨主與倉庫的多對多指派。一個貨主可以從多個倉出貨，一個倉服務多個貨主——後者是 3PL 的
 -- 定義性特徵。
@@ -193,12 +193,12 @@ CREATE UNIQUE INDEX uq_stock_locations_internal_per_warehouse
 --
 -- 純粹的關係，沒有自己的身分，因此用複合主鍵而非代理鍵——與 products／skus 用代理鍵的
 -- 判準一致，那兩者是有身分的實體。
-CREATE TABLE owner_nodes (
+CREATE TABLE owner_facilities (
     owner_id UUID NOT NULL,
-    node_id UUID NOT NULL,
-    PRIMARY KEY (owner_id, node_id),
-    CONSTRAINT fk_owner_nodes_owner FOREIGN KEY (owner_id) REFERENCES owners(id),
-    CONSTRAINT fk_owner_nodes_node FOREIGN KEY (node_id) REFERENCES fulfillment_nodes(id)
+    facility_id UUID NOT NULL,
+    PRIMARY KEY (owner_id, facility_id),
+    CONSTRAINT fk_owner_facilities_owner FOREIGN KEY (owner_id) REFERENCES owners(id),
+    CONSTRAINT fk_owner_facilities_facility FOREIGN KEY (facility_id) REFERENCES facilities(id)
 );
 
 CREATE TABLE orders (
@@ -212,10 +212,10 @@ CREATE TABLE orders (
     ship_to_address VARCHAR(512) NOT NULL,
     promised_delivery_date DATE NOT NULL,
     -- 這張單從哪個倉出。值由貨主的上游系統在收單時給定，系統不推導、不預設、不改。
-    -- 原名 requested_node_id 且可空，那是選點時代的語意——「貨主提出的請求，可能被選點
+    -- 原名 requested_facility_id 且可空，那是選點時代的語意——「貨主提出的請求，可能被選點
     -- 推翻」。沒有選點之後它就是這張單的倉別，因此改名並改為 NOT NULL：可空等於在型別上
     -- 保留一個永遠不會發生的狀態，而每個讀取端都得處理它。
-    fulfillment_node_id UUID NOT NULL,
+    facility_id UUID NOT NULL,
     status VARCHAR(32) NOT NULL,
     -- 我們收到並接受這張單的時刻。由本系統寫入，呼叫端不得提供。
     --
@@ -237,18 +237,18 @@ CREATE TABLE orders (
     cancelled_at TIMESTAMPTZ,
     version BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT fk_orders_owner FOREIGN KEY (owner_id) REFERENCES owners(id),
-    -- 複合外鍵，不是單欄指向 fulfillment_nodes。它讓「倉存在，但這個貨主沒掛這個倉」
+    -- 複合外鍵，不是單欄指向 facilities。它讓「倉存在，但這個貨主沒掛這個倉」
     -- 由資料庫擋下，而不是只擋得住「倉不存在」——與 order_lines 的 (owner_id, sku_code)
     -- 走自然鍵外鍵是同一個手法：把貨主放進參照，跨貨主的錯誤組合就無法寫入。
     --
     -- 這偏離了「外部來的值不建 FK」的原則（ship_to_zone 就沒有）。倉別不同於地址：地址
     -- 千變萬化，倉別是簽約時就固定的少數幾個值，上游送錯是設定錯誤而非資料多樣性。
     --
-    -- fk_orders_owner 因此在邏輯上是多餘的（owner_nodes.owner_id 已指向 owners），
+    -- fk_orders_owner 因此在邏輯上是多餘的（owner_facilities.owner_id 已指向 owners），
     -- 保留它是為了讓「訂單有貨主」這件事獨立於倉庫指派而成立。
     CONSTRAINT fk_orders_owner_node
-        FOREIGN KEY (owner_id, fulfillment_node_id)
-        REFERENCES owner_nodes(owner_id, node_id),
+        FOREIGN KEY (owner_id, facility_id)
+        REFERENCES owner_facilities(owner_id, facility_id),
     -- 從 R5 提前。R5 真正的工作是 usecase 行為（重送時回傳既有訂單），但 constraint 只有
     -- 一行且屬同一次 migration。提前的價值在於此階段到 R5 之間，把「靜默建立重複訂單」
     -- 變成「明確報錯」——在倉儲場景前者是資料事故，後者只是錯誤訊息。

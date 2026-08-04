@@ -31,14 +31,14 @@ CONNECTOR_NAME="${CONNECTOR_NAME:-order-promising-outbox}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-order-promising-e2e-perf-postgres-1}"
 NETWORK="${NETWORK:-order-promising-e2e-perf_default}"
 
-# 壓測自己的主檔。k6 script 以 PERF_OWNER_CODE／PERF_NODE_CODE 反查識別碼（見
+# 壓測自己的主檔。k6 script 以 PERF_OWNER_CODE／PERF_FACILITY_CODE 反查識別碼（見
 # k6/hot-sku-burst.js 的 setup），因此 UUID 只寫在這裡一處，不必兩邊同步。
 PERF_OWNER_ID="00000000-0000-0000-0000-0000000000f1"
 PERF_OWNER_CODE="PERF-OWNER"
 PERF_PRODUCT_ID="00000000-0000-0000-0000-0000000000f2"
 PERF_PRODUCT_CODE="P-PERF"
-PERF_NODE_ID="00000000-0000-0000-0000-0000000000f4"
-PERF_NODE_CODE="WH-PERF"
+PERF_FACILITY_ID="00000000-0000-0000-0000-0000000000f4"
+PERF_FACILITY_CODE="WH-PERF"
 
 # 熱點庫存那一列。**id 與兩個日期都固定**，這是熱點壓測的正確性前提：
 #
@@ -144,7 +144,7 @@ cmd_down() {
 # 把一個 SKU 種成「可下單」：主檔三層 ＋ 倉庫與指派 ＋ 庫存池。
 #
 # 只種庫存池是不夠的——order_lines 有 FK (owner_id, sku_code) → skus；orders 另有複合 FK
-# (owner_id, fulfillment_node_id) → owner_nodes。少了任何一邊，下單都會被資料庫擋下。
+# (owner_id, facility_id) → owner_facilities。少了任何一邊，下單都會被資料庫擋下。
 #
 # 壓測用自己的貨主而不借用 dev seed 的 OWNER-A：兩者互不依賴，改 demo 的固定資料不會
 # 弄壞壓測，反之亦然；資料庫裡也一眼看得出哪些列是壓測產物。
@@ -169,20 +169,20 @@ INSERT INTO skus (id, owner_id, sku_code, product_code, spec_name, weight_gram)
 VALUES (gen_random_uuid(), '${PERF_OWNER_ID}', '${sku}', '${PERF_PRODUCT_CODE}', '${sku}', 1)
 ON CONFLICT (owner_id, sku_code) DO NOTHING;
 
-INSERT INTO fulfillment_nodes (id, code, name)
-VALUES ('${PERF_NODE_ID}', '${PERF_NODE_CODE}', '壓測倉')
+INSERT INTO facilities (id, code, name)
+VALUES ('${PERF_FACILITY_ID}', '${PERF_FACILITY_CODE}', '壓測倉')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO owner_nodes (owner_id, node_id)
-VALUES ('${PERF_OWNER_ID}', '${PERF_NODE_ID}')
+INSERT INTO owner_facilities (owner_id, facility_id)
+VALUES ('${PERF_OWNER_ID}', '${PERF_FACILITY_ID}')
 ON CONFLICT DO NOTHING;
 
 -- 以固定 id 做 upsert 而不是 DELETE 後重建：stock_reservations 的外鍵指向這一列，
 -- 前一輪壓測留下的預留會讓 DELETE 失敗。UPDATE 沒有這個問題。
 INSERT INTO stock_pools (
-    id, owner_id, node_id, sku_code, in_date, expiry_date,
+    id, owner_id, facility_id, sku_code, in_date, expiry_date,
     on_hand_quantity, reserved_quantity, version, updated_at)
-VALUES ('${PERF_STOCK_POOL_ID}', '${PERF_OWNER_ID}', '${PERF_NODE_ID}', '${sku}',
+VALUES ('${PERF_STOCK_POOL_ID}', '${PERF_OWNER_ID}', '${PERF_FACILITY_ID}', '${sku}',
         DATE '${PERF_IN_DATE}', DATE '${PERF_EXPIRY_DATE}', ${quantity}, 0, 0, now())
 ON CONFLICT (id) DO UPDATE
   SET on_hand_quantity = EXCLUDED.on_hand_quantity,
@@ -200,14 +200,14 @@ SQL
   # 競爭分散。散開之後 checks 與 thresholds 仍然全過，所以這裡不查就沒人會發現。
   local batch_count
   batch_count=$(docker exec -i "${POSTGRES_CONTAINER}" psql -U order_promising -d order_promising \
-    -tAc "SELECT count(*) FROM stock_pools WHERE owner_id = '${PERF_OWNER_ID}' AND node_id = '${PERF_NODE_ID}' AND sku_code = '${sku}'")
+    -tAc "SELECT count(*) FROM stock_pools WHERE owner_id = '${PERF_OWNER_ID}' AND facility_id = '${PERF_FACILITY_ID}' AND sku_code = '${sku}'")
   if [ "${batch_count}" != "1" ]; then
     echo "熱點庫存必須只有一列，實際有 ${batch_count} 列——競爭已被分散，這次壓測測不到" >&2
     echo "真實的樂觀鎖衝突。先 ./e2e/perf/run.sh down 重建再跑。" >&2
     return 1
   fi
 
-  echo "已種好 ${sku}：貨主 ${PERF_OWNER_CODE}、倉庫 ${PERF_NODE_CODE}、單一批次" \
+  echo "已種好 ${sku}：貨主 ${PERF_OWNER_CODE}、倉庫 ${PERF_FACILITY_CODE}、單一批次" \
     "（入庫 ${PERF_IN_DATE}／效期 ${PERF_EXPIRY_DATE}）、on_hand_quantity=${quantity}"
 }
 

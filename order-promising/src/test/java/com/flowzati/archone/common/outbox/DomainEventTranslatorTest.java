@@ -32,14 +32,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class DomainEventTranslatorTest {
 
   private static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
-  private static final UUID NODE_ID =
+  private static final UUID FACILITY_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000b1");
   private static final java.util.List<LineSnapshot> LINES =
       java.util.List.of(new LineSnapshot(1, "SKU-1", 3));
 
   private OrderPlaced placed(UUID orderId) {
     return new OrderPlaced(
-        orderId, OWNER_ID, NODE_ID, "100", java.time.LocalDate.of(2026, 8, 1), LINES,
+        orderId, OWNER_ID, FACILITY_ID, "100", java.time.LocalDate.of(2026, 8, 1), LINES,
         occurredAt);
   }
 
@@ -92,7 +92,7 @@ class DomainEventTranslatorTest {
         .doesNotContain("reservationId")
         .doesNotContain("batches")
         .doesNotContain("ownerId")
-        .doesNotContain("nodeId");
+        .doesNotContain("facilityId");
   }
 
   @Test
@@ -107,7 +107,7 @@ class DomainEventTranslatorTest {
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
-    assertThat(outbox.getValue().partitionKey()).isEqualTo(OWNER_ID + "/" + NODE_ID);
+    assertThat(outbox.getValue().partitionKey()).isEqualTo(OWNER_ID + "/" + FACILITY_ID);
     assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
   }
 
@@ -119,7 +119,7 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new OrderingDomainEventTranslator(appender, "order-id")
-        .translate(new OrderCancelled(orderId, OWNER_ID, NODE_ID, occurredAt));
+        .translate(new OrderCancelled(orderId, OWNER_ID, FACILITY_ID, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
@@ -135,11 +135,11 @@ class DomainEventTranslatorTest {
     UUID orderId = UUID.randomUUID();
 
     new OrderingDomainEventTranslator(appender, "stock")
-        .translate(new OrderCancelled(orderId, OWNER_ID, NODE_ID, occurredAt));
+        .translate(new OrderCancelled(orderId, OWNER_ID, FACILITY_ID, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
-    assertThat(outbox.getValue().partitionKey()).isEqualTo(OWNER_ID + "/" + NODE_ID);
+    assertThat(outbox.getValue().partitionKey()).isEqualTo(OWNER_ID + "/" + FACILITY_ID);
     assertThat(outbox.getValue().aggregateId()).isEqualTo(orderId.toString());
   }
 
@@ -201,8 +201,8 @@ class DomainEventTranslatorTest {
       UUID orderId = UUID.randomUUID();
 
       translator.translate(new OrderPlaced(
-          orderId, OWNER_ID, NODE_ID, "100", LocalDate.of(2026, 8, 1), twoSkus, occurredAt));
-      translator.translate(new OrderCancelled(orderId, OWNER_ID, NODE_ID, occurredAt));
+          orderId, OWNER_ID, FACILITY_ID, "100", LocalDate.of(2026, 8, 1), twoSkus, occurredAt));
+      translator.translate(new OrderCancelled(orderId, OWNER_ID, FACILITY_ID, occurredAt));
 
       ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
       verify(outboxRepo, org.mockito.Mockito.times(2)).append(outbox.capture());
@@ -224,13 +224,13 @@ class DomainEventTranslatorTest {
         new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
 
     new AllocationDomainEventTranslator(appender).translate(
-        new BackorderWakeContinuationRequired(OWNER_ID, NODE_ID, "SKU-1", occurredAt));
+        new BackorderWakeContinuationRequired(OWNER_ID, FACILITY_ID, "SKU-1", occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
     // 與配置結果事件相反：那些一律用 orderId，這一則一律用爭用群組。落到別的 partition
     // 就會與它要接續的那一輪並行，而 single writer 正是靠同 key 取得的。
-    assertThat(outbox.getValue().partitionKey()).isEqualTo(OWNER_ID + "/" + NODE_ID);
+    assertThat(outbox.getValue().partitionKey()).isEqualTo(OWNER_ID + "/" + FACILITY_ID);
     // topic 與補貨事件相同，兩者在 Kafka 層是同一條隊伍
     assertThat(outbox.getValue().route()).isEqualTo(InventoryEventTopics.STOCK_EVENTS);
     // aggregate 是庫存不是訂單——續做不屬於佇列裡的任何一張單
@@ -250,7 +250,7 @@ class DomainEventTranslatorTest {
     OrderingDomainEventTranslator translator = new OrderingDomainEventTranslator(appender, "stock");
     translator.translate(placed(UUID.randomUUID()));
     translator.translate(new OrderPlaced(
-        UUID.randomUUID(), otherOwnerId, NODE_ID, "100",
+        UUID.randomUUID(), otherOwnerId, FACILITY_ID, "100",
         java.time.LocalDate.of(2026, 8, 1), LINES, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);

@@ -155,7 +155,7 @@ class ReplenishmentUsecaseTest {
     // usecase 只發領域事實。**它不該知道 outbox 存在**——譯成對外事件、決定 topic 與
     // partition key 是 translator 的事（見 DomainEventTranslatorTest）。
     verify(eventPublisher).publishEvent(new BackorderWakeContinuationRequired(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, fixedNow));
+        OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, SKU, fixedNow));
   }
 
   @Test
@@ -187,7 +187,7 @@ class ReplenishmentUsecaseTest {
 
     replenishmentUsecase.handleWake(new InboundCommand<>(
         new com.flowzati.archone.stock.application.command.WakeBackordersCommand(
-            OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, OrderFixtures.LOCATION_ID, SKU),
+            OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, SKU),
         message(eventId)));
 
     assertThat(batch.getOnHandQuantity()).isEqualTo(10);
@@ -291,7 +291,7 @@ class ReplenishmentUsecaseTest {
 
   private StockReplenishedIntegrationEvent event(UUID eventId, int quantity) {
     return new StockReplenishedIntegrationEvent(
-        eventId, OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU, IN_DATE, EXPIRY_DATE,
+        eventId, OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, SKU, IN_DATE, EXPIRY_DATE,
         quantity);
   }
 
@@ -301,7 +301,7 @@ class ReplenishmentUsecaseTest {
 
   private ReplenishStockCommand command(StockReplenishedIntegrationEvent event) {
     return new ReplenishStockCommand(
-        event.getOwnerId(), event.getNodeId(), OrderFixtures.LOCATION_ID, event.getSku(),
+        event.getOwnerId(), event.getFacilityId(), OrderFixtures.LOCATION_ID, event.getSku(),
         event.getInDate(), event.getExpiryDate(), event.getQuantity());
   }
 

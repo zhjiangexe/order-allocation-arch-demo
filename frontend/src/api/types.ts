@@ -29,8 +29,8 @@ export interface OwnerView {
 }
 
 /** 倉庫。只有身分——系統不做選倉決策，所以沒有狀態、能力或產能可帶。 */
-export interface FulfillmentNodeView {
-  nodeId: string;
+export interface FacilityView {
+  facilityId: string;
   code: string;
   name: string;
 }
@@ -73,7 +73,7 @@ export interface OrderView {
   ownerId: string;
   externalOrderNo: string;
   /** 這張單從哪個倉出。由上游指定，不是系統選的。 */
-  fulfillmentNodeId: string;
+  facilityId: string;
   shipToZone: string;
   shipToAddress: string;
   promisedDeliveryDate: string;
@@ -94,7 +94,7 @@ export interface OrderView {
 export interface PlaceOrderCommand {
   ownerId: string;
   externalOrderNo: string;
-  fulfillmentNodeId: string;
+  facilityId: string;
   shipToZone: string;
   shipToAddress: string;
   promisedDeliveryDate: string;
@@ -150,7 +150,7 @@ export interface StockPoolView {
  */
 export interface ReplenishCommand {
   ownerId: string;
-  nodeId: string;
+  facilityId: string;
   sku: string;
   /** ISO 日期（`2026-01-05`）。 */
   inDate: string;

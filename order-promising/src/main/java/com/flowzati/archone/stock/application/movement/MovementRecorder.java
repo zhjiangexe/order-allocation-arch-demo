@@ -128,13 +128,13 @@ public class MovementRecorder {
    * <p>作業類型以倉為鍵（Odoo 也是），而兩個入口手上都只有位置。
    */
   private PickingType operationTypeFor(UUID locationId, PickingDirection direction) {
-    UUID warehouseId = stockLocationRepository.findById(locationId)
-        .map(StockLocation::getWarehouseId)
+    UUID facilityId = stockLocationRepository.findById(locationId)
+        .map(StockLocation::getFacilityId)
         .orElseThrow(() -> new IllegalStateException(
             "Location " + locationId + " no longer exists"));
-    return pickingTypeRepository.find(warehouseId, direction)
+    return pickingTypeRepository.find(facilityId, direction)
         .orElseThrow(() -> new IllegalStateException(
-            "Warehouse " + warehouseId + " has no " + direction.name().toLowerCase()
+            "Warehouse " + facilityId + " has no " + direction.name().toLowerCase()
                 + " operation type"));
   }
 }

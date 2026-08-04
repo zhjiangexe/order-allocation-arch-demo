@@ -18,13 +18,13 @@ import java.util.UUID;
  */
 public record BackorderWakeContinuationRequired(
     UUID ownerId,
-    UUID nodeId,
+    UUID facilityId,
     String skuCode,
     Instant requestedAt
 ) implements DomainEvent {
 
   public BackorderWakeContinuationRequired {
-    if (ownerId == null || nodeId == null) {
+    if (ownerId == null || facilityId == null) {
       throw new IllegalArgumentException("Owner ID and node ID are required");
     }
     if (skuCode == null || skuCode.isBlank()) {

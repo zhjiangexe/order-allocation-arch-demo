@@ -9,13 +9,13 @@ import java.util.UUID;
 
 @Entity
 @Table(
-    name = "fulfillment_nodes",
+    name = "facilities",
     uniqueConstraints = @UniqueConstraint(
-        name = "uq_fulfillment_nodes_code",
+        name = "uq_facilities_code",
         columnNames = {"code"}
     )
 )
-public class FulfillmentNodeEntity {
+public class FacilityEntity {
 
   @Id
   private UUID id;
@@ -26,10 +26,10 @@ public class FulfillmentNodeEntity {
   @Column(nullable = false)
   private String name;
 
-  protected FulfillmentNodeEntity() {
+  protected FacilityEntity() {
   }
 
-  public FulfillmentNodeEntity(UUID id, String code, String name) {
+  public FacilityEntity(UUID id, String code, String name) {
     this.id = id;
     this.code = code;
     this.name = name;

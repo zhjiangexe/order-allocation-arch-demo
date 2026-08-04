@@ -49,8 +49,8 @@ class BackorderWakeRequestedIntegrationEventHandler
       BackorderWakeRequestedIntegrationEvent event, MessageMetadata metadata) {
     WakeBackordersCommand command = new WakeBackordersCommand(
         event.getOwnerId(),
-        event.getNodeId(),
-        internalLocationOf(event.getNodeId()),
+        event.getFacilityId(),
+        internalLocationOf(event.getFacilityId()),
         event.getSku());
     InboundCommand<WakeBackordersCommand> inbound = new InboundCommand<>(command, metadata);
     retryExecutor.execute(
@@ -63,10 +63,10 @@ class BackorderWakeRequestedIntegrationEventHandler
    * 倉 → 該倉的內部位置，與補貨的 handler 同一個判斷：對外說倉、對內說位置，翻譯在
    * entrypoint。倉沒有內部位置時拋錯——那個倉不可能有貨，續做喚醒它是在對一個空集合工作。
    */
-  private java.util.UUID internalLocationOf(java.util.UUID nodeId) {
-    return stockLocationRepository.findInternalOf(nodeId)
+  private java.util.UUID internalLocationOf(java.util.UUID facilityId) {
+    return stockLocationRepository.findInternalOf(facilityId)
         .map(com.flowzati.archone.catalog.domain.model.StockLocation::getId)
         .orElseThrow(() -> new IllegalStateException(
-            "Warehouse " + nodeId + " has no internal stock location"));
+            "Warehouse " + facilityId + " has no internal stock location"));
   }
 }

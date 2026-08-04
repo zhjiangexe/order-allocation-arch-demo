@@ -64,7 +64,7 @@ class StockPoolPersistenceIntegrationTest {
   private static final UUID STOCK_POOL_ID = uuid(1);
   // 排序是 location_id ASC，所以這個值必須大於 OrderFixtures.LOCATION_ID（…c1），
   // 否則「第一個位置先出現」的斷言就與被驗證的規則無關了。
-  private static final UUID SECOND_NODE_ID =
+  private static final UUID SECOND_FACILITY_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000b2");
   private static final UUID SECOND_LOCATION_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000c2");
@@ -191,7 +191,7 @@ class StockPoolPersistenceIntegrationTest {
   @Test
   @DisplayName("庫存頁查詢不得帶出別的倉的批——配貨從不跨倉")
   void excludesBatchesHeldInAnotherWarehouse() {
-    insertNode(SECOND_NODE_ID, "WH-TEST-2", "第二測試倉");
+    insertNode(SECOND_FACILITY_ID, "WH-TEST-2", "第二測試倉");
     UUID here = uuid(2);
     persistBatchAtNode(OrderFixtures.LOCATION_ID, here, TODAY.plusMonths(1), 10, 0);
     persistBatchAtNode(SECOND_LOCATION_ID, uuid(3), TODAY.plusMonths(1), 10, 0);
@@ -205,9 +205,9 @@ class StockPoolPersistenceIntegrationTest {
   @Test
   @DisplayName("一批都沒有的倉應回空分組，不是例外——那是新倉上線時的正常狀態")
   void answersAnEmptyWarehouseWithAnEmptyGrouping() {
-    insertNode(SECOND_NODE_ID, "WH-TEST-2", "第二測試倉");
+    insertNode(SECOND_FACILITY_ID, "WH-TEST-2", "第二測試倉");
 
-    assertThat(repositoryAdapter.findBatchesInLocation(OrderFixtures.OWNER_ID, SECOND_NODE_ID))
+    assertThat(repositoryAdapter.findBatchesInLocation(OrderFixtures.OWNER_ID, SECOND_FACILITY_ID))
         .isEmpty();
   }
 
@@ -386,16 +386,16 @@ class StockPoolPersistenceIntegrationTest {
   }
 
   private StockPoolEntity persistBatchAtNode(
-      UUID nodeId, UUID id, LocalDate expiryDate, int onHandQuantity, int reservedQuantity) {
-    return persistBatchAtNode(nodeId, id, expiryDate, StockFixtures.ARRIVED_ON, onHandQuantity,
+      UUID facilityId, UUID id, LocalDate expiryDate, int onHandQuantity, int reservedQuantity) {
+    return persistBatchAtNode(facilityId, id, expiryDate, StockFixtures.ARRIVED_ON, onHandQuantity,
         reservedQuantity);
   }
 
   private StockPoolEntity persistBatchAtNode(
-      UUID nodeId, UUID id, LocalDate expiryDate, LocalDate inDate, int onHandQuantity,
+      UUID facilityId, UUID id, LocalDate expiryDate, LocalDate inDate, int onHandQuantity,
       int reservedQuantity) {
     StockPoolEntity saved = jpaRepository.saveAndFlush(new StockPoolEntity(
-        id, OrderFixtures.OWNER_ID, nodeId, SKU, inDate, expiryDate,
+        id, OrderFixtures.OWNER_ID, facilityId, SKU, inDate, expiryDate,
         onHandQuantity, reservedQuantity, null));
     entityManager.clear();
     return saved;
@@ -403,17 +403,17 @@ class StockPoolPersistenceIntegrationTest {
 
   /** {@code stock_pools.location_id} 外鍵指向 {@code stock_locations}，所以位置要先存在。 */
   /** 建倉，順帶建它的內部位置——庫存掛在位置上，少了它外鍵過不了。 */
-  private void insertNode(UUID nodeId, String code, String name) {
+  private void insertNode(UUID facilityId, String code, String name) {
     jdbcTemplate.update("""
-        INSERT INTO fulfillment_nodes (id, code, name)
+        INSERT INTO facilities (id, code, name)
         VALUES (?, ?, ?)
         ON CONFLICT DO NOTHING
-        """, nodeId, code, name);
+        """, facilityId, code, name);
     jdbcTemplate.update("""
-        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        INSERT INTO stock_locations (id, facility_id, code, name, usage)
         VALUES (?, ?, ?, ?, 'INTERNAL')
         ON CONFLICT DO NOTHING
-        """, SECOND_LOCATION_ID, nodeId, code + "/Stock", name + "／庫存");
+        """, SECOND_LOCATION_ID, facilityId, code + "/Stock", name + "／庫存");
   }
 
   private void setOldUpdatedAt(UUID id) {

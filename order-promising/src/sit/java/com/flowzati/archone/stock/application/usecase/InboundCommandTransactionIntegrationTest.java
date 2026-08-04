@@ -122,7 +122,7 @@ class InboundCommandTransactionIntegrationTest {
     // 新列**（作業單、搬運、明細），資料庫裡沒有任何既有的列能與它衝突。因此改用一個業務
     // 前提：倉必須有出庫作業類型。它由 spec 保證，不會隨配貨的實作改變。
     jdbcTemplate.update(
-        "DELETE FROM stock_picking_types WHERE warehouse_id = ?", OrderFixtures.NODE_ID);
+        "DELETE FROM stock_picking_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
 
     assertThatThrownBy(() -> allocateOrderUsecase.handle(inbound(orderId, eventId)))
         .isInstanceOf(IllegalStateException.class)
@@ -197,7 +197,7 @@ class InboundCommandTransactionIntegrationTest {
     assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(
         new ReplenishStockCommand(
             OrderFixtures.OWNER_ID,
-            OrderFixtures.NODE_ID,
+            OrderFixtures.FACILITY_ID,
             OrderFixtures.LOCATION_ID, "SKU-1",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3),
         new MessageMetadata(eventId, "StockReplenishedIntegrationEvent"))))

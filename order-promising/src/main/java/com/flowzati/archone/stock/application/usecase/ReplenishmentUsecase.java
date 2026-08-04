@@ -96,7 +96,7 @@ public class ReplenishmentUsecase {
     ReplenishStockCommand command = inbound.command();
 
     receive(command);
-    wake(command.ownerId(), command.nodeId(), command.locationId(), command.sku());
+    wake(command.ownerId(), command.facilityId(), command.locationId(), command.sku());
   }
 
   /**
@@ -108,7 +108,7 @@ public class ReplenishmentUsecase {
       return;
     }
     WakeBackordersCommand command = inbound.command();
-    wake(command.ownerId(), command.nodeId(), command.locationId(), command.sku());
+    wake(command.ownerId(), command.facilityId(), command.locationId(), command.sku());
   }
 
   /**
@@ -143,10 +143,10 @@ public class ReplenishmentUsecase {
    * <p>反過來若以「還有沒有沒配到的單」當條件，同樣會無限循環。
    */
   /**
-   * @param nodeId 只用於續做事件——它對外，必須說倉
+   * @param facilityId 只用於續做事件——它對外，必須說倉
    * @param locationId 所有查詢用它——庫存與需求都以位置為準
    */
-  private void wake(UUID ownerId, UUID nodeId, UUID locationId, String skuCode) {
+  private void wake(UUID ownerId, UUID facilityId, UUID locationId, String skuCode) {
     Instant now = clock.instant();
 
     // 先確認補的這個 SKU 真的有量可配——沒有的話這一輪根本不必開始。
@@ -172,7 +172,7 @@ public class ReplenishmentUsecase {
     int wokenCount = movementAssigner.assignAll(waiting, now).size();
 
     if (wokenCount >= wakeLimit) {
-      requestContinuation(ownerId, nodeId, skuCode, now);
+      requestContinuation(ownerId, facilityId, skuCode, now);
     }
   }
 
@@ -183,8 +183,8 @@ public class ReplenishmentUsecase {
    * 存在的 usecase，也是唯一在 translator 之外自己組對外事件的地方——而 translator 這一層的
    * 用途正是讓「領域事實」與「怎麼送出去」只有一處交會。
    */
-  private void requestContinuation(UUID ownerId, UUID nodeId, String skuCode, Instant now) {
+  private void requestContinuation(UUID ownerId, UUID facilityId, String skuCode, Instant now) {
     eventPublisher.publishEvent(
-        new BackorderWakeContinuationRequired(ownerId, nodeId, skuCode, now));
+        new BackorderWakeContinuationRequired(ownerId, facilityId, skuCode, now));
   }
 }

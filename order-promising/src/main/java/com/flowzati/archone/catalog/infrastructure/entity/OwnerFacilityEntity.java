@@ -19,46 +19,46 @@ import java.util.UUID;
  * 那兩者是有身分的實體，這一張是純粹的關係。
  */
 @Entity
-@Table(name = "owner_nodes")
-public class OwnerNodeEntity {
+@Table(name = "owner_facilities")
+public class OwnerFacilityEntity {
 
   @EmbeddedId
-  private OwnerNodeId id;
+  private OwnerFacilityId id;
 
-  protected OwnerNodeEntity() {
+  protected OwnerFacilityEntity() {
   }
 
-  public OwnerNodeEntity(UUID ownerId, UUID nodeId) {
-    this.id = new OwnerNodeId(ownerId, nodeId);
+  public OwnerFacilityEntity(UUID ownerId, UUID facilityId) {
+    this.id = new OwnerFacilityId(ownerId, facilityId);
   }
 
-  public OwnerNodeId getId() {
+  public OwnerFacilityId getId() {
     return id;
   }
 
   @Embeddable
-  public static class OwnerNodeId implements Serializable {
+  public static class OwnerFacilityId implements Serializable {
 
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
-    @Column(name = "node_id", nullable = false)
-    private UUID nodeId;
+    @Column(name = "facility_id", nullable = false)
+    private UUID facilityId;
 
-    protected OwnerNodeId() {
+    protected OwnerFacilityId() {
     }
 
-    public OwnerNodeId(UUID ownerId, UUID nodeId) {
+    public OwnerFacilityId(UUID ownerId, UUID facilityId) {
       this.ownerId = ownerId;
-      this.nodeId = nodeId;
+      this.facilityId = facilityId;
     }
 
     public UUID getOwnerId() {
       return ownerId;
     }
 
-    public UUID getNodeId() {
-      return nodeId;
+    public UUID getFacilityId() {
+      return facilityId;
     }
 
     @Override
@@ -66,15 +66,15 @@ public class OwnerNodeEntity {
       if (this == other) {
         return true;
       }
-      if (!(other instanceof OwnerNodeId that)) {
+      if (!(other instanceof OwnerFacilityId that)) {
         return false;
       }
-      return Objects.equals(ownerId, that.ownerId) && Objects.equals(nodeId, that.nodeId);
+      return Objects.equals(ownerId, that.ownerId) && Objects.equals(facilityId, that.facilityId);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(ownerId, nodeId);
+      return Objects.hash(ownerId, facilityId);
     }
   }
 }

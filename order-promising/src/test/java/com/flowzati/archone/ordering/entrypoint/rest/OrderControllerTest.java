@@ -38,7 +38,7 @@ class OrderControllerTest {
       {
         "ownerId": "00000000-0000-0000-0000-0000000000a1",
         "externalOrderNo": "EXT-1",
-        "fulfillmentNodeId": "00000000-0000-0000-0000-0000000000b1",
+        "facilityId": "00000000-0000-0000-0000-0000000000b1",
         "shipToZone": "100",
         "shipToAddress": "台北市中正區重慶南路一段 122 號",
         "promisedDeliveryDate": "2026-08-01",
@@ -88,8 +88,8 @@ class OrderControllerTest {
     response.hasStatus(200);
     response.bodyJson().extractingPath("$.orderId").isEqualTo(orderId.toString());
     response.bodyJson().extractingPath("$.ownerId").isEqualTo(OrderFixtures.OWNER_ID.toString());
-    response.bodyJson().extractingPath("$.fulfillmentNodeId")
-        .isEqualTo(OrderFixtures.NODE_ID.toString());
+    response.bodyJson().extractingPath("$.facilityId")
+        .isEqualTo(OrderFixtures.FACILITY_ID.toString());
     response.bodyJson().extractingPath("$.shipToZone").isEqualTo("100");
     response.bodyJson().extractingPath("$.promisedDeliveryDate").isEqualTo("2026-08-01");
     response.bodyJson().extractingPath("$.status").isEqualTo("PENDING");

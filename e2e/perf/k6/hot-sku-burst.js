@@ -3,7 +3,7 @@
 // backOrderedSince 時間戳計算（比輪詢 wall time 精準）。
 //
 // 前置：HOT_SKU 要先用 `run.sh seed` 種好——它會一併建立壓測貨主的主檔與倉庫指派。
-// order_lines 有 FK 指向 skus，orders 另有複合 FK 指向 owner_nodes，兩邊缺一都下不了單。庫存要用寬視窗（例如 500）
+// order_lines 有 FK 指向 skus，orders 另有複合 FK 指向 owner_facilities，兩邊缺一都下不了單。庫存要用寬視窗（例如 500）
 // 不要太窄，太窄大部分訂單會直接 BACKORDERED、撞不出自然衝突。
 //
 // 這個 script 只回報 k6 端到端量得到的吞吐量與延遲；衝突率／重試率、DLT 壓測方式
@@ -27,7 +27,7 @@ const POLL_TIMEOUT_MS = parseInt(__ENV.POLL_TIMEOUT_MS || '15000', 10);
 const EXPECTED_STOCK = parseInt(__ENV.EXPECTED_STOCK || '500', 10);
 // 貨主以**代碼**指定、ownerId 在 setup 反查，這樣 UUID 只存在於 run.sh 一處
 const OWNER_CODE = __ENV.OWNER_CODE || 'PERF-OWNER';
-const NODE_CODE = __ENV.NODE_CODE || 'WH-PERF';
+const FACILITY_CODE = __ENV.FACILITY_CODE || 'WH-PERF';
 
 export const options = {
   scenarios: {
@@ -74,17 +74,17 @@ export function setup() {
   }
 
   // 倉庫同樣以代碼反查，而且要走「該貨主已指派的倉」這支端點——訂單有複合外鍵
-  // (owner_id, fulfillment_node_id)，指定一個該貨主沒掛的倉會被資料庫擋下。
-  const nodesRes = http.get(`${BASE_URL}/owners/${owner.ownerId}/nodes`);
+  // (owner_id, facility_id)，指定一個該貨主沒掛的倉會被資料庫擋下。
+  const nodesRes = http.get(`${BASE_URL}/owners/${owner.ownerId}/facilities`);
   if (nodesRes.status !== 200) {
     throw new Error(`查不到倉庫清單（HTTP ${nodesRes.status}）`);
   }
-  const node = JSON.parse(nodesRes.body).find((n) => n.code === NODE_CODE);
+  const node = JSON.parse(nodesRes.body).find((n) => n.code === FACILITY_CODE);
   if (node === undefined) {
-    throw new Error(`貨主 ${OWNER_CODE} 沒有掛倉庫 ${NODE_CODE}——先跑 run.sh seed`);
+    throw new Error(`貨主 ${OWNER_CODE} 沒有掛倉庫 ${FACILITY_CODE}——先跑 run.sh seed`);
   }
 
-  return { ownerId: owner.ownerId, nodeId: node.nodeId, runId: Date.now().toString(36) };
+  return { ownerId: owner.ownerId, facilityId: node.facilityId, runId: Date.now().toString(36) };
 }
 
 export default function (data) {
@@ -92,7 +92,7 @@ export default function (data) {
     `${BASE_URL}/orders`,
     JSON.stringify({
       ownerId: data.ownerId,
-      fulfillmentNodeId: data.nodeId,
+      facilityId: data.facilityId,
       externalOrderNo: `PERF-${data.runId}-${__VU}`,
       shipToZone: '100',
       shipToAddress: '台北市中正區重慶南路一段 122 號',

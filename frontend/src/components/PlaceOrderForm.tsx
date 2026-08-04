@@ -41,7 +41,7 @@ interface DraftLine {
  */
 export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormProps) {
   const ownerId = useId();
-  const nodeId = useId();
+  const facilityId = useId();
   const externalOrderNoId = useId();
   const lineFieldId = useId();
   const zoneId = useId();
@@ -49,7 +49,7 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
   const promisedId = useId();
 
   const [selectedOwner, setSelectedOwner] = useState('');
-  const [selectedNode, setSelectedNode] = useState('');
+  const [selectedFacility, setSelectedFacility] = useState('');
   const [externalOrderNo, setExternalOrderNo] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine(0)]);
   const [nextKey, setNextKey] = useState(1);
@@ -58,12 +58,12 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
   const [promisedDeliveryDate, setPromisedDeliveryDate] = useState(defaultPromisedDate());
   const [invalidReason, setInvalidReason] = useState<string | null>(null);
 
-  const nodes = catalog.nodesOf(selectedOwner);
+  const facilities = catalog.facilitiesOf(selectedOwner);
   const products = catalog.productsOf(selectedOwner);
 
   function handleOwnerChange(value: string) {
     setSelectedOwner(value);
-    setSelectedNode('');
+    setSelectedFacility('');
     // 每一條行都清掉，不只第一條——留下任何一條都等於留著一個屬於別的貨主的商品。
     setLines([emptyLine(nextKey)]);
     setNextKey(nextKey + 1);
@@ -88,14 +88,14 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const reason = validate(selectedOwner, selectedNode, externalOrderNo, lines);
+    const reason = validate(selectedOwner, selectedFacility, externalOrderNo, lines);
     setInvalidReason(reason);
     if (reason !== null) {
       return;
     }
     onSubmit({
       ownerId: selectedOwner,
-      fulfillmentNodeId: selectedNode,
+      facilityId: selectedFacility,
       externalOrderNo: externalOrderNo.trim(),
       shipToZone: shipToZone.trim(),
       shipToAddress: shipToAddress.trim(),
@@ -127,18 +127,18 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label} htmlFor={nodeId}>出貨倉</label>
+        <label className={styles.label} htmlFor={facilityId}>出貨倉</label>
         <select
-          id={nodeId}
+          id={facilityId}
           className={styles.input}
-          value={selectedNode}
-          onChange={(event) => setSelectedNode(event.target.value)}
+          value={selectedFacility}
+          onChange={(event) => setSelectedFacility(event.target.value)}
           disabled={selectedOwner === ''}
         >
           <option value="">請選擇</option>
-          {nodes.map((node) => (
-            <option key={node.nodeId} value={node.nodeId}>
-              {node.name}（{node.code}）
+          {facilities.map((facility) => (
+            <option key={facility.facilityId} value={facility.facilityId}>
+              {facility.name}（{facility.code}）
             </option>
           ))}
         </select>
@@ -277,14 +277,14 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
  */
 function validate(
   ownerId: string,
-  nodeId: string,
+  facilityId: string,
   externalOrderNo: string,
   lines: DraftLine[],
 ): string | null {
   if (ownerId === '') {
     return '請選擇貨主';
   }
-  if (nodeId === '') {
+  if (facilityId === '') {
     return '請選擇出貨倉';
   }
   if (externalOrderNo.trim() === '') {

@@ -41,7 +41,7 @@ class StockPoolControllerTest {
   private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Taipei");
 
   private static final String QUERY =
-      "/stock-pool?ownerId=" + StockFixtures.OWNER_ID + "&nodeId=" + StockFixtures.NODE_ID;
+      "/stock-pool?ownerId=" + StockFixtures.OWNER_ID + "&facilityId=" + StockFixtures.FACILITY_ID;
 
   /**
    * 時刻取營運時區當天的零點。刻意不用 UTC 零點——那個瞬間在台北已經是早上八點，兩者剛好
@@ -162,20 +162,20 @@ class StockPoolControllerTest {
   @Test
   @DisplayName("沒帶 ownerId 時應回 400——SKU 代碼跨貨主撞號，只憑倉問不出答案")
   void shouldRejectAQueryWithoutAnOwner() {
-    assertThat(mvc.get().uri("/stock-pool?nodeId=" + StockFixtures.NODE_ID)).hasStatus(400);
+    assertThat(mvc.get().uri("/stock-pool?facilityId=" + StockFixtures.FACILITY_ID)).hasStatus(400);
   }
 
   @Test
-  @DisplayName("沒帶 nodeId 時應回 400——配貨不跨倉，跨倉的池沒有任何一次配貨取用得了")
+  @DisplayName("沒帶 facilityId 時應回 400——配貨不跨倉，跨倉的池沒有任何一次配貨取用得了")
   void shouldRejectAQueryWithoutAWarehouse() {
     assertThat(mvc.get().uri("/stock-pool?ownerId=" + StockFixtures.OWNER_ID)).hasStatus(400);
   }
 
   /** 倉 → 位置的解析。倉與位置刻意取不同的 UUID，拿錯就會 stub 不中而失敗。 */
   private void givenTheWarehouseResolvesToItsInternalLocation() {
-    when(stockLocationRepository.findInternalOf(StockFixtures.NODE_ID))
+    when(stockLocationRepository.findInternalOf(StockFixtures.FACILITY_ID))
         .thenReturn(java.util.Optional.of(new StockLocation(
-            StockFixtures.LOCATION_ID, StockFixtures.NODE_ID, "WH-TEST/Stock", "測試倉／庫存",
+            StockFixtures.LOCATION_ID, StockFixtures.FACILITY_ID, "WH-TEST/Stock", "測試倉／庫存",
             LocationUsage.INTERNAL)));
   }
 

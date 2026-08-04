@@ -14,8 +14,8 @@ import java.util.UUID;
 @Table(
     name = "stock_picking_types",
     uniqueConstraints = @UniqueConstraint(
-        name = "uq_stock_picking_types_warehouse_code",
-        columnNames = {"warehouse_id", "code"}
+        name = "uq_stock_picking_types_facility_code",
+        columnNames = {"facility_id", "code"}
     )
 )
 public class PickingTypeEntity {
@@ -23,8 +23,8 @@ public class PickingTypeEntity {
   @Id
   private UUID id;
 
-  @Column(name = "warehouse_id", nullable = false)
-  private UUID warehouseId;
+  @Column(name = "facility_id", nullable = false)
+  private UUID facilityId;
 
   /** 以名稱而非序數存，理由與 {@code StockLocationEntity.usage} 相同。 */
   @Enumerated(EnumType.STRING)
@@ -44,10 +44,10 @@ public class PickingTypeEntity {
   }
 
   public PickingTypeEntity(
-      UUID id, UUID warehouseId, PickingDirection code, String name,
+      UUID id, UUID facilityId, PickingDirection code, String name,
       UUID defaultFromLocationId, UUID defaultToLocationId) {
     this.id = id;
-    this.warehouseId = warehouseId;
+    this.facilityId = facilityId;
     this.code = code;
     this.name = name;
     this.defaultFromLocationId = defaultFromLocationId;
@@ -58,8 +58,8 @@ public class PickingTypeEntity {
     return id;
   }
 
-  public UUID getWarehouseId() {
-    return warehouseId;
+  public UUID getFacilityId() {
+    return facilityId;
   }
 
   public PickingDirection getCode() {

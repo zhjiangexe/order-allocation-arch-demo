@@ -27,7 +27,7 @@
 -- 不產生單號，picking 的 reference 存上游給的參照就夠。沒有讀者的欄位不建。
 CREATE TABLE stock_picking_types (
     id UUID PRIMARY KEY,
-    warehouse_id UUID NOT NULL,
+    facility_id UUID NOT NULL,
     -- 進、出、內部調撥。Odoo 另有製造與維修，那些來自別的模組。
     code VARCHAR(32) NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -36,9 +36,9 @@ CREATE TABLE stock_picking_types (
     default_from_location_id UUID NOT NULL,
     default_to_location_id UUID NOT NULL,
 
-    CONSTRAINT uq_stock_picking_types_warehouse_code UNIQUE (warehouse_id, code),
+    CONSTRAINT uq_stock_picking_types_warehouse_code UNIQUE (facility_id, code),
     CONSTRAINT fk_stock_picking_types_warehouse
-        FOREIGN KEY (warehouse_id) REFERENCES fulfillment_nodes(id),
+        FOREIGN KEY (facility_id) REFERENCES facilities(id),
     CONSTRAINT fk_stock_picking_types_from_location
         FOREIGN KEY (default_from_location_id) REFERENCES stock_locations(id),
     CONSTRAINT fk_stock_picking_types_to_location

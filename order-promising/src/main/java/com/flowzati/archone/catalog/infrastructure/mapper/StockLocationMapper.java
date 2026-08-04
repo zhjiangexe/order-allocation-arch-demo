@@ -11,7 +11,7 @@ public final class StockLocationMapper {
   public static StockLocationEntity toEntity(StockLocation location) {
     return new StockLocationEntity(
         location.getId(),
-        location.getWarehouseId(),
+        location.getFacilityId(),
         location.getCode(),
         location.getName(),
         location.getUsage());
@@ -20,7 +20,7 @@ public final class StockLocationMapper {
   public static StockLocation toDomain(StockLocationEntity entity) {
     return new StockLocation(
         entity.getId(),
-        entity.getWarehouseId(),
+        entity.getFacilityId(),
         entity.getCode(),
         entity.getName(),
         entity.getUsage());

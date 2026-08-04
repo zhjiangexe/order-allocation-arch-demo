@@ -62,8 +62,8 @@ class OrderingSchemaIntegrationTest {
               "ship_to_zone",
               "ship_to_address",
               "promised_delivery_date",
-              "fulfillment_node_id")
-          .doesNotContain("sku", "quantity", "requested_node_id");
+              "facility_id")
+          .doesNotContain("sku", "quantity", "requested_facility_id");
     }
 
     @Test
@@ -77,7 +77,7 @@ class OrderingSchemaIntegrationTest {
     void doesNotCreateLineLevelStatusOrTimestamps() {
       assertThat(columnNames("order_lines"))
           .contains("line_no", "owner_id", "sku_code", "quantity")
-          // assigned_node_id 已砍：一張單只從一個倉出、明細不可跨倉，它永遠等於 header。
+          // assigned_facility_id 已砍：一張單只從一個倉出、明細不可跨倉，它永遠等於 header。
           //
           // backordered_since 也砍了：它的存在理由是「單表 FIFO index」，而那個查詢從來就是
           // join、排序取自 header——欄位從未被讀到。佇列改以 order_id 排序後連理由的形狀
@@ -86,7 +86,7 @@ class OrderingSchemaIntegrationTest {
           // status 是最後被拿掉的一個。它的理由是「REST 逐行揭露，放寬多行之後不必改契約
           // 就能逐行顯示」——但 ship-complete 保證所有行同進同出，多行之後值仍然恆等於
           // header。契約照舊逐行揭露，改由 header 導出。
-          .doesNotContain("allocated_at", "assigned_node_id", "backordered_since", "status");
+          .doesNotContain("allocated_at", "assigned_facility_id", "backordered_since", "status");
     }
   }
 
@@ -236,10 +236,10 @@ class OrderingSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("倉別應以複合外鍵指向 owner_nodes——只擋倉不存在是不夠的")
-    void constrainsFulfillmentNodeByOwnerAssignment() {
+    @DisplayName("倉別應以複合外鍵指向 owner_facilities——只擋倉不存在是不夠的")
+    void constrainsFacilityByOwnerAssignment() {
       // 單欄 FK 只保證「倉存在」；複合 FK 才保證「這個貨主掛了這個倉」。
-      assertThat(foreignKeyColumns("orders")).contains("owner_id", "fulfillment_node_id");
+      assertThat(foreignKeyColumns("orders")).contains("owner_id", "facility_id");
       assertThat(jdbcTemplate.queryForObject("""
           SELECT count(*) FROM information_schema.table_constraints
           WHERE table_name = 'orders' AND constraint_name = 'fk_orders_owner_node'
@@ -251,14 +251,14 @@ class OrderingSchemaIntegrationTest {
     void rejectsWarehouseTheOwnerIsNotAssignedTo() {
       seedOwner(OWNER_ID, "OWNER-A");
       seedOwner(OTHER_OWNER_ID, "OWNER-B");
-      UUID nodeId = UUID.randomUUID();
+      UUID facilityId = UUID.randomUUID();
       jdbcTemplate.update(
-          "INSERT INTO fulfillment_nodes (id, code, name) VALUES (?, 'WH-X', '倉 X')", nodeId);
+          "INSERT INTO facilities (id, code, name) VALUES (?, 'WH-X', '倉 X')", facilityId);
       // 只指派給乙貨主
       jdbcTemplate.update(
-          "INSERT INTO owner_nodes (owner_id, node_id) VALUES (?, ?)", OTHER_OWNER_ID, nodeId);
+          "INSERT INTO owner_facilities (owner_id, facility_id) VALUES (?, ?)", OTHER_OWNER_ID, facilityId);
 
-      assertThatThrownBy(() -> insertOrder(UUID.randomUUID(), OWNER_ID, "EXT-1", nodeId))
+      assertThatThrownBy(() -> insertOrder(UUID.randomUUID(), OWNER_ID, "EXT-1", facilityId))
           .isInstanceOf(DataIntegrityViolationException.class)
           .rootCause()
           .hasMessageContaining("fk_orders_owner_node");
@@ -400,30 +400,30 @@ class OrderingSchemaIntegrationTest {
 
   /** 建一張單，順帶把它需要的倉庫與指派備齊——倉別必填且有複合外鍵，缺了寫不進去。 */
   private void seedOrder(UUID id, UUID ownerId, String externalOrderNo) {
-    UUID nodeId = defaultNodeFor(ownerId);
-    insertOrder(id, ownerId, externalOrderNo, nodeId);
+    UUID facilityId = defaultNodeFor(ownerId);
+    insertOrder(id, ownerId, externalOrderNo, facilityId);
   }
 
   private UUID defaultNodeFor(UUID ownerId) {
-    UUID nodeId = UUID.nameUUIDFromBytes(("node-" + ownerId).getBytes());
+    UUID facilityId = UUID.nameUUIDFromBytes(("node-" + ownerId).getBytes());
     jdbcTemplate.update("""
-        INSERT INTO fulfillment_nodes (id, code, name)
+        INSERT INTO facilities (id, code, name)
         VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING
-        """, nodeId, "WH-" + nodeId, "測試倉");
+        """, facilityId, "WH-" + facilityId, "測試倉");
     jdbcTemplate.update("""
-        INSERT INTO owner_nodes (owner_id, node_id)
+        INSERT INTO owner_facilities (owner_id, facility_id)
         VALUES (?, ?) ON CONFLICT DO NOTHING
-        """, ownerId, nodeId);
-    return nodeId;
+        """, ownerId, facilityId);
+    return facilityId;
   }
 
-  private void insertOrder(UUID id, UUID ownerId, String externalOrderNo, UUID nodeId) {
+  private void insertOrder(UUID id, UUID ownerId, String externalOrderNo, UUID facilityId) {
     jdbcTemplate.update("""
         INSERT INTO orders (
-            id, owner_id, external_order_no, fulfillment_node_id, ship_to_zone, ship_to_address,
+            id, owner_id, external_order_no, facility_id, ship_to_zone, ship_to_address,
             promised_delivery_date, status, received_at)
         VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', ?, 'PENDING', ?)
-        """, id, ownerId, externalOrderNo, nodeId,
+        """, id, ownerId, externalOrderNo, facilityId,
         Date.valueOf(LocalDate.of(2026, 8, 1)), Timestamp.from(RECEIVED_AT));
   }
 

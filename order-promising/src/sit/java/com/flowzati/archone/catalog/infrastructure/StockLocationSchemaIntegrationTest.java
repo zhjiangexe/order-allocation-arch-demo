@@ -54,7 +54,7 @@ class StockLocationSchemaIntegrationTest {
       assertThat(tableNames()).contains("stock_locations");
 
       assertThat(columnNames("stock_locations"))
-          .contains("id", "warehouse_id", "code", "name", "usage");
+          .contains("id", "facility_id", "code", "name", "usage");
     }
 
     @Test
@@ -147,7 +147,7 @@ class StockLocationSchemaIntegrationTest {
     @Test
     @DisplayName("多個虛擬位置不受一倉一位置的限制")
     void allowsSeveralVirtualLocations() {
-      // partial unique index 以 warehouse_id 為鍵，虛擬位置的該欄為 NULL——若沒有加上
+      // partial unique index 以 facility_id 為鍵，虛擬位置的該欄為 NULL——若沒有加上
       // WHERE usage = 'internal'，三個虛擬位置在 PostgreSQL 下仍會各自成立（NULL 互不相同），
       // 這條測試守的是「加了那個 WHERE」這件事不被順手拿掉。
       insertLocation(uuid(60), null, "Vendors", "SUPPLIER");
@@ -183,13 +183,13 @@ class StockLocationSchemaIntegrationTest {
 
   private void insertWarehouse(UUID id, String code) {
     jdbcTemplate.update(
-        "INSERT INTO fulfillment_nodes (id, code, name) VALUES (?, ?, ?)", id, code, code);
+        "INSERT INTO facilities (id, code, name) VALUES (?, ?, ?)", id, code, code);
   }
 
-  private void insertLocation(UUID id, UUID warehouseId, String code, String usage) {
+  private void insertLocation(UUID id, UUID facilityId, String code, String usage) {
     jdbcTemplate.update(
-        "INSERT INTO stock_locations (id, warehouse_id, code, name, usage) VALUES (?, ?, ?, ?, ?)",
-        id, warehouseId, code, code, usage);
+        "INSERT INTO stock_locations (id, facility_id, code, name, usage) VALUES (?, ?, ?, ?, ?)",
+        id, facilityId, code, code, usage);
   }
 
   private int usageCount() {

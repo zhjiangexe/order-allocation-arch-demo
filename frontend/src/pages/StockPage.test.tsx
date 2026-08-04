@@ -10,7 +10,7 @@ const OWNER = {
   code: 'OWNER-A',
   name: '甲貨主',
 };
-const NODE = { nodeId: '00000000-0000-0000-0000-000000000011', code: 'WH-NORTH', name: '北部倉' };
+const NODE = { facilityId: '00000000-0000-0000-0000-000000000011', code: 'WH-NORTH', name: '北部倉' };
 
 /**
  * 守著「送出補貨之後不自動重查」。
@@ -25,7 +25,7 @@ const NODE = { nodeId: '00000000-0000-0000-0000-000000000011', code: 'WH-NORTH',
 describe('StockPage 的請求時機', () => {
   beforeEach(() => {
     vi.spyOn(client, 'listOwners').mockResolvedValue([OWNER]);
-    vi.spyOn(client, 'listNodes').mockResolvedValue([NODE]);
+    vi.spyOn(client, 'listFacilities').mockResolvedValue([NODE]);
     vi.spyOn(client, 'listProducts').mockResolvedValue([
       {
         productId: 'p-tea',
@@ -70,12 +70,12 @@ describe('StockPage 的請求時機', () => {
     await waitFor(() => expect(client.listOwners).toHaveBeenCalled());
 
     await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('倉別'), NODE.nodeId);
+    await user.selectOptions(screen.getByLabelText('倉別'), NODE.facilityId);
     await user.click(screen.getByRole('button', { name: '查詢庫存' }));
 
     expect(client.getStockInWarehouse).toHaveBeenCalledExactlyOnceWith(
       OWNER.ownerId,
-      NODE.nodeId,
+      NODE.facilityId,
     );
   });
 
@@ -85,7 +85,7 @@ describe('StockPage 的請求時機', () => {
     await waitFor(() => expect(client.listOwners).toHaveBeenCalled());
 
     await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('倉別'), NODE.nodeId);
+    await user.selectOptions(screen.getByLabelText('倉別'), NODE.facilityId);
     await user.click(screen.getByRole('button', { name: '查詢庫存' }));
     await screen.findByRole('button', { name: '補貨' });
     expect(client.getStockInWarehouse).toHaveBeenCalledTimes(1);

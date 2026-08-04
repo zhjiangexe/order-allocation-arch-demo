@@ -14,12 +14,12 @@ import com.flowzati.archone.catalog.domain.model.Sku;
 import com.flowzati.archone.catalog.domain.model.TemperatureZone;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.catalog.domain.repository.ProductRepository;
-import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
+import com.flowzati.archone.catalog.domain.model.Facility;
 import com.flowzati.archone.catalog.domain.model.LocationUsage;
 import com.flowzati.archone.catalog.domain.model.PickingDirection;
 import com.flowzati.archone.catalog.domain.model.PickingType;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
-import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
+import com.flowzati.archone.catalog.domain.repository.FacilityRepository;
 import com.flowzati.archone.catalog.domain.repository.PickingTypeRepository;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;
@@ -78,11 +78,11 @@ public class DevSeedDataInitializer implements ApplicationRunner {
    * 第三件是 3PL 的定義性特徵——少了它，一個「以倉庫而非指派關係做過濾」的錯誤實作會安靜
    * 通過，因為每個倉剛好只屬於一個貨主時兩種寫法結果相同。
    */
-  public static final UUID NORTH_NODE_ID =
+  public static final UUID NORTH_FACILITY_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000011");
-  public static final UUID CENTRAL_NODE_ID =
+  public static final UUID CENTRAL_FACILITY_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000012");
-  public static final UUID SOUTH_NODE_ID =
+  public static final UUID SOUTH_FACILITY_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000013");
 
   /**
@@ -194,7 +194,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final OwnerRepository ownerRepository;
   private final ProductRepository productRepository;
   private final SkuRepository skuRepository;
-  private final FulfillmentNodeRepository fulfillmentNodeRepository;
+  private final FacilityRepository facilityRepository;
   private final StockLocationRepository stockLocationRepository;
   private final StockPoolRepository stockPoolRepository;
   private final OrderRepository orderRepository;
@@ -207,7 +207,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       OwnerRepository ownerRepository,
       ProductRepository productRepository,
       SkuRepository skuRepository,
-      FulfillmentNodeRepository fulfillmentNodeRepository,
+      FacilityRepository facilityRepository,
       StockLocationRepository stockLocationRepository,
       StockPoolRepository stockPoolRepository,
       OrderRepository orderRepository,
@@ -219,7 +219,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     this.ownerRepository = ownerRepository;
     this.productRepository = productRepository;
     this.skuRepository = skuRepository;
-    this.fulfillmentNodeRepository = fulfillmentNodeRepository;
+    this.facilityRepository = facilityRepository;
     this.stockLocationRepository = stockLocationRepository;
     this.stockPoolRepository = stockPoolRepository;
     this.orderRepository = orderRepository;
@@ -233,7 +233,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   @Transactional
   public void run(ApplicationArguments args) {
     seedCatalog();
-    seedNodes();
+    seedFacilities();
     seedStockPools();
     seedOrders();
   }
@@ -268,20 +268,20 @@ public class DevSeedDataInitializer implements ApplicationRunner {
 
   /**
    * 倉庫與指派。倉庫必須先於訂單建立：{@code orders} 的
-   * {@code (owner_id, fulfillment_node_id)} 有複合外鍵指向 {@code owner_nodes}。
+   * {@code (owner_id, facility_id)} 有複合外鍵指向 {@code owner_facilities}。
    */
-  private void seedNodes() {
-    if (fulfillmentNodeRepository.findById(NORTH_NODE_ID).isPresent()) {
+  private void seedFacilities() {
+    if (facilityRepository.findById(NORTH_FACILITY_ID).isPresent()) {
       return;
     }
-    fulfillmentNodeRepository.save(new FulfillmentNode(NORTH_NODE_ID, "WH-NORTH", "北部倉"));
-    fulfillmentNodeRepository.save(new FulfillmentNode(CENTRAL_NODE_ID, "WH-CENTRAL", "中部倉"));
-    fulfillmentNodeRepository.save(new FulfillmentNode(SOUTH_NODE_ID, "WH-SOUTH", "南部倉"));
+    facilityRepository.save(new Facility(NORTH_FACILITY_ID, "WH-NORTH", "北部倉"));
+    facilityRepository.save(new Facility(CENTRAL_FACILITY_ID, "WH-CENTRAL", "中部倉"));
+    facilityRepository.save(new Facility(SOUTH_FACILITY_ID, "WH-SOUTH", "南部倉"));
 
-    fulfillmentNodeRepository.assign(FIRST_OWNER_ID, NORTH_NODE_ID);
-    fulfillmentNodeRepository.assign(FIRST_OWNER_ID, CENTRAL_NODE_ID);
-    fulfillmentNodeRepository.assign(SECOND_OWNER_ID, CENTRAL_NODE_ID);
-    fulfillmentNodeRepository.assign(SECOND_OWNER_ID, SOUTH_NODE_ID);
+    facilityRepository.assign(FIRST_OWNER_ID, NORTH_FACILITY_ID);
+    facilityRepository.assign(FIRST_OWNER_ID, CENTRAL_FACILITY_ID);
+    facilityRepository.assign(SECOND_OWNER_ID, CENTRAL_FACILITY_ID);
+    facilityRepository.assign(SECOND_OWNER_ID, SOUTH_FACILITY_ID);
 
     seedLocations();
     seedPickingTypes();
@@ -296,24 +296,24 @@ public class DevSeedDataInitializer implements ApplicationRunner {
    * 而作業類型的每一筆都要有東西去用它。
    */
   private void seedPickingTypes() {
-    outboundType(NORTH_OUTBOUND_TYPE_ID, NORTH_NODE_ID, NORTH_STOCK_LOCATION_ID, "北部倉出貨");
-    outboundType(CENTRAL_OUTBOUND_TYPE_ID, CENTRAL_NODE_ID, CENTRAL_STOCK_LOCATION_ID, "中部倉出貨");
-    outboundType(SOUTH_OUTBOUND_TYPE_ID, SOUTH_NODE_ID, SOUTH_STOCK_LOCATION_ID, "南部倉出貨");
+    outboundType(NORTH_OUTBOUND_TYPE_ID, NORTH_FACILITY_ID, NORTH_STOCK_LOCATION_ID, "北部倉出貨");
+    outboundType(CENTRAL_OUTBOUND_TYPE_ID, CENTRAL_FACILITY_ID, CENTRAL_STOCK_LOCATION_ID, "中部倉出貨");
+    outboundType(SOUTH_OUTBOUND_TYPE_ID, SOUTH_FACILITY_ID, SOUTH_STOCK_LOCATION_ID, "南部倉出貨");
 
-    inboundType(NORTH_INBOUND_TYPE_ID, NORTH_NODE_ID, NORTH_STOCK_LOCATION_ID, "北部倉收貨");
-    inboundType(CENTRAL_INBOUND_TYPE_ID, CENTRAL_NODE_ID, CENTRAL_STOCK_LOCATION_ID, "中部倉收貨");
-    inboundType(SOUTH_INBOUND_TYPE_ID, SOUTH_NODE_ID, SOUTH_STOCK_LOCATION_ID, "南部倉收貨");
+    inboundType(NORTH_INBOUND_TYPE_ID, NORTH_FACILITY_ID, NORTH_STOCK_LOCATION_ID, "北部倉收貨");
+    inboundType(CENTRAL_INBOUND_TYPE_ID, CENTRAL_FACILITY_ID, CENTRAL_STOCK_LOCATION_ID, "中部倉收貨");
+    inboundType(SOUTH_INBOUND_TYPE_ID, SOUTH_FACILITY_ID, SOUTH_STOCK_LOCATION_ID, "南部倉收貨");
   }
 
-  private void outboundType(UUID id, UUID nodeId, UUID stockLocationId, String name) {
+  private void outboundType(UUID id, UUID facilityId, UUID stockLocationId, String name) {
     pickingTypeRepository.save(new PickingType(
-        id, nodeId, PickingDirection.OUTBOUND, name, stockLocationId, CUSTOMERS_LOCATION_ID));
+        id, facilityId, PickingDirection.OUTBOUND, name, stockLocationId, CUSTOMERS_LOCATION_ID));
   }
 
   /** 入庫的方向與出庫相反：供應商 → 該倉的庫存位置。 */
-  private void inboundType(UUID id, UUID nodeId, UUID stockLocationId, String name) {
+  private void inboundType(UUID id, UUID facilityId, UUID stockLocationId, String name) {
     pickingTypeRepository.save(new PickingType(
-        id, nodeId, PickingDirection.INBOUND, name, VENDORS_LOCATION_ID, stockLocationId));
+        id, facilityId, PickingDirection.INBOUND, name, VENDORS_LOCATION_ID, stockLocationId));
   }
 
   /**
@@ -329,11 +329,11 @@ public class DevSeedDataInitializer implements ApplicationRunner {
    */
   private void seedLocations() {
     stockLocationRepository.save(
-        StockLocation.internal(NORTH_STOCK_LOCATION_ID, NORTH_NODE_ID, "WH-NORTH/Stock", "北部倉／庫存"));
+        StockLocation.internal(NORTH_STOCK_LOCATION_ID, NORTH_FACILITY_ID, "WH-NORTH/Stock", "北部倉／庫存"));
     stockLocationRepository.save(
-        StockLocation.internal(CENTRAL_STOCK_LOCATION_ID, CENTRAL_NODE_ID, "WH-CENTRAL/Stock", "中部倉／庫存"));
+        StockLocation.internal(CENTRAL_STOCK_LOCATION_ID, CENTRAL_FACILITY_ID, "WH-CENTRAL/Stock", "中部倉／庫存"));
     stockLocationRepository.save(
-        StockLocation.internal(SOUTH_STOCK_LOCATION_ID, SOUTH_NODE_ID, "WH-SOUTH/Stock", "南部倉／庫存"));
+        StockLocation.internal(SOUTH_STOCK_LOCATION_ID, SOUTH_FACILITY_ID, "WH-SOUTH/Stock", "南部倉／庫存"));
 
     stockLocationRepository.save(
         StockLocation.virtual(VENDORS_LOCATION_ID, "Vendors", "供應商", LocationUsage.SUPPLIER));
@@ -383,7 +383,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         PARTIALLY_RESERVED_ORDER_ID,
         PARTIALLY_RESERVED_LINE_ID,
         FIRST_OWNER_ID,
-        NORTH_NODE_ID,
+        NORTH_FACILITY_ID,
         "SEED-A-0001",
         PARTIALLY_RESERVED_SKU,
         5));
@@ -401,7 +401,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         SPANNING_ORDER_ID,
         SPANNING_LINE_ID,
         FIRST_OWNER_ID,
-        NORTH_NODE_ID,
+        NORTH_FACILITY_ID,
         "SEED-A-0002",
         AVAILABLE_SKU,
         80));
@@ -432,7 +432,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         BACKORDERED_ORDER_ID,
         BACKORDERED_LINE_ID,
         SECOND_OWNER_ID,
-        SOUTH_NODE_ID,
+        SOUTH_FACILITY_ID,
         "SEED-B-0001",
         EMPTY_SKU,
         2));
@@ -449,7 +449,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     orderRepository.save(backorderedBasket(
         BASKET_ORDER_ID,
         SECOND_OWNER_ID,
-        SOUTH_NODE_ID,
+        SOUTH_FACILITY_ID,
         "SEED-B-0002",
         List.of(
             OrderLine.create(BASKET_PLENTIFUL_LINE_ID, 1, SECOND_OWNER_ID, AVAILABLE_SKU, 5),
@@ -471,28 +471,28 @@ public class DevSeedDataInitializer implements ApplicationRunner {
    * 「上游沒送時顯示為空」這件事只有在畫面上真的有一列是空的時候才驗得到。
    */
   private Order allocatedOrder(
-      UUID orderId, UUID lineId, UUID ownerId, UUID nodeId, String externalOrderNo,
+      UUID orderId, UUID lineId, UUID ownerId, UUID facilityId, String externalOrderNo,
       String skuCode, int quantity) {
-    return order(orderId, lineId, ownerId, nodeId, externalOrderNo, skuCode, quantity,
+    return order(orderId, lineId, ownerId, facilityId, externalOrderNo, skuCode, quantity,
         OrderStatus.ALLOCATED, UPSTREAM_PLACED_AT, PARTIALLY_RESERVED_AT, null);
   }
 
   /** 缺貨排隊中的單，**不帶上游的下單時刻**——上游沒有義務送這個值。 */
   private Order backorderedOrder(
-      UUID orderId, UUID lineId, UUID ownerId, UUID nodeId, String externalOrderNo,
+      UUID orderId, UUID lineId, UUID ownerId, UUID facilityId, String externalOrderNo,
       String skuCode, int quantity) {
-    return order(orderId, lineId, ownerId, nodeId, externalOrderNo, skuCode, quantity,
+    return order(orderId, lineId, ownerId, facilityId, externalOrderNo, skuCode, quantity,
         OrderStatus.BACKORDERED, null, null, BACKORDERED_SINCE);
   }
 
   /** 缺貨排隊中的多行單。行由呼叫端給定——這種單存在的理由就是它那幾條行的組合。 */
   private Order backorderedBasket(
-      UUID orderId, UUID ownerId, UUID nodeId, String externalOrderNo, List<OrderLine> lines) {
+      UUID orderId, UUID ownerId, UUID facilityId, String externalOrderNo, List<OrderLine> lines) {
     return Order.rehydrate(
         orderId,
         ownerId,
         externalOrderNo,
-        deliveryTerms(nodeId),
+        deliveryTerms(facilityId),
         lines,
         OrderStatus.BACKORDERED,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
@@ -503,9 +503,9 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         null);
   }
 
-  private static DeliveryTerms deliveryTerms(UUID nodeId) {
+  private static DeliveryTerms deliveryTerms(UUID facilityId) {
     return new DeliveryTerms(
-        nodeId, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5));
+        facilityId, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5));
   }
 
   /**
@@ -516,7 +516,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID orderId,
       UUID lineId,
       UUID ownerId,
-      UUID nodeId,
+      UUID facilityId,
       String externalOrderNo,
       String skuCode,
       int quantity,
@@ -529,7 +529,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         orderId,
         ownerId,
         externalOrderNo,
-        deliveryTerms(nodeId),
+        deliveryTerms(facilityId),
         List.of(OrderLine.create(lineId, 1, ownerId, skuCode, quantity)),
         status,
         PARTIALLY_RESERVED_AT.minusSeconds(1),

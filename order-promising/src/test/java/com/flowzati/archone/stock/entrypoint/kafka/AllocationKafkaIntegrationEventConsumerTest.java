@@ -98,13 +98,13 @@ class AllocationKafkaIntegrationEventConsumerTest {
   @DisplayName("收到補貨整合事件時應轉為補貨命令")
   void shouldMapStockReplenishedEventToInboundReplenishCommand() throws Exception {
     UUID eventId = UUID.randomUUID();
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
 
     // 事件說倉，命令說位置——翻譯是 entrypoint 的職責，這裡是它唯一的依據。
-    when(stockLocationRepository.findInternalOf(com.flowzati.archone.testsupport.OrderFixtures.NODE_ID))
+    when(stockLocationRepository.findInternalOf(com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID))
         .thenReturn(java.util.Optional.of(new StockLocation(
             com.flowzati.archone.testsupport.OrderFixtures.LOCATION_ID,
-            com.flowzati.archone.testsupport.OrderFixtures.NODE_ID,
+            com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID,
             "WH-TEST/Stock", "測試倉／庫存", LocationUsage.INTERNAL)));
 
     consumer.consumeInventoryEvent(record(
@@ -116,8 +116,8 @@ class AllocationKafkaIntegrationEventConsumerTest {
     assertThat(inbound.getValue().command().quantity()).isEqualTo(8);
     assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
     // 倉原樣帶著（續做事件對外要說倉），位置是解析出來的
-    assertThat(inbound.getValue().command().nodeId())
-        .isEqualTo(com.flowzati.archone.testsupport.OrderFixtures.NODE_ID);
+    assertThat(inbound.getValue().command().facilityId())
+        .isEqualTo(com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID);
     assertThat(inbound.getValue().command().locationId())
         .isEqualTo(com.flowzati.archone.testsupport.OrderFixtures.LOCATION_ID);
   }
@@ -141,7 +141,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   @Test
   @DisplayName("ordering topic 收到不支援事件時應拒絕")
   void shouldRejectEventNotHandledByOrderingTopic() throws Exception {
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
+    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
 
     assertThatThrownBy(() -> consumer.consumeOrderingEvent(record(
         InventoryEventTopics.STOCK_EVENTS,

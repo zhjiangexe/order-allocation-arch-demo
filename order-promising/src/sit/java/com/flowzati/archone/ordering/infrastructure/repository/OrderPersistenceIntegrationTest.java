@@ -276,7 +276,7 @@ class OrderPersistenceIntegrationTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         LocalDate.of(2026, 8, 1),
-        OrderFixtures.NODE_ID,
+        OrderFixtures.FACILITY_ID,
         List.of(new OrderLineEntity(
             UUID.randomUUID(), 1, ownerId, sku, 1)),
         status,

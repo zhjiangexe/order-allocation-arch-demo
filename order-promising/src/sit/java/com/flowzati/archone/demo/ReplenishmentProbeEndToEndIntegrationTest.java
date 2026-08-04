@@ -116,14 +116,14 @@ class ReplenishmentProbeEndToEndIntegrationTest {
               .POST(HttpRequest.BodyPublishers.ofString("""
                   {
                     "ownerId": "%s",
-                    "nodeId": "%s",
+                    "facilityId": "%s",
                     "sku": "%s",
                     "inDate": "%s",
                     "expiryDate": "%s",
                     "quantity": %d
                   }
                   """.formatted(
-                      OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, SKU,
+                      OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, SKU,
                       StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity)))
               .build(),
           HttpResponse.BodyHandlers.ofString());

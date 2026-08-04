@@ -224,7 +224,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     for (int i = 0; i < WAKE_LIMIT; i++) {
       UUID orderId = IdGenerator.nextId();
       MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, OrderFixtures.backorderedOrderAt(
-          OrderFixtures.OTHER_NODE_ID, orderId, OrderFixtures.OWNER_ID, FIFO_SKU, 1,
+          OrderFixtures.OTHER_FACILITY_ID, orderId, OrderFixtures.OWNER_ID, FIFO_SKU, 1,
           Instant.now().minusSeconds(7200), Instant.now().minusSeconds(7200)));
       otherWarehouseOrders.add(orderId);
     }
@@ -355,7 +355,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
 
   private StockReplenishedIntegrationEvent replenish(int quantity) {
     return new StockReplenishedIntegrationEvent(
-        UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID, FIFO_SKU,
+        UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, FIFO_SKU,
         StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity);
   }
 

@@ -130,7 +130,7 @@ class MovementRecorderTest {
     Demand demand = demand("SKU-1", 5);
     given(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
         .willReturn(Optional.of(MovementFixtures.internalLocation()));
-    given(pickingTypeRepository.find(StockFixtures.NODE_ID, PickingDirection.OUTBOUND))
+    given(pickingTypeRepository.find(StockFixtures.FACILITY_ID, PickingDirection.OUTBOUND))
         .willReturn(Optional.empty());
 
     // 「收下卻不記」會讓這張單的需求消失得無聲無息：它不會出現在任何佇列裡，因為佇列只
@@ -202,7 +202,7 @@ class MovementRecorderTest {
   void shouldFailWhenTheWarehouseHasNoInboundOperationType() {
     given(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
         .willReturn(Optional.of(MovementFixtures.internalLocation()));
-    given(pickingTypeRepository.find(StockFixtures.NODE_ID, PickingDirection.INBOUND))
+    given(pickingTypeRepository.find(StockFixtures.FACILITY_ID, PickingDirection.INBOUND))
         .willReturn(Optional.empty());
 
     assertThatThrownBy(() -> recorder.recordInbound(
@@ -216,7 +216,7 @@ class MovementRecorderTest {
   private void givenAnInboundOperationType() {
     given(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
         .willReturn(Optional.of(MovementFixtures.internalLocation()));
-    given(pickingTypeRepository.find(StockFixtures.NODE_ID, PickingDirection.INBOUND))
+    given(pickingTypeRepository.find(StockFixtures.FACILITY_ID, PickingDirection.INBOUND))
         .willReturn(Optional.of(MovementFixtures.inboundType()));
     given(stockMoveRepository.saveAll(org.mockito.ArgumentMatchers.any()))
         .willAnswer(invocation -> List.copyOf(invocation.getArgument(0, Collection.class)));
@@ -225,7 +225,7 @@ class MovementRecorderTest {
   private void givenAnOutboundOperationType() {
     given(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
         .willReturn(Optional.of(MovementFixtures.internalLocation()));
-    given(pickingTypeRepository.find(StockFixtures.NODE_ID, PickingDirection.OUTBOUND))
+    given(pickingTypeRepository.find(StockFixtures.FACILITY_ID, PickingDirection.OUTBOUND))
         .willReturn(Optional.of(MovementFixtures.outboundType()));
     // 寫入後回傳的就是寫進去的那些。真實的持久層會多帶一個版號，而「回傳的是寫入後的樣子」
     // 這條性質由 StockMovementPersistence 的整合測試守著——這裡只需要它不吞掉輸入。

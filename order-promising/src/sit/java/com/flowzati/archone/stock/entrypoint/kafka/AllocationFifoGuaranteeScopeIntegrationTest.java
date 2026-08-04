@@ -152,7 +152,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
   private StockReplenishedIntegrationEvent replenishment(int quantity) {
     return new StockReplenishedIntegrationEvent(
-            UUID.randomUUID(), OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, SKU,
+            UUID.randomUUID(), OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, SKU,
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity);
   }
 

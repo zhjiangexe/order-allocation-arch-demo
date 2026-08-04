@@ -71,7 +71,7 @@ public class ReplenishmentProbeController {
     StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(
         IdGenerator.nextId(),
         request.ownerId(),
-        request.nodeId(),
+        request.facilityId(),
         request.sku(),
         request.inDate(),
         request.expiryDate(),
@@ -103,7 +103,7 @@ public class ReplenishmentProbeController {
    * 話補貨與下單會落在不同 partition，兩者對同一列庫存的寫入就不再被序列化。
    */
   private ProducerRecord<String, String> record(StockReplenishedIntegrationEvent event) {
-    String key = StockContentionKey.of(event.getOwnerId(), event.getNodeId());
+    String key = StockContentionKey.of(event.getOwnerId(), event.getFacilityId());
     ProducerRecord<String, String> record =
         new ProducerRecord<>(InventoryEventTopics.STOCK_EVENTS, key, serialize(event));
     record.headers().add("id", bytes(event.getEventId().toString()));
@@ -131,7 +131,7 @@ public class ReplenishmentProbeController {
    */
   public record ReplenishStockRequest(
       UUID ownerId,
-      UUID nodeId,
+      UUID facilityId,
       String sku,
       LocalDate inDate,
       LocalDate expiryDate,

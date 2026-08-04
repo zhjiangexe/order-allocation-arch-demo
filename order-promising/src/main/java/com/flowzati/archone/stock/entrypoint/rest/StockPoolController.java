@@ -35,7 +35,7 @@ public class StockPoolController {
    * 這個貨主在這個倉手上的全部批，依 SKU 分組。
    *
    * <p>兩個參數都是必要的，而且都不是選用篩選。少了 {@code ownerId}，回應會把兩個貨主的貨
-   * 混在一起——SKU 代碼由貨主自訂、跨貨主撞號。少了 {@code nodeId}，回的是一個沒有任何一次
+   * 混在一起——SKU 代碼由貨主自訂、跨貨主撞號。少了 {@code facilityId}，回的是一個沒有任何一次
    * 配貨能整批取用的池：配貨從不跨倉，每一次都鎖在一個倉裡。
    *
    * <p><b>一批都沒有時回 200 與空清單，不是 404。</b>「這個倉什麼都沒放」是正常答案，不是
@@ -44,23 +44,23 @@ public class StockPoolController {
   @GetMapping
   public StockPoolResponse getStockInWarehouse(
       @RequestParam UUID ownerId,
-      @RequestParam UUID nodeId
+      @RequestParam UUID facilityId
   ) {
     return StockPoolResponse.from(
-        getStockPoolUsecase.getBatchesInLocation(ownerId, internalLocationOf(nodeId)),
+        getStockPoolUsecase.getBatchesInLocation(ownerId, internalLocationOf(facilityId)),
         appClock.today());
   }
 
   /**
-   * 倉 → 該倉的內部位置。查詢參數維持 {@code nodeId}——操作台問的是「這個倉放了什麼」，
+   * 倉 → 該倉的內部位置。查詢參數維持 {@code facilityId}——操作台問的是「這個倉放了什麼」，
    * 它不需要認識倉裡的位置編排。
    *
    * <p>倉沒有內部位置時回一個不存在的位置 id，讓查詢自然回空。這與「倉存在但什麼都沒放」
    * 的結果相同，而那本來就是正常答案（見 usecase 的 javadoc）——為了區分兩者而回 404，
    * 會讓一個新倉剛上線時的畫面看起來像壞掉。
    */
-  private UUID internalLocationOf(UUID nodeId) {
-    return stockLocationRepository.findInternalOf(nodeId)
+  private UUID internalLocationOf(UUID facilityId) {
+    return stockLocationRepository.findInternalOf(facilityId)
         .map(StockLocation::getId)
         .orElse(new UUID(0L, 0L));
   }

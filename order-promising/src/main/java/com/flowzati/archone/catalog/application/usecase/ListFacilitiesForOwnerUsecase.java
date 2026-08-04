@@ -1,18 +1,18 @@
 package com.flowzati.archone.catalog.application.usecase;
 
-import com.flowzati.archone.catalog.domain.model.FulfillmentNode;
-import com.flowzati.archone.catalog.domain.repository.FulfillmentNodeRepository;
+import com.flowzati.archone.catalog.domain.model.Facility;
+import com.flowzati.archone.catalog.domain.repository.FacilityRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 @Service
-public class ListNodesForOwnerUsecase {
+public class ListFacilitiesForOwnerUsecase {
 
-  private final FulfillmentNodeRepository fulfillmentNodeRepository;
+  private final FacilityRepository facilityRepository;
 
-  public ListNodesForOwnerUsecase(FulfillmentNodeRepository fulfillmentNodeRepository) {
-    this.fulfillmentNodeRepository = fulfillmentNodeRepository;
+  public ListFacilitiesForOwnerUsecase(FacilityRepository facilityRepository) {
+    this.facilityRepository = facilityRepository;
   }
 
   /**
@@ -22,7 +22,7 @@ public class ListNodesForOwnerUsecase {
    * 的倉庫清單會誘使呼叫端提供該貨主出不了貨的倉，而那種訂單會被資料庫的複合外鍵擋下，
    * 換來一次沒有必要的往返。
    */
-  public List<FulfillmentNode> listByOwner(UUID ownerId) {
-    return fulfillmentNodeRepository.findByOwner(ownerId);
+  public List<Facility> listByOwner(UUID ownerId) {
+    return facilityRepository.findByOwner(ownerId);
   }
 }

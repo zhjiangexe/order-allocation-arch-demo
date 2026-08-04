@@ -41,7 +41,7 @@ public class OrderingDomainEventTranslator {
     OrderPlacedIntegrationEvent integration =
         new OrderPlacedIntegrationEvent(IdGenerator.nextId(), event.orderId(), event.receivedAt());
     String partitionKey =
-        partitionKey(event.orderId(), event.ownerId(), event.fulfillmentNodeId());
+        partitionKey(event.orderId(), event.ownerId(), event.facilityId());
     outboxAppender.append(
         integration,
         OutboxAggregateTypes.ORDER,
@@ -56,7 +56,7 @@ public class OrderingDomainEventTranslator {
     OrderCancelledIntegrationEvent integration =
         new OrderCancelledIntegrationEvent(IdGenerator.nextId(), event.orderId(), event.cancelledAt());
     String partitionKey =
-        partitionKey(event.orderId(), event.ownerId(), event.fulfillmentNodeId());
+        partitionKey(event.orderId(), event.ownerId(), event.facilityId());
     outboxAppender.append(
         integration,
         OutboxAggregateTypes.ORDER,
@@ -93,9 +93,9 @@ public class OrderingDomainEventTranslator {
    *
    * <p>代價與量測見 {@link StockContentionKey}。
    */
-  private String partitionKey(UUID orderId, UUID ownerId, UUID nodeId) {
+  private String partitionKey(UUID orderId, UUID ownerId, UUID facilityId) {
     return STOCK_STRATEGY.equals(partitionKeyStrategy)
-        ? StockContentionKey.of(ownerId, nodeId)
+        ? StockContentionKey.of(ownerId, facilityId)
         : orderId.toString();
   }
 }

@@ -10,13 +10,13 @@ public final class PickingTypeMapper {
 
   public static PickingTypeEntity toEntity(PickingType type) {
     return new PickingTypeEntity(
-        type.id(), type.warehouseId(), type.code(), type.name(),
+        type.id(), type.facilityId(), type.code(), type.name(),
         type.defaultFromLocationId(), type.defaultToLocationId());
   }
 
   public static PickingType toDomain(PickingTypeEntity entity) {
     return new PickingType(
-        entity.getId(), entity.getWarehouseId(), entity.getCode(), entity.getName(),
+        entity.getId(), entity.getFacilityId(), entity.getCode(), entity.getName(),
         entity.getDefaultFromLocationId(), entity.getDefaultToLocationId());
   }
 }

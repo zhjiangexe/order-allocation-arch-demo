@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.entrypoint.rest;
 
-import com.flowzati.archone.catalog.application.usecase.ListNodesForOwnerUsecase;
+import com.flowzati.archone.catalog.application.usecase.ListFacilitiesForOwnerUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListOwnersUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListProductsUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListSkusUsecase;
@@ -28,18 +28,18 @@ public class CatalogController {
   private final ListOwnersUsecase listOwnersUsecase;
   private final ListProductsUsecase listProductsUsecase;
   private final ListSkusUsecase listSkusUsecase;
-  private final ListNodesForOwnerUsecase listNodesForOwnerUsecase;
+  private final ListFacilitiesForOwnerUsecase listFacilitiesForOwnerUsecase;
 
   public CatalogController(
       ListOwnersUsecase listOwnersUsecase,
       ListProductsUsecase listProductsUsecase,
       ListSkusUsecase listSkusUsecase,
-      ListNodesForOwnerUsecase listNodesForOwnerUsecase
+      ListFacilitiesForOwnerUsecase listFacilitiesForOwnerUsecase
   ) {
     this.listOwnersUsecase = listOwnersUsecase;
     this.listProductsUsecase = listProductsUsecase;
     this.listSkusUsecase = listSkusUsecase;
-    this.listNodesForOwnerUsecase = listNodesForOwnerUsecase;
+    this.listFacilitiesForOwnerUsecase = listFacilitiesForOwnerUsecase;
   }
 
   @GetMapping
@@ -62,10 +62,10 @@ public class CatalogController {
    * 撞號，這裡的前提是**指派關係**：沒有指派就不能從那個倉出貨。扁平的倉庫清單會誘使呼叫端
    * 提供該貨主出不了貨的倉。
    */
-  @GetMapping("/{ownerId}/nodes")
-  public List<FulfillmentNodeResponse> listNodes(@PathVariable UUID ownerId) {
-    return listNodesForOwnerUsecase.listByOwner(ownerId).stream()
-        .map(FulfillmentNodeResponse::from)
+  @GetMapping("/{ownerId}/facilities")
+  public List<FacilityResponse> listFacilities(@PathVariable UUID ownerId) {
+    return listFacilitiesForOwnerUsecase.listByOwner(ownerId).stream()
+        .map(FacilityResponse::from)
         .toList();
   }
 

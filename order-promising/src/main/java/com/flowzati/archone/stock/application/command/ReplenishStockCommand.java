@@ -22,11 +22,11 @@ import java.util.UUID;
 public record ReplenishStockCommand(
     UUID ownerId,
     /** 上游說的倉。保留它，是因為喚醒的續做事件必須對外說倉——見 locationId。 */
-    UUID nodeId,
+    UUID facilityId,
     /**
      * 這批貨進的**位置**——所有庫存與待配需求的查詢都以它為準。
      *
-     * <p>由 entrypoint 從 {@code nodeId} 解析而得（倉 → 該倉的內部位置）。兩者不會漂移：
+     * <p>由 entrypoint 從 {@code facilityId} 解析而得（倉 → 該倉的內部位置）。兩者不會漂移：
      * 它們在同一個邊界、由同一次查表產生。
      */
     UUID locationId,
@@ -42,7 +42,7 @@ public record ReplenishStockCommand(
     if (locationId == null) {
       throw new IllegalArgumentException("Location ID is required");
     }
-    if (nodeId == null) {
+    if (facilityId == null) {
       throw new IllegalArgumentException("Fulfillment node ID is required");
     }
     if (sku == null || sku.isBlank()) {

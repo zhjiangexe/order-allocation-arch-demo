@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { StockLine } from '../api/stockLines';
 import type {
-  FulfillmentNodeView,
+  FacilityView,
   OwnerView,
   ReplenishmentAccepted,
   StockBatchView,
@@ -18,13 +18,13 @@ const OWNER: OwnerView = {
   name: '甲貨主',
 };
 
-const NORTH: FulfillmentNodeView = {
-  nodeId: '00000000-0000-0000-0000-000000000011',
+const NORTH: FacilityView = {
+  facilityId: '00000000-0000-0000-0000-000000000011',
   code: 'WH-NORTH',
   name: '北部倉',
 };
-const CENTRAL: FulfillmentNodeView = {
-  nodeId: '00000000-0000-0000-0000-000000000012',
+const CENTRAL: FacilityView = {
+  facilityId: '00000000-0000-0000-0000-000000000012',
   code: 'WH-CENTRAL',
   name: '中部倉',
 };
@@ -71,7 +71,7 @@ function renderPanel(
     lines,
     replenishment,
     owners: [OWNER],
-    nodesOf: () => [NORTH, CENTRAL],
+    facilitiesOf: () => [NORTH, CENTRAL],
     onQuery: vi.fn(),
     onReplenish: vi.fn(),
     onScopeChange: vi.fn(),
@@ -83,7 +83,7 @@ function renderPanel(
 /** 選好貨主與倉別——補貨視窗的唯讀欄位與送出的命令都來自它們。 */
 async function chooseScope(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-  await user.selectOptions(screen.getByLabelText('倉別'), NORTH.nodeId);
+  await user.selectOptions(screen.getByLabelText('倉別'), NORTH.facilityId);
 }
 
 const idle: AsyncState<StockLine[]> = { status: 'idle' };
@@ -109,11 +109,11 @@ describe('StockPanel 的查詢軸', () => {
     await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
     expect(screen.getByRole('button', { name: '查詢庫存' })).toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText('倉別'), NORTH.nodeId);
+    await user.selectOptions(screen.getByLabelText('倉別'), NORTH.facilityId);
     await user.click(screen.getByRole('button', { name: '查詢庫存' }));
 
     // 少了倉別，問的是一個沒有任何一次配貨取用得了的池——配貨從不跨倉。
-    expect(props.onQuery).toHaveBeenCalledExactlyOnceWith(OWNER.ownerId, NORTH.nodeId);
+    expect(props.onQuery).toHaveBeenCalledExactlyOnceWith(OWNER.ownerId, NORTH.facilityId);
   });
 
   it('未選貨主時倉別不可選——倉是掛在貨主底下的', () => {
@@ -127,7 +127,7 @@ describe('StockPanel 的查詢軸', () => {
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('倉別'), CENTRAL.nodeId);
+    await user.selectOptions(screen.getByLabelText('倉別'), CENTRAL.facilityId);
     await user.selectOptions(screen.getByLabelText('貨主'), '');
 
     // 兩個貨主可能共用同一個倉，留著看起來像仍然有效，但有效與否取決於指派關係。
@@ -140,9 +140,9 @@ describe('StockPanel 的查詢軸', () => {
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('倉別'), NORTH.nodeId);
+    await user.selectOptions(screen.getByLabelText('倉別'), NORTH.facilityId);
     props.onScopeChange.mockClear();
-    await user.selectOptions(screen.getByLabelText('倉別'), CENTRAL.nodeId);
+    await user.selectOptions(screen.getByLabelText('倉別'), CENTRAL.facilityId);
 
     expect(props.onScopeChange).toHaveBeenCalled();
   });
@@ -390,7 +390,7 @@ describe('StockPanel 的補貨視窗', () => {
 
     expect(props.onReplenish).toHaveBeenCalledExactlyOnceWith({
       ownerId: OWNER.ownerId,
-      nodeId: NORTH.nodeId,
+      facilityId: NORTH.facilityId,
       sku: 'SKU-1',
       inDate: '2026-05-01',
       expiryDate: '2026-09-30',
@@ -452,7 +452,7 @@ describe('StockPanel 的補貨視窗', () => {
     const user = userEvent.setup();
     await chooseScope(user);
     await user.click(screen.getByRole('button', { name: '補貨' }));
-    await user.selectOptions(screen.getByLabelText('倉別'), CENTRAL.nodeId);
+    await user.selectOptions(screen.getByLabelText('倉別'), CENTRAL.facilityId);
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -484,7 +484,7 @@ describe('StockPanel 的補貨結果', () => {
     expect(props.onQuery).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: '重新查詢' }));
-    expect(props.onQuery).toHaveBeenCalledExactlyOnceWith(OWNER.ownerId, NORTH.nodeId);
+    expect(props.onQuery).toHaveBeenCalledExactlyOnceWith(OWNER.ownerId, NORTH.facilityId);
   });
 
   it('補貨失敗時就地顯示失敗，且畫面上不出現事件識別碼', () => {

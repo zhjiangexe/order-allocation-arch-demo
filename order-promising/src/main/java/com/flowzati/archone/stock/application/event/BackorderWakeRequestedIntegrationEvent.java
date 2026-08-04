@@ -32,25 +32,25 @@ import java.util.UUID;
  */
 public final class BackorderWakeRequestedIntegrationEvent extends IntegrationEvent {
   private final UUID ownerId;
-  private final UUID nodeId;
+  private final UUID facilityId;
   private final String sku;
 
   @JsonCreator
   public BackorderWakeRequestedIntegrationEvent(
       @JsonProperty("eventId") UUID eventId,
       @JsonProperty("ownerId") UUID ownerId,
-      @JsonProperty("nodeId") UUID nodeId,
+      @JsonProperty("facilityId") UUID facilityId,
       @JsonProperty("sku") String sku
   ) {
     super(eventId);
-    if (ownerId == null || nodeId == null) {
+    if (ownerId == null || facilityId == null) {
       throw new IllegalArgumentException("Owner ID and node ID are required");
     }
     if (sku == null || sku.isBlank()) {
       throw new IllegalArgumentException("SKU is required");
     }
     this.ownerId = ownerId;
-    this.nodeId = nodeId;
+    this.facilityId = facilityId;
     this.sku = sku;
   }
 
@@ -58,8 +58,8 @@ public final class BackorderWakeRequestedIntegrationEvent extends IntegrationEve
     return ownerId;
   }
 
-  public UUID getNodeId() {
-    return nodeId;
+  public UUID getFacilityId() {
+    return facilityId;
   }
 
   public String getSku() {

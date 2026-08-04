@@ -32,15 +32,15 @@ public final class OrderFixtures {
 
   public static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
   /** 出貨倉。所有 fixture 共用一個——倉別在收單後不參與任何決策，區分它沒有價值。 */
-  public static final UUID NODE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+  public static final UUID FACILITY_ID = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
   /**
-   * 與 {@link #NODE_ID} **刻意取不同的值**。
+   * 與 {@link #FACILITY_ID} **刻意取不同的值**。
    *
    * <p>庫存與待配需求都以位置查，而倉只用於對外的事件。兩者若在測試裡共用同一個 UUID，
    * 一個「不小心拿倉去查庫存」的實作會安靜通過——正是這個改動最容易踩的錯。
    */
   public static final UUID LOCATION_ID = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
-  /** 第二個倉的內部位置。與 {@link #OTHER_NODE_ID} 刻意不同值。 */
+  /** 第二個倉的內部位置。與 {@link #OTHER_FACILITY_ID} 刻意不同值。 */
   public static final UUID OTHER_LOCATION_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000c2");
   public static final UUID OTHER_OWNER_ID =
@@ -63,68 +63,68 @@ public final class OrderFixtures {
         VALUES (?, ?, ?)
         ON CONFLICT (id) DO NOTHING
         """, ownerId, "OWNER-" + ownerId, "測試貨主");
-    // 倉庫與指派：orders 的 (owner_id, fulfillment_node_id) 有複合外鍵指向 owner_nodes，
+    // 倉庫與指派：orders 的 (owner_id, facility_id) 有複合外鍵指向 owner_facilities，
     // 少了這兩列，任何一張測試訂單都寫不進去。
     jdbcTemplate.update("""
-        INSERT INTO fulfillment_nodes (id, code, name)
+        INSERT INTO facilities (id, code, name)
         VALUES (?, ?, ?)
         ON CONFLICT (id) DO NOTHING
-        """, NODE_ID, "WH-TEST", "測試倉");
+        """, FACILITY_ID, "WH-TEST", "測試倉");
     jdbcTemplate.update("""
-        INSERT INTO fulfillment_nodes (id, code, name)
+        INSERT INTO facilities (id, code, name)
         VALUES (?, ?, ?)
         ON CONFLICT (id) DO NOTHING
-        """, OTHER_NODE_ID, "WH-FIXTURE-ALT", "共用 fixture 的第二個倉");
+        """, OTHER_FACILITY_ID, "WH-FIXTURE-ALT", "共用 fixture 的第二個倉");
     jdbcTemplate.update("""
-        INSERT INTO owner_nodes (owner_id, node_id)
+        INSERT INTO owner_facilities (owner_id, facility_id)
         VALUES (?, ?)
         ON CONFLICT DO NOTHING
-        """, ownerId, NODE_ID);
+        """, ownerId, FACILITY_ID);
     jdbcTemplate.update("""
-        INSERT INTO owner_nodes (owner_id, node_id)
+        INSERT INTO owner_facilities (owner_id, facility_id)
         VALUES (?, ?)
         ON CONFLICT DO NOTHING
-        """, ownerId, OTHER_NODE_ID);
+        """, ownerId, OTHER_FACILITY_ID);
     // 每個倉一個內部位置：stock_pools.location_id 有複合外鍵指向 (id, usage)，庫存因此
     // 只掛得上 INTERNAL 的位置。倉與位置刻意取不同的 UUID——拿倉去查庫存會查不到而失敗，
     // 那正是這一步最容易踩的錯。
     jdbcTemplate.update("""
-        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        INSERT INTO stock_locations (id, facility_id, code, name, usage)
         VALUES (?, ?, ?, ?, 'INTERNAL')
         ON CONFLICT (id) DO NOTHING
-        """, LOCATION_ID, NODE_ID, "WH-TEST/Stock", "測試倉／庫存");
+        """, LOCATION_ID, FACILITY_ID, "WH-TEST/Stock", "測試倉／庫存");
     jdbcTemplate.update("""
-        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        INSERT INTO stock_locations (id, facility_id, code, name, usage)
         VALUES (?, ?, ?, ?, 'INTERNAL')
         ON CONFLICT (id) DO NOTHING
-        """, OTHER_LOCATION_ID, OTHER_NODE_ID, "WH-FIXTURE-ALT/Stock", "第二個倉／庫存");
+        """, OTHER_LOCATION_ID, OTHER_FACILITY_ID, "WH-FIXTURE-ALT/Stock", "第二個倉／庫存");
     // 兩個虛擬位置。出庫的終點是 CUSTOMER，它不屬於任何倉——「只能指向內部位置」那條約束
     // 只在庫存上，搬運的兩端本來就可能在公司之外。
     //
     // code 帶 FIXTURE 前綴：開發種子也建 Customers／Vendors，而 code 有 unique 約束。跑在
     // 種子 profile 上的 SIT 兩邊都會 seed，撞的是 code 而不是 id，ON CONFLICT (id) 擋不住。
     jdbcTemplate.update("""
-        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        INSERT INTO stock_locations (id, facility_id, code, name, usage)
         VALUES (?, NULL, ?, ?, 'CUSTOMER')
         ON CONFLICT (id) DO NOTHING
         """, MovementFixtures.CUSTOMERS_LOCATION_ID, "FIXTURE/Customers", "共用 fixture 的客戶");
     jdbcTemplate.update("""
-        INSERT INTO stock_locations (id, warehouse_id, code, name, usage)
+        INSERT INTO stock_locations (id, facility_id, code, name, usage)
         VALUES (?, NULL, ?, ?, 'SUPPLIER')
         ON CONFLICT (id) DO NOTHING
         """, MovementFixtures.SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "共用 fixture 的供應商");
     // 每個倉一個出庫作業類型。**收單即建搬運之後這是必要主檔**——少了它，收單會拋
     // 「這個倉沒有出庫作業類型」，而不是安靜地少建一張單。
     seedOutboundType(jdbcTemplate,
-        MovementFixtures.OUTBOUND_TYPE_ID, NODE_ID, LOCATION_ID, "測試倉出貨");
+        MovementFixtures.OUTBOUND_TYPE_ID, FACILITY_ID, LOCATION_ID, "測試倉出貨");
     seedOutboundType(jdbcTemplate,
-        MovementFixtures.OTHER_OUTBOUND_TYPE_ID, OTHER_NODE_ID, OTHER_LOCATION_ID,
+        MovementFixtures.OTHER_OUTBOUND_TYPE_ID, OTHER_FACILITY_ID, OTHER_LOCATION_ID,
         "第二個倉出貨");
     // 入庫類型：方向與出庫相反（供應商 → 庫存位置）。補貨走搬運之後才有讀者。
     seedInboundType(jdbcTemplate,
-        MovementFixtures.INBOUND_TYPE_ID, NODE_ID, LOCATION_ID, "測試倉收貨");
+        MovementFixtures.INBOUND_TYPE_ID, FACILITY_ID, LOCATION_ID, "測試倉收貨");
     seedInboundType(jdbcTemplate,
-        MovementFixtures.OTHER_INBOUND_TYPE_ID, OTHER_NODE_ID, OTHER_LOCATION_ID,
+        MovementFixtures.OTHER_INBOUND_TYPE_ID, OTHER_FACILITY_ID, OTHER_LOCATION_ID,
         "第二個倉收貨");
     jdbcTemplate.update("""
         INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
@@ -141,23 +141,23 @@ public final class OrderFixtures {
   }
 
   private static void seedOutboundType(
-      JdbcTemplate jdbcTemplate, UUID id, UUID warehouseId, UUID stockLocationId, String name) {
+      JdbcTemplate jdbcTemplate, UUID id, UUID facilityId, UUID stockLocationId, String name) {
     jdbcTemplate.update("""
         INSERT INTO stock_picking_types
-            (id, warehouse_id, code, name, default_from_location_id, default_to_location_id)
+            (id, facility_id, code, name, default_from_location_id, default_to_location_id)
         VALUES (?, ?, 'OUTBOUND', ?, ?, ?)
         ON CONFLICT (id) DO NOTHING
-        """, id, warehouseId, name, stockLocationId, MovementFixtures.CUSTOMERS_LOCATION_ID);
+        """, id, facilityId, name, stockLocationId, MovementFixtures.CUSTOMERS_LOCATION_ID);
   }
 
   private static void seedInboundType(
-      JdbcTemplate jdbcTemplate, UUID id, UUID warehouseId, UUID stockLocationId, String name) {
+      JdbcTemplate jdbcTemplate, UUID id, UUID facilityId, UUID stockLocationId, String name) {
     jdbcTemplate.update("""
         INSERT INTO stock_picking_types
-            (id, warehouse_id, code, name, default_from_location_id, default_to_location_id)
+            (id, facility_id, code, name, default_from_location_id, default_to_location_id)
         VALUES (?, ?, 'INBOUND', ?, ?, ?)
         ON CONFLICT (id) DO NOTHING
-        """, id, warehouseId, name, MovementFixtures.SUPPLIERS_LOCATION_ID, stockLocationId);
+        """, id, facilityId, name, MovementFixtures.SUPPLIERS_LOCATION_ID, stockLocationId);
   }
 
   /**
@@ -167,12 +167,12 @@ public final class OrderFixtures {
    * （{@code ...b2} / {@code WH-TEST-2}）——兩邊同時 seed 會先撞主鍵、再撞 code 的 unique。
    * 共用 fixture 的固定值要在整個 SIT 範圍內唯一，取名帶 {@code FIXTURE} 讓來源一眼可辨。
    */
-  public static final UUID OTHER_NODE_ID =
+  public static final UUID OTHER_FACILITY_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000bf");
 
-  public static DeliveryTerms deliveryTerms(UUID nodeId) {
+  public static DeliveryTerms deliveryTerms(UUID facilityId) {
     return new DeliveryTerms(
-        nodeId,
+        facilityId,
         "100",
         "台北市中正區重慶南路一段 122 號",
         LocalDate.of(2026, 8, 1));
@@ -180,13 +180,13 @@ public final class OrderFixtures {
 
   /** 一張從指定倉出貨、已在佇列裡的單。 */
   public static Order backorderedOrderAt(
-      UUID nodeId, UUID orderId, UUID ownerId, String skuCode, int quantity,
+      UUID facilityId, UUID orderId, UUID ownerId, String skuCode, int quantity,
       Instant receivedAt, Instant backorderedAt) {
     return Order.rehydrate(
         orderId,
         ownerId,
         "EXT-" + orderId,
-        deliveryTerms(nodeId),
+        deliveryTerms(facilityId),
         List.of(OrderLine.create(
             IdGenerator.nextId(), 1, ownerId, skuCode, quantity)),
         OrderStatus.BACKORDERED,
@@ -200,7 +200,7 @@ public final class OrderFixtures {
 
   public static DeliveryTerms deliveryTerms() {
     return new DeliveryTerms(
-        NODE_ID,
+        FACILITY_ID,
         "100",
         "台北市中正區重慶南路一段 122 號",
         LocalDate.of(2026, 8, 1));

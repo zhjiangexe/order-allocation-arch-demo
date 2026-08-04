@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 public record PickingType(
     UUID id,
-    UUID warehouseId,
+    UUID facilityId,
     PickingDirection code,
     String name,
     UUID defaultFromLocationId,
@@ -24,8 +24,8 @@ public record PickingType(
 ) {
 
   public PickingType {
-    if (id == null || warehouseId == null || code == null) {
-      throw new IllegalArgumentException("Picking type requires an id, a warehouse and a code");
+    if (id == null || facilityId == null || code == null) {
+      throw new IllegalArgumentException("Picking type requires an id, a facility and a code");
     }
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Picking type name is required");

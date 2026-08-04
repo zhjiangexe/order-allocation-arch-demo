@@ -47,7 +47,7 @@ public record StockPoolResponse(List<SkuStockResponse> skus) {
    * 就已明確不做。要說的兩件事 {@code expired} 與 {@code availableToPromise} 各講一件，讀的
    * 人合起來就知道是「過期了」「還是被預留光了」，不需要第三個欄位轉述。
    *
-   * <p><b>沒有 {@code nodeId}。</b>整份回應已經鎖在一個倉裡，每一批再帶一次只是把查詢參數
+   * <p><b>沒有 {@code facilityId}。</b>整份回應已經鎖在一個倉裡，每一批再帶一次只是把查詢參數
    * 抄回來。改動前它是必要的——那時一次回答跨所有倉。
    */
   public record StockBatchResponse(

@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 class ReplenishmentProbeControllerTest {
 
   private static final String OWNER_ID = "00000000-0000-0000-0000-0000000000a1";
-  private static final String NODE_ID = "00000000-0000-0000-0000-0000000000b1";
+  private static final String FACILITY_ID = "00000000-0000-0000-0000-0000000000b1";
 
   /**
    * 五個維度都要帶：貨主、倉、SKU、入庫日、效期。它們合起來決定這批貨加到哪一列，缺任一個
@@ -45,7 +45,7 @@ class ReplenishmentProbeControllerTest {
   private static final String REPLENISH_BODY = """
       {
         "ownerId": "00000000-0000-0000-0000-0000000000a1",
-        "nodeId": "00000000-0000-0000-0000-0000000000b1",
+        "facilityId": "00000000-0000-0000-0000-0000000000b1",
         "sku": "HOT-SKU",
         "inDate": "2026-01-05",
         "expiryDate": "2026-12-31",
@@ -83,7 +83,7 @@ class ReplenishmentProbeControllerTest {
     assertThat(published.topic()).isEqualTo(InventoryEventTopics.STOCK_EVENTS);
     // key 是爭用群組 (貨主, 倉)，不含 SKU。與 ordering 的 translator 必須逐位元相同，
     // 否則補貨與下單落在不同 partition，對同一列庫存的寫入就不再被序列化。
-    assertThat(published.key()).isEqualTo(OWNER_ID + "/" + NODE_ID);
+    assertThat(published.key()).isEqualTo(OWNER_ID + "/" + FACILITY_ID);
     assertThat(header(published, "eventType")).isEqualTo("StockReplenishedIntegrationEvent");
     assertThat(published.value())
         .contains("\"eventId\":\"" + eventId + "\"")
@@ -101,7 +101,7 @@ class ReplenishmentProbeControllerTest {
   }
 
   @ParameterizedTest(name = "[{index}] 缺 {0}")
-  @ValueSource(strings = {"ownerId", "nodeId", "sku", "inDate", "expiryDate", "quantity"})
+  @ValueSource(strings = {"ownerId", "facilityId", "sku", "inDate", "expiryDate", "quantity"})
   @DisplayName("五個維度或數量缺任一個都應回 400，且不得發出任何訊息")
   void shouldRejectARequestMissingAnyRequiredField(String missingField) {
     MvcTestResultAssert response = assertThat(mvc.post().uri("/demo/replenish")

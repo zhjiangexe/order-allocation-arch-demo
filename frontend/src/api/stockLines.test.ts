@@ -5,14 +5,14 @@ import { warehouseStockLines } from './stockLines';
 import type { StockBatchView, StockPoolView } from './types';
 
 const OWNER_ID = '00000000-0000-0000-0000-000000000001';
-const NODE_ID = '00000000-0000-0000-0000-000000000011';
+const FACILITY_ID = '00000000-0000-0000-0000-000000000011';
 
 /** 兩款各一個規格，外加第一款的第二個規格——列的順序要驗得出「款 → 規格」。 */
 function catalog() {
   return new Catalog([
     {
       owner: { ownerId: OWNER_ID, code: 'OWNER-A', name: '甲貨主' },
-      nodes: [{ nodeId: NODE_ID, code: 'WH-NORTH', name: '北部倉' }],
+      facilities: [{ facilityId: FACILITY_ID, code: 'WH-NORTH', name: '北部倉' }],
       products: [
         {
           productId: 'p-tea',

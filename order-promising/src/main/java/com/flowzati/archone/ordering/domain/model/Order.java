@@ -101,7 +101,7 @@ public class Order {
     order.events.add(new OrderPlaced(
         id,
         ownerId,
-        deliveryTerms.fulfillmentNodeId(),
+        deliveryTerms.facilityId(),
         deliveryTerms.shipToZone(),
         deliveryTerms.promisedDeliveryDate(),
         order.toLineSnapshots(),
@@ -228,7 +228,7 @@ public class Order {
 
     status = OrderStatus.CANCELLED;
     this.cancelledAt = cancelledAt;
-    events.add(new OrderCancelled(id, ownerId, deliveryTerms.fulfillmentNodeId(), cancelledAt));
+    events.add(new OrderCancelled(id, ownerId, deliveryTerms.facilityId(), cancelledAt));
     return true;
   }
 

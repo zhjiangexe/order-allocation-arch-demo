@@ -24,10 +24,10 @@ public class PickingTypeRepositoryImpl implements PickingTypeRepository {
   }
 
   @Override
-  public Optional<PickingType> find(UUID warehouseId, PickingDirection code) {
-    if (warehouseId == null || code == null) {
+  public Optional<PickingType> find(UUID facilityId, PickingDirection code) {
+    if (facilityId == null || code == null) {
       return Optional.empty();
     }
-    return repository.findByWarehouseIdAndCode(warehouseId, code).map(PickingTypeMapper::toDomain);
+    return repository.findByFacilityIdAndCode(facilityId, code).map(PickingTypeMapper::toDomain);
   }
 }

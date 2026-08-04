@@ -49,18 +49,18 @@ public final class MovementFixtures {
 
   /** 測試倉的出庫類型：庫存位置 → 客戶。 */
   public static PickingType outboundType() {
-    return outboundTypeAt(OUTBOUND_TYPE_ID, OrderFixtures.NODE_ID, OrderFixtures.LOCATION_ID);
+    return outboundTypeAt(OUTBOUND_TYPE_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID);
   }
 
-  public static PickingType outboundTypeAt(UUID id, UUID warehouseId, UUID stockLocationId) {
+  public static PickingType outboundTypeAt(UUID id, UUID facilityId, UUID stockLocationId) {
     return new PickingType(
-        id, warehouseId, PickingDirection.OUTBOUND, "出貨", stockLocationId, CUSTOMERS_LOCATION_ID);
+        id, facilityId, PickingDirection.OUTBOUND, "出貨", stockLocationId, CUSTOMERS_LOCATION_ID);
   }
 
   /** 測試倉的入庫類型：供應商 → 庫存位置。方向與出庫相反。 */
   public static PickingType inboundType() {
     return new PickingType(
-        INBOUND_TYPE_ID, OrderFixtures.NODE_ID, PickingDirection.INBOUND, "收貨",
+        INBOUND_TYPE_ID, OrderFixtures.FACILITY_ID, PickingDirection.INBOUND, "收貨",
         SUPPLIERS_LOCATION_ID, OrderFixtures.LOCATION_ID);
   }
 
@@ -79,7 +79,7 @@ public final class MovementFixtures {
   /** 測試倉的內部位置。usecase 要靠它從位置反查倉。 */
   public static StockLocation internalLocation() {
     return StockLocation.internal(
-        OrderFixtures.LOCATION_ID, OrderFixtures.NODE_ID, "WH-TEST/Stock", "測試倉／庫存");
+        OrderFixtures.LOCATION_ID, OrderFixtures.FACILITY_ID, "WH-TEST/Stock", "測試倉／庫存");
   }
 
   /** 一段還在等貨的出庫搬運。 */
@@ -123,20 +123,20 @@ public final class MovementFixtures {
    * <p>以 SQL 而非 repository 寫入：這是被測路徑的前置狀態，不該牽動被測的那條路徑。
    */
   public static UUID seedWaitingPicking(JdbcTemplate jdbcTemplate, Order order) {
-    UUID warehouseId = order.getDeliveryTerms().fulfillmentNodeId();
+    UUID facilityId = order.getDeliveryTerms().facilityId();
     // 作業類型由單的倉決定，呼叫端不必指定——跨倉的測試最容易踩的錯是「單在第二個倉、搬運
     // 卻建在第一個倉」，那樣佇列查詢會查不到而症狀只是「什麼都沒配到」。
     UUID pickingTypeId;
     UUID fromLocationId;
-    if (warehouseId.equals(OrderFixtures.NODE_ID)) {
+    if (facilityId.equals(OrderFixtures.FACILITY_ID)) {
       pickingTypeId = OUTBOUND_TYPE_ID;
       fromLocationId = OrderFixtures.LOCATION_ID;
-    } else if (warehouseId.equals(OrderFixtures.OTHER_NODE_ID)) {
+    } else if (facilityId.equals(OrderFixtures.OTHER_FACILITY_ID)) {
       pickingTypeId = OTHER_OUTBOUND_TYPE_ID;
       fromLocationId = OrderFixtures.OTHER_LOCATION_ID;
     } else {
       throw new IllegalArgumentException(
-          "No fixture operation type for warehouse " + warehouseId);
+          "No fixture operation type for warehouse " + facilityId);
     }
 
     UUID pickingId = IdGenerator.nextId();

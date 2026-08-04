@@ -119,7 +119,7 @@ class OutboxAggregateQueryIntegrationTest {
 
     // 下單事件的 key 是爭用群組（貨主/倉/SKU），配貨結果事件維持 orderId。
     String contentionKey = com.flowzati.archone.common.outbox.StockContentionKey.of(
-        OrderFixtures.OWNER_ID, OrderFixtures.NODE_ID);
+        OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID);
     assertThat(partitionKeysFor(orderId))
         .containsExactly(contentionKey, orderId.toString(), orderId.toString());
   }
@@ -131,7 +131,7 @@ class OutboxAggregateQueryIntegrationTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         java.time.LocalDate.of(2026, 8, 1),
-        OrderFixtures.NODE_ID,
+        OrderFixtures.FACILITY_ID,
         null,
         java.util.List.of(new PlaceOrderCommand.Line(SKU, 3))));
     // 下單當下 StockPool 的 ATP 是 0，配置決策要等這筆下單事件被 allocation 消費才發生。
@@ -153,7 +153,7 @@ class OutboxAggregateQueryIntegrationTest {
     consumer.consumeInventoryEvent(record(
         InventoryEventTopics.STOCK_EVENTS,
         new StockReplenishedIntegrationEvent(
-            UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.NODE_ID, SKU,
+            UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, SKU,
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3)));
   }
 

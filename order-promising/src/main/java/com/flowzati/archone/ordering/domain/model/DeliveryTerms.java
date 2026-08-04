@@ -10,7 +10,7 @@ import java.util.UUID;
  * 型別而不是散在 {@link Order} 上。貨主與上游單號則留在 {@link Order} 頂層——它們是訂單的
  * 識別，且 {@code ownerId} 是整個系統最常讀的欄位，多包一層只會讓每個呼叫端多一次跳轉。
  *
- * <p>{@code fulfillmentNodeId} 是**必填**。3PL 的出貨倉由合約決定、由上游在下單時指定，
+ * <p>{@code facilityId} 是**必填**。3PL 的出貨倉由合約決定、由上游在下單時指定，
  * 系統照做——它不是一個可能被推翻的請求，因此既不叫 requested，也不可為空。可空等於在
  * 型別上保留一個永遠不會發生的狀態，而每個讀取端都得處理它。
  *
@@ -30,14 +30,14 @@ import java.util.UUID;
  * 且刻意接受的取捨。
  */
 public record DeliveryTerms(
-    UUID fulfillmentNodeId,
+    UUID facilityId,
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate
 ) {
 
   public DeliveryTerms {
-    if (fulfillmentNodeId == null) {
+    if (facilityId == null) {
       throw new IllegalArgumentException("Fulfillment node is required");
     }
     if (shipToZone == null || shipToZone.isBlank()) {

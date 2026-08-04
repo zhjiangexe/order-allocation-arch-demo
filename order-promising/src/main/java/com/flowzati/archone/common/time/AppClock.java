@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * 一份，就不會有人漏掉 {@code withZone} 而回到原本的錯。
  *
  * <p><b>已知的簡化：時區是全域一個。</b>正確的模型是時區屬於倉庫——東京倉的貨照東京的日曆過期
- * ——該放在 {@code fulfillment_nodes.time_zone}。本專案的倉全在台灣，現在做等於為想像中的需求
+ * ——該放在 {@code facilities.time_zone}。本專案的倉全在台灣，現在做等於為想像中的需求
  * 先設計；已記在 roadmap 的「已識別未排程」。
  */
 @Component
