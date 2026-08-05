@@ -75,16 +75,17 @@ export function setup() {
 
   // 倉庫同樣以代碼反查，而且要走「該貨主已指派的倉」這支端點——訂單有複合外鍵
   // (owner_id, facility_id)，指定一個該貨主沒掛的倉會被資料庫擋下。
-  const nodesRes = http.get(`${BASE_URL}/owners/${owner.ownerId}/facilities`);
-  if (nodesRes.status !== 200) {
-    throw new Error(`查不到倉庫清單（HTTP ${nodesRes.status}）`);
+  const facilitiesRes = http.get(`${BASE_URL}/owners/${owner.ownerId}/facilities`);
+  if (facilitiesRes.status !== 200) {
+    throw new Error(`查不到設施清單（HTTP ${facilitiesRes.status}）`);
   }
-  const node = JSON.parse(nodesRes.body).find((n) => n.code === FACILITY_CODE);
-  if (node === undefined) {
+  const facility = JSON.parse(facilitiesRes.body).find((candidate) =>
+    candidate.code === FACILITY_CODE);
+  if (facility === undefined) {
     throw new Error(`貨主 ${OWNER_CODE} 沒有掛倉庫 ${FACILITY_CODE}——先跑 run.sh seed`);
   }
 
-  return { ownerId: owner.ownerId, facilityId: node.facilityId, runId: Date.now().toString(36) };
+  return { ownerId: owner.ownerId, facilityId: facility.facilityId, runId: Date.now().toString(36) };
 }
 
 export default function (data) {

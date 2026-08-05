@@ -6,7 +6,7 @@
 
   | 新增 | 哪裡 |
   | --- | --- |
-  | 收貨的三支（單據不帶訂單、不查庫存、沒有入庫類型要拋錯） | `MovementRecorderTest` |
+  | 收貨的三支（單據不帶訂單、不查庫存、沒有入庫類型要拋錯） | `StockOperationRecorderTest` |
   | 完成的六支 | `MovementCompleterTest`（其中兩支是從 `ReplenishmentUsecaseTest` 搬過來的五維識別） |
   | 明細指向別的庫存列要拒絕、在庫量沒有不帶明細的入口 | `StockPoolTest` |
   | 補貨留下已完成的入庫搬運、入庫的搬運不得被喚醒配貨 | `AllocationWorkflowEndToEndIntegrationTest` |
@@ -23,7 +23,7 @@
 
 ## 2. 建立入庫搬運
 
-- [x] 2.1 依同一 requirement，`MovementRecorder` 新增 `recordInbound(...)`，建一張 `INBOUND` 單據（**`orderId` 為空**）與一段搬運（`orderLineId` 為空），起訖取自作業類型的預設值。
+- [x] 2.1 依同一 requirement，`StockOperationRecorder` 新增 `recordInbound(...)`，建一張 `INBOUND` 單據（**`orderId` 為空**）與一段搬運（`orderLineId` 為空），起訖取自作業類型的預設值。
 
   **兩個方法而不是一個帶方向參數的**——這是上一個 change 就定下的：兩邊的輸入本來就不同型，出庫收 `Demand`，入庫收的是「哪個貨主、哪個位置、哪個 SKU、幾件、什麼入庫日與效期」。
 
@@ -61,7 +61,7 @@
 
 ## 5. 測試
 
-- [x] 5.1 `MovementRecorderTest` 補 `recordInbound`：單據的 `orderId` 為空、搬運的 `orderLineId` 為空、起訖是 `Vendors → 內部位置`、倉沒有入庫類型要拋錯。
+- [x] 5.1 `StockOperationRecorderTest` 補 `recordInbound`：單據的 `orderId` 為空、搬運的 `orderLineId` 為空、起訖是 `Vendors → 內部位置`、倉沒有入庫類型要拋錯。
 
 - [x] 5.2 新增 `MovementCompleterTest`：五維命中就加到那一列、沒命中就開一列（**開的時候數量為 0**）、明細指向那一列、搬運轉 `DONE`、出貨方向拋錯。
 

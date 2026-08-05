@@ -199,8 +199,8 @@ public final class MovementFixtures {
       UUID fromLocationId) {
     jdbcTemplate.update("""
         INSERT INTO stock_pickings
-            (id, picking_type_id, owner_id, order_id, from_location_id, to_location_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (id, picking_type_id, owner_id, order_id, from_location_id, to_location_id, state)
+        VALUES (?, ?, ?, ?, ?, ?, 'ASSIGNED')
         """, pickingId, pickingTypeId, order.getOwnerId(), order.getId(),
         fromLocationId, CUSTOMERS_LOCATION_ID);
   }

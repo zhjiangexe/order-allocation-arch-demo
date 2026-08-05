@@ -12,14 +12,12 @@ create exactly one picking for the order and SHALL place every outbound movement
 order under that picking. The picking is the order's ship-complete execution boundary and SHALL NOT
 be shared with another order.
 
-This is what makes receiving and standalone inventory work expressible without pretending every
-movement needs an order shipment. Goods arriving from a supplier are a movement — supplier to
-stock — and nothing about them is allocated: there is no order, no availability question, no
-whole-order rule. The current inbound flow SHALL continue to group its movement under an inbound
-picking; that caller policy does not make picking mandatory in the generic movement model.
+This keeps standalone inventory work expressible without pretending every movement needs an order
+shipment. A locally confirmed receipt is grouped warehouse work and SHALL create one inbound
+picking with its inbound move before completion changes physical stock.
 
 The recording step SHALL resolve where grouped movements run between from the operation type of the
-warehouse, and SHALL fail loudly when that warehouse has no operation type for the direction asked
+facility, and SHALL fail loudly when that facility has no operation type for the direction asked
 for. Accepting the work and quietly recording nothing would make demand disappear without trace —
 it would appear in no queue, because queues are read from movements.
 
@@ -43,13 +41,22 @@ to read the same rows back.
 
 #### Scenario: Two orders never share an outbound picking
 
-- **GIVEN** two orders shipping from the same warehouse
+- **GIVEN** two orders shipping from the same facility
 - **WHEN** their outbound movements are recorded
 - **THEN** each order's movements belong to a different picking
 
-#### Scenario: A warehouse without an operation type refuses grouped work
+#### Scenario: Receipt confirmation creates an inbound picking
 
-- **GIVEN** a warehouse with no operation type for the grouped direction being recorded
+- **GIVEN** a local receipt confirmation for one owner, facility, internal location, SKU, batch,
+  and quantity
+- **WHEN** its inbound movement is recorded
+- **THEN** one picking with no order is created from the facility's inbound operation type
+- **AND** its move runs from the operation type's supplier location to the selected internal
+  location
+
+#### Scenario: A facility without an operation type refuses grouped work
+
+- **GIVEN** a facility with no operation type for the grouped direction being recorded
 - **WHEN** recording is attempted
 - **THEN** it fails
 - **AND** no picking and no movement are left behind
@@ -84,5 +91,19 @@ whose picking has no order SHALL NOT be offered as order demand.
 #### Scenario: An order outbound movement remains eligible
 
 - **GIVEN** a waiting outbound movement whose picking identifies an order
-- **WHEN** the allocation queue for its owner, warehouse, and SKU is read
+- **WHEN** the allocation queue for its owner, facility, and SKU is read
 - **THEN** the movement is eligible according to the existing FIFO and whole-order rules
+
+### Requirement: A facility and a stock location are distinct concepts
+
+A `Facility` SHALL identify the physical logistics operation site responsible for site-level policy
+and contention. A `StockLocation` SHALL identify a concrete inventory or movement endpoint. Current
+code and unreleased contracts SHALL use `facilityId` for the former and `locationId` for the latter;
+the legacy aliases `nodeId`, `fulfillmentNodeId`, and `warehouseId` SHALL NOT remain.
+
+#### Scenario: A movement keeps its concrete endpoints
+
+- **GIVEN** a facility is responsible for a stock operation
+- **WHEN** the operation records a movement
+- **THEN** its facility-level configuration is selected by `facilityId`
+- **AND** the movement source and destination remain explicit stock-location identifiers

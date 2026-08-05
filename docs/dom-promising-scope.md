@@ -109,7 +109,7 @@ StockPool stockPool = stockPoolRepository.findById(reservation.getStockPoolId())
 
 **但批號最終也不是身分。** 上游不給批號時，自產的批號就退化成代理鍵，而「業務採用它」
 這個立論隨之瓦解。**最終批號完全不做**——它的價值幾乎全在追溯，而追溯不在本專案範圍。
-身分改為**屬性的組合**：唯一鍵 `(owner_id, node_id, sku_code, in_date, expiry_date)`。
+身分改為**屬性的組合**：唯一鍵 `(owner_id, facility_id, sku_code, in_date, expiry_date)`。
 FEFO 依 `expiry_date` 排序、`in_date` 作 tie-breaker（同效期不同日到貨會平手）。
 完整的推導過程（四版，每版被推翻的理由都是可複用的判準）見
 [execution-roadmap.md](execution-roadmap.md) 的 R3 動工前第 1、5 件。
@@ -118,7 +118,7 @@ FEFO 依 `expiry_date` 排序、`in_date` 作 tie-breaker（同效期不同日�
 
 ```text
 現況   StockPool(sku)                                     ← 一個數字
-目標   StockPool(ownerId, nodeId, skuCode, inDate, expiryDate)
+目標   StockPool(ownerId, facilityId, skuCode, inDate, expiryDate)
 ```
 
 一個貨主的一個 SKU 在一個節點上，會有**多筆** `StockPool`，各自代表一個批次。
@@ -237,23 +237,27 @@ line）之前不產生任何可觀察差異。但它改變段 C 的性質：段 
 
 ---
 
-## P2：庫存只增不減
+## P2：實體庫存目前只完成入庫，尚未完成出庫
 
-`StockPool.onHandQuantity` **只有 `replenish()` 一條遞增路徑，沒有任何遞減路徑**。
+`StockPool.onHandQuantity` **只有 `receive(StockMoveLine)` 一條遞增路徑，沒有正式出庫遞減路徑**。
 `release()` 只動 `reservedQuantity`（取消退回）。系統的貨從未真正出去過。
 
 ```java
 public void reserve(int q)              { reservedQuantity += q; }  // 只動 reserved
 public void release(int q)              { reservedQuantity -= q; }  // 取消退回，只動 reserved
-public void receive(StockMoveLine line) { onHandQuantity   += ...; }  // 唯一寫 onHand 之處
+public void receive(StockMoveLine line) { onHandQuantity += line.quantity(); } // 完成 inbound move
 ```
 
-`receive` 收的是**一條搬運明細**而不是一個數字——「在庫量只能由搬運改」因此是型別上的事實。
+目前本系統把 `StockPool` 當作實體庫存 source of truth。`POST /stock-receipts` 同步呼叫
+`ConfirmStockReceiptUsecase`，在同一交易建立 inbound picking／move／move line、完成 move、
+由該 line 增加指定 `locationId` 的 `StockPool`，並寫出 `StockAvailabilityIncreased` Outbox。
+backorder wake 在提交後由 Integration Event 快速觸發，Scheduler 定期補漏。它是一段式收貨，
+不表達預約到貨、卸貨、驗收等待或分段上架。
 
 | 缺 | 內容 |
 | --- | --- |
-| `MovementCompleter` 出庫的那一半 | 完成一段來源是內部位置的搬運，由它的明細扣掉在庫量。目前遇到出庫方向會拋 `not implemented until shipping exists` |
-| `StockPool.consume` 的憑證 | 它現在還收數字。R7 接上時與 `receive` 一起收斂成「憑明細」 |
+| 正式的出庫扣帳 use case | 消費實際出貨事實，扣除本地 on-hand projection；目前尚未實作 |
+| 對帳／調整能力 | 盤點差異應走獨立 adjustment movement；不能用負的 receipt 代替 |
 
 觸發者是履約層的 `ShipmentDeparted` 事件。契約與扣帳時機定義於
 [system-layer-map.md 交會點 2](system-layer-map.md)。
@@ -279,7 +283,7 @@ public void receive(StockMoveLine line) { onHandQuantity   += ...; }  // 唯一�
 | --- | --- |
 | 明細掛在**行**上而不是訂單上 | **FK 變更**，見下。現在的形狀是 `stock_moves.order_line_id` |
 | 一張單可能對應多筆明細 | 跨批取用時每一批一條 |
-| 出貨的扣帳 | 逐條明細扣對應批次——那是 `MovementCompleter` 出庫的那一半，R7 才實作 |
+| 出貨的扣帳 | 逐條明細扣對應批次——由未來正式的出庫扣帳 use case 實作 |
 | 履約層的 `PickTask` | 必須帶批次維度，才知道去揀哪一批 |
 
 最後一項是跨層契約：`OrderAllocated` 事件要帶批次資訊，否則履約層不知道該揀哪批貨。
@@ -306,7 +310,7 @@ public void receive(StockMoveLine line) { onHandQuantity   += ...; }  // 唯一�
 | --- | --- | --- |
 | `AllocateOrderUsecase:53` | `findBySku` → `Optional` | `findSellableBatchesInFefoOrder(owner, node, sku, asOf)` → **已排序的 List** |
 | `GetStockPoolUsecase:18` | 同上 | `findBatches(owner, node, sku)` → List，**含不可售批次**（畫面要標落選理由） |
-| `ReplenishmentUsecase:50` | `findBySku` + `replenish()` | **模式不成立**，見下 |
+| `ConfirmStockReceiptUsecase` | 建立並完成 inbound picking/move/line，再 `receive(line)` | 可建立新批次，並在同交易喚醒 backorder |
 | `ReleaseReservationUsecase:53` | `findById(reservation.getStockPoolId())` | **不用改** |
 
 最後一列是流派 2（hard reservation）的紅利：reservation 已指向特定批次，反查不受
@@ -323,42 +327,37 @@ OrderRepository.findBackordersBySkuInFifoOrder(sku)
 排序語意寫進方法名、由 DB index 支撐。`findSellableBatchesInFefoOrder` 是同一個做法，
 排序責任歸屬不需另行討論。
 
-### 補貨進來的是新的一批貨
+### 可用庫存事件可以帶來新的一批貨
 
-補貨不是往既有批次加數量，而是**帶著自己效期的一批貨**：
+外部 availability event 不是模糊地往同 SKU 任一列加數量，而是**帶著自己入庫日與效期的一批貨**：
 
 ```text
-最早    findBySku(sku).replenish(qty)     ← 找到那一列，加數量
-
-批次化  五維識別（貨主、位置、SKU、入庫日、效期）
+現在    五維識別（貨主、位置、SKU、入庫日、效期）
           命中 → 加到既有列
           沒有 → 開一列
-
-現在    收貨走搬運：建入庫單據與搬運 → 完成它 → 由明細把量放進那一列
-          五維識別的規則不變，只是搬到了「完成搬運」那一步
 ```
 
-`ReplenishStockCommand` 因此帶 `inDate` 與 `expiryDate`。
+`ConfirmStockReceiptCommand` 因此帶 `inDate` 與 `expiryDate`。
 
-連帶好處：操作台的補貨探針要能輸入效期，而這讓「**補一批新效期的貨進來，看 FEFO
+連帶好處：操作台的收貨確認探針要能輸入效期，而這讓「**增加一批新效期的可用貨，看 FEFO
 排序改變**」成為可展示的操作。
 
 ---
 
-## 補貨的三個決定
+## 可用庫存增加的三個決定
 
-上一節談的是補貨要寫進哪一列。本節談的是三個獨立於批次模型、但一直沒被寫下來的
-決定：一則補貨事件的粒度、補完之後何時喚醒佇列、以及 FIFO 到底保證什麼。
+上一節談的是增量要寫進哪一列。本節談的是三個獨立於批次模型、但一直沒被寫下來的
+決定：一則 availability event 的粒度、套用後何時喚醒佇列、以及 FIFO 到底保證什麼。
 
 三者互相牽動，**不能分開決定**——底下會標出依賴在哪。
 
 ### 決定一：一則事件 = 一個貨主 + 一個 SKU
 
-`ReplenishStockCommand` 維持單筆，不擴充成「一則事件帶多個 SKU」。三個獨立理由：
+`ConfirmStockReceiptCommand` 維持單筆，不擴充成「一則事件帶多個 SKU」。三個獨立理由：
 
 | # | 理由 |
 | --- | --- |
-| 1 | **partition key 只有單 SKU 時有唯一正確解。** 補貨事件以 SKU 為 record key，保證同一 SKU 的補貨序列化到同一 partition。一則事件帶多 SKU 時 key 選誰都是錯的，而熱點 SKU 的併發序列化保證正是 `AllocationHotSkuConcurrencyIntegrationTest` 在守的線 |
+| 1 | **一則事件只描述一個 SKU 批次增量。** Kafka record key 使用 `(ownerId, facilityId)` 爭用群組，以支援未來多行訂單；payload 仍需單一 SKU，才能讓一個 transaction 精確 upsert 一個批次 identity |
 | 2 | **一則事件 = 一個 aggregate 的一次狀態變更。** `StockPool` 有樂觀鎖；多 SKU 事件等於一次交易鎖多個 `StockPool`，直接踩進「一個新的併發風險：死鎖」那一節要防的東西，且沒有任何補償收益 |
 | 3 | **inbox 冪等單位要跟交易單位對齊。** `InboxRepo.claimIfNew()` 以 eventId 去重、全有全無。多筆時「三個 SKU 其中一個 pool 不存在」只剩兩條路：整批回滾（上游要重送整批）或部分成功（inbox 語意破掉） |
 
@@ -369,11 +368,11 @@ OrderRepository.findBackordersBySkuInFifoOrder(sku)
 代價要寫明：拆開之後失去「一張進貨單原子入庫」的性質。這在 WMS 是可接受的，實體
 入庫本來就是逐棧板、逐 SKU 上架。
 
-### 決定二：補完立即喚醒佇列，且不可改為非同步
+### 決定二：套用增量後立即喚醒佇列，且不可拆成另一個非同步起點
 
-補貨與佇列喚醒**在同一個交易內**完成。這不是效能取捨，是 FIFO 的實作機制。
+可用庫存增量與第一輪佇列喚醒**在同一個交易內**完成。這不是效能取捨，是 FIFO 的實作機制。
 
-若改成「補貨只加庫存，另發事件非同步喚醒佇列」，在補貨 commit 到喚醒 commit 之間，
+若改成「availability event 只加庫存，另發事件非同步喚醒第一輪」，在增量 commit 到喚醒 commit 之間，
 任何新單走 `AllocateOrderUsecase` 會直接吃掉剛補進來的 ATP——**新單反超整個 backorder
 佇列**。現況之所以不會，正是因為兩者共用同一個 `StockPool` 的樂觀鎖，併發的新單會
 衝突重試。
@@ -382,7 +381,7 @@ OrderRepository.findBackordersBySkuInFifoOrder(sku)
 blocking）說明本系統把嚴格順序當成可展示的性質，那就不能在補貨路徑上把它降級為
 盡力而為。
 
-### 決定三：FIFO 保證的範圍是「補貨當下的佇列快照」
+### 決定三：FIFO 保證的範圍是「可用庫存增加當下的佇列快照」
 
 **不是全域時間序。** 喚醒之後若 ATP 還有餘量（佇列 head 要 100、只補進 30），這 30
 會被下一張路過的新單直接取得，而佇列裡等更久的大單繼續等。
@@ -392,7 +391,7 @@ blocking）說明本系統把嚴格順序當成可展示的性質，那就不能
 | 政策 | 結果 |
 | --- | --- |
 | 嚴格全域 FIFO（佇列非空時新單也進佇列尾端） | 順序保證最強，但**有貨的新單也被擋**，直接損失可履約訂單 |
-| **補貨當下的佇列快照**（本專案） | 舊單可能被反超，但只發生在補貨後仍有餘量時 |
+| **可用庫存增加當下的佇列快照**（本專案） | 舊單可能被反超，但只發生在喚醒後仍有餘量時 |
 
 採後者的理由：這是 order promising 系統，目標是最大化可履約訂單，而
 `MaximizeFulfilledOrdersPolicy` 的存在本身就說明這個目標在本系統是合法的。改成嚴格
@@ -401,10 +400,10 @@ blocking）說明本系統把嚴格順序當成可展示的性質，那就不能
 這條契約要有測試釘住，否則它在操作台上會表現為「明明有貨，舊單卻沒配到」而被當成
 bug 修掉。
 
-### 補貨喚醒必須有批次上限
+### availability wake 必須有批次上限
 
 `OrderRepository.findBackordersBySkuInFifoOrder()` **目前沒有上限**，而
-`AllocationFifoReplenishmentBatchIntegrationTest` 已經是「1,000 張排隊、單次補貨喚醒
+`AllocationFifoAvailabilityIncreaseBatchIntegrationTest` 已經是「1,000 張排隊、單次增量喚醒
 500 張」的情境——一個交易裡改 1 個 `StockPool`、500 張 `Order`、寫 500 筆
 `stock_reservations`、發 1,000 則事件。
 
@@ -419,8 +418,8 @@ bug 修掉。
 
 | 方案 | 判斷 |
 | --- | --- |
-| 截斷，餘量留給下次補貨 | **否決。** 佇列可能永遠清不完，且讓補貨數量必須「剛好」才收斂 |
-| **喚醒 N 張後發一則續做事件**（採用） | 走同一 topic、同一 partition key，與後續補貨事件保持序列化 |
+| 截斷，餘量留給下次增量 | **否決。** 佇列可能永遠清不完，且讓增量數量必須「剛好」才收斂 |
+| **喚醒 N 張後發一則續做事件**（採用） | 走同一 topic、同一 partition key，與後續 availability event 保持序列化 |
 | 同交易內分頁 flush | **否決。** 交易長度沒有變短，沒解決任何問題 |
 
 續做方案的終止條件：**只有當本輪實際喚醒張數等於上限時才續做**。喚醒數小於上限代表
@@ -470,7 +469,7 @@ bug 修掉。
 | 事件發出時知道嗎 | 要 SKU，需從行摺疊 | 貨主與倉都在訂單 header 上 |
 
 **所以本節原記的「限制」其實指向的是解法。** 原文說「理想單位是 `(owner, node, sku)`，但事件
-發出時還不知道 node」——那個前提在 R2 就不成立了（`orders.fulfillment_node_id` 由上游在下單時
+發出時還不知道 node」——那個前提在 R2 就不成立了（`orders.facility_id` 由上游在下單時
 指定，收單當下就知道）。而把 SKU 拿掉之後，剩下的兩個維度剛好都在 header 上，不需要任何摺疊。
 
 代價是**過度序列化**：同貨主同倉、不同 SKU 的訂單本來永遠不會撞，現在也排在同一條隊伍。這是
@@ -480,7 +479,7 @@ bug 修掉。
 設定值隨之由 `partition-key-strategy=sku` 改名為 `stock`——它序列化的是庫存，而不是以 SKU 當
 key；名字說的是**序列化什麼**而不是**用哪幾個欄位**，所以日後若再調整群組的組成，名字仍然成立。
 
-組成規則收在 `common/outbox/StockContentionKey`，ordering 的 translator 與補貨探針共用，因為
+組成規則收在 `common/outbox/StockContentionKey`，ordering 的 translator 與可用庫存探針共用，因為
 兩者必須產生逐位元相同的 key。
 
 ---

@@ -2,7 +2,8 @@ package com.flowzati.archone.stock.application.usecase;
 
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
-import com.flowzati.archone.stock.application.movement.MovementRecorder;
+import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
+import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
@@ -31,12 +32,14 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * 收單後的處置。
  *
- * <p><b>這支測試刻意很薄。</b>建搬運的內容歸 {@code MovementRecorderTest}、鎖定的內容歸
+ * <p><b>這支測試刻意很薄。</b>建搬運的內容歸 {@code StockOperationRecorderTest}、鎖定的內容歸
  * {@code MovementAssignerTest}；這裡只驗 usecase 真正的責任：冪等、讀輸入、決定後續動作，
  * 以及那幾件事的先後。
  */
@@ -48,7 +51,7 @@ class AllocateOrderUsecaseTest {
   private AllocateOrderUsecase usecase;
   private InboxRepo inboxRepo;
   private DemandRepository demandRepository;
-  private MovementRecorder movementRecorder;
+  private StockOperationRecorder stockOperationRecorder;
   private MovementAssigner movementAssigner;
   private ApplicationEventPublisher eventPublisher;
 
@@ -56,14 +59,14 @@ class AllocateOrderUsecaseTest {
   void setUp() {
     inboxRepo = mock(InboxRepo.class);
     demandRepository = mock(DemandRepository.class);
-    movementRecorder = mock(MovementRecorder.class);
+    stockOperationRecorder = mock(StockOperationRecorder.class);
     movementAssigner = mock(MovementAssigner.class);
     eventPublisher = mock(ApplicationEventPublisher.class);
 
     usecase = new AllocateOrderUsecase(
         inboxRepo,
         demandRepository,
-        movementRecorder,
+        stockOperationRecorder,
         movementAssigner,
         eventPublisher,
         Clock.fixed(fixedNow, ZoneId.of("UTC"))
@@ -79,7 +82,7 @@ class AllocateOrderUsecaseTest {
     usecase.handle(inbound(new AllocateOrderCommand(UUID.randomUUID()), messageId));
 
     then(inboxRepo).should().claimIfNew(message(messageId));
-    verifyNoInteractions(demandRepository, movementRecorder, movementAssigner, eventPublisher);
+    verifyNoInteractions(demandRepository, stockOperationRecorder, movementAssigner, eventPublisher);
   }
 
   @Test
@@ -97,22 +100,7 @@ class AllocateOrderUsecaseTest {
     usecase.handle(inbound(new AllocateOrderCommand(orderId), messageId));
 
     then(demandRepository).should().findByOrderId(orderId);
-    verifyNoInteractions(movementRecorder, movementAssigner, eventPublisher);
-  }
-
-  @Test
-  @DisplayName("查無待配需求時應為合法 no-op，不是錯誤")
-  void shouldDoNothingWhenTheOrderHasNoOutstandingDemand() {
-    UUID messageId = UUID.randomUUID();
-    UUID orderId = UUID.randomUUID();
-    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
-    given(demandRepository.findByOrderId(orderId)).willReturn(Optional.empty());
-
-    // **不拋錯**，這是刻意的行為。查無有兩種正常成因：這則命令重送（第一次已經建過搬運
-    // 了），或訂單已被取消。把正常結果當成錯誤，會讓每一次重送都製造一筆 DLT 訊息。
-    usecase.handle(inbound(new AllocateOrderCommand(orderId), messageId));
-
-    verifyNoInteractions(movementRecorder, movementAssigner, eventPublisher);
+    verifyNoInteractions(stockOperationRecorder, movementAssigner, eventPublisher);
   }
 
   @Test
@@ -122,7 +110,7 @@ class AllocateOrderUsecaseTest {
     Demand demand = pendingDemand();
     List<StockMove> moves = movesFor(demand);
     givenTheOrderIsOutstanding(messageId, demand);
-    given(movementRecorder.recordOutbound(demand, fixedNow)).willReturn(moves);
+    given(stockOperationRecorder.recordOutbound(demand, fixedNow)).willReturn(moves);
     given(movementAssigner.assign(demand, moves, fixedNow))
         .willReturn(AllocationOutcome.ALLOCATED);
 
@@ -132,14 +120,14 @@ class AllocateOrderUsecaseTest {
     // 沒有落腳處，而那正是上一個 change 消滅的東西。
     //
     // **傳遞也不是細節**：建好的搬運直接交出去，鎖定才不必回頭再讀一次。
-    InOrder inOrder = org.mockito.Mockito.inOrder(movementRecorder, movementAssigner);
-    inOrder.verify(movementRecorder).recordOutbound(demand, fixedNow);
+    InOrder inOrder = org.mockito.Mockito.inOrder(stockOperationRecorder, movementAssigner);
+    inOrder.verify(stockOperationRecorder).recordOutbound(demand, fixedNow);
     inOrder.verify(movementAssigner).assign(demand, moves, fixedNow);
   }
 
   @Test
-  @DisplayName("配到貨時不得發缺貨的事實")
-  void shouldNotRecordABackorderWhenStockWasAssigned() {
+  @DisplayName("配到貨時只發一個完成事實")
+  void shouldPublishExactlyOneCompletionWhenAllocated() {
     UUID messageId = UUID.randomUUID();
     Demand demand = pendingDemand();
     givenTheOrderIsOutstanding(messageId, demand);
@@ -148,7 +136,10 @@ class AllocateOrderUsecaseTest {
 
     usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
 
+    then(eventPublisher).should(times(1))
+        .publishEvent(new OrderAllocationCompleted(demand.orderId(), fixedNow));
     then(eventPublisher).should(never()).publishEvent(any(OrderBackorderRecorded.class));
+    verifyNoMoreInteractions(eventPublisher);
   }
 
   @Test
@@ -166,8 +157,9 @@ class AllocateOrderUsecaseTest {
     //
     // 缺貨事實留在這支 usecase，而不是交給鎖定那一步：補貨路徑配不到時什麼都不發，兩條
     // 路徑的處置不同。
-    then(eventPublisher).should()
+    then(eventPublisher).should(times(1))
         .publishEvent(new OrderBackorderRecorded(demand.orderId(), fixedNow));
+    verifyNoMoreInteractions(eventPublisher);
   }
 
   @Test
@@ -181,8 +173,9 @@ class AllocateOrderUsecaseTest {
 
     usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
 
-    then(eventPublisher).should()
+    then(eventPublisher).should(times(1))
         .publishEvent(new OrderBackorderRecorded(demand.orderId(), fixedNow));
+    verifyNoMoreInteractions(eventPublisher);
   }
 
   private void givenTheOrderIsOutstanding(UUID messageId, Demand demand) {

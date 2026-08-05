@@ -165,7 +165,7 @@ F4 只做箱單記錄，不做裝箱演算法。若要做，須先在 `skus` 補
 
 連帶：交會點 4 從最小版的兩種補償路徑恢復為四種。
 
-## F6：收貨上架
+## F6：收貨上架（由目前一段式收貨演進）
 
 最小版的儲位庫存由 seed 直接建立。深做版補上上架這一段：
 
@@ -173,24 +173,22 @@ F4 只做箱單記錄，不做裝箱演算法。若要做，須先在 `skus` 補
 GoodsReceived ──▶ 選儲位規則 ──▶ 入庫搬運的目的地改為該儲位
 ```
 
-**不是第二條寫庫存的路徑。** 收貨已經走 `MovementRecorder.recordInbound` +
-`MovementCompleter`，上架要做的只是把那段搬運的**目的地**從倉層的內部位置換成具體儲位——
-數量仍然只由搬運的明細寫入。
+目前本系統擁有簡化的一段式收貨：確認時直接建立並完成 inbound picking／move／move line。
+深做版再把它拆成到貨、驗收、上架等 checkpoint；每個 Kafka handler 或 Temporal Activity 都應
+呼叫同一組 transactional use case，且只能在完成可入庫的 movement 時增加 `StockPool`。
 
 | 動作 | 內容 |
 | --- | --- |
-| `PutawayUsecase` | 收貨上架 |
+| 外部 WMS 的 putaway 能力 | 收貨上架 |
 | 選儲位規則 | 同貨主同 SKU 已有儲位則併入，否則取同 zone 的空儲位 |
 
 規則型，不做 ABC 分類或動線最佳化。
 
-### 這一項讓補貨探針有了正規的對應路徑
+### 這一項與可用庫存探針的對應
 
-補貨探針（`ReplenishmentUsecase`）本來就是 demo 用的捷徑——它直接送一則「貨到了」的事件。
-F6 完成後，同一段搬運可以由真實的收貨上架流程產生，探針是否保留成為獨立的決定。
-
-**兩者寫的是同一組表**（`stock_pickings` / `stock_moves` / `stock_move_lines` /
-`stock_pools`），所以不存在「兩本帳要對齊」的問題——那個問題在庫存異動模型之前才有。
+dev 探針扮演外部 WMS producer，直接送一則「庫存已可配」事件。正式環境應由真實收貨上架流程
+在 checkpoint 完成後發布同一契約。外部 WMS 保存實體 movement ledger，本系統保存 Promising
+projection；兩者必須靠事件冪等與對帳機制維持一致，而不是假裝共用同一本執行帳。
 
 ## F7：盤點任務
 

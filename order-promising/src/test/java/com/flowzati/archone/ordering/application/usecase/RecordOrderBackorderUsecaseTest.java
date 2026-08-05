@@ -1,10 +1,16 @@
 package com.flowzati.archone.ordering.application.usecase;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.ordering.application.command.RecordBackorderCommand;
+import com.flowzati.archone.ordering.application.command.RecordOrderBackorderCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -15,13 +21,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-class ConfirmOrderUsecaseTest {
+class RecordOrderBackorderUsecaseTest {
 
   private final Instant receivedAt = Instant.parse("2026-08-03T00:00:00Z");
 
@@ -39,10 +39,10 @@ class ConfirmOrderUsecaseTest {
     when(inboxRepo.claimIfNew(firstMessage)).thenReturn(true);
     when(inboxRepo.claimIfNew(repeatedMessage)).thenReturn(true);
     when(repository.findById(orderId)).thenReturn(Optional.of(order));
-    ConfirmOrderUsecase usecase = new ConfirmOrderUsecase(repository, inboxRepo);
+    RecordOrderBackorderUsecase usecase = new RecordOrderBackorderUsecase(repository, inboxRepo);
 
-    usecase.recordBackorder(inbound(orderId, firstBackorderedAt, firstMessage));
-    usecase.recordBackorder(inbound(orderId, repeatedBackorderedAt, repeatedMessage));
+    usecase.handle(inbound(orderId, firstBackorderedAt, firstMessage));
+    usecase.handle(inbound(orderId, repeatedBackorderedAt, repeatedMessage));
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(order.getBackOrderedSince()).isEqualTo(firstBackorderedAt);
@@ -50,9 +50,9 @@ class ConfirmOrderUsecaseTest {
     verify(repository).save(order);
   }
 
-  private static InboundCommand<RecordBackorderCommand> inbound(
+  private static InboundCommand<RecordOrderBackorderCommand> inbound(
       UUID orderId, Instant backorderedAt, MessageMetadata message) {
-    return new InboundCommand<>(new RecordBackorderCommand(orderId, backorderedAt), message);
+    return new InboundCommand<>(new RecordOrderBackorderCommand(orderId, backorderedAt), message);
   }
 
   private static MessageMetadata metadata() {

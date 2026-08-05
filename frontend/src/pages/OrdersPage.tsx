@@ -59,7 +59,7 @@ export function OrdersPage() {
           </button>
         </h2>
         <p className={styles.sectionHeading}>
-          配置是非同步的：觸發補貨後要按重新整理才看得到狀態變化。
+          配置是非同步的：觸發收貨後要按重新整理才看得到狀態變化。
         </p>
         <ActionState state={orders.state} pendingLabel="載入訂單中…">
           {(list) => (

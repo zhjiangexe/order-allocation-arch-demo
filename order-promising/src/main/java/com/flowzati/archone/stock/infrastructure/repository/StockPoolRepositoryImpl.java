@@ -1,10 +1,12 @@
 package com.flowzati.archone.stock.infrastructure.repository;
 
+import com.flowzati.archone.stock.domain.model.AllocatableBatches;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.stock.infrastructure.mapper.StockPoolMapper;
 import com.flowzati.archone.stock.infrastructure.repository.jpa.JpaStockRepository;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +27,16 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
   }
 
   @Override
+  public List<StockPool> findByIds(Collection<UUID> ids) {
+    if (ids.isEmpty()) {
+      return List.of();
+    }
+    return repository.findAllById(ids).stream()
+        .map(StockPoolMapper::toDomain)
+        .toList();
+  }
+
+  @Override
   public List<StockPool> findAllocatableBatchesInFefoOrder(
       UUID ownerId, UUID locationId, String skuCode, LocalDate today) {
     return repository
@@ -35,10 +47,10 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
   }
 
   @Override
-  public java.util.Map<String, List<StockPool>> findAllocatableBatchesBySku(
+  public AllocatableBatches findAllocatableBatchesBySku(
       UUID ownerId, UUID locationId, java.util.Collection<String> skuCodes, LocalDate today) {
     if (skuCodes.isEmpty()) {
-      return java.util.Map.of();
+      return AllocatableBatches.of(ownerId, locationId, java.util.Map.of());
     }
 
     // 每一個被問到的 SKU 都要有一筆，即使一批都沒有——空清單是缺貨，缺鍵是輸入錯誤。
@@ -49,8 +61,7 @@ public class StockPoolRepositoryImpl implements StockPoolRepository {
         .map(StockPoolMapper::toDomain)
         .forEach(batch -> grouped.get(batch.getSkuCode()).add(batch));
 
-    grouped.replaceAll((skuCode, batches) -> List.copyOf(batches));
-    return java.util.Map.copyOf(grouped);
+    return AllocatableBatches.of(ownerId, locationId, grouped);
   }
 
   @Override

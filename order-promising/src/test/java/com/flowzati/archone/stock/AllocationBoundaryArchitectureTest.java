@@ -28,6 +28,7 @@ class AllocationBoundaryArchitectureTest {
       Path.of("src/main/java/com/flowzati/archone/stock");
   private static final Path ORDERING_ROOT =
       Path.of("src/main/java/com/flowzati/archone/ordering");
+  private static final Path APPLICATION_ROOT = STOCK_ROOT.resolve("application");
 
   /** ordering 的訂單聚合根與它的 repository——allocation 兩者都不該認識。 */
   private static final Pattern ORDER_AGGREGATE_IMPORT = Pattern.compile(
@@ -144,6 +145,31 @@ class AllocationBoundaryArchitectureTest {
   void actuallyScansSomething() {
     assertThat(sourcesUnder(STOCK_ROOT)).hasSizeGreaterThan(20);
     assertThat(sourcesUnder(ORDERING_ROOT)).hasSizeGreaterThan(15);
+  }
+
+  @Test
+  @DisplayName("配貨命令、喚醒結果與交易 usecase 不得依賴 Kafka 或 Temporal SDK")
+  void allocationTransactionBoundariesAreTransportNeutral() {
+    List<Path> boundaries = Stream.of(
+        APPLICATION_ROOT.resolve("command/AllocateOrderCommand.java"),
+        APPLICATION_ROOT.resolve("command/ConfirmStockReceiptCommand.java"),
+        APPLICATION_ROOT.resolve("command/AllocateWaitingDemandCommand.java"),
+        APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
+        APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
+        APPLICATION_ROOT.resolve("usecase/AllocateWaitingDemandUsecase.java"))
+        .toList();
+
+    List<String> violations = boundaries.stream()
+        .filter(path -> {
+          String source = stripComments(readSource(path));
+          return source.contains("org.apache.kafka")
+              || source.contains("io.temporal")
+              || source.contains("IntegrationEvent");
+        })
+        .map(Path::toString)
+        .toList();
+
+    assertThat(violations).isEmpty();
   }
 
   /** 註解裡提到這些表名是為了解釋邊界，不該被當成違規。 */

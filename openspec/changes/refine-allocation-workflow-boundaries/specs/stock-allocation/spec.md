@@ -3,7 +3,7 @@
 ### Requirement: Initial allocation and backorder waking use the same allocation semantics
 
 An initial allocation attempt and a backorder wake attempt SHALL use the same allocation decision
-and assignment semantics. Both paths SHALL preserve the existing owner and warehouse isolation,
+and assignment semantics. Both paths SHALL preserve the existing owner and facility isolation,
 FIFO order selection, FEFO batch selection, whole-order rule, and stock-lock ordering.
 
 The two paths SHALL reuse the same allocation responsibility without invoking each other's
@@ -30,52 +30,105 @@ recording; the wake path remains responsible for selecting an already-recorded b
 - **THEN** each flow invokes the shared allocation responsibility directly
 - **AND** neither application use case invokes the other application use case
 
-### Requirement: Stock availability and its first wake round are atomic
+### Requirement: Stock availability triggers convergent backorder allocation
 
-The first bounded backorder wake round triggered by newly available stock SHALL execute in the same
-local transaction as the movement completion that increases that stock. The stock increase, all
-assignments made by that round, and their outcome events SHALL commit or roll back together.
+A confirmed receipt SHALL commit its completed inbound execution and a
+`StockAvailabilityIncreased` Outbox fact together. It SHALL NOT execute backorder allocation in the
+receipt transaction. The fact's Integration Event handler and a periodic reconciliation scheduler
+SHALL invoke the same transactional wake use case and the same FIFO/FEFO allocation semantics.
 
-Every bounded round SHALL return a result that identifies the allocated orders and says whether the
-configured order limit was reached. In the current Integration Event orchestration, a transaction
-owner receiving a result that requires continuation SHALL publish one continuation request in that
-transaction. Handling that continuation SHALL claim its message and run another bounded round in a
-new local transaction; it SHALL NOT repeat the inbound movement or stock increase.
+Every bounded round SHALL process at most the configured order limit. It SHALL NOT publish an
+orchestration-only continuation event. Remaining eligible scopes SHALL be discovered by periodic
+scheduled reconciliation. Event retries and overlap with the scheduler SHALL be safe:
+already-assigned movements and reserved quantities SHALL NOT be applied twice.
 
-#### Scenario: The first wake round commits with the stock increase
+#### Scenario: Receipt commits before allocation
 
-- **GIVEN** completing an inbound movement makes stock available to waiting outbound movements
-- **WHEN** the first wake round assigns one or more waiting orders
-- **THEN** the stock increase, assignments, and allocation-completed events commit in one local
-  transaction
+- **GIVEN** a local receipt confirmation makes stock available to waiting outbound movements
+- **WHEN** the receipt transaction commits
+- **THEN** its completed inbound execution, physical stock increase, and availability fact commit
+  together
+- **AND** no waiting outbound movement is assigned by that receipt transaction
 
-#### Scenario: Failure rolls back the first wake round and stock increase
+#### Scenario: Availability event triggers a prompt wake
 
-- **GIVEN** an inbound movement is being completed and its first wake round has started
-- **WHEN** that transaction fails before commit
-- **THEN** neither the stock increase nor any assignment or outcome event from that round is
-  committed
+- **GIVEN** a committed availability fact for a scope with waiting outbound movements
+- **WHEN** its Integration Event is consumed
+- **THEN** the handler claims the message and invokes one transactional bounded wake round
 
-#### Scenario: A full round requests separate continuation
+#### Scenario: Scheduler reconciles a waiting scope
+
+- **GIVEN** waiting outbound movements remain because an event was delayed, lost, or exhausted
+- **WHEN** the reconciliation scheduler scans eligible scopes
+- **THEN** it invokes the same transactional bounded wake use case without transport metadata
+- **AND** allocation converges according to the same queue and stock rules
+
+#### Scenario: A new order cannot bypass an older waiting demand
+
+- **GIVEN** newly available stock has committed but its availability event has not yet allocated an
+  older waiting picking
+- **WHEN** a newer order attempts immediate allocation for any shared owner, location, and SKU
+- **THEN** the newer order remains waiting behind the older picking
+- **AND** the event or scheduler later allocates them through the same FIFO queue
+
+#### Scenario: A full round leaves remaining work for reconciliation
 
 - **GIVEN** a wake round processes the configured maximum number of candidate orders
 - **WHEN** the round completes
-- **THEN** its result reports the allocated orders and that continuation is required
-- **AND** one continuation request is recorded with the transaction
-- **AND** its consumer runs the next bounded round in a separate transaction without repeating the
-  stock increase
+- **THEN** no continuation event is recorded with the transaction
+- **AND** the scheduler can discover the remaining eligible scope on a later scan
+- **AND** the next bounded round runs in a separate transaction without repeating the receipt
+  operation
+
+### Requirement: Confirmed receipts create warehouse execution before physical stock changes
+
+`StockPool` SHALL be the stock context's physical inventory source of truth. A local receipt
+confirmation SHALL create an inbound picking and move, complete that move with a move line pointing
+to the identified owner, location, SKU, in-date, and expiry-date batch, and change physical stock
+only through that completed line. It SHALL record the availability fact in the same transaction,
+while backorder allocation runs after commit.
+
+#### Scenario: Receipt confirmation updates physical stock through movement completion
+
+- **GIVEN** a synchronous receipt request identifies one stock batch and a positive quantity
+- **WHEN** `ConfirmStockReceiptUsecase` handles it
+- **THEN** one inbound picking, move, and move line are recorded and completed
+- **AND** the matching batch is increased or a new batch is created from that move line
+
+#### Scenario: The use case validates the selected receipt location
+
+- **GIVEN** a synchronous receipt request identifies a facility and one of its internal locations
+- **WHEN** the REST adapter invokes `ConfirmStockReceiptUsecase`
+- **THEN** the adapter does not access a stock-location repository
+- **AND** the use case verifies that the location is internal and belongs to the facility before
+  recording the movement
+- **AND** the picking, move, physical stock, and availability fact use that location
+
+#### Scenario: A facility may offer multiple receipt locations
+
+- **GIVEN** a facility has more than one internal stock location
+- **WHEN** the stock UI prepares a receipt
+- **THEN** it can list those locations and submit the selected `locationId`
+- **AND** the receipt is not silently redirected to the operation type's default destination
+
+#### Scenario: Receipt and availability fact commit atomically
+
+- **GIVEN** a receipt confirmation increases available physical stock
+- **WHEN** its transaction commits
+- **THEN** the completed inbound execution, stock increase, and availability Outbox fact commit
+  together
+- **AND** backorder assignments belong to a later transaction
 
 ### Requirement: Allocation transaction boundaries are independent of their orchestrator
 
-Allocation commands, results, and transactional use cases SHALL NOT depend on Kafka event classes
+Allocation commands, in-process wake-round results, and transactional use cases SHALL NOT depend on Kafka event classes
 or Temporal SDK types. An entrypoint SHALL translate transport input into an application command
-before invoking the use case. Initial allocation SHALL return an explicit attempt result, and a
-bounded wake SHALL return an explicit round result, while business-fact Integration Events remain
+before invoking the use case. Business-fact Integration Events remain
 the channel by which outcomes reach other bounded contexts.
 
 This requirement establishes a shared application seam; it does not enable a Temporal runtime.
-Before a Workflow branches on a retried Activity result, the adapter SHALL provide durable replay or
-authoritative reconstruction of the original committed result.
+If a future Workflow branches on a retried Activity result, the adapter SHALL introduce that result
+with durable replay or authoritative reconstruction of the original committed result.
 
 #### Scenario: An Integration Event adapter invokes the transactional boundary
 
@@ -89,7 +142,7 @@ authoritative reconstruction of the original committed result.
 - **GIVEN** a Temporal adapter is introduced after durable result replay is available
 - **WHEN** it invokes initial allocation or a bounded wake round
 - **THEN** one Activity invokes one complete transactional use case
-- **AND** `MovementRecorder`, `MovementAssigner`, and `BackorderWaker` are not exposed as separate
+- **AND** `StockOperationRecorder` and `MovementAssigner` are not exposed as separate
   Activities merely because they are separate application components
 
 #### Scenario: A retried Activity observes its original result

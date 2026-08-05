@@ -83,11 +83,11 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   void shouldClaimInboxEventOnlyOnceAndPersistItsType() {
     UUID eventId = UUID.randomUUID();
 
-    MessageMetadata message = new MessageMetadata(eventId, "StockReplenishedIntegrationEvent");
+    MessageMetadata message = new MessageMetadata(eventId, "ConfirmStockReceiptRequest");
     assertThat(inboxRepo.claimIfNew(message)).isTrue();
     assertThat(inboxRepo.claimIfNew(message)).isFalse();
     assertThat(jpaEventInboxRepository.findById(eventId)).hasValueSatisfying(row ->
-        assertThat(row.getEventType()).isEqualTo("StockReplenishedIntegrationEvent"));
+        assertThat(row.getEventType()).isEqualTo("ConfirmStockReceiptRequest"));
   }
 
   @Test

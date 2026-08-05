@@ -3,16 +3,13 @@ package com.flowzati.archone.stock.entrypoint.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
-import com.flowzati.archone.stock.application.command.ReplenishStockCommand;
+import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.application.retry.AllocationRetryExecutor;
 import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
-import com.flowzati.archone.stock.application.usecase.ReplenishmentUsecase;
-import com.flowzati.archone.catalog.domain.model.LocationUsage;
-import com.flowzati.archone.catalog.domain.model.StockLocation;
-import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
+import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
 import com.flowzati.archone.stock.infrastructure.retry.SpringAllocationRetryExecutor;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
@@ -36,15 +33,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class AllocationKafkaIntegrationEventConsumerTest {
 
   private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
   private final AllocateOrderUsecase allocateOrderUsecase = mock(AllocateOrderUsecase.class);
   private final CancelMovementsUsecase releaseReservationUsecase = mock(CancelMovementsUsecase.class);
-  private final ReplenishmentUsecase replenishmentUsecase = mock(ReplenishmentUsecase.class);
-  private final StockLocationRepository stockLocationRepository = mock(StockLocationRepository.class);
+  private final AllocateWaitingDemandUsecase allocateWaitingDemandUsecase =
+      mock(AllocateWaitingDemandUsecase.class);
   private final AllocationRetryExecutor retryExecutor = new SpringAllocationRetryExecutor(new RetryTemplate(RetryPolicy.builder()
       .maxRetries(2)
       .delay(Duration.ZERO)
@@ -55,8 +51,8 @@ class AllocationKafkaIntegrationEventConsumerTest {
           List.of(
               new OrderPlacedIntegrationEventHandler(allocateOrderUsecase, retryExecutor),
               new OrderCancelledIntegrationEventHandler(releaseReservationUsecase, retryExecutor),
-              new StockReplenishedIntegrationEventHandler(
-                  replenishmentUsecase, stockLocationRepository, retryExecutor))));
+              new StockAvailabilityIncreasedIntegrationEventHandler(
+                  allocateWaitingDemandUsecase, retryExecutor))));
 
   @Test
   @DisplayName("收到下單整合事件時應轉為配置訂單命令")
@@ -95,31 +91,28 @@ class AllocationKafkaIntegrationEventConsumerTest {
   }
 
   @Test
-  @DisplayName("收到補貨整合事件時應轉為補貨命令")
-  void shouldMapStockReplenishedEventToInboundReplenishCommand() throws Exception {
+  @DisplayName("收到可用庫存事件時應直接使用事件中的 location 執行配貨")
+  void shouldMapAvailabilityIncreaseToAllocateWaitingDemandUsecase() throws Exception {
     UUID eventId = UUID.randomUUID();
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
-
-    // 事件說倉，命令說位置——翻譯是 entrypoint 的職責，這裡是它唯一的依據。
-    when(stockLocationRepository.findInternalOf(com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID))
-        .thenReturn(java.util.Optional.of(new StockLocation(
-            com.flowzati.archone.testsupport.OrderFixtures.LOCATION_ID,
-            com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID,
-            "WH-TEST/Stock", "測試倉／庫存", LocationUsage.INTERNAL)));
+    UUID ownerId = com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID;
+    UUID facilityId = com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID;
+    UUID locationId = com.flowzati.archone.testsupport.OrderFixtures.LOCATION_ID;
+    StockAvailabilityIncreasedIntegrationEvent event =
+        new StockAvailabilityIncreasedIntegrationEvent(
+            eventId, ownerId, facilityId, locationId, "SKU-1", 8);
 
     consumer.consumeInventoryEvent(record(
-        InventoryEventTopics.STOCK_EVENTS, event, StockReplenishedIntegrationEvent.class.getSimpleName()));
+        InventoryEventTopics.STOCK_EVENTS,
+        event,
+        StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName()));
 
-    ArgumentCaptor<InboundCommand<ReplenishStockCommand>> inbound = inboundCaptor();
-    verify(replenishmentUsecase).handle(inbound.capture());
-    assertThat(inbound.getValue().command().sku()).isEqualTo("SKU-1");
-    assertThat(inbound.getValue().command().quantity()).isEqualTo(8);
+    ArgumentCaptor<InboundCommand<AllocateWaitingDemandCommand>> inbound = inboundCaptor();
+    verify(allocateWaitingDemandUsecase).handle(inbound.capture());
+    assertThat(inbound.getValue().command()).isEqualTo(
+        new AllocateWaitingDemandCommand(ownerId, facilityId, locationId, "SKU-1"));
     assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
-    // 倉原樣帶著（續做事件對外要說倉），位置是解析出來的
-    assertThat(inbound.getValue().command().facilityId())
-        .isEqualTo(com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID);
-    assertThat(inbound.getValue().command().locationId())
-        .isEqualTo(com.flowzati.archone.testsupport.OrderFixtures.LOCATION_ID);
+    assertThat(inbound.getValue().message().eventType())
+        .isEqualTo(StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName());
   }
 
   @Test
@@ -136,20 +129,6 @@ class AllocationKafkaIntegrationEventConsumerTest {
     assertThatThrownBy(() -> consumer.consumeOrderingEvent(record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Kafka event ID header does not match payload");
-  }
-
-  @Test
-  @DisplayName("ordering topic 收到不支援事件時應拒絕")
-  void shouldRejectEventNotHandledByOrderingTopic() throws Exception {
-    StockReplenishedIntegrationEvent event = new StockReplenishedIntegrationEvent(UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", java.time.LocalDate.of(2026, 1, 5), java.time.LocalDate.of(2026, 12, 31), 8);
-
-    assertThatThrownBy(() -> consumer.consumeOrderingEvent(record(
-        InventoryEventTopics.STOCK_EVENTS,
-        event,
-        StockReplenishedIntegrationEvent.class.getSimpleName())))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported Kafka integration event: "
-            + OrderingEventTopics.ORDER_EVENTS + "/StockReplenishedIntegrationEvent");
   }
 
   private ConsumerRecord<String, String> record(String topic, Object event, String eventType) throws Exception {

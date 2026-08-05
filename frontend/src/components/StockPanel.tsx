@@ -4,66 +4,74 @@ import type { StockLine } from '../api/stockLines';
 import type {
   FacilityView,
   OwnerView,
-  ReplenishmentAccepted,
+  StockReceiptConfirmed,
   StockBatchView,
+  StockLocationView,
 } from '../api/types';
 import type { AsyncState } from '../hooks/useAsyncAction';
 import { ActionState } from './ActionState';
-import { ReplenishDialog, type ReplenishInput } from './ReplenishDialog';
+import { ConfirmStockReceiptDialog, type ConfirmStockReceiptInput } from './ConfirmStockReceiptDialog';
 import styles from './StockPanel.module.css';
 
 interface StockPanelProps {
   /** 已經與主檔 join 過的列表：該貨主的每一個規格各一列，這個倉沒有的四個數字都是 0。 */
   lines: AsyncState<StockLine[]>;
-  replenishment: AsyncState<ReplenishmentAccepted>;
+  receiptConfirmation: AsyncState<StockReceiptConfirmed>;
   owners: OwnerView[];
   facilitiesOf: (ownerId: string) => readonly FacilityView[];
-  onQuery: (ownerId: string, facilityId: string) => void;
-  onReplenish: (input: ReplenishInput) => void;
-  /** 改動貨主或倉別時作廢畫面上的結果——它屬於上一個組合。 */
+  locationsOf: (facilityId: string) => readonly StockLocationView[];
+  onQuery: (ownerId: string, facilityId: string, locationId: string) => void;
+  onConfirmReceipt: (input: ConfirmStockReceiptInput) => void;
+  /** 改動貨主或設施時作廢畫面上的結果——它屬於上一個組合。 */
   onScopeChange: () => void;
 }
 
 /**
- * 庫存頁：查一個倉替一個貨主放了什麼，並從那一列補貨。
+ * 庫存頁：查一個庫位替一個貨主放了什麼，並從那一列收貨。
  *
- * <p><b>查詢軸是 (貨主, 倉別)，不是 SKU。</b>改動前問的是「一個 SKU 散在哪些倉」，而配貨從不
+ * <p><b>查詢軸是 (貨主, 設施, 庫位)，不是 SKU。</b>Facility 決定作業政策，location 是實際
+ * 庫存端點；少了後者，多庫位 Facility 就無法回答查的是哪一批貨。配貨從不
  * 跨倉——每一次配貨都鎖在一個倉裡。畫面問的問題與系統做的決策因此對不上，而且要知道一個倉
  * 有沒有東西，你得先知道有哪些 SKU、再一個一個查。
  *
  * <p><b>一列一個規格，批降為展開後的第二層。</b>四批同一個規格會佔四列，而「這個規格總共還
- * 能出幾件」正是決定要不要補貨的數字。展開這一層違反了訂單頁定下的「不做點開看詳細」，但那條
+ * 能出幾件」正是決定要不要收貨的數字。展開這一層違反了訂單頁定下的「不做點開看詳細」，但那條
  * 規則守的是「同一份資料呈現兩次」——這裡一個規格的列真的裝不下 N 批，是兩個層級不是兩次呈現。
  *
  * <p><b>在手含過期、可承諾不含。</b>兩個數字各自誠實：在手是物理事實，可承諾是配貨真的兌現得
  * 了的量。它們對不起來的差額由「已過期」那一欄解釋，而那個差額正是「要報廢還是要進貨」的分歧
  * 點。合起來的版本會讓可承諾說謊，而「有貨卻配不到」那一刻會看起來像配貨壞了。
  *
- * <p><b>該貨主的每一個規格都在，這個倉沒有的顯示 0。</b>那些零就是這個倉缺什麼，而補貨鍵因此
+ * <p><b>該貨主的每一個規格都在，這個倉沒有的顯示 0。</b>那些零就是這個倉缺什麼，而收貨鍵因此
  * 到得了每一個規格。只列有貨的會讓這個倉從未放過的貨品再也進不去。
  */
 export function StockPanel({
   lines,
-  replenishment,
+  receiptConfirmation,
   owners,
   facilitiesOf,
+  locationsOf,
   onQuery,
-  onReplenish,
+  onConfirmReceipt,
   onScopeChange,
 }: StockPanelProps) {
   const ownerFieldId = useId();
-  const nodeFieldId = useId();
+  const facilityFieldId = useId();
+  const locationFieldId = useId();
   const [selectedOwner, setSelectedOwner] = useState('');
   const [selectedFacility, setSelectedFacility] = useState('');
-  const [replenishing, setReplenishing] = useState<StockLine | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [receiving, setReceiving] = useState<StockLine | null>(null);
 
-  const canQuery = selectedOwner !== '' && selectedFacility !== '';
+  const canQuery =
+    selectedOwner !== '' && selectedFacility !== '' && selectedLocation !== '';
 
-  function changeScope(nextOwner: string, nextNode: string) {
+  function changeScope(nextOwner: string, nextFacility: string) {
     setSelectedOwner(nextOwner);
-    setSelectedFacility(nextNode);
+    setSelectedFacility(nextFacility);
+    setSelectedLocation('');
     // 視窗屬於上一個組合的某一列，換了範圍就不該還開著。
-    setReplenishing(null);
+    setReceiving(null);
     onScopeChange();
   }
 
@@ -73,8 +81,8 @@ export function StockPanel({
         這段必須在查詢之前就在畫面上：使用者面對「為什麼要選貨主」的疑問是在按任何按鈕之前。
       */}
       <p className={styles.scopeNote}>
-        貨主與倉別都要選——同碼 SKU 在兩個貨主名下是兩批不同的貨，而配貨從不跨倉，
-        每一次都鎖在一個倉裡。
+        貨主、設施與庫位都要選——同碼 SKU 在兩個貨主名下是兩批不同的貨，而每個庫位也是
+        獨立的實際庫存端點。
       </p>
       <div className={styles.controls}>
         <div className={styles.field}>
@@ -95,9 +103,9 @@ export function StockPanel({
           </select>
         </div>
         <div className={styles.field}>
-          <label className={styles.label} htmlFor={nodeFieldId}>倉別</label>
+          <label className={styles.label} htmlFor={facilityFieldId}>設施</label>
           <select
-            id={nodeFieldId}
+            id={facilityFieldId}
             className={styles.input}
             value={selectedFacility}
             onChange={(event) => changeScope(selectedOwner, event.target.value)}
@@ -111,9 +119,30 @@ export function StockPanel({
             ))}
           </select>
         </div>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={locationFieldId}>庫位</label>
+          <select
+            id={locationFieldId}
+            className={styles.input}
+            value={selectedLocation}
+            onChange={(event) => {
+              setSelectedLocation(event.target.value);
+              setReceiving(null);
+              onScopeChange();
+            }}
+            disabled={selectedFacility === ''}
+          >
+            <option value="">請選擇</option>
+            {locationsOf(selectedFacility).map((location) => (
+              <option key={location.locationId} value={location.locationId}>
+                {location.name}（{location.code}）
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           type="button"
-          onClick={() => onQuery(selectedOwner, selectedFacility)}
+          onClick={() => onQuery(selectedOwner, selectedFacility, selectedLocation)}
           disabled={!canQuery}
         >
           查詢庫存
@@ -121,23 +150,22 @@ export function StockPanel({
       </div>
 
       {/*
-        補貨的結果**不會自動出現在上面的列表裡**。補貨回 202——發布成功不代表配置完成，庫存
-        變更走 Kafka consumer。自動重查在本機通常快到看不出來，但慢的那一次畫面會說謊，而且
-        分不出「還沒處理到」與「處理完了但數字真的沒變」。
+        收貨完成後不自動覆寫上面的查詢快照。使用者可以明確重查；同一交易也可能已把新量配置
+        給缺貨訂單，所以重查後「在手增加、可承諾不變」也是正常結果。
 
-        手動重查還換來一件事：補貨會順帶喚醒缺貨佇列，所以重查看到的可能是「在手 +50、
+        手動重查還換來一件事：收貨會順帶喚醒缺貨佇列，所以重查看到的可能是「在手 +50、
         預留也 +50」——貨當場被等待中的單吃掉。那一幕由使用者自己點出來，比在背景悄悄發生好。
       */}
-      <ActionState state={replenishment} pendingLabel="發布補貨事件中…">
-        {(accepted) => (
+      <ActionState state={receiptConfirmation} pendingLabel="確認收貨中…">
+        {(confirmed) => (
           <p className={styles.accepted}>
-            <span className={styles.skuValue}>{accepted.sku}</span> 的補貨事件已受理，事件識別碼{' '}
-            <span className={styles.eventId}>{accepted.eventId}</span>
-            。配置是非同步的——下面的數字要重查才會更新。{' '}
+            <span className={styles.skuValue}>{confirmed.sku}</span> 已完成收貨{' '}
+            <span className={styles.eventId}>{confirmed.quantity}</span> 件。
+            訂單配置結果請由訂單列表確認。{' '}
             <button
               type="button"
               className={styles.requery}
-              onClick={() => onQuery(selectedOwner, selectedFacility)}
+              onClick={() => onQuery(selectedOwner, selectedFacility, selectedLocation)}
               disabled={!canQuery}
             >
               重新查詢
@@ -148,20 +176,26 @@ export function StockPanel({
 
       <ActionState state={lines} pendingLabel="查詢中…">
         {(stockLines) => (
-          <StockTable lines={stockLines} onReplenish={(line) => setReplenishing(line)} />
+          <StockTable lines={stockLines} onConfirmReceipt={(line) => setReceiving(line)} />
         )}
       </ActionState>
 
-      {replenishing === null ? null : (
-        <ReplenishDialog
-          line={replenishing}
+      {receiving === null ? null : (
+        <ConfirmStockReceiptDialog
+          line={receiving}
           ownerName={labelOf(owners.find((owner) => owner.ownerId === selectedOwner))}
-          nodeName={labelOf(facilitiesOf(selectedOwner).find((facility) => facility.facilityId === selectedFacility))}
-          onClose={() => setReplenishing(null)}
+          facilityName={labelOf(facilitiesOf(selectedOwner).find((facility) => facility.facilityId === selectedFacility))}
+          locationName={labelOf(locationsOf(selectedFacility).find((location) => location.locationId === selectedLocation))}
+          onClose={() => setReceiving(null)}
           onSubmit={(input) => {
-            // 先關再送。視窗留著什麼都不會顯示——結果是非同步的，而「已受理」屬於列表那一層。
-            setReplenishing(null);
-            onReplenish({ ...input, ownerId: selectedOwner, facilityId: selectedFacility });
+            // 先關再送；同步結果顯示在列表上方，不讓 dialog 同時承擔表單與結果兩種狀態。
+            setReceiving(null);
+            onConfirmReceipt({
+              ...input,
+              ownerId: selectedOwner,
+              facilityId: selectedFacility,
+              locationId: selectedLocation,
+            });
           }}
         />
       )}
@@ -177,16 +211,16 @@ function labelOf(named: { name: string; code: string } | undefined): string {
 /**
  * 一列一個規格，可展開看它的批。
  *
- * <p>順序照傳進來的，**不重排**。那是主檔的款 → 規格順序，而且刻意不隨數量變動：補貨的結果
+ * <p>順序照傳進來的，**不重排**。那是主檔的款 → 規格順序，而且刻意不隨數量變動：收貨的結果
  * 要手動重查才看得到，排序一旦跟著數量走，你補的那一列就會跳走——而重查的整個目的就是看它
  * 變了什麼。
  */
 function StockTable({
   lines,
-  onReplenish,
+  onConfirmReceipt,
 }: {
   lines: StockLine[];
-  onReplenish: (line: StockLine) => void;
+  onConfirmReceipt: (line: StockLine) => void;
 }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
@@ -245,8 +279,8 @@ function StockTable({
                 {line.expiredQuantity}
               </td>
               <td>
-                <button type="button" onClick={() => onReplenish(line)}>
-                  補貨
+                <button type="button" onClick={() => onConfirmReceipt(line)}>
+                  收貨
                 </button>
               </td>
             </tr>
@@ -276,7 +310,7 @@ function StockTable({
  * <p>順序照後端給的，**不重排**。那就是配貨會取用的順序，而 tie-break 一路排到批的識別碼——
  * 前端重現不了，自己排只會顯示一個永遠不會發生的取用順序。
  *
- * <p>沒有倉別欄：整份結果已經鎖在一個倉裡，每一列再印一次只是把查詢條件抄回來。
+ * <p>沒有設施欄：整份結果已經鎖在一個倉裡，每一列再印一次只是把查詢條件抄回來。
  */
 function BatchTable({ batches }: { batches: readonly StockBatchView[] }) {
   if (batches.length === 0) {

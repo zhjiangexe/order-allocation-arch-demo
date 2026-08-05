@@ -1,4 +1,4 @@
-import type { FacilityView, OwnerView, ProductView, SkuView } from './types';
+import type { FacilityView, OwnerView, ProductView, SkuView, StockLocationView } from './types';
 
 /** 主檔查到的規格，附上所屬款的品名——列表要顯示「品名 · 規格」，而品名在款那一層。 */
 export interface CatalogSku extends SkuView {
@@ -8,8 +8,9 @@ export interface CatalogSku extends SkuView {
 /** 一個貨主的整份主檔。`skus` 是該貨主全部款底下的規格，不分款攤平。 */
 export interface CatalogEntry {
   owner: OwnerView;
-  /** 這個貨主能指定的出貨倉。空陣列代表它一個倉都沒掛，那種貨主下不了單。 */
+  /** 這個貨主能指定的履約設施。空陣列代表它沒有關聯任何設施，因此無法下單。 */
   facilities: readonly FacilityView[];
+  locations: readonly StockLocationView[];
   products: readonly ProductView[];
   skus: readonly CatalogSku[];
 }
@@ -29,6 +30,7 @@ export interface CatalogEntry {
 export class Catalog {
   private readonly entries = new Map<string, CatalogEntry>();
   private readonly skuByOwnerAndCode = new Map<string, Map<string, CatalogSku>>();
+  private readonly locationsByFacility = new Map<string, StockLocationView[]>();
 
   constructor(entries: readonly CatalogEntry[]) {
     for (const entry of entries) {
@@ -37,6 +39,13 @@ export class Catalog {
         entry.owner.ownerId,
         new Map(entry.skus.map((sku) => [sku.skuCode, sku])),
       );
+      for (const location of entry.locations) {
+        const locations = this.locationsByFacility.get(location.facilityId) ?? [];
+        if (!locations.some((existing) => existing.locationId === location.locationId)) {
+          locations.push(location);
+        }
+        this.locationsByFacility.set(location.facilityId, locations);
+      }
     }
   }
 
@@ -52,6 +61,10 @@ export class Catalog {
     return this.entries.get(ownerId)?.products ?? [];
   }
 
+  locationsOf(facilityId: string): readonly StockLocationView[] {
+    return this.locationsByFacility.get(facilityId) ?? [];
+  }
+
   skusOf(ownerId: string, productCode: string): readonly CatalogSku[] {
     return (this.entries.get(ownerId)?.skus ?? []).filter(
       (sku) => sku.productCode === productCode,
@@ -63,7 +76,7 @@ export class Catalog {
     return this.skuByOwnerAndCode.get(ownerId)?.get(skuCode);
   }
 
-  /** 查不到回 `undefined`，用途是把批次列表裡的 `facilityId` 換成看得懂的倉名。 */
+  /** 查不到回 `undefined`，用途是把批次列表裡的 `facilityId` 換成看得懂的設施名稱。 */
   findFacility(ownerId: string, facilityId: string): FacilityView | undefined {
     return this.facilitiesOf(ownerId).find((facility) => facility.facilityId === facilityId);
   }

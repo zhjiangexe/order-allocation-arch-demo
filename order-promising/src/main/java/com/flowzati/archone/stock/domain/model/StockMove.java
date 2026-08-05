@@ -14,6 +14,9 @@ import java.util.UUID;
  *
  * <p>{@code orderLineId} 可空：入庫的搬運背後沒有任何訂單行。它是需求與執行之間**唯一**的
  * 連結（對應 Odoo 的 {@code stock_move.sale_line_id}）——單據上刻意沒有指向訂單的捷徑。
+ *
+ * <p>{@code pickingId} 也可空：move 是數量真相，picking 只是倉庫任務的可選分組。訂單
+ * outbound 與目前 inbound 流程都會建 picking，但這是流程政策，不是這個型別強制的規則。
  */
 public class StockMove {
 
@@ -103,7 +106,7 @@ public class StockMove {
    * {@code waiting} 的分岔。
    *
    * <p>名字直接取自 {@link MoveState#CONFIRMED}，不另創說法。<b>建立的意圖由
-   * {@code MovementRecorder} 那一層說</b>——它才是解析作業類型、組單據、決定起訖的地方；這裡
+   * {@code StockOperationRecorder} 那一層說</b>——它才是解析作業類型、組單據、決定起訖的地方；這裡
    * 只回答「這個實例從哪個狀態開始」。
    */
   public static StockMove confirmed(
@@ -169,6 +172,10 @@ public class StockMove {
    *
    * <p>冪等，理由與 {@code Order.cancel} 相同：取消可能被重送，而第二次不該報錯。
    */
+  public boolean canCancel() {
+    return state == MoveState.CONFIRMED || state == MoveState.ASSIGNED;
+  }
+
   public boolean cancel() {
     if (state == MoveState.CANCELLED) {
       return false;
@@ -181,6 +188,10 @@ public class StockMove {
     // 「這一段曾經配到過」與「它現在鎖著貨」在讀取端分不開。
     assignedAt = null;
     return true;
+  }
+
+  public boolean isCancelled() {
+    return state == MoveState.CANCELLED;
   }
 
   public UUID getId() {

@@ -2,8 +2,8 @@
 
 > **2026-07-29 更新**：③ Sourcing／R6 已移出範圍，本文件中所有「R6 會讀它」「R6 的決策輸入」
 > 之類的理由**均已失效**。這是 R1 的設計記錄，因此不改寫那些脈絡——它們忠實記載了當時的判斷
-> 依據。但**欄位本身有變動的**已就地標註（見 `allow_split_shipment`、`assigned_node_id`、
-> `requested_node_id` 三條）。移出的理由見
+> 依據。但**欄位本身有變動的**已就地標註（見 `allow_split_shipment`、`assigned_facility_id`、
+> `requested_facility_id` 三條）。移出的理由見
 > [system-layer-map.md](system-layer-map.md) 的「為什麼不做 ③」。
 
 
@@ -26,7 +26,7 @@
 
 ## 範圍界線
 
-R1 **不動** `stock_pools`、`stock_reservations`、`fulfillment_nodes`。跨貨主隔離在 R3
+R1 **不動** `stock_pools`、`stock_reservations`、`facilities`。跨貨主隔離在 R3
 才生效，這是 roadmap 明確標註的已知中間狀態。
 
 ---
@@ -95,7 +95,7 @@ PK 為 `(owner_id, sku_code)`；FK 為 `(owner_id, product_code)` → `products`
 | `owner_id` | `UUID` | `NOT NULL`、FK 之一 → `skus` | **反正規化**，見下 |
 | `sku_code` | `VARCHAR(64)` | `NOT NULL`、FK 之一 → `skus` | |
 | `quantity` | `INTEGER` | `NOT NULL`、`> 0` | |
-| ~~`assigned_node_id`~~ | — | — | **2026-07-29 砍除**（R2 執行）。它放在 line 的唯一理由是跨倉拆單，而明細不可跨倉，它永遠等於 header |
+| ~~`assigned_facility_id`~~ | — | — | **2026-07-29 砍除**（R2 執行）。它放在 line 的唯一理由是跨倉拆單，而明細不可跨倉，它永遠等於 header |
 | `status` | `VARCHAR(32)` | `NOT NULL` | 行狀態。R1 與整單狀態同步，R8 才會分歧 |
 | `backordered_since` | `TIMESTAMPTZ` | 可空 | 這一行進入缺貨的時間。**從 R8 提前**，理由見下 |
 
@@ -105,7 +105,7 @@ FK 為 `(owner_id, sku_code)` → `skus`。
 問題）、讀取路徑（配貨與揀貨直接讀 line，join header 取貨主是多餘往返）、FK 完整性
 （`(owner_id, sku_code)` 可直接建外鍵，否則只能在應用層檢查）。
 
-（以下已失效，`assigned_node_id` 於 R2 砍除）**`assigned_node_id` 與 `status` 在 line 而非 header**，因為拆單後不同 line 可能從不同
+（以下已失效，`assigned_facility_id` 於 R2 砍除）**`assigned_facility_id` 與 `status` 在 line 而非 header**，因為拆單後不同 line 可能從不同
 節點出。放 header 之後必須搬遷。R1 先建欄位是為了避免 R6 再改一次表。
 
 **`backordered_since` 從 R8 提前到 R1，理由是 index 而非領域事實。** 這一點要寫清楚，
@@ -134,7 +134,7 @@ line、排序鍵在 header，橫跨兩張表的「篩選 ＋ 排序」無法用�
 | `ship_to_zone` | `VARCHAR(32)` | `NOT NULL` | 配送分區（郵遞區號前三碼或縣市）。**R6 的決策輸入** |
 | `ship_to_address` | `VARCHAR(512)` | `NOT NULL` | 完整地址。履約與面單用，sourcing 不看 |
 | `promised_delivery_date` | `DATE` | `NOT NULL` | 承諾到貨日。**R6 時效項的基準** |
-| `requested_node_id` | `UUID` | 可空 | **R2 更名為 `fulfillment_node_id` 並改 `NOT NULL` ＋ 補 FK**。沒有選點可跳過了——貨主指定的就是實際出貨倉 |
+| `requested_facility_id` | `UUID` | 可空 | **R2 更名為 `facility_id` 並改 `NOT NULL` ＋ 補 FK**。沒有選點可跳過了——貨主指定的就是實際出貨倉 |
 | `fulfilled_at` | `TIMESTAMPTZ` | 可空 | 整單出貨完成時間。**從 R7 提前**，只為了讓 `orders` 只被 ALTER 一次。R1～R7 之間恆為空 |
 
 ### 新增 constraint
@@ -218,7 +218,7 @@ R4 之後待配佇列的查詢**不能依 status 過濾**——ordering 的配�
 | `Owner` | aggregate root | `code`、`name`、`status`、`allowSplitShipment`。R1 無行為方法，純主檔 |
 | `Product` | aggregate root | `ownerId`、`productCode`、`name`、`temperatureZone` |
 | `Sku` | aggregate root | `ownerId`、`skuCode`、`productCode`、`specName`、`weightGram` |
-| `OrderLine` | **entity（`Order` 的一部分）** | 不是 aggregate root。生命週期屬 `Order`，不可獨立存取。持有 `status`、`allocatedAt`、`backorderedSince`、`assignedNodeId` |
+| `OrderLine` | **entity（`Order` 的一部分）** | 不是 aggregate root。生命週期屬 `Order`，不可獨立存取。持有 `status`、`allocatedAt`、`backorderedSince`、`assignedFacilityId` |
 
 `OrderLine` 是 entity 而非 aggregate root：它沒有獨立的一致性邊界，數量與狀態的變更
 必須經過 `Order` 才能維持整單狀態的一致。
@@ -399,10 +399,10 @@ R3 另有兩項對應的防護，見 roadmap 的 R3 任務。
 | 多筆 line、拆單 | R8。`backordered_since` 與 FIFO index 已在 R1 |
 | `PARTIALLY_ALLOCATED` | **不做**。採 ship-complete，見 [dom-promising-scope.md](dom-promising-scope.md) |
 | `stock_pools` 的任何變更、跨貨主隔離 | R3 |
-| `fulfillment_nodes` 極簡主檔（`node_coverage` 已隨 ③ 移出範圍） | R2 |
-| ~~選點決策、`assigned_node_id` 的填值~~ | **已移出範圍**（2026-07-29） |
+| `facilities` 極簡主檔（`facility_coverage` 已隨 ③ 移出範圍） | R2 |
+| ~~選點決策、`assigned_facility_id` 的填值~~ | **已移出範圍**（2026-07-29） |
 | Partition key 改為 `ownerId:skuCode` | R3 |
 | 主檔的寫入介面（Owner／Product／Sku 的 CRUD） | 不做，seed 建立即可 |
 | 語意驗證（`sku_code` 是否存在於主檔） | 選配，1.4 |
 | `fulfilled_at` 的**寫入**（出貨完成時填值） | R7。欄位已在 R1 |
-| ~~`order_lines.assigned_node_id` 的 FK~~ | **欄位於 R2 砍除**，改為 `orders.fulfillment_node_id` 補 FK |
+| ~~`order_lines.assigned_facility_id` 的 FK~~ | **欄位於 R2 砍除**，改為 `orders.facility_id` 補 FK |

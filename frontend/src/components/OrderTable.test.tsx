@@ -22,6 +22,7 @@ const CATALOG = new Catalog([
   {
     owner: OWNER_A,
     facilities: [{ facilityId: '00000000-0000-0000-0000-000000000011', code: 'WH-NORTH', name: '北部倉' }],
+    locations: [],
     products: [
       {
         productId: 'p-a',
@@ -46,6 +47,7 @@ const CATALOG = new Catalog([
   {
     owner: OWNER_B,
     facilities: [{ facilityId: '00000000-0000-0000-0000-000000000013', code: 'WH-SOUTH', name: '南部倉' }],
+    locations: [],
     products: [
       {
         productId: 'p-b',
@@ -131,7 +133,7 @@ describe('OrderTable', () => {
     expect(within(row).getByText('3、5')).toBeInTheDocument();
   });
 
-  it('每一行都顯示 SKU 代碼，讓人拿去庫存頁查詢或補貨', () => {
+  it('每一行都顯示 SKU 代碼，讓人拿去庫存頁查詢或收貨', () => {
     render(
       <OrderTable
         orders={[order({ orderId: 'eeeeeeee-0000-0000-0000-00000000000e', ownerId: OWNER_A.ownerId })]}

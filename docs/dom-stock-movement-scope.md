@@ -1,8 +1,10 @@
 # 庫存異動模型：需求與執行分成兩層
 
-> **五個 change 全部交付。** 庫存從「一個可被加減的數字」變成有來源與目的的異動流水，而
-> 在庫量的增加在型別上只剩一個入口：`StockPool.receive(StockMoveLine)`。剩下的待辦都在
-> `docs/execution-roadmap.md` 的「已識別但未排程」。
+> **現行邊界說明（2026-08-04）：** 本文件主要保留搬運模型形成時的設計脈絡。後續
+> `refine-allocation-workflow-boundaries` 最終確認本系統的 `StockPool` 是實體庫存 source of truth。
+> 本地一段式收貨會建立並完成 inbound picking/move/move line，再由 move line 增加 `StockPool`；
+> 同交易寫 availability Outbox，Kafka 提交後快速觸發配貨，Scheduler 定期補漏。收貨不直接
+> invoke outbound 配貨。
 
 本文記錄一個跨越五個 change 的決定：**把庫存從「一個可被加減的數字」改成有來源與目的的
 異動流水**，並把「貨主要什麼」與「倉庫做什麼」分成兩層。概念與命名對齊 Odoo 19。
@@ -17,10 +19,10 @@ change」在既有文件裡被引用了十幾處，指的一直是界線與命�
 
 ## 前提
 
-### 現況：庫存數字可以被直接寫，而搬運沒有資料表達
+### 當時現況：庫存數字可以被直接寫，而搬運沒有資料表達
 
-`ReplenishmentUsecase` 的補貨路徑是 `stockPool.replenish(qty)`——直接把 `on_hand_quantity`
-加上去。沒有任何異動紀錄。
+當時的補貨路徑直接把 `on_hand_quantity` 加上去，沒有任何異動紀錄。現行版本由
+`ConfirmStockReceiptUsecase` 建立並完成 inbound execution，庫存數量不再接受裸數字寫入。
 
 因此系統回答不了三個問題：
 
@@ -54,7 +56,7 @@ repository 的程式都能改庫存，而改錯了不會留下痕跡。
 | Odoo 19 | 本系統（改動後） | 說明 |
 | --- | --- | --- |
 | `sale.order` / `sale.order.line` | `orders` / `order_lines` | **需求層**。貨主送來的出庫指令 |
-| `stock.warehouse` | `fulfillment_nodes` | 保留。倉的識別、代碼 |
+| `stock.warehouse` | `facilities` | 保留。倉的識別、代碼 |
 | `stock.location` | `stock_locations` | **新增**。含虛擬位置 |
 | `stock.picking.type` | `stock_picking_types` | **新增**。作業類型 |
 | `stock.picking` | `stock_pickings` | **新增**。搬運單據 |
@@ -65,7 +67,7 @@ repository 的程式都能改庫存，而改錯了不會留下痕跡。
 | `product.product` | `skus` | 同上 |
 | `stock.lot` | **不做** | 見「不做的事」 |
 | `stock.route` / `stock.rule` | **不做** | 見決定五 |
-| — | `owner_nodes` | 3PL 特有，Odoo 無對應 |
+| — | `owner_facilities` | 3PL 特有，Odoo 無對應 |
 
 ---
 
@@ -153,9 +155,14 @@ Odoo 用 `stock.picking.move_type = 'one'` 表達「全備妥才出」。查證�
 這條分界管的是後面三個 change：change 2 決定兩張表各拿哪些欄位、change 3 的入庫 picking
 靠它才說得清為什麼沒有訂單、change 4 的狀態歸屬（`BACKORDERED` 要去哪）也依賴它。
 
-**`picking` 的狀態是算出來的，不是寫進去的。** Odoo 的 `stock.picking.state` 是 computed，
-由底下的 move 彙總；它 store 只為了畫面篩選。存起來就有兩份要對齊的真相，而 ship-complete
-下一張單的所有 move 同進同出，彙總本來就是 trivial 的。
+**`picking` 的狀態是由 moves 決定後物化，不是另一套獨立生命週期。** Odoo 的
+`stock.picking.state` 也是 stored computed，由底下的 move 彙總。本系統目前沒有 ORM
+computed field，因此由建立、配貨、完成與取消流程在修改 moves 的同一個 transaction 寫入：
+`CONFIRMED`（等待庫存）→ `ASSIGNED`（可執行）→ `DONE`，或在完成前進 `CANCELLED`。
+
+物化的讀者是 picking 作業列表的狀態篩選與排程；它同時帶 `version`，避免 availability
+喚醒與取消併發時互相覆蓋。這份欄位仍是 moves 的摘要，不授權 Picking 發展出與 moves
+矛盾的狀態轉換。
 
 ### 需求與執行的連結是兩層，不是一層
 
@@ -176,9 +183,9 @@ stock_move                   —— 沒有 sale_id
 > 而它是**必要的**：配貨要發帶 `orderId` 的結果事件，而 move 只有 `order_line_id`；從行推到
 > 單要 join `order_lines`，那正是邊界規則禁止的。
 
-**但分組不用它。** ship-complete 的整單判斷以 `picking_id` 分組——單表 group by，熱路徑
-（補貨喚醒佇列）因此一個 join 都沒有。`order_id` 只在配到之後要發事件時才查，而那時只有
-少數幾張單。
+**但分組不用它。** ship-complete 的整單判斷以 `picking_id` 分組。待配查詢另以
+`picking.order_id IS NOT NULL` 排除 inbound 與 standalone move，避免它們占用以訂單張數計算的
+上限；這個條件只是 eligibility，整籃分組鍵仍是 `picking_id`。
 
 `picking_id` 本來就是更自然的分組鍵：picking 的意思就是「這些 move 是同一份工作」，而
 ship-complete 判斷的正是一份工作能不能整個完成。用 `order_id` 分組會讓 picking 變成裝飾。
@@ -294,38 +301,39 @@ REST 在讀取時組合。它的好處是真相只有一份，而且 R7 的 `FUL
 
 ---
 
-## 決定三：倉與位置兩層都留，位置只活在執行層
+## 決定三：Facility 與位置兩層都留，位置只活在執行層
 
 | | 回答什麼 | 誰指它 |
 | --- | --- | --- |
-| 倉（`fulfillment_nodes`） | 哪個實體場地？貨主掛在哪些倉？ | `orders`、`owner_nodes`、`stock_locations` |
+| Facility（`facilities`） | 哪個物流作業場站？貨主能使用哪些設施？ | `orders`、`owner_facilities`、`stock_locations` |
 | 位置（`stock_locations`） | 貨具體在哪？這裡算不算庫存（`usage`）？ | `stock_pickings`、`stock_moves`、`stock_move_lines`、`stock_pools` |
 
-**`orders` 只帶倉，不帶位置。** 下單只決定倉，位置由作業類型決定。這對應 Odoo 的
-`sale.order.warehouse_id`（倉）與 `stock.picking.location_id`（位置）分屬兩層。
+**`orders` 只帶 Facility，不帶位置。** 下單只決定負責履約的物流場站，位置由作業類型決定。
+它目前對應 Odoo 的 `sale.order.warehouse_id`，而 `stock.picking.location_id` 是另一層。
 
 這同時解掉一個曾經卡住的問題：`orders` 上有一條複合外鍵
 
 ```sql
-FOREIGN KEY (owner_id, fulfillment_node_id) REFERENCES owner_nodes(owner_id, node_id)
+FOREIGN KEY (owner_id, facility_id) REFERENCES owner_facilities(owner_id, facility_id)
 ```
 
-它讓「倉存在，但這個貨主沒掛這個倉」由資料庫擋下。**位置不帶貨主，接不上這條外鍵，而外鍵
-不能跨兩跳。** 曾經考慮在 `orders` 上同時放倉與位置、用第二條複合外鍵綁死一致——決定一之後
+它讓「設施存在，但這個貨主沒有使用權」由資料庫擋下。**位置不帶貨主，接不上這條外鍵，而外鍵
+不能跨兩跳。** 曾經考慮在 `orders` 上同時放 Facility 與位置、用第二條複合外鍵綁死一致——決定一之後
 不必了：**`orders` 根本不該有位置。**
 
-曾考慮把 `fulfillment_nodes` 併進 `stock_locations`。**否決**，理由是 `owner_nodes`：「這個
-貨主在哪些倉有貨」是**商業關係，屬於倉層**，且在任何貨進倉之前就成立。一倉多位置時，那張
+曾考慮把 `facilities` 併進 `stock_locations`。**否決**，理由是 `owner_facilities`：「這個
+貨主能使用哪些設施」是**商業關係，屬於 Facility 層**，且在任何貨進場之前就成立。一個 Facility
+有多個位置時，那張
 表要掛五筆還是只掛庫存區？兩個答案都不對。
 
-### `stock_locations.warehouse_id` 是實體欄位
+### `stock_locations.facility_id` 是實體欄位
 
 不是查詢時沿樹算。**Odoo 19 的 `stock.location.warehouse_id` 是 computed 且 `store=True`**，
 子樹查詢則靠 `parent_path` 物化路徑加 `LIKE` 前綴，不是遞迴 CTE。我們不做樹，所以連
-`parent_path` 都不需要——`warehouse_id` 直接就是答案。
+`parent_path` 都不需要——`facility_id` 直接就是答案。
 
 **一個不要照抄的坑**：Odoo 的 `_compute_warehouse_id` 沒有標 `recursive=True`（同檔的
-`complete_name` 有標）。把子樹搬到別的倉底下時，子孫的 `warehouse_id` 不會重算。我們日後若
+`complete_name` 有標）。把子樹搬到別的倉底下時，子孫的 `facility_id` 不會重算。我們日後若
 加樹，這個一致性責任要自己補。
 
 ---
@@ -370,7 +378,7 @@ Odoo 一裝好就內建整套 route。
 **「流程差異需要營運人員在後台改，而不是發版」** 的那一刻才出現。
 
 次要理由：規則查找是三層巢狀（位置沿樹往上爬 × route 四級來源優先序 × sequence 排序），
-**在一倉一個 internal 位置、單段出貨下全部退化成常數**；而代價是兩張表、四張掛載用的 m2m、
+**在沒有位置樹、單段出貨下，大部分查找仍退化成常數**；而代價是兩張表、四張掛載用的 m2m、
 倉上六個 route/rule 欄位，以及「改變步數時把該 route 底下所有 rule 先封存再復活」那整套邏輯。
 
 ### 但 `picking_type` 要做
@@ -407,7 +415,7 @@ Odoo 一裝好就內建整套 route。
 | 每種作業自己的預設起訖位置 | `default_location_src_id` / `default_location_dest_id`（**兩者皆 required**） |
 | 每種作業自己的**預留時機** | `reservation_method` ∈ `at_confirm` / `manual` / `by_date` |
 | 缺量、出貨、批號、包裝政策 | `create_backorder`、`move_type`、`use_*_lots` 等 |
-| 倉別隔離、退貨對應 | `warehouse_id`、`return_picking_type_id` |
+| 倉別隔離、退貨對應 | `facility_id`、`return_picking_type_id` |
 
 **`reservation_method` 值得單獨標記**——它正是這整串討論最開頭那個問題（「補庫存時該不該自動
 去完成 backorder」）在 Odoo 裡的落腳處。它是**作業類型的設定，不是寫死在補貨流程裡的行為**。
@@ -432,7 +440,7 @@ Odoo 一裝好就內建整套 route。
 流程模板的形狀（不含遞迴、不含 fallback）：
 
 ```text
-fulfillment_flow(id, code, version, owner_id?, warehouse_id, service_level?,
+fulfillment_flow(id, code, version, owner_id?, facility_id, service_level?,
                  effective_from, effective_to, status)
 fulfillment_flow_step(flow_id, sequence, picking_type_id, from_location_id,
                       to_location_id, reservation_policy)
@@ -463,9 +471,9 @@ move 的結構**。
 | 是（有真正的中繼位置，例如 Output 暫存區） | 兩段 move |
 | 否（揀貨、複核、裝箱只是同一批貨的不同作業階段） | **一段 move**，作業階段是 picking 底下的 task 或狀態關卡 |
 
-**這對本系統現在特別重要**：我們決定一倉只有一個 `internal` 位置，因此**還沒有能支撐
-`庫存區 → 暫存區 → 客戶` 的位置模型**。此時若硬把品檢拆成兩段 move，會產生**沒有實體語意的
-庫存過帳**——帳上貨動了，實體上沒有。
+**這對本系統現在特別重要**：一個 Facility 已可有多個 `internal` 位置，但位置數量本身不等於
+多段流程。只有當兩個位置真的是不同庫存責任點，`庫存區 → 暫存區 → 客戶` 才應拆成兩段 move；
+若只是 UI 上多一個作業步驟，仍不該製造沒有實體語意的庫存過帳。
 
 判斷「該不該拆」還有兩個附帶問題：**兩段是否由不同工作站執行且需要正式交接**（否則只是 UI
 分頁），以及**第一段短少時第二段能否先處理已完成的部分**（若不需要，一個 move 配多筆
@@ -578,7 +586,7 @@ packaging、SO line、reordering rule——沒有 partner／owner。
 | --- | --- |
 | 候選批次有穩定排序 | `idx_stock_pools_fefo` 的三層排序鍵（效期 → 入庫日 → id） |
 | 所有交易以相同順序鎖列 | `WRITE_ORDER` 的寫入排序 |
-| 交易保持短小 | `wakeLimit` 的分批與續做事件 |
+| 交易保持短小 | `waiting-demand-batch-limit` 分批；availability 做首輪、Scheduler 做後續 reconciliation |
 | 死鎖有重試 | `SpringAllocationRetryExecutor` |
 
 **這四項在後續 change 裡都不得被優化掉。** 它們看起來像效能措施，實際上是正確性措施——
@@ -639,7 +647,7 @@ Odoo 19 的事實（已在 19.0 原始碼查證）：
 - stock 模組的 15 條 `ir.rule` **全部 company-based，沒有一條 partner-based**
 - **不存在任何「這個貨主可以用哪些倉」的模型**
 
-本系統的 `owner_nodes`、五維鍵含 owner、跨貨主不可調用且由外鍵擋——**在 Odoo 查無對應物**。
+本系統的 `owner_facilities`、五維鍵含 owner、跨貨主不可調用且由外鍵擋——**在 Odoo 查無對應物**。
 若日後需要「某貨主的貨只能走某條流程」，`picking_type` 表達不了，**route/rule 也給不了現成
 答案**，那是要自建的維度。
 
@@ -668,10 +676,10 @@ Odoo 19 的事實（已在 19.0 原始碼查證）：
 
 | # | change | 內容 | 依賴 |
 | --- | --- | --- | --- |
-| 1 | ✅ **位置模型**（已交付：`hold-stock-in-locations`） | 建 `stock_locations`（每倉一個 `internal` + `supplier`／`customer`／`inventory` 三個虛擬）；`stock_pools.node_id` → `location_id`。**`orders` 完全不動，對外契約與前端完全不動** | — |
+| 1 | ✅ **位置模型**（已交付：`hold-stock-in-locations`，後續已擴充） | 建 `stock_locations`（每個 Facility 可有多個 `internal`，另有 `supplier`／`customer`／`inventory` 虛擬位置）；`stock_pools.facility_id` → `location_id` | — |
 | 2 | ✅ **搬運單據與異動**（已交付：`record-every-movement`） | 建 `stock_picking_types`、`stock_pickings`、`stock_moves`、`stock_move_lines`；`stock_reservations` 遷入 move_lines；`demand_lines` view 改寫；換掉邊界護欄 | 1 |
 | 2.5 | ✅ **依搬運的動作重組流程**（已交付：`separate-the-movement-actions`） | 三支 usecase 退回真正的 usecase；`OrderAllocationCoordinator` 消失。**不改任何行為、不動 schema、不動對外契約** | 2 |
-| 3 | ✅ **入庫走 move**（已交付：`receive-goods-as-movement`） | 補貨改為產生 inbound picking + move；**`stock_pools` 封閉直接寫入**，只能由 move 寫 | 2.5 |
+| 3 | ⚠️ **入庫走 move**（曾交付，後由 `refine-allocation-workflow-boundaries` 取代） | 曾把外部可用庫存事件展開成 inbound picking + move；現行邊界已移除這條偽造的執行紀錄 | 2.5 |
 | 4 | ✅ **界線與命名**（已交付：`settle-the-stock-context`） | `ordering` / `stock` 界線落實；**刪 `order_lines.status`**；對外契約更新 | 3 |
 
 **不可合併成一個 change。** 每一個都比 `allocate-multi-sku-orders-as-one-basket` 大；而第 3 個
@@ -689,23 +697,40 @@ Odoo 19 把它們全放在 `stock.move` 上：`_action_confirm` / `_action_assig
 
 | 動作 | Odoo | 元件 | 內容 |
 | --- | --- | --- | --- |
-| ① 建立 | `_action_confirm` | `MovementRecorder` | 位置→倉→作業類型 → 建 picking → 建 `CONFIRMED` 搬運 |
-| ② 鎖定 | `_action_assign` | `MovementAssigner` | 取批 → `AllocationService` → 轉 `ASSIGNED`、造明細 → 寫入 → 發事件 |
-| ③ 完成 | `_action_done` | `MovementCompleter`（R7，還沒有） | — |
+| ① 建立 | `_action_confirm` | `StockOperationRecorder` | 位置→倉→作業類型 → 建 picking → 建 `CONFIRMED` 搬運 |
+| ② 鎖定 | `_action_assign` | `MovementAssigner` | 取批 → `AllocationService` → 轉 `ASSIGNED`、造明細 → 寫入；回傳結果，不發事件 |
+| ③ 完成 | `_action_done` | `MovementCompleter` | 建 move line、完成 inbound move，並由 line 增加實體庫存 |
 | ④ 取消 | `_action_cancel` | `MovementCanceller` | 找 picking → 濾掉 `DONE` → 還量 → 取消 → 刪明細 |
 
 放在 `stock/application/movement/`。動詞取 `record` / `assign` / `cancel`，與 spec 的用詞
 （*Every movement of goods is **recorded***）及 `MoveState` 的值域對得起來。
 
-**決定性的論據是第 3 個 change。** 入庫要做的是同一件 ①——解析作業類型、建 picking、建搬運
-——但它**完全不配貨**：沒有 `Demand`、沒有 ATP 判斷。① 若繼續內聯在配貨的 usecase 裡，入庫
-只剩兩條路：複製一份，或把入庫硬塞進一支名為「配貨」的 usecase。因此這一段**必須排在第 3 個
-change 之前**。
+本系統已擁有簡化的一段式 inbound execution。若未來接外部 WMS，應讓 Kafka handler 與
+Temporal Activity 呼叫同一個「完成收貨」transactional use case，或明確切換 source of truth；
+不能同時保留兩條可各自增加 `StockPool` 的寫入路徑。
+
+收貨完成只發布 `StockAvailabilityIncreased`；Kafka handler 與
+`AllocationReconciliationScheduler` 共用 `AllocateWaitingDemandUsecase`。因此 inbound rollback 不受 outbound
+佇列失敗影響，事件與排程重疊時仍由同一套 movement state、庫存鎖與配貨政策收斂。
 
 **`AllocationService` 一個字都不動。** 它已經是純決策、不碰 IO，切法改變的是誰去呼叫它。
 
-**`backorderOrder` 留在 usecase 而不是進 ②**：收單配不到要掛帳，補貨配不到不重發——兩條路徑
-的處置本來就不同，把它放進共用的 ② 會逼出一個布林參數。
+**結果事件留在 flow owner 而不進 ②**：初次配不到要發
+`OrderBackorderRecorded`，已在佇列的單配不到則什麼都不發。`AllocateOrderUsecase` 因此
+擁有初次結果政策，`AllocateWaitingDemandUsecase` 擁有「每張成功單一個 completion」的政策。
+
+### picking 是流程政策，不是 move 的全域強制容器
+
+| 情境 | picking 政策 |
+| --- | --- |
+| 訂單 outbound | 必要；一張訂單恰好一張 picking，該單全部 move 共用 |
+| 目前 inbound | 必要；當次收貨以一張 picking 分組，但沒有 `order_id` |
+| 通用 `StockMove` | 可選；`picking_id` 可為 null，move 仍是完整的數量異動 |
+| 待配佇列 | 只接受有 `order_id` 的 outbound picking；standalone 與 inbound 不占上限 |
+
+因此現在不建 `StockMoveFactory` / `StockPickingFactory` / `InboundOperationCreator` /
+`OutboundOperationCreator`。`StockOperationRecorder` 已是「依具體流程建作業」的元件；再加一層只會
+把同一個決定分散。
 
 **`WRITE_ORDER` 要從私有欄位抽成共用的具名常數。** 防死鎖的全序是全系統的規則，②④ 都要用，
 R7 的 ③ 還會有第三個。它現在只有 `OrderAllocationCoordinator` 知道，而抄錯不會有測試紅。

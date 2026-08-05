@@ -1,22 +1,22 @@
 package com.flowzati.archone.ordering.entrypoint.kafka;
 
-import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
-import com.flowzati.archone.ordering.application.command.ConfirmAllocationCommand;
-import com.flowzati.archone.ordering.application.usecase.ConfirmOrderUsecase;
+import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
+import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
+import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
 class OrderAllocatedIntegrationEventHandler
     implements KafkaIntegrationEventHandler<OrderAllocatedIntegrationEvent> {
 
-  private final ConfirmOrderUsecase confirmOrderUsecase;
+  private final RecordOrderAllocationUsecase recordOrderAllocationUsecase;
 
-  OrderAllocatedIntegrationEventHandler(ConfirmOrderUsecase confirmOrderUsecase) {
-    this.confirmOrderUsecase = confirmOrderUsecase;
+  OrderAllocatedIntegrationEventHandler(RecordOrderAllocationUsecase recordOrderAllocationUsecase) {
+    this.recordOrderAllocationUsecase = recordOrderAllocationUsecase;
   }
 
   @Override
@@ -31,7 +31,7 @@ class OrderAllocatedIntegrationEventHandler
 
   @Override
   public void handleTyped(OrderAllocatedIntegrationEvent event, MessageMetadata metadata) {
-    confirmOrderUsecase.confirmAllocated(new InboundCommand<>(
-        new ConfirmAllocationCommand(event.getOrderId(), event.getAllocatedAt()), metadata));
+    RecordOrderAllocationCommand command = new RecordOrderAllocationCommand(event.getOrderId(), event.getAllocatedAt());
+    recordOrderAllocationUsecase.handle(new InboundCommand<>(command, metadata));
   }
 }

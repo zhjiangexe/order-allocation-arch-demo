@@ -74,7 +74,7 @@ code:
   - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/rest/StockPoolController.java
   - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/OrderLine.java
   - order-promising/src/main/java/com/flowzati/archone/stock/domain/model/StockPool.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/WakeBackordersCommand.java
+  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/AllocateWaitingDemandCommand.java
   - order-promising/src/main/java/com/flowzati/archone/stock/domain/model/ReservationStatus.java
   - order-promising/src/main/java/com/flowzati/archone/common/outbox/StockContentionKey.java
   - frontend/vite.config.ts

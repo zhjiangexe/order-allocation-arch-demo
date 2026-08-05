@@ -45,7 +45,7 @@ stockPool.receive(StockMoveLine line);   // 沒有明細就加不了數量
 
 - Affected specs: `stock-movement`（新增「入庫是供應商到庫存的一段搬運」與「完成的搬運才改變
   在庫量」）、`stock-allocation`（修改「庫存以五維識別」——那條規則不變，但**寫入的入口變了**）
-- Affected code: `MovementRecorder`（加 `recordInbound`）、新增 `MovementCompleter`、
+- Affected code: `StockOperationRecorder`（加 `recordInbound`）、新增 `MovementCompleter`、
   `ReplenishmentUsecase`、`StockPool`、種子資料（加 INBOUND 作業類型）
 - **不動**：對外事件契約、REST、前端、`AllocationService`、配貨與取消兩條路徑
 

@@ -58,7 +58,7 @@ class StockLocationSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("不應有 parent_id 或 parent_path——一倉一位置，沒有查詢會沿樹走")
+    @DisplayName("不應有 parent_id 或 parent_path——多庫位尚未形成位置樹")
     void doesNotCreateTreeColumns() {
       assertThat(columnNames("stock_locations"))
           .doesNotContain("parent_id", "parent_path", "location_id");
@@ -67,8 +67,8 @@ class StockLocationSchemaIntegrationTest {
     @Test
     @DisplayName("不應有 active——不做多步作業，位置不需要被關掉")
     void doesNotCreateActiveFlag() {
-      // Odoo 建倉時把 Input／QC／Output／Packing 全建出來、靠 active 切換步數。本系統一倉
-      // 一位置，加一個恆為 true 的欄位等於讓每個讀取端多處理一個不會發生的狀態。
+      // Odoo 建倉時把 Input／QC／Output／Packing 全建出來、靠 active 切換步數。本系統目前
+      // 沒有停用庫位的行為，加一個恆為 true 的欄位只會增加分支。
       assertThat(columnNames("stock_locations")).doesNotContain("active");
     }
   }
@@ -122,14 +122,13 @@ class StockLocationSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("一個倉的第二個 internal 位置被拒絕")
-    void rejectsSecondInternalLocationForOneWarehouse() {
-      // 一倉一位置，倉→位置的解析才是一次查表而不是不定的選擇。
+    @DisplayName("一個 Facility 可以有多個 internal 位置")
+    void allowsMultipleInternalLocationsForOneFacility() {
       insertWarehouse(WAREHOUSE_ID, "WH-A");
       insertLocation(uuid(40), WAREHOUSE_ID, "WH-A/Stock", "INTERNAL");
+      insertLocation(uuid(41), WAREHOUSE_ID, "WH-A/Stock 2", "INTERNAL");
 
-      assertThatThrownBy(() -> insertLocation(uuid(41), WAREHOUSE_ID, "WH-A/Stock 2", "INTERNAL"))
-          .isInstanceOf(DataIntegrityViolationException.class);
+      assertThat(usageCount()).isEqualTo(2);
     }
 
     @Test
@@ -145,11 +144,8 @@ class StockLocationSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("多個虛擬位置不受一倉一位置的限制")
+    @DisplayName("多個虛擬位置仍可共同存在")
     void allowsSeveralVirtualLocations() {
-      // partial unique index 以 facility_id 為鍵，虛擬位置的該欄為 NULL——若沒有加上
-      // WHERE usage = 'internal'，三個虛擬位置在 PostgreSQL 下仍會各自成立（NULL 互不相同），
-      // 這條測試守的是「加了那個 WHERE」這件事不被順手拿掉。
       insertLocation(uuid(60), null, "Vendors", "SUPPLIER");
       insertLocation(uuid(61), null, "Customers", "CUSTOMER");
       insertLocation(uuid(62), null, "Inventory adjustment", "INVENTORY");

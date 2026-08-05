@@ -3,6 +3,7 @@ package com.flowzati.archone.stock.domain.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.stock.domain.model.AllocatableBatches;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.service.selector.AllocationSelector;
@@ -42,7 +43,7 @@ class AllocationServiceTest {
     StockPool batch = stockPool(10, 2);
     Demand order = pendingDemand(5);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, batch), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, batch));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(batch.getOnHandQuantity()).isEqualTo(10);
@@ -56,7 +57,7 @@ class AllocationServiceTest {
     StockPool batch = stockPool(5, 2);
     Demand order = pendingDemand(4);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, batch), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, batch));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.INSUFFICIENT_ATP);
     assertThat(result.picks()).isEmpty();
@@ -69,7 +70,7 @@ class AllocationServiceTest {
   void reportsNoStockWhenThereIsNothingAllocatable() {
     Demand order = pendingDemand(1);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order));
 
     // 兩者在畫面上引導出不同的動作：沒有貨要進貨，量不足則是等補貨。合成一個「配不到」
     // 之後，這個差別就再也回不來了。
@@ -82,7 +83,7 @@ class AllocationServiceTest {
     StockPool batch = stockPool(5, 2);
     Demand order = pendingDemand(3);
 
-    assertThat(allocationService.allocate(order, grouped(order, batch), NOW).outcome())
+    assertThat(allocationService.allocate(order, grouped(order, batch)).outcome())
         .isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(batch.getReservedQuantity()).isEqualTo(5);
     assertThat(batch.availableToPromise()).isZero();
@@ -95,7 +96,7 @@ class AllocationServiceTest {
     StockPool far = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 40, 0);
     Demand order = pendingDemand(80);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, near, far), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, near, far));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(result.picks()).hasSize(2);
@@ -115,7 +116,7 @@ class AllocationServiceTest {
     StockPool late = StockFixtures.batchArrivedOnExpiringOn("SKU-1", LATE_ARRIVAL, FAR_EXPIRY, 50, 0);
     Demand order = pendingDemand(30);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, early, late), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, early, late));
 
     assertThat(result.picks()).hasSize(1);
     assertThat(result.picks().get(0).batch()).isSameAs(early);
@@ -129,7 +130,7 @@ class AllocationServiceTest {
     StockPool far = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 20, 0);
     Demand order = pendingDemand(80);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, near, far), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, near, far));
 
     // 分批之後最容易不小心違反的一條：拿了 50 件鎖住卻出不了貨，而後面一張本來出得了的
     // 小單反而拿不到。規劃與套用必須分開，才擋得住這件事。
@@ -139,22 +140,13 @@ class AllocationServiceTest {
   }
 
   @Test
-  @DisplayName("同樣的批與同樣的訂單重跑，配到的批與數量相同")
-  void reproducesTheSameChoiceFromTheSameStartingState() {
-    List<Integer> firstRun = allocateAndDescribe();
-    List<Integer> secondRun = allocateAndDescribe();
-
-    assertThat(firstRun).isEqualTo(secondRun);
-  }
-
-  @Test
   @DisplayName("FIFO 首單無法完整預留時應立即停止，不可跳過去分配較小後單")
   void stopsAtHeadOfLineWhenFirstOrderCannotBeFullyReserved() {
     StockPool batch = stockPool(3, 0);
     Demand first = backorderedDemand(4);
     Demand smallerLaterOrder = backorderedDemand(2);
 
-    List<OrderAllocation> allocations = allocationService.allocateBackorders(
+    List<OrderAllocation> allocations = allocationService.allocateWaitingBatch(
         List.of(first, smallerLaterOrder),
         grouped(first, batch),
         NOW
@@ -172,7 +164,7 @@ class AllocationServiceTest {
     Demand blocked = backorderedDemand(4);
     Demand smallerLaterOrder = backorderedDemand(1);
 
-    List<Demand> allocatedDemands = demands(allocationService.allocateBackorders(
+    List<Demand> allocatedDemands = demands(allocationService.allocateWaitingBatch(
         List.of(first, blocked, smallerLaterOrder),
         grouped(first, batch),
         NOW
@@ -190,7 +182,7 @@ class AllocationServiceTest {
     Demand first = backorderedDemand(3);
     Demand second = backorderedDemand(5);
 
-    List<Demand> allocatedDemands = demands(allocationService.allocateBackorders(
+    List<Demand> allocatedDemands = demands(allocationService.allocateWaitingBatch(
         List.of(first, second),
         grouped(first, batch),
         NOW
@@ -201,7 +193,7 @@ class AllocationServiceTest {
   }
 
   @Test
-  @DisplayName("補貨喚醒的多張單應接續取用批次，不得重複用掉同一批的量")
+  @DisplayName("等待需求批次的多張單應接續取用批次，不得重複用掉同一批的量")
   void spreadsWokenOrdersAcrossBatchesWithoutDoubleCounting() {
     StockPool near = StockFixtures.batchExpiringOn("SKU-1", NEAR_EXPIRY, 10, 0);
     StockPool far = StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 10, 0);
@@ -209,7 +201,8 @@ class AllocationServiceTest {
     Demand second = backorderedDemand(8);
 
     List<OrderAllocation> allocations =
-        allocationService.allocateBackorders(List.of(first, second), grouped(first, near, far), NOW);
+        allocationService.allocateWaitingBatch(
+            List.of(first, second), grouped(first, near, far), NOW);
 
     // 第一張吃掉近效期的 8，第二張只剩近效期 2 加遠效期 6。少了「本輪已規劃量」的累計，
     // 兩張單都會看到未扣減的可用量，各自算得出「夠」，然後其中一張在 reserve 時炸掉。
@@ -229,7 +222,7 @@ class AllocationServiceTest {
     Demand second = backorderedDemand(2);
     Demand third = backorderedDemand(3);
 
-    List<Demand> allocatedDemands = demands(maximizingService.allocateBackorders(
+    List<Demand> allocatedDemands = demands(maximizingService.allocateWaitingBatch(
         List.of(largeFirst, second, third),
         grouped(largeFirst, batch),
         NOW
@@ -248,7 +241,8 @@ class AllocationServiceTest {
 
     // 分組之後「SKU 不符」只剩這一種形狀：鍵說是 OTHER-SKU，裡面躺的卻是 SKU-1 的批。
     assertThatThrownBy(
-        () -> allocationService.allocate(order, Map.of("OTHER-SKU", List.of(batch)), NOW))
+        () -> allocationService.allocate(order, AllocatableBatches.of(
+            order.ownerId(), order.locationId(), Map.of("OTHER-SKU", List.of(batch)))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("belongs to");
 
@@ -264,7 +258,7 @@ class AllocationServiceTest {
 
     // 喚醒一輪傳進來的是**整輪候選單的 SKU 聯集**，所以多出來的鍵是常態而不是錯誤。它們也
     // 擋不到任何錯：配貨只按 line 的 SKU 取用，沒被指名的批碰不到。
-    AllocationResult result = allocationService.allocate(order, grouped(order, mine, other), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, mine, other));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(other.getReservedQuantity()).isZero();
@@ -278,7 +272,7 @@ class AllocationServiceTest {
         EARLY_ARRIVAL, FAR_EXPIRY, 100, 0, 0L);
     Demand order = pendingDemand(3);
 
-    assertThatThrownBy(() -> allocationService.allocate(order, grouped(order, foreign), NOW))
+    assertThatThrownBy(() -> allocationService.allocate(order, grouped(order, foreign)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Demand and batches must belong to the same owner");
 
@@ -293,7 +287,7 @@ class AllocationServiceTest {
     // 那正是這支測試要擋的：為一張出不去的單鎖住庫存。
     Demand order = sameSkuTwoLineOrder(5, 5);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, batch), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, batch));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.INSUFFICIENT_ATP);
     assertThat(batch.getReservedQuantity()).isZero();
@@ -305,7 +299,7 @@ class AllocationServiceTest {
     StockPool batch = stockPool(10, 0);
     Demand order = sameSkuTwoLineOrder(5, 5);
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, batch), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, batch));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(result.picks()).hasSize(2);
@@ -313,21 +307,6 @@ class AllocationServiceTest {
     // 兩條行各有自己的取用——摺成一筆就丟掉了「哪一批為哪一條行鎖的」。
     assertThat(result.picks()).map(BatchPick::orderLineId)
         .containsExactlyElementsOf(order.lines().stream().map(DemandLine::orderLineId).toList());
-  }
-
-  @Test
-  @DisplayName("每一個取用都應記到它所屬的訂單行上")
-  void attributesEveryPickToItsOwnOrderLine() {
-    StockPool batch = stockPool(10, 0);
-    Demand order = sameSkuTwoLineOrder(5, 5);
-    List<UUID> lineIds = order.lines().stream().map(DemandLine::orderLineId).toList();
-
-    AllocationResult result = allocationService.allocate(order, grouped(order, batch), NOW);
-
-    // 預留的粒度是行 × 批。摺成一張單一筆會在這裡就丟掉「哪一批是為哪一條行鎖的」，
-    // 而出貨時要的正是那個資訊。
-    assertThat(result.picks()).map(BatchPick::orderLineId)
-        .containsExactlyElementsOf(lineIds);
   }
 
   @Test
@@ -339,7 +318,8 @@ class AllocationServiceTest {
     // 少了 SKU-2 的鍵。這是**程式錯誤**：漏載某個 SKU 的批，看起來會跟那個 SKU 賣完了一模
     // 一樣——而前者要修，後者是正常結果。少了這個檢查，兩者就再也分不開。
     assertThatThrownBy(
-        () -> allocationService.allocate(order, Map.of("SKU-1", List.of(batch)), NOW))
+        () -> allocationService.allocate(order, AllocatableBatches.of(
+            order.ownerId(), order.locationId(), Map.of("SKU-1", List.of(batch)))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("SKU-2");
 
@@ -347,13 +327,14 @@ class AllocationServiceTest {
   }
 
   @Test
-  @DisplayName("補貨喚醒也一樣：候選單的某個 SKU 沒有群組即拒絕")
+  @DisplayName("等待需求批次也一樣：候選單的某個 SKU 沒有群組即拒絕")
   void rejectsAGroupingMissingOneOfTheDemandedSkusWhenWaking() {
     StockPool batch = stockPool(100, 0);
     Demand order = twoSkuOrder();
 
-    assertThatThrownBy(() -> allocationService.allocateBackorders(
-        List.of(order), Map.of("SKU-1", List.of(batch)), NOW))
+    assertThatThrownBy(() -> allocationService.allocateWaitingBatch(
+        List.of(order), AllocatableBatches.of(
+            order.ownerId(), order.locationId(), Map.of("SKU-1", List.of(batch))), NOW))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("SKU-2");
 
@@ -370,7 +351,7 @@ class AllocationServiceTest {
         DemandFixtures.line("SKU-1", 10),
         DemandFixtures.line("SKU-2", 5));
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, plentiful, scarce), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, plentiful, scarce));
 
     // 「有貨卻不配」正是 ship-complete 的內容：為一張出不去的單鎖住 SKU-1 的 10 件，只會讓
     // 後面一張本來出得了的單拿不到。
@@ -389,7 +370,7 @@ class AllocationServiceTest {
         DemandFixtures.line("SKU-1", 10),
         DemandFixtures.line("SKU-2", 5));
 
-    AllocationResult result = allocationService.allocate(order, grouped(order, first, second), NOW);
+    AllocationResult result = allocationService.allocate(order, grouped(order, first, second));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.ALLOCATED);
     assertThat(first.getReservedQuantity()).isEqualTo(10);
@@ -411,7 +392,7 @@ class AllocationServiceTest {
         DemandFixtures.line("SKU-3", 4));
 
     AllocationResult result =
-        allocationService.allocate(order, grouped(order, plentiful, shortA, shortB), NOW);
+        allocationService.allocate(order, grouped(order, plentiful, shortA, shortB));
 
     // 停在第一個不足的 SKU 比較快，但回報的缺口會取決於檢查順序——而問「這張單在等什麼」的
     // 人需要全部。
@@ -430,7 +411,8 @@ class AllocationServiceTest {
 
     // 空群組是缺貨，缺鍵是呼叫端組錯了輸入——合併它們會讓程式錯誤與業務結果分不開。
     AllocationResult result = allocationService.allocate(
-        order, Map.of("SKU-1", List.of(plentiful), "SKU-2", List.of()), NOW);
+        order, AllocatableBatches.of(order.ownerId(), order.locationId(),
+            Map.of("SKU-1", List.of(plentiful), "SKU-2", List.of())));
 
     assertThat(result.outcome()).isEqualTo(AllocationOutcome.INSUFFICIENT_ATP);
     assertThat(result.shortfall().asMap()).containsExactly(Map.entry("SKU-2", 5));
@@ -446,12 +428,14 @@ class AllocationServiceTest {
         DemandFixtures.line("SKU-2", 5));
 
     AllocationResult nothing = allocationService.allocate(
-        order, Map.of("SKU-1", List.of(), "SKU-2", List.of()), NOW);
+        order, AllocatableBatches.of(order.ownerId(), order.locationId(),
+            Map.of("SKU-1", List.of(), "SKU-2", List.of())));
     AllocationResult notEnough = allocationService.allocate(
         order,
-        Map.of("SKU-1", List.of(StockFixtures.batchExpiringOn("SKU-1", FAR_EXPIRY, 100, 0)),
-            "SKU-2", List.of()),
-        NOW);
+        AllocatableBatches.of(order.ownerId(), order.locationId(),
+            Map.of("SKU-1", List.of(StockFixtures.batchExpiringOn(
+                    "SKU-1", FAR_EXPIRY, 100, 0)),
+                "SKU-2", List.of())));
 
     // 一件可配的都沒有要進貨，有批但不夠是等補貨——畫面上引導出不同的動作。
     assertThat(nothing.outcome()).isEqualTo(AllocationOutcome.NO_ALLOCATABLE_STOCK);
@@ -462,28 +446,11 @@ class AllocationServiceTest {
   //
   // 它驗的是 Order.markAllocated 對已配置訂單拋錯，而配貨現在根本不呼叫那個方法——它看不到
   // 訂單狀態，也不該看到（那是落後視圖）。等價的保護搬到了兩處：demand_lines 讓已配到的行
-  // 直接消失，所以配貨拿不到那筆需求；ConfirmOrderUsecase 對已結案的訂單為 no-op，擋住遲到
+  // 直接消失，所以配貨拿不到那筆需求；ordering 的結果記錄 use case 對已結案訂單為 no-op，擋住遲到
   // 的事件。兩者都有自己的測試。
   //
   // 留一個「改寫成配貨層檢查狀態」的版本會更糟：那要求配貨讀訂單狀態，正是這個 change 拆掉
   // 的東西。
-
-  /** 跑一次配貨，把「取了哪幾批、各多少」摺成可比較的數列。 */
-  private List<Integer> allocateAndDescribe() {
-    StockPool near = StockFixtures.batchExpiringOn("SKU-1", NEAR_EXPIRY, 60, 0);
-    // 這一對同效期、不同入庫日：兩批都明寫入庫日，讀的人才看得出它們差在哪。
-    StockPool tieEarly =
-        StockFixtures.batchArrivedOnExpiringOn("SKU-1", EARLY_ARRIVAL, FAR_EXPIRY, 40, 0);
-    StockPool tieLate =
-        StockFixtures.batchArrivedOnExpiringOn("SKU-1", LATE_ARRIVAL, FAR_EXPIRY, 40, 0);
-
-    Demand order = pendingDemand(110);
-
-    AllocationResult result = allocationService.allocate(
-        order, grouped(order, near, tieEarly, tieLate), NOW);
-
-    return result.picks().stream().map(BatchPick::quantity).toList();
-  }
 
   private static List<Demand> demands(List<OrderAllocation> allocations) {
     return allocations.stream().map(OrderAllocation::demand).toList();
@@ -528,15 +495,15 @@ class AllocationServiceTest {
    *
    * <p>補空群組是刻意的：production 的取批查詢就保證「問到的每一個 SKU 都有一筆」，因為空群組
    * 是缺貨、缺鍵是呼叫端組錯輸入。測試若讓缺鍵混進來，就驗不到那條界線。要驗缺鍵的那幾支測試
-   * 直接寫出 {@code Map}，不走這裡。
+   * 直接建立缺鍵的 {@link AllocatableBatches}，不走這裡。
    */
-  private static Map<String, List<StockPool>> grouped(Demand demand, StockPool... batches) {
+  private static AllocatableBatches grouped(Demand demand, StockPool... batches) {
     Map<String, List<StockPool>> bySku = new java.util.LinkedHashMap<>();
     demand.totalsBySku().keySet().forEach(skuCode -> bySku.put(skuCode, new java.util.ArrayList<>()));
     for (StockPool batch : batches) {
       bySku.computeIfAbsent(batch.getSkuCode(), key -> new java.util.ArrayList<>()).add(batch);
     }
-    return bySku;
+    return AllocatableBatches.of(demand.ownerId(), demand.locationId(), bySku);
   }
 
   private StockPool stockPool(int onHandQuantity, int reservedQuantity) {

@@ -105,7 +105,7 @@ public final class StockWriteOrder {
 
 放在 `allocation/domain/`——它是庫存這個聚合的寫入規則，不是應用層的協調細節。
 
-### `MovementRecorder` 回傳它建立的搬運
+### `StockOperationRecorder` 回傳它建立的搬運
 
 不回傳 `void`，也不只回傳單據 id：呼叫端接著要把它們交給 `MovementAssigner`，而那正是上一個決策
 消掉往返的方式。

@@ -5,6 +5,7 @@ import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
 import com.flowzati.archone.stock.domain.model.StockPicking;
+import com.flowzati.archone.stock.domain.model.PickingState;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.domain.repository.StockPickingRepository;
@@ -111,7 +112,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID.fromString("00000000-0000-0000-0000-000000000032");
   public static final UUID SOUTH_OUTBOUND_TYPE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000033");
-  /** 每個倉一個入庫作業類型。補貨走搬運之後它們才有讀者。 */
+  /** 每個倉一個入庫作業類型，保留作為倉庫作業主檔；availability 路徑不會使用它。 */
   public static final UUID NORTH_INBOUND_TYPE_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000034");
   public static final UUID CENTRAL_INBOUND_TYPE_ID =
@@ -290,10 +291,9 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   /**
    * 每個倉一個出庫類型、一個入庫類型。
    *
-   * <p>入庫在補貨走搬運之後才有讀者——在那之前這裡只建出庫。<b>內部調撥仍然不建</b>：
-   * 值域一次定完（那是 CHECK 約束的事），
-   * 但**資料只建有讀者的那一種**——這與位置的判斷相反，因為位置的四種用途是搬運兩端的值域，
-   * 而作業類型的每一筆都要有東西去用它。
+   * <p>入庫類型是倉庫作業主檔的一部分，但目前沒有本地 receipt use case；外部 WMS 發出的
+   * availability event 只更新庫存投影，不使用入庫類型建立 picking 或 move。
+   * <b>內部調撥仍然不建</b>，因為目前連主檔展示與執行路徑都沒有需要它。
    */
   private void seedPickingTypes() {
     outboundType(NORTH_OUTBOUND_TYPE_ID, NORTH_FACILITY_ID, NORTH_STOCK_LOCATION_ID, "北部倉出貨");
@@ -389,7 +389,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         5));
     UUID partiallyReservedMove = uuid(411);
     picking(uuid(401), PARTIALLY_RESERVED_ORDER_ID, NORTH_OUTBOUND_TYPE_ID,
-        FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID);
+        FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PickingState.ASSIGNED);
     assignedMove(partiallyReservedMove, uuid(401), FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID,
         PARTIALLY_RESERVED_SKU, PARTIALLY_RESERVED_LINE_ID, 5);
     moveLine(uuid(421), partiallyReservedMove, PARTIALLY_RESERVED_STOCK_POOL_ID, 5);
@@ -409,7 +409,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     // 測試看得到，畫面上看不到。
     UUID spanningMove = uuid(412);
     picking(uuid(402), SPANNING_ORDER_ID, NORTH_OUTBOUND_TYPE_ID,
-        FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID);
+        FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PickingState.ASSIGNED);
     assignedMove(spanningMove, uuid(402), FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID,
         AVAILABLE_SKU, SPANNING_LINE_ID, 80);
     moveLine(uuid(422), spanningMove, NEAR_EXPIRY_STOCK_POOL_ID, 60);
@@ -442,7 +442,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     //
     // 這是操作台上唯一一處「有貨卻不配」的證據。少了它，ship-complete 只在測試裡成立。
     picking(uuid(403), BACKORDERED_ORDER_ID, SOUTH_OUTBOUND_TYPE_ID,
-        SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID);
+        SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, PickingState.CONFIRMED);
     waitingMove(uuid(413), uuid(403), SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID,
         EMPTY_SKU, BACKORDERED_LINE_ID, 2);
 
@@ -457,7 +457,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     // 一張單兩段搬運，兩段都還在等貨——即使其中一個 SKU 的庫存很充足。**ship-complete 在
     // 資料上的樣子就是這個**：充足的那一段也停在「等貨」，一件都沒有被鎖住。
     picking(uuid(404), BASKET_ORDER_ID, SOUTH_OUTBOUND_TYPE_ID,
-        SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID);
+        SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, PickingState.CONFIRMED);
     waitingMove(uuid(414), uuid(404), SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID,
         AVAILABLE_SKU, BASKET_PLENTIFUL_LINE_ID, 5);
     waitingMove(uuid(415), uuid(404), SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID,
@@ -562,9 +562,12 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   }
 
   /** 一張出庫作業單。起訖取自作業類型的預設值。 */
-  private void picking(UUID id, UUID orderId, UUID typeId, UUID ownerId, UUID stockLocationId) {
+  private void picking(
+      UUID id, UUID orderId, UUID typeId, UUID ownerId, UUID stockLocationId,
+      PickingState state) {
     stockPickingRepository.save(
-        new StockPicking(id, typeId, ownerId, orderId, stockLocationId, CUSTOMERS_LOCATION_ID));
+        new StockPicking(
+            id, typeId, ownerId, orderId, stockLocationId, CUSTOMERS_LOCATION_ID, state, null));
   }
 
   /** 一段還在等貨的搬運：收單時的狀態。 */

@@ -58,7 +58,7 @@
 
   淨變化 −2 +1 = **−1**（288 → 287）。
 
-- [x] 4.5 依 design 的決策「`-er` 明確不改」，`MovementRecorder` / `Assigner` / `Completer` / `Canceller` **不改名**，理由已寫進 design。
+- [x] 4.5 依 design 的決策「`-er` 明確不改」，`StockOperationRecorder` / `Assigner` / `Completer` / `Canceller` **不改名**，理由已寫進 design。
 
   這一項不寫程式，但它要在 tasks 裡出現——否則下一個做命名收斂的人會以為那四個是漏掉的。
 

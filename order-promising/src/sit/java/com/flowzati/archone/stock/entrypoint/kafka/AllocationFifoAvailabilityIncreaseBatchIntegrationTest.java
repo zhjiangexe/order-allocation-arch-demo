@@ -2,16 +2,14 @@ package com.flowzati.archone.stock.entrypoint.kafka;
 
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.application.event.BackorderWakeRequestedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.stock.entrypoint.scheduler.AllocationReconciliationScheduler;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.integration.IntegrationEvent;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -21,10 +19,8 @@ import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -56,22 +52,18 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.kafka.listener.auto-startup=false",
         // 上限寫在測試裡而不是吃 production 預設：預設值會隨壓測結果調整，那不該讓這支
         // 測試變色。它驗的是「分多輪會收斂」，與上限的具體數字無關。
-        "archone.allocation.replenishment-wake-limit=" + AllocationFifoReplenishmentBatchIntegrationTest.WAKE_LIMIT_TEXT
+        "archone.allocation.waiting-demand-batch-limit="
+            + AllocationFifoAvailabilityIncreaseBatchIntegrationTest.BATCH_LIMIT_TEXT
     },
     webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
 @Import(PostgreSQLTestConfiguration.class)
-class AllocationFifoReplenishmentBatchIntegrationTest {
+class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
 
-  static final String WAKE_LIMIT_TEXT = "200";
-  private static final int WAKE_LIMIT = Integer.parseInt(WAKE_LIMIT_TEXT);
-  /**
-   * 續做的硬上限。超過就讓測試失敗——那代表終止條件失效、續做無限循環。
-   *
-   * <p>取「佇列長度 ÷ 上限」再留兩輪餘裕：真正要守的性質是**有界**，不是某個精確的輪數，
-   * 而精確的輪數會隨演算法的細節變動，釘死它只會讓測試變脆。
-   */
-  private static final int MAX_CONTINUATION_ROUNDS = 1_000 / WAKE_LIMIT + 2;
+  static final String BATCH_LIMIT_TEXT = "200";
+  private static final int BATCH_LIMIT = Integer.parseInt(BATCH_LIMIT_TEXT);
+  /** Scheduler reconciliation 的測試硬上限，避免錯誤的收斂條件讓測試一直執行。 */
+  private static final int MAX_RECONCILIATION_ROUNDS = 1_000 / BATCH_LIMIT + 2;
 
   private static final String FIFO_SKU = "FIFO-SKU";
   private static final int FITTING_ORDERS_BEFORE_BLOCKER = 500;
@@ -79,8 +71,8 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
   private static final int TOTAL_ORDERS =
       FITTING_ORDERS_BEFORE_BLOCKER + 1 + FITTING_ORDERS_AFTER_BLOCKER;
   private static final int BLOCKER_QUANTITY = 999;
-  private static final int FIRST_REPLENISH_QUANTITY = FITTING_ORDERS_BEFORE_BLOCKER;
-  private static final int SECOND_REPLENISH_QUANTITY = BLOCKER_QUANTITY + FITTING_ORDERS_AFTER_BLOCKER;
+  private static final int FIRST_AVAILABILITY_INCREASE = FITTING_ORDERS_BEFORE_BLOCKER;
+  private static final int SECOND_AVAILABILITY_INCREASE = BLOCKER_QUANTITY + FITTING_ORDERS_AFTER_BLOCKER;
 
   @org.springframework.beans.factory.annotation.Autowired
   private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
@@ -89,7 +81,10 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
   private AllocationKafkaIntegrationEventConsumer consumer;
 
   @Autowired
-  private ObjectMapper objectMapper;
+  private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
+
+  @Autowired
+  private AllocationReconciliationScheduler allocationReconciliationScheduler;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -128,17 +123,15 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     // Step 2：第一次補貨，數量精準等於前 500 張的總和，逼出「blocker 之後全部停止」的
     // 批次決策，而不是靠隨機數量碰運氣。
     //
-    // **一次補貨事件不再喚醒整個佇列。** 喚醒有張數上限，超出時發一則續做事件；因此這裡要
-    // 等的不是「一個事件處理完」，而是「續做收斂」。SIT 沒有 Debezium，續做事件停在 outbox，
-    // 所以由 drainContinuations() 手動把它們餵回 consumer——那正是 production 裡 Kafka 會做
-    // 的事，只是在這裡是同步的、可數的。
-    consume(replenish(FIRST_REPLENISH_QUANTITY));
-    int firstPhaseRounds = drainContinuations();
+    // **一次 availability 事件不再喚醒整個佇列。** 它只做首輪；超過張數上限的剩餘工作由
+    // Scheduler 後續掃描同一個 scope。SIT 關閉自動排程，所以在這裡直接驅動 scheduler method。
+    receive(FIRST_AVAILABILITY_INCREASE);
+    int firstPhaseRounds = reconcileWithSchedulerUntilStable();
 
     // 分多輪是這個 change 的重點之一：如果只跑了一輪，代表上限沒有生效，而後面那些
     // 「收斂後的狀態」斷言就退化成了舊行為的斷言。
     assertThat(firstPhaseRounds)
-        .withFailMessage("第一波補貨應分多輪續做，實際只有 %d 輪", firstPhaseRounds)
+        .withFailMessage("第一波補貨應由 Scheduler 分多輪收斂，實際只有 %d 輪", firstPhaseRounds)
         .isGreaterThan(0);
 
     // Step 3：對帳第一階段——前 500 張應該已配置，blocker 與其後 499 張仍應卡在 BACKORDERED。
@@ -146,10 +139,10 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
         /* allocated */ FITTING_ORDERS_BEFORE_BLOCKER,
         /* backordered */ TOTAL_ORDERS - FITTING_ORDERS_BEFORE_BLOCKER,
         /* reservationCount */ FITTING_ORDERS_BEFORE_BLOCKER,
-        /* reservationQuantity */ FIRST_REPLENISH_QUANTITY,
-        /* onHand */ FIRST_REPLENISH_QUANTITY,
-        /* reserved */ FIRST_REPLENISH_QUANTITY,
-        /* inboxCount */ 1,
+        /* reservationQuantity */ FIRST_AVAILABILITY_INCREASE,
+        /* onHand */ FIRST_AVAILABILITY_INCREASE,
+        /* reserved */ FIRST_AVAILABILITY_INCREASE,
+        /* inboxCount */ 2,
         /* outboxAllocatedCount */ FITTING_ORDERS_BEFORE_BLOCKER));
     assertThat(statusOf(queue.firstOrderId())).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(statusOf(queue.blockerOrderId())).isEqualTo(OrderStatus.BACKORDERED);
@@ -158,19 +151,19 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     // Step 4：第二次（循序、非併發）補貨，數量等於 blocker 與其後 499 張的總和，
     // 驗證「喚醒佇列」的後半段——先前被 head-of-line blocking 卡住的訂單，補貨到位後
     // 應該能正確恢復配置，而不只是第一波卡住就結束驗證。
-    consume(replenish(SECOND_REPLENISH_QUANTITY));
-    drainContinuations();
+    receive(SECOND_AVAILABILITY_INCREASE);
+    reconcileWithSchedulerUntilStable();
 
     // Step 5：對帳第二階段——整個佇列應該全部配置完畢，沒有訂單被遺漏或重複配置。
-    int totalReplenished = FIRST_REPLENISH_QUANTITY + SECOND_REPLENISH_QUANTITY;
+    int totalAvailableIncrease = FIRST_AVAILABILITY_INCREASE + SECOND_AVAILABILITY_INCREASE;
     assertReconciledState(stockPoolId, new ExpectedState(
         /* allocated */ TOTAL_ORDERS,
         /* backordered */ 0,
         /* reservationCount */ TOTAL_ORDERS,
-        /* reservationQuantity */ totalReplenished,
-        /* onHand */ totalReplenished,
-        /* reserved */ totalReplenished,
-        /* inboxCount */ 2,
+        /* reservationQuantity */ totalAvailableIncrease,
+        /* onHand */ totalAvailableIncrease,
+        /* reserved */ totalAvailableIncrease,
+        /* inboxCount */ 4,
         /* outboxAllocatedCount */ TOTAL_ORDERS));
     assertThat(statusOf(queue.firstOrderId())).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(statusOf(queue.blockerOrderId())).isEqualTo(OrderStatus.ALLOCATED);
@@ -179,30 +172,30 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
 
   @Test
   @Timeout(value = 60, unit = TimeUnit.SECONDS)
-  @DisplayName("blocker 卡在隊首且庫存還有量時不得續做——否則每輪讀滿上限卻配不到任何一張，永不停止")
+  @DisplayName("blocker 卡在隊首且庫存還有量時 Scheduler 應在無進展後停止本次測試收斂")
   void stopsInsteadOfLoopingWhenTheHeadOfLineIsBlockedWithStockRemaining() {
     // 這個情境是「讀到幾張」與「配到幾張」唯一會分歧的地方，也是唯一能分辨終止條件寫對沒有
     // 的地方：
     //
     //   讀到 = 上限（每輪都讀滿），配到 = 0（FIFO 停在隊首那張配不滿的單）
     //
-    // 以讀取數當判準就會無限續做——而且庫存沒耗盡，allocatableBatches 不會變空，沒有任何
-    // 別的機制會讓它停下來。上一支測試碰不到這件事，因為那裡庫存剛好用完。
+    // Scheduler 每次 tick 仍會重新看到這個 scope，但單次交易必須安全地零進展返回，不能跳過
+    // blocker 去配後面的單。上一支測試碰不到這件事，因為那裡庫存剛好用完。
     UUID stockPoolId = UUID.randomUUID();
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, FIFO_SKU, 0, 0));
     Instant backorderedAt = Instant.now().minusSeconds(3600);
     int position = 0;
     UUID blockerOrderId = seedBackorderedOrder(BLOCKER_QUANTITY, backorderedAt, position++);
-    for (int i = 0; i < WAKE_LIMIT * 2; i++) {
+    for (int i = 0; i < BATCH_LIMIT * 2; i++) {
       seedBackorderedOrder(1, backorderedAt, position++);
     }
 
     // 補的量餵不飽 blocker，但遠遠足夠餵飽它後面那些單——所以「庫存還有」與「配不到」同時成立。
-    consume(replenish(BLOCKER_QUANTITY - 1));
-    int rounds = drainContinuations();
+    receive(BLOCKER_QUANTITY - 1);
+    int rounds = reconcileWithSchedulerUntilStable();
 
     assertThat(rounds)
-        .withFailMessage("blocker 卡住時不該續做，實際續做了 %d 輪", rounds)
+        .withFailMessage("blocker 卡住時不該有 productive scheduler round，實際有 %d 輪", rounds)
         .isZero();
     assertThat(statusOf(blockerOrderId)).isEqualTo(OrderStatus.BACKORDERED);
     // 庫存一件都沒被動用：head-of-line blocking 不是「跳過去配小單」。
@@ -221,7 +214,7 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     // 會排在最前面被讀進來，然後因為查不到自己那個倉的批次而一張張被跳過——不會出錯，
     // 但整個上限就這樣被用光，真正配得到的單一張都輪不到。
     List<UUID> otherWarehouseOrders = new java.util.ArrayList<>();
-    for (int i = 0; i < WAKE_LIMIT; i++) {
+    for (int i = 0; i < BATCH_LIMIT; i++) {
       UUID orderId = IdGenerator.nextId();
       MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, OrderFixtures.backorderedOrderAt(
           OrderFixtures.OTHER_FACILITY_ID, orderId, OrderFixtures.OWNER_ID, FIFO_SKU, 1,
@@ -230,8 +223,8 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
     }
     UUID mine = seedBackorderedOrder(1, Instant.now().minusSeconds(60), 0);
 
-    consume(replenish(1));
-    drainContinuations();
+    receive(1);
+    reconcileWithSchedulerUntilStable();
 
     // 補的是本倉的一件，該配到的是本倉那張——即使它在佇列裡排在最後面。
     assertThat(statusOf(mine)).isEqualTo(OrderStatus.ALLOCATED);
@@ -333,9 +326,8 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
       assertThat(pool.availableToPromise()).isZero();
     });
 
-    // 4) Inbox 結果：每一則送進來的事件（補貨 + 續做）恰好一筆 claim。續做事件的數量由
-    //    佇列長度決定，所以這裡驗的是「至少有那幾則補貨事件」與「沒有任何事件被處理兩次」
-    //    ——後者靠 inbox 的主鍵保證，這裡把它斷言出來。
+    // 4) Inbox 結果：收貨命令與 availability 事件各 claim 一次；Scheduler 沒有 transport
+    //    message，因此不寫 Inbox。
     Integer inboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_inbox", Integer.class);
     Integer distinctInboxCount = jdbcTemplate.queryForObject(
@@ -345,83 +337,64 @@ class AllocationFifoReplenishmentBatchIntegrationTest {
 
     // 5) Outbox 結果：只有被配置的訂單各發一筆 OrderAllocatedIntegrationEvent，這個測試
     //    情境全程不會發布 BackorderCreatedIntegrationEvent（訂單一開始就是直接種成
-    //    BACKORDERED，沒有經過真正的下單配置流程）。分批之後 outbox 還會有續做事件，
-    //    所以只斷言配置結果那一類的筆數，不斷言 outbox 總筆數。
+    //    BACKORDERED，沒有經過真正的下單配置流程）。
     Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
         OrderAllocatedIntegrationEvent.class.getSimpleName());
     assertThat(allocatedOutboxCount).isEqualTo(expected.outboxAllocatedCount());
   }
 
-  private StockReplenishedIntegrationEvent replenish(int quantity) {
-    return new StockReplenishedIntegrationEvent(
-        UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, FIFO_SKU,
-        StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity);
+  private void receive(int quantity) {
+    com.flowzati.archone.testsupport.StockReceiptFixture.confirm(
+        confirmStockReceiptUsecase, FIFO_SKU, quantity);
+    consumePendingAvailabilityEvents();
   }
 
-  /**
-   * 把 outbox 裡尚未處理的續做事件餵回 consumer，直到不再產生新的，回傳輪數。
-   *
-   * <p>production 裡這件事由 Debezium 與 Kafka 完成；SIT 沒有它們，續做事件會停在 outbox。
-   * 手動驅動的好處是**輪數變成可數的**，於是「會收斂」與「不會無限續做」都能斷言。
-   *
-   * <p>硬上限是這支測試最重要的一條:終止條件若失效（例如改成以「還有沒有配到的單」判斷），
-   * 一張永遠配不到的大單會讓續做無限循環，而沒有上限的話這支測試會掛到 @Timeout 才失敗，
-   * 訊息還不會說明原因。
-   */
-  private int drainContinuations() {
-    Set<UUID> processed = new HashSet<>();
-    int rounds = 0;
-    while (true) {
-      List<Map<String, Object>> pending = jdbcTemplate.queryForList("""
-          SELECT id, payload FROM event_outbox WHERE type = ? ORDER BY timestamp
-          """, BackorderWakeRequestedIntegrationEvent.class.getSimpleName());
-      List<Map<String, Object>> fresh = pending.stream()
-          .filter(row -> !processed.contains(UUID.fromString(row.get("id").toString())))
-          .toList();
-      if (fresh.isEmpty()) {
-        return rounds;
+  private void consumePendingAvailabilityEvents() {
+    List<Map<String, Object>> pending = jdbcTemplate.queryForList("""
+        SELECT o.id, o.payload
+          FROM event_outbox o
+         WHERE o.type = ?
+           AND NOT EXISTS (
+                 SELECT 1 FROM event_inbox i WHERE i.event_id = o.id
+               )
+         ORDER BY o.timestamp, o.id
+        """, StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName());
+    pending.forEach(row -> consumeInventory(
+        UUID.fromString(row.get("id").toString()),
+        StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName(),
+        row.get("payload").toString()));
+  }
+
+  /** 直接驅動 SIT 中停用的 scheduler，直到一輪沒有新增 allocation outcome。 */
+  private int reconcileWithSchedulerUntilStable() {
+    int productiveRounds = 0;
+    for (int attempt = 0; attempt < MAX_RECONCILIATION_ROUNDS; attempt++) {
+      int before = allocatedOutcomeCount();
+    allocationReconciliationScheduler.reconcileAllocatableWaitingDemand();
+      int after = allocatedOutcomeCount();
+      if (after == before) {
+        return productiveRounds;
       }
-      assertThat(++rounds)
-          .withFailMessage("續做超過 %d 輪仍未收斂——終止條件失效了", MAX_CONTINUATION_ROUNDS)
-          .isLessThanOrEqualTo(MAX_CONTINUATION_ROUNDS);
-      for (Map<String, Object> row : fresh) {
-        UUID eventId = UUID.fromString(row.get("id").toString());
-        processed.add(eventId);
-        consumeWake(eventId, row.get("payload").toString());
-      }
+      productiveRounds++;
     }
+    throw new AssertionError(
+        "Scheduler reconciliation did not stabilize within " + MAX_RECONCILIATION_ROUNDS + " rounds");
   }
 
-  private void consumeWake(UUID eventId, String payload) {
+  private int allocatedOutcomeCount() {
+    return jdbcTemplate.queryForObject(
+        "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
+        OrderAllocatedIntegrationEvent.class.getSimpleName());
+  }
+
+  private void consumeInventory(UUID eventId, String eventType, String payload) {
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
         InventoryEventTopics.STOCK_EVENTS, 0, 0, FIFO_SKU, payload);
     record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));
     record.headers().add("eventType",
-        BackorderWakeRequestedIntegrationEvent.class.getSimpleName()
-            .getBytes(StandardCharsets.UTF_8));
+        eventType.getBytes(StandardCharsets.UTF_8));
     consumer.consumeInventoryEvent(record);
-  }
-
-  private void consume(StockReplenishedIntegrationEvent event) {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        InventoryEventTopics.STOCK_EVENTS,
-        0,
-        0,
-        event.getSku(),
-        serialize(event));
-    record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", StockReplenishedIntegrationEvent.class.getSimpleName()
-        .getBytes(StandardCharsets.UTF_8));
-    consumer.consumeInventoryEvent(record);
-  }
-
-  private String serialize(IntegrationEvent event) {
-    try {
-      return objectMapper.writeValueAsString(event);
-    } catch (JsonProcessingException exception) {
-      throw new IllegalStateException("Cannot serialize test integration event", exception);
-    }
   }
 
   /** FIFO 佇列中三個關鍵位置的 orderId，用來做不依賴聚合數字的精準身分驗證。 */

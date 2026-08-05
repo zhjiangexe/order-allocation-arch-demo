@@ -117,12 +117,12 @@ cost(node, order) = baseCost + Σ(lineWeight) × costPerKg      ← 運費，隨
 
 | 主檔 | 欄位 | 對應職責 |
 | --- | --- | --- |
-| `FulfillmentNode` | `id`、`code`、`name`、`type`（倉／門市／DC）、`zone`、`status`、**`capabilities`**（支援的溫層）、`dailyCapacity`、`cutoffTime` | 3.1、3.5、3.5b、3.11 |
-| `NodeCoverage` | `(nodeId, zone)` 複合主鍵、`serviceable`、**`baseCost`**、**`costPerKg`**、`leadTimeDays` | 3.3、3.6 |
+| `Facility` | `id`、`code`、`name`、`type`（倉／門市／DC）、`zone`、`status`、**`capabilities`**（支援的溫層）、`dailyCapacity`、`cutoffTime` | 3.1、3.5、3.5b、3.11 |
+| `NodeCoverage` | `(facilityId, zone)` 複合主鍵、`serviceable`、**`baseCost`**、**`costPerKg`**、`leadTimeDays` | 3.3、3.6 |
 | `Order.shipToZone` | 決策用的分區；完整地址另存，sourcing 不看 | 3.2 |
 | `Order.promisedDeliveryDate` | w₁ 時效項的基準 | 3.6 |
 | `Sku.temperatureZone` / `weightGram` | 硬約束與運費基準；主檔由 ① 保管 | 3.5b、3.6 |
-| `StockPool` | key 加 `nodeId` 與 `ownerId` | 3.4 |
+| `StockPool` | key 加 `facilityId` 與 `ownerId` | 3.4 |
 
 `NodeCoverage` **不含貨主維度**：配送能力是節點的物理屬性，與貨是誰的無關。北倉能不
 能送到高雄，跟那批貨屬於 A 貨主還是 B 貨主沒有關係。
@@ -132,7 +132,7 @@ cost(node, order) = baseCost + Σ(lineWeight) × costPerKg      ← 運費，隨
 | 方案 | 做法 | 問題 |
 | --- | --- | --- |
 | 計算 | 節點與地址存經緯度，用 haversine 算直線距離 | 距離 ≠ 運費 ≠ 時效；**無法表達「此節點不配送此區」** |
-| **查表** | `(nodeId, zone) → cost, leadTime, serviceable` 對照表 | 資料量 N×M |
+| **查表** | `(facilityId, zone) → cost, leadTime, serviceable` 對照表 | 資料量 N×M |
 
 **採查表**。理由是正確性而非資料量：
 
@@ -204,13 +204,13 @@ OrderPlaced ──▶ AllocateOrder ──▶ OrderAllocated
 ```
 
 `OrderAllocatedIntegrationEvent` 的五個欄位全是結果，沒有一個是決策資訊。補上
-`nodeId` 只是記錄「結果是哪個節點」，不會讓 sourcing 有地方發生。
+`facilityId` 只是記錄「結果是哪個節點」，不會讓 sourcing 有地方發生。
 
 目標：
 
 ```text
 OrderPlaced ──▶ SourceOrder ──▶ OrderSourced ──▶ AllocateOrder ──▶ OrderAllocated
-(+ownerId)      (選節點)        (SourcingPlan)   (對選定節點扣)     (+nodeId)
+(+ownerId)      (選節點)        (SourcingPlan)   (對選定節點扣)     (+facilityId)
 (+shipToZone)                     ↑ 目前不存在的事實
 (+promisedDate)
 ```
@@ -219,7 +219,7 @@ OrderPlaced ──▶ SourceOrder ──▶ OrderSourced ──▶ AllocateOrder
 | --- | --- | --- |
 | `OrderPlacedIntegrationEvent` | `orderId, sku, quantity, placedAt` | 加 `ownerId`、`shipToZone`、`promisedDeliveryDate` |
 | `OrderSourced` | **不存在** | `orderId`、排序後候選清單、選中節點、各節點分數與落選理由 |
-| `OrderAllocatedIntegrationEvent` | 五個結果欄位 | 加 `nodeId`（實際出貨節點） |
+| `OrderAllocatedIntegrationEvent` | 五個結果欄位 | 加 `facilityId`（實際出貨節點） |
 | `BackorderCreatedIntegrationEvent` | 單池缺貨 | **語意分裂**，見下 |
 
 **Sourcing 不是 allocation 的下游消費者，是上游決策者。** 這是本文件最關鍵的一點：
@@ -244,9 +244,9 @@ B 貨主同 SKU 有貨與此無關。
 | 檔案 | 原因 |
 | --- | --- |
 | `allocation/domain/service/AllocationRequest.java` | 現為 `stockPoolId, sku, availableToPromise, decisionAt`。候選節點、成本、前置時間、貨主一個都不在，需整個重定義 |
-| `allocation/domain/service/AllocationService.java` | `requireMatchingSku()` 把「一單一 SKU 對一池」寫死在 domain service；`allocate()`、`allocateBackorders()` 兩支簽章須改為對節點集合；另須加 `requireMatchingOwner()` |
-| `allocation/domain/model/StockPool.java` | 加 `nodeId` 與 `ownerId`；`availableToPromise()` 語意由「全網」變為「該貨主在該節點」 |
-| `ordering/domain/model/Order.java` | 加 `shipToZone`；`markAllocated(Instant)` → `markAllocated(nodeId, Instant)` |
+| `allocation/domain/service/AllocationService.java` | `requireMatchingSku()` 把「一單一 SKU 對一池」寫死在 domain service；`allocate()`、`allocateWaitingBatch()` 兩支簽章須改為對節點集合；另須加 `requireMatchingOwner()` |
+| `allocation/domain/model/StockPool.java` | 加 `facilityId` 與 `ownerId`；`availableToPromise()` 語意由「全網」變為「該貨主在該節點」 |
+| `ordering/domain/model/Order.java` | 加 `shipToZone`；`markAllocated(Instant)` → `markAllocated(facilityId, Instant)` |
 | `allocation/domain/service/selector/AllocationContext.java` | 目前是空介面，成本函數要靠它注入 |
 
 ### 簽章傳染
@@ -254,7 +254,7 @@ B 貨主同 SKU 有貨與此無關。
 `AllocationSelector`、`AllocationPolicy`、`StrictFifoAllocationPolicy`、
 `MaximizeFulfilledOrdersPolicy`、`BasicAllocationContext(+Factory)`、
 `OrderAllocationCoordinator`、`AllocateOrderUsecase`、`ReleaseReservationUsecase`、
-`ReplenishmentUsecase`、`GetStockPoolUsecase`、`StockReservation`、
+`ConfirmStockReceiptUsecase`、`GetStockPoolUsecase`、`StockReservation`、
 `OrderAllocationCompleted`
 
 ### 持久層與契約
@@ -263,7 +263,7 @@ B 貨主同 SKU 有貨與此無關。
 | --- | --- |
 | Entity／Mapper | `StockPoolEntity`、`StockPoolMapper`、`StockReservationEntity`、`StockReservationMapper`、`OrderEntity`、`OrderMapper` |
 | Repository | `StockPoolRepository(+Impl)`、`JpaStockRepository`、`StockReservationRepository(+Impl)`、`JpaStockReservationRepository`、`OrderRepository(+Impl)`、`JpaOrderRepository` |
-| Migration | `stock_pools` 的 unique key 由 `sku` 改為 `(owner_id, node_id, sku)`；`orders` 加 `ship_to_zone`；新增 `fulfillment_nodes`、`node_coverage`。**V2／V3 已進版本，須開新 migration 而非改原檔** |
+| Migration | `stock_pools` 的 unique key 由 `sku` 改為 `(owner_id, facility_id, sku)`；`orders` 加 `ship_to_zone`；新增 `facilities`、`facility_coverage`。**V2／V3 已進版本，須開新 migration 而非改原檔** |
 | Kafka | `AllocationKafkaIntegrationEventConsumer` 及各 handler |
 | REST | `StockPoolController`、`StockPoolResponse`、`OrderController`、`PlaceOrderRequest`、`OrderStatusResponse` |
 | 其他 | `bootstrap/DevSeedDataInitializer`、`e2e/perf/k6/*`、`frontend/` |
@@ -277,7 +277,7 @@ B 貨主同 SKU 有貨與此無關。
 ### 測試前提失效
 
 `AllocationHotSkuConcurrencyIntegrationTest`、
-`AllocationFifoReplenishmentBatchIntegrationTest`、
+`AllocationFifoAvailabilityIncreaseBatchIntegrationTest`、
 `AllocationConcurrencyEndToEndIntegrationTest` 三支的**測試前提**（單池熱點競爭）在
 多節點後失效。熱點的定義改變，非調整 assertion 可解決，須重新設計。
 

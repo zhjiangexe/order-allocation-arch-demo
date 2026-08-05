@@ -1,6 +1,5 @@
 package com.flowzati.archone.stock.application.movement;
 
-import com.flowzati.archone.stock.domain.model.MoveState;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
 import com.flowzati.archone.stock.domain.model.StockPicking;
@@ -9,11 +8,11 @@ import com.flowzati.archone.stock.domain.model.StockWriteOrder;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.domain.repository.StockPickingRepository;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
@@ -52,47 +51,100 @@ public class MovementCanceller {
    *
    * @return 這一次是否真的改變了什麼。重送時為 {@code false}
    */
-  public boolean cancelFor(UUID orderId, Instant cancelledAt) {
-    List<UUID> pickingIds = stockPickingRepository.findByOrderId(orderId).stream()
-        .map(StockPicking::id)
-        .toList();
-    if (pickingIds.isEmpty()) {
+  public boolean cancelForOrder(UUID orderId) {
+    List<StockPicking> pickings = stockPickingRepository.findByOrderId(orderId);
+    if (pickings.isEmpty()) {
       return false;
     }
 
-    // 已完成的不動：貨已經離庫，取消不該把它變回可用量。取消一張已出貨的單是另一個問題
-    // （R7 的「離倉後不得取消」），這裡只是不去碰它。
-    List<StockMove> moves = stockMoveRepository.findByPickingIds(pickingIds).stream()
-        .filter(move -> move.getState() != MoveState.DONE)
+    List<UUID> pickingIds = pickings.stream().map(StockPicking::id).toList();
+    List<StockMove> allMovements = stockMoveRepository.findByPickingIds(pickingIds);
+    List<StockMove> cancellableMovements = allMovements.stream()
+        .filter(StockMove::canCancel)
         .toList();
-    if (moves.isEmpty()) {
+    if (cancellableMovements.isEmpty()) {
       return false;
     }
 
+    Map<UUID, StockPool> releasedBatches = releaseReservedQuantities(cancellableMovements);
+    List<StockMove> cancelledMovements = cancellableMovements.stream()
+        .filter(StockMove::cancel)
+        .toList();
+    if (cancelledMovements.isEmpty() && releasedBatches.isEmpty()) {
+      return false;
+    }
+
+    persistCancellation(releasedBatches, cancelledMovements);
+    cancelFullyCancelledPickings(pickings, allMovements);
+    return true;
+  }
+
+  /** 將每條 move line 鎖住的量逐批歸還；同一批只讀取一次。 */
+  private Map<UUID, StockPool> releaseReservedQuantities(List<StockMove> movements) {
     // 一條行跨三批就有三條明細，全部都要放。只放第一條的話其餘批的量會永遠鎖著，而且不會有
     // 任何錯誤浮現——庫存看起來只是莫名其妙少了一些。
-    List<StockMoveLine> lines =
-        stockMoveRepository.findLinesOf(moves.stream().map(StockMove::getId).toList());
+    List<UUID> movementIds = movements.stream().map(StockMove::getId).toList();
+    List<StockMoveLine> lines = stockMoveRepository.findLinesOf(movementIds);
 
-    Map<UUID, StockPool> touched = new LinkedHashMap<>();
+    Map<UUID, StockPool> releasedBatches = lines.isEmpty() ? Map.of() : loadRequiredBatches(lines.stream()
+        .map(StockMoveLine::stockPoolId)
+        .distinct()
+        .toList());
     for (StockMoveLine line : lines) {
-      StockPool batch = touched.computeIfAbsent(line.stockPoolId(), id ->
-          stockPoolRepository.findById(id).orElseThrow(() ->
-              new IllegalStateException("Stock pool " + id + " no longer exists")));
-      if (line.quantity() > batch.getReservedQuantity()) {
-        throw new IllegalArgumentException("Quantity to release cannot exceed reserved quantity");
+      // 數量安全是 StockPool 的不變式；這裡只負責依 move line 將釋放動作導向正確批次。
+      StockPool stockPool = releasedBatches.get(line.stockPoolId());
+      stockPool.release(line.quantity());
+    }
+    return releasedBatches;
+  }
+
+  /** 一次載入所有明細引用的批次，且在改變任何數量前先確認沒有遺失資料。 */
+  private Map<UUID, StockPool> loadRequiredBatches(List<UUID> requiredBatchIds) {
+    Map<UUID, StockPool> batchesById = stockPoolRepository.findByIds(requiredBatchIds).stream()
+        .collect(Collectors.toMap(
+            StockPool::getId,
+            Function.identity()));
+
+    requiredBatchIds.stream()
+        .filter(batchId -> !batchesById.containsKey(batchId))
+        .findFirst()
+        .ifPresent(batchId -> {
+          throw new IllegalStateException("Stock pool " + batchId + " no longer exists");
+        });
+    return batchesById;
+  }
+
+  /**
+   * 先依全域鎖順序寫回批次，再刪除已失效的配置明細並保存 movement 狀態，避免反向取得庫存鎖。
+   */
+  private void persistCancellation(
+      Map<UUID, StockPool> releasedBatches,
+      List<StockMove> cancelledMovements
+  ) {
+    releasedBatches.values().stream()
+        .sorted(StockWriteOrder.BY_GLOBAL_ORDER)
+        .forEach(stockPoolRepository::save);
+    List<UUID> cancelledMovementIds = cancelledMovements.stream().map(StockMove::getId).toList();
+    stockMoveRepository.deleteLinesOf(cancelledMovementIds);
+    stockMoveRepository.saveAll(cancelledMovements);
+  }
+
+  /** 只有底下 moves 全部取消的單據才進 CANCELLED；含 DONE move 的單據不得被倒退。 */
+  private void cancelFullyCancelledPickings(
+      List<StockPicking> pickings,
+      List<StockMove> movements
+  ) {
+    Map<UUID, List<StockMove>> movementsByPicking = movements.stream()
+        .filter(move -> move.getPickingId() != null)
+        .collect(Collectors.groupingBy(StockMove::getPickingId));
+
+    for (StockPicking picking : pickings) {
+      List<StockMove> pickingMoves = movementsByPicking.getOrDefault(picking.id(), List.of());
+      if (!pickingMoves.isEmpty()
+          && pickingMoves.stream().allMatch(StockMove::isCancelled)
+          && picking.cancel()) {
+        stockPickingRepository.save(picking);
       }
-      batch.release(line.quantity());
     }
-
-    List<StockMove> cancelled = moves.stream().filter(StockMove::cancel).toList();
-    if (cancelled.isEmpty() && touched.isEmpty()) {
-      return false;
-    }
-
-    touched.values().stream().sorted(StockWriteOrder.BY_GLOBAL_ORDER).forEach(stockPoolRepository::save);
-    stockMoveRepository.deleteLinesOf(cancelled.stream().map(StockMove::getId).toList());
-    stockMoveRepository.saveAll(cancelled);
-    return true;
   }
 }

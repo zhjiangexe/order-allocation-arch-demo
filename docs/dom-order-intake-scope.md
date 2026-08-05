@@ -94,9 +94,9 @@
 | `ownerId` 貨主 | **header** | 一張單一個貨主，跨貨主不得同單 |
 | `shipTo` 收件地 | **header** | 一張單送一個地方 |
 | `promisedDeliveryDate` | **header** | 承諾到貨日，③ 的時效項基準 |
-| `requestedNodeId` 指定倉 | **header**（選填） | 貨主指定則跳過 sourcing |
+| `requestedFacilityId` 指定倉 | **header**（選填） | 貨主指定則跳過 sourcing |
 | `sku` / `quantity` | **line** | — |
-| ~~`assignedNodeId` 實際出貨倉~~ | ~~line~~ | **2026-07-29 砍除**——它放在 line 的唯一理由是跨倉拆單，而一張訂單只能一個倉、明細不可跨倉。倉別在 header 的 `fulfillment_node_id` |
+| ~~`assignedFacilityId` 實際出貨倉~~ | ~~line~~ | **2026-07-29 砍除**——它放在 line 的唯一理由是跨倉拆單，而一張訂單只能一個倉、明細不可跨倉。倉別在 header 的 `facility_id` |
 | `lineStatus` | **line** | **不是為了 `PARTIALLY_ALLOCATED`**——採 ship-complete，配貨階段各 line 狀態恆等。它為履約階段而存在（部分出貨、短揀） |
 
 原本這裡寫的是「sourcing 的輸入在 header，輸出在 line」——那條規則隨 ③ 移出範圍而失效。
@@ -110,7 +110,7 @@
 | `owners` 貨主主檔 | **獨立小表** | 畫面要顯示貨主名稱，不能只存 id。（原本還要承載「是否允許拆單」，該欄位已砍除） |
 | `products` 商品款主檔 | **獨立表** | 一款商品有多個規格（SKU）。溫層屬於款層級——見下節「為何拆兩層」 |
 | `skus` 規格主檔 | **獨立表** | 重量屬於規格層級，進 ③ 的成本函數；`sku` 不能永遠是裸字串 |
-| `fulfillment_nodes` | **獨立表** | 欄位定義見 [dom-sourcing-scope.md](dom-sourcing-scope.md) 的「主檔需求」 |
+| `facilities` | **獨立表** | 欄位定義見 [dom-sourcing-scope.md](dom-sourcing-scope.md) 的「主檔需求」 |
 | `stock_availability` 可用量 | **不做** | 可用量 100% 可從批次推導，存它只是快取。見「明確不做」的解封條件 |
 | 收發地址 | **內嵌 orders** | 這裡沒有「地址簿」需求。獨立 `addresses` 表是 CRM 的做法，會憑空多一層 join，且地址是逐單指定的，不可重用 |
 
@@ -144,7 +144,7 @@ orders
   ship_to_zone            NOT NULL,                     -- 1.13 ③ 的決策輸入
   ship_to_address         NOT NULL,                     -- 履約與面單用
   promised_delivery_date  NOT NULL,                     -- 1.13 ③ 的時效項基準
-  fulfillment_node_id,                                  -- NOT NULL，貨主在上游指定的出貨倉
+  facility_id,                                  -- NOT NULL，貨主在上游指定的出貨倉
   status, placed_at, allocated_at, backordered_since,
   cancelled_at, fulfilled_at, version
   UNIQUE (owner_id, external_order_no)                  -- 冪等鍵，見下
@@ -160,7 +160,7 @@ order_lines
 
 `products` 與 `skus` 的 key 含貨主的理由與 `external_order_no` 相同：**3PL 裡商品編碼由
 貨主自訂，不同貨主的編碼會撞**——A 貨主的 `SKU-A` 與 B 貨主的 `SKU-A` 是完全不同的
-商品。這也讓 `stock_pools` 的 `(owner_id, node_id, sku_code)` 自然對得上。
+商品。這也讓 `stock_pools` 的 `(owner_id, facility_id, sku_code)` 自然對得上。
 
 ### 商品主檔為何拆成款與規格兩層
 
@@ -288,7 +288,7 @@ order_lines
 | 同上 | `publishDomainEvents(orders)`，代發他層的 domain event |
 | `AllocationService:58` | `order.markAllocated(now)`，domain service 跨層改他層 aggregate |
 | `AllocateOrderUsecase:47-54` | 載入 `Order` 後由 `order.getSku()` 反查 `StockPool` |
-| `ReplenishmentUsecase:54` | `orderRepository.findBackordersBySkuInFifoOrder(sku)` |
+| `ConfirmStockReceiptUsecase:54` | `orderRepository.findBackordersBySkuInFifoOrder(sku)` |
 | `AllocationSelector:14`、`AllocationPolicy:8`、兩個 Policy | 排序邏輯建立在 `List<Order>` 上 |
 
 `OrderRepository` 上的 `findBackordersBySkuInFifoOrder()` 是耦合最直接的證據——一個
@@ -302,7 +302,8 @@ order_lines
 | `ordering/entrypoint/kafka/OrderAllocatedIntegrationEventHandler.java` | 消化配貨完成事實 |
 | `ordering/entrypoint/kafka/BackorderCreatedIntegrationEventHandler.java` | 消化缺貨事實 |
 | `ordering/infrastructure/configuration/OrderingKafkaErrorHandlingConfiguration.java` | 對應 allocation 既有設定 |
-| `ordering/application/usecase/ConfirmOrderUsecase.java` | 編排推進器 |
+| `ordering/application/usecase/RecordOrderAllocationUsecase.java` | 記錄配貨完成事實 |
+| `ordering/application/usecase/RecordOrderBackorderUsecase.java` | 記錄缺貨事實 |
 
 並接上 inbox 去重（`V5__create_event_inbox_and_outbox.sql` 的機制已在，ordering 開始
 使用）。
@@ -336,7 +337,7 @@ CREATE VIEW demand_lines AS
 SELECT ol.order_id,
        ol.id                 AS order_line_id,
        ol.owner_id,
-       o.fulfillment_node_id AS node_id,         -- 配貨要它才找得到批次
+       o.facility_id AS facility_id,         -- 配貨要它才找得到批次
        ol.sku_code,
        ol.quantity,
        o.received_at                             -- 供顯示，不是排序鍵
@@ -351,7 +352,7 @@ SELECT ol.order_id,
 **這份定義寫於 R2 的倉別與 R3 的分批之前，實作時補了兩處**；而庫存異動模型之後，謂詞本身
 也換了——見下節。
 
-**加 `node_id`。** 庫存按 `(貨主, 倉, SKU, 入庫日, 效期)` 持有，配貨的批次查詢要倉別才找得到
+**加 `facility_id`。** 庫存按 `(貨主, 倉, SKU, 入庫日, 效期)` 持有，配貨的批次查詢要倉別才找得到
 批。佇列的範圍也因此含倉別——別的倉的單這次補貨滿足不了，撈進來只會佔滿以張數計的喚醒上限
 然後被跳過，而浪費隨倉數線性成長。
 
@@ -456,7 +457,7 @@ ordering 收到 OrderAllocated → order.markAllocated() 拋
                               「Only pending or backordered orders can be allocated」→ 落 DLT
 ```
 
-**這是合理的競爭，不是錯誤。** 因此 `ConfirmOrderUsecase` 必須把「訂單已取消」視為
+**這是合理的競爭，不是錯誤。** 因此 `RecordOrderAllocationUsecase` 必須把「訂單已取消」視為
 **no-op**，而不是失敗——否則一次正常的取消操作就會製造一筆 DLT 訊息。
 
 現況不會遇到，因為配貨與改 `Order` 在同一個交易裡，取消擠不進去。
@@ -504,13 +505,13 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 | 動作 | 檔案 |
 | --- | --- |
 | 建 `owners` 主檔 | 新 migration、`Owner`、`OwnerEntity`、`OwnerRepository(+Impl)` |
-| `fulfillment_nodes` 主檔 | **不在本段**。③ 移出範圍後它縮成極簡表（`id`／`code`／`name`／`status`），但仍**必須先於** `stock_pools` 加 `node_id`，否則 FK 無處可指。見 [execution-roadmap.md](execution-roadmap.md) 的 R2 |
+| `facilities` 主檔 | **不在本段**。③ 移出範圍後它縮成極簡表（`id`／`code`／`name`／`status`），但仍**必須先於** `stock_pools` 加 `facility_id`，否則 FK 無處可指。見 [execution-roadmap.md](execution-roadmap.md) 的 R2 |
 | 建 `products` 款主檔 | 新 migration、`Product`、`ProductEntity`、`ProductRepository(+Impl)`。key 為 `(owner_id, product_code)`，持有 `temperature_zone` |
 | 建 `skus` 規格主檔 | 新 migration、`Sku`、`SkuEntity`、`SkuRepository(+Impl)`。key 為 `(owner_id, sku_code)`，FK 指向 `products`，持有 `weight_gram` |
 | `orders` 加 `owner_id` | `Order`、`OrderEntity`、`OrderMapper`、新 migration |
-| `stock_pools` key 加 `owner_id` 與 `node_id`（**不改名**，理由見「資料模型」） | `StockPool`、`StockPoolEntity`、`StockPoolMapper`、`StockPoolRepository(+Impl)`（`findBySku` 改回傳 `List`）、`JpaStockRepository`、新 migration |
+| `stock_pools` key 加 `owner_id` 與 `facility_id`（**不改名**，理由見「資料模型」） | `StockPool`、`StockPoolEntity`、`StockPoolMapper`、`StockPoolRepository(+Impl)`（`findBySku` 改回傳 `List`）、`JpaStockRepository`、新 migration |
 | 加跨貨主校驗 | `AllocationService.requireMatchingOwner()` |
-| 查詢帶貨主 | `AllocateOrderUsecase`、`ReplenishmentUsecase`、`GetStockPoolUsecase` |
+| 查詢帶貨主 | `AllocateOrderUsecase`、`ConfirmStockReceiptUsecase`、`GetStockPoolUsecase` |
 | Seed | `DevSeedDataInitializer` 加一至兩個貨主；商品含常溫與冷凍各一款，其中一款帶兩個規格以顯示款／規格兩層 |
 | 畫面 | 訂單列表與庫存頁加貨主欄；庫存頁顯示「品名 · 規格」 |
 
@@ -571,7 +572,7 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 
 ~~段 F 直送流程~~ 已刪除。直送（`ship_from` 由貨主指定非倉庫來源）會讓 ①②③ 與
 履約層各多一個分支，而該分支上沒有配貨決策、選點或揀貨——投入產出比不成立。
-`fulfillment_node_id`（貨主指定從哪個倉出）**保留**，那仍是倉出流程，與直送是兩回事。
+`facility_id`（貨主指定從哪個倉出）**保留**，那仍是倉出流程，與直送是兩回事。
 （原文寫「只是跳過 sourcing 決策」——③ 移出範圍後已經沒有可跳過的決策，指定的就是實際出貨倉。）`Order` 的終態為 `FULFILLED`，用詞理由見
 [system-layer-map.md](system-layer-map.md)。
 

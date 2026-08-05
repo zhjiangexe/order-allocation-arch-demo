@@ -6,9 +6,9 @@
  * 可行；端點數量若成長，就該回頭評估在後端引入文件產生器。
  *
  * 跟隨過的 change：`add-demo-console-api`（六支端點）、`add-owner-and-order-line-model`
- * （訂單改為行的集合、加入貨主與主檔查詢、補貨要指定貨主）、
- * `add-warehouse-and-owner-assignment`（訂單必須指定倉別、加入倉庫查詢）、
- * `add-batch-stock-and-fefo`（庫存改為批次列表、查詢與補貨都要帶貨主、補貨要帶倉別與
+ * （訂單改為行的集合、加入貨主與主檔查詢、收貨要指定貨主）、
+ * `add-warehouse-and-owner-assignment`（訂單必須指定設施、加入倉庫查詢）、
+ * `add-batch-stock-and-fefo`（庫存改為批次列表、查詢與收貨都要帶貨主、收貨要帶設施與
  * 入庫日與效期）。
  */
 
@@ -30,6 +30,14 @@ export interface OwnerView {
 
 /** 倉庫。只有身分——系統不做選倉決策，所以沒有狀態、能力或產能可帶。 */
 export interface FacilityView {
+  facilityId: string;
+  code: string;
+  name: string;
+}
+
+/** Facility 內可保存庫存、可作為收貨目的地的實際庫位。 */
+export interface StockLocationView {
+  locationId: string;
   facilityId: string;
   code: string;
   name: string;
@@ -141,16 +149,20 @@ export interface StockPoolView {
 }
 
 /**
- * 補貨。五個維度合起來決定這批貨加到哪一列——命中既有列就加數量，否則新開一列。
+ * 本地 stock context 的一段式收貨確認。receiptId 是呼叫方產生的冪等鍵；重試同一次
+ * 收貨時必須重用。
  *
  * 缺任一個維度就得定義合併規則，而任何一條規則都會在某些情況下把不可互換的貨併在一起。
- * 因此五個都是必填，後端缺任一個回 `400`。
+ * 庫存批的五個身分維度（貨主、庫位、SKU、入庫日、效期）都是必填；facilityId 另負責作業
+ * 類型與庫位歸屬驗證。後端缺任一個回 `400`。
  *
  * 庫存查詢**現在也需要貨主**——`stock_pools` 已按貨主分開，兩個貨主的同碼 SKU 是不同的貨。
  */
-export interface ReplenishCommand {
+export interface ConfirmStockReceiptRequest {
+  receiptId: string;
   ownerId: string;
   facilityId: string;
+  locationId: string;
   sku: string;
   /** ISO 日期（`2026-01-05`）。 */
   inDate: string;
@@ -158,9 +170,9 @@ export interface ReplenishCommand {
   quantity: number;
 }
 
-/** 補貨是非同步的：這個回應代表「已受理」，不代表任何訂單已完成配置。 */
-export interface ReplenishmentAccepted {
-  eventId: string;
+/** HTTP 成功時，收貨 movement 與 StockPool 已在同一交易完成。 */
+export interface StockReceiptConfirmed {
+  receiptId: string;
   sku: string;
   quantity: number;
 }

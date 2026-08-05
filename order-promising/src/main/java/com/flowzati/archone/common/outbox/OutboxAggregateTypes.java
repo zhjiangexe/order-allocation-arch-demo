@@ -4,7 +4,7 @@ public final class OutboxAggregateTypes {
 
   public static final String ORDER = "Order";
 
-  /** 續做喚醒的 aggregate 是那批庫存，不是任何一張訂單——它不屬於佇列裡的任何一張單。 */
+  /** 庫存可用性事件屬於 StockPool scope，不屬於任何一張訂單。 */
   public static final String STOCK_POOL = "StockPool";
 
   private OutboxAggregateTypes() {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Catalog } from './catalog';
-import { warehouseStockLines } from './stockLines';
+import { facilityStockLines } from './stockLines';
 import type { StockBatchView, StockPoolView } from './types';
 
 const OWNER_ID = '00000000-0000-0000-0000-000000000001';
@@ -13,6 +13,7 @@ function catalog() {
     {
       owner: { ownerId: OWNER_ID, code: 'OWNER-A', name: '甲貨主' },
       facilities: [{ facilityId: FACILITY_ID, code: 'WH-NORTH', name: '北部倉' }],
+      locations: [],
       products: [
         {
           productId: 'p-tea',
@@ -82,15 +83,15 @@ function held(skus: StockPoolView['skus']): StockPoolView {
   return { skus };
 }
 
-describe('warehouseStockLines', () => {
+describe('facilityStockLines', () => {
   it('列出該貨主的每一個規格，這個倉沒有的四個數字都是 0', () => {
-    const lines = warehouseStockLines(
+    const lines = facilityStockLines(
       catalog(),
       OWNER_ID,
       held([{ sku: 'SKU-TEA-500', batches: [batch({ onHandQuantity: 10, availableToPromise: 10 })] }]),
     );
 
-    // 那些零就是「這個倉缺什麼」，而補貨鍵因此到得了每一個規格。只列有貨的會讓這個倉從未
+    // 那些零就是「這個倉缺什麼」，而收貨鍵因此到得了每一個規格。只列有貨的會讓這個倉從未
     // 放過的貨品再也進不去——而現在的表單補得了。
     expect(lines).toHaveLength(3);
     const empty = lines.filter((line) => line.skuCode !== 'SKU-TEA-500');
@@ -105,14 +106,14 @@ describe('warehouseStockLines', () => {
   });
 
   it('順序照主檔的款 → 規格，不隨數量變動', () => {
-    const lines = warehouseStockLines(
+    const lines = facilityStockLines(
       catalog(),
       OWNER_ID,
       // 刻意讓最後一款有最多貨——若排序跟著數量走，它會跑到第一個。
       held([{ sku: 'SKU-COFFEE', batches: [batch({ onHandQuantity: 999, availableToPromise: 999 })] }]),
     );
 
-    // 補貨的結果要手動重查才看得到，排序一旦跟著數量走，你補的那一列就會跳走——而重查的
+    // 收貨的結果要手動重查才看得到，排序一旦跟著數量走，你補的那一列就會跳走——而重查的
     // 整個目的就是看它變了什麼。
     expect(lines.map((line) => line.skuCode)).toEqual([
       'SKU-TEA-500',
@@ -122,7 +123,7 @@ describe('warehouseStockLines', () => {
   });
 
   it('在手含過期、可承諾不含，差額由已過期解釋', () => {
-    const lines = warehouseStockLines(
+    const lines = facilityStockLines(
       catalog(),
       OWNER_ID,
       held([
@@ -151,7 +152,7 @@ describe('warehouseStockLines', () => {
   });
 
   it('沒有過期批時三個數字對得起來', () => {
-    const lines = warehouseStockLines(
+    const lines = facilityStockLines(
       catalog(),
       OWNER_ID,
       held([
@@ -175,7 +176,7 @@ describe('warehouseStockLines', () => {
   });
 
   it('有庫存但主檔查不到的規格仍要列出來，排在最後', () => {
-    const lines = warehouseStockLines(
+    const lines = facilityStockLines(
       catalog(),
       OWNER_ID,
       held([{ sku: 'HOT-SKU', batches: [batch({ onHandQuantity: 500, availableToPromise: 500 })] }]),
@@ -193,7 +194,7 @@ describe('warehouseStockLines', () => {
   it('批的順序照後端給的，不重排', () => {
     const near = batch({ expiryDate: '2026-08-31', onHandQuantity: 10, availableToPromise: 10 });
     const far = batch({ expiryDate: '2027-01-31', onHandQuantity: 10, availableToPromise: 10 });
-    const lines = warehouseStockLines(
+    const lines = facilityStockLines(
       catalog(),
       OWNER_ID,
       held([{ sku: 'SKU-TEA-500', batches: [near, far] }]),
@@ -204,9 +205,9 @@ describe('warehouseStockLines', () => {
   });
 
   it('這個倉什麼都沒放時仍列出全部規格', () => {
-    const lines = warehouseStockLines(catalog(), OWNER_ID, held([]));
+    const lines = facilityStockLines(catalog(), OWNER_ID, held([]));
 
-    // 空倉是正常答案，而且那正是新倉上線時的狀態——最需要補貨的時候。
+    // 空倉是正常答案，而且那正是新倉上線時的狀態——最需要收貨的時候。
     expect(lines).toHaveLength(3);
     expect(lines.every((line) => line.onHandQuantity === 0)).toBe(true);
   });

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
-import { getStockInWarehouse, replenish } from '../api/client';
-import { warehouseStockLines, type StockLine } from '../api/stockLines';
+import { getStockInLocation, confirmStockReceipt } from '../api/client';
+import { facilityStockLines, type StockLine } from '../api/stockLines';
 import { StockPanel } from '../components/StockPanel';
 import { useAsyncAction } from '../hooks/useAsyncAction';
 import { useCatalog } from '../hooks/useCatalog';
@@ -19,30 +19,34 @@ export function StockPage() {
    */
   const lines = useAsyncAction<[string, string], StockLine[]>(
     useCallback(
-      async (ownerId, facilityId) =>
-        warehouseStockLines(catalog, ownerId, await getStockInWarehouse(ownerId, facilityId)),
+      async (ownerId, locationId) =>
+        facilityStockLines(catalog, ownerId, await getStockInLocation(ownerId, locationId)),
       [catalog],
     ),
   );
 
-  const replenishment = useAsyncAction(replenish);
+  const receiptConfirmation = useAsyncAction(confirmStockReceipt);
 
   return (
     <div className={styles.page}>
       <section className={styles.section}>
-        <h2 className={styles.sectionHeading}>庫存與補貨</h2>
+        <h2 className={styles.sectionHeading}>庫存與收貨確認</h2>
         <StockPanel
           lines={lines.state}
-          replenishment={replenishment.state}
+          receiptConfirmation={receiptConfirmation.state}
           owners={catalog.owners}
           facilitiesOf={(ownerId) => catalog.facilitiesOf(ownerId)}
-          onQuery={(ownerId, facilityId) => void lines.run(ownerId, facilityId)}
-          // **刻意不在成功後自動重查。** 補貨回 202，庫存變更走 Kafka——立刻重查很可能查到
-          // 還沒變的數字，而畫面分不出「還沒處理到」與「處理完了但真的沒變」。
-          onReplenish={(input) => void replenishment.run(input)}
+          locationsOf={(facilityId) => catalog.locationsOf(facilityId)}
+          onQuery={(ownerId, _facilityId, locationId) => void lines.run(ownerId, locationId)}
+          // 收貨本身同步完成，但缺貨訂單可能在同一交易立即吃掉新量；保留手動重查，讓使用者
+          // 決定何時刷新這份查詢快照。
+          onConfirmReceipt={(input) => void receiptConfirmation.run({
+            ...input,
+            receiptId: crypto.randomUUID(),
+          })}
           onScopeChange={() => {
             lines.reset();
-            replenishment.reset();
+            receiptConfirmation.reset();
           }}
         />
       </section>

@@ -17,7 +17,7 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
  * <p><b>刻意只有一個這種 bean。</b>ordering 開始消費配貨結果時考慮過為它另建一份，但兩個
  * {@link CommonErrorHandler} bean 會讓 Spring Boot 無從自動選擇。而且 ordering 那條路徑不需要
  * 不同的策略：它推進訂單狀態，沒有樂觀鎖衝突要退避，任何例外直接進 DLT 正是想要的行為——
- * 而「訂單已取消」這種合理的競爭在 {@code ConfirmOrderUsecase} 裡就當成 no-op 了，根本不會
+ * 而「訂單已取消」這種合理的競爭在 {@code RecordOrderAllocationUsecase} 裡就當成 no-op 了，根本不會
  * 走到這裡。
  *
  * <p>類別名留在 allocation package 下，但它現在管的是兩個 context 的 listener。搬到 common 是

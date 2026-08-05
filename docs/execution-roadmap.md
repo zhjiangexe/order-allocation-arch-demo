@@ -59,7 +59,7 @@ R2 倉庫主檔（極簡）──┴──▶ R3 庫存分批 + FEFO ✓ ──�
 | # | 禁忌 | 原因 |
 | --- | --- | --- |
 | 1 | **R3 不可先於 R1** | `stock_reservations` 的 FK 要指向 `order_line_id`，而 `order_lines` 在 R1 才建立。先做等於之後要搬 FK |
-| 2 | **R3 不可先於 R2** | `stock_pools.node_id` 的參照對象 `fulfillment_nodes` 在 R2 才存在。先做只能存無主的 UUID |
+| 2 | **R3 不可先於 R2** | `stock_pools.facility_id` 的參照對象 `facilities` 在 R2 才存在。先做只能存無主的 UUID |
 | 3 | **R3 與 R4 不可並行** | 兩者都改 `AllocationService`：R3 加批次篩選與 FEFO，R4 斷開 `Order` 耦合。必須串行，且**順序固定為 R3 → R4**（見下一列） |
 | 3b | **R4 不可先於 R3** | R4 建立的 `demand_lines` view 引用 `stock_reservations.order_line_id` 與 `CONSUMED`，兩者都在 R3 才存在。先做只能寫一個之後要改的暫時版本 |
 | 4 | **R7 不可先於 R3、R4** | 無批次資訊不知道揀哪一批；編排權未歸位時出貨事件無處可掛 |
@@ -68,7 +68,7 @@ R2 倉庫主檔（極簡）──┴──▶ R3 庫存分批 + FEFO ✓ ──�
 ### 一條建議而非禁忌
 
 R2 完成後除了倉庫頁沒有任何行為變化——它是純主檔。這是**刻意接受的**：它存在的唯一
-理由，就是讓 R3 的 `node_id` 有參照對象，而不是為了讓 R2 本身有價值。
+理由，就是讓 R3 的 `facility_id` 有參照對象，而不是為了讓 R2 本身有價值。
 
 ---
 
@@ -120,8 +120,8 @@ line 時間戳的聚合規則。
 
 ### 任務
 
-1. Migration：建 `owners`（含 `allow_split_shipment`）、`products`（PK `(owner_id, product_code)`，含 `temperature_zone`）、`skus`（PK `(owner_id, sku_code)`，FK 指向 `products`，含 `spec_name`、`weight_gram`）、`order_lines`（含反正規化的 `owner_id`、line 層級的 `status`／`backordered_since`／`assigned_node_id`）。**建表順序：`products` 先於 `skus`**，FK 的被指向方在前。（R1 已完成。其中 `allow_split_shipment` 與 `assigned_node_id` 兩欄於 R2 砍除，理由見「為什麼沒有 R6」）
-2. Migration：`orders` 加 `owner_id`、`external_order_no`、`ship_to_zone`、`ship_to_address`、`promised_delivery_date`、`requested_node_id`（R2 更名為 `fulfillment_node_id`）、`fulfilled_at`；砍 `sku`、`quantity`
+1. Migration：建 `owners`（含 `allow_split_shipment`）、`products`（PK `(owner_id, product_code)`，含 `temperature_zone`）、`skus`（PK `(owner_id, sku_code)`，FK 指向 `products`，含 `spec_name`、`weight_gram`）、`order_lines`（含反正規化的 `owner_id`、line 層級的 `status`／`backordered_since`／`assigned_facility_id`）。**建表順序：`products` 先於 `skus`**，FK 的被指向方在前。（R1 已完成。其中 `allow_split_shipment` 與 `assigned_facility_id` 兩欄於 R2 砍除，理由見「為什麼沒有 R6」）
+2. Migration：`orders` 加 `owner_id`、`external_order_no`、`ship_to_zone`、`ship_to_address`、`promised_delivery_date`、`requested_facility_id`（R2 更名為 `facility_id`）、`fulfilled_at`；砍 `sku`、`quantity`
 3. Migration：**`UNIQUE (owner_id, external_order_no)`**（從 R5 提前）與 **待配佇列的 index**（從 R8 提前，**不含 `status`**——待配佇列的查詢刻意不依 status 過濾，見 R1 詳細文件；R4 之後它是 `idx_order_lines_demand_fifo (owner_id, sku_code, order_id)`，排序鍵換成了時間有序的主鍵）。舊的 `idx_orders_backorder_fifo` 會隨 `DROP COLUMN sku` 被 PostgreSQL 自動移除
 4. Domain：`Owner`、`Product`、`Sku`、`OrderLine`；`Order` 改為持有 line 集合（**每張單先只有一筆**）
 5. Infrastructure：四組 entity／mapper／repository
@@ -162,29 +162,29 @@ line 時間戳的聚合規則。
 
 **依賴**：無　**並行**：R1、R4　**規模**：約 8 檔
 
-純主檔與 seed。無決策邏輯。**它存在的唯一理由是讓 R3 的 `node_id` 有參照對象。**
+純主檔與 seed。無決策邏輯。**它存在的唯一理由是讓 R3 的 `facility_id` 有參照對象。**
 
 ### 任務
 
 1. **改寫 `V3`，不新增 migration**。schema 尚未部署至任何環境，沿用 R1 的判準——新開一支
-   migration 會在歷史上留下「`assigned_node_id` 建了又砍、`requested_node_id` 建了又改名」
+   migration 會在歷史上留下「`assigned_facility_id` 建了又砍、`requested_facility_id` 建了又改名」
    的假歷史。代價是既有 Postgres volume 必須移除重建，**不得以 `flyway repair` 略過**
-2. `V3` 加 `fulfillment_nodes`（`id`、`code`、`name`）。**刻意不建 `status`**——砍掉 sourcing
+2. `V3` 加 `facilities`（`id`、`code`、`name`）。**刻意不建 `status`**——砍掉 sourcing
    之後沒有「排除停用倉庫」的篩選，它會是第二個沒有讀者的欄位。倉庫停用在營運上是真的，
    但那要等有讀者時再加
-3. `V3` 加 `owner_nodes`（PK `(owner_id, node_id)`，雙 FK）。**零設定欄位**——它在 R2 的
+3. `V3` 加 `owner_facilities`（PK `(owner_id, facility_id)`，雙 FK）。**零設定欄位**——它在 R2 的
    用途只有一個：下單表單知道這個貨主能選哪些倉。設定欄位等 R3（見該節待定事項 6）
-4. `V3` 的 `orders.requested_node_id` 更名為 `fulfillment_node_id`、改 **`NOT NULL`**、補
-   **複合外鍵 `(owner_id, fulfillment_node_id)` → `owner_nodes`**（不是單欄指向
-   `fulfillment_nodes`）。已實測可行，因此「倉存在但這個貨主沒掛」由資料庫擋下，應用層零
+4. `V3` 的 `orders.requested_facility_id` 更名為 `facility_id`、改 **`NOT NULL`**、補
+   **複合外鍵 `(owner_id, facility_id)` → `owner_facilities`**（不是單欄指向
+   `facilities`）。已實測可行，因此「倉存在但這個貨主沒掛」由資料庫擋下，應用層零
    檢查。補 FK 刻意偏離「外部來的不補」原則：收件地址千變萬化，但倉別是簽約時就固定的少數
    幾個值，上游送錯就是設定錯誤，早點擋下比較好
-5. `V3` 砍掉 `order_lines.assigned_node_id`、`owners.allow_split_shipment` 與
+5. `V3` 砍掉 `order_lines.assigned_facility_id`、`owners.allow_split_shipment` 與
    **`owners.status`**。最後一個是任務 2 的同一把尺——它同樣沒有任何決策讀它，種子兩個貨主
    都是 `ACTIVE`，`SUSPENDED` 只出現在測試裡。只砍新的而留下舊的不是判準，是慣性
-6. Domain：`FulfillmentNode`；Infrastructure：entity／mapper／repository；
-   Usecase：`ListNodesForOwnerUsecase`（依貨主列出可用倉庫）
-7. `OrderPlaced` 領域事件加 `fulfillmentNodeId`（R3 的 partition key 要用）
+6. Domain：`Facility`；Infrastructure：entity／mapper／repository；
+   Usecase：`ListFacilitiesForOwnerUsecase`（依貨主列出可用倉庫）
+7. `OrderPlaced` 領域事件加 `facilityId`（R3 的 partition key 要用）
 8. Seed：**3 個倉庫**，兩個貨主**各掛 2 個、共用其中 1 個**。三件事要同時看得出來：同一貨主
    有多個倉、不同貨主的倉不同、**一個倉服務多個貨主**。第三件是 3PL 的定義性特徵，少了它，
    一個「以倉庫而非配對關係做過濾」的錯誤實作會安靜地通過
@@ -227,10 +227,10 @@ line 時間戳的聚合規則。
 
 砍掉的是**決策**，不是**倉庫**。倉庫仍然是領域裡的真實維度：
 
-- `fulfillment_nodes`——極簡主檔
-- `stock_pools.node_id`——庫存分倉，且**在唯一鍵裡**
-- `orders.fulfillment_node_id`——貨主指定的倉，NOT NULL
-- `Shipment` 帶 `nodeId`——這批貨從哪個倉出的
+- `facilities`——極簡主檔
+- `stock_pools.facility_id`——庫存分倉，且**在唯一鍵裡**
+- `orders.facility_id`——貨主指定的倉，NOT NULL
+- `Shipment` 帶 `facilityId`——這批貨從哪個倉出的
 
 一個貨主可以有多個倉（多對多），但**一張訂單只能一個倉，明細不可跨倉**。這是上游系統的
 既有規則，不是我們的簡化。
@@ -240,7 +240,7 @@ line 時間戳的聚合規則。
 | 欄位 | 為什麼 |
 | --- | --- |
 | `owners.allow_split_shipment` | 它的定義是「是否允許**跨節點**拆單」。明細不可跨倉，這個開關沒有東西可以開關 |
-| `order_lines.assigned_node_id` | 它放在 line 而非 header 的唯一理由是「拆單後不同 line 可能從不同倉出」。不跨倉之後它永遠等於 header，是純重複 |
+| `order_lines.assigned_facility_id` | 它放在 line 而非 header 的唯一理由是「拆單後不同 line 可能從不同倉出」。不跨倉之後它永遠等於 header，是純重複 |
 
 ### 護欄：讓 sourcing 之後補得回來
 
@@ -249,9 +249,9 @@ line 時間戳的聚合規則。
 
 但這段期間有三件事**不可以**因為「反正單倉」而簡化掉，否則補回來就是重寫而不是加法：
 
-1. **`stock_pools` 的唯一鍵必須含 `node_id`。** 這是唯一真的補不回來的——事後加維度等於改鍵、
+1. **`stock_pools` 的唯一鍵必須含 `facility_id`。** 這是唯一真的補不回來的——事後加維度等於改鍵、
    改所有查詢、改兩本帳的對帳等式。
-2. **`Shipment` 保留 `nodeId`。** `fulfillment-minimal-scope.md` 已經寫明「最小版三者退化成
+2. **`Shipment` 保留 `facilityId`。** `fulfillment-minimal-scope.md` 已經寫明「最小版三者退化成
    一對一，但欄位從一開始就是最終形態」。
 3. **倉庫這個概念不可以消失。** 一旦程式裡開始假設「只有一個倉」，補回來的成本就從加法變成
    重寫。
@@ -276,9 +276,9 @@ line 時間戳的聚合規則。
    ```sql
    stock_pools(
      id,
-     owner_id, node_id, sku_code, in_date, expiry_date,   -- 身分
+     owner_id, facility_id, sku_code, in_date, expiry_date,   -- 身分
      on_hand_quantity, reserved_quantity, version, updated_at,
-     UNIQUE (owner_id, node_id, sku_code, in_date, expiry_date),
+     UNIQUE (owner_id, facility_id, sku_code, in_date, expiry_date),
      FOREIGN KEY (owner_id, sku_code) REFERENCES skus(owner_id, sku_code)
    )
    ```
@@ -305,15 +305,15 @@ line 時間戳的聚合規則。
 4. Repository：`findBySku` 拆為 `findSellableBatchesInFefoOrder(...)` 與 `findBatches(...)`
 5. `AllocationService`：批次篩選（未過期）→ FEFO 排序 → 依序取用；加 `requireMatchingOwner()`。**排序鍵是 `(expiry_date, in_date, id)`**——只用效期不夠：同效期不同日到貨會平手，而順序不定會讓配貨結果不可重現，也讓任務 9 的防死鎖排序失效
 6. `AllocationOutcome`：區分「完全無批次」與「有批次但全不可售」。**決策層級是訂單**（採 ship-complete：整單配到／被哪條 line 卡住），per-line 資訊只作診斷用。型別要能承載「哪一條 line 的哪個 SKU 卡住了」
-7. `ReplenishmentUsecase`：改為依五維鍵 upsert。`ReplenishStockCommand` 加 `nodeId`、`inDate`、`expiryDate`。同貨主同倉同 SKU 同日同效期的補貨會加到既有那一列，其餘一律新開列——合併規則因此完全由鍵決定，沒有額外邏輯
-8. **補貨喚醒的批次上限**：`findBackordersBySkuInFifoOrder()` 目前無上限，`AllocationFifoReplenishmentBatchIntegrationTest` 已是「單次補貨喚醒 500 張」的情境——一個交易改 500 張 `Order`、寫 500 筆預留、發 1,000 則事件，而 `StockPool` 的樂觀鎖全程暴露在衝突下（交易越久越容易衝突 → 重試 → 更久）。批次化之後這從效能問題升級為**正確性問題**：一次補貨涉及的批次數量由佇列內容而非事件決定，鎖範圍不可預測，而任務 9 的死鎖防線依賴「知道自己會碰哪些列」。作法：**上限以張數為維度、可設定，超出時發一則續做事件**（同 topic 同 partition key），**終止條件為「本輪喚醒張數 < 上限即不續做」**——喚醒數不足代表佇列已清空或被 head-of-line blocker 卡住，再送一次結果相同，這同時保證進展性。**續做方案的前提是 FIFO 只保證「補貨當下的佇列快照」**（見 [dom-promising-scope.md](dom-promising-scope.md) 的「補貨的三個決定」）；若那條契約被改成嚴格全域 FIFO，本項只能退回同交易內分頁，而那沒有縮短交易
+7. `ConfirmStockReceiptUsecase`：改為依五維鍵 upsert。`ConfirmStockReceiptCommand` 加 `facilityId`、`inDate`、`expiryDate`。同貨主同倉同 SKU 同日同效期的補貨會加到既有那一列，其餘一律新開列——合併規則因此完全由鍵決定，沒有額外邏輯
+8. **補貨喚醒的批次上限**：`findBackordersBySkuInFifoOrder()` 目前無上限，`AllocationFifoAvailabilityIncreaseBatchIntegrationTest` 已是「單次補貨喚醒 500 張」的情境——一個交易改 500 張 `Order`、寫 500 筆預留、發 1,000 則事件，而 `StockPool` 的樂觀鎖全程暴露在衝突下（交易越久越容易衝突 → 重試 → 更久）。批次化之後這從效能問題升級為**正確性問題**：一次補貨涉及的批次數量由佇列內容而非事件決定，鎖範圍不可預測，而任務 9 的死鎖防線依賴「知道自己會碰哪些列」。現行作法是**上限以張數為維度、可設定**；availability event 只做首輪，剩餘 scope 由 Scheduler 後續掃描，不再發 orchestration-only continuation event。這保留短交易，也讓 eventual convergence 有單一 reconciliation owner。
 9. **防死鎖**：`OrderAllocationCoordinator` 的持久化段落**明確依 `(sku_code, expiry_date, in_date, id)` 排序後寫入**，不可依賴集合的自然順序。排序鍵**現在就寫成跨 SKU 的形式**，即使單行時只有一個 SKU——R8 之後一次配貨會碰多個 SKU 的多個批次，屆時才改排序鍵是死鎖最難重現的一類問題
-10. **Partition key**：`OrderingDomainEventTranslator` 與 `ReplenishmentProbeController` 的 key 改為 `ownerId + "/" + nodeId`，設定值由 `sku` 改名為 `stock`（見下方「動工前要先定」的第 3 項——**原定三維，review 時改為二維**）。組成規則抽成共用的 `StockContentionKey`，因為這兩處必須產生逐位元相同的 key，各寫一份則其中一邊改了另一邊沒改，兩類訊息就分到不同 partition，而 single writer 的保證會在沒有任何錯誤訊息的情況下失效。`AllocationDomainEventTranslator` 的**配置結果事件**不動——它發的是往下游的結果事件，下游更新的是 `Order` 那一列，爭用群組本來就是 orderId；但它後來多了一則**續做喚醒事件**，那一則一律以爭用群組為 key、不套用 `partition-key-strategy`（落到別的 partition 就會與它要接續的那一輪並行）
+10. **Partition key**：Ordering 與 stock availability 使用 `ownerId + "/" + facilityId` 的 `StockContentionKey`。收貨命令是同步 REST；提交後的 availability fact 經 Outbox/Kafka 觸發首輪，Scheduler 不經 Kafka。
 11. 事件：`OrderAllocatedIntegrationEvent` 加批次清單（含每批對應的 `orderLineId`）
 12. Seed：同 SKU 三批（近／中／遠效期）、一批已過期、一張跨批次需求的單。**其中兩批刻意同效期不同入庫日**，否則 tie-breaker 沒有測到
 13. 前端：庫存頁改批次列表（效期、良品狀態、數量、是否可售與**落選理由**）＋ 貨主篩選；訂單詳細頁顯示配到哪些批次
 14. 刪除 `DevSeedDataIntegrationTest` 中「每個庫存池的 SKU 都存在於主檔」那支測試——它驗的東西已由任務 1 的外鍵保證（見動工前第 4 件）
-15. 測試：`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationFifoReplenishmentBatchIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 的**前提失效，須重新設計**——熱點的定義從「一個 SKU」變成「一個批次」。`AllocationFifoReplenishmentBatchIntegrationTest` 另受任務 8 影響：500 張的單次喚醒會變成多輪續做，斷言要從「一次補貨事件後的最終狀態」改為「續做收斂後的最終狀態」，**而 head-of-line blocking 的斷言必須保留**——那是這支測試存在的理由
+15. 測試：`AllocationHotSkuConcurrencyIntegrationTest`、`AllocationFifoAvailabilityIncreaseBatchIntegrationTest`、`AllocationConcurrencyEndToEndIntegrationTest` 的**前提失效，須重新設計**——熱點的定義從「一個 SKU」變成「一個批次」。`AllocationFifoAvailabilityIncreaseBatchIntegrationTest` 另受任務 8 影響：500 張的單次喚醒會變成 availability 首輪加 Scheduler 多輪，斷言要改為「scheduled reconciliation 收斂後的最終狀態」，**而 head-of-line blocking 的斷言必須保留**——那是這支測試存在的理由
 
 ### 動工前的六件事
 
@@ -322,12 +322,12 @@ line 時間戳的聚合規則。
 
 **1. `stock_pools` 的身分是屬性的組合**（已定，2026-07-29）
 
-唯一鍵 `(owner_id, node_id, sku_code, in_date, expiry_date)`，**一列一批、每批一個 aggregate、
+唯一鍵 `(owner_id, facility_id, sku_code, in_date, expiry_date)`，**一列一批、每批一個 aggregate、
 一把樂觀鎖**。
 
 這個結論繞了四版才到，過程記在這裡，因為**每一版被推翻的理由都是可複用的判準**：
 
-**第一版：三維 `(owner_id, node_id, sku_code)`，批次移到子表。** 理由是「不超賣是跨批次的
+**第一版：三維 `(owner_id, facility_id, sku_code)`，批次移到子表。** 理由是「不超賣是跨批次的
 不變式，而 aggregate 邊界就是不變式的邊界」。**那個理由錯了**——每批各自滿足
 `reserved ≤ on_hand`，總和就自動滿足，不變式會分解。真正的 DDD 論證是「一次交易應只改一個
 aggregate」，弱得多，代價也具體（多列更新要固定順序，見任務 9）。
@@ -359,7 +359,7 @@ aggregate」，弱得多，代價也具體（多列更新要固定順序，見�
 **2. partition key 與庫存維度的先後順序**（已定，2026-07-29）
 
 **同一個 change 裡做。** partition key 那一項只有兩個檔案（`OrderingDomainEventTranslator`
-與 `ReplenishmentProbeController`），拆出去省不到什麼，卻要記住一條順序規則。
+與收貨入口），拆出去省不到什麼，卻要記住一條順序規則。
 
 真要拆的話，**只有一個安全的順序：庫存先分維度、key 後改**。兩個方向的風險不對稱：
 
@@ -377,7 +377,7 @@ aggregate」，弱得多，代價也具體（多列更新要固定順序，見�
 策略時存在——也就是壓測與 v3 對比那個情境。這把風險從「production 事故」降為「demo 數字
 不可信」，但不表示可以不管：v3 的吞吐對比（270 vs 203 orders/s）正是靠那個策略。
 
-**3. partition key 該含哪些維度：二維 `(owner_id, node_id)`**
+**3. partition key 該含哪些維度：二維 `(owner_id, facility_id)`**
 （原定三維，2026-07-29；**於 R3 的 code review 改為二維，2026-07-30**）
 
 判準是「**一次交易會碰到的資源集合**」，凡是交易會跨越的維度都不能進 key：
@@ -385,7 +385,7 @@ aggregate」，弱得多，代價也具體（多列更新要固定順序，見�
 | 維度 | 進 key 嗎 | 理由 |
 | --- | --- | --- |
 | `owner_id` | 是 | 庫存分開後不同貨主不再競爭 |
-| `node_id` | 是 | 一張訂單只有一個倉、明細不可跨倉，交易不跨節點。（原本因「R6 拆單會跨節點」而排除，R6 移出範圍後那個理由消失） |
+| `facility_id` | 是 | 一張訂單只有一個倉、明細不可跨倉，交易不跨節點。（原本因「R6 拆單會跨節點」而排除，R6 移出範圍後那個理由消失） |
 | `sku_code` | **否（改）** | 見下方「為什麼把 SKU 拿掉」 |
 | `in_date`、`expiry_date` | 否 | FEFO 在一次交易內跨批次取用，事前不知道會碰到哪幾列 |
 
@@ -408,7 +408,7 @@ ship-complete 需要的。
 本來就在回答不同的問題：身分問「哪一列是哪一列」，爭用群組問「哪些訊息會搶同一批列」。
 `event_outbox` 把 `aggregateid` 與 `partition_key` 分成兩欄，正是為了讓這兩件事各自獨立變動。
 
-**字串怎麼組**：`ownerId + "/" + nodeId`。Kafka 只拿 key 做 `hash(key) % partitions`、從不解析
+**字串怎麼組**：`ownerId + "/" + facilityId`。Kafka 只拿 key 做 `hash(key) % partitions`、從不解析
 它，所以唯一的要求是**確定性**與**不撞鍵**。兩個 UUID 都是定長的，直接以分隔字元相接不會有
 歧義——這也是拿掉 SKU 的附帶好處：**不再需要擔心自由文字的 SKU 代碼含有分隔字元**（原本靠
 「定長的放前面、自由文字放最後」來迴避，那個顧慮整個消失了）。
@@ -459,10 +459,10 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
 
 **6. 貨主 × 倉庫對應表：R2 建配對，R3 只加一欄**（已定，2026-07-29）
 
-`stock_pools` 帶了 `owner_id` 與 `node_id` 之後，「這個貨主的貨放在這個倉」就已經被庫存列的
+`stock_pools` 帶了 `owner_id` 與 `facility_id` 之後，「這個貨主的貨放在這個倉」就已經被庫存列的
 存在表達了，不需要授權表。**所以這張表只有在它承載「設定」時才值得建。**
 
-- **R2** 建 `owner_nodes(owner_id, node_id)`，零設定欄位——用途只是讓下單表單知道能選哪些倉
+- **R2** 建 `owner_facilities(owner_id, facility_id)`，零設定欄位——用途只是讓下單表單知道能選哪些倉
 - **R3** 只加 `allow_mixed_batch`（可否換批號）一欄
 
 `allow_mixed_batch` 是必要的，因為它改變**配貨演算法的形狀**而非參數：可換時是「依 FEFO
@@ -503,7 +503,7 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
 ### 任務
 
 1. 新增 `ordering/entrypoint/kafka/`：consumer、`OrderAllocatedIntegrationEventHandler`、`BackorderCreatedIntegrationEventHandler`、error handling config
-2. 新增 `ConfirmOrderUsecase`（編排推進器）
+2. 新增 `RecordOrderAllocationUsecase` 與 `RecordOrderBackorderUsecase`（結果記錄器）
 3. ordering 接上 inbox 去重
 4. Migration：建 `demand_lines` **view**（**view 方案，非投影表也非 Port 介面**，理由見來源文件）。allocation 以唯讀 repository 查它並映射到自己的 `DemandLine` record
    - view **刻意不含 `order_lines.status`**——ordering 的配貨狀態落後於 allocation 的決策，拿它當閘門會重複預留。「還欠什麼」由 view 裡對 `stock_reservations` 的 `NOT EXISTS` 決定
@@ -514,7 +514,7 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
 7. `AllocationSelector`、`AllocationPolicy`、兩個 policy：`List<Order>` 改為 `List<DemandLine>`
 8. 移除 `OrderRepository.findBackordersBySkuInFifoOrder()`
 9. 測試：斷言 **allocation package 不得 import `ordering.domain.model.Order`**，並斷言 allocation 的程式碼不出現 `orders`／`order_lines` 表名（它查 `demand_lines`，不需要例外）
-10. **`ConfirmOrderUsecase` 必須把「訂單已取消」視為 no-op**：配貨完成與使用者取消可能交錯，`order.markAllocated()` 對 CANCELLED 訂單會拋例外。那是合理競爭而非錯誤，若當成失敗，一次正常取消就會製造一筆 DLT 訊息。現況不會遇到，因為配貨與改 `Order` 在同一交易內
+10. **`RecordOrderAllocationUsecase` 必須把「訂單已取消」視為 no-op**：配貨完成與使用者取消可能交錯，`order.markAllocated()` 對 CANCELLED 訂單會拋例外。那是合理競爭而非錯誤，若當成失敗，一次正常取消就會製造一筆 DLT 訊息。現況不會遇到，因為配貨與改 `Order` 在同一交易內
 
 ### 驗收
 
@@ -523,7 +523,7 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
   ——只檢查 Java import 擋不住繞過型別直接寫表
 - **每張表只有一個 module 寫**：`orders`／`order_lines` 只由 ordering 寫，
   `stock_pools`／`stock_reservations` 只由 allocation 寫
-- **取消與配貨交錯時不落 DLT**：配貨事件抵達時訂單已 CANCELLED，`ConfirmOrderUsecase`
+- **取消與配貨交錯時不落 DLT**：配貨事件抵達時訂單已 CANCELLED，`RecordOrderAllocationUsecase`
   安靜跳過，且 allocation 的預留已由取消事件釋放
 - **超賣防線不受影響**：壓測仍為 500 配到／500 缺貨、不超賣。這條線在 `StockPool`
   aggregate 與樂觀鎖，與「誰改 `Order`」無關
@@ -593,9 +593,9 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 4. Usecase 五支：`CreateShipment`、`GeneratePickTasks`、`ConfirmPick`（含短揀分支）、`CancelShipment`、`ListPickTasks`。**`CreateShipment` 與 `GeneratePickTasks` 同交易＝即時釋出，那是政策不是必然**——見「已識別但未排程」的作業釋出。~~`GetLocationStock`~~ **刪除**——儲位層的庫存就是 `stock_pools`，已經有 `GetStockPoolUsecase`
 5. 取位規則：單一儲位優先 → 量多優先 → `code` 字典序（**第三條為了決定性，不可省**）
 6. 事件出：`ShipmentDeparted`、`ShortPickDetected`、`ShipmentCancelled`
-7. **庫存側**：`ShipmentDeparted` 的 handler 呼叫 `MovementCompleter` **完成那段出庫搬運**（**跨 module，寫在 order-promising 的 `stock`**）
+7. **庫存側**：`ShipmentDeparted` 的 handler 呼叫未來正式的出庫扣帳 use case，**完成那段出庫搬運**（**跨 module，寫在 order-promising 的 `stock`**）
 8. **庫存側**：`ShortPickDetected` 的 handler 修正在庫量——同樣經由搬運，不是直接改數字
-9. ~~`ReplenishmentUsecase` 同時寫入 `LocationStock`~~ **刪除**：補貨已經不直接寫庫存了，而且沒有第二份庫存要對帳
+9. ~~`ConfirmStockReceiptUsecase` 同時寫入 `LocationStock`~~ **刪除**：可用庫存事件只更新 Promising 的 `StockPool` 投影，不維護第二份 `LocationStock`
 10. Seed：每節點 3～4 儲位、一個 SKU 分散三儲位、**一筆預先埋好的帳差資料**
 11. 前端：揀貨頁——待揀清單、回報實揀數、**刻意短揀按鈕**、**對帳差異顯示**
 12. 測試：邊界斷言 `fulfillment` 不得依賴 `order-promising`
@@ -612,7 +612,7 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 
 - 出貨後在庫量確實遞減（**這是目前完全不存在的行為**），且**遞減有一段 `DONE` 的搬運與一條明細對得上**
 - 刻意短揀後：搬運修正 → 在庫量修正 → 訂單重新決策，全鏈可在畫面上追蹤
-- **`MovementCompleter` 遇到出庫方向不再拋錯**——那個 `not implemented until shipping exists` 就是留給 R7 的
+- **新增明確的出庫完成／扣帳 transaction boundary**，以實際 `ShipmentDeparted` 事實推進，不重用已移除的 inbound-only 元件
 - **`FULFILLED` 的訂單取消時被拒絕**，且拒絕發生在領域層而不是靠呼叫端記得檢查
 
 ### 風險
@@ -633,10 +633,10 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 | --- | --- | --- |
 | 新建 `locations` 表（階層 code） | `stock_locations` 已經存在。scope 文件對位置樹寫的是「日後要加時 `orders` 已指倉、`stock_pools` 已指位置，兩者都不用動」——儲位是**同一棵樹長出 `parent_id`**，不是第二個位置模型。Odoo 也只有一棵（`stock.location.parent_id`） | `stock_locations` 加 `parent_id`；`stock_pools.location_id` 指到更細的那一層 |
 | 新建 `location_stock` 表 + 對帳等式 | 那個等式的存在理由是「有兩份庫存」。只有一份就不需要對帳 | 刪除。庫存仍是 `stock_pools`，只是位置更細 |
-| handler 呼叫 `StockPool.consume()`、reservation 轉 `CONSUMED` | `stock_reservations` 與 `CONSUMED` 都不存在了；而且在庫量**在型別上**只能由搬運改 | handler 呼叫 `MovementCompleter` 完成那段出庫搬運，由它的明細去扣 |
+| handler 呼叫 `StockPool.consume()`、reservation 轉 `CONSUMED` | `stock_reservations` 與 `CONSUMED` 都不存在了；扣帳必須有實際出貨憑證 | handler 呼叫正式的出庫扣帳 use case，由出貨事實與搬運明細去扣 |
 
-**`MovementCompleter` 已經替 R7 留好位置**：它現在遇到來源是內部位置的搬運會拋
-`not implemented until shipping exists`，而那句話就是這一節要兌現的東西。
+R7 應新增清楚命名的出庫 transaction boundary，而不是復活已移除的 inbound-only
+`MovementCompleter`。它仍不得另開一條沒有出貨憑證、直接任意改 StockPool 的路。
 
 **其他 scope 文件還沒跟上。** 這一節已經對齊，但下列文件裡仍有 `LocationStock`、
 `stock_reservations`、`CONSUMED` 等已消失的東西——**開 R7 之前要先讀過它們**，否則會照著
@@ -694,7 +694,7 @@ upsert。如果哪天要重開這一項，先問的應該是「內容不符時�
 1. 移除 `Order.place()` 裡「每張單只有一筆 line」的限制
 2. **`StrictFifoAllocationPolicy` 改為整籃原子判斷**：一張單的所有 line 的所有 SKU 必須同時可滿足才配，否則整單不配、不預留。具體形狀：`remaining` 從單一純量變成 per-SKU 的餘量映射，`break` 的判準從「這個 SKU 不足」變成「任一 SKU 不足」——**仍是 `break` 不是 `continue`**，head-of-line blocking 是刻意保留的性質
 3. **補貨喚醒改為跨 SKU 檢查**：補 SKU X 之後還要確認那些單的其他 SKU 也備齊
-4. ~~`ownerId/nodeId/skuCode` partition 策略必須退場~~ → **已於 R3 解決,本 change 不必處理。**
+4. ~~`ownerId/facilityId/skuCode` partition 策略必須退場~~ → **已於 R3 解決,本 change 不必處理。**
    原本這裡寫著「必須退場且不是選項而是必然」,理由是 per-SKU 的 key 與 ship-complete 根本
    衝突——整籃原子判斷要在同一個交易裡檢查所有 SKU 的 ATP,而 per-SKU 分區的保證是「同一個
    SKU 的事件由同一個 writer 序列化」,跨 SKU 的交易必然跨越多個 writer 的管轄。
@@ -816,9 +816,10 @@ B 單永遠掛著   ← 直到有人補貨
 > `OrderAllocationCoordinator` 本身會在接下來的流程重組裡消失，屆時這段邏輯落在
 > `MovementCanceller`。缺口與修法都不受影響。
 
-修法的機制**已經在手上**：R3 為「喚醒上限的續做」加的 `BackorderWakeRequestedIntegrationEvent`
-語意正好通用——「這個 `(貨主, 倉, SKU)` 的庫存有變動，去喚醒佇列」。釋放成功後對每個受影響的
-三元組發一則，同 topic 同 partition key，因此與補貨之間有順序保證。約十幾行。
+修法可沿用現有 availability-triggered wake 的語意——「這個 `(貨主, 倉, SKU)` 的 ATP 增加，
+去喚醒佇列」。若取消釋放需要低延遲首輪，應發布另一個明確的業務 fact 並映射到同一個
+`AllocateWaitingDemandUsecase`；即使漏事件，Scheduler 仍負責 eventual convergence。不要復活只為控制
+流程存在的 continuation event。
 
 **但有一個設計問題要在有畫面可看的時候決定**：每次釋放都喚醒，還是只在可承諾量從 0 變正時
 喚醒？前者在「釋放 1 件而隊首要 999 件」時是白跑一趟交易；後者要多一個判斷，而那個判斷需要
@@ -837,7 +838,7 @@ ATP 被低估，後果是「某張單本來配得到卻掛帳了」——**保�
 立刻離開佇列，窗口內只會少配、不會誤配。新佇列讀的是 `stock_moves.state`，而搬運要等
 `OrderCancelled` 被消費才轉成 `CANCELLED`：**窗口內一次補貨可以把貨配給一張已取消的單。**
 
-後果有界且不會壞任何東西：`ConfirmOrderUsecase.isSettled` 早就把「已取消」當成合理競爭而靜默
+後果有界且不會壞任何東西：`RecordOrderAllocationUsecase` 早就把「已取消」當成合理競爭而靜默
 略過，接著釋放把量還回去。真正的殘留是它會走到上一節那個既有缺口——**貨變回可用，卻沒有人
 喚醒佇列**，所以排隊中的下一張單要等到下一次補貨。修好上一節，這條路徑的殘留也一併消失。
 
@@ -857,8 +858,8 @@ R3 archive 時任務 10.3 未勾。**它不是被放棄，是條件不具備**�
    `order_decision_latency_ms p(99) < 10s` 實測 11.2s 沒過。那條門檻實際上是**吞吐量門檻的
    偽裝**，與程式正確性無關。沒有放寬門檻、也沒有拿那組數字更新任何 baseline，理由與完整
    重測步驟記在 `e2e/perf/README.md` 的「一次失敗的量測」。
-2. **喚醒上限 `200` 尚未調校。** 它被選中的理由只有一個：讓續做與終止條件真的被走到（1,000 張
-   的佇列在這個上限下會分多輪收斂，所以兩者都有測試蓋著）。要調校它需要「單筆喚醒交易的實際
+2. **喚醒上限 `200` 尚未調校。** 它被選中的理由只有一個：讓 1,000 張佇列確實由 availability
+   首輪與 Scheduler 多輪收斂。要調校它需要「單筆喚醒交易的實際
    耗時」，而那要在安靜的機器上量——**與第 1 項同一個前提**。調校方向：上限 × 單筆耗時 ≈ 交易
    長度，而交易長度決定併發的新單要等多久。
 
@@ -875,14 +876,12 @@ R3 archive 時任務 10.3 未勾。**它不是被放棄，是條件不具備**�
 `List<Demand>` 對一組批），而且配對本身沒有自己的不變式——唯一能寫的「這兩者相容」有更自然的
 擁有者：庫存回答「我是不是這筆需求的合法供給」。
 
-抽成 `AllocatableStock` 之後該搬過去的：建構時驗「每個批掛在自己的 SKU 鍵下」（現在那個 map
-從 repository 組出來到進配貨為止**沒有任何人檢查**）、`batchesOf(skuCode)` 缺鍵即拋錯、
-`availableBySku()`、以及涵蓋檢查。
+已抽成 `AllocatableBatches`：建構時驗「每個批掛在自己的 SKU 鍵下」、`forSku(skuCode)` 缺鍵
+即拋錯、`availableToPromiseFor(skuCode)`，以及需求涵蓋檢查。
 
-**順帶一個實際的缺陷**：`allocate(demand, batchesBySku, now)` 的 `now` **完全沒被用到**——
-`requireBatchesCoverDemand`、`planPicks`、`applyPicks`、`outcomeFor` 都不收時間，
-`AllocationResult` 也不帶。`allocateBackorders` 的 `now` 才是真的有用（餵給
-`AllocationRequest.decisionAt`）。這個參數應該直接拿掉。
+`allocate(demand, batches)` 已拿掉未使用的 `now`；只有 `allocateWaitingBatch` 保留時間，餵給
+`AllocationRequest.decisionAt`。單筆與批次入口共用 private `attemptAllocation`，但挑選政策仍只
+屬於等待需求批次。
 
 沒有排程是因為它不修任何 bug——但它動的是 `AllocationService` 的介面與 repository 的回傳型別，
 混進任何一個功能 change 都會讓那個 change 讀不出來，所以要自己一個。

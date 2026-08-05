@@ -234,7 +234,7 @@ class StockPoolPersistenceIntegrationTest {
 
   @ParameterizedTest(name = "[{index}] {0}")
   @EnumSource(QuantityMutation.class)
-  @DisplayName("reserve、release 與 replenish 儲存時都應更新 timestamp 與 version")
+  @DisplayName("reserve、release、receive 與 consume 儲存時都應更新 timestamp 與 version")
   void updatesTimestampAndVersionForEveryQuantityMutation(QuantityMutation mutation) {
     StockPoolEntity initial = persistBatch(STOCK_POOL_ID, StockFixtures.EXPIRES_ON, 10, 2);
     Long initialVersion = initial.getVersion();
@@ -457,12 +457,8 @@ class StockPoolPersistenceIntegrationTest {
     RECEIVE(11, 2) {
       @Override
       void apply(StockPool stockPool) {
-        // 收貨要一條指向這一列的明細當憑證——在庫量沒有不帶明細的入口。
         stockPool.receive(new com.flowzati.archone.stock.domain.model.StockMoveLine(
-            com.flowzati.archone.common.IdGenerator.nextId(),
-            com.flowzati.archone.common.IdGenerator.nextId(),
-            stockPool.getId(),
-            1));
+            UUID.randomUUID(), UUID.randomUUID(), stockPool.getId(), 1));
       }
     },
     CONSUME(9, 1) {

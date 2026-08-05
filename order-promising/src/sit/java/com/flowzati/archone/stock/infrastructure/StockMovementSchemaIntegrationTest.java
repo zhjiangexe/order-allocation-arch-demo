@@ -41,7 +41,7 @@ import org.springframework.test.context.ActiveProfiles;
 class StockMovementSchemaIntegrationTest {
 
   private static final UUID OWNER_ID = uuid(1);
-  private static final UUID FACILITY_ID = uuid(2);
+  private static final UUID WAREHOUSE_ID = uuid(2);
   private static final UUID INTERNAL_LOCATION_ID = uuid(3);
   private static final UUID CUSTOMER_LOCATION_ID = uuid(4);
   private static final UUID PICKING_TYPE_ID = uuid(5);
@@ -143,6 +143,32 @@ class StockMovementSchemaIntegrationTest {
   }
 
   @Nested
+  @DisplayName("作業單狀態的值域")
+  class PickingState {
+
+    @Test
+    @DisplayName("目前可達的四個狀態都寫得進去")
+    void acceptsAllReachableStates() {
+      seed();
+      for (String state : List.of("CONFIRMED", "ASSIGNED", "DONE", "CANCELLED")) {
+        jdbcTemplate.update("UPDATE stock_pickings SET state = ? WHERE id = ?", state, pickingId());
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT state FROM stock_pickings WHERE id = ?", String.class, pickingId()))
+            .isEqualTo(state);
+      }
+    }
+
+    @Test
+    @DisplayName("值域外的作業單狀態被拒絕")
+    void rejectsUnknownState() {
+      seed();
+      assertThatThrownBy(() -> jdbcTemplate.update(
+          "UPDATE stock_pickings SET state = 'PICKING' WHERE id = ?", pickingId()))
+          .isInstanceOf(DataIntegrityViolationException.class);
+    }
+  }
+
+  @Nested
   @DisplayName("時間戳")
   class Timestamps {
 
@@ -186,6 +212,23 @@ class StockMovementSchemaIntegrationTest {
   class PickingIsTaskTruthOnly {
 
     @Test
+    @DisplayName("move 可獨立存在，picking 不是強制容器")
+    void allowsAStandaloneMoveWithoutAPicking() {
+      seed();
+
+      jdbcTemplate.update(
+          "INSERT INTO stock_moves (id, picking_id, owner_id, sku_code, from_location_id, "
+              + "to_location_id, demand_quantity, state, created_at, version) "
+              + "VALUES (?, NULL, ?, ?, ?, ?, 3, 'CONFIRMED', CURRENT_TIMESTAMP, 0)",
+          uuid(70), OWNER_ID, SKU, INTERNAL_LOCATION_ID, CUSTOMER_LOCATION_ID);
+
+      assertThat(jdbcTemplate.queryForObject(
+          "SELECT picking_id FROM stock_moves WHERE id = ?",
+          UUID.class,
+          uuid(70))).isNull();
+    }
+
+    @Test
     @DisplayName("picking 沒有 SKU、沒有數量")
     void carriesNoQuantity() {
       assertThat(columnNames("stock_pickings"))
@@ -206,9 +249,9 @@ class StockMovementSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("picking 沒有 state——它由底下的 move 彙總，存起來就有兩份要對齊")
-    void carriesNoStateOfItsOwn() {
-      assertThat(columnNames("stock_pickings")).doesNotContain("state", "status");
+    @DisplayName("picking 物化 moves 的摘要狀態，並用 version 防止配貨與取消互相覆蓋")
+    void carriesStateAndOptimisticLockVersion() {
+      assertThat(columnNames("stock_pickings")).contains("state", "version");
     }
 
     @Test
@@ -271,13 +314,13 @@ class StockMovementSchemaIntegrationTest {
         "INSERT INTO skus (id, owner_id, sku_code, product_code, spec_name, weight_gram) "
             + "VALUES (?, ?, ?, 'P-A', 'spec', 100)", uuid(11), OWNER_ID, SKU);
     jdbcTemplate.update(
-        "INSERT INTO facilities (id, code, name) VALUES (?, 'WH-A', 'A')", FACILITY_ID);
+        "INSERT INTO facilities (id, code, name) VALUES (?, 'WH-A', 'A')", WAREHOUSE_ID);
     jdbcTemplate.update(
-        "INSERT INTO owner_facilities (owner_id, facility_id) VALUES (?, ?)", OWNER_ID, FACILITY_ID);
+        "INSERT INTO owner_facilities (owner_id, facility_id) VALUES (?, ?)", OWNER_ID, WAREHOUSE_ID);
     jdbcTemplate.update(
         "INSERT INTO stock_locations (id, facility_id, code, name, usage) "
             + "VALUES (?, ?, 'WH-A/Stock', 'WH-A/Stock', 'INTERNAL')",
-        INTERNAL_LOCATION_ID, FACILITY_ID);
+        INTERNAL_LOCATION_ID, WAREHOUSE_ID);
     jdbcTemplate.update(
         "INSERT INTO stock_locations (id, facility_id, code, name, usage) "
             + "VALUES (?, NULL, 'Customers', 'Customers', 'CUSTOMER')", CUSTOMER_LOCATION_ID);
@@ -293,7 +336,7 @@ class StockMovementSchemaIntegrationTest {
         "INSERT INTO orders (id, owner_id, external_order_no, ship_to_zone, ship_to_address, "
             + "promised_delivery_date, facility_id, status, received_at, version) "
             + "VALUES (?, ?, 'EXT-1', 'Z', 'addr', ?, ?, 'PENDING', ?, 0)",
-        ORDER_ID, OWNER_ID, Date.valueOf(LocalDate.of(2026, 12, 31)), FACILITY_ID,
+        ORDER_ID, OWNER_ID, Date.valueOf(LocalDate.of(2026, 12, 31)), WAREHOUSE_ID,
         Timestamp.from(Instant.now()));
     jdbcTemplate.update(
         "INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity) "
@@ -314,7 +357,7 @@ class StockMovementSchemaIntegrationTest {
     jdbcTemplate.update(
         "INSERT INTO stock_picking_types (id, facility_id, code, name, "
             + "default_from_location_id, default_to_location_id) VALUES (?, ?, ?, ?, ?, ?)",
-        id, FACILITY_ID, code, code, from, to);
+        id, WAREHOUSE_ID, code, code, from, to);
   }
 
   private void insertMove(UUID id, UUID from, UUID to, UUID orderLineId, String state) {

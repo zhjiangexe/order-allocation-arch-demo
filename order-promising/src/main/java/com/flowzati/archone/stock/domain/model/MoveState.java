@@ -12,8 +12,8 @@ package com.flowzati.archone.stock.domain.model;
  *       才進 {@code waiting}，沒有就進 {@code confirmed}。我們的出庫是「庫存位置 → 客戶」單段，
  *       沒有上游，所以連 Odoo 自己算出來的也會是 {@code confirmed}。
  *       <p>會產生它的是多段出庫（ship 等 pick）與 MTO（出庫綁定某一筆進貨），兩者都沒有。
- *       <b>入庫走 move 之後也不會變</b>：補貨只是把數量加進庫存列，佇列重跑鎖定就配到了——
- *       move 等的是「庫存出現」，不是「某一段特定的搬運完成」，而那正是 MTS 的定義。
+ *       外部 availability event 只把數量投影進庫存列，佇列重跑鎖定就配到了——outbound move
+ *       等的是「庫存出現」，不是「某一段特定的 inbound move 完成」，而那正是 MTS 的定義。
  *       <p>它與「哪一段接在哪一段之後」的關聯表是同一件事的兩半：沒有鏈結，就沒有「等誰」
  *       可以表達。
  *   <li><b>沒有「部分可用」</b>（{@code partially_available}）——ship-complete 下一張單整批配到

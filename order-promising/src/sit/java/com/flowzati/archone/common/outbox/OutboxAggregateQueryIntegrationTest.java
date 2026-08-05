@@ -3,10 +3,9 @@ package com.flowzati.archone.common.outbox;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.stock.entrypoint.kafka.AllocationKafkaIntegrationEventConsumer;
@@ -64,6 +63,9 @@ class OutboxAggregateQueryIntegrationTest {
   private PlaceOrderUsecase placeOrderUsecase;
 
   @Autowired
+  private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
+
+  @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
 
   @Autowired
@@ -96,7 +98,7 @@ class OutboxAggregateQueryIntegrationTest {
 
     UUID orderId = placeOrder();
     backorderIt(orderId);
-    replenishStock();
+    confirmStockReceipt();
 
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
@@ -115,7 +117,7 @@ class OutboxAggregateQueryIntegrationTest {
 
     UUID orderId = placeOrder();
     backorderIt(orderId);
-    replenishStock();
+    confirmStockReceipt();
 
     // 下單事件的 key 是爭用群組（貨主/倉/SKU），配貨結果事件維持 orderId。
     String contentionKey = com.flowzati.archone.common.outbox.StockContentionKey.of(
@@ -149,12 +151,10 @@ class OutboxAggregateQueryIntegrationTest {
         assertThat(backordered.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
   }
 
-  private void replenishStock() throws Exception {
-    consumer.consumeInventoryEvent(record(
-        InventoryEventTopics.STOCK_EVENTS,
-        new StockReplenishedIntegrationEvent(
-            UUID.randomUUID(), com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, SKU,
-            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3)));
+  private void confirmStockReceipt() {
+    com.flowzati.archone.testsupport.StockReceiptFixture.confirm(
+        confirmStockReceiptUsecase, SKU, 3);
+    new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher).drain();
   }
 
   private List<String> eventTypesFor(UUID orderId) {

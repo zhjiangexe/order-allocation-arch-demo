@@ -15,14 +15,14 @@ import org.springframework.stereotype.Component;
 class OrderCancelledIntegrationEventHandler
     implements KafkaIntegrationEventHandler<OrderCancelledIntegrationEvent> {
 
-  private final CancelMovementsUsecase releaseReservationUsecase;
+  private final CancelMovementsUsecase cancelMovementsUsecase;
   private final AllocationRetryExecutor retryExecutor;
 
   OrderCancelledIntegrationEventHandler(
-      CancelMovementsUsecase releaseReservationUsecase,
+      CancelMovementsUsecase cancelMovementsUsecase,
       AllocationRetryExecutor retryExecutor
   ) {
-    this.releaseReservationUsecase = releaseReservationUsecase;
+    this.cancelMovementsUsecase = cancelMovementsUsecase;
     this.retryExecutor = retryExecutor;
   }
 
@@ -43,6 +43,6 @@ class OrderCancelledIntegrationEventHandler
     retryExecutor.execute(
         new AllocationRetryContext(
             "release-reservation", metadata.eventId(), event.getOrderId().toString(), null),
-        () -> releaseReservationUsecase.handle(inbound));
+        () -> cancelMovementsUsecase.handle(inbound));
   }
 }

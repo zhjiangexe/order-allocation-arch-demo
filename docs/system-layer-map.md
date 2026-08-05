@@ -29,7 +29,7 @@
 
 **所有訂單都是倉出**。曾評估過直送（`ship_from` 由貨主指定非倉庫來源），結論是它會
 讓 ①②③ 與履約層各多一個分支，而該分支上沒有配貨決策、選點或揀貨，投入產出比不
-成立，已排除。`fulfillment_node_id`（貨主指定從哪個倉出）保留，那仍是倉出流程。
+成立，已排除。`facility_id`（貨主指定從哪個倉出）保留，那仍是倉出流程。
 
 ## 完整流程與本系統的深度
 
@@ -86,7 +86,8 @@
 | 回答 | 這一批貨放在哪、還能承諾多少 |
 | 維護者 | 執行層（`stock`），而且**只能由搬運的明細改** |
 
-位置本身分層：現在是「一倉一個內部位置」，R7 讓它長出 `parent_id` 之後，庫存列就掛在
+位置本身分層：現在是「一個 Facility 可有多個平面 internal locations」，R7 讓它長出
+`parent_id` 之後，庫存列仍掛在
 **儲位**上。於是同一張表回答兩種問題：
 
 ```text
@@ -123,10 +124,10 @@ IMS 所稱的「全網視圖」是對庫存列的聚合查詢，不是第三張�
 ### 交會點 1：訂單配貨完成 → 產生揀貨任務
 
 ```text
-[訂單層] OrderAllocated (+ownerId, +nodeId, +批次清單) ──Kafka──▶ [履約層] 建立 Shipment 與 PickTask
+[訂單層] OrderAllocated (+ownerId, +facilityId, +批次清單) ──Kafka──▶ [履約層] 建立 Shipment 與 PickTask
 ```
 
-`nodeId` 由**貨主在上游下單時指定**（不是系統選的，見「為什麼不做 ③」），履約層據此知道
+`facilityId` 由**貨主在上游下單時指定**（不是系統選的，見「為什麼不做 ③」），履約層據此知道
 要在哪個節點揀貨。`ownerId` 決定要揀哪個貨主的貨——同節點同 SKU 可能有多個貨主的庫存，
 少了它會揀錯貨。
 
@@ -139,15 +140,15 @@ IMS 所稱的「全網視圖」是對庫存列的聚合查詢，不是第三張�
 （取消退回）。系統的貨從未真正出去過。
 
 ```text
-[履約層] ShipmentDeparted ──Kafka──▶ [stock] MovementCompleter 完成那段出庫搬運
+[履約層] ShipmentDeparted ──Kafka──▶ [stock] 未來的出庫扣帳 use case 完成那段出庫搬運
                                               由明細扣掉 onHand 與 reserved
                                               搬運 → DONE
 ```
 
 | 缺 | 內容 |
 | --- | --- |
-| `MovementCompleter` 出庫的那一半 | 目前遇到來源是內部位置的搬運會拋 `not implemented until shipping exists`——那句話就是留給 R7 的 |
-| `StockPool.consume` 的憑證 | 它現在還收數字；`receive` 已經改成收明細，R7 接上時兩者一起收斂 |
+| 正式的出庫扣帳 use case | 尚未實作；未來消費 `ShipmentDeparted`，完成實際出庫並扣除庫存投影 |
+| 扣帳憑證 | 必須來自實際出貨事實與搬運明細，不能只收一個無來源數字 |
 
 **扣帳時機採「離倉時扣」而非「揀貨時扣」。** 揀貨後貨仍在倉庫內，物理上未離開；
 出貨區的貨在取消時仍可回架。以離倉為界，`onHand` 的語意始終是「這個節點倉庫裡實際
@@ -313,11 +314,11 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 `AppClock`，時區由 `archone.business-zone` 設定、全系統一個值（預設 `Asia/Taipei`）。
 
 **正確的模型是時區屬於倉庫**——東京倉的貨照東京的日曆過期，該放在
-`fulfillment_nodes.time_zone`，而 `isSellable` 的判準隨批次所在的倉走。本專案的倉全在台灣，
+`facilities.time_zone`，而 `isSellable` 的判準隨批次所在的倉走。本專案的倉全在台灣，
 現在做等於為想像中的需求先設計，因此不排程。
 
 會踩到的條件很具體：**同一個貨主的倉跨越多個時區**。屆時全域設定會讓其中一邊每天有數小時
-把已過期的貨判成可售，而且不會有任何錯誤浮現——貨就出去了。改動範圍是 `fulfillment_nodes`
+把已過期的貨判成可售，而且不會有任何錯誤浮現——貨就出去了。改動範圍是 `facilities`
 加一欄、`AppClock` 改為依倉查詢。
 
 ## Module 結構
@@ -381,9 +382,9 @@ YMS、庫內移動、補貨策略。
 | --- | --- | --- |
 | `owners`、`products`、`skus` 主檔 | ① 段 E | **R1** |
 | `order_lines` 建表（每張單先只有一筆） | ① 段 C 的結構部分 | **R1** |
-| `fulfillment_nodes` 極簡主檔（無覆蓋、無能力、無成本） | 倉別由上游指定 | **R2** |
+| `facilities` 極簡主檔（無覆蓋、無能力、無成本） | 倉別由上游指定 | **R2** |
 | `stock_pools` key 加 `owner_id` | ① 段 E | **R3** |
-| `stock_pools` key 加 `node_id` | ③ | **R3** |
+| `stock_pools` key 加 `facility_id` | ③ | **R3** |
 | `stock_pools` key 加 `in_date`、`expiry_date` | ② P1 | **R3** |
 | `stock_reservations` FK 改為 `order_line_id` ＋ 帶批次 | ② P1 | **R3** |
 
@@ -406,7 +407,7 @@ roadmap 判定不必，理由是 R1 完成後「下單 → 查詢 → 取消」�
 | 交會點 2 consume | 無 | 既有 ② 就該有的閉環，可與 ①A 並行；為履約層的前置 |
 | ①D 冪等 | 第一步 | 冪等鍵是 `(owner_id, external_order_no)` |
 | ①C 放寬多筆 line | 第一步 | `order_lines` 已存在，此段只是放寬「一張單可有多筆」，非搬遷結構 |
-| 履約層（最小版） | 第一步、交會點 2 | 無 `nodeId` 則不知在哪揀貨；無 `ownerId` 與批次則揀錯貨；無 `consume()` 則出庫無法扣帳。`nodeId` 由上游指定，不需要 ③ |
+| 履約層（最小版） | 第一步、交會點 2 | 無 `facilityId` 則不知在哪揀貨；無 `ownerId` 與批次則揀錯貨；無 `consume()` 則出庫無法扣帳。`facilityId` 由上游指定，不需要 ③ |
 
 ## 明確不做
 

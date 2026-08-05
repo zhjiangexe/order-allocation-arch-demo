@@ -16,27 +16,132 @@ import java.util.UUID;
  * 本系統明確不合併——一張出庫單就是一張單據。日後若真要合併，這個欄位必須拿掉，分組改由一個
  * 有自己身分的群組實體承擔。
  *
- * <p><b>但分組不用它。</b>ship-complete 的整單判斷以 {@code pickingId} 分組——單表 group by，
- * 補貨喚醒那條熱路徑因此一個 join 都沒有。訂單 id 只在配到之後要發事件時才讀。
+ * <p><b>但分組不用它。</b>ship-complete 的整單判斷以 {@code pickingId} 分組；
+ * {@code orderId} 用來把沒有訂單的 inbound picking 排除在待配佇列之外，並在配到後
+ * 建立結果事件。
  *
- * <p><b>沒有狀態。</b>它由底下的 move 彙總，存起來就有兩份要對齊——而 ship-complete 下一張
- * 單的所有 move 同進同出，彙總本來就是 trivial 的。
+ * <p><b>狀態是底下 moves 的物化摘要。</b>它不是另一套獨立生命週期：建立時為
+ * {@link PickingState#CONFIRMED}，moves 全部鎖定時進 {@link PickingState#ASSIGNED}，完成或
+ * 取消也與 moves 在同一個 transaction 更新。物化的目的是讓作業單列表可以直接篩選與排程。
+ *
+ * <p>一旦狀態可寫，配貨與取消就可能同時修改同一張單，因此 picking 也必須帶 optimistic-lock
+ * {@code version}，不能再依賴「只有建立時寫一次」的舊假設。
  */
-public record StockPicking(
-    UUID id,
-    UUID pickingTypeId,
-    UUID ownerId,
-    UUID orderId,
-    UUID fromLocationId,
-    UUID toLocationId
-) {
+public class StockPicking {
 
-  public StockPicking {
+  private final UUID id;
+  private final UUID pickingTypeId;
+  private final UUID ownerId;
+  private final UUID orderId;
+  private final UUID fromLocationId;
+  private final UUID toLocationId;
+  private PickingState state;
+  private final Long version;
+
+  public StockPicking(
+      UUID id,
+      UUID pickingTypeId,
+      UUID ownerId,
+      UUID orderId,
+      UUID fromLocationId,
+      UUID toLocationId,
+      PickingState state,
+      Long version
+  ) {
     if (id == null || pickingTypeId == null || ownerId == null) {
       throw new IllegalArgumentException("Picking requires an id, a type and an owner");
     }
     if (fromLocationId == null || toLocationId == null) {
       throw new IllegalArgumentException("A picking must say where the work runs between");
     }
+    if (state == null) {
+      throw new IllegalArgumentException("Picking state is required");
+    }
+    this.id = id;
+    this.pickingTypeId = pickingTypeId;
+    this.ownerId = ownerId;
+    this.orderId = orderId;
+    this.fromLocationId = fromLocationId;
+    this.toLocationId = toLocationId;
+    this.state = state;
+    this.version = version;
+  }
+
+  public static StockPicking confirmed(
+      UUID id,
+      UUID pickingTypeId,
+      UUID ownerId,
+      UUID orderId,
+      UUID fromLocationId,
+      UUID toLocationId
+  ) {
+    return new StockPicking(
+        id, pickingTypeId, ownerId, orderId, fromLocationId, toLocationId,
+        PickingState.CONFIRMED, null);
+  }
+
+  public boolean assign() {
+    if (state == PickingState.ASSIGNED) {
+      return false;
+    }
+    if (state != PickingState.CONFIRMED) {
+      throw new IllegalStateException("Only a confirmed picking can be assigned, was " + state);
+    }
+    state = PickingState.ASSIGNED;
+    return true;
+  }
+
+  public boolean complete() {
+    if (state == PickingState.DONE) {
+      return false;
+    }
+    if (state != PickingState.ASSIGNED) {
+      throw new IllegalStateException("Only an assigned picking can be completed, was " + state);
+    }
+    state = PickingState.DONE;
+    return true;
+  }
+
+  public boolean cancel() {
+    if (state == PickingState.CANCELLED) {
+      return false;
+    }
+    if (state == PickingState.DONE) {
+      throw new IllegalStateException("A completed picking cannot be cancelled");
+    }
+    state = PickingState.CANCELLED;
+    return true;
+  }
+
+  public UUID id() {
+    return id;
+  }
+
+  public UUID pickingTypeId() {
+    return pickingTypeId;
+  }
+
+  public UUID ownerId() {
+    return ownerId;
+  }
+
+  public UUID orderId() {
+    return orderId;
+  }
+
+  public UUID fromLocationId() {
+    return fromLocationId;
+  }
+
+  public UUID toLocationId() {
+    return toLocationId;
+  }
+
+  public PickingState state() {
+    return state;
+  }
+
+  public Long version() {
+    return version;
   }
 }

@@ -5,6 +5,7 @@ import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.catalog.infrastructure.mapper.StockLocationMapper;
 import com.flowzati.archone.catalog.infrastructure.repository.jpa.JpaStockLocationRepository;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
@@ -32,12 +33,14 @@ public class StockLocationRepositoryImpl implements StockLocationRepository {
   }
 
   @Override
-  public Optional<StockLocation> findInternalOf(UUID facilityId) {
+  public List<StockLocation> findInternalByFacilityId(UUID facilityId) {
     if (facilityId == null) {
-      return Optional.empty();
+      return List.of();
     }
     return repository
-        .findByFacilityIdAndUsage(facilityId, LocationUsage.INTERNAL)
-        .map(StockLocationMapper::toDomain);
+        .findAllByFacilityIdAndUsageOrderByCode(facilityId, LocationUsage.INTERNAL)
+        .stream()
+        .map(StockLocationMapper::toDomain)
+        .toList();
   }
 }

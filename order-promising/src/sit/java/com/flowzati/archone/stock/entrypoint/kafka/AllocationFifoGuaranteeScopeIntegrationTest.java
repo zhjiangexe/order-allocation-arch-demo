@@ -4,8 +4,7 @@ import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
+import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.integration.IntegrationEvent;
@@ -33,22 +32,19 @@ import org.springframework.test.context.ActiveProfiles;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 釘住 FIFO 保證的<strong>範圍</strong>：它只涵蓋「補貨事件處理當下的佇列快照」，不是全域
- * 時間序。補貨喚醒之後剩下的 ATP 會被下一張路過的新單直接取得，而佇列裡等更久的大單繼續
- * 等——這是刻意的政策，不是缺陷。
+ * 釘住 FIFO 保證的<strong>範圍</strong>：相同 owner、location、SKU 已有 waiting picking 時，
+ * 後到的新單即使當下 ATP 足夠也不得插隊，必須一起進入等待佇列。
  *
- * <p><b>這支測試存在的理由是它描述的行為看起來像 bug。</b>在操作台上它會表現為「明明有貨，
- * 舊單卻沒配到」，而最直覺的反應是把它「修掉」——讓佇列非空時新單也排隊。那個修法會直接
- * 損失可履約訂單，並與 {@code MaximizeFulfilledOrdersPolicy} 的存在理由矛盾。政策的取捨與
- * 兩個備選方案見 {@code docs/dom-promising-scope.md} 的「補貨的三個決定」。
+ * <p><b>這支測試存在的理由是 availability event 與新單事件之間有時間空窗。</b>Inbox 只能去重
+ * 同一訊息，不能阻止後到的新訂單在空窗中直接消耗留下的 ATP；因此初次配貨也必須看相同 scope
+ * 是否已有更早的 waiting picking。
  *
- * <p>數字刻意設計成讓代價無法被忽略：舊單要 100，兩次補貨合計正好 100。<b>若沒有新單插隊，
- * 舊單第二次補貨後剛好配得到</b>；新單取走的那 10 個單位，正是舊單最後差的那 10 個。斷言
- * 因此不只證明「新單配到了」，也證明「舊單為此被推遲」。
+ * <p>數字刻意讓插隊直接可見：舊單要 100，兩次收貨合計正好 100；中間的新單要 10。正確結果
+ * 是舊單取得 100、新單繼續等待，而不是新單先拿 10、舊單最後短少 10。
  *
- * <p>與 {@code AllocationFifoReplenishmentBatchIntegrationTest} 的分工：那支測的是佇列
+ * <p>與 {@code AllocationFifoAvailabilityIncreaseBatchIntegrationTest} 的分工：那支測的是佇列
  * <em>內部</em>的順序（嚴格 FIFO 與 head-of-line blocking），這支測的是佇列<em>外部</em>
- * 的邊界（誰有資格繞過佇列）。
+ * 的邊界（初次配貨也必須服從既有等待佇列）。
  */
 @SpringBootTest(
     classes = ArchoneApplication.class,
@@ -60,15 +56,18 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
   private static final String SKU = "SCOPE-SKU";
   private static final int QUEUED_ORDER_QUANTITY = 100;
-  private static final int FIRST_REPLENISH_QUANTITY = 30;
+  private static final int FIRST_AVAILABILITY_INCREASE = 30;
   private static final int NEW_ORDER_QUANTITY = 10;
-  private static final int SECOND_REPLENISH_QUANTITY = 70;
+  private static final int SECOND_AVAILABILITY_INCREASE = 70;
 
   @org.springframework.beans.factory.annotation.Autowired
   private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
+
+  @Autowired
+  private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
   @Autowired
   private ObjectMapper objectMapper;
@@ -94,8 +93,8 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   }
 
   @Test
-  @DisplayName("補貨後的餘量會被後到的新單取得，佇列裡等更久的大單因此被推遲——FIFO 只保證補貨當下的佇列快照")
-  void shouldLetANewOrderTakeLeftoverAtpAheadOfAnOlderQueuedOrder() throws Exception {
+  @DisplayName("availability event 的空窗中，新單不得使用餘量繞過更早的 waiting picking")
+  void shouldKeepANewOrderBehindAnOlderQueuedOrder() throws Exception {
     // Step 1：一個空的庫存池，與一張已經排隊很久、需求 100 的缺貨訂單。
     UUID stockPoolId = UUID.randomUUID();
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, SKU, 0, 0));
@@ -103,32 +102,27 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
     // Step 2：補進 30。佇列的 head 要 100，head-of-line blocking 讓它配不到，
     // 這 30 個單位原封不動留在池裡。
-    consumer.consumeInventoryEvent(record(
-        InventoryEventTopics.STOCK_EVENTS, replenishment(FIRST_REPLENISH_QUANTITY)));
+    receive(FIRST_AVAILABILITY_INCREASE);
 
     assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(availableToPromise(stockPoolId)).isEqualTo(FIRST_REPLENISH_QUANTITY);
+    assertThat(availableToPromise(stockPoolId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
 
-    // Step 3：此時一張全新的訂單到達，需求 10。它走 AllocateOrderUsecase 的 fast path，
-    // 不查佇列——這一步就是本測試釘住的契約。
+    // Step 3：此時一張全新的訂單到達，需求 10。即使 ATP 足夠，它仍須先看相同
+    // owner/location/SKU 的 waiting head。
     UUID newOrderId = placeNewOrder();
 
-    // Step 4：新單配到，舊單仍在佇列裡。餘量從 30 降為 20。
-    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.ALLOCATED);
+    // Step 4：新單也進 waiting queue，30 件不被後到需求取走。
+    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(availableToPromise(stockPoolId))
-        .isEqualTo(FIRST_REPLENISH_QUANTITY - NEW_ORDER_QUANTITY);
+    assertThat(availableToPromise(stockPoolId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
 
     // Step 5：再補 70，兩次補貨合計正好 100——恰好是舊單的需求量。
-    consumer.consumeInventoryEvent(record(
-        InventoryEventTopics.STOCK_EVENTS, replenishment(SECOND_REPLENISH_QUANTITY)));
+    receive(SECOND_AVAILABILITY_INCREASE);
 
-    // Step 6：舊單仍配不到。這就是插隊的代價：進來的貨總量足夠，但其中 10 個已經給了新單，
-    // 剩下的 90 湊不滿它的 100。若把這條斷言改綠（例如讓佇列非空時新單也排隊），
-    // 改的就不是一個 bug，而是本系統的配貨政策。
-    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(availableToPromise(stockPoolId))
-        .isEqualTo(FIRST_REPLENISH_QUANTITY + SECOND_REPLENISH_QUANTITY - NEW_ORDER_QUANTITY);
+    // Step 6：舊單先取得完整 100 件；新單繼續等待，不會因 arrival gap 插隊。
+    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.ALLOCATED);
+    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(availableToPromise(stockPoolId)).isZero();
   }
 
   private UUID seedQueuedOrder() {
@@ -150,10 +144,10 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     return orderId;
   }
 
-  private StockReplenishedIntegrationEvent replenishment(int quantity) {
-    return new StockReplenishedIntegrationEvent(
-            UUID.randomUUID(), OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, SKU,
-            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, quantity);
+  private void receive(int quantity) {
+    com.flowzati.archone.testsupport.StockReceiptFixture.confirm(
+        confirmStockReceiptUsecase, SKU, quantity);
+    new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher).drain();
   }
 
   private OrderStatus statusOf(UUID orderId) {

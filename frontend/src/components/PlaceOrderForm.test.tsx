@@ -12,9 +12,9 @@ const OWNER_A: OwnerView = {
   name: '甲貨主',
 };
 
-const NODE_NORTH = '00000000-0000-0000-0000-000000000011';
-const NODE_CENTRAL = '00000000-0000-0000-0000-000000000012';
-const NODE_SOUTH = '00000000-0000-0000-0000-000000000013';
+const NORTH_FACILITY_ID = '00000000-0000-0000-0000-000000000011';
+const CENTRAL_FACILITY_ID = '00000000-0000-0000-0000-000000000012';
+const SOUTH_FACILITY_ID = '00000000-0000-0000-0000-000000000013';
 
 const OWNER_B: OwnerView = {
   ownerId: '00000000-0000-0000-0000-000000000002',
@@ -33,13 +33,14 @@ function catalogOf(...owners: OwnerView[]) {
         // 這個安排會讓它露餡
         facilities: isOwnerA
           ? [
-              { facilityId: NODE_NORTH, code: 'WH-NORTH', name: '北部倉' },
-              { facilityId: NODE_CENTRAL, code: 'WH-CENTRAL', name: '中部倉' },
+              { facilityId: NORTH_FACILITY_ID, code: 'WH-NORTH', name: '北部倉' },
+              { facilityId: CENTRAL_FACILITY_ID, code: 'WH-CENTRAL', name: '中部倉' },
             ]
           : [
-              { facilityId: NODE_CENTRAL, code: 'WH-CENTRAL', name: '中部倉' },
-              { facilityId: NODE_SOUTH, code: 'WH-SOUTH', name: '南部倉' },
+              { facilityId: CENTRAL_FACILITY_ID, code: 'WH-CENTRAL', name: '中部倉' },
+              { facilityId: SOUTH_FACILITY_ID, code: 'WH-SOUTH', name: '南部倉' },
             ],
+        locations: [],
         products: [
           {
             productId: `product-${owner.ownerId}`,
@@ -91,7 +92,7 @@ type User = ReturnType<typeof userEvent.setup>;
 
 async function selectDownTo(user: User, owner: OwnerView) {
   await user.selectOptions(screen.getByLabelText('貨主'), owner.ownerId);
-  await user.selectOptions(screen.getByLabelText('出貨倉'), NODE_CENTRAL);
+  await user.selectOptions(screen.getByLabelText('履約設施'), CENTRAL_FACILITY_ID);
   await user.selectOptions(product(1), 'P-TEA');
   await user.selectOptions(sku(1), 'SKU-AVAILABLE');
 }
@@ -125,7 +126,7 @@ describe('PlaceOrderForm', () => {
     expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         ownerId: OWNER_A.ownerId,
-        facilityId: NODE_CENTRAL,
+        facilityId: CENTRAL_FACILITY_ID,
         externalOrderNo: 'PO-8891',
         lines: [{ skuCode: 'SKU-AVAILABLE', quantity: 3 }],
       }),
@@ -144,18 +145,18 @@ describe('PlaceOrderForm', () => {
     expect(sku(1)).toHaveValue('SKU-AVAILABLE');
   });
 
-  it('出貨倉只列出該貨主已指派的倉', async () => {
+  it('履約設施只列出該貨主已指派的倉', async () => {
     render(
       <PlaceOrderForm catalog={catalogOf(OWNER_A, OWNER_B)} onSubmit={vi.fn()} pending={false} />,
     );
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText('貨主'), OWNER_A.ownerId);
-    expect(optionValues('出貨倉')).toEqual(['', NODE_NORTH, NODE_CENTRAL]);
+    expect(optionValues('履約設施')).toEqual(['', NORTH_FACILITY_ID, CENTRAL_FACILITY_ID]);
 
     await user.selectOptions(screen.getByLabelText('貨主'), OWNER_B.ownerId);
     // 中部倉兩個貨主共用，南部倉只有乙貨主有——北部倉必須消失
-    expect(optionValues('出貨倉')).toEqual(['', NODE_CENTRAL, NODE_SOUTH]);
+    expect(optionValues('履約設施')).toEqual(['', CENTRAL_FACILITY_ID, SOUTH_FACILITY_ID]);
   });
 
   it('未選貨主時款與規格不可選，也沒有任何選項', () => {
@@ -166,7 +167,7 @@ describe('PlaceOrderForm', () => {
     expect(product(1)).toContainHTML('請選擇');
   });
 
-  it('未選出貨倉時不送出請求', async () => {
+  it('未選履約設施時不送出請求', async () => {
     const onSubmit = vi.fn();
     render(<PlaceOrderForm catalog={catalogOf(OWNER_A)} onSubmit={onSubmit} pending={false} />);
     const user = userEvent.setup();
@@ -179,7 +180,7 @@ describe('PlaceOrderForm', () => {
     await user.click(screen.getByRole('button', { name: '送出訂單' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('出貨倉');
+    expect(screen.getByRole('alert')).toHaveTextContent('履約設施');
   });
 
   it.each([
@@ -308,7 +309,7 @@ describe('PlaceOrderForm', () => {
       // 兩個貨主的 SKU 代碼相同，留著任何一條都等於留著屬於別的貨主的商品——畫面看起來像
       // 「已選好」，實際指向另一個貨主。倉庫尤其要清：中部倉兩個貨主都有，有效與否取決於
       // 指派關係。
-      expect(screen.getByLabelText('出貨倉')).toHaveValue('');
+      expect(screen.getByLabelText('履約設施')).toHaveValue('');
       expect(product(1)).toHaveValue('');
       expect(sku(1)).toHaveValue('');
       expect(screen.queryByLabelText('第 2 行・規格')).not.toBeInTheDocument();

@@ -78,7 +78,7 @@ code:
   - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/StockReservationRepositoryImpl.java
   - order-promising/src/main/resources/application-dev.properties
   - order-promising/src/main/resources/db/migration/V4__create_stock_reservations.sql
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/WakeBackordersCommand.java
+  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/AllocateWaitingDemandCommand.java
   - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/kafka/OrderCancelledIntegrationEventHandler.java
   - order-promising/src/main/resources/db/migration/V2__create_stock_pools.sql
   - order-promising/src/main/java/com/flowzati/archone/stock/application/event/translator/AllocationDomainEventTranslator.java
@@ -241,7 +241,7 @@ code:
   - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/StockReservationRepositoryImpl.java
   - order-promising/src/main/resources/application-dev.properties
   - order-promising/src/main/resources/db/migration/V4__create_stock_reservations.sql
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/WakeBackordersCommand.java
+  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/AllocateWaitingDemandCommand.java
   - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/kafka/OrderCancelledIntegrationEventHandler.java
   - order-promising/src/main/resources/db/migration/V2__create_stock_pools.sql
   - order-promising/src/main/java/com/flowzati/archone/stock/application/event/translator/AllocationDomainEventTranslator.java
@@ -400,7 +400,7 @@ code:
   - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/rest/StockPoolController.java
   - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/OrderLine.java
   - order-promising/src/main/java/com/flowzati/archone/stock/domain/model/StockPool.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/WakeBackordersCommand.java
+  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/AllocateWaitingDemandCommand.java
   - order-promising/src/main/java/com/flowzati/archone/stock/domain/model/ReservationStatus.java
   - order-promising/src/main/java/com/flowzati/archone/common/outbox/StockContentionKey.java
   - frontend/vite.config.ts
@@ -588,7 +588,7 @@ code:
   - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/StockReservationRepositoryImpl.java
   - order-promising/src/main/resources/application-dev.properties
   - order-promising/src/main/resources/db/migration/V4__create_stock_reservations.sql
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/WakeBackordersCommand.java
+  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/AllocateWaitingDemandCommand.java
   - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/kafka/OrderCancelledIntegrationEventHandler.java
   - order-promising/src/main/resources/db/migration/V2__create_stock_pools.sql
   - order-promising/src/main/java/com/flowzati/archone/stock/application/event/translator/AllocationDomainEventTranslator.java
@@ -741,7 +741,7 @@ code:
   - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/rest/StockPoolController.java
   - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/OrderLine.java
   - order-promising/src/main/java/com/flowzati/archone/stock/domain/model/StockPool.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/WakeBackordersCommand.java
+  - order-promising/src/main/java/com/flowzati/archone/stock/application/command/AllocateWaitingDemandCommand.java
   - order-promising/src/main/java/com/flowzati/archone/stock/domain/model/ReservationStatus.java
   - order-promising/src/main/java/com/flowzati/archone/common/outbox/StockContentionKey.java
   - frontend/vite.config.ts

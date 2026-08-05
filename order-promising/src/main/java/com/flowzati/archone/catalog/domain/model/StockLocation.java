@@ -9,8 +9,8 @@ import java.util.UUID;
  * 經營的設施，卻必須是移動的合法另一端。詳見 {@link LocationUsage} 與
  * {@code docs/dom-stock-movement-scope.md}。
  *
- * <p><b>設施是實體欄位，不是沿樹推導的。</b> 本系統目前一個設施一個 {@code INTERNAL}
- * 位置、位置不成樹，因此 {@code facilityId} 直接回答「這個位置屬於哪個設施」。Odoo 有樹，
+ * <p><b>設施是實體欄位，不是沿樹推導的。</b> 一個設施可以有多個 {@code INTERNAL}
+ * 位置；位置目前不成樹，因此 {@code facilityId} 直接回答「這個位置屬於哪個設施」。Odoo 有樹，
  * 而它的 {@code stock.location.warehouse_id} 同樣是存起來的欄位（computed 但
  * {@code store=True}）——它走過「查詢時算」再改成「存欄位」這條路。
  *

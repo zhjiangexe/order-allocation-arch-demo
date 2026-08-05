@@ -134,7 +134,7 @@ class OrderControllerTest {
   @DisplayName("未指定倉別時回 400——倉別必填，領域層就會拒絕")
   void rejectsOrdersWithoutAWarehouse() {
     when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
-        .thenThrow(new IllegalArgumentException("Fulfillment node is required"));
+        .thenThrow(new IllegalArgumentException("Fulfillment facility is required"));
 
     assertThat(mvc.post().uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)
@@ -146,7 +146,7 @@ class OrderControllerTest {
   @DisplayName("指定該貨主沒掛的倉時回 400——複合外鍵擋下，不是應用層檢查")
   void rejectsWarehouseTheOwnerIsNotAssignedTo() {
     when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
-        .thenThrow(new DataIntegrityViolationException("fk_orders_owner_node"));
+        .thenThrow(new DataIntegrityViolationException("fk_orders_owner_facility"));
 
     assertThat(mvc.post().uri("/orders")
         .contentType(MediaType.APPLICATION_JSON)

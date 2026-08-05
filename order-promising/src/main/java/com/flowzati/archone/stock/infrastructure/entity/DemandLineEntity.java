@@ -35,6 +35,9 @@ public class DemandLineEntity {
   @Column(name = "owner_id")
   private UUID ownerId;
 
+  @Column(name = "facility_id")
+  private UUID facilityId;
+
   @Column(name = "location_id")
   private UUID locationId;
 
@@ -57,6 +60,10 @@ public class DemandLineEntity {
 
   public UUID getOwnerId() {
     return ownerId;
+  }
+
+  public UUID getFacilityId() {
+    return facilityId;
   }
 
   public UUID getLocationId() {

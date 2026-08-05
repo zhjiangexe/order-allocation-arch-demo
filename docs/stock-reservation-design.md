@@ -1,8 +1,13 @@
 # Stock Reservation 設計
 
-狀態：已確認，待實作
+狀態：歷史設計脈絡；現行收貨邊界以 `refine-allocation-workflow-boundaries` 為準
 
 日期：2026-07-22
+
+> **2026-08-04 邊界修正：** `StockPool` 是本系統的實體庫存 source of truth。正式
+> `POST /stock-receipts` 同步建立並完成 inbound picking／move／move line，再增加 StockPool 並
+> 同交易寫入 `StockAvailabilityIncreased` Outbox。Kafka 在提交後快速觸發 backorder allocation，
+> Scheduler 定期補漏；兩者呼叫同一個 transactional use case。
 
 ## 目標
 
@@ -34,7 +39,7 @@ availableToPromise = onHandQuantity - reservedQuantity
 
 本次不包含：
 
-- 多倉選擇與 `fulfillmentNodeId`。
+- 多倉選擇與 `facilityId`。
 - 跨倉拆單。
 - 多品項訂單。（`order_lines` 這張表已在 `add-owner-and-order-line-model` 建立，收單仍限定
   恰好一行；放寬到多行是 R8。）
@@ -92,7 +97,7 @@ SR-08 ─> SR-09 ─┐
 - [x] **SR-03 — Order lifecycle and domain event contracts**（可獨立執行）
   - 補齊 Order 的取消行為、狀態 invariant 與 `version`。
   - 明確分離 bounded context 內部 Domain Event 與跨邊界 Integration Event。
-  - 明確定義並補齊 `OrderPlacedIntegrationEvent`、`OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent`、`OrderCancelledIntegrationEvent` 與 `StockReplenishedIntegrationEvent` payload。
+  - 明確定義並補齊 `OrderPlacedIntegrationEvent`、`OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent` 與 `OrderCancelledIntegrationEvent` payload。
   - Integration Event 依本文件建立 immutable payload，且每個事件都有不可變的 `eventId`；Domain Event 不承擔 messaging identity。
   - 移除或明確取代目前空白且未使用的 `StockAllocated`。
   - 增加 Order 狀態轉換與 event contract unit tests。
@@ -123,8 +128,9 @@ SR-08 ─> SR-09 ─┐
   - 釋放量大於 `reservedQuantity` 時拋出錯誤並 rollback，不以歸零掩蓋不一致。
   - 使用 mocked ports 測試各種取消狀態與冪等行為。
 
-- [x] **SR-07 — Replenishment application flow**（依賴 SR-01、SR-03～SR-05）
-  - `StockReplenishedIntegrationEvent` 僅接受正向增量並增加 `onHandQuantity`。
+- [x] **SR-07 — Replenishment application flow**（依賴 SR-01、SR-03～SR-05；收貨入口後續已改為同步）
+  - 現行 `ConfirmStockReceiptUsecase` 只接受正向實收數量，並透過 inbound move line 增加 `onHandQuantity`。
+  - 收貨交易只發布 availability fact，不直接執行 waiting-demand allocation；Kafka 與 Scheduler 共用 `AllocateWaitingDemandUsecase`。
   - 透過 FIFO repository port 取得穩定排序的 backorders，交由 SR-04 policy 執行。
   - 第一張無法完整 reservation 時停止。
   - 每張成功配置的 backorder 建立 ACTIVE `StockReservation`；由 Coordinator 統一保存 StockPool、Orders 與 Reservations，並發布完整的 `OrderAllocationCompleted` Domain Event。
@@ -183,7 +189,7 @@ SR-08 ─> SR-09 ─┐
   - 接回 Kafka Integration Event consumers：先將 Debezium／Kafka record 反序列化為 typed Integration Event，再映射為本服務的純業務 Command；不得讓 use case 依賴 Kafka record、Debezium envelope 或外部 JSON。
   - 建立 `InboundCommand<C>`，封裝 `command` 與 SR-12 的 `MessageMetadata(eventId, eventType)`；consumer 是 metadata 的唯一來源。
   - message-driven use case 以 `handle(InboundCommand<C>)` 作 transaction boundary，先 claim Inbox 再執行業務邏輯；同步 HTTP／內部操作 use case 不強制使用此 wrapper。
-  - 初始映射：`OrderPlacedIntegrationEvent` → `InboundCommand<AllocateOrderCommand>`、`OrderCancelledIntegrationEvent` → `InboundCommand<ReleaseReservationCommand>`、`StockReplenishedIntegrationEvent` → `InboundCommand<ReplenishStockCommand>`。
+  - 現行映射：`OrderPlacedIntegrationEvent` → `InboundCommand<AllocateOrderCommand>`、`OrderCancelledIntegrationEvent` → `InboundCommand<ReleaseReservationCommand>`；同步 HTTP 收貨自行建立具 receiptId 的 `InboundCommand<ConfirmStockReceiptCommand>`。
   - 以 `order_id` unique constraint 作為同一訂單只能建立一筆 reservation 的最後防線。
   - 增加 allocation、cancel、replenishment transaction rollback integration tests。
 
@@ -225,7 +231,7 @@ SR-08 ─> SR-09 ─┐
 ### Demo-02 — FIFO 補貨批次劇本（不在 SR-01～SR-18 編號內）
 
 - [x] **Demo-02 — FIFO replenishment batch demo**（依賴 SR-07、SR-17；延續 Demo-01 Non-Goals 提到的下一個示範）
-  - 既有的 `AllocationWorkflowEndToEndIntegrationTest` 只用兩張訂單驗證 FIFO 補貨，不足以在量體下暴露「跳過 head-of-line blocking 訂單」這類演算法錯誤。Demo-02 將排隊量體放大到 1,000 張同 SKU BACKORDERED 訂單，驗證循序（非併發）`StockReplenishedIntegrationEvent` 喚醒佇列後的批次配置決策。
+  - 既有的 `AllocationWorkflowEndToEndIntegrationTest` 只用兩張訂單驗證 FIFO 收貨喚醒，不足以在量體下暴露 head-of-line blocking 類錯誤。Demo-02 將排隊量體放大到 1,000 張同 SKU BACKORDERED 訂單，驗證循序確認收貨後的批次配置決策。
   - 直接以 `Order.rehydrate(...)` 種入已排序穩定（`backorderedSince` 逐筆遞增）的 BACKORDERED fixture，不經過真正的下單配置流程；驗證的是補貨觸發批次配置這一段，下單配置路徑已由 Demo-01 覆蓋。
   - 數量分布固定、可手算：前 500 張 quantity 皆為 1，第 501 張是刻意補不滿的 blocker（quantity 999），後 499 張 quantity 皆為 1。不用隨機數量，避免測試自己重新實作一次 FIFO 演算法來推導期望值。
   - 第一次補貨量精準等於前 500 張總和（500），對帳：500 張 Order `ALLOCATED`、500 張仍 `BACKORDERED`（含 blocker 與其後 499 張未被跳過配置的小單）；500 筆 ACTIVE StockReservation 總量為 500；StockPool on-hand=500、reserved=500、ATP=0；1 個 eventId 已於 Inbox claim；Outbox 恰 500 筆 `OrderAllocatedIntegrationEvent`。
@@ -239,7 +245,7 @@ SR-08 ─> SR-09 ─┐
 > → `orders` → `order_lines`。`orders` 不再直接持有 `sku` 與 `quantity`——它們移到行上。
 > 權威定義見 `V3__create_ordering_tables.sql`，該檔的註解記錄了每個取捨的理由。
 
-### 主檔：`owners` / `products` / `skus` / `fulfillment_nodes` / `owner_nodes`
+### 主檔：`owners` / `products` / `skus` / `facilities` / `owner_facilities`
 
 貨主是 3PL 的委託方——倉庫不擁有貨，貨屬於他們。商品分兩層：**款**（`products`，溫層屬這裡，
 同一款的所有規格必然同溫層）與**規格**（`skus`，重量屬這裡，500ml 與 1L 重量不同）。
@@ -249,13 +255,15 @@ SR-08 ─> SR-09 ─┐
 與 `(owner_id, sku_code)`。在 3PL 裡編碼由貨主自訂、跨貨主必然撞號，走自然鍵的外鍵強制每
 一次參照都帶上貨主，「款與規格必須屬於同一個貨主」因此由資料庫保證，不必在應用層檢查。
 
-**貨主與倉庫都只有身分。** `owners` 是 `id`／`code`／`name`，`fulfillment_nodes` 是
+**貨主與物流設施都只有身分。** `owners` 是 `id`／`code`／`name`，`facilities` 是
 `id`／`code`／`name`——兩者都沒有 `status`。停用在營運上是真的，但目前沒有任何決策讀它，
-而一個沒有讀者的欄位會讓下一個人以為它有意義。等收單真的要擋停用貨主或停用倉時再加。
+而一個沒有讀者的欄位會讓下一個人以為它有意義。`Facility` 指參與庫存、搬運或履約工作的
+實體物流場站，可以是倉庫、配送中心或 cross-dock；它不是庫存與搬運的實際端點，後者由
+`StockLocation` 表達。
 
-`owner_nodes`（PK `(owner_id, node_id)`）記錄貨主能從哪些倉出貨。它是多對多——一個貨主可以
-有多個倉，**一個倉也服務多個貨主**，後者是 3PL 的定義性特徵。這張表沒有設定欄位；可否換
-批號之類的設定屬 R3。
+`owner_facilities`（PK `(owner_id, facility_id)`）記錄貨主能使用哪些物流設施。它是多對多——
+一個貨主可以使用多個設施，**一個設施也服務多個貨主**，後者是 3PL 的定義性特徵。這張表沒有
+設定欄位；可否換批號之類的設定屬 R3。
 
 ### `orders`
 
@@ -267,7 +275,7 @@ SR-08 ─> SR-09 ─┐
 | `ship_to_zone` | `VARCHAR` | `NOT NULL`。原為選點輸入，③ 移出範圍後只作為地址的一部分保留 |
 | `ship_to_address` | `VARCHAR` | `NOT NULL`，履約與面單用，sourcing 不看 |
 | `promised_delivery_date` | `DATE` | `NOT NULL` |
-| `fulfillment_node_id` | `UUID` | **`NOT NULL`**，貨主在上游指定的出貨倉。與 `owner_id` 組成**複合外鍵**指向 `owner_nodes`——因此「倉存在但這個貨主沒掛」由資料庫擋下，不需應用層檢查。R3 之後配貨只在該倉的庫存裡進行 |
+| `facility_id` | `UUID` | **`NOT NULL`**，貨主在上游指定的出貨倉。與 `owner_id` 組成**複合外鍵**指向 `owner_facilities`——因此「倉存在但這個貨主沒掛」由資料庫擋下，不需應用層檢查。R3 之後配貨只在該倉的庫存裡進行 |
 | `status` | `VARCHAR` | `PENDING`, `ALLOCATED`, `BACKORDERED`, `CANCELLED` |
 | `placed_at` | `TIMESTAMPTZ` | `NOT NULL` |
 | `allocated_at` | `TIMESTAMPTZ` | Nullable |
@@ -310,12 +318,12 @@ SR-08 ─> SR-09 ─┐
 的不一致。`add-batch-stock-and-fefo`（R3）把兩件都收了，保留原文的結論以便對照：
 
 **一、跨貨主隔離**已生效。`stock_pools` 的唯一鍵是
-`(owner_id, node_id, sku_code, in_date, expiry_date)`，並有 `(owner_id, sku_code)` → `skus`
+`(owner_id, facility_id, sku_code, in_date, expiry_date)`，並有 `(owner_id, sku_code)` → `skus`
 的複合外鍵——跨貨主的錯誤組合從「配不到貨」變成「寫不進去」。操作台的庫存頁不再有「補貨要
 選貨主、查詢不用」那個不對稱，兩邊都要選。
 
 **二、Kafka partition key** 改了，但**不是原文預測的形狀**。原文寫「R3 必須把 key 改成
-`ownerId + "/" + nodeId + "/" + skuCode`」，R3 的 review 期間否決了那個三維版本，改成
+`ownerId + "/" + facilityId + "/" + skuCode`」，R3 的 review 期間否決了那個三維版本，改成
 `(貨主, 倉)`——設定值也由 `sku` 改名為 `stock`。
 
 理由是那個三維 key 有到期日，而下一段（原文自己寫的）已經指出了它：per-SKU 的 key 與
@@ -334,7 +342,7 @@ ship-complete 根本衝突。**把 SKU 拿掉就沒有那個到期日**——一
 |---|---|---|
 | `id` | `UUID` | Primary key（代理鍵；身分是下面五個維度） |
 | `owner_id` | `UUID` | `NOT NULL`，身分維度 |
-| `node_id` | `UUID` | `NOT NULL`, FK → `fulfillment_nodes`，身分維度 |
+| `facility_id` | `UUID` | `NOT NULL`, FK → `facilities`，身分維度 |
 | `sku_code` | `VARCHAR(64)` | `NOT NULL`，身分維度 |
 | `in_date` | `DATE` | `NOT NULL`，身分維度；同效期時決定 FEFO 的先後 |
 | `expiry_date` | `DATE` | `NOT NULL`，身分維度；FEFO 的主排序鍵 |
@@ -345,12 +353,12 @@ ship-complete 根本衝突。**把 SKU 拿掉就沒有那個到期日**——一
 
 ```sql
 CONSTRAINT uq_stock_pools_batch
-    UNIQUE (owner_id, node_id, sku_code, in_date, expiry_date)
+    UNIQUE (owner_id, facility_id, sku_code, in_date, expiry_date)
 CONSTRAINT fk_stock_pools_sku
     FOREIGN KEY (owner_id, sku_code) REFERENCES skus(owner_id, sku_code)
 CHECK (reserved_quantity <= on_hand_quantity)
 CREATE INDEX idx_stock_pools_fefo
-    ON stock_pools (owner_id, node_id, sku_code, expiry_date, in_date, id)
+    ON stock_pools (owner_id, facility_id, sku_code, expiry_date, in_date, id)
 ```
 
 三件不是顯而易見的事：
@@ -478,7 +486,7 @@ RELEASED ──重複取消──> no-op
 1. Kafka listener 收到 `OrderPlacedIntegrationEvent`。
 2. listener 轉為 `AllocateOrderCommand(orderId)`，並以 `eventId` 作為獨立 `messageId` 呼叫 use case。
 3. use case transaction 先以 `messageId` claim Inbox，成功後重新讀取 `Order`，並確認 Order 為 `PENDING`。
-4. 以 `findAllocatableBatchesInFefoOrder(ownerId, nodeId, skuCode, today)` 取得**已依 FEFO
+4. 以 `findAllocatableBatchesInFefoOrder(ownerId, facilityId, skuCode, today)` 取得**已依 FEFO
    排序的可配批次**。篩選（未過期、還有量）與排序（`expiry_date, in_date, id`）都在資料庫做
    ——批數隨營運時間成長，把配不到的載進記憶體只為了丟掉是錯的方向。「今天」由
    `AppClock` 依營運時區決定，不是 UTC。
@@ -523,25 +531,34 @@ Ordering 在取消 transaction 中將 Order 改為 `CANCELLED` 並發布 `OrderC
 
 不得以 `Math.max(0, reserved - quantity)` 隱藏資料不一致；若釋放量大於 `reservedQuantity`，應拋出錯誤並 rollback。
 
-### 補貨與 backorder FIFO
+### 同步收貨與 backorder FIFO
 
-`StockReplenishedIntegrationEvent` 帶**五個維度加數量**：貨主、倉、SKU、入庫日、效期、數量。
-數量是正向增量，必須大於零。補貨依五維鍵 upsert：
+`ConfirmStockReceiptCommand` 帶**貨主、設施、庫位、SKU、入庫日、效期與實收數量**；操作台先
+列出該設施的 internal locations，使用者選定 `locationId`，use case 再驗證它確實屬於該設施。
+數量必須大於零；use case 先建立並完成 inbound execution，再依批次身分更新實體庫存：
 
 ```text
-命中既有列 → onHandQuantity += quantity
-沒有命中   → 新開一列
+命中既有列 → move line 指向該列，StockPool.receive(line)
+沒有命中   → 先開空列，再由 move line 收入
 ```
 
 沒有「差不多就併進去」的規則，因為根本沒有規則要定——五個維度全等才是同一批。
 
-事件以 `eventId + Inbox` 保證不會重複加庫存。目前不支援負數 replenishment、盤點覆蓋或
+事件以 `eventId + Inbox` 保證不會重複加庫存。目前不支援負數增量、盤點覆蓋或
 `StockAdjusted`。
 
-**喚醒有張數上限**（`archone.allocation.replenishment-wake-limit`），超出時經 outbox 發一則
-續做事件（同 topic 同 partition key）。終止條件是「本輪**真正配到**的張數 < 上限即不續做」
-——判準必須是「配到幾張」而不是「讀到幾張」，兩者只在 head-of-line blocker 卡住時不同，而那
-正是會無限續做的情形。
+收貨完成後，同交易寫入 `StockAvailabilityIncreased` Outbox；事件提交後才開新的配貨交易。
+此外 `AllocationReconciliationScheduler` 定期掃描仍等待的 owner/facility/location/SKU scope，作為漏事件與失敗
+重試後的 reconciliation。兩個入口都呼叫 `AllocateWaitingDemandUsecase`。
+
+新訂單的即時配貨在預留前會檢查每個需求 SKU 的 waiting head；只要同 owner/location/SKU 有
+更早的 picking，新單就先維持等待。否則 receipt commit 與 availability consumer 之間的空窗會
+讓新單繞過 Scheduler 排好的舊 backorder。
+
+**等待需求配貨有張數上限**（`archone.allocation.waiting-demand-batch-limit`）。availability event 只觸發
+首輪；若仍有可用庫存與等待 demand，後續由 `AllocationReconciliationScheduler` 的下一次掃描再跑一輪。
+系統不為此發布 continuation control event，代價是超過單輪上限的 backlog 收斂速度受 Scheduler
+週期影響；需要秒級清空時，應先調整週期與上限，再評估導入正式 workflow orchestration。
 
 Backorder 查詢 contract：
 
@@ -635,14 +652,14 @@ Order Aggregate 目前的內部 Domain Events：
 
 | Domain Event | Payload |
 |---|---|
-| `OrderPlaced` | `orderId`, `ownerId`, `fulfillmentNodeId`, `shipToZone`, `promisedDeliveryDate`, `lines`, `placedAt` |
-| `OrderCancelled` | `orderId`, `ownerId`, `fulfillmentNodeId`, `cancelledAt` |
+| `OrderPlaced` | `orderId`, `ownerId`, `facilityId`, `shipToZone`, `promisedDeliveryDate`, `lines`, `placedAt` |
+| `OrderCancelled` | `orderId`, `ownerId`, `facilityId`, `cancelledAt` |
 
 需求以 `lines` 表達而不是單一 `sku` 與 `quantity`——訂單的形狀本來就是行的集合。`OrderCancelled`
 是例外，**它不帶 `lines`**：取消是整單行為，事件要說的是「哪張單、什麼時候」，行的內容不構成
 這個事實的一部分。
 
-`ownerId` 與 `fulfillmentNodeId` 在領域事件上，是因為 translator 要用它們算 partition key。
+`ownerId` 與 `facilityId` 在領域事件上，是因為 translator 要用它們算 partition key。
 領域事件是 in-process 的，帶著它們沒有契約成本。
 
 Domain Events 不包含 `eventId`、retry count、serialization type 或 Outbox metadata。
@@ -657,8 +674,7 @@ Allocation flow 另發布下列 Domain Events。它們不是 `Order` Aggregate �
 **四則訂單生命週期的對外事件都只帶 `(eventId, orderId, 時間戳)`**——`OrderPlaced`、
 `OrderCancelled`、`OrderAllocated`、`BackorderCreated`。消費端拿 `orderId` 回頭讀整張單，它反正
 得讀（收件資訊、交期、行的內容都不在事件裡），payload 抄一份只是多一個會與訂單不一致的來源。
-例外是**來自系統外部**的事件（`StockReplenishedIntegrationEvent`、
-`BackorderWakeRequestedIntegrationEvent`）：那裡沒有本地聚合根可讀，事實只存在於訊息裡。
+Backorder 的後續輪次不使用 Integration Event 串接；Scheduler 會從等待佇列重新發現 scope。
 
 `OrderAllocationCompleted` 由 allocation flow 在完整配置完成後發布；ordering 只保存收到的結果，
 不重複陳述同一個業務事實。
@@ -672,7 +688,8 @@ Allocation flow 另發布下列 Domain Events。它們不是 `Order` Aggregate �
 | `OrderBackorderRecorded` | `BackorderCreatedIntegrationEvent` |
 | `OrderCancelled` | `OrderCancelledIntegrationEvent` |
 
-`StockReplenishedIntegrationEvent` 是 Inventory 發出的輸入事件，Promising consumer 將它轉為 replenish command；Promising 不反向發布同名事件。
+`ConfirmStockReceiptCommand` 由正式 REST entrypoint 建立；Kafka handler 與 Temporal Activity
+若未來加入，必須呼叫同一 transactional use case，不能另開直接改 `StockPool` 的路徑。
 
 ## Integration Event 契約
 
@@ -723,21 +740,26 @@ cancelledAt
 
 Allocation 以此事件釋放 ACTIVE reservation。重複事件由 Inbox 與 reservation 狀態共同保護。
 
-### `StockReplenishedIntegrationEvent`
+### `POST /stock-receipts`
 
 ```text
-eventId
+receiptId
+ownerId
+facilityId
 sku
+inDate
+expiryDate
 quantity
 ```
 
-`quantity` 為正向增量，不能用負值表示盤點修正。
+`receiptId` 是呼叫方產生的冪等鍵，retry 必須重用。`quantity` 是實收正數，不能用負值表示
+盤點修正。HTTP 200 表示本地收貨交易已提交。
 
 ## Kafka topics 與 partition key
 
 Topic 命名採用 `{事件生產端 bounded context}.{事件主題}-events`。它描述的是**誰擁有並發布這份跨邊界契約**，不是目前程式部署在哪個 application，也不是 Java package 或 Aggregate 名稱。故即使目前 `Ordering` 與 `Promising` 同在 `order-promising` 專案中，仍保留各自的 topic prefix；日後拆成獨立服務時，topic 契約不必因此改名。
 
-目前的 bounded context 邊界如下：`Ordering` 擁有訂單生命週期事件；外部 `Inventory` 擁有庫存異動事件；`Promising` 擁有配置結果事件。`allocation` 是目前 Promising 內部的核心能力，不是已獨立對外發布契約的 bounded context，因此其輸出使用 `promising.allocation-events`，不使用 `allocation.*`。`inventory.stock-events` 中的 `inventory` 是生產端 context，`stock` 是事件業務主題，兩者不是同義詞。
+目前的 bounded context 邊界如下：`Ordering` 擁有訂單生命週期事件；本地 `stock` 擁有收貨與實體庫存；`Promising` 擁有配置結果。`allocation` 是目前 Promising 內部的核心能力，不是獨立對外契約。
 
 Topic 依生產端 bounded context 劃分，而非每個 event type 一個 topic。每則訊息仍保留 `eventType`，consumer 依 type 分派；未來若個別事件有不同吞吐、權限或 SLA，再拆出獨立 topic。
 
@@ -746,18 +768,21 @@ Topic 依生產端 bounded context 劃分，而非每個 event type 一個 topic
 | Topic | 生產端 bounded context | 生產端事件 | Message key（`partition_key`） |
 |---|---|---|---|
 | `ordering.order-events` | Ordering | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` | `orderId`；`partition-key-strategy=sku` 時為 `sku` |
-| `inventory.stock-events` | Inventory（外部上游） | `StockReplenishedIntegrationEvent` | `sku` |
+| `inventory.stock-events` | Stock availability | `StockAvailabilityIncreasedIntegrationEvent` | `(ownerId, facilityId)` 爭用群組 |
 | `promising.allocation-events` | Promising | `OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent` | `orderId` |
 
 `promising.allocation-events` 不套用 `partition-key-strategy`。`sku` 策略的目的是讓同一 SKU 的下單事件收斂進同一 partition，使 allocation consumer 成為該 SKU 的 single writer；該 topic 目前沒有 consumer，沒有需要被保護的寫入端。要改動這點，先確認它已有 consumer 且確實需要 per-SKU 順序保證。
 
 Java 常數名稱以 `*_TOPIC` 結尾，明確表示其值是 Kafka topic，例如 `ORDERING_ORDER_EVENTS_TOPIC`。topic 字串中的 `-events` 為複數，表示一條可承載多個同類事件的事件串流。現階段不加 `.v1`；只有發生無法相容的契約變更，且無法以平滑演進處理時，才新增版本化 topic 並規劃 consumer 遷移。
 
-目前不使用複合 key。`orderId` 已是全域 UUID；`StockPool` 目前以 SKU 識別，因此補貨事件以 `sku` 維持同 SKU 的 partition 內順序。未來若引入多倉且 StockPool 識別改為 `(warehouseId, sku)`，再改用 `stockPoolId` 或 `warehouseId:sku`。
+`ordering.order-events` 與 `promising.allocation-events` 的預設 key 仍是全域 UUID `orderId`。
+`inventory.stock-events` 的 availability 使用 `StockContentionKey(ownerId, facilityId)`；SKU 留在
+payload 決定喚醒哪條佇列。HTTP 收貨本身同步，但它提交的 availability fact 經 Outbox/Kafka
+觸發首輪配貨；Scheduler 直接查詢等待 scope，不產生 Kafka control message。
 
 ## 事件與 Transaction 邊界
 
-Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直接執行外部副作用。Domain Event 可在 bounded context 內作為 application/domain policy 的內部通知，但不直接當作對外契約。Aggregate 更新、Reservation 寫入、Domain Event translation 與 Outbox 寫入必須位於同一個 transaction，失敗時一起 rollback；接收端的 Inbox claim 則與該 command 的業務更新位於同一個 transaction。
+Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直接執行外部副作用。Domain Event 可在 bounded context 內作為 application/domain policy 的內部通知，但不直接當作對外契約。訂單、庫存與搬運寫入、Domain Event translation 與 Outbox 寫入必須位於同一個 transaction，失敗時一起 rollback；接收端的 Inbox claim 則與該 command 的業務更新位於同一個 transaction。
 
 目標流程為：
 
@@ -776,6 +801,24 @@ Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直�
   → use case 的新業務 transaction（Inbox claim + 業務處理）
 ```
 
+### 配貨與喚醒的交易門面
+
+| 交易 use case | 交易內直接組合 | 回傳結果 | Integration Event 模式 |
+| --- | --- | --- | --- |
+| `AllocateOrderUsecase` | Inbox → 讀 demand → `StockOperationRecorder` → `MovementAssigner` → outcome event | 無；結果由 Integration Event 表達 | Kafka handler 呼叫；成功／缺貨事實經 Outbox 推進 ordering |
+| `ConfirmStockReceiptUsecase` | Inbox → 建立並完成 inbound execution → `StockPool.receive` → availability fact | 無 | HTTP 同步提交；translator 在同交易寫 availability Outbox |
+| `AllocateWaitingDemandUsecase` | event 入口先 claim Inbox；scheduler 入口直接帶 command → 庫存守門查詢 → FIFO 取一頁 → `MovementAssigner.assignWaitingBatch` → completion events | 無；結果由 completion events 與持久化狀態表達 | availability 做首輪，Scheduler 做後續 reconciliation；不發布 continuation event |
+
+`AllocateWaitingDemandUsecase` 直接擁有一輪有上限的工作與 transaction：庫存守門查詢、FIFO
+取一頁、`MovementAssigner.assignWaitingBatch` 與每張成功訂單一個 completion event。若仍有等待
+工作，Scheduler 會在後續 tick 重新查詢；head-of-line blocker 不會造成 control event 無限循環。
+
+Kafka handler 與未來 Temporal Activity 的交換點是上表的**完整交易 use case**，不是
+`StockOperationRecorder` 或 `MovementAssigner` 這些交易內元件。未來 Temporal Workflow
+若要依一輪配置結果分支，應在導入 Temporal 的 change 中一併建立 durable result contract，並讓
+adapter 能以 deterministic invocation id 回放原交易結果，或從 authoritative state 完整重建；
+配貨完成與缺貨這些跨 bounded context 的業務事實仍保留。
+
 ## HTTP 表面
 
 HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 profile 限制，**dev-only 探針**只在 dev profile 註冊。
@@ -788,25 +831,23 @@ HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 prof
 | `GET /owners` | 業務 | 貨主清單 |
 | `GET /owners/{ownerId}/products` | 業務 | 該貨主的款 |
 | `GET /owners/{ownerId}/products/{productCode}/skus` | 業務 | 該款的規格 |
-| `GET /stock-pool/{sku}` | 業務 | 該 SKU 的 on-hand、reserved、available-to-promise。欄位以領域語彙命名、不縮寫成 ATP。無 StockPool 回 `404`。**不帶貨主**——庫存池還沒有貨主維度，加上它等於報告一個資料裡不存在的區別 |
-| `POST /demo/replenish` | dev-only 探針 | 見下方說明。要帶貨主——補貨喚醒的是某個貨主的缺貨佇列，而 SKU 代碼跨貨主撞號、決定不了是誰的 |
+| `GET /facilities/{facilityId}/locations` | 業務 | 列出該 Facility 可保存庫存、可作為收貨目的地的 internal locations |
+| `GET /stock-pool?ownerId=…&locationId=…` | 業務 | 查指定貨主在指定庫位的全部庫存批 |
+| `POST /stock-receipts` | 業務 | 同步確認一段式收貨；需帶 receiptId、貨主、設施、庫位、SKU、入庫日、效期與實收數量 |
 | `GET /demo/config` | dev-only 探針 | 回報目前生效的 `archone.allocation.partition-key-strategy`。只揭露不切換——該值在啟動時解析 |
 
 三個訂單端點共用同一個訂單表示型別，客戶端因此只需要一個訂單模型，而不是「建立時拿到一種、查詢時拿到另一種」。該型別帶 `ownerId` 但**不帶貨主名稱或品名**——呼叫端為了下單表單的下拉選單本來就要載主檔，名稱從同一份資料解析即可。那是「整個畫面查一次」，不是每一列各查一次。
 
 主檔的三支查詢巢狀在貨主之下，不是把貨主當可省略的篩選條件：在 3PL 裡編碼由貨主自訂、跨貨主撞號，貨主是款與規格得以存在的前提。
 
-`GET /stock-pool/{sku}` 是 allocation 模組唯一的 REST entrypoint，且刻意只有唯讀查詢；命令仍然只從 Kafka entrypoint 進入，配置決策不開 HTTP 入口。
+`GET /stock-pool` 是庫存查詢入口；`POST /stock-receipts` 是 stock context 的正式命令入口。
 
-### 補貨探針為什麼直接發 Kafka、且不經 Outbox
+### 為什麼收貨同步呼叫 use case
 
-`POST /demo/replenish` 扮演外部 Inventory bounded context 的上游 producer，向 `inventory.stock-events` 發布真實的 `StockReplenishedIntegrationEvent`，回 `202` 與該事件識別碼。它是本專案唯一直接作為 Kafka producer 的業務路徑（其餘對外發布一律走 Outbox → Debezium CDC）。
-
-不直接呼叫 `ReplenishmentUsecase` 的理由：該 usecase 收的是含 `MessageMetadata` 的 inbound command，而那個 metadata 正是 Inbox 冪等所依據的憑證，直接呼叫等於自行偽造；繞過 Kafka 也會一併繞過重試、退避與 DLT 處理。
-
-不經 Outbox 是正確的，不是違反本專案的 Outbox 原則：Outbox 解決的是「本地狀態變更」與「事件發布」的原子性，而這支探針不變更任何本地狀態——它扮演的是本專案並不擁有的上游 context——沒有需要對齊的 transaction。
-
-探針回應不含「預期會喚醒幾張訂單」：那是發布前的快照，與實際結果可能不符。配置是非同步的，`202` 不代表配置已完成，結果只能由後續查詢觀察。
+Controller 與 `StockPool` 同屬本地 stock context。`receiptId` 由呼叫方提供並映射成 Inbox metadata，
+所以 HTTP retry 仍有冪等保護。`ConfirmStockReceiptUsecase` 是 transaction owner：建立並完成 inbound
+execution、增加庫存，並讓 availability Outbox 與收貨同進退。Backorder allocation 不屬於這個
+交易；Kafka 負責 availability 的低延遲首輪觸發，Scheduler 負責後續與定期 reconciliation。
 
 ## Dev Seed Data
 
@@ -832,20 +873,20 @@ HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 prof
 | `SKU-EMPTY` | 0 | 0 | 0 |
 
 `SKU-PARTIALLY-RESERVED` 必須同時 seed 一張 quantity 5、status `ALLOCATED` 的 Order，以及
-一筆 quantity 5、status `ACTIVE` 的 StockReservation，確保 `reservedQuantity` 有可追溯來源。
+一筆 quantity 5、status `ACTIVE` 的預留明細，確保 `reservedQuantity` 有可追溯來源。
 
 另有一張乙貨主的 `BACKORDERED` 訂單（`SKU-EMPTY` × 2），它同時是撞號展示與 FIFO 佇列的
-既有成員：補 `SKU-EMPTY` 時它會被喚醒，因此操作台 README 的 demo 流程對它成立。
+既有成員：增加 `SKU-EMPTY` 的可用量時它會被喚醒，因此操作台 README 的 demo 流程對它成立。
 
 它**刻意不是 `PENDING`**。`PENDING` 的語意是「還沒試過配置」，在真實系統裡是收單到消費之間
 的毫秒級過渡；固化成種子資料等於展示一個穩定狀態下不存在的東西。更實際的問題是種子繞過下單
 usecase 直接寫入資料庫，不會產生 `OrderPlaced` 事件——配置端從不知道它存在，而補貨只處理
-`BACKORDERED`，所以一張種子 `PENDING` 訂單會**永遠不動**，補多少貨都一樣。`BACKORDERED`
+`BACKORDERED`，所以一張種子 `PENDING` 訂單會**永遠不動**，增加多少可用量都一樣。`BACKORDERED`
 則語意一致（`SKU-EMPTY` 的 ATP 是 0，「試過、沒貨」成立）且真的會被喚醒。
 
 測試不得依賴 dev seed；每個自動化測試自行建立 fixture。Production 不載入測試 SKU。
 
-StockPool 不由 `StockReplenishedIntegrationEvent` 偷偷建立。若事件中的 SKU 尚無 StockPool，應視為錯誤；正式 SKU onboarding 不在目前範圍。
+確認收貨可以建立尚不存在的庫存批次；產品、貨主、設施與內部位置等主檔仍須預先存在。
 
 ## 必要測試
 
@@ -855,8 +896,8 @@ StockPool 不由 `StockReplenishedIntegrationEvent` 偷偷建立。若事件中�
 - 取消 ALLOCATED Order 會釋放 reservation 並減少 `reservedQuantity`。
 - 取消 PENDING／BACKORDERED Order 時，reservation handler 合法 no-op。
 - 重複 `OrderCancelledIntegrationEvent` 不會重複釋放庫存。
-- `StockReplenishedIntegrationEvent` 只接受正數，重複 event 不會重複增加 `onHandQuantity`。
-- 補貨後依 `backorderedSince, id` 嚴格 FIFO；第一張不足即停止。
+- 收貨只接受正數，重複 `receiptId` 不會重複建立 movement 或增加 `onHandQuantity`。
+- 可用庫存增加後依 `backorderedSince, id` 嚴格 FIFO；第一張不足即停止。
 - 兩筆並行訂單競爭不足以同時滿足的 ATP 時，最多一筆 reservation 成功，且 `reservedQuantity <= onHandQuantity`。
 - Optimistic lock conflict 會重新執行完整 transaction；重試耗盡不會被標為 backorder。
 
@@ -868,5 +909,5 @@ StockPool 不由 `StockReplenishedIntegrationEvent` 偷偷建立。若事件中�
 - 下游實際出庫後回饋的事件名稱與契約，例如 `StockIssued`。
 - Reservation 是否增加 `CONSUMED` 與 `consumedAt`。
 - Promising 的 on-hand projection 如何與 Inventory source of truth 對帳。
-- 多倉選擇、`fulfillmentNodeId` 與跨倉拆單。
+- 多倉選擇、`facilityId` 與跨倉拆單。
 - 安全庫存、reservation expiration 與絕對值 inventory snapshot。

@@ -3,7 +3,6 @@ package com.flowzati.archone.common.event;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.StockReplenishedIntegrationEvent;
 import com.flowzati.archone.common.ddd.DomainEvent;
 import com.flowzati.archone.common.integration.IntegrationEvent;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
@@ -11,7 +10,6 @@ import com.flowzati.archone.ordering.application.event.OrderCancelledIntegration
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import java.lang.reflect.Modifier;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -28,9 +26,6 @@ class EventSeparationTest {
   private final UUID orderLineId = UUID.randomUUID();
   private final UUID stockPoolId = UUID.randomUUID();
   private final Instant occurredAt = Instant.parse("2026-07-23T00:00:00Z");
-
-  private static final LocalDate IN_DATE = LocalDate.of(2026, 1, 5);
-  private static final LocalDate EXPIRY_DATE = LocalDate.of(2026, 12, 31);
 
   @Test
   @DisplayName("Domain Event 應是沒有訊息識別的內部標記")
@@ -56,7 +51,7 @@ class EventSeparationTest {
         IntegrationEvent.class.getDeclaredField("eventId").getModifiers())).isTrue();
     assertThat(IntegrationEvent.class.getMethods())
         .noneMatch(method -> method.getName().equals("setEventId"));
-    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(null, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 1))
+    assertThatThrownBy(() -> new OrderPlacedIntegrationEvent(null, orderId, occurredAt))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -84,7 +79,6 @@ class EventSeparationTest {
         new OrderAllocatedIntegrationEvent(eventId, orderId, occurredAt);
     BackorderCreatedIntegrationEvent backorder =
         new BackorderCreatedIntegrationEvent(eventId, orderId, occurredAt);
-    StockReplenishedIntegrationEvent replenished = new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 10);
 
     // 配貨結果事件是通知，不是狀態傳輸：帶得動的只有訂單識別與時間。要知道配到哪些批，
     // 回頭讀 stock_reservations——那份紀錄不會因為取消而與事件不一致。
@@ -92,16 +86,12 @@ class EventSeparationTest {
     assertThat(allocated.getAllocatedAt()).isEqualTo(occurredAt);
     assertThat(backorder.getOrderId()).isEqualTo(orderId);
     assertThat(backorder.getBackorderedSince()).isEqualTo(occurredAt);
-    // 補貨事件是唯一該帶完整事實的一則:它來自系統外部,沒有本地聚合根可以重讀。
-    assertThat(replenished.getQuantity()).isEqualTo(10);
   }
 
   @Test
   @DisplayName("Integration Event 應拒絕不合法 payload")
   void shouldRejectInvalidIntegrationEventPayloads() {
     assertThatThrownBy(() -> new OrderPlacedIntegrationEvent(eventId, null, occurredAt))
-        .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new StockReplenishedIntegrationEvent(eventId, com.flowzati.archone.testsupport.OrderFixtures.OWNER_ID, com.flowzati.archone.testsupport.OrderFixtures.FACILITY_ID, "SKU-1", IN_DATE, EXPIRY_DATE, 0))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new OrderAllocatedIntegrationEvent(eventId, orderId, null))
         .isInstanceOf(IllegalArgumentException.class);

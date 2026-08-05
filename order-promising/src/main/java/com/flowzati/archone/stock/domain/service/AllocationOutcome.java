@@ -16,6 +16,9 @@ public enum AllocationOutcome {
   /** 有可配的批，但加總起來仍不足以整單滿足（ship-complete，不做部分配貨）。 */
   INSUFFICIENT_ATP,
 
+  /** 可用庫存必須先提供給同一 owner/location/SKU 上更早進入佇列的需求。 */
+  WAITING_FOR_EARLIER_DEMAND,
+
   /**
    * 沒有任何一批可配。
    *

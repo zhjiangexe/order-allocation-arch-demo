@@ -5,18 +5,18 @@ import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
 import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
-import com.flowzati.archone.ordering.application.command.RecordBackorderCommand;
-import com.flowzati.archone.ordering.application.usecase.ConfirmOrderUsecase;
+import com.flowzati.archone.ordering.application.command.RecordOrderBackorderCommand;
+import com.flowzati.archone.ordering.application.usecase.RecordOrderBackorderUsecase;
 import org.springframework.stereotype.Component;
 
 @Component
 class BackorderCreatedIntegrationEventHandler
     implements KafkaIntegrationEventHandler<BackorderCreatedIntegrationEvent> {
 
-  private final ConfirmOrderUsecase confirmOrderUsecase;
+  private final RecordOrderBackorderUsecase recordOrderBackorderUsecase;
 
-  BackorderCreatedIntegrationEventHandler(ConfirmOrderUsecase confirmOrderUsecase) {
-    this.confirmOrderUsecase = confirmOrderUsecase;
+  BackorderCreatedIntegrationEventHandler(RecordOrderBackorderUsecase recordOrderBackorderUsecase) {
+    this.recordOrderBackorderUsecase = recordOrderBackorderUsecase;
   }
 
   @Override
@@ -31,7 +31,7 @@ class BackorderCreatedIntegrationEventHandler
 
   @Override
   public void handleTyped(BackorderCreatedIntegrationEvent event, MessageMetadata metadata) {
-    confirmOrderUsecase.recordBackorder(new InboundCommand<>(
-        new RecordBackorderCommand(event.getOrderId(), event.getBackorderedSince()), metadata));
+    recordOrderBackorderUsecase.handle(new InboundCommand<>(
+        new RecordOrderBackorderCommand(event.getOrderId(), event.getBackorderedSince()), metadata));
   }
 }

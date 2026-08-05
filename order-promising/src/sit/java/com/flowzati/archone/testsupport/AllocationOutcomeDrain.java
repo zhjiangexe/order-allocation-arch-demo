@@ -22,7 +22,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 預留與 outbox，這裡選擇補完鏈路——因為 R4 的重點正是「這條鏈接得起來」，而只驗 outbox 有
  * 事件並不能證明 ordering 消費得了它（欄位名對不對、handler 註冊了沒有，都不會被發現）。
  *
- * <p>同一個模式已經用在補貨續做上（{@code drainContinuations}），這裡是它的一般化。
  */
 public final class AllocationOutcomeDrain {
 

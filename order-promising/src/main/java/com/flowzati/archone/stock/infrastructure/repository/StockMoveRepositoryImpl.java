@@ -2,11 +2,13 @@ package com.flowzati.archone.stock.infrastructure.repository;
 
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
+import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.infrastructure.mapper.StockMoveMapper;
 import com.flowzati.archone.stock.infrastructure.repository.jpa.JpaStockMoveLineRepository;
 import com.flowzati.archone.stock.infrastructure.repository.jpa.JpaStockMoveRepository;
 import java.util.Collection;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -60,6 +62,14 @@ public class StockMoveRepositoryImpl implements StockMoveRepository {
     List<UUID> pickingIds = moveRepository.findWaitingPickingIdsInFifoOrder(
         ownerId, locationId, skuCode, Limit.of(limit));
     return findByPickingIds(pickingIds);
+  }
+
+  @Override
+  public List<WaitingAllocationScope> findAllocatableWaitingScopes(LocalDate today, int limit) {
+    return moveRepository.findAllocatableWaitingScopes(today, Limit.of(limit)).stream()
+        .map(scope -> new WaitingAllocationScope(
+            scope.getOwnerId(), scope.getFacilityId(), scope.getLocationId(), scope.getSkuCode()))
+        .toList();
   }
 
   @Override

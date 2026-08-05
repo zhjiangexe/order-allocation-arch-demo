@@ -8,8 +8,8 @@ import java.util.UUID;
  * <p>{@code stock} 分區策略存在的目的，是讓「會搶同一列庫存」的訊息收斂進同一個 partition，
  * 使 consumer 成為那些列的 single writer。
  *
- * <p><b>群組維持在倉，不換成位置。</b>庫存改掛在位置上之後，這個鍵仍然以倉分群。一倉一個
- * 內部位置時兩者分區完全相同；日後一倉多位置時，以倉分群會**過度序列化**——那是安全的方向
+ * <p><b>群組維持在 Facility，不換成位置。</b>庫存改掛在位置上之後，這個鍵仍然以 Facility
+ * 分群。一個 Facility 有多個內部位置時，以 Facility 分群會**過度序列化**——那是安全的方向
  * （併發變少、正確性不變），而換成位置卻可能把共用同一把鎖的寫入拆到不同的 writer。
  * <b>粗是安全的，細才危險。</b>它同時是對外事件的 key，而對外的契約說倉。
  *
@@ -31,7 +31,7 @@ import java.util.UUID;
  * <p>兩個 UUID 都是定長的，所以直接以分隔字元相接不會有歧義——這也是拿掉 SKU 的附帶好處：
  * 不再需要擔心自由文字的 SKU 代碼含有分隔字元。
  *
- * <p>放在 {@code common} 是因為 ordering 的 translator 與 demo 的補貨探針**必須產生逐位元
+ * <p>放在 {@code common} 是因為 ordering 的 translator 與 demo 的可用庫存探針**必須產生逐位元
  * 相同的 key**。各自複製一份的話，其中一邊改了另一邊沒改，兩類訊息就分到不同 partition，
  * 而 single writer 的保證會在沒有任何錯誤訊息的情況下失效。
  */
@@ -42,7 +42,7 @@ public final class StockContentionKey {
 
   public static String of(UUID ownerId, UUID facilityId) {
     if (ownerId == null || facilityId == null) {
-      throw new IllegalArgumentException("Owner ID and node ID are required");
+      throw new IllegalArgumentException("Owner ID and facility ID are required");
     }
     return ownerId + "/" + facilityId;
   }

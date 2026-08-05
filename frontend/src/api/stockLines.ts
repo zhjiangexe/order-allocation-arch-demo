@@ -5,7 +5,7 @@ import type { StockBatchView, StockPoolView } from './types';
  * 庫存頁的一列：一個規格在這個倉的全部庫存。
  *
  * `sku` 在主檔查得到時是完整的規格（品名、規格名、重量），查不到時只有代碼——壓測用的
- * `HOT-SKU` 之類的貨有庫存卻沒有主檔，那種列仍然要出現，見 {@link warehouseStockLines}。
+ * `HOT-SKU` 之類的貨有庫存卻沒有主檔，那種列仍然要出現，見 {@link facilityStockLines}。
  */
 export interface StockLine {
   skuCode: string;
@@ -31,16 +31,16 @@ export interface StockLine {
  *
  * **列表是主檔與庫存的聯集，不是只有其中一邊：**
  *
- * - 主檔有、這個倉沒有 → 四個數字都是 0、批是空的。那些零就是「這個倉缺什麼」，而補貨鍵
+ * - 主檔有、這個倉沒有 → 四個數字都是 0、批是空的。那些零就是「這個倉缺什麼」，而收貨鍵
  *   因此到得了每一個規格。只列有貨的會讓這個倉從未放過的貨品再也進不去。
  * - 這個倉有、主檔沒有 → 仍然列出來，只是沒有品名。漏掉它等於畫面上少報了倉庫裡真實存在的
  *   貨；`Catalog.skuCodesOf` 的註解已經記著這種貨確實存在（壓測的 `HOT-SKU`）。
  *
- * 順序是**款 → 規格**，照主檔，且**不隨數量變動**。補貨的結果要手動重查才看得到，排序一旦
+ * 順序是**款 → 規格**，照主檔，且**不隨數量變動**。收貨的結果要手動重查才看得到，排序一旦
  * 跟著數量走，你補的那一列就會跳走——而重查的整個目的就是看它變了什麼。主檔沒有的那幾列
  * 排在最後並依代碼排序：它們沒有款可以歸。
  */
-export function warehouseStockLines(
+export function facilityStockLines(
   catalog: Catalog,
   ownerId: string,
   stock: StockPoolView,

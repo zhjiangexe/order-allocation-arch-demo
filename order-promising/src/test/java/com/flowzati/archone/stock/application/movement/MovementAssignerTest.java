@@ -1,9 +1,11 @@
 package com.flowzati.archone.stock.application.movement;
 
 import com.flowzati.archone.common.time.AppClock;
-import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
+import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
+import com.flowzati.archone.stock.domain.model.AllocatableBatches;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.model.MoveState;
+import com.flowzati.archone.stock.domain.model.PickingState;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
@@ -25,13 +27,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -56,7 +58,7 @@ class MovementAssignerTest {
   private StockPoolRepository stockPoolRepository;
   private StockMoveRepository stockMoveRepository;
   private StockPickingRepository stockPickingRepository;
-  private ApplicationEventPublisher eventPublisher;
+  private StockLocationRepository stockLocationRepository;
   private MovementAssigner assigner;
 
   @BeforeEach
@@ -64,14 +66,16 @@ class MovementAssignerTest {
     stockPoolRepository = mock(StockPoolRepository.class);
     stockMoveRepository = mock(StockMoveRepository.class);
     stockPickingRepository = mock(StockPickingRepository.class);
-    eventPublisher = mock(ApplicationEventPublisher.class);
+    stockLocationRepository = mock(StockLocationRepository.class);
+    when(stockLocationRepository.findById(DemandFixtures.LOCATION_ID))
+        .thenReturn(Optional.of(MovementFixtures.internalLocation()));
     assigner = new MovementAssigner(
         new AllocationService(),
         stockPoolRepository,
         stockMoveRepository,
         stockPickingRepository,
-        new AppClock(Clock.fixed(now, ZoneId.of("UTC")), "Asia/Taipei"),
-        eventPublisher
+        stockLocationRepository,
+        new AppClock(Clock.fixed(now, ZoneId.of("UTC")), "Asia/Taipei")
     );
   }
 
@@ -102,13 +106,29 @@ class MovementAssignerTest {
     assertThat(line.stockPoolId()).isEqualTo(batch.getId());
     assertThat(line.quantity()).isEqualTo(5);
 
-    ArgumentCaptor<OrderAllocationCompleted> eventCaptor =
-        ArgumentCaptor.forClass(OrderAllocationCompleted.class);
-    verify(eventPublisher).publishEvent(eventCaptor.capture());
-    // 事件只通知「這張單配好了」，不攜帶配到哪些批——那份資訊在 stock_move_lines 裡，
-    // 且取消會改變它，事件抄一份只會多一個對不上的來源。
-    assertThat(eventCaptor.getValue()).isEqualTo(
-        new OrderAllocationCompleted(demand.orderId(), now));
+    ArgumentCaptor<StockPicking> pickingCaptor = ArgumentCaptor.forClass(StockPicking.class);
+    verify(stockPickingRepository).save(pickingCaptor.capture());
+    assertThat(pickingCaptor.getValue().state()).isEqualTo(PickingState.ASSIGNED);
+
+  }
+
+  @Test
+  @DisplayName("新訂單不得搶走同 scope 更早 waiting picking 的庫存")
+  void shouldWaitBehindAnEarlierPickingBeforeReadingAllocatableStock() {
+    Demand demand = pendingDemand("SKU-1", 5);
+    List<StockMove> currentMoves = movesFor(demand);
+    StockMove earlier = MovementFixtures.waitingMove(
+        IdGenerator.nextId(), "SKU-1", IdGenerator.nextId(), 5, createdAt.minusSeconds(1));
+    when(stockMoveRepository.findWaitingInFifoOrder(
+        demand.ownerId(), demand.locationId(), "SKU-1", 1))
+        .thenReturn(List.of(earlier));
+
+    assertThat(assigner.assign(demand, currentMoves, now))
+        .isEqualTo(AllocationOutcome.WAITING_FOR_EARLIER_DEMAND);
+
+    verifyNoInteractions(stockPoolRepository);
+    verify(stockMoveRepository, never()).saveAll(any());
+    verify(stockMoveRepository, never()).saveLines(any());
   }
 
   @Test
@@ -123,7 +143,7 @@ class MovementAssignerTest {
     // 這條守的是這個 change 消掉的那次往返。收單剛建完、補貨剛從佇列讀出來——兩個呼叫端
     // 手上本來就有這些搬運，回頭用 order_line_id 再查一次是分層的副作用。
     verify(stockMoveRepository, never()).findByPickingIds(any());
-    verifyNoInteractions(stockPickingRepository);
+    verify(stockPickingRepository).findByIds(any());
   }
 
   @Test
@@ -194,7 +214,6 @@ class MovementAssignerTest {
     assertThat(batch.getReservedQuantity()).isZero();
     verify(stockPoolRepository, never()).save(batch);
     verify(stockMoveRepository, never()).saveAll(any());
-    verifyNoInteractions(eventPublisher);
   }
 
   @Test
@@ -208,17 +227,18 @@ class MovementAssignerTest {
     assertThat(assigner.assign(demand, movesFor(demand), now))
         .isEqualTo(AllocationOutcome.NO_ALLOCATABLE_STOCK);
     verify(stockPoolRepository, never()).save(any());
-    verifyNoInteractions(stockMoveRepository, eventPublisher);
+    verify(stockMoveRepository, never()).saveAll(any());
+    verify(stockMoveRepository, never()).saveLines(any());
   }
 
   @Test
   @DisplayName("喚醒時佇列是空的就不應寫入任何東西，連庫存都不必查")
   void shouldWriteNothingWhenThereAreNoWaitingMovements() {
-    List<Demand> result = assigner.assignAll(List.of(), now);
+    List<Demand> result = assigner.assignWaitingBatch(List.of(), now);
 
     // 補貨本身已經在 usecase 的 upsert 寫進去了，這裡再存一次只是多一次無謂的寫入與衝突。
     assertThat(result).isEmpty();
-    verifyNoInteractions(stockPoolRepository, stockMoveRepository, eventPublisher);
+    verifyNoInteractions(stockPoolRepository, stockMoveRepository);
   }
 
   @Test
@@ -232,20 +252,27 @@ class MovementAssignerTest {
         firstPicking, "SKU-1", IdGenerator.nextId(), 3, createdAt);
     StockMove second = MovementFixtures.waitingMove(
         secondPicking, "SKU-1", IdGenerator.nextId(), 3, createdAt);
-    when(stockPickingRepository.findByIds(any())).thenReturn(List.of(
-        picking(firstPicking, firstOrder), picking(secondPicking, secondOrder)));
+    StockPicking firstPickingRecord = picking(firstPicking, firstOrder);
+    StockPicking secondPickingRecord = picking(secondPicking, secondOrder);
+    when(stockPickingRepository.findByIds(Set.of(firstPicking, secondPicking))).thenReturn(List.of(
+        firstPickingRecord, secondPickingRecord));
+    when(stockPickingRepository.findByIds(Set.of(firstPicking))).thenReturn(List.of(firstPickingRecord));
     StockPool batch = stockPool("SKU-1", 5);
     when(stockPoolRepository.findAllocatableBatchesBySku(
         DemandFixtures.OWNER_ID, DemandFixtures.LOCATION_ID, Set.of("SKU-1"), today))
-        .thenReturn(Map.of("SKU-1", List.of(batch)));
+        .thenReturn(AllocatableBatches.of(
+            DemandFixtures.OWNER_ID,
+            DemandFixtures.LOCATION_ID,
+            Map.of("SKU-1", List.of(batch))));
 
-    List<Demand> allocated = assigner.assignAll(List.of(first, second), now);
+    List<Demand> allocated = assigner.assignWaitingBatch(List.of(first, second), now);
 
     // 5 件只餵得飽第一張；第二張在 FIFO 之下就此停住，而不是被跳過去換一張配得到的。
     assertThat(allocated).extracting(Demand::orderId).containsExactly(firstOrder);
     assertThat(first.getState()).isEqualTo(MoveState.ASSIGNED);
     assertThat(second.getState()).isEqualTo(MoveState.CONFIRMED);
-    verify(eventPublisher).publishEvent(new OrderAllocationCompleted(firstOrder, now));
+    assertThat(firstPickingRecord.state()).isEqualTo(PickingState.ASSIGNED);
+    assertThat(secondPickingRecord.state()).isEqualTo(PickingState.CONFIRMED);
   }
 
   @Test
@@ -257,12 +284,11 @@ class MovementAssignerTest {
     when(stockPickingRepository.findByIds(any()))
         .thenReturn(List.of(picking(inbound.getPickingId(), null)));
 
-    assertThat(assigner.assignAll(List.of(inbound), now)).isEmpty();
-    verifyNoInteractions(eventPublisher);
+    assertThat(assigner.assignWaitingBatch(List.of(inbound), now)).isEmpty();
   }
 
   private StockPicking picking(UUID id, UUID orderId) {
-    return new StockPicking(
+    return StockPicking.confirmed(
         id, MovementFixtures.OUTBOUND_TYPE_ID, DemandFixtures.OWNER_ID, orderId,
         DemandFixtures.LOCATION_ID, MovementFixtures.CUSTOMERS_LOCATION_ID);
   }
@@ -274,6 +300,8 @@ class MovementAssignerTest {
   /** 這張需求的每一條行都已經有一段還在等貨的搬運——收單就建好了。 */
   private List<StockMove> movesFor(Demand demand) {
     UUID pickingId = IdGenerator.nextId();
+    when(stockPickingRepository.findByIds(Set.of(pickingId)))
+        .thenReturn(List.of(picking(pickingId, demand.orderId())));
     List<StockMove> moves = new ArrayList<>();
     demand.lines().forEach(line -> moves.add(MovementFixtures.waitingMove(
         pickingId, line.skuCode(), line.orderLineId(), line.quantity(), createdAt)));
@@ -289,7 +317,7 @@ class MovementAssignerTest {
     }
     when(stockPoolRepository.findAllocatableBatchesBySku(
         demand.ownerId(), demand.locationId(), demand.totalsBySku().keySet(), today))
-        .thenReturn(bySku);
+        .thenReturn(AllocatableBatches.of(demand.ownerId(), demand.locationId(), bySku));
   }
 
   @SuppressWarnings("unchecked")

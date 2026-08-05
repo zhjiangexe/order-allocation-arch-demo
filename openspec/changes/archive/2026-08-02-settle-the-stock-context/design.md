@@ -79,7 +79,7 @@ new Line(line.getLineNo(), line.getSkuCode(), line.getQuantity(), order.getStatu
 
 ### `-er` 明確不改
 
-`MovementRecorder` / `Assigner` / `Completer` / `Canceller` 不是 DDD 文獻推薦的形式——
+`StockOperationRecorder` / `Assigner` / `Completer` / `Canceller` 不是 DDD 文獻推薦的形式——
 Evans 一系會把 `-er` 視為「以動作者命名」，也就是披著物件外衣的程序，並建議用活動名詞
 （`MovementRecording`）或用例名（`RecordMovement`）。
 

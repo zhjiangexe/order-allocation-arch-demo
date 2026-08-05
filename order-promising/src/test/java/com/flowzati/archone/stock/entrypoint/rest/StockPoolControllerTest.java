@@ -2,9 +2,6 @@ package com.flowzati.archone.stock.entrypoint.rest;
 
 import com.flowzati.archone.common.time.AppClock;
 import com.flowzati.archone.stock.application.usecase.GetStockPoolUsecase;
-import com.flowzati.archone.catalog.domain.model.LocationUsage;
-import com.flowzati.archone.catalog.domain.model.StockLocation;
-import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockPool;
 
@@ -41,7 +38,7 @@ class StockPoolControllerTest {
   private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Taipei");
 
   private static final String QUERY =
-      "/stock-pool?ownerId=" + StockFixtures.OWNER_ID + "&facilityId=" + StockFixtures.FACILITY_ID;
+      "/stock-pool?ownerId=" + StockFixtures.OWNER_ID + "&locationId=" + StockFixtures.LOCATION_ID;
 
   /**
    * 時刻取營運時區當天的零點。刻意不用 UTC 零點——那個瞬間在台北已經是早上八點，兩者剛好
@@ -62,9 +59,6 @@ class StockPoolControllerTest {
 
   @MockitoBean
   private GetStockPoolUsecase getStockPoolUsecase;
-
-  @MockitoBean
-  private StockLocationRepository stockLocationRepository;
 
   @Test
   @DisplayName("一個 SKU 分成三批時應逐批回報，並保持配貨會取用的順序")
@@ -162,25 +156,16 @@ class StockPoolControllerTest {
   @Test
   @DisplayName("沒帶 ownerId 時應回 400——SKU 代碼跨貨主撞號，只憑倉問不出答案")
   void shouldRejectAQueryWithoutAnOwner() {
-    assertThat(mvc.get().uri("/stock-pool?facilityId=" + StockFixtures.FACILITY_ID)).hasStatus(400);
+    assertThat(mvc.get().uri("/stock-pool?locationId=" + StockFixtures.LOCATION_ID)).hasStatus(400);
   }
 
   @Test
-  @DisplayName("沒帶 facilityId 時應回 400——配貨不跨倉，跨倉的池沒有任何一次配貨取用得了")
-  void shouldRejectAQueryWithoutAWarehouse() {
+  @DisplayName("沒帶 locationId 時應回 400——多庫位設施必須指定實際庫存端點")
+  void shouldRejectAQueryWithoutALocation() {
     assertThat(mvc.get().uri("/stock-pool?ownerId=" + StockFixtures.OWNER_ID)).hasStatus(400);
   }
 
-  /** 倉 → 位置的解析。倉與位置刻意取不同的 UUID，拿錯就會 stub 不中而失敗。 */
-  private void givenTheWarehouseResolvesToItsInternalLocation() {
-    when(stockLocationRepository.findInternalOf(StockFixtures.FACILITY_ID))
-        .thenReturn(java.util.Optional.of(new StockLocation(
-            StockFixtures.LOCATION_ID, StockFixtures.FACILITY_ID, "WH-TEST/Stock", "測試倉／庫存",
-            LocationUsage.INTERNAL)));
-  }
-
   private void givenWarehouseHolds(Map<String, List<StockPool>> batchesBySku) {
-    givenTheWarehouseResolvesToItsInternalLocation();
     when(getStockPoolUsecase.getBatchesInLocation(StockFixtures.OWNER_ID, StockFixtures.LOCATION_ID))
         .thenReturn(batchesBySku);
   }

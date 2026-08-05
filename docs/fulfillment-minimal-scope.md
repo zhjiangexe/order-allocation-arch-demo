@@ -95,7 +95,7 @@
 儲位上的量     stock_pools，位置維度指到儲位——不是新表
 
 Shipment
-  id, orderId, ownerId, nodeId, status, createdAt, departedAt
+  id, orderId, ownerId, facilityId, status, createdAt, departedAt
 
 PickTask
   id, shipmentId, orderLineId, locationId, ownerId, skuCode, inDate, expiryDate
@@ -122,7 +122,7 @@ PickTask
 | **`(order, node)`** | ✓ 同節點併單、跨節點拆單都能表達 |
 
 最小版是單節點且每張單只有一條 line，三者退化成一對一，看不出差別。但欄位
-（`orderId` ＋ `nodeId`）從一開始就是最終形態。
+（`orderId` ＋ `facilityId`）從一開始就是最終形態。
 
 ### `PickTask` 為何帶 `orderLineId`
 
@@ -184,7 +184,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 
 | # | 觸發 | 動作 | 產出 |
 | --- | --- | --- | --- |
-| 1 | `OrderAllocated`（含 `ownerId`、`nodeId`、**批次清單**） | 建立 `Shipment`，狀態 `CREATED` | — |
+| 1 | `OrderAllocated`（含 `ownerId`、`facilityId`、**批次清單**） | 建立 `Shipment`，狀態 `CREATED` | — |
 | 2 | 同上，**同交易** | 依鎖定的明細定位儲位，產生 `PickTask` | `PickTask` 清單 |
 | 3 | 揀貨員回報實揀數 | `PickTask` → `PICKED`。**履約層不動庫存** | — |
 | 4 | 全部 `PickTask` 皆 `PICKED` | `Shipment` → `DEPARTED` | **`ShipmentDeparted`** |
@@ -230,7 +230,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | # | 層 | 動作 |
 | --- | --- | --- |
 | 1 | 履約層 | `PickTask.pickedQty = 8`，狀態 → `SHORT_PICKED` |
-| 2 | 履約層 | 發 `ShortPickDetected(ownerId, nodeId, sku, expectedQty, actualQty)` |
+| 2 | 履約層 | 發 `ShortPickDetected(ownerId, facilityId, sku, expectedQty, actualQty)` |
 | 3 | stock | **再記一段盤點調整搬運**（庫存 → `INVENTORY` 虛擬位置），把在庫量修正到實際值 |
 | 4 | 訂單層 ① | **整批退回重新決策**（採 ship-complete，不做部分出貨） |
 | 5 | 訂單層 ③ | re-source 至他節點 |
@@ -354,9 +354,9 @@ module，package 邊界擋不住。後來以事件斷開，並補了一支架構
 
 W3 上架不做，儲位上的庫存由 seed 直接建立。
 
-**補貨探針不必特別處理。** 它走的是收貨那條正規路徑（建入庫搬運再完成它），寫的與揀貨
-讀的是同一組表——沒有第二本帳要對齊。這一段原本記著一個權宜（讓補貨同時寫實體帳），
-那個問題隨兩本帳一起消失了。
+**現行一段式收貨會建立實體搬運。** `ConfirmStockReceiptUsecase` 建立並完成 inbound
+picking／move／move line，再由 move line 增加 `StockPool` 並喚醒缺貨單。若日後導入儲位級
+收貨／上架，應拆分既有 receipt workflow，而不是另開一條直接改庫存的路。
 
 ---
 

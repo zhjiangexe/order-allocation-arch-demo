@@ -46,6 +46,6 @@ allocation/
 | Kafka topic `promising.allocation-events` | 對外契約，而名字站得住——與 `/stock-pool` 端點同一個判準：沒有債就沒有要償的 |
 | 設定鍵 `archone.allocation.partition-key-strategy` | 前端逐字讀它（`AppHeader.tsx`）。改它要同時動兩側，換不到任何精確度 |
 | `AllocateOrderUsecase` 改名 | 它現在做「接手 + 配貨」，但配這張單仍然是它的目的，建立搬運是其中一步 |
-| `-er` 那組（`MovementRecorder`⋯⋯）改成活動名詞 | 見 design。`-er` 是這個 codebase 的 ubiquitous language，換掉會讓它們成為唯一的例外 |
+| `-er` 那組（`StockOperationRecorder`⋯⋯）改成活動名詞 | 見 design。`-er` 是這個 codebase 的 ubiquitous language，換掉會讓它們成為唯一的例外 |
 | `orders.status` 的 `BACKORDERED` / `ALLOCATED` | **已決定都留為投影**（見 scope 的「決定：都留為投影」）。它們與 `order_lines.status` 不是同一件事——前者是跨 context 的投影，後者連投影都不是 |
 | capability 改名（`stock-allocation` 等） | 已經是 `stock-*` 開頭，沒有債 |

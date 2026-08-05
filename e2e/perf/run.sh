@@ -39,6 +39,8 @@ PERF_PRODUCT_ID="00000000-0000-0000-0000-0000000000f2"
 PERF_PRODUCT_CODE="P-PERF"
 PERF_FACILITY_ID="00000000-0000-0000-0000-0000000000f4"
 PERF_FACILITY_CODE="WH-PERF"
+PERF_LOCATION_ID="00000000-0000-0000-0000-0000000000f6"
+PERF_OUTBOUND_TYPE_ID="00000000-0000-0000-0000-0000000000f7"
 
 # 熱點庫存那一列。**id 與兩個日期都固定**，這是熱點壓測的正確性前提：
 #
@@ -177,12 +179,26 @@ INSERT INTO owner_facilities (owner_id, facility_id)
 VALUES ('${PERF_OWNER_ID}', '${PERF_FACILITY_ID}')
 ON CONFLICT DO NOTHING;
 
+INSERT INTO stock_locations (id, facility_id, code, name, usage)
+VALUES ('${PERF_LOCATION_ID}', '${PERF_FACILITY_ID}', 'WH-PERF/Stock', '壓測設施／庫存', 'INTERNAL')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO stock_picking_types (
+    id, facility_id, code, name, default_from_location_id, default_to_location_id)
+SELECT '${PERF_OUTBOUND_TYPE_ID}', '${PERF_FACILITY_ID}', 'OUTBOUND', '壓測設施出貨',
+       '${PERF_LOCATION_ID}', id
+  FROM stock_locations
+ WHERE usage = 'CUSTOMER'
+ ORDER BY id
+ LIMIT 1
+ON CONFLICT (facility_id, code) DO NOTHING;
+
 -- 以固定 id 做 upsert 而不是 DELETE 後重建：stock_reservations 的外鍵指向這一列，
 -- 前一輪壓測留下的預留會讓 DELETE 失敗。UPDATE 沒有這個問題。
 INSERT INTO stock_pools (
-    id, owner_id, facility_id, sku_code, in_date, expiry_date,
+    id, owner_id, location_id, sku_code, in_date, expiry_date,
     on_hand_quantity, reserved_quantity, version, updated_at)
-VALUES ('${PERF_STOCK_POOL_ID}', '${PERF_OWNER_ID}', '${PERF_FACILITY_ID}', '${sku}',
+VALUES ('${PERF_STOCK_POOL_ID}', '${PERF_OWNER_ID}', '${PERF_LOCATION_ID}', '${sku}',
         DATE '${PERF_IN_DATE}', DATE '${PERF_EXPIRY_DATE}', ${quantity}, 0, 0, now())
 ON CONFLICT (id) DO UPDATE
   SET on_hand_quantity = EXCLUDED.on_hand_quantity,
@@ -200,7 +216,7 @@ SQL
   # 競爭分散。散開之後 checks 與 thresholds 仍然全過，所以這裡不查就沒人會發現。
   local batch_count
   batch_count=$(docker exec -i "${POSTGRES_CONTAINER}" psql -U order_promising -d order_promising \
-    -tAc "SELECT count(*) FROM stock_pools WHERE owner_id = '${PERF_OWNER_ID}' AND facility_id = '${PERF_FACILITY_ID}' AND sku_code = '${sku}'")
+    -tAc "SELECT count(*) FROM stock_pools WHERE owner_id = '${PERF_OWNER_ID}' AND location_id = '${PERF_LOCATION_ID}' AND sku_code = '${sku}'")
   if [ "${batch_count}" != "1" ]; then
     echo "熱點庫存必須只有一列，實際有 ${batch_count} 列——競爭已被分散，這次壓測測不到" >&2
     echo "真實的樂觀鎖衝突。先 ./e2e/perf/run.sh down 重建再跑。" >&2

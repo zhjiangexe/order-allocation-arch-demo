@@ -5,7 +5,6 @@ import com.flowzati.archone.stock.application.movement.MovementCanceller;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import jakarta.transaction.Transactional;
-import java.time.Clock;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,15 +25,12 @@ public class CancelMovementsUsecase {
 
   private final InboxRepo inboxRepo;
   private final MovementCanceller movementCanceller;
-  private final Clock clock;
 
   public CancelMovementsUsecase(
       InboxRepo inboxRepo,
-      MovementCanceller movementCanceller,
-      Clock clock) {
+      MovementCanceller movementCanceller) {
     this.inboxRepo = inboxRepo;
     this.movementCanceller = movementCanceller;
-    this.clock = clock;
   }
 
   @Transactional
@@ -42,6 +38,6 @@ public class CancelMovementsUsecase {
     if (!inboxRepo.claimIfNew(inbound.message())) {
       return;
     }
-    movementCanceller.cancelFor(inbound.command().orderId(), clock.instant());
+    movementCanceller.cancelForOrder(inbound.command().orderId());
   }
 }

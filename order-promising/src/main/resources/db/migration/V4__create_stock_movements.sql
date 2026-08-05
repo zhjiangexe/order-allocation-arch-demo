@@ -36,8 +36,8 @@ CREATE TABLE stock_picking_types (
     default_from_location_id UUID NOT NULL,
     default_to_location_id UUID NOT NULL,
 
-    CONSTRAINT uq_stock_picking_types_warehouse_code UNIQUE (facility_id, code),
-    CONSTRAINT fk_stock_picking_types_warehouse
+    CONSTRAINT uq_stock_picking_types_facility_code UNIQUE (facility_id, code),
+    CONSTRAINT fk_stock_picking_types_facility
         FOREIGN KEY (facility_id) REFERENCES facilities(id),
     CONSTRAINT fk_stock_picking_types_from_location
         FOREIGN KEY (default_from_location_id) REFERENCES stock_locations(id),
@@ -73,11 +73,11 @@ CREATE TABLE stock_picking_types (
 -- **若日後真的要跨單合併，這一欄必須拿掉**，分組改由一個有自己身分的群組實體承擔。屆時
 -- 它就會退化成 Odoo 那種捷徑。
 --
--- **刻意沒有 state。** Odoo 的 stock.picking.state 是由底下 moves 算出來的 computed 欄位，
--- store 只為了畫面篩選。ship-complete 下一張單的所有 move 同進同出，彙總是 trivial 的，而存
--- 起來就有兩份要對齊的真相。要存的那天是「picking 列表要依狀態篩選」，屆時它仍是導出值。
+-- **state 是 moves 的物化摘要。** 與 Odoo 一樣，它不構成第二套獨立生命週期；建立、配貨、完成
+-- 與取消都在修改 moves 的同一個 transaction 更新。存下來是為了讓作業單列表能直接篩選與排程。
 --
--- **刻意沒有 version。** 沒有併發寫入 picking 的路徑。會被搶的是庫存列，樂觀鎖在那裡。
+-- **version 防止配貨與取消互相覆蓋。** picking 從只寫一次的分組變成可變作業單後，同一張單可能
+-- 同時被 availability 喚醒與取消流程更新，因此要與 pool、move 一樣具備 optimistic lock。
 --
 -- **刻意沒有 reference 與 scheduled_at。** 兩者都沒有讀者：沒有任何畫面顯示單據，而佇列的
 -- 排序用的是搬運的到達順序而不是排程日。Odoo 的 origin 與 scheduled_date 有讀者（作業畫面
@@ -104,6 +104,8 @@ CREATE TABLE stock_pickings (
     -- 這個虛擬位置。庫存是「持有」，搬運是「移動」，而移動的一端經常在公司之外。
     from_location_id UUID NOT NULL,
     to_location_id UUID NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'CONFIRMED',
+    version BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT fk_stock_pickings_type
         FOREIGN KEY (picking_type_id) REFERENCES stock_picking_types(id),
@@ -111,7 +113,9 @@ CREATE TABLE stock_pickings (
     CONSTRAINT fk_stock_pickings_from_location
         FOREIGN KEY (from_location_id) REFERENCES stock_locations(id),
     CONSTRAINT fk_stock_pickings_to_location
-        FOREIGN KEY (to_location_id) REFERENCES stock_locations(id)
+        FOREIGN KEY (to_location_id) REFERENCES stock_locations(id),
+    CONSTRAINT ck_stock_pickings_state
+        CHECK (state IN ('CONFIRMED', 'ASSIGNED', 'DONE', 'CANCELLED'))
 );
 
 

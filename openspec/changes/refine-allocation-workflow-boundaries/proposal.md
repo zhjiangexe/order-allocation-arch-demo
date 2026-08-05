@@ -3,8 +3,8 @@
 Initial order allocation and backorder waking already share the same stock decision, but their
 application responsibilities are obscured by a movement assigner that also loads candidates,
 persists execution state, and publishes outcomes. Movement recording likewise always creates a
-picking for its current callers even though a move does not inherently require one, making it hard
-to extend inbound, standalone-move, or durable workflow orchestration without copying policy or
+pickings for its current callers even though a move does not inherently require one, making it hard
+to extend standalone-move or durable workflow orchestration without copying policy or
 splitting a required local transaction.
 
 ## What Changes
@@ -14,14 +14,19 @@ splitting a required local transaction.
   reusable responsibilities.
 - Reuse the same allocation decision and assignment semantics for initial attempts and bounded
   backorder wake rounds without making either flow call the other flow's use case.
-- Separate continuation-message handling from the inbound availability flow while keeping the first
-  wake round in the same local transaction as the stock increase that triggered it.
-- Give each allocation transaction a transport-neutral command/result boundary. Kafka handlers
+- Separate receipt confirmation from backorder allocation. A committed availability increase
+  records an Outbox fact that triggers allocation promptly, while a scheduler scans the same
+  waiting queue as reconciliation; both adapters invoke the same transactional wake use case.
+- Treat `StockPool` as the stock context's physical inventory source of truth. A local receipt
+  confirmation enters through a synchronous stock REST endpoint, creates and completes an inbound
+  picking/movement with move lines, and only then changes `StockPool` before waking backorders.
+- Give each allocation transaction a transport-neutral command boundary. Kafka handlers
   continue to translate Integration Events into those commands; a future Temporal Activity can
   invoke the same transactional facade instead of calling its internal application components.
-- Separate execution of one bounded wake round from the decision to schedule another round. The
-  round returns an explicit result; the current Integration Event flow records a continuation from
-  that result, while a future Temporal Workflow can use it as its loop condition.
+- Separate execution of one bounded wake round from its triggers. The availability Integration
+  Event provides a low-latency first attempt, while a scheduler owns eventual convergence. No
+  continuation control event is emitted between rounds; a future Temporal Workflow may introduce
+  durable result replay before using a round result as its loop condition.
 - Make allocation outcome policy explicit: an unsuccessful initial attempt records one backorder
   fact; an unsuccessful wake attempt records no duplicate backorder fact; every successful attempt
   records allocation completion.
@@ -30,11 +35,16 @@ splitting a required local transaction.
   ship-complete grouping boundary.
 - Keep object creation simple through existing constructors and named factory methods; do not add
   factory or creator classes solely to imitate DDD terminology.
-- Preserve current Integration Event contracts, Inbox/Outbox behavior, FIFO/FEFO policy, persistence
-  schema, and public HTTP APIs.
-- Leave Temporal runtime integration out of scope. The resulting boundaries expose the commands and
-  results a future Activity needs, but enabling Temporal still requires durable replay of Activity
-  results because the current Inbox records only whether an event was processed.
+- Replace the ambiguous and warehouse-specific `FulfillmentNode` / `nodeId` / `warehouseId`
+  vocabulary with `Facility` / `facilityId`, while retaining `StockLocation` / `locationId` for
+  physical inventory and movement endpoints.
+- Preserve Inbox/Outbox behavior and FIFO/FEFO policy. Because the system is not deployed, update
+  Integration Event payloads, public HTTP APIs, and unreleased migrations directly without a
+  compatibility layer.
+- Leave Temporal runtime integration out of scope. The resulting boundaries expose the commands,
+  transactional facades, and wake-round result that future Activities can reuse. Any result used
+  for Workflow branching must be introduced with durable replay because the current Inbox records
+  only whether an event was processed.
 
 ## Capabilities
 
@@ -45,19 +55,26 @@ splitting a required local transaction.
 ### Modified Capabilities
 
 - `stock-allocation`: Formalize the shared initial/wake allocation semantics, their distinct failure
-  event policies, transport-neutral command/result boundaries, and the transaction boundary around
-  stock availability and the first wake round.
-- `stock-movement`: Make picking optional for a generic move while retaining a mandatory per-order
-  picking for order-driven outbound ship-complete execution.
+  event policies, transport-neutral command boundaries, and the event-plus-scheduler boundary
+  between stock availability and backorder allocation.
+- `stock-movement`: Make picking optional for a generic move, retain a mandatory per-order picking
+  for order-driven outbound ship-complete execution, and keep external availability changes out of
+  the local movement ledger.
 
 ## Impact
 
 - Refactors the allocation application layer, especially `AllocateOrderUsecase`,
-  `MovementAssigner`, replenishment/wake orchestration, and their unit tests.
+  `MovementAssigner`, availability-increase/wake orchestration, and their unit tests.
 - Makes the current Integration Event choreography and a future Temporal orchestration share the
   same coarse-grained transactional use cases without making the two runtimes coexist.
 - Clarifies the contracts of `StockMove`, `StockPicking`, movement recording, and waiting-movement
   projection without changing the current database nullability of `stock_moves.picking_id`.
+- Renames the catalog root and identifiers to `Facility` / `facilityId`, including pre-release REST,
+  Integration Event, persistence, frontend, and test contracts.
+- Replaces the dev-only Kafka stock probe with a synchronous stock-receipt REST command and restores
+  inbound picking/movement completion as the auditable source of physical stock increases.
+- Records a stock-availability fact in the receipt transaction, then runs backorder allocation in a
+  separate transaction from both the Kafka trigger and a periodic reconciliation scheduler.
 - Updates the living stock reservation design after implementation; archived OpenSpec changes and
   historical `docs/done` records remain unchanged.
 - Adds no external dependency and no Temporal runtime, worker, task queue, or Workflow definition.

@@ -3,10 +3,10 @@ package com.flowzati.archone.ordering.application.command;
 import java.time.Instant;
 import java.util.UUID;
 
-/** 缺貨的事實，要套到這張單上。理由同 {@link ConfirmAllocationCommand}。 */
-public record RecordBackorderCommand(UUID orderId, Instant backorderedAt) {
+/** stock context 的缺貨事實，要記錄到這張訂單。 */
+public record RecordOrderBackorderCommand(UUID orderId, Instant backorderedAt) {
 
-  public RecordBackorderCommand {
+  public RecordOrderBackorderCommand {
     if (orderId == null) {
       throw new IllegalArgumentException("Order ID is required");
     }

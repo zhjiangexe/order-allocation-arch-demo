@@ -242,7 +242,7 @@ class OrderingSchemaIntegrationTest {
       assertThat(foreignKeyColumns("orders")).contains("owner_id", "facility_id");
       assertThat(jdbcTemplate.queryForObject("""
           SELECT count(*) FROM information_schema.table_constraints
-          WHERE table_name = 'orders' AND constraint_name = 'fk_orders_owner_node'
+          WHERE table_name = 'orders' AND constraint_name = 'fk_orders_owner_facility'
           """, Integer.class)).isEqualTo(1);
     }
 
@@ -261,7 +261,7 @@ class OrderingSchemaIntegrationTest {
       assertThatThrownBy(() -> insertOrder(UUID.randomUUID(), OWNER_ID, "EXT-1", facilityId))
           .isInstanceOf(DataIntegrityViolationException.class)
           .rootCause()
-          .hasMessageContaining("fk_orders_owner_node");
+          .hasMessageContaining("fk_orders_owner_facility");
     }
 
     @Test
@@ -405,7 +405,7 @@ class OrderingSchemaIntegrationTest {
   }
 
   private UUID defaultNodeFor(UUID ownerId) {
-    UUID facilityId = UUID.nameUUIDFromBytes(("node-" + ownerId).getBytes());
+    UUID facilityId = UUID.nameUUIDFromBytes(("facility-" + ownerId).getBytes());
     jdbcTemplate.update("""
         INSERT INTO facilities (id, code, name)
         VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING

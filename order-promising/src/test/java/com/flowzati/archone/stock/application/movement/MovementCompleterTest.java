@@ -4,8 +4,11 @@ import com.flowzati.archone.stock.domain.model.MoveState;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
+import com.flowzati.archone.stock.domain.model.PickingState;
+import com.flowzati.archone.stock.domain.model.StockPicking;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
+import com.flowzati.archone.stock.domain.repository.StockPickingRepository;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.common.IdGenerator;
@@ -37,6 +40,7 @@ class MovementCompleterTest {
       new MovementCompleter.BatchIdentity(StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON);
 
   private StockMoveRepository stockMoveRepository;
+  private StockPickingRepository stockPickingRepository;
   private StockPoolRepository stockPoolRepository;
   private StockLocationRepository stockLocationRepository;
   private MovementCompleter completer;
@@ -44,10 +48,11 @@ class MovementCompleterTest {
   @BeforeEach
   void setUp() {
     stockMoveRepository = mock(StockMoveRepository.class);
+    stockPickingRepository = mock(StockPickingRepository.class);
     stockPoolRepository = mock(StockPoolRepository.class);
     stockLocationRepository = mock(StockLocationRepository.class);
     completer = new MovementCompleter(
-        stockMoveRepository, stockPoolRepository, stockLocationRepository);
+        stockMoveRepository, stockPickingRepository, stockPoolRepository, stockLocationRepository);
     when(stockLocationRepository.findById(MovementFixtures.SUPPLIERS_LOCATION_ID))
         .thenReturn(Optional.of(MovementFixtures.suppliersLocation()));
     when(stockLocationRepository.findById(OrderFixtures.LOCATION_ID))
@@ -117,14 +122,19 @@ class MovementCompleterTest {
     assertThat(incoming.getState()).isEqualTo(MoveState.DONE);
     assertThat(incoming.getAssignedAt()).isEqualTo(now);
     assertThat(savedMoves()).containsExactly(incoming);
+
+    ArgumentCaptor<StockPicking> pickingCaptor = ArgumentCaptor.forClass(StockPicking.class);
+    verify(stockPickingRepository).save(pickingCaptor.capture());
+    assertThat(pickingCaptor.getValue().state()).isEqualTo(PickingState.DONE);
   }
 
   @Test
   @DisplayName("同一次完成裡兩段同 SKU 的搬運應落在同一列，不得各開一列")
   void shouldLandTwoMovementsOfTheSameSkuInOneRow() {
     givenNoIdentityMatch();
-    StockMove first = inboundMove(10);
-    StockMove second = inboundMove(5);
+    UUID pickingId = IdGenerator.nextId();
+    StockMove first = inboundMove(10, pickingId);
+    StockMove second = inboundMove(5, pickingId);
 
     completer.complete(List.of(first, second), batch, now);
 
@@ -133,6 +143,32 @@ class MovementCompleterTest {
     assertThat(savedPools()).hasSize(1);
     assertThat(savedPools().getFirst().getOnHandQuantity()).isEqualTo(15);
     assertThat(savedLines()).hasSize(2);
+    verify(stockLocationRepository).findById(MovementFixtures.SUPPLIERS_LOCATION_ID);
+    verify(stockLocationRepository).findById(OrderFixtures.LOCATION_ID);
+    verify(stockPoolRepository).findByIdentity(
+        OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU,
+        StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON);
+  }
+
+  @Test
+  @DisplayName("picking 遺失時應在改變 movement 與庫存前拒絕完成")
+  void shouldRejectMissingPickingBeforeChangingStock() {
+    StockMove incoming = inboundMove(10);
+    when(stockPickingRepository.findByIds(java.util.Set.of(incoming.getPickingId())))
+        .thenReturn(List.of());
+
+    assertThatThrownBy(() -> completer.complete(List.of(incoming), batch, now))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Stock pickings no longer exist");
+
+    assertThat(incoming.getState()).isEqualTo(MoveState.CONFIRMED);
+    verify(stockPoolRepository, never()).findByIdentity(
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any());
+    verify(stockPoolRepository, never()).save(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -166,9 +202,22 @@ class MovementCompleterTest {
 
   /** 一段還在等貨的入庫搬運：供應商 → 庫存位置，沒有訂單行。 */
   private StockMove inboundMove(int quantity) {
+    return inboundMove(quantity, IdGenerator.nextId());
+  }
+
+  private StockMove inboundMove(int quantity, UUID pickingId) {
+    StockPicking picking = StockPicking.confirmed(
+        pickingId,
+        MovementFixtures.INBOUND_TYPE_ID,
+        OrderFixtures.OWNER_ID,
+        null,
+        MovementFixtures.SUPPLIERS_LOCATION_ID,
+        OrderFixtures.LOCATION_ID);
+    when(stockPickingRepository.findByIds(java.util.Set.of(pickingId)))
+        .thenReturn(List.of(picking));
     return StockMove.confirmed(
         IdGenerator.nextId(),
-        IdGenerator.nextId(),
+        pickingId,
         OrderFixtures.OWNER_ID,
         SKU,
         MovementFixtures.SUPPLIERS_LOCATION_ID,

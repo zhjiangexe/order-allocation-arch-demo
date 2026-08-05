@@ -1,4 +1,4 @@
--- 訂單層的八張表：貨主、商品主檔、倉庫主檔、位置、訂單、訂單行。
+-- 訂單層的八張表：貨主、商品主檔、履約設施、位置、訂單、訂單行。
 --
 -- 建表順序固定為 owners → products → skus → facilities → stock_locations →
 -- owner_facilities → orders → order_lines，FK 的被指向方一律在前。這個順序不可任意調換。
@@ -69,12 +69,11 @@ CREATE TABLE skus (
 CREATE INDEX idx_skus_product
     ON skus (owner_id, product_code);
 
--- 倉庫只有身分，沒有屬性。
+-- 物流設施只有身分，沒有屬性。
 --
--- 沒有 status、type、覆蓋範圍、處理能力、產能或截單時間——那些欄位全都是為了「系統選倉」
--- 這個決策而存在，而本系統不做那件事：3PL 的出貨倉由合約決定，貨主在上游下單時就指定了。
--- 加一個沒有讀者的欄位比缺一個糟，因為下一個人會假設它有意義。orders.requested_facility_id
--- 就是前車之鑑：它帶著「R6 才讀」的註解存在了一整個 change，而 R6 沒有發生。
+-- 沒有 status、type、覆蓋範圍、處理能力、產能或截單時間——那些欄位全都是為了「系統選點」
+-- 這個決策而存在，而本系統不做那件事：3PL 的履約設施由合約決定，貨主在上游下單時就指定了。
+-- 加一個沒有讀者的欄位比缺一個糟，因為下一個人會假設它有意義。
 CREATE TABLE facilities (
     id UUID PRIMARY KEY,
     code VARCHAR(64) NOT NULL,
@@ -137,7 +136,7 @@ CREATE TABLE stock_locations (
     id UUID PRIMARY KEY,
     -- 可空：虛擬位置不屬於任何倉。
     --
-    -- 這一欄是實體欄位而不是沿樹推導。Odoo 的 stock.location.facility_id 也是 computed
+    -- 這一欄是實體欄位而不是沿樹推導。Odoo 的 stock.location.warehouse_id 也是 computed
     -- 但 store=True——它走過「查詢時算」再改成「存欄位」這條路，因為每次規則查找都要讀它。
     -- 本系統不做樹，這一欄直接就是答案。
     facility_id UUID,
@@ -154,35 +153,26 @@ CREATE TABLE stock_locations (
     -- 讓別的表能以複合外鍵「只准指向某一種用途的位置」。stock_pools 用它來保證庫存只掛在
     -- INTERNAL 位置上——CHECK 做不到那件事（不能有子查詢），而外鍵可以。
     CONSTRAINT uq_stock_locations_id_usage UNIQUE (id, usage),
-    CONSTRAINT fk_stock_locations_warehouse
+    CONSTRAINT fk_stock_locations_facility
         FOREIGN KEY (facility_id) REFERENCES facilities(id),
     CONSTRAINT ck_stock_locations_usage
         CHECK (usage IN ('INTERNAL', 'SUPPLIER', 'CUSTOMER', 'INVENTORY')),
     -- 兩個方向都要擋。只擋一邊時，另一邊的髒資料會安靜地存在——「有倉的虛擬位置」會讓
     -- 「這個倉有哪些位置」多出一個不該在的答案，而那個錯誤不會有任何路徑報錯。
-    CONSTRAINT ck_stock_locations_warehouse_by_usage CHECK (
+    CONSTRAINT ck_stock_locations_facility_by_usage CHECK (
         (usage =  'INTERNAL' AND facility_id IS NOT NULL)
      OR (usage <> 'INTERNAL' AND facility_id IS NULL)
     )
 
     -- **刻意沒有 parent_id 與 parent_path。**
     --
-    -- 樹在 Odoo 的用途是儲區階層與「沿樹往上找到所屬倉」，而本系統一倉一位置，facility_id
-    -- 直接就是答案，沒有查詢會沿樹走。日後要加收貨暫存或出貨暫存區時，orders 已經指倉、
-    -- stock_pools 已經指位置，兩者都不用動，只是多幾列位置加上一個 parent_id。
+    -- 樹在 Odoo 的用途是儲區階層與「沿樹往上找到所屬倉」。本系統允許一倉多位置，但目前沒有
+    -- 父子階層；facility_id 直接就是所屬設施。日後若要沿儲區展開，再另加 parent_id。
     --
     -- **刻意沒有 active。** Odoo 建倉時把 Input／QC／Output／Packing 全建出來、靠 active
     -- 切換收發貨步數。本系統不做多步，加一個恆為 true 的欄位等於讓每個讀取端多處理一個
     -- 不會發生的狀態——與 facilities 拒絕 status 的判準相同。
 );
-
--- 一個倉最多一個 internal 位置。
---
--- WHERE 子句不可省略：虛擬位置的 facility_id 為 NULL，而 PostgreSQL 把 NULL 視為互不相同，
--- 少了它三個虛擬位置仍然建得起來——所以拿掉不會立刻壞，會在「某個倉不小心有兩個庫存位置」
--- 時才壞，而那時倉→位置的解析會從一次查表變成不定的選擇。
-CREATE UNIQUE INDEX uq_stock_locations_internal_per_warehouse
-    ON stock_locations (facility_id) WHERE usage = 'INTERNAL';
 
 -- 貨主與倉庫的多對多指派。一個貨主可以從多個倉出貨，一個倉服務多個貨主——後者是 3PL 的
 -- 定義性特徵。
@@ -212,9 +202,8 @@ CREATE TABLE orders (
     ship_to_address VARCHAR(512) NOT NULL,
     promised_delivery_date DATE NOT NULL,
     -- 這張單從哪個倉出。值由貨主的上游系統在收單時給定，系統不推導、不預設、不改。
-    -- 原名 requested_facility_id 且可空，那是選點時代的語意——「貨主提出的請求，可能被選點
-    -- 推翻」。沒有選點之後它就是這張單的倉別，因此改名並改為 NOT NULL：可空等於在型別上
-    -- 保留一個永遠不會發生的狀態，而每個讀取端都得處理它。
+    -- 沒有選點之後它就是這張單的履約設施，因此為 NOT NULL：可空等於在型別上保留一個
+    -- 永遠不會發生的狀態，而每個讀取端都得處理它。
     facility_id UUID NOT NULL,
     status VARCHAR(32) NOT NULL,
     -- 我們收到並接受這張單的時刻。由本系統寫入，呼叫端不得提供。
@@ -246,7 +235,7 @@ CREATE TABLE orders (
     --
     -- fk_orders_owner 因此在邏輯上是多餘的（owner_facilities.owner_id 已指向 owners），
     -- 保留它是為了讓「訂單有貨主」這件事獨立於倉庫指派而成立。
-    CONSTRAINT fk_orders_owner_node
+    CONSTRAINT fk_orders_owner_facility
         FOREIGN KEY (owner_id, facility_id)
         REFERENCES owner_facilities(owner_id, facility_id),
     -- 從 R5 提前。R5 真正的工作是 usecase 行為（重送時回傳既有訂單），但 constraint 只有

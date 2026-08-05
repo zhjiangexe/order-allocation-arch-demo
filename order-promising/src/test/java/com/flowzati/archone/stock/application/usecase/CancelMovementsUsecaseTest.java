@@ -5,9 +5,6 @@ import com.flowzati.archone.stock.application.movement.MovementCanceller;
 import com.flowzati.archone.common.inbox.InboxRepo;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.MessageMetadata;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,8 +17,6 @@ import static org.mockito.Mockito.when;
 
 class CancelMovementsUsecaseTest {
 
-  private final Instant now = Instant.parse("2026-07-24T01:00:00Z");
-
   private InboxRepo inboxRepo;
   private MovementCanceller movementCanceller;
   private CancelMovementsUsecase usecase;
@@ -30,8 +25,7 @@ class CancelMovementsUsecaseTest {
   void setUp() {
     inboxRepo = mock(InboxRepo.class);
     movementCanceller = mock(MovementCanceller.class);
-    usecase = new CancelMovementsUsecase(
-        inboxRepo, movementCanceller, Clock.fixed(now, ZoneId.of("UTC")));
+    usecase = new CancelMovementsUsecase(inboxRepo, movementCanceller);
   }
 
   @Test
@@ -46,7 +40,7 @@ class CancelMovementsUsecaseTest {
   }
 
   @Test
-  @DisplayName("應把取消整張委派出去，時刻用這一次交易的 now")
+  @DisplayName("應把這張單的搬運取消委派出去")
   void shouldDelegateTheWholeCancellation() {
     UUID messageId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
@@ -57,7 +51,7 @@ class CancelMovementsUsecaseTest {
     // 這支 usecase 只剩兩件事：冪等，然後把工作交出去。取消要碰哪些表、要濾掉什麼、要按什麼
     // 順序寫，全是「取消搬運」這個動作的內容——那些性質由 MovementCancellerTest 守著，
     // 在這裡重測一次只會讓同一條性質有兩個會一起壞掉的證人。
-    verify(movementCanceller).cancelFor(orderId, now);
+    verify(movementCanceller).cancelForOrder(orderId);
   }
 
   private MessageMetadata message(UUID eventId) {

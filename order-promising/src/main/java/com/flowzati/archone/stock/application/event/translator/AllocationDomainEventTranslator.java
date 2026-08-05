@@ -2,11 +2,11 @@ package com.flowzati.archone.stock.application.event.translator;
 
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.BackorderWakeRequestedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
+import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
 import com.flowzati.archone.common.IdGenerator;
 import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
 import com.flowzati.archone.common.outbox.OutboxAppender;
@@ -58,30 +58,18 @@ public class AllocationDomainEventTranslator {
     );
   }
 
-  /**
-   * 續做喚醒。
-   *
-   * <p><b>key 一律是爭用群組，不套用 {@code partition-key-strategy}</b>——與配置結果事件相反。
-   * 這則事件存在的唯一目的就是接續同一組庫存的上一輪喚醒，落到別的 partition 就會與它要接續
-   * 的那一輪並行，而 single writer 正是靠同 key 取得的。補貨探針發的原始事件也是同一個 key，
-   * 所以兩者由同一個 consumer 依序處理。
-   *
-   * <p>topic 也與補貨事件相同（{@code inventory.stock-events}），這樣「補貨」與「續做」在
-   * Kafka 層是同一條隊伍。
-   *
-   * <p>aggregate 是 {@code StockPool} 而不是 {@code Order}：續做不屬於佇列裡的任何一張單。
-   */
+  /** Receipt completion and its availability notification commit through the same Outbox. */
   @EventListener
-  public void translate(BackorderWakeContinuationRequired event) {
+  public void translate(StockAvailabilityIncreased event) {
     String contentionKey = StockContentionKey.of(event.ownerId(), event.facilityId());
     outboxAppender.append(
-        new BackorderWakeRequestedIntegrationEvent(
-            IdGenerator.nextId(), event.ownerId(), event.facilityId(), event.skuCode()),
+        new StockAvailabilityIncreasedIntegrationEvent(
+            IdGenerator.nextId(), event.ownerId(), event.facilityId(), event.locationId(),
+            event.skuCode(), event.quantity()),
         OutboxAggregateTypes.STOCK_POOL,
         contentionKey,
         new OutboxDelivery(InventoryEventTopics.STOCK_EVENTS, contentionKey),
-        event.requestedAt()
-    );
+        event.occurredAt());
   }
 
   /**

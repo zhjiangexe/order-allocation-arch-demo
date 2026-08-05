@@ -30,6 +30,7 @@ import java.util.UUID;
 public record Demand(
     UUID orderId,
     UUID ownerId,
+    UUID facilityId,
     UUID locationId,
     List<DemandLine> lines
 ) {
@@ -41,8 +42,11 @@ public record Demand(
     if (ownerId == null) {
       throw new IllegalArgumentException("Owner ID is required");
     }
+    if (facilityId == null) {
+      throw new IllegalArgumentException("Facility ID is required");
+    }
     if (locationId == null) {
-      throw new IllegalArgumentException("Fulfillment node ID is required");
+      throw new IllegalArgumentException("Location ID is required");
     }
     if (lines == null || lines.isEmpty()) {
       throw new IllegalArgumentException("Demand must contain at least one line");

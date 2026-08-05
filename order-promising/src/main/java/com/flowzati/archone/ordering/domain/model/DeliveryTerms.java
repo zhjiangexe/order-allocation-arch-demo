@@ -38,7 +38,7 @@ public record DeliveryTerms(
 
   public DeliveryTerms {
     if (facilityId == null) {
-      throw new IllegalArgumentException("Fulfillment node is required");
+      throw new IllegalArgumentException("Facility is required");
     }
     if (shipToZone == null || shipToZone.isBlank()) {
       throw new IllegalArgumentException("Ship-to zone is required");

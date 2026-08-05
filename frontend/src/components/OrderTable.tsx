@@ -17,7 +17,7 @@ interface OrderTableProps {
  *
  * <p>時間戳欄位依**生命週期順序**排列（placed → backordered → allocated → cancelled），
  * 不是照 `OrderStatusResponse` 的欄位順序。後端把 allocated 排在 backordered 前面，照抄
- * 會讓一張「下單→缺貨→補貨後配置」的訂單在畫面上讀起來像時間倒退。這幾欄是階段時間戳
+ * 會讓一張「下單→缺貨→收貨後配置」的訂單在畫面上讀起來像時間倒退。這幾欄是階段時間戳
  * 不是狀態，狀態只有 `status` 一欄——表頭加 `at` 就是為了讓這件事不需要解釋。
  */
 export function OrderTable({ orders, catalog }: OrderTableProps) {

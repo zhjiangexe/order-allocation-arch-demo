@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archone｜全流程、Use Case 與開發狀態</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5d687b;
+      --line: #cbd5e1;
+      --line-strong: #94a3b8;
+      --paper: #f7f9fc;
+      --panel: #ffffff;
+      --navy: #1e3a5f;
+      --blue: #2563a5;
+      --blue-soft: #e8f1fb;
+      --teal: #147d78;
+      --teal-soft: #e5f5f3;
+      --amber: #a76012;
+      --amber-soft: #fff3dd;
+      --rose: #a23c4a;
+      --rose-soft: #fdecef;
+      --green: #2d7a50;
+      --green-soft: #e9f6ee;
+      --violet: #6750a4;
+      --violet-soft: #f0ecfb;
+      --shadow: 0 12px 34px rgba(30, 58, 95, 0.09);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(37, 99, 165, 0.08), transparent 28rem),
+        radial-gradient(circle at 92% 8%, rgba(20, 125, 120, 0.07), transparent 25rem),
+        var(--paper);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(1480px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 52px 0 72px;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 12px; font-size: clamp(30px, 4vw, 54px); line-height: 1.12; letter-spacing: -0.035em; }
+    h2 { margin-bottom: 18px; font-size: 25px; line-height: 1.25; letter-spacing: -0.02em; }
+    h3 { margin-bottom: 8px; font-size: 16px; line-height: 1.35; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.92em; }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(360px, 0.8fr);
+      gap: 32px;
+      align-items: end;
+      margin-bottom: 34px;
+    }
+
+    .hero-copy > p {
+      max-width: 860px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .snapshot {
+      padding: 20px 22px;
+      border: 1px solid #d9e2ed;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow);
+    }
+
+    .snapshot dl {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px 20px;
+      margin: 0;
+    }
+
+    .snapshot dt { color: var(--muted); }
+    .snapshot dd { margin: 0; font-weight: 700; text-align: right; }
+
+    .notice {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 36px;
+      padding: 15px 18px;
+      border-left: 5px solid var(--amber);
+      border-radius: 8px 14px 14px 8px;
+      background: var(--amber-soft);
+    }
+
+    .notice strong { color: #734006; }
+
+    section {
+      margin-top: 28px;
+      padding: 28px;
+      border: 1px solid #dce4ee;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: baseline;
+      margin-bottom: 20px;
+    }
+
+    .section-head h2 { margin-bottom: 0; }
+    .section-head p { max-width: 720px; margin-bottom: 0; color: var(--muted); text-align: right; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+    .coverage-strip {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 16px 18px;
+      border: 1px solid #b9d8d5;
+      border-radius: 14px;
+      background: var(--teal-soft);
+    }
+
+    .coverage-strip strong { color: #0f625e; font-size: 20px; }
+    .coverage-strip span { color: var(--muted); font-size: 13px; }
+
+    .journey {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      counter-reset: phase;
+    }
+
+    .journey-stage {
+      position: relative;
+      min-height: 238px;
+      padding: 18px 16px 16px;
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--blue);
+      border-radius: 14px;
+      background: #fbfcfe;
+    }
+
+    .journey-stage::before {
+      counter-increment: phase;
+      content: "0" counter(phase);
+      display: inline-block;
+      margin-bottom: 12px;
+      color: var(--blue);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .journey-stage:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      top: 42px;
+      right: -19px;
+      width: 24px;
+      border-top: 2px solid var(--line-strong);
+    }
+
+    .journey-stage h3 { font-size: 17px; }
+    .journey-stage p { color: var(--muted); font-size: 13px; }
+    .journey-stage ul { margin: 12px 0 0; padding-left: 18px; font-size: 13px; }
+    .journey-stage li { margin: 6px 0; }
+    .journey-stage.inbound { border-top-color: var(--teal); }
+    .journey-stage.ordering { border-top-color: var(--violet); }
+    .journey-stage.result { border-top-color: var(--green); }
+    .journey-stage.cancel { border-top-color: var(--rose); }
+
+    .tag {
+      display: inline-block;
+      width: fit-content;
+      margin: 2px 4px 2px 0;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: var(--navy);
+      background: var(--blue-soft);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tag.write { color: #0f625e; background: var(--teal-soft); }
+    .tag.event { color: var(--violet); background: var(--violet-soft); }
+    .tag.gap { color: var(--rose); background: var(--rose-soft); }
+
+    .usecase-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+
+    .usecase-table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .usecase-table th,
+    .usecase-table td {
+      padding: 12px 13px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .usecase-table th { color: var(--navy); background: #f1f5f9; }
+    .usecase-table tr:last-child td { border-bottom: 0; }
+    .usecase-table td:first-child { width: 58px; color: var(--muted); font-family: "SFMono-Regular", Consolas, monospace; }
+    .usecase-table td:nth-child(2) { width: 220px; font-weight: 700; }
+    .usecase-table td:nth-child(3) { width: 180px; }
+    .usecase-table .phase-row td {
+      padding: 9px 13px;
+      color: var(--navy);
+      background: #f8fafc;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .layers {
+      display: grid;
+      gap: 10px;
+    }
+
+    .layer {
+      display: grid;
+      grid-template-columns: 165px 1fr;
+      min-height: 105px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .layer-label {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 20px;
+      color: #fff;
+      background: var(--navy);
+    }
+
+    .layer-label strong { font-size: 17px; }
+    .layer-label small { margin-top: 5px; opacity: 0.82; }
+
+    .layer-items {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .node {
+      min-width: 0;
+      padding: 14px;
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+
+    .node strong { display: block; margin-bottom: 4px; overflow-wrap: anywhere; }
+    .node span { display: block; color: var(--muted); font-size: 13px; }
+    .node.adapter { background: var(--blue-soft); }
+    .node.usecase { background: var(--teal-soft); }
+    .node.component { background: var(--violet-soft); }
+    .node.domain { background: var(--amber-soft); }
+    .node.infra { background: #eef2f7; }
+
+    .rule-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .rule {
+      padding: 14px 16px;
+      border-left: 4px solid var(--blue);
+      background: #f8fafc;
+    }
+
+    .rule strong { display: block; margin-bottom: 4px; }
+    .rule span { color: var(--muted); font-size: 13px; }
+
+    .flow-wrap {
+      overflow: hidden;
+      border-radius: 16px;
+      background: #fbfcfe;
+    }
+
+    .flow-title {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      padding: 12px 16px;
+      color: #fff;
+      background: var(--navy);
+    }
+
+    .flow-title strong:last-child { padding-left: 8px; }
+
+    .flow-lane {
+      display: grid;
+      grid-template-columns: 160px repeat(7, minmax(120px, 1fr));
+      align-items: stretch;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .flow-lane:last-child { border-bottom: 0; }
+
+    .lane-name {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 16px;
+      border-right: 1px solid var(--line);
+      background: #f1f5f9;
+    }
+
+    .lane-name strong { font-size: 15px; }
+    .lane-name span { margin-top: 4px; color: var(--muted); font-size: 12px; }
+
+    .step {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 112px;
+      margin: 11px 17px 11px 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+
+    .step:not(.end)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -18px;
+      width: 18px;
+      border-top: 2px solid var(--line-strong);
+    }
+
+    .step:not(.end)::before {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      top: calc(50% - 5px);
+      right: -18px;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      border-left: 7px solid var(--line-strong);
+    }
+
+    .step strong { margin-bottom: 5px; font-size: 13px; overflow-wrap: anywhere; }
+    .step span { color: var(--muted); font-size: 12px; }
+    .step.sync { border-color: #8bc7c3; background: var(--teal-soft); }
+    .step.event { border-color: #8eb8df; background: var(--blue-soft); }
+    .step.schedule { border-color: #c2b3e3; background: var(--violet-soft); }
+    .step.state { border-color: #e0bd84; background: var(--amber-soft); }
+    .step.outcome { border-color: #93c6a8; background: var(--green-soft); }
+    .step.missing { border-style: dashed; border-color: #d7a2aa; background: var(--rose-soft); }
+
+    .checkpoint {
+      display: inline-block;
+      width: fit-content;
+      margin-top: 7px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: var(--green);
+      background: rgba(45, 122, 80, 0.1);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .status-column {
+      border-top: 5px solid var(--line-strong);
+      padding-top: 16px;
+    }
+
+    .status-column.done { border-color: var(--green); }
+    .status-column.partial { border-color: var(--amber); }
+    .status-column.todo { border-color: var(--rose); }
+
+    .status-column h3 { font-size: 18px; }
+    .status-column ul { margin: 12px 0 0; padding-left: 20px; }
+    .status-column li { margin: 8px 0; }
+    .status-column li::marker { color: var(--line-strong); }
+    .status-column.done li::marker { color: var(--green); }
+    .status-column.partial li::marker { color: var(--amber); }
+    .status-column.todo li::marker { color: var(--rose); }
+
+    .boundary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .boundary-table th,
+    .boundary-table td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .boundary-table th { color: var(--navy); background: #f1f5f9; }
+    .boundary-table tr:last-child td { border-bottom: 0; }
+    .boundary-table td:first-child { width: 20%; font-weight: 700; }
+
+    .next-steps {
+      counter-reset: item;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .next-step {
+      position: relative;
+      min-height: 150px;
+      padding: 18px 16px 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fbfcfe;
+    }
+
+    .next-step::before {
+      counter-increment: item;
+      content: counter(item);
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--navy);
+      font-weight: 700;
+    }
+
+    .next-step p { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 28px;
+      padding: 0 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1050px) {
+      .hero { grid-template-columns: 1fr; }
+      .journey { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .journey-stage:not(:last-child)::after { display: none; }
+      .layer { grid-template-columns: 135px 1fr; }
+      .layer-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow-wrap { overflow-x: auto; }
+      .flow-title, .flow-lane { min-width: 1180px; }
+      .status-grid { grid-template-columns: 1fr; }
+      .next-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 680px) {
+      main { width: min(100% - 24px, 1480px); padding-top: 28px; }
+      section { padding: 20px 16px; }
+      .section-head { display: block; }
+      .section-head p { margin-top: 8px; text-align: left; }
+      .coverage-strip, .journey { grid-template-columns: 1fr; }
+      .layer { grid-template-columns: 1fr; }
+      .layer-label { padding: 12px 16px; }
+      .layer-items, .rule-strip, .next-steps { grid-template-columns: 1fr; }
+      footer { display: block; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; padding: 20px; }
+      section, .snapshot { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="hero-copy">
+      <div class="eyebrow">Current architecture · 2026-08-05</div>
+      <h1>Archone 全流程、Use Case 與開發狀態</h1>
+      <p>
+        本頁依操作與事件發生順序，串起主檔查詢、入庫、接單、初次配置、缺貨重配、訂單投影、查詢與取消。
+        目前程式中的 16 個 application use case 已全部納入；系統具備可運作的 order promising 與一段式 inbound，但還不是完整 WMS／3PL execution system。
+      </p>
+    </div>
+    <aside class="snapshot" aria-label="目前開發快照">
+      <dl>
+        <dt>Application use cases</dt><dd>16</dd>
+        <dt>本頁涵蓋</dt><dd>16 / 16</dd>
+        <dt>已有入口可達</dt><dd>15 / 16</dd>
+        <dt>缺少入口</dt><dd>CancelOrder</dd>
+        <dt>文件基準</dt><dd>目前 working tree</dd>
+      </dl>
+    </aside>
+  </header>
+
+  <div class="notice">
+    <div aria-hidden="true">⚠</div>
+    <div>
+      <strong>閱讀方式：</strong>
+      本文件描述目前工作樹中的實作，不代表已部署版本。流程中的實線能力已有程式入口；標示「入口缺口」者雖已有 use case 與後續事件鏈，仍無 REST／UI／上游訊息可發動。
+    </div>
+  </div>
+
+  <section aria-labelledby="journey-title">
+    <div class="section-head">
+      <h2 id="journey-title">一、端到端流程總覽</h2>
+      <p>先準備查詢條件與庫存，再接單與配置；結果回寫後可查詢，取消則走獨立補償事件鏈。</p>
+    </div>
+
+    <div class="coverage-strip">
+      <strong>16 / 16 use cases</strong>
+      <span>Catalog 5 個、Ordering 6 個、Stock 5 個。下方先按業務旅程分段，再逐項列出入口、交易責任與結果。</span>
+    </div>
+
+    <div class="journey">
+      <article class="journey-stage">
+        <h3>選擇作業範圍</h3>
+        <p>先取得貨主，再依頁面需要展開商品、SKU、Facility、內部庫位與現有庫存。</p>
+        <ul>
+          <li>5 個 Catalog query use cases</li>
+          <li>1 個 Stock query use case</li>
+          <li>純讀取，不發布事件</li>
+        </ul>
+      </article>
+      <article class="journey-stage inbound">
+        <h3>確認收貨</h3>
+        <p>在單一交易建立 inbound movement、完成批次明細並增加實體庫存。</p>
+        <ul>
+          <li><code>ConfirmStockReceiptUsecase</code></li>
+          <li>提交可用庫存增加事實</li>
+          <li>Kafka 快速喚醒等待需求</li>
+        </ul>
+      </article>
+      <article class="journey-stage ordering">
+        <h3>接單與初次配置</h3>
+        <p>訂單先落地為 PENDING，再由 Stock context 建立 outbound movement 並配置。</p>
+        <ul>
+          <li><code>PlaceOrderUsecase</code></li>
+          <li><code>AllocateOrderUsecase</code></li>
+          <li>整單 ALLOCATED 或 BACKORDERED</li>
+        </ul>
+      </article>
+      <article class="journey-stage result">
+        <h3>回寫、重配與查詢</h3>
+        <p>Ordering 接收配置結果；缺貨單在庫存增加或排程掃描時重配，畫面再主動刷新。</p>
+        <ul>
+          <li>2 個結果回寫 use cases</li>
+          <li>1 個等待需求重配 use case</li>
+          <li>2 個訂單查詢 use cases</li>
+        </ul>
+      </article>
+      <article class="journey-stage cancel">
+        <h3>取消與釋放</h3>
+        <p>取消訂單後發布事件，Stock context 取消搬運並歸還鎖定量。</p>
+        <ul>
+          <li><code>CancelOrderUsecase</code> 尚無入口</li>
+          <li><code>CancelMovementsUsecase</code> 已可消費事件</li>
+          <li>釋放後主動 wake 尚未實作</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="usecases-title">
+    <div class="section-head">
+      <h2 id="usecases-title">二、Use Case 完整盤點</h2>
+      <p>以讀者會遇到的流程順序列出全部 16 個 class；「入口缺口」不代表 use case 未實作，而是目前無法由外部發動。</p>
+    </div>
+
+    <div class="usecase-table-wrap">
+      <table class="usecase-table">
+        <thead>
+          <tr><th>順序</th><th>Use case</th><th>入口</th><th>責任與結果</th><th>型態</th></tr>
+        </thead>
+        <tbody>
+          <tr class="phase-row"><td colspan="5">A｜選擇貨主、商品與作業位置</td></tr>
+          <tr><td>01</td><td><code>ListOwnersUsecase</code></td><td><code>GET /owners</code></td><td>列出可操作貨主，作為訂單與庫存頁第一層條件。</td><td><span class="tag">Query</span></td></tr>
+          <tr><td>02</td><td><code>ListProductsUsecase</code></td><td><code>GET /owners/{ownerId}/products</code></td><td>依貨主列出商品款，供訂單 basket 選擇。</td><td><span class="tag">Query</span></td></tr>
+          <tr><td>03</td><td><code>ListSkusUsecase</code></td><td><code>GET /owners/{ownerId}/products/{productCode}/skus</code></td><td>依商品款列出可下單規格。</td><td><span class="tag">Query</span></td></tr>
+          <tr><td>04</td><td><code>ListFacilitiesForOwnerUsecase</code></td><td><code>GET /owners/{ownerId}/facilities</code></td><td>只顯示該貨主已指派的 Facility。</td><td><span class="tag">Query</span></td></tr>
+          <tr><td>05</td><td><code>ListStockLocationsUsecase</code></td><td><code>GET /facilities/{facilityId}/locations</code></td><td>列出 Facility 內可持有庫存的 internal locations。</td><td><span class="tag">Query</span></td></tr>
+          <tr><td>06</td><td><code>GetStockPoolUsecase</code></td><td><code>GET /stock-pool</code></td><td>依貨主與庫位查詢所有批次，含過期批與空庫位。</td><td><span class="tag">Query</span></td></tr>
+
+          <tr class="phase-row"><td colspan="5">B｜建立實體庫存</td></tr>
+          <tr><td>07</td><td><code>ConfirmStockReceiptUsecase</code></td><td><code>POST /stock-receipts</code></td><td>一個交易內完成 inbound picking、move、move line、StockPool 增加與 availability event。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
+
+          <tr class="phase-row"><td colspan="5">C｜接單、初次配置與結果投影</td></tr>
+          <tr><td>08</td><td><code>PlaceOrderUsecase</code></td><td><code>POST /orders</code></td><td>建立 order 與 lines，以系統接單時間排序並發布 <code>OrderPlaced</code>。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
+          <tr><td>09</td><td><code>AllocateOrderUsecase</code></td><td><code>OrderPlaced</code> Kafka</td><td>Inbox 去重、讀取 Demand、建立 outbound moves，以 FIFO／FEFO 整單配置。</td><td><span class="tag write">Command</span><span class="tag event">Consumer</span></td></tr>
+          <tr><td>10</td><td><code>RecordOrderAllocationUsecase</code></td><td><code>OrderAllocated</code> Kafka</td><td>將 Stock context 已完成的配置事實回寫為訂單 ALLOCATED。</td><td><span class="tag write">Projection</span></td></tr>
+          <tr><td>11</td><td><code>RecordOrderBackorderUsecase</code></td><td><code>BackorderCreated</code> Kafka</td><td>保留第一次缺貨時間，將尚未配置訂單回寫為 BACKORDERED。</td><td><span class="tag write">Projection</span></td></tr>
+
+          <tr class="phase-row"><td colspan="5">D｜庫存增加後重配與畫面查詢</td></tr>
+          <tr><td>12</td><td><code>AllocateWaitingDemandUsecase</code></td><td>Availability Kafka／Scheduler</td><td>按 owner、location、SKU 掃描有限批量的等待 moves，成功後再發布配置完成事實。</td><td><span class="tag write">Command</span><span class="tag event">Dual trigger</span></td></tr>
+          <tr><td>13</td><td><code>ListRecentOrdersUsecase</code></td><td><code>GET /orders</code></td><td>列出最近訂單；前端主動刷新後看見非同步配置結果。</td><td><span class="tag">Query</span></td></tr>
+          <tr><td>14</td><td><code>GetOrderUsecase</code></td><td><code>GET /orders/{orderId}</code></td><td>讀取單一訂單目前狀態、行明細與各階段時間。</td><td><span class="tag">Query</span></td></tr>
+
+          <tr class="phase-row"><td colspan="5">E｜取消與庫存釋放</td></tr>
+          <tr><td>15</td><td><code>CancelOrderUsecase</code></td><td>尚無 REST／UI／Kafka 入口</td><td>取消訂單並發布 <code>OrderCancelled</code>；domain 與 transaction 已完成，但外部目前無法觸發。</td><td><span class="tag write">Command</span><span class="tag gap">入口缺口</span></td></tr>
+          <tr><td>16</td><td><code>CancelMovementsUsecase</code></td><td><code>OrderCancelled</code> Kafka</td><td>Inbox 去重後取消該訂單的 moves，釋放已鎖定庫存。</td><td><span class="tag write">Compensation</span><span class="tag event">Consumer</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="flow-title-main">
+    <div class="section-head">
+      <h2 id="flow-title-main">三、關鍵交易與事件順序</h2>
+      <p>同步步驟在同一交易內完成；跨 context 的狀態回寫與補償只接收已提交的 integration event。</p>
+    </div>
+
+    <div class="legend" aria-label="流程圖例">
+      <span><i style="background: var(--teal-soft)"></i>同步交易</span>
+      <span><i style="background: var(--blue-soft)"></i>事件／HTTP 入口</span>
+      <span><i style="background: var(--amber-soft)"></i>Domain 狀態</span>
+      <span><i style="background: var(--violet-soft)"></i>排程</span>
+      <span><i style="background: var(--rose-soft)"></i>入口缺口</span>
+    </div>
+
+    <div class="flow-wrap" role="img" aria-label="收貨、訂單配置、缺貨重配與取消流程圖">
+      <div class="flow-title"><strong>流程</strong><strong>執行順序</strong></div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>A. 同步收貨</strong><span>先建立庫存事實</span></div>
+        <div class="step event"><strong>POST /stock-receipts</strong><span>owner／facility／location／batch</span></div>
+        <div class="step sync"><strong>ConfirmStockReceiptUsecase</strong><span>Inbox claim、驗證 location</span></div>
+        <div class="step state"><strong>recordInbound</strong><span>supplier → internal location</span></div>
+        <div class="step state"><strong>MovementCompleter</strong><span>move line + DONE</span></div>
+        <div class="step state"><strong>StockPool.receive</strong><span>增加 on-hand</span><b class="checkpoint">COMMIT</b></div>
+        <div class="step event"><strong>StockAvailabilityIncreased</strong><span>Domain Event → Outbox</span></div>
+        <div class="step end event"><strong>Kafka after commit</strong><span>快速喚醒等待需求</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>B. 新訂單</strong><span>接單與初次配置</span></div>
+        <div class="step event"><strong>POST /orders</strong><span>多品項 basket</span></div>
+        <div class="step sync"><strong>PlaceOrderUsecase</strong><span>Order + lines → PENDING</span></div>
+        <div class="step event"><strong>OrderPlaced</strong><span>Outbox → Kafka</span></div>
+        <div class="step sync"><strong>AllocateOrderUsecase</strong><span>建 moves、整單配置</span></div>
+        <div class="step outcome"><strong>完成或缺貨</strong><span>發布單一 business fact</span></div>
+        <div class="step sync"><strong>RecordOrder…Usecase</strong><span>Ordering projection</span></div>
+        <div class="step end outcome"><strong>ALLOCATED / BACKORDERED</strong><span>畫面刷新後可見</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>C. 缺貨重配</strong><span>低延遲 + 收斂</span></div>
+        <div class="step event"><strong>Availability Handler</strong><span>收貨提交後快速入口</span></div>
+        <div class="step schedule"><strong>或 Scheduler</strong><span>掃描可配置 scope 補漏</span></div>
+        <div class="step sync"><strong>AllocateWaitingDemandUsecase</strong><span>一輪一交易、批次上限</span></div>
+        <div class="step sync"><strong>MovementAssigner</strong><span>FIFO + FEFO + whole-order</span></div>
+        <div class="step outcome"><strong>OrderAllocationCompleted</strong><span>每張成功單一個事實</span></div>
+        <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>BACKORDERED → ALLOCATED</span></div>
+        <div class="step end schedule"><strong>仍有等待</strong><span>下次 Scheduler 再掃</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>D. 取消訂單</strong><span>補償路徑</span></div>
+        <div class="step missing"><strong>REST／UI 入口</strong><span>目前尚未實作</span></div>
+        <div class="step sync"><strong>CancelOrderUsecase</strong><span>Order → CANCELLED</span></div>
+        <div class="step event"><strong>OrderCancelled</strong><span>Outbox → Kafka</span></div>
+        <div class="step sync"><strong>CancelMovementsUsecase</strong><span>Inbox claim</span></div>
+        <div class="step state"><strong>MovementCanceller</strong><span>取消 moves、釋放鎖定量</span></div>
+        <div class="step missing"><strong>Availability wake</strong><span>釋放後尚未主動觸發</span></div>
+        <div class="step end schedule"><strong>Scheduler</strong><span>之後仍可掃描收斂</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="layers-title">
+    <div class="section-head">
+      <h2 id="layers-title">四、目前系統分層</h2>
+      <p>外層負責傳輸與排程，16 個 use case 擁有交易或查詢邊界，application component 重用政策，domain 保存不變式。</p>
+    </div>
+
+    <div class="legend" aria-label="分層圖例">
+      <span><i style="background: var(--blue-soft)"></i>Adapter</span>
+      <span><i style="background: var(--teal-soft)"></i>Use case</span>
+      <span><i style="background: var(--violet-soft)"></i>Reusable application policy</span>
+      <span><i style="background: var(--amber-soft)"></i>Domain model</span>
+      <span><i style="background: #eef2f7"></i>Infrastructure</span>
+    </div>
+
+    <div class="layers">
+      <div class="layer">
+        <div class="layer-label"><strong>Entrypoint</strong><small>誰發動流程</small></div>
+        <div class="layer-items">
+          <div class="node adapter"><strong>Catalog / Facility Controllers</strong><span>貨主、商品、SKU、Facility、庫位查詢</span></div>
+          <div class="node adapter"><strong>Order Controller</strong><span>下單、列表、單筆查詢；尚無取消</span></div>
+          <div class="node adapter"><strong>Stock Controllers</strong><span>庫存查詢與同步收貨</span></div>
+          <div class="node adapter"><strong>Kafka Handlers + Scheduler</strong><span>配置、投影、取消補償與 reconciliation</span></div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><strong>Application</strong><small>16 個 use cases</small></div>
+        <div class="layer-items">
+          <div class="node usecase"><strong>Catalog queries × 5</strong><span>Owner、Product、SKU、Facility、Location</span></div>
+          <div class="node usecase"><strong>Ordering × 6</strong><span>Place、Cancel、Get、List、Record Allocation／Backorder</span></div>
+          <div class="node usecase"><strong>Stock commands × 4</strong><span>Receipt、Initial Allocation、Waiting Allocation、Cancel Movements</span></div>
+          <div class="node usecase"><strong>Stock query × 1</strong><span>依 owner／location 讀取批次庫存</span></div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><strong>Components</strong><small>不擁有交易</small></div>
+        <div class="layer-items">
+          <div class="node component"><strong>StockOperationRecorder</strong><span>建立 picking 與 moves</span></div>
+          <div class="node component"><strong>MovementCompleter</strong><span>完成 inbound 與 move lines</span></div>
+          <div class="node component"><strong>MovementAssigner</strong><span>FIFO／FEFO／whole-order 配置</span></div>
+          <div class="node component"><strong>MovementCanceller</strong><span>取消搬運並釋放鎖定量</span></div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><strong>Domain</strong><small>狀態與不變式</small></div>
+        <div class="layer-items">
+          <div class="node domain"><strong>Order + OrderLine</strong><span>需求生命週期與 projection</span></div>
+          <div class="node domain"><strong>StockPicking + StockMove</strong><span>作業分組與實際搬運</span></div>
+          <div class="node domain"><strong>StockPool + MoveLine</strong><span>批次實體庫存 source of truth</span></div>
+          <div class="node domain"><strong>Demand + AllocationService</strong><span>待配需求與配置決策</span></div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><strong>Infrastructure</strong><small>持久化與訊息</small></div>
+        <div class="layer-items">
+          <div class="node infra"><strong>Repositories / JPA</strong><span>PostgreSQL persistence</span></div>
+          <div class="node infra"><strong>Inbox</strong><span>訊息 idempotency claim</span></div>
+          <div class="node infra"><strong>Outbox + Translator</strong><span>交易內記錄 business fact</span></div>
+          <div class="node infra"><strong>Kafka / Retry / DLT</strong><span>提交後傳輸與失敗處理</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-strip">
+      <div class="rule"><strong>直接 invoke</strong><span>必須共享資料庫交易的步驟，例如 record → complete → receive。</span></div>
+      <div class="rule"><strong>Integration Event</strong><span>已提交的 business fact 跨 transaction／bounded context 傳遞。</span></div>
+      <div class="rule"><strong>Scheduler</strong><span>不假設 Kafka 永遠即時成功，掃描真實等待狀態以最終收斂。</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="status-title">
+    <div class="section-head">
+      <h2 id="status-title">五、開發成熟度與缺口</h2>
+      <p>「16 個 use case 都有列到」不等於「所有倉儲能力都已完成」；目前最成熟的是接單、promising 與庫存交易邊界。</p>
+    </div>
+
+    <div class="status-grid">
+      <article class="status-column done">
+        <h3>已完成／已有測試保護</h3>
+        <ul>
+          <li>Catalog 查詢鏈可提供貨主、商品、SKU、Facility 與 internal location。</li>
+          <li>前端可查位置批次庫存、建立多品項訂單並同步確認收貨。</li>
+          <li>收貨建立 inbound picking、move、move line，再增加 StockPool。</li>
+          <li>初次配置與 backorder wake 共用 FIFO／FEFO／whole-order 語意。</li>
+          <li>配置／缺貨結果由各自的 projection use case 回寫 Ordering。</li>
+          <li>Inbox、Outbox、Kafka retry、DLT、reconciliation scheduler 與相關測試已存在。</li>
+        </ul>
+      </article>
+
+      <article class="status-column partial">
+        <h3>已有骨架，但仍是簡化版</h3>
+        <ul>
+          <li><code>CancelOrderUsecase</code> 與取消事件鏈已實作，但沒有 REST／UI／上游訊息入口。</li>
+          <li>Inbound 是直接確認完成的一段式流程，尚無 ASN、卸貨、驗收、上架 checkpoint。</li>
+          <li>Outbound 目前做到 demand、picking／moves 與配置，尚未形成完整揀貨執行鏈。</li>
+          <li>Scheduler 可收斂等待佇列，但缺少等待年齡、失敗率、每輪量等營運觀測。</li>
+          <li>庫存批以入庫日與效期識別，尚未擴充 lot／serial／container。</li>
+        </ul>
+      </article>
+
+      <article class="status-column todo">
+        <h3>尚未形成 use case 的主要能力</h3>
+        <ul>
+          <li>Outbound execution：pick、pack、stage、ship 與操作人員工作佇列。</li>
+          <li>出庫完成後正式扣減 on-hand 的 shipment posting use case。</li>
+          <li>取消釋放庫存後主動喚醒舊 backorders。</li>
+          <li>盤點、庫存調整、報廢、移庫與對帳。</li>
+          <li>多段 inbound route／putaway policy 與中繼責任位置。</li>
+          <li>完整授權、主檔維護、營運監控與 migration／rollback 策略。</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="boundary-title">
+    <div class="section-head">
+      <h2 id="boundary-title">六、交易與 Context 邊界</h2>
+      <p>切分點不是「每個方法都變 use case」，而是每個可獨立提交、重試、等待或投影的 checkpoint。</p>
+    </div>
+
+    <table class="boundary-table">
+      <thead>
+        <tr><th>邊界</th><th>現在的做法</th><th>理由</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Receipt → StockPool</td><td><code>ConfirmStockReceiptUsecase</code> 同交易 invoke recorder 與 completer。</td><td>picking、move line 與實體庫存必須一起成功或一起 rollback。</td></tr>
+        <tr><td>Receipt → Backorder</td><td>提交 <code>StockAvailabilityIncreased</code>，由 Kafka 另開交易。</td><td>收貨成立後不應因 outbound queue 失敗而撤銷。</td></tr>
+        <tr><td>Ordering → Stock</td><td><code>OrderPlaced</code> 啟動 <code>AllocateOrderUsecase</code>。</td><td>Ordering 只擁有需求；Stock 擁有配置與搬運事實。</td></tr>
+        <tr><td>Stock → Ordering</td><td>兩個 record use cases 各自消費 allocated／backordered facts。</td><td>訂單狀態是落後投影，不拿來當 Stock 的配置閘門。</td></tr>
+        <tr><td>Kafka → Scheduler</td><td>兩個 adapter 共用 <code>AllocateWaitingDemandUsecase</code>。</td><td>Kafka 提供速度，Scheduler 提供最終收斂；政策只有一份。</td></tr>
+        <tr><td>Cancel compensation</td><td>Ordering 先取消並提交事件，Stock 再取消 movements。</td><td>兩個 context 各自提交，重送由 Inbox 與 domain idempotency 吸收。</td></tr>
+        <tr><td>Use case → Components</td><td>Recorder、Assigner、Completer、Canceller 不獨立開交易。</td><td>它們是可重用 application policy，不是獨立流程 checkpoint。</td></tr>
+        <tr><td>Future Temporal</td><td>一個 Activity 包住一個完整 transactional use case。</td><td>避免把同一資料庫交易拆成多個 Activity；分支結果需能 durable replay。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-labelledby="next-title">
+    <div class="section-head">
+      <h2 id="next-title">七、建議後續實作順序</h2>
+      <p>先補目前流程真正中斷的位置，再延伸至完整倉儲 execution 與長流程 orchestration。</p>
+    </div>
+
+    <div class="next-steps">
+      <article class="next-step"><h3>接通取消入口</h3><p>替 <code>CancelOrderUsecase</code> 增加 REST／UI 或明確上游訊息入口，補上 16 個 use case 中唯一不可達的一個。</p></article>
+      <article class="next-step"><h3>補釋放後 wake</h3><p>取消 movements 歸還可用量後發布 availability fact，讓較舊 backorders 不必只等排程。</p></article>
+      <article class="next-step"><h3>完成 outbound execution</h3><p>從 ASSIGNED move 往下建立 pick／pack／stage／ship checkpoint，並定義正式扣減 on-hand 的 use case。</p></article>
+      <article class="next-step"><h3>擴充庫存與長流程</h3><p>依序加入移庫、盤點、調整、報廢與多段 inbound；出現跨 checkpoint 等待後再評估 Temporal。</p></article>
+    </div>
+  </section>
+
+  <footer>
+    <span>依據：目前 workspace 的 16 個 <code>*Usecase.java</code>、REST／Kafka／Scheduler entrypoints 與 OpenSpec。</span>
+    <span>狀態日期：2026-08-05（Asia/Taipei）</span>
+  </footer>
+</main>
+</body>
+</html>

@@ -5,10 +5,11 @@ import type {
   OwnerView,
   PlaceOrderCommand,
   ProductView,
-  ReplenishCommand,
-  ReplenishmentAccepted,
+  ConfirmStockReceiptRequest,
+  StockReceiptConfirmed,
   SkuView,
   StockPoolView,
+  StockLocationView,
 } from './types';
 
 /**
@@ -66,6 +67,12 @@ export function listFacilities(ownerId: string): Promise<FacilityView[]> {
   return request<FacilityView[]>(`/owners/${encodeURIComponent(ownerId)}/facilities`);
 }
 
+export function listStockLocations(facilityId: string): Promise<StockLocationView[]> {
+  return request<StockLocationView[]>(
+    `/facilities/${encodeURIComponent(facilityId)}/locations`,
+  );
+}
+
 export function listSkus(ownerId: string, productCode: string): Promise<SkuView[]> {
   return request<SkuView[]>(
     `/owners/${encodeURIComponent(ownerId)}/products/${encodeURIComponent(productCode)}/skus`,
@@ -81,14 +88,14 @@ export function listSkus(ownerId: string, productCode: string): Promise<SkuView[
  *
  * 這個倉什麼都沒放時回 200 與空清單，不是 404。
  */
-export function getStockInWarehouse(ownerId: string, facilityId: string): Promise<StockPoolView> {
+export function getStockInLocation(ownerId: string, locationId: string): Promise<StockPoolView> {
   return request<StockPoolView>(
-    `/stock-pool?ownerId=${encodeURIComponent(ownerId)}&facilityId=${encodeURIComponent(facilityId)}`,
+    `/stock-pool?ownerId=${encodeURIComponent(ownerId)}&locationId=${encodeURIComponent(locationId)}`,
   );
 }
 
-export function replenish(command: ReplenishCommand): Promise<ReplenishmentAccepted> {
-  return request<ReplenishmentAccepted>('/demo/replenish', {
+export function confirmStockReceipt(command: ConfirmStockReceiptRequest): Promise<StockReceiptConfirmed> {
+  return request<StockReceiptConfirmed>('/stock-receipts', {
     method: 'POST',
     body: JSON.stringify(command),
   });

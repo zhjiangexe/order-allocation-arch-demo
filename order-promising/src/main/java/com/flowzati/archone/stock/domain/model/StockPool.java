@@ -7,20 +7,20 @@ import java.util.UUID;
  * 一批貨——**不是一個 SKU 的池**。
  *
  * <p>類別名與表名都還叫 pool，但它承載的東西已經改變：從「該 SKU 的可用量」變成「某貨主在
- * 某倉、某日到貨、某效期的那一批」。名字與內容不符是刻意保留的（改名的取捨見
+ * 某庫位、某日到貨、某效期的那一批」。名字與內容不符是刻意保留的（改名的取捨見
  * {@code docs/dom-order-intake-scope.md} 的「為何不改名為 stock_batches」），因此這裡必須寫
  * 下來——否則下一個人會照名字理解，然後假設一個 SKU 只有一個實例。
  *
- * <p>身分是五個維度的組合：貨主、倉、SKU、入庫日、效期。少任何一個都會讓不可互換的貨被
- * 合併——兩個貨主的同碼 SKU 不可互相調用、不同倉的貨出不了同一張單、不同效期的貨可出貨期限
+ * <p>身分是五個維度的組合：貨主、庫位、SKU、入庫日、效期。少任何一個都會讓不可互換的貨被
+ * 合併——兩個貨主的同碼 SKU 不可互相調用、不同庫位的貨不是同一批、不同效期的貨可出貨期限
  * 不同。入庫日在身分裡而不只是屬性，是為了讓補貨要嘛完全命中一列、要嘛新開一列，因此
  * 沒有合併規則要定義，也就沒有規則會定錯。
  *
  * <p>可承諾量（ATP）是算出來的，不儲存——存了就是第二個真相來源，而它遲早會與第一個不合。
  *
- * <p><b>但在手量與預留量是物化的，不是 {@code SUM(moves)}。</b>引入異動之後仍然如此：一列
- * 庫存是被異動寫出來的餘額，不是它們的檢視。這一點必須寫在這裡，因為「餘額由異動推導」是
- * 下一步最自然的誤讀——而守著這個餘額的樂觀鎖正是補貨與喚醒序列化的機制，見
+   * <p><b>但在手量與預留量是物化的，不是 {@code SUM(moves)}。</b>一列庫存是外部 Inventory/WMS
+   * 事實與本地預留共同維護的餘額，不是搬運的檢視。這一點必須寫在這裡，因為「餘額由異動推導」是
+   * 下一步最自然的誤讀——而守著這個餘額的樂觀鎖正是可用量增加與喚醒序列化的機制，見
  * {@code docs/dom-promising-scope.md} 的「決定二」。Odoo 的 {@code stock.quant} 也是物化餘額。
  */
 public class StockPool {
@@ -50,7 +50,7 @@ public class StockPool {
       throw new IllegalArgumentException("Owner ID is required");
     }
     if (locationId == null) {
-      throw new IllegalArgumentException("Fulfillment node ID is required");
+      throw new IllegalArgumentException("Location ID is required");
     }
     if (skuCode == null || skuCode.isBlank()) {
       throw new IllegalArgumentException("SKU code is required");
@@ -124,8 +124,7 @@ public class StockPool {
    * 兩者分開，庫存才能同時回答「還能承諾多少」與「實際還有多少」。
    *
    * <p><b>至今沒有任何生產者</b>——出貨屬 R7。它沒有跟著 {@link #receive} 改成收明細，是因為
-   * 它的憑證應該是**出貨**的明細，而那一半還沒有呼叫端：同一個型別上一半有憑證、一半沒有，
-   * 比兩邊都還沒改更難讀。R7 接上時兩者一起收斂。
+   * 它的憑證應該是**出貨**的明細，而那一半還沒有呼叫端。
    */
   public void consume(int quantity) {
     requirePositive(quantity, "Quantity to consume must be positive");
@@ -137,24 +136,17 @@ public class StockPool {
   }
 
   /**
-   * 收下一條搬運明細帶進來的貨。
+   * 由已完成 inbound movement 的明細增加實體在手量。
    *
-   * <p><b>參數是明細而不是數量，這是刻意的。</b>「在庫量只能由搬運改」因此是型別上的事實，
-   * 不是架構測試事後才抓得到的約定——沒有明細就叫不動這個方法，而明細只有完成搬運那一步會
-   * 建。曾經的 {@code replenish(int)} 讓任何拿得到 repository 的程式都能改庫存，而改錯了
-   * 不會留下痕跡。
-   *
-   * <p>取自 Odoo 19：{@code stock.move.line._action_done()} 的註解自己寫著「It'll actually
-   * move a quant」——動庫存的是明細，搬運那一層只負責篩選與轉狀態。
-   *
-   * <p>明細指向別的庫存列時拒絕。那是呼叫端配錯了，而配錯的後果是貨記在別人的批上——
-   * 效期與入庫日全錯，而數量對得起來，所以不會有任何約束擋下它。
+   * <p>不接受裸數字，讓每次實體增加都能回溯到 move line、move 與 picking。明細是否真的屬於
+   * incoming move 由完成搬運的 application component 驗證；aggregate 負責數量安全。
    */
   public void receive(StockMoveLine line) {
-    if (!line.stockPoolId().equals(id)) {
-      throw new IllegalArgumentException(
-          "Move line " + line.id() + " applies to stock pool " + line.stockPoolId()
-              + ", not " + id);
+    if (line == null) {
+      throw new IllegalArgumentException("Stock move line is required");
+    }
+    if (!id.equals(line.stockPoolId())) {
+      throw new IllegalArgumentException("Move line belongs to another stock pool");
     }
     try {
       onHandQuantity = Math.addExact(onHandQuantity, line.quantity());

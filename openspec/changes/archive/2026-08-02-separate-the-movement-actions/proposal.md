@@ -28,7 +28,7 @@
 
 | 元件 | Odoo | 做什麼 |
 | --- | --- | --- |
-| `MovementRecorder` | `_action_confirm` | 位置 → 倉 → 作業類型 → 建單據 → 建 `CONFIRMED` 搬運 |
+| `StockOperationRecorder` | `_action_confirm` | 位置 → 倉 → 作業類型 → 建單據 → 建 `CONFIRMED` 搬運 |
 | `MovementAssigner` | `_action_assign` | 取批 → `AllocationService` → 轉 `ASSIGNED`、寫明細 → 寫入 → 發事件 |
 | `MovementCanceller` | `_action_cancel` | 找單據 → 濾掉已完成 → 還量 → 取消 → 刪明細 |
 

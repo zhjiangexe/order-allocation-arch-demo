@@ -19,22 +19,23 @@ import org.springframework.stereotype.Component;
 /**
  * 搬運的第一個動作：**建立**（Odoo 的 {@code stock.move._action_confirm}）。
  *
- * <p><b>它不配貨。</b>這一點是這個型別存在的全部理由——入庫要做的是同一件事（解析作業類型、
- * 建單據、建搬運），但它沒有 {@code Demand}、沒有 ATP 判斷、沒有整籃檢查。建立若內聯在配貨的
- * usecase 裡，入庫只剩兩條路：複製一份，或把入庫硬塞進一支名為「配貨」的 usecase。
+ * <p><b>它不配貨。</b>建立 outbound work 與從庫存批中配貨是兩個動作；這個元件只負責
+ * 為訂單建立一張 picking 與它的 moves。
  *
- * <p>下一個 change 的入庫會在這裡加 {@code recordInbound}——**兩個方法而不是一個帶方向參數
- * 的**，因為兩邊的輸入本來就不同型。
+ * <p><b>picking 是這兩條作業流程的必要分組，不是 {@link StockMove} 型別的全域
+ * 不變式。</b>{@code recordOutbound} 每張訂單建一張獨立 picking，該單全部 move 共用。
+ * 但通用 move 仍可沒有 picking，
+ * 例如未來的盤點調整。因此不需要一個強制所有 move 都造 picking 的 Factory。
  */
 @Component
-public class MovementRecorder {
+public class StockOperationRecorder {
 
   private final StockLocationRepository stockLocationRepository;
   private final PickingTypeRepository pickingTypeRepository;
   private final StockPickingRepository stockPickingRepository;
   private final StockMoveRepository stockMoveRepository;
 
-  public MovementRecorder(
+  public StockOperationRecorder(
       StockLocationRepository stockLocationRepository,
       PickingTypeRepository pickingTypeRepository,
       StockPickingRepository stockPickingRepository,
@@ -48,20 +49,21 @@ public class MovementRecorder {
   /**
    * 為這張需求建一張出庫作業單與每一條行的搬運，狀態是「還在等貨」。
    *
-   * <p>起訖取自作業類型的預設值：庫存位置 → 客戶。作業類型以倉為鍵（Odoo 也是），而這裡手上
-   * 只有位置，所以先反查它的倉。
+   * <p>起訖取自作業類型的預設值：庫存位置 → 客戶。作業類型以 Facility 為鍵，並確認
+   * 需求指定的庫存位置屬於同一個 Facility。
    *
-   * <p>倉沒有設出庫類型時**拋錯而不是靜默略過**：那張單無處可去，而「收下卻不記」會讓需求
+   * <p>Facility 沒有設出庫類型時**拋錯而不是靜默略過**：那張單無處可去，而「收下卻不記」會讓需求
    * 消失得無聲無息——它不會出現在任何佇列裡，因為佇列讀的是搬運。
    *
    * <p><b>回傳建好的搬運</b>，而不是 void 或單據 id：呼叫端接著要把它們交給鎖定那一步，回傳
    * 讓那一步不必用 {@code order_line_id} 把同一批列再讀一次。
    */
   public List<StockMove> recordOutbound(Demand demand, Instant now) {
-    PickingType type = operationTypeFor(demand.locationId(), PickingDirection.OUTBOUND);
+    PickingType type = operationTypeFor(
+        demand.facilityId(), demand.locationId(), PickingDirection.OUTBOUND);
 
     UUID pickingId = IdGenerator.nextId();
-    stockPickingRepository.save(new StockPicking(
+    stockPickingRepository.save(StockPicking.confirmed(
         pickingId,
         type.id(),
         demand.ownerId(),
@@ -87,28 +89,31 @@ public class MovementRecorder {
   }
 
   /**
-   * 為到貨建一張入庫作業單與一段搬運：供應商 → 該倉的庫存位置。
+   * 為一段式收貨建立一張入庫 picking 與一段搬運：供應商位置 → 呼叫者選定的內部位置。
    *
-   * <p><b>單據不帶訂單，搬運不帶訂單行。</b>沒有任何東西是透過這個系統訂的——貨是貨主的，
-   * 依貨主自己的安排到達。這正是那兩個欄位可空的理由，而在此之前它們從來沒有真的空過。
-   *
-   * <p><b>它不查可承諾量、不預留、不做整籃判斷。</b>那些屬於滿足需求，而這裡沒有需求被滿足。
-   * 這個方法與 {@link #recordOutbound} 分開的理由就在這一句。
-   *
-   * <p>與出庫同一個判準：倉沒有設入庫作業類型時拋錯，而不是靜默少建一張單。
+   * <p>picking 不帶 order、move 不帶 order line，因為這是 stock context 的收貨作業，不是
+   * outbound order demand。作業類型提供預設來源；目的地使用 {@code locationId}，不可被
+   * {@link PickingType#defaultToLocationId()} 覆蓋。這一步只記錄待完成的 warehouse execution，
+   * 不直接改庫存。
    */
   public List<StockMove> recordInbound(
-      UUID ownerId, UUID locationId, String skuCode, int quantity, Instant now) {
-    PickingType type = operationTypeFor(locationId, PickingDirection.INBOUND);
+      UUID facilityId,
+      UUID ownerId,
+      UUID locationId,
+      String skuCode,
+      int quantity,
+      Instant now
+  ) {
+    PickingType type = operationTypeFor(facilityId, locationId, PickingDirection.INBOUND);
 
     UUID pickingId = IdGenerator.nextId();
-    stockPickingRepository.save(new StockPicking(
+    stockPickingRepository.save(StockPicking.confirmed(
         pickingId,
         type.id(),
         ownerId,
         null,
         type.defaultFromLocationId(),
-        type.defaultToLocationId()));
+        locationId));
 
     return stockMoveRepository.saveAll(List.of(StockMove.confirmed(
         IdGenerator.nextId(),
@@ -116,25 +121,32 @@ public class MovementRecorder {
         ownerId,
         skuCode,
         type.defaultFromLocationId(),
-        type.defaultToLocationId(),
+        locationId,
         null,
         quantity,
         now)));
   }
 
   /**
-   * 位置 → 倉 → 該方向的作業類型。
+   * 位置 → Facility → 該方向的作業類型。
    *
-   * <p>作業類型以倉為鍵（Odoo 也是），而兩個入口手上都只有位置。
+   * <p>入口同時傳入 Facility 與實際操作位置：先確認位置存在且屬於該
+   * Facility，再以 Facility 與方向解析作業類型。這避免需求的位置與作業類型來自
+   * 不同 Facility，卻仍建出一張起點錯誤的搬運。
    */
-  private PickingType operationTypeFor(UUID locationId, PickingDirection direction) {
-    UUID facilityId = stockLocationRepository.findById(locationId)
-        .map(StockLocation::getFacilityId)
+  private PickingType operationTypeFor(
+      UUID facilityId, UUID locationId, PickingDirection direction) {
+    StockLocation location = stockLocationRepository.findById(locationId)
         .orElseThrow(() -> new IllegalStateException(
-            "Location " + locationId + " no longer exists"));
+            "Stock location " + locationId + " no longer exists"));
+    if (!facilityId.equals(location.getFacilityId())) {
+      throw new IllegalArgumentException(
+          "Stock location " + locationId + " does not belong to facility " + facilityId);
+    }
+
     return pickingTypeRepository.find(facilityId, direction)
         .orElseThrow(() -> new IllegalStateException(
-            "Warehouse " + facilityId + " has no " + direction.name().toLowerCase()
+            "Facility " + facilityId + " has no " + direction.name().toLowerCase()
                 + " operation type"));
   }
 }

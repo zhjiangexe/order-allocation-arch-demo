@@ -17,9 +17,6 @@ import java.util.UUID;
  * 是為想像中的下游設計。哪天真的出現了再加:**加欄位對消費端是非破壞性的,砍欄位不是**,所以
  * 起點該是最小。
  *
- * <p>例外是**來自系統外部**的事件（{@code StockReplenishedIntegrationEvent}）:那裡沒有本地
- * 聚合根可讀,事實只存在於訊息裡,所以必須帶。
- *
  * <p>partition key 需要貨主、倉與 SKU,但那是**傳遞決策**,寫在 outbox 的 {@code partition_key}
  * 欄位而不是 payload（見 {@code outbox-event-delivery} 規格:分區策略不得影響 payload content）。
  * translator 從**領域**事件取那些值,領域事件是 in-process 的,帶著它們沒有契約成本。

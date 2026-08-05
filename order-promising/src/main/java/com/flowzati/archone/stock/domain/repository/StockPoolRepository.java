@@ -1,15 +1,21 @@
 package com.flowzati.archone.stock.domain.repository;
 
+import com.flowzati.archone.stock.domain.model.AllocatableBatches;
 import com.flowzati.archone.stock.domain.model.StockPool;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface StockPoolRepository {
 
   Optional<StockPool> findById(UUID id);
+
+  /** 一次取得指定批次；回傳結果不保證順序，且不存在的識別碼不會出現在結果中。 */
+  List<StockPool> findByIds(Collection<UUID> ids);
 
   /**
    * 配貨拿得到的那一組批：屬於這個貨主、這個倉、這個 SKU，**今天沒過期且還有量**，依 FEFO
@@ -36,8 +42,8 @@ public interface StockPoolRepository {
    * <p>回傳的鍵集合**恰好等於** {@code skuCodes}：一批都沒有的 SKU 對應空清單，而不是缺鍵。
    * 兩者意義不同——空清單是普通的缺貨，缺鍵會讓配貨誤判成「呼叫端組錯了輸入」。
    */
-  java.util.Map<String, List<StockPool>> findAllocatableBatchesBySku(
-      UUID ownerId, UUID locationId, java.util.Collection<String> skuCodes, LocalDate today);
+  AllocatableBatches findAllocatableBatchesBySku(
+      UUID ownerId, UUID locationId, Collection<String> skuCodes, LocalDate today);
 
   /**
    * 某貨主在某倉手上的**全部**批，依 SKU 分組，每組內是 FEFO 順序。
@@ -54,7 +60,7 @@ public interface StockPoolRepository {
    * <p>一批都沒有時回空 map，不是例外。「這個倉什麼都沒放」是正常答案，而且那正是新倉上線
    * 時的狀態。
    */
-  java.util.Map<String, List<StockPool>> findBatchesInLocation(UUID ownerId, UUID locationId);
+  Map<String, List<StockPool>> findBatchesInLocation(UUID ownerId, UUID locationId);
 
   /**
    * 依五個身分維度取那一列。

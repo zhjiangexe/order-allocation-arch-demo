@@ -44,7 +44,7 @@ CREATE TABLE stock_pools (
     -- 位置而不是倉。倉當不了搬運的端點——供應商與客戶不是本系統經營的倉，卻必須是移動的
     -- 合法另一端，否則入庫與出庫表達不出來。見 stock_locations 的檔頭。
     --
-    -- 一倉一個內部位置時，按倉查與按位置查取到的是同一批貨，因此這一步不改變任何配貨行為。
+    -- 初次導入位置模型時一倉只有一個內部位置；現在允許多個，因此查詢與命令必須明確帶位置。
     location_id UUID NOT NULL,
     sku_code VARCHAR(64) NOT NULL,
     in_date DATE NOT NULL,

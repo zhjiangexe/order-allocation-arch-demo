@@ -5,7 +5,7 @@ import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
-import com.flowzati.archone.stock.application.command.ReplenishStockCommand;
+import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.common.inbox.InboundCommand;
 import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
@@ -51,7 +51,7 @@ class InboundCommandTransactionIntegrationTest {
   private CancelMovementsUsecase releaseReservationUsecase;
 
   @Autowired
-  private ReplenishmentUsecase replenishmentUsecase;
+  private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -97,6 +97,9 @@ class InboundCommandTransactionIntegrationTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     // 一張作業單、一段已鎖定的搬運、一條明細——三者要在同一次 commit 裡一起出現。
     assertThat(count("stock_pickings")).isEqualTo(1);
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT state FROM stock_pickings WHERE order_id = ?", String.class, orderId))
+        .isEqualTo("ASSIGNED");
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
     assertThat(MovementFixtures.heldBy(jdbcTemplate, orderId)).hasSize(1);
     assertThat(outboxRepository.count()).isEqualTo(1);
@@ -171,8 +174,52 @@ class InboundCommandTransactionIntegrationTest {
   }
 
   @Test
-  @DisplayName("補貨配置失敗時應回滾 Inbox、庫存與搬運")
-  void shouldRollBackInboxClaimWhenReplenishmentAllocationFails() {
+  @DisplayName("收貨 movement、庫存與 availability Outbox 先提交，配貨在後續交易完成")
+  void shouldCommitReceiptBeforeTheAvailabilityTriggeredAllocation() {
+    UUID orderId = IdGenerator.nextId();
+    UUID stockPoolId = UUID.randomUUID();
+    UUID eventId = UUID.randomUUID();
+    Instant receivedAt = Instant.now().minusSeconds(60);
+    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate,
+        OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 0, 0));
+
+    confirmStockReceiptUsecase.handle(new InboundCommand<>(
+        new ConfirmStockReceiptCommand(
+            OrderFixtures.OWNER_ID,
+            OrderFixtures.FACILITY_ID,
+            OrderFixtures.LOCATION_ID,
+            "SKU-1",
+            StockFixtures.ARRIVED_ON,
+            StockFixtures.EXPIRES_ON,
+            3),
+        new MessageMetadata(eventId, "ConfirmStockReceiptRequest")));
+
+    assertThat(inboxRepository.findById(eventId)).isPresent();
+    assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
+      assertThat(pool.getOnHandQuantity()).isEqualTo(3);
+      assertThat(pool.getReservedQuantity()).isZero();
+    });
+    assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId))
+        .containsExactly("CONFIRMED");
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM stock_moves WHERE order_line_id IS NULL AND state = 'DONE'",
+        Integer.class)).isEqualTo(1);
+    assertThat(outboxRepository.count()).isEqualTo(1);
+
+    inventoryDrain().drain();
+    assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
+        assertThat(pool.getReservedQuantity()).isEqualTo(3));
+    assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId))
+        .containsExactly("ASSIGNED");
+    outcomeDrain().drain();
+    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
+  }
+
+  @Test
+  @DisplayName("收貨提交後配貨失敗，不得回滾已完成的 inbound execution 與庫存")
+  void shouldKeepTheCommittedReceiptWhenLaterAllocationFails() {
     UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
@@ -182,10 +229,9 @@ class InboundCommandTransactionIntegrationTest {
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 0, 0));
 
     // 失敗來源：`uq_stock_move_lines_move_pool`。先替這張單那段還在等貨的搬運塞一條指向同一
-    // 批的明細，補貨喚醒配到貨、要寫明細時就會撞上。
+    // 批的明細，可用量增加後喚醒配到貨、要寫明細時就會撞上。
     //
-    // **這條路在上一支測試已經走不通了**（那裡的搬運是當場建的，id 事先不存在）；補貨這裡
-    // 還在，正是因為搬運早在收單時就建好了。
+    // 這裡撞的是早在收單時就建好的 outbound move，不是 availability 路徑新建的搬運。
     jdbcTemplate.update("""
         INSERT INTO stock_move_lines (id, move_id, stock_pool_id, quantity)
         SELECT ?, m.id, ?, 3
@@ -194,19 +240,22 @@ class InboundCommandTransactionIntegrationTest {
          WHERE p.order_id = ?
         """, IdGenerator.nextId(), stockPoolId, queued.getId());
 
-    assertThatThrownBy(() -> replenishmentUsecase.handle(new InboundCommand<>(
-        new ReplenishStockCommand(
+    confirmStockReceiptUsecase.handle(new InboundCommand<>(
+        new ConfirmStockReceiptCommand(
             OrderFixtures.OWNER_ID,
             OrderFixtures.FACILITY_ID,
-            OrderFixtures.LOCATION_ID, "SKU-1",
+            OrderFixtures.LOCATION_ID,
+            "SKU-1",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3),
-        new MessageMetadata(eventId, "StockReplenishedIntegrationEvent"))))
+        new MessageMetadata(eventId, "ConfirmStockReceiptRequest")));
+
+    assertThatThrownBy(() -> inventoryDrain().drain())
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
-    assertThat(inboxRepository.findById(eventId)).isEmpty();
-    // 補進去的 3 件也要回滾——庫存的加法與喚醒在同一個交易裡，那正是 FIFO 的實作機制。
+    assertThat(inboxRepository.findById(eventId)).isPresent();
+    // 收貨是已完成的獨立 checkpoint；後續 outbound 配貨失敗不能撤銷實際到貨。
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
-      assertThat(pool.getOnHandQuantity()).isZero();
+      assertThat(pool.getOnHandQuantity()).isEqualTo(3);
       assertThat(pool.getReservedQuantity()).isZero();
     });
     outcomeDrain().drain();
@@ -214,6 +263,11 @@ class InboundCommandTransactionIntegrationTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
     // 搬運仍在等貨——它沒有被那次失敗的喚醒轉成已鎖定。
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("CONFIRMED");
+    // inbound execution 與 availability Outbox 保留，讓事件重試或 scheduler 日後收斂。
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM stock_moves WHERE order_line_id IS NULL AND state = 'DONE'",
+        Integer.class)).isEqualTo(1);
+    assertThat(outboxRepository.count()).isEqualTo(1);
   }
 
   private InboundCommand<AllocateOrderCommand> inbound(UUID orderId, UUID eventId) {
@@ -234,5 +288,9 @@ class InboundCommandTransactionIntegrationTest {
    */
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
     return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+  }
+
+  private com.flowzati.archone.testsupport.InventoryEventDrain inventoryDrain() {
+    return new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher);
   }
 }

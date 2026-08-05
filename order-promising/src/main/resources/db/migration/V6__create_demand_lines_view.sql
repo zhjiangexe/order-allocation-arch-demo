@@ -16,6 +16,7 @@ CREATE VIEW demand_lines AS
 SELECT ol.order_id,
        ol.id       AS order_line_id,
        ol.owner_id,
+       o.facility_id,
        sl.id       AS location_id,
        ol.sku_code,
        ol.quantity

@@ -127,7 +127,7 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label} htmlFor={facilityId}>出貨倉</label>
+        <label className={styles.label} htmlFor={facilityId}>履約設施</label>
         <select
           id={facilityId}
           className={styles.input}
@@ -285,7 +285,7 @@ function validate(
     return '請選擇貨主';
   }
   if (facilityId === '') {
-    return '請選擇出貨倉';
+    return '請選擇履約設施';
   }
   if (externalOrderNo.trim() === '') {
     return '上游單號不可為空';

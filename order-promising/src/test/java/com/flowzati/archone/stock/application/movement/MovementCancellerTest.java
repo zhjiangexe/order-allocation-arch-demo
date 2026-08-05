@@ -1,6 +1,7 @@
 package com.flowzati.archone.stock.application.movement;
 
 import com.flowzati.archone.stock.domain.model.MoveState;
+import com.flowzati.archone.stock.domain.model.PickingState;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
@@ -16,7 +17,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,7 +69,7 @@ class MovementCancellerTest {
         new StockMoveLine(IdGenerator.nextId(), move.getId(), far.getId(), 20));
     givenBatches(near, far);
 
-    boolean released = canceller.cancelFor(orderId, now);
+    boolean released = canceller.cancelForOrder(orderId);
 
     // 只放第一條的話，遠效期那 20 件會永遠鎖著，而且不會有任何錯誤浮現。
     assertThat(released).isTrue();
@@ -84,6 +84,8 @@ class MovementCancellerTest {
     assertThat(move.getAssignedAt()).isNull();
     verify(stockMoveRepository).deleteLinesOf(List.of(move.getId()));
     assertThat(savedMoves()).containsExactly(move);
+    assertThat(picking.state()).isEqualTo(PickingState.CANCELLED);
+    verify(stockPickingRepository).save(picking);
   }
 
   @Test
@@ -102,11 +104,30 @@ class MovementCancellerTest {
         new StockMoveLine(IdGenerator.nextId(), move.getId(), near.getId(), 60));
     givenBatches(near, far);
 
-    canceller.cancelFor(orderId, now);
+    canceller.cancelForOrder(orderId);
 
     ArgumentCaptor<StockPool> captor = ArgumentCaptor.forClass(StockPool.class);
     verify(stockPoolRepository, org.mockito.Mockito.times(2)).save(captor.capture());
     assertThat(captor.getAllValues()).containsExactly(near, far);
+  }
+
+  @Test
+  @DisplayName("多條明細釋放同一批時只應讀取一次庫存")
+  void shouldLoadEachReleasedBatchOnlyOnce() {
+    UUID orderId = IdGenerator.nextId();
+    StockPicking picking = givenAPicking(orderId);
+    StockMove move = MovementFixtures.assignedMove(
+        picking.id(), "SKU-1", IdGenerator.nextId(), 30, createdAt);
+    StockPool batch = StockFixtures.unexpiredBatch("SKU-1", 60, 30);
+    givenMovesWithLines(picking, List.of(move),
+        new StockMoveLine(IdGenerator.nextId(), move.getId(), batch.getId(), 20),
+        new StockMoveLine(IdGenerator.nextId(), move.getId(), batch.getId(), 10));
+    givenBatches(batch);
+
+    canceller.cancelForOrder(orderId);
+
+    verify(stockPoolRepository).findByIds(List.of(batch.getId()));
+    assertThat(batch.getReservedQuantity()).isZero();
   }
 
   @Test
@@ -115,7 +136,7 @@ class MovementCancellerTest {
     UUID orderId = IdGenerator.nextId();
     when(stockPickingRepository.findByOrderId(orderId)).thenReturn(List.of());
 
-    assertThat(canceller.cancelFor(orderId, now)).isFalse();
+    assertThat(canceller.cancelForOrder(orderId)).isFalse();
     verifyNoInteractions(stockMoveRepository, stockPoolRepository);
   }
 
@@ -130,12 +151,12 @@ class MovementCancellerTest {
     givenMovesWithLines(picking, List.of(move),
         new StockMoveLine(IdGenerator.nextId(), move.getId(), batch.getId(), 3));
     givenBatches(batch);
-    canceller.cancelFor(orderId, now);
+    canceller.cancelForOrder(orderId);
 
     // 第二次沒有明細可放——它們在第一次就被刪掉了，這正是「釋放是刪除」在重送下的樣子。
     when(stockMoveRepository.findLinesOf(any())).thenReturn(List.of());
 
-    assertThat(canceller.cancelFor(orderId, now.plusSeconds(1))).isFalse();
+    assertThat(canceller.cancelForOrder(orderId)).isFalse();
     assertThat(batch.getReservedQuantity()).isZero();
   }
 
@@ -149,9 +170,35 @@ class MovementCancellerTest {
 
     // 取消一張已出貨的單是另一個問題（離倉後不得取消，R7）；這裡的責任只是不去碰它——
     // 把已離庫的量還回可用，庫存就會憑空多出一批賣得掉卻不存在的貨。
-    assertThat(canceller.cancelFor(orderId, now)).isFalse();
+    assertThat(canceller.cancelForOrder(orderId)).isFalse();
     verifyNoInteractions(stockPoolRepository);
     verify(stockMoveRepository, never()).saveAll(any());
+  }
+
+  @Test
+  @DisplayName("部分搬運已出貨時只取消未出貨搬運，且不得取消整張 picking")
+  void shouldKeepPickingOpenWhenItContainsADoneMovement() {
+    UUID orderId = IdGenerator.nextId();
+    StockPicking picking = givenAPicking(orderId);
+    StockMove departed = doneMove(picking.id());
+    StockMove assigned = MovementFixtures.assignedMove(
+        picking.id(), "SKU-2", IdGenerator.nextId(), 3, createdAt);
+    StockPool batch = StockFixtures.unexpiredBatch("SKU-2", 10, 3);
+    StockMoveLine line =
+        new StockMoveLine(IdGenerator.nextId(), assigned.getId(), batch.getId(), 3);
+    when(stockMoveRepository.findByPickingIds(List.of(picking.id())))
+        .thenReturn(List.of(departed, assigned));
+    when(stockMoveRepository.findLinesOf(List.of(assigned.getId())))
+        .thenReturn(List.of(line));
+    givenBatches(batch);
+
+    assertThat(canceller.cancelForOrder(orderId)).isTrue();
+
+    assertThat(departed.getState()).isEqualTo(MoveState.DONE);
+    assertThat(assigned.getState()).isEqualTo(MoveState.CANCELLED);
+    assertThat(batch.getReservedQuantity()).isZero();
+    assertThat(picking.state()).isEqualTo(PickingState.ASSIGNED);
+    verify(stockPickingRepository, never()).save(picking);
   }
 
   @Test
@@ -166,7 +213,7 @@ class MovementCancellerTest {
         new StockMoveLine(IdGenerator.nextId(), move.getId(), batch.getId(), 3));
     givenBatches(batch);
 
-    assertThatThrownBy(() -> canceller.cancelFor(orderId, now))
+    assertThatThrownBy(() -> canceller.cancelForOrder(orderId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Quantity to release cannot exceed reserved quantity");
 
@@ -187,30 +234,12 @@ class MovementCancellerTest {
     UUID missing = UUID.randomUUID();
     givenMovesWithLines(picking, List.of(move),
         new StockMoveLine(IdGenerator.nextId(), move.getId(), missing, 3));
-    when(stockPoolRepository.findById(missing)).thenReturn(Optional.empty());
+    when(stockPoolRepository.findByIds(List.of(missing))).thenReturn(List.of());
 
     // 這是資料損毀，不是正常缺席：明細的外鍵指向 stock_pools，指不到就是有東西壞了。
-    assertThatThrownBy(() -> canceller.cancelFor(orderId, now))
+    assertThatThrownBy(() -> canceller.cancelForOrder(orderId))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("no longer exists");
-  }
-
-  @Test
-  @DisplayName("多條明細指向同一批時只應查一次庫存")
-  void shouldLoadEachBatchOnlyOnce() {
-    UUID orderId = IdGenerator.nextId();
-    StockPicking picking = givenAPicking(orderId);
-    StockMove move = MovementFixtures.assignedMove(
-        picking.id(), "SKU-1", IdGenerator.nextId(), 30, createdAt);
-    StockPool batch = StockFixtures.unexpiredBatch("SKU-1", 60, 30);
-    givenMovesWithLines(picking, List.of(move),
-        new StockMoveLine(IdGenerator.nextId(), move.getId(), batch.getId(), 20),
-        new StockMoveLine(IdGenerator.nextId(), move.getId(), batch.getId(), 10));
-    givenBatches(batch);
-
-    canceller.cancelFor(orderId, now);
-
-    verify(stockPoolRepository).findById(batch.getId());
   }
 
   private StockPicking givenAPicking(UUID orderId) {
@@ -220,7 +249,9 @@ class MovementCancellerTest {
         OrderFixtures.OWNER_ID,
         orderId,
         OrderFixtures.LOCATION_ID,
-        MovementFixtures.CUSTOMERS_LOCATION_ID);
+        MovementFixtures.CUSTOMERS_LOCATION_ID,
+        PickingState.ASSIGNED,
+        null);
     when(stockPickingRepository.findByOrderId(orderId)).thenReturn(List.of(picking));
     return picking;
   }
@@ -233,9 +264,13 @@ class MovementCancellerTest {
   }
 
   private void givenBatches(StockPool... batches) {
-    for (StockPool batch : batches) {
-      when(stockPoolRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
-    }
+    List<StockPool> available = List.of(batches);
+    when(stockPoolRepository.findByIds(any())).thenAnswer(invocation -> {
+      Collection<UUID> requested = invocation.getArgument(0);
+      return available.stream()
+          .filter(batch -> requested.contains(batch.getId()))
+          .toList();
+    });
   }
 
   /** 一段已完成的搬運。貨已離庫，取消碰不得。 */

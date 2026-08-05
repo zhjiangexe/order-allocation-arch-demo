@@ -6,8 +6,9 @@ import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationE
 import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.translator.AllocationDomainEventTranslator;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.domain.event.BackorderWakeContinuationRequired;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
+import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
+import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
@@ -217,26 +218,26 @@ class DomainEventTranslatorTest {
   }
 
   @Test
-  @DisplayName("續做喚醒以爭用群組當 key，不套用分區策略——它必須落回它要接續的那一輪的 partition")
-  void shouldAlwaysKeyWakeContinuationByContentionGroup() {
+  @DisplayName("可用庫存增加應在收貨交易寫入同一爭用群組的 Outbox")
+  void shouldTranslateStockAvailabilityIncreaseToTheStockQueue() {
     OutboxRepo outboxRepo = mock(OutboxRepo.class);
     OutboxAppender appender =
         new OutboxAppender(outboxRepo, new ObjectMapper().findAndRegisterModules());
+    UUID locationId = UUID.randomUUID();
 
     new AllocationDomainEventTranslator(appender).translate(
-        new BackorderWakeContinuationRequired(OWNER_ID, FACILITY_ID, "SKU-1", occurredAt));
+        new StockAvailabilityIncreased(
+            OWNER_ID, FACILITY_ID, locationId, "SKU-1", 12, occurredAt));
 
     ArgumentCaptor<Outbox> outbox = ArgumentCaptor.forClass(Outbox.class);
     verify(outboxRepo).append(outbox.capture());
-    // 與配置結果事件相反：那些一律用 orderId，這一則一律用爭用群組。落到別的 partition
-    // 就會與它要接續的那一輪並行，而 single writer 正是靠同 key 取得的。
+    assertThat(outbox.getValue().eventType())
+        .isEqualTo(StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName());
     assertThat(outbox.getValue().partitionKey()).isEqualTo(OWNER_ID + "/" + FACILITY_ID);
-    // topic 與補貨事件相同，兩者在 Kafka 層是同一條隊伍
     assertThat(outbox.getValue().route()).isEqualTo(InventoryEventTopics.STOCK_EVENTS);
-    // aggregate 是庫存不是訂單——續做不屬於佇列裡的任何一張單
-    assertThat(outbox.getValue().aggregateType()).isEqualTo(OutboxAggregateTypes.STOCK_POOL);
-    // skuCode 必須進 payload：它決定要喚醒哪個 SKU 的佇列，與 key 只取 (貨主, 倉) 是兩件事
-    assertThat(outbox.getValue().payload()).contains("\"sku\":\"SKU-1\"");
+    assertThat(outbox.getValue().payload())
+        .contains("\"locationId\":\"" + locationId + "\"")
+        .contains("\"quantity\":12");
   }
 
   @Test

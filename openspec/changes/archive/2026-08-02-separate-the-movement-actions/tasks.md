@@ -5,8 +5,8 @@
 
 - [x] 0.1 動手前先跑一次 `test` 與 `sit`，記下支數（278 / 137）。收工時要一模一樣。
 
-  **收工實測：`test` 281、`sit` 137。**（含後來收進來的 4b，它不新增測試——`MovementRecorderTest` 改為斷言 `picking.orderId()`，`MovementAssignerTest` 的單據 stub 改回傳單據本身。） SIT 一支不多不少；單元測試 +3，來自
-  `MovementRecorderTest`（6 支新的）減去 `AllocateOrderUsecaseTest` 移出的 3 支，
+  **收工實測：`test` 281、`sit` 137。**（含後來收進來的 4b，它不新增測試——`StockOperationRecorderTest` 改為斷言 `picking.orderId()`，`MovementAssignerTest` 的單據 stub 改回傳單據本身。） SIT 一支不多不少；單元測試 +3，來自
+  `StockOperationRecorderTest`（6 支新的）減去 `AllocateOrderUsecaseTest` 移出的 3 支，
   以及 `OrderAllocationCoordinatorTest` 12 支拆成 `MovementAssignerTest` 10 支 +
   `MovementCancellerTest` 8 支、`ReleaseReservationUsecaseTest` 由 6 支縮成 2 支。
 
@@ -20,15 +20,15 @@
 
 ## 2. 建立搬運
 
-- [x] 2.1 依 `stock-movement` 的 **Recording a movement is a step of its own**，新增 `MovementRecorder`（`allocation/application/movement/`），把 `AllocateOrderUsecase.createMovements` 整段搬過去，方法名 `recordOutbound(Demand, Instant)`。
+- [x] 2.1 依 `stock-movement` 的 **Recording a movement is a step of its own**，新增 `StockOperationRecorder`（`allocation/application/movement/`），把 `AllocateOrderUsecase.createMovements` 整段搬過去，方法名 `recordOutbound(Demand, Instant)`。
 
   依賴：`StockLocationRepository`、`PickingTypeRepository`、`StockPickingRepository`、`StockMoveRepository`。四個都是從 usecase 搬過來的，不新增。
 
-- [x] 2.2 依同一 requirement 的第三個 scenario，`recordOutbound` **回傳它建立的搬運**（`List<StockMove>`），而不是 void 或單據 id。依 design 的決策「`MovementRecorder` 回傳它建立的搬運」。
+- [x] 2.2 依同一 requirement 的第三個 scenario，`recordOutbound` **回傳它建立的搬運**（`List<StockMove>`），而不是 void 或單據 id。依 design 的決策「`StockOperationRecorder` 回傳它建立的搬運」。
 
   這是任務 3.2 消掉往返的前提。回傳單據 id 不夠——呼叫端要的是搬運本身。
 
-- [x] 2.3 `AllocateOrderUsecase` 移除那四個依賴與 `createMovements`，改為呼叫 `MovementRecorder`。
+- [x] 2.3 `AllocateOrderUsecase` 移除那四個依賴與 `createMovements`，改為呼叫 `StockOperationRecorder`。
 
   **不要在這一步就接上 `MovementAssigner`**：先讓收單路徑維持「建搬運 → 舊 coordinator」的形狀跑一次測試。中間狀態能跑，代表建立那一段搬對了；兩段一起改，錯了會分不出是哪一段。
 
@@ -88,7 +88,7 @@
   **新增而非搬移的四支**：搬運由呼叫端傳入（守這次消掉的往返）、投影回需求並依單據分組、
   沒有訂單的單據不是需求（入庫不得被喚醒）、取消的寫入全序。
 
-- [x] 5.2 新增 `MovementRecorderTest`：無庫存仍建搬運且狀態為還在等貨、起訖取自作業類型、倉沒有出庫類型要拋錯、回傳的搬運與寫入的一致。
+- [x] 5.2 新增 `StockOperationRecorderTest`：無庫存仍建搬運且狀態為還在等貨、起訖取自作業類型、倉沒有出庫類型要拋錯、回傳的搬運與寫入的一致。
 
   前三條從 `AllocateOrderUsecaseTest` 搬過來（那裡的四支新測試現在測的是別人的責任），第四條是新的——任務 2.2 的回傳值沒有測試就等於沒有保證。
 
@@ -132,7 +132,7 @@
 
   1. **`needing` 缺受詞。** `StockLocation.internal(...)` 讀作「一個內部位置」是完整的；`needing` 讀到一半就停了——needing 什麼？答案只在 javadoc 裡，簽章沒說。
   2. **`needingGoods` 也不對——它不是領域語彙。** 倉庫裡沒有人說「a move needing goods」，那是為了讓英文文法完整而發明的詞。ubiquitous language 反對的正是這種開發者自創的描述性英文；領域裡真的存在的詞是 `confirmed`（Odoo 的狀態值，也是 `MoveState` 的值）。
-  3. **建立的意圖已經由 `MovementRecorder` 說了。** 它才是 DDD 意義上的 Factory——解析作業類型、組單據、決定起訖。實體上的靜態方法不必再說一次意圖，它只回答「這個實例從哪個狀態開始」，因此名字直接取自狀態值。
+  3. **建立的意圖已經由 `StockOperationRecorder` 說了。** 它才是 DDD 意義上的 Factory——解析作業類型、組單據、決定起訖。實體上的靜態方法不必再說一次意圖，它只回答「這個實例從哪個狀態開始」，因此名字直接取自狀態值。
 
   **不叫 `confirm(...)`**：動詞會暗示一步轉換，而這裡沒有起點（沒有草稿階段）。形容詞沒有這個問題。
 
