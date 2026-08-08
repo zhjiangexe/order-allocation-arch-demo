@@ -38,6 +38,9 @@ out/
 .spectra/
 openspec/.vector-search.db*
 
+### macOS ###
+.DS_Store
+
 ### Python ###
 __pycache__/
 *.pyc
