@@ -5,7 +5,7 @@ import com.flowzati.archone.catalog.domain.model.LocationUsage;
 import com.flowzati.archone.catalog.domain.model.PickingDirection;
 import com.flowzati.archone.catalog.domain.model.PickingType;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.time.Instant;

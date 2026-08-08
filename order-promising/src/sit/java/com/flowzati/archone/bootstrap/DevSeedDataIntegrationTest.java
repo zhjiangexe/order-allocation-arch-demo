@@ -1,6 +1,6 @@
 package com.flowzati.archone.bootstrap;
 
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.domain.model.StockPool;
 
 import static org.assertj.core.api.Assertions.assertThat;

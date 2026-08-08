@@ -1,16 +1,20 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
+import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
+import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -42,7 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class InboundCommandTransactionIntegrationTest {
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocateOrderUsecase allocateOrderUsecase;
@@ -91,7 +95,8 @@ class InboundCommandTransactionIntegrationTest {
 
     allocateOrderUsecase.handle(inbound(orderId, eventId));
 
-    assertThat(inboxRepository.findById(eventId)).isPresent();
+    assertThat(inboxRepository.findById(inboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))).isPresent();
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
@@ -133,7 +138,8 @@ class InboundCommandTransactionIntegrationTest {
 
     // 失敗發生在 inbox claim 之後，所以那筆 claim 必須跟著回滾——否則重送會被當成重複而丟棄，
     // 那張單就永遠停在 PENDING 且沒有任何搬運。
-    assertThat(inboxRepository.findById(eventId)).isEmpty();
+    assertThat(inboxRepository.findById(inboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))).isEmpty();
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
@@ -160,11 +166,15 @@ class InboundCommandTransactionIntegrationTest {
 
     assertThatThrownBy(() -> releaseReservationUsecase.handle(new InboundCommand<>(
         new CancelMovementsCommand(orderId),
-        new MessageMetadata(eventId, "OrderCancelledIntegrationEvent"))))
+        new MessageMetadata(
+            eventId,
+            OrderCancelledIntegrationEvent.EVENT_TYPE,
+            AllocationEventSubscriptions.ORDER_LIFECYCLE))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Quantity to release cannot exceed reserved quantity");
 
-    assertThat(inboxRepository.findById(eventId)).isEmpty();
+    assertThat(inboxRepository.findById(inboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))).isEmpty();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(2));
     // 搬運與明細都必須原封不動——一段已取消的搬運配著沒被刪的明細，是最難查的一種狀態。
@@ -193,9 +203,11 @@ class InboundCommandTransactionIntegrationTest {
             StockFixtures.ARRIVED_ON,
             StockFixtures.EXPIRES_ON,
             3),
-        new MessageMetadata(eventId, "ConfirmStockReceiptRequest")));
+        new MessageMetadata(
+            eventId, "ConfirmStockReceiptRequest", "stock-receipt-requests")));
 
-    assertThat(inboxRepository.findById(eventId)).isPresent();
+    assertThat(inboxRepository.findById(inboxId(
+        "stock-receipt-requests", eventId))).isPresent();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(3);
       assertThat(pool.getReservedQuantity()).isZero();
@@ -247,12 +259,14 @@ class InboundCommandTransactionIntegrationTest {
             OrderFixtures.LOCATION_ID,
             "SKU-1",
             StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3),
-        new MessageMetadata(eventId, "ConfirmStockReceiptRequest")));
+        new MessageMetadata(
+            eventId, "ConfirmStockReceiptRequest", "stock-receipt-requests")));
 
     assertThatThrownBy(() -> inventoryDrain().drain())
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
-    assertThat(inboxRepository.findById(eventId)).isPresent();
+    assertThat(inboxRepository.findById(inboxId(
+        "stock-receipt-requests", eventId))).isPresent();
     // 收貨是已完成的獨立 checkpoint；後續 outbound 配貨失敗不能撤銷實際到貨。
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(3);
@@ -273,7 +287,14 @@ class InboundCommandTransactionIntegrationTest {
   private InboundCommand<AllocateOrderCommand> inbound(UUID orderId, UUID eventId) {
     return new InboundCommand<>(
         new AllocateOrderCommand(orderId),
-        new MessageMetadata(eventId, "OrderPlacedIntegrationEvent"));
+        new MessageMetadata(
+            eventId,
+            OrderPlacedIntegrationEvent.EVENT_TYPE,
+            AllocationEventSubscriptions.ORDER_LIFECYCLE));
+  }
+
+  private InboxId inboxId(String subscriberId, UUID eventId) {
+    return new InboxId(subscriberId, eventId);
   }
 
   private int count(String table) {

@@ -12,7 +12,7 @@ import com.flowzati.archone.catalog.domain.model.PickingDirection;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.PickingTypeRepository;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;

@@ -1,6 +1,6 @@
 package com.flowzati.archone.stock.entrypoint.rest;
 
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.usecase.GetStockPoolUsecase;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockPool;

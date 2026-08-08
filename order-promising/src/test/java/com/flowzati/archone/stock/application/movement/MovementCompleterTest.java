@@ -11,7 +11,7 @@ import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.domain.repository.StockPickingRepository;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;

@@ -1,6 +1,6 @@
 package com.flowzati.archone.stock.entrypoint.scheduler;
 
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
 import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;

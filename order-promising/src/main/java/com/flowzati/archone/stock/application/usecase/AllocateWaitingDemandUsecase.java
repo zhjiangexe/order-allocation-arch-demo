@@ -1,9 +1,10 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
+import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
@@ -16,7 +17,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
@@ -33,7 +33,7 @@ public class AllocateWaitingDemandUsecase {
   private final StockPoolRepository stockPoolRepository;
   private final StockMoveRepository stockMoveRepository;
   private final MovementAssigner movementAssigner;
-  private final ApplicationEventPublisher eventPublisher;
+  private final AllocationDomainEventPublisher eventPublisher;
   private final AppClock appClock;
   private final int allocationLimit;
 
@@ -42,7 +42,7 @@ public class AllocateWaitingDemandUsecase {
       StockPoolRepository stockPoolRepository,
       StockMoveRepository stockMoveRepository,
       MovementAssigner movementAssigner,
-      ApplicationEventPublisher eventPublisher,
+      AllocationDomainEventPublisher eventPublisher,
       AppClock appClock,
       @Value("${archone.allocation.waiting-demand-batch-limit:200}") int allocationLimit
   ) {
@@ -89,6 +89,7 @@ public class AllocateWaitingDemandUsecase {
     List<UUID> allocatedOrderIds = movementAssigner.assignWaitingBatch(waiting, now).stream()
         .map(Demand::orderId)
         .toList();
-    allocatedOrderIds.forEach(orderId -> eventPublisher.publishEvent(new OrderAllocationCompleted(orderId, now)));
+    allocatedOrderIds.forEach(
+        orderId -> eventPublisher.publish(new OrderAllocationCompleted(orderId, now)));
   }
 }

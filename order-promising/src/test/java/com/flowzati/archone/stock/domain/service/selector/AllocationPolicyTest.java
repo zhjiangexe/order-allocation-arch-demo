@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.service.AllocationRequest;
 import com.flowzati.archone.stock.domain.service.SkuQuantities;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import java.time.Instant;
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.domain.model;
 
-import com.flowzati.archone.common.ddd.DomainEvent;
+import com.flowzati.archone.promising.domain.DomainEvent;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;

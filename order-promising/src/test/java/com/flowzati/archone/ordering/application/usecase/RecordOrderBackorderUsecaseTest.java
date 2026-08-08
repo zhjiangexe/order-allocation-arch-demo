@@ -6,10 +6,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.inbox.MessageMetadata;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.ordering.application.command.RecordOrderBackorderCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -56,6 +58,9 @@ class RecordOrderBackorderUsecaseTest {
   }
 
   private static MessageMetadata metadata() {
-    return new MessageMetadata(IdGenerator.nextId(), "BackorderCreatedIntegrationEvent");
+    return new MessageMetadata(
+        IdGenerator.nextId(),
+        BackorderCreatedIntegrationEvent.EVENT_TYPE,
+        OrderingEventSubscriptions.ALLOCATION_RESULTS);
   }
 }

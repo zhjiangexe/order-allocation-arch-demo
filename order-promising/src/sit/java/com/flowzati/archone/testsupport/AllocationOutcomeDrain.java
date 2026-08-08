@@ -1,7 +1,8 @@
 package com.flowzati.archone.testsupport;
 
+import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
+import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
@@ -65,6 +66,9 @@ public final class AllocationOutcomeDrain {
         PromisingEventTopics.ALLOCATION_EVENTS, 0, 0, eventId.toString(), payload);
     record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));
     record.headers().add("eventType", eventType.getBytes(StandardCharsets.UTF_8));
-    dispatcher.dispatch(record, PromisingEventTopics.ALLOCATION_EVENTS);
+    dispatcher.dispatch(
+        record,
+        PromisingEventTopics.ALLOCATION_EVENTS,
+        OrderingEventSubscriptions.ALLOCATION_RESULTS);
   }
 }

@@ -3,7 +3,7 @@ package com.flowzati.archone.stock.domain.model;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import java.time.LocalDate;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;

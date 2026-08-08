@@ -1,11 +1,12 @@
 package com.flowzati.archone.stock.entrypoint.kafka;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.entrypoint.scheduler.AllocationReconciliationScheduler;
 import com.flowzati.archone.stock.domain.model.StockPool;
@@ -75,7 +76,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   private static final int SECOND_AVAILABILITY_INCREASE = BLOCKER_QUANTITY + FITTING_ORDERS_AFTER_BLOCKER;
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
@@ -330,17 +331,24 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     //    message，因此不寫 Inbox。
     Integer inboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_inbox", Integer.class);
-    Integer distinctInboxCount = jdbcTemplate.queryForObject(
-        "SELECT count(DISTINCT event_id) FROM event_inbox", Integer.class);
+    Integer duplicateInboxClaims = jdbcTemplate.queryForObject("""
+        SELECT count(*)
+          FROM (
+                SELECT subscriber_id, event_id
+                  FROM event_inbox
+                 GROUP BY subscriber_id, event_id
+                HAVING count(*) > 1
+               ) duplicates
+        """, Integer.class);
     assertThat(inboxCount).isGreaterThanOrEqualTo(expected.inboxCount());
-    assertThat(distinctInboxCount).isEqualTo(inboxCount);
+    assertThat(duplicateInboxClaims).isZero();
 
     // 5) Outbox 結果：只有被配置的訂單各發一筆 OrderAllocatedIntegrationEvent，這個測試
     //    情境全程不會發布 BackorderCreatedIntegrationEvent（訂單一開始就是直接種成
     //    BACKORDERED，沒有經過真正的下單配置流程）。
     Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
-        OrderAllocatedIntegrationEvent.class.getSimpleName());
+        OrderAllocatedIntegrationEvent.EVENT_TYPE);
     assertThat(allocatedOutboxCount).isEqualTo(expected.outboxAllocatedCount());
   }
 
@@ -356,13 +364,17 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
           FROM event_outbox o
          WHERE o.type = ?
            AND NOT EXISTS (
-                 SELECT 1 FROM event_inbox i WHERE i.event_id = o.id
+                 SELECT 1 FROM event_inbox i
+                  WHERE i.subscriber_id = ?
+                    AND i.event_id = o.id
                )
          ORDER BY o.timestamp, o.id
-        """, StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName());
+        """,
+        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
+        AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
     pending.forEach(row -> consumeInventory(
         UUID.fromString(row.get("id").toString()),
-        StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName(),
+        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
         row.get("payload").toString()));
   }
 
@@ -385,7 +397,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   private int allocatedOutcomeCount() {
     return jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
-        OrderAllocatedIntegrationEvent.class.getSimpleName());
+        OrderAllocatedIntegrationEvent.EVENT_TYPE);
   }
 
   private void consumeInventory(UUID eventId, String eventType, String payload) {

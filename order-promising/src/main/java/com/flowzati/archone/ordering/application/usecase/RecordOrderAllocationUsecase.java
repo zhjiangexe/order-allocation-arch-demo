@@ -1,7 +1,7 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.InboxRepo;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;

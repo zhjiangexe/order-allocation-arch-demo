@@ -1,20 +1,22 @@
 package com.flowzati.archone.stock.entrypoint.kafka;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
-import com.flowzati.archone.common.integration.IntegrationEvent;
-import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
-import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
+import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
+import com.flowzati.archone.messaging.events.IntegrationEvent;
+import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
+import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -53,10 +55,10 @@ class AllocationWorkflowEndToEndIntegrationTest {
   private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
   @Autowired
-  private ObjectMapper objectMapper;
+  private IntegrationEventSerializer eventSerializer;
 
   @Autowired
-  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -103,7 +105,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 這一步不只是為了讓斷言通過：它同時驗證 ordering 的 consumer 真的消費得了那些事件。
     assertThat(outcomeDrain().drain()).isPositive();
 
-    assertThat(inboxRepository.findById(event.getEventId())).isPresent();
+    assertThat(inboxRepository.findById(new InboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))).isPresent();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
@@ -115,7 +118,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 搬運在收單那一刻就建好了，這裡是它被轉成已鎖定。
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
     assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox -> {
-      assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName());
+      assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.EVENT_TYPE);
       assertThat(outbox.getRoute()).isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
       assertThat(outbox.getAggregateId()).isEqualTo(orderId.toString());
     });
@@ -138,7 +141,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
     OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, Instant.now());
     consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
 
-    assertThat(inboxRepository.findById(event.getEventId())).isPresent();
+    assertThat(inboxRepository.findById(new InboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))).isPresent();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
     // **明細被刪除，不是被標成已釋放**——一條被釋放的明細不表達任何事實。釋放的歷史留在
@@ -180,9 +184,9 @@ class AllocationWorkflowEndToEndIntegrationTest {
     assertThat(heldBy(secondOrderId)).isEmpty();
     assertThat(outboxRepository.findAll())
         .filteredOn(outbox -> outbox.getEventType()
-            .equals(OrderAllocatedIntegrationEvent.class.getSimpleName()))
+            .equals(OrderAllocatedIntegrationEvent.EVENT_TYPE))
         .singleElement().satisfies(outbox ->
-        assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.class.getSimpleName()));
+        assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.EVENT_TYPE));
   }
 
   @Test
@@ -361,9 +365,9 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
   private ConsumerRecord<String, String> record(String topic, IntegrationEvent event) throws Exception {
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        topic, 0, 0, "key", objectMapper.writeValueAsString(event));
+        topic, 0, 0, "key", eventSerializer.serialize(event));
     record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", event.getClass().getSimpleName().getBytes(StandardCharsets.UTF_8));
+    record.headers().add("eventType", event.eventType().getBytes(StandardCharsets.UTF_8));
     return record;
   }
 

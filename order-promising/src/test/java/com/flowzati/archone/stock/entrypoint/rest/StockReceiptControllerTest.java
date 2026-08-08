@@ -6,8 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.common.configuration.CommonConfiguration;
-import com.flowzati.archone.common.inbox.InboundCommand;
+import com.flowzati.archone.messaging.api.InboundCommand;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import java.util.UUID;
@@ -16,13 +15,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 @WebMvcTest(StockReceiptController.class)
-@Import(CommonConfiguration.class)
 class StockReceiptControllerTest {
 
   private static final UUID RECEIPT_ID =

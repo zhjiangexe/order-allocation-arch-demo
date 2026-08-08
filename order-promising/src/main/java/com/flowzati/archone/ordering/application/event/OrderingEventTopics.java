@@ -1,12 +1,14 @@
 package com.flowzati.archone.ordering.application.event;
 
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+
 /**
  * Ordering 對外發布的 Kafka topic。
  *
- * <p>與 {@link OrderPlacedIntegrationEvent}、{@link OrderCancelledIntegrationEvent} 同處一個
- * package，因為它們是同一份契約的兩半：事件的形狀與它出現在哪裡。之前常數放在中立的
- * {@code common.messaging}，等於讓契約的一半沒有擁有者——訂閱方明確地 import 事件類別，卻要
- * 從一個共用袋子拿 topic 名稱。
+ * <p>{@link OrderPlacedIntegrationEvent} 與 {@link OrderCancelledIntegrationEvent} 的 payload
+ * schema 由 {@code contracts} 擁有；topic 與 partition key 則是 Ordering publisher 的 routing
+ * policy，不能混進 framework-level platform infrastructure。
  *
  * <p>訂閱方（目前是 allocation）import 這裡是正確的方向：契約由發布方定義。
  */

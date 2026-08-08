@@ -1,6 +1,6 @@
 package com.flowzati.archone.stock.entrypoint.rest;
 
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.usecase.GetStockPoolUsecase;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,17 +1,17 @@
 package com.flowzati.archone.ordering.entrypoint.kafka;
 
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
-import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
 class OrderAllocatedIntegrationEventHandler
-    implements KafkaIntegrationEventHandler<OrderAllocatedIntegrationEvent> {
+    implements IntegrationEventHandler<OrderAllocatedIntegrationEvent> {
 
   private final RecordOrderAllocationUsecase recordOrderAllocationUsecase;
 
@@ -20,8 +20,13 @@ class OrderAllocatedIntegrationEventHandler
   }
 
   @Override
-  public String topic() {
+  public String destination() {
     return PromisingEventTopics.ALLOCATION_EVENTS;
+  }
+
+  @Override
+  public String eventType() {
+    return OrderAllocatedIntegrationEvent.EVENT_TYPE;
   }
 
   @Override

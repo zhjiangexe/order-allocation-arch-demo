@@ -1,74 +1,92 @@
 package com.flowzati.archone.stock.application.event.translator;
 
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
+import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
-import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
-import com.flowzati.archone.common.outbox.OutboxAppender;
-import com.flowzati.archone.common.outbox.OutboxDelivery;
-import com.flowzati.archone.common.outbox.StockContentionKey;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.PublicationTarget;
+import com.flowzati.archone.promising.messaging.OutboxAggregateTypes;
+import com.flowzati.archone.promising.messaging.StockContentionKey;
+import com.flowzati.archone.promising.domain.DomainEvent;
 import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 
 import java.util.UUID;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+/**
+ * Explicit transactional adapter from allocation facts to external Integration Events.
+ * It delegates reliability to {@link IntegrationEventPublisher}, whose runtime producer is Outbox.
+ */
 @Component
-public class AllocationDomainEventTranslator {
+public class AllocationDomainEventTranslator implements AllocationDomainEventPublisher {
 
-  private final OutboxAppender outboxAppender;
+  private final IntegrationEventPublisher eventPublisher;
 
-  public AllocationDomainEventTranslator(OutboxAppender outboxAppender) {
-    this.outboxAppender = outboxAppender;
+  public AllocationDomainEventTranslator(IntegrationEventPublisher eventPublisher) {
+    this.eventPublisher = eventPublisher;
   }
 
-  @EventListener
+  @Override
+  public void publish(DomainEvent event) {
+    if (event instanceof OrderAllocationCompleted completed) {
+      translate(completed);
+      return;
+    }
+    if (event instanceof OrderBackorderRecorded backordered) {
+      translate(backordered);
+      return;
+    }
+    if (event instanceof StockAvailabilityIncreased availabilityIncreased) {
+      translate(availabilityIncreased);
+      return;
+    }
+    throw new IllegalArgumentException(
+        "Unsupported allocation domain event: " + event.getClass().getName());
+  }
+
   public void translate(OrderAllocationCompleted event) {
     OrderAllocatedIntegrationEvent integration = new OrderAllocatedIntegrationEvent(
         IdGenerator.nextId(),
         event.orderId(),
         event.allocatedAt());
-    outboxAppender.append(
+    eventPublisher.publish(
         integration,
-        OutboxAggregateTypes.ORDER,
-        event.orderId().toString(),
+        new AggregateReference(OutboxAggregateTypes.ORDER, event.orderId().toString()),
         deliveryKeyedByOrder(event.orderId()),
         event.allocatedAt()
     );
   }
 
   /** 將 allocation 記錄的缺貨事實轉成對外事件。 */
-  @EventListener
   public void translate(OrderBackorderRecorded event) {
     BackorderCreatedIntegrationEvent integration = new BackorderCreatedIntegrationEvent(
         IdGenerator.nextId(),
         event.orderId(),
         event.backorderedAt());
-    outboxAppender.append(
+    eventPublisher.publish(
         integration,
-        OutboxAggregateTypes.ORDER,
-        event.orderId().toString(),
+        new AggregateReference(OutboxAggregateTypes.ORDER, event.orderId().toString()),
         deliveryKeyedByOrder(event.orderId()),
         event.backorderedAt()
     );
   }
 
   /** Receipt completion and its availability notification commit through the same Outbox. */
-  @EventListener
   public void translate(StockAvailabilityIncreased event) {
     String contentionKey = StockContentionKey.of(event.ownerId(), event.facilityId());
-    outboxAppender.append(
+    eventPublisher.publish(
         new StockAvailabilityIncreasedIntegrationEvent(
             IdGenerator.nextId(), event.ownerId(), event.facilityId(), event.locationId(),
             event.skuCode(), event.quantity()),
-        OutboxAggregateTypes.STOCK_POOL,
-        contentionKey,
-        new OutboxDelivery(InventoryEventTopics.STOCK_EVENTS, contentionKey),
+        new AggregateReference(OutboxAggregateTypes.STOCK_POOL, contentionKey),
+        new PublicationTarget(InventoryEventTopics.STOCK_EVENTS, contentionKey),
         event.occurredAt());
   }
 
@@ -82,7 +100,7 @@ public class AllocationDomainEventTranslator {
    * 會製造一個無人驗證、無人受益的行為分支。要改動這裡，先確認該 topic 已經有
    * consumer，而且它確實需要庫存維度的順序保證。
    */
-  private static OutboxDelivery deliveryKeyedByOrder(UUID orderId) {
-    return new OutboxDelivery(PromisingEventTopics.ALLOCATION_EVENTS, orderId.toString());
+  private static PublicationTarget deliveryKeyedByOrder(UUID orderId) {
+    return new PublicationTarget(PromisingEventTopics.ALLOCATION_EVENTS, orderId.toString());
   }
 }

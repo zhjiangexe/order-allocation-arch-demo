@@ -4,16 +4,16 @@ import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.retry.AllocationRetryContext;
 import com.flowzati.archone.stock.application.retry.AllocationRetryExecutor;
 import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.events.IntegrationEventHandler;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
 class OrderPlacedIntegrationEventHandler
-    implements KafkaIntegrationEventHandler<OrderPlacedIntegrationEvent> {
+    implements IntegrationEventHandler<OrderPlacedIntegrationEvent> {
 
   private final AllocateOrderUsecase allocateOrderUsecase;
   private final AllocationRetryExecutor retryExecutor;
@@ -27,8 +27,13 @@ class OrderPlacedIntegrationEventHandler
   }
 
   @Override
-  public String topic() {
+  public String destination() {
     return OrderingEventTopics.ORDER_EVENTS;
+  }
+
+  @Override
+  public String eventType() {
+    return OrderPlacedIntegrationEvent.EVENT_TYPE;
   }
 
   @Override

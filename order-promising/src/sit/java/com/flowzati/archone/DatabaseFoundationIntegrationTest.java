@@ -53,7 +53,7 @@ class DatabaseFoundationIntegrationTest {
         .map(migration -> migration.getVersion().getVersion())
         .toList();
 
-    assertThat(appliedVersions).containsExactly("1", "2", "3", "4", "5", "6");
+    assertThat(appliedVersions).containsExactly("1", "2", "3", "4", "5", "6", "7");
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 

@@ -1,7 +1,7 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
@@ -24,6 +24,7 @@ public final class StockReceiptFixture {
             StockFixtures.ARRIVED_ON,
             StockFixtures.EXPIRES_ON,
             quantity),
-        new MessageMetadata(UUID.randomUUID(), "ConfirmStockReceiptRequest")));
+        new MessageMetadata(
+            UUID.randomUUID(), "ConfirmStockReceiptRequest", "stock-receipt-requests")));
   }
 }

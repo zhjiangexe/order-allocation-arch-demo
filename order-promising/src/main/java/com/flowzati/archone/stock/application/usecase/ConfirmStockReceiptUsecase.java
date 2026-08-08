@@ -3,10 +3,11 @@ package com.flowzati.archone.stock.application.usecase;
 import com.flowzati.archone.catalog.domain.model.LocationUsage;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementCompleter;
 import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
 import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
@@ -15,7 +16,6 @@ import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
@@ -35,14 +35,14 @@ public class ConfirmStockReceiptUsecase {
   private final InboxRepo inboxRepo;
   private final StockOperationRecorder stockOperationRecorder;
   private final MovementCompleter movementCompleter;
-  private final ApplicationEventPublisher eventPublisher;
+  private final AllocationDomainEventPublisher eventPublisher;
 
   public ConfirmStockReceiptUsecase(
       AppClock appClock,
       InboxRepo inboxRepo,
       StockOperationRecorder stockOperationRecorder,
       MovementCompleter movementCompleter,
-      ApplicationEventPublisher eventPublisher
+      AllocationDomainEventPublisher eventPublisher
   ) {
     this.appClock = appClock;
     this.inboxRepo = inboxRepo;
@@ -69,7 +69,7 @@ public class ConfirmStockReceiptUsecase {
     movementCompleter.complete(
         incoming, new MovementCompleter.BatchIdentity(command.inDate(), command.expiryDate()), now);
 
-    eventPublisher.publishEvent(new StockAvailabilityIncreased(
+    eventPublisher.publish(new StockAvailabilityIncreased(
         command.ownerId(), command.facilityId(), command.locationId(),
         command.sku(), command.quantity(), now));
   }

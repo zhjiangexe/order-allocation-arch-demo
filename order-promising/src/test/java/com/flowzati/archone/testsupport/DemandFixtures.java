@@ -2,7 +2,7 @@ package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.model.DemandLine;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import java.util.List;
 import java.util.UUID;
 

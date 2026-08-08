@@ -1,10 +1,11 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementCompleter;
 import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
 import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -39,7 +39,7 @@ class ConfirmStockReceiptUsecaseTest {
   private InboxRepo inboxRepo;
   private StockOperationRecorder stockOperationRecorder;
   private MovementCompleter movementCompleter;
-  private ApplicationEventPublisher eventPublisher;
+  private AllocationDomainEventPublisher eventPublisher;
   private ConfirmStockReceiptUsecase usecase;
 
   @BeforeEach
@@ -47,7 +47,7 @@ class ConfirmStockReceiptUsecaseTest {
     inboxRepo = mock(InboxRepo.class);
     stockOperationRecorder = mock(StockOperationRecorder.class);
     movementCompleter = mock(MovementCompleter.class);
-    eventPublisher = mock(ApplicationEventPublisher.class);
+    eventPublisher = mock(AllocationDomainEventPublisher.class);
     usecase = new ConfirmStockReceiptUsecase(
         new AppClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"),
         inboxRepo, stockOperationRecorder, movementCompleter,
@@ -75,7 +75,7 @@ class ConfirmStockReceiptUsecaseTest {
         List.of(move),
         new MovementCompleter.BatchIdentity(command.inDate(), command.expiryDate()),
         NOW);
-    order.verify(eventPublisher).publishEvent(new StockAvailabilityIncreased(
+    order.verify(eventPublisher).publish(new StockAvailabilityIncreased(
         command.ownerId(), command.facilityId(), OrderFixtures.LOCATION_ID,
         SKU, command.quantity(), NOW));
   }
@@ -120,6 +120,8 @@ class ConfirmStockReceiptUsecaseTest {
   private InboundCommand<ConfirmStockReceiptCommand> inbound(
       ConfirmStockReceiptCommand command, UUID receiptId) {
     return new InboundCommand<>(
-        command, new MessageMetadata(receiptId, "ConfirmStockReceiptRequest"));
+        command,
+        new MessageMetadata(
+            receiptId, "ConfirmStockReceiptRequest", "stock-receipt-requests"));
   }
 }

@@ -9,7 +9,7 @@ import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.service.selector.AllocationSelector;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.model.DemandLine;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.ordering.domain.model.OrderLine;
 import java.time.Instant;

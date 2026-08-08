@@ -1,18 +1,21 @@
 package com.flowzati.archone.stock.application.usecase;
 
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
+import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
-import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.repository.DemandRepository;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import java.time.Clock;
@@ -25,7 +28,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
-import org.springframework.context.ApplicationEventPublisher;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -53,7 +55,7 @@ class AllocateOrderUsecaseTest {
   private DemandRepository demandRepository;
   private StockOperationRecorder stockOperationRecorder;
   private MovementAssigner movementAssigner;
-  private ApplicationEventPublisher eventPublisher;
+  private AllocationDomainEventPublisher eventPublisher;
 
   @BeforeEach
   void setUp() {
@@ -61,7 +63,7 @@ class AllocateOrderUsecaseTest {
     demandRepository = mock(DemandRepository.class);
     stockOperationRecorder = mock(StockOperationRecorder.class);
     movementAssigner = mock(MovementAssigner.class);
-    eventPublisher = mock(ApplicationEventPublisher.class);
+    eventPublisher = mock(AllocationDomainEventPublisher.class);
 
     usecase = new AllocateOrderUsecase(
         inboxRepo,
@@ -137,8 +139,8 @@ class AllocateOrderUsecaseTest {
     usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
 
     then(eventPublisher).should(times(1))
-        .publishEvent(new OrderAllocationCompleted(demand.orderId(), fixedNow));
-    then(eventPublisher).should(never()).publishEvent(any(OrderBackorderRecorded.class));
+        .publish(new OrderAllocationCompleted(demand.orderId(), fixedNow));
+    then(eventPublisher).should(never()).publish(any(OrderBackorderRecorded.class));
     verifyNoMoreInteractions(eventPublisher);
   }
 
@@ -158,7 +160,7 @@ class AllocateOrderUsecaseTest {
     // 缺貨事實留在這支 usecase，而不是交給鎖定那一步：補貨路徑配不到時什麼都不發，兩條
     // 路徑的處置不同。
     then(eventPublisher).should(times(1))
-        .publishEvent(new OrderBackorderRecorded(demand.orderId(), fixedNow));
+        .publish(new OrderBackorderRecorded(demand.orderId(), fixedNow));
     verifyNoMoreInteractions(eventPublisher);
   }
 
@@ -174,7 +176,7 @@ class AllocateOrderUsecaseTest {
     usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
 
     then(eventPublisher).should(times(1))
-        .publishEvent(new OrderBackorderRecorded(demand.orderId(), fixedNow));
+        .publish(new OrderBackorderRecorded(demand.orderId(), fixedNow));
     verifyNoMoreInteractions(eventPublisher);
   }
 
@@ -196,7 +198,10 @@ class AllocateOrderUsecaseTest {
   }
 
   private MessageMetadata message(UUID eventId) {
-    return new MessageMetadata(eventId, "OrderPlacedIntegrationEvent");
+    return new MessageMetadata(
+        eventId,
+        OrderPlacedIntegrationEvent.EVENT_TYPE,
+        AllocationEventSubscriptions.ORDER_LIFECYCLE);
   }
 
   private InboundCommand<AllocateOrderCommand> inbound(AllocateOrderCommand command, UUID eventId) {

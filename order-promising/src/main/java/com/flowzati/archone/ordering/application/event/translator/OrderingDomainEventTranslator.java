@@ -1,67 +1,83 @@
 package com.flowzati.archone.ordering.application.event.translator;
 
-import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.outbox.OutboxAggregateTypes;
-import com.flowzati.archone.common.outbox.OutboxAppender;
-import com.flowzati.archone.common.outbox.OutboxDelivery;
-import com.flowzati.archone.common.outbox.StockContentionKey;
-import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.PublicationTarget;
+import com.flowzati.archone.promising.messaging.OutboxAggregateTypes;
+import com.flowzati.archone.promising.messaging.StockContentionKey;
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
+import com.flowzati.archone.promising.domain.DomainEvent;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+/**
+ * Explicit transactional adapter from Ordering Domain Events to external Integration Events.
+ * It is called by the Use Case and is not a Spring {@code @EventListener}.
+ */
 @Component
-public class OrderingDomainEventTranslator {
+public class OrderingDomainEventTranslator implements OrderingDomainEventPublisher {
 
   private static final String STOCK_STRATEGY = "stock";
   private static final Logger log = LoggerFactory.getLogger(OrderingDomainEventTranslator.class);
 
-  private final OutboxAppender outboxAppender;
+  private final IntegrationEventPublisher eventPublisher;
   private final String partitionKeyStrategy;
 
   public OrderingDomainEventTranslator(
-      OutboxAppender outboxAppender,
+      IntegrationEventPublisher eventPublisher,
       @Value("${archone.allocation.partition-key-strategy:order-id}") String partitionKeyStrategy
   ) {
-    this.outboxAppender = outboxAppender;
+    this.eventPublisher = eventPublisher;
     this.partitionKeyStrategy = partitionKeyStrategy;
     log.info("archone.allocation.partition-key-strategy={}", partitionKeyStrategy);
   }
 
-  @EventListener
+  @Override
+  public void publish(DomainEvent event) {
+    if (event instanceof OrderPlaced placed) {
+      translate(placed);
+      return;
+    }
+    if (event instanceof OrderCancelled cancelled) {
+      translate(cancelled);
+      return;
+    }
+    throw new IllegalArgumentException(
+        "Unsupported ordering domain event: " + event.getClass().getName());
+  }
+
   public void translate(OrderPlaced event) {
     // 貨主與倉只在 partition key 用到——對外事件兩個都不帶。
     OrderPlacedIntegrationEvent integration =
         new OrderPlacedIntegrationEvent(IdGenerator.nextId(), event.orderId(), event.receivedAt());
     String partitionKey =
         partitionKey(event.orderId(), event.ownerId(), event.facilityId());
-    outboxAppender.append(
+    eventPublisher.publish(
         integration,
-        OutboxAggregateTypes.ORDER,
-        event.orderId().toString(),
-        new OutboxDelivery(OrderingEventTopics.ORDER_EVENTS, partitionKey),
+        new AggregateReference(OutboxAggregateTypes.ORDER, event.orderId().toString()),
+        new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, partitionKey),
         event.receivedAt()
     );
   }
 
-  @EventListener
   public void translate(OrderCancelled event) {
     OrderCancelledIntegrationEvent integration =
         new OrderCancelledIntegrationEvent(IdGenerator.nextId(), event.orderId(), event.cancelledAt());
     String partitionKey =
         partitionKey(event.orderId(), event.ownerId(), event.facilityId());
-    outboxAppender.append(
+    eventPublisher.publish(
         integration,
-        OutboxAggregateTypes.ORDER,
-        event.orderId().toString(),
-        new OutboxDelivery(OrderingEventTopics.ORDER_EVENTS, partitionKey),
+        new AggregateReference(OutboxAggregateTypes.ORDER, event.orderId().toString()),
+        new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, partitionKey),
         event.cancelledAt()
     );
   }

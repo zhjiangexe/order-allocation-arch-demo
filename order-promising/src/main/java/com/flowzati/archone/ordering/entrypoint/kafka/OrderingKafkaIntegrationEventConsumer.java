@@ -1,7 +1,8 @@
 package com.flowzati.archone.ordering.entrypoint.kafka;
 
+import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
+import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -23,9 +24,12 @@ public class OrderingKafkaIntegrationEventConsumer {
   }
 
   @KafkaListener(
-      id = "ordering-allocation-events",
+      id = OrderingEventSubscriptions.ALLOCATION_RESULTS,
       topics = PromisingEventTopics.ALLOCATION_EVENTS)
   public void consumeAllocationEvent(ConsumerRecord<String, String> record) {
-    dispatcher.dispatch(record, PromisingEventTopics.ALLOCATION_EVENTS);
+    dispatcher.dispatch(
+        record,
+        PromisingEventTopics.ALLOCATION_EVENTS,
+        OrderingEventSubscriptions.ALLOCATION_RESULTS);
   }
 }

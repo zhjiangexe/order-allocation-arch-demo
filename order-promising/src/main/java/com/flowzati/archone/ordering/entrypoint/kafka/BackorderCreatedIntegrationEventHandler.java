@@ -1,17 +1,17 @@
 package com.flowzati.archone.ordering.entrypoint.kafka;
 
-import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import com.flowzati.archone.ordering.application.command.RecordOrderBackorderCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderBackorderUsecase;
 import org.springframework.stereotype.Component;
 
 @Component
 class BackorderCreatedIntegrationEventHandler
-    implements KafkaIntegrationEventHandler<BackorderCreatedIntegrationEvent> {
+    implements IntegrationEventHandler<BackorderCreatedIntegrationEvent> {
 
   private final RecordOrderBackorderUsecase recordOrderBackorderUsecase;
 
@@ -20,8 +20,13 @@ class BackorderCreatedIntegrationEventHandler
   }
 
   @Override
-  public String topic() {
+  public String destination() {
     return PromisingEventTopics.ALLOCATION_EVENTS;
+  }
+
+  @Override
+  public String eventType() {
+    return BackorderCreatedIntegrationEvent.EVENT_TYPE;
   }
 
   @Override

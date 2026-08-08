@@ -1,14 +1,14 @@
 package com.flowzati.archone.stock.entrypoint.kafka;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.integration.IntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.messaging.events.IntegrationEvent;
+import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -61,7 +61,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   private static final int SECOND_AVAILABILITY_INCREASE = 70;
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
@@ -70,7 +70,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
   @Autowired
-  private ObjectMapper objectMapper;
+  private IntegrationEventSerializer eventSerializer;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -165,10 +165,10 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   private ConsumerRecord<String, String> record(String topic, IntegrationEvent event)
       throws Exception {
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        topic, 0, 0, SKU, objectMapper.writeValueAsString(event));
+        topic, 0, 0, SKU, eventSerializer.serialize(event));
     record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
     record.headers()
-        .add("eventType", event.getClass().getSimpleName().getBytes(StandardCharsets.UTF_8));
+        .add("eventType", event.eventType().getBytes(StandardCharsets.UTF_8));
     return record;
   }
 

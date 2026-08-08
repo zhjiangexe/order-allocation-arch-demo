@@ -1,6 +1,7 @@
 package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
+import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -10,7 +11,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.ApplicationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,7 +28,7 @@ class CancelOrderUsecaseTest {
   @DisplayName("取消訂單時應儲存狀態並發布取消 Domain Event")
   void shouldPersistCancelledOrderAndPublishDomainEvent() {
     OrderRepository repository = mock(OrderRepository.class);
-    ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+    OrderingDomainEventPublisher publisher = mock(OrderingDomainEventPublisher.class);
     Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
     order.releaseDomainEvents();
     when(repository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -38,15 +38,15 @@ class CancelOrderUsecaseTest {
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     verify(repository).save(order);
     // 取消事件不帶行——它要說的是「哪張單、什麼時候」，行的內容不構成這個事實的一部分。
-    verify(publisher).publishEvent(new OrderCancelled(
-        order.getId(), OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, cancelledAt));
+    verify(publisher).publishAll(java.util.List.of(new OrderCancelled(
+        order.getId(), OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, cancelledAt)));
   }
 
   @Test
   @DisplayName("訂單已取消時應為合法 no-op")
   void shouldDoNothingWhenOrderIsAlreadyCancelled() {
     OrderRepository repository = mock(OrderRepository.class);
-    ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+    OrderingDomainEventPublisher publisher = mock(OrderingDomainEventPublisher.class);
     Order order = OrderFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
     order.cancel(cancelledAt);
     order.releaseDomainEvents();
@@ -62,7 +62,7 @@ class CancelOrderUsecaseTest {
   @DisplayName("找不到訂單時取消應失敗")
   void shouldFailWhenOrderDoesNotExist() {
     OrderRepository repository = mock(OrderRepository.class);
-    ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+    OrderingDomainEventPublisher publisher = mock(OrderingDomainEventPublisher.class);
     UUID orderId = UUID.randomUUID();
     when(repository.findById(orderId)).thenReturn(Optional.empty());
 

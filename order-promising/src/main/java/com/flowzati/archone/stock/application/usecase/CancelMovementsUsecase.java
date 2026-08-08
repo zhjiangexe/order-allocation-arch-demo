@@ -2,8 +2,8 @@ package com.flowzati.archone.stock.application.usecase;
 
 import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
 import com.flowzati.archone.stock.application.movement.MovementCanceller;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.inbox.InboundCommand;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 

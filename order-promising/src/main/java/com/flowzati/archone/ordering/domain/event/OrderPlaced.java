@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.domain.event;
 
-import com.flowzati.archone.common.ddd.DomainEvent;
+import com.flowzati.archone.promising.domain.DomainEvent;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

@@ -1,17 +1,16 @@
 package com.flowzati.archone.stock.entrypoint.kafka;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
-import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
+import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -72,13 +71,13 @@ class AllocationHotSkuConcurrencyIntegrationTest {
   private static final int MAX_RECOVERY_ROUNDS = 5;
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
 
   @Autowired
-  private ObjectMapper objectMapper;
+  private IntegrationEventSerializer eventSerializer;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -310,15 +309,15 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     //    因此是 2,000，而那個數字混了兩件事——這裡要問的是「配貨端收齊了嗎」。
     Integer inboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_inbox WHERE event_type = ?",
-        Integer.class, OrderPlacedIntegrationEvent.class.getSimpleName());
+        Integer.class, OrderPlacedIntegrationEvent.EVENT_TYPE);
     assertThat(inboxCount).isEqualTo(TOTAL_ORDERS);
 
     //    ordering 側也該收齊：每張單一則結果事件，一則都不能少。
     Integer orderingClaims = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_inbox WHERE event_type IN (?, ?)",
         Integer.class,
-        OrderAllocatedIntegrationEvent.class.getSimpleName(),
-        BackorderCreatedIntegrationEvent.class.getSimpleName());
+        OrderAllocatedIntegrationEvent.EVENT_TYPE,
+        BackorderCreatedIntegrationEvent.EVENT_TYPE);
     assertThat(orderingClaims).isEqualTo(TOTAL_ORDERS);
 
     // 5) Outbox 結果：對外發布的 Integration Event 總數要等於送出的事件數，且種類分佈要對上
@@ -326,10 +325,10 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     Integer outboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_outbox", Integer.class);
     Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
-        OrderAllocatedIntegrationEvent.class.getSimpleName());
+        OrderAllocatedIntegrationEvent.EVENT_TYPE);
     Integer backorderedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
-        BackorderCreatedIntegrationEvent.class.getSimpleName());
+        BackorderCreatedIntegrationEvent.EVENT_TYPE);
     assertThat(outboxCount).isEqualTo(TOTAL_ORDERS);
     assertThat(allocatedOutboxCount).isEqualTo(ON_HAND_QUANTITY);
     assertThat(backorderedOutboxCount).isEqualTo(TOTAL_ORDERS - ON_HAND_QUANTITY);
@@ -343,17 +342,13 @@ class AllocationHotSkuConcurrencyIntegrationTest {
         event.getOrderId().toString(),
         serialize(event));
     record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", OrderPlacedIntegrationEvent.class.getSimpleName()
+    record.headers().add("eventType", OrderPlacedIntegrationEvent.EVENT_TYPE
         .getBytes(StandardCharsets.UTF_8));
     consumer.consumeOrderingEvent(record);
   }
 
   private String serialize(OrderPlacedIntegrationEvent event) {
-    try {
-      return objectMapper.writeValueAsString(event);
-    } catch (JsonProcessingException exception) {
-      throw new IllegalStateException("Cannot serialize test integration event", exception);
-    }
+    return eventSerializer.serialize(event);
   }
 
   @TestConfiguration(proxyBeanMethods = false)

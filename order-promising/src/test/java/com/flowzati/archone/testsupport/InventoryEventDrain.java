@@ -1,6 +1,7 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
+import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -34,10 +35,13 @@ public final class InventoryEventDrain {
             FROM event_outbox o
            WHERE o.route = ?
              AND NOT EXISTS (
-                   SELECT 1 FROM event_inbox i WHERE i.event_id = o.id
+                   SELECT 1 FROM event_inbox i
+                    WHERE i.subscriber_id = ?
+                      AND i.event_id = o.id
                  )
            ORDER BY o.timestamp, o.id
-          """, InventoryEventTopics.STOCK_EVENTS);
+          """, InventoryEventTopics.STOCK_EVENTS,
+          AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
       if (rows.isEmpty()) {
         return delivered;
       }
@@ -58,6 +62,9 @@ public final class InventoryEventDrain {
         InventoryEventTopics.STOCK_EVENTS, 0, 0, eventId.toString(), payload);
     record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));
     record.headers().add("eventType", eventType.getBytes(StandardCharsets.UTF_8));
-    dispatcher.dispatch(record, InventoryEventTopics.STOCK_EVENTS);
+    dispatcher.dispatch(
+        record,
+        InventoryEventTopics.STOCK_EVENTS,
+        AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
   }
 }

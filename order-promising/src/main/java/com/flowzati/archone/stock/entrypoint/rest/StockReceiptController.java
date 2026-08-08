@@ -1,7 +1,7 @@
 package com.flowzati.archone.stock.entrypoint.rest;
 
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import java.time.LocalDate;
@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class StockReceiptController {
 
   private static final String REQUEST_TYPE = "ConfirmStockReceiptRequest";
+  private static final String IDEMPOTENCY_SCOPE = "stock-receipt-requests";
 
   private final ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
@@ -48,7 +49,8 @@ public class StockReceiptController {
     ConfirmStockReceiptCommand command = new ConfirmStockReceiptCommand(
         request.ownerId(), request.facilityId(), request.locationId(), request.sku(),
         request.inDate(), request.expiryDate(), request.quantity());
-    MessageMetadata message = new MessageMetadata(request.receiptId(), REQUEST_TYPE);
+    MessageMetadata message = new MessageMetadata(
+        request.receiptId(), REQUEST_TYPE, IDEMPOTENCY_SCOPE);
     confirmStockReceiptUsecase.handle(new InboundCommand<>(command, message));
     return new StockReceiptConfirmedResponse(
         request.receiptId(), request.sku(), request.quantity());

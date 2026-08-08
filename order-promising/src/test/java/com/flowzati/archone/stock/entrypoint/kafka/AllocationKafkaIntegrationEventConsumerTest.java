@@ -5,16 +5,18 @@ import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.application.retry.AllocationRetryExecutor;
 import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
 import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
 import com.flowzati.archone.stock.infrastructure.retry.SpringAllocationRetryExecutor;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher;
-import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.events.JacksonIntegrationEventSerde;
+import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.charset.StandardCharsets;
@@ -47,7 +49,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
       .build()), new SimpleMeterRegistry());
   private final AllocationKafkaIntegrationEventConsumer consumer = new AllocationKafkaIntegrationEventConsumer(
       new KafkaIntegrationEventDispatcher(
-          objectMapper,
+          new JacksonIntegrationEventSerde(objectMapper),
           List.of(
               new OrderPlacedIntegrationEventHandler(allocateOrderUsecase, retryExecutor),
               new OrderCancelledIntegrationEventHandler(releaseReservationUsecase, retryExecutor),
@@ -63,14 +65,16 @@ class AllocationKafkaIntegrationEventConsumerTest {
         eventId, orderId, Instant.parse("2026-07-24T10:00:00Z"));
 
     consumer.consumeOrderingEvent(record(
-        OrderingEventTopics.ORDER_EVENTS, event, OrderPlacedIntegrationEvent.class.getSimpleName()));
+        OrderingEventTopics.ORDER_EVENTS, event, OrderPlacedIntegrationEvent.EVENT_TYPE));
 
     ArgumentCaptor<InboundCommand<AllocateOrderCommand>> inbound = inboundCaptor();
     verify(allocateOrderUsecase).handle(inbound.capture());
     assertThat(inbound.getValue().command().orderId()).isEqualTo(orderId);
     assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
     assertThat(inbound.getValue().message().eventType())
-        .isEqualTo(OrderPlacedIntegrationEvent.class.getSimpleName());
+        .isEqualTo(OrderPlacedIntegrationEvent.EVENT_TYPE);
+    assertThat(inbound.getValue().message().subscriberId())
+        .isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
   }
 
   @Test
@@ -82,12 +86,14 @@ class AllocationKafkaIntegrationEventConsumerTest {
         eventId, orderId, Instant.parse("2026-07-24T10:00:00Z"));
 
     consumer.consumeOrderingEvent(record(
-        OrderingEventTopics.ORDER_EVENTS, event, OrderCancelledIntegrationEvent.class.getSimpleName()));
+        OrderingEventTopics.ORDER_EVENTS, event, OrderCancelledIntegrationEvent.EVENT_TYPE));
 
     ArgumentCaptor<InboundCommand<CancelMovementsCommand>> inbound = inboundCaptor();
     verify(releaseReservationUsecase).handle(inbound.capture());
     assertThat(inbound.getValue().command().orderId()).isEqualTo(orderId);
     assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
+    assertThat(inbound.getValue().message().subscriberId())
+        .isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
   }
 
   @Test
@@ -104,7 +110,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
     consumer.consumeInventoryEvent(record(
         InventoryEventTopics.STOCK_EVENTS,
         event,
-        StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName()));
+        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE));
 
     ArgumentCaptor<InboundCommand<AllocateWaitingDemandCommand>> inbound = inboundCaptor();
     verify(allocateWaitingDemandUsecase).handle(inbound.capture());
@@ -112,7 +118,9 @@ class AllocationKafkaIntegrationEventConsumerTest {
         new AllocateWaitingDemandCommand(ownerId, facilityId, locationId, "SKU-1"));
     assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
     assertThat(inbound.getValue().message().eventType())
-        .isEqualTo(StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName());
+        .isEqualTo(StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE);
+    assertThat(inbound.getValue().message().subscriberId())
+        .isEqualTo(AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
   }
 
   @Test
@@ -123,7 +131,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
         OrderingEventTopics.ORDER_EVENTS, 0, 0, "key", objectMapper.writeValueAsString(event));
     record.headers().add("id", UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", OrderPlacedIntegrationEvent.class.getSimpleName()
+    record.headers().add("eventType", OrderPlacedIntegrationEvent.EVENT_TYPE
         .getBytes(StandardCharsets.UTF_8));
 
     assertThatThrownBy(() -> consumer.consumeOrderingEvent(record))
@@ -132,7 +140,7 @@ class AllocationKafkaIntegrationEventConsumerTest {
   }
 
   private ConsumerRecord<String, String> record(String topic, Object event, String eventType) throws Exception {
-    UUID eventId = ((com.flowzati.archone.common.integration.IntegrationEvent) event).getEventId();
+    UUID eventId = ((com.flowzati.archone.messaging.events.IntegrationEvent) event).getEventId();
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
         topic, 0, 0, "key", objectMapper.writeValueAsString(event));
     record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));

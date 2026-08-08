@@ -2,7 +2,7 @@ package com.flowzati.archone.stock.domain.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -3,7 +3,7 @@ package com.flowzati.archone.stock.application.movement;
 import com.flowzati.archone.catalog.domain.model.LocationUsage;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
 import com.flowzati.archone.stock.domain.model.StockPicking;

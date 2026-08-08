@@ -5,10 +5,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.inbox.MessageMetadata;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -34,7 +36,9 @@ class RecordOrderAllocationUsecaseTest {
     OrderRepository repository = mock(OrderRepository.class);
     InboxRepo inboxRepo = mock(InboxRepo.class);
     MessageMetadata message = new MessageMetadata(
-        IdGenerator.nextId(), "OrderAllocatedIntegrationEvent");
+        IdGenerator.nextId(),
+        OrderAllocatedIntegrationEvent.EVENT_TYPE,
+        OrderingEventSubscriptions.ALLOCATION_RESULTS);
     when(inboxRepo.claimIfNew(message)).thenReturn(true);
     when(repository.findById(orderId)).thenReturn(Optional.of(order));
     RecordOrderAllocationUsecase usecase = new RecordOrderAllocationUsecase(repository, inboxRepo);

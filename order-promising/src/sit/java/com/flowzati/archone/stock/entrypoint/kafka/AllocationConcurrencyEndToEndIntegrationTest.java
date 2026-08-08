@@ -1,19 +1,20 @@
 package com.flowzati.archone.stock.entrypoint.kafka;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
-import com.flowzati.archone.stock.application.event.BackorderCreatedIntegrationEvent;
-import com.flowzati.archone.stock.application.event.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.common.inbox.JpaEventInboxRepository;
-import com.flowzati.archone.common.outbox.infrastructure.repository.JpaOutboxRepository;
-import com.flowzati.archone.ordering.application.event.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
+import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
+import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
+import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -61,13 +62,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AllocationConcurrencyEndToEndIntegrationTest {
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
   private AllocationKafkaIntegrationEventConsumer consumer;
 
   @Autowired
-  private ObjectMapper objectMapper;
+  private IntegrationEventSerializer eventSerializer;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -141,11 +142,13 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     // 恰好一張拿到預留：兩張都拿到代表超賣，都沒拿到代表兩張都白白重試到耗盡。
     assertThat(!heldBy(firstOrderId).isEmpty()
         ^ !heldBy(secondOrderId).isEmpty()).isTrue();
-    assertThat(inboxRepository.findById(firstEvent.getEventId())).isPresent();
-    assertThat(inboxRepository.findById(secondEvent.getEventId())).isPresent();
+    assertThat(inboxRepository.findById(new InboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, firstEvent.getEventId()))).isPresent();
+    assertThat(inboxRepository.findById(new InboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, secondEvent.getEventId()))).isPresent();
     assertThat(outboxRepository.findAll().stream().map(outbox -> outbox.getEventType()))
-        .contains(OrderAllocatedIntegrationEvent.class.getSimpleName(),
-            BackorderCreatedIntegrationEvent.class.getSimpleName());
+        .contains(OrderAllocatedIntegrationEvent.EVENT_TYPE,
+            BackorderCreatedIntegrationEvent.EVENT_TYPE);
     assertThat(conflictInjector.invocations()).isGreaterThanOrEqualTo(3);
   }
 
@@ -171,7 +174,8 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
     assertThat(heldBy(orderId)).isEmpty();
-    assertThat(inboxRepository.findById(event.getEventId())).isEmpty();
+    assertThat(inboxRepository.findById(new InboxId(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))).isEmpty();
     assertThat(outboxRepository.count()).isZero();
     assertThat(exhaustedMetricCount()).isEqualTo(metricBefore + 1.0);
   }
@@ -184,17 +188,13 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         event.getOrderId().toString(),
         serialize(event));
     record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", OrderPlacedIntegrationEvent.class.getSimpleName()
+    record.headers().add("eventType", OrderPlacedIntegrationEvent.EVENT_TYPE
         .getBytes(StandardCharsets.UTF_8));
     consumer.consumeOrderingEvent(record);
   }
 
   private String serialize(OrderPlacedIntegrationEvent event) {
-    try {
-      return objectMapper.writeValueAsString(event);
-    } catch (JsonProcessingException exception) {
-      throw new IllegalStateException("Cannot serialize test integration event", exception);
-    }
+    return eventSerializer.serialize(event);
   }
 
   private double exhaustedMetricCount() {

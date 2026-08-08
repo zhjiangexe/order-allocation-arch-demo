@@ -20,6 +20,15 @@ configurations {
 }
 
 dependencies {
+    implementation project(':foundation')
+    implementation project(':contracts')
+    implementation project(':messaging:messaging-api')
+    implementation project(':messaging:messaging-events')
+    implementation project(':messaging:messaging-consumer-inbox')
+    implementation project(':messaging:messaging-consumer-kafka')
+    implementation project(':messaging:messaging-spring-boot-starter')
+    implementation project(':platform-infrastructure')
+
     implementation libs.spring.boot.starter.actuator
     implementation libs.spring.boot.starter.data.jpa
     implementation libs.spring.boot.starter.flyway
@@ -28,7 +37,6 @@ dependencies {
     implementation libs.spring.boot.starter.webmvc
     implementation libs.spring.cloud.starter.circuitbreaker.resilience4j
     implementation libs.bundles.spring.modulith
-    implementation libs.uuid.creator
     implementation libs.jackson.datatype.jsr310
 
     developmentOnly libs.spring.boot.devtools

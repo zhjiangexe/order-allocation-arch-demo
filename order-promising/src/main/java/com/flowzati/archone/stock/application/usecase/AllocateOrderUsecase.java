@@ -1,19 +1,19 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.common.ddd.DomainEvent;
+import com.flowzati.archone.promising.domain.DomainEvent;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
+import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.inbox.InboundCommand;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.repository.DemandRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -27,7 +27,7 @@ public class AllocateOrderUsecase {
   private final DemandRepository demandRepository;
   private final StockOperationRecorder stockOperationRecorder;
   private final MovementAssigner movementAssigner;
-  private final ApplicationEventPublisher eventPublisher;
+  private final AllocationDomainEventPublisher eventPublisher;
   private final Clock clock;
 
   public AllocateOrderUsecase(
@@ -35,7 +35,7 @@ public class AllocateOrderUsecase {
       DemandRepository demandRepository,
       StockOperationRecorder stockOperationRecorder,
       MovementAssigner movementAssigner,
-      ApplicationEventPublisher eventPublisher,
+      AllocationDomainEventPublisher eventPublisher,
       Clock clock) {
     this.inboxRepo = inboxRepo;
     this.demandRepository = demandRepository;
@@ -74,6 +74,6 @@ public class AllocateOrderUsecase {
     DomainEvent event = isAllocated ?
         new OrderAllocationCompleted(demand.orderId(), now) :
         new OrderBackorderRecorded(demand.orderId(), now);
-    eventPublisher.publishEvent(event);
+    eventPublisher.publish(event);
   }
 }

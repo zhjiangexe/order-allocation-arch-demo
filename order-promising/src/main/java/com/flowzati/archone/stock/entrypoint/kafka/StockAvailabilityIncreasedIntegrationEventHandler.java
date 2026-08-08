@@ -1,11 +1,11 @@
 package com.flowzati.archone.stock.entrypoint.kafka;
 
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.application.retry.AllocationRetryContext;
 import com.flowzati.archone.stock.application.retry.AllocationRetryExecutor;
 import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 /** Maps a committed stock-availability fact to one bounded backorder-allocation transaction. */
 @Component
 class StockAvailabilityIncreasedIntegrationEventHandler
-    implements KafkaIntegrationEventHandler<StockAvailabilityIncreasedIntegrationEvent> {
+    implements IntegrationEventHandler<StockAvailabilityIncreasedIntegrationEvent> {
 
   private final AllocateWaitingDemandUsecase allocateWaitingDemandUsecase;
   private final AllocationRetryExecutor retryExecutor;
@@ -28,8 +28,13 @@ class StockAvailabilityIncreasedIntegrationEventHandler
   }
 
   @Override
-  public String topic() {
+  public String destination() {
     return InventoryEventTopics.STOCK_EVENTS;
+  }
+
+  @Override
+  public String eventType() {
+    return StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE;
   }
 
   @Override

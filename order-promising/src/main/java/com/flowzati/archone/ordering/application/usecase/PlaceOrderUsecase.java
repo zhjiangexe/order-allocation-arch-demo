@@ -1,8 +1,9 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
+import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderLine;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -11,7 +12,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,15 +19,15 @@ public class PlaceOrderUsecase {
 
   private final OrderRepository orderRepository;
   private final AppClock clock;
-  private final ApplicationEventPublisher publisher;
+  private final OrderingDomainEventPublisher eventPublisher;
 
   public PlaceOrderUsecase(
       OrderRepository orderRepository,
       AppClock clock,
-      ApplicationEventPublisher publisher) {
+      OrderingDomainEventPublisher eventPublisher) {
     this.orderRepository = orderRepository;
     this.clock = clock;
-    this.publisher = publisher;
+    this.eventPublisher = eventPublisher;
   }
 
   /**
@@ -53,7 +53,9 @@ public class PlaceOrderUsecase {
         receivedAt,
         command.placedAt());
     orderRepository.save(placedOrder);
-    placedOrder.releaseDomainEvents().forEach(publisher::publishEvent);
+    // Eventuate Tram 式：直接呼叫 transactional publisher。Outbox 寫入失敗會讓本交易回滾，
+    // 不透過 ApplicationEventPublisher 或隱含的 Spring listener。
+    eventPublisher.publishAll(placedOrder.releaseDomainEvents());
     return placedOrder;
   }
 

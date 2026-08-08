@@ -1,6 +1,6 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
 import com.flowzati.archone.ordering.domain.model.OrderLine;

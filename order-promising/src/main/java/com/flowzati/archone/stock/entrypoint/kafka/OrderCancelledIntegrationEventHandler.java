@@ -4,16 +4,16 @@ import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
 import com.flowzati.archone.stock.application.retry.AllocationRetryContext;
 import com.flowzati.archone.stock.application.retry.AllocationRetryExecutor;
 import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.messaging.kafka.KafkaIntegrationEventHandler;
-import com.flowzati.archone.ordering.application.event.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.events.IntegrationEventHandler;
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import org.springframework.stereotype.Component;
 
 @Component
 class OrderCancelledIntegrationEventHandler
-    implements KafkaIntegrationEventHandler<OrderCancelledIntegrationEvent> {
+    implements IntegrationEventHandler<OrderCancelledIntegrationEvent> {
 
   private final CancelMovementsUsecase cancelMovementsUsecase;
   private final AllocationRetryExecutor retryExecutor;
@@ -27,8 +27,13 @@ class OrderCancelledIntegrationEventHandler
   }
 
   @Override
-  public String topic() {
+  public String destination() {
     return OrderingEventTopics.ORDER_EVENTS;
+  }
+
+  @Override
+  public String eventType() {
+    return OrderCancelledIntegrationEvent.EVENT_TYPE;
   }
 
   @Override

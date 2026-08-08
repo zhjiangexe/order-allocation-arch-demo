@@ -104,8 +104,8 @@ class AllocationRetryTransactionIntegrationTest {
       transactionIds.add(jdbcTemplate.queryForObject("SELECT txid_current()", Long.class));
       if (writeInbox) {
         jdbcTemplate.update(
-            "INSERT INTO event_inbox (event_id, event_type, processed_at) "
-                + "VALUES (?::uuid, 'RetryProbe', CURRENT_TIMESTAMP)",
+            "INSERT INTO event_inbox (subscriber_id, event_id, event_type, processed_at) "
+                + "VALUES ('retry-probe', ?::uuid, 'RetryProbe', CURRENT_TIMESTAMP)",
             UUID.randomUUID().toString());
       }
       if (attempts.incrementAndGet() <= failures) {

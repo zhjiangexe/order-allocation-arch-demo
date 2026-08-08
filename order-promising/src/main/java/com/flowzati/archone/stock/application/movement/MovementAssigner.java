@@ -1,6 +1,6 @@
 package com.flowzati.archone.stock.application.movement;
 
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.catalog.domain.model.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.stock.domain.model.AllocatableBatches;
@@ -19,7 +19,7 @@ import com.flowzati.archone.stock.domain.service.AllocationResult;
 import com.flowzati.archone.stock.domain.service.AllocationService;
 import com.flowzati.archone.stock.domain.service.BatchPick;
 import com.flowzati.archone.stock.domain.service.OrderAllocation;
-import com.flowzati.archone.common.IdGenerator;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 
 import java.time.Instant;
 import java.util.ArrayList;

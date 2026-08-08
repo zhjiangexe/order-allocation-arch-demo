@@ -8,13 +8,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.common.IdGenerator;
-import com.flowzati.archone.common.inbox.InboundCommand;
-import com.flowzati.archone.common.inbox.InboxRepo;
-import com.flowzati.archone.common.inbox.MessageMetadata;
-import com.flowzati.archone.common.time.AppClock;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.messaging.api.InboundCommand;
+import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.inbox.InboxRepo;
+import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
-import com.flowzati.archone.stock.application.event.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
@@ -35,7 +37,6 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.ApplicationEventPublisher;
 
 @DisplayName("配置一輪等待需求")
 class AllocateWaitingDemandUsecaseTest {
@@ -49,7 +50,7 @@ class AllocateWaitingDemandUsecaseTest {
   private StockPoolRepository stockPoolRepository;
   private StockMoveRepository stockMoveRepository;
   private MovementAssigner movementAssigner;
-  private ApplicationEventPublisher eventPublisher;
+  private AllocationDomainEventPublisher eventPublisher;
   private AllocateWaitingDemandUsecase usecase;
 
   @BeforeEach
@@ -58,7 +59,7 @@ class AllocateWaitingDemandUsecaseTest {
     stockPoolRepository = mock(StockPoolRepository.class);
     stockMoveRepository = mock(StockMoveRepository.class);
     movementAssigner = mock(MovementAssigner.class);
-    eventPublisher = mock(ApplicationEventPublisher.class);
+    eventPublisher = mock(AllocationDomainEventPublisher.class);
     usecase = new AllocateWaitingDemandUsecase(
         inboxRepo,
         stockPoolRepository,
@@ -81,7 +82,7 @@ class AllocateWaitingDemandUsecaseTest {
     usecase.handle(inbound);
 
     verify(inboxRepo).claimIfNew(inbound.message());
-    verify(eventPublisher).publishEvent(
+    verify(eventPublisher).publish(
         new OrderAllocationCompleted(allocated.orderId(), NOW));
   }
 
@@ -131,7 +132,7 @@ class AllocateWaitingDemandUsecaseTest {
 
     usecase.handle(command());
 
-    verify(eventPublisher, never()).publishEvent(any());
+    verify(eventPublisher, never()).publish(any());
   }
 
   @Test
@@ -143,9 +144,9 @@ class AllocateWaitingDemandUsecaseTest {
 
     usecase.handle(command());
 
-    verify(eventPublisher, times(2)).publishEvent(any(OrderAllocationCompleted.class));
+    verify(eventPublisher, times(2)).publish(any(OrderAllocationCompleted.class));
     allocated.forEach(demand -> verify(eventPublisher)
-        .publishEvent(new OrderAllocationCompleted(demand.orderId(), NOW)));
+        .publish(new OrderAllocationCompleted(demand.orderId(), NOW)));
   }
 
   private AllocateWaitingDemandCommand command() {
@@ -158,7 +159,9 @@ class AllocateWaitingDemandUsecaseTest {
 
   private InboundCommand<AllocateWaitingDemandCommand> inbound(UUID eventId) {
     return new InboundCommand<>(command(), new MessageMetadata(
-        eventId, StockAvailabilityIncreasedIntegrationEvent.class.getSimpleName()));
+        eventId,
+        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
+        AllocationEventSubscriptions.INVENTORY_AVAILABILITY));
   }
 
   private void givenAllocatableStock() {
