@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'cross-boundary integration contracts'
+
+dependencies {
+    api project(':messaging:messaging-events')
+    api libs.jackson.annotations
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.jackson.datatype.jsr310
+    testRuntimeOnly libs.junit.platform.launcher
+}

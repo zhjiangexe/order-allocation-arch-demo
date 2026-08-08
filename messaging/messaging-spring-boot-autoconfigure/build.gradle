@@ -1,0 +1,20 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Spring Boot auto-configuration for Archone transactional messaging'
+
+dependencies {
+    api project(':messaging:messaging-api')
+    api project(':messaging:messaging-events')
+    api project(':messaging:messaging-producer-outbox')
+    api project(':messaging:messaging-consumer-inbox')
+    api project(':messaging:messaging-consumer-kafka')
+
+    implementation libs.spring.boot.starter.data.jpa
+    implementation libs.spring.boot.starter.kafka
+    implementation libs.jackson.datatype.jsr310
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

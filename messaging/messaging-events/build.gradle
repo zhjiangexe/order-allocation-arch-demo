@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'typed Integration Event publication API and implementation'
+
+dependencies {
+    api project(':messaging:messaging-api')
+    implementation libs.jackson.databind
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.jackson.datatype.jsr310
+    testRuntimeOnly libs.junit.platform.launcher
+}

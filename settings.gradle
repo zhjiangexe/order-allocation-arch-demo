@@ -1,3 +1,14 @@
 rootProject.name = 'archone'
 
 include('order-promising')
+include('wms')
+include('foundation')
+include('contracts')
+include('platform-infrastructure')
+include('messaging:messaging-api')
+include('messaging:messaging-events')
+include('messaging:messaging-producer-outbox')
+include('messaging:messaging-consumer-inbox')
+include('messaging:messaging-consumer-kafka')
+include('messaging:messaging-spring-boot-autoconfigure')
+include('messaging:messaging-spring-boot-starter')

@@ -1,0 +1,10 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'framework-neutral generic messaging API'
+
+dependencies {
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

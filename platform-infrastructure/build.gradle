@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'shared non-messaging Spring infrastructure'
+
+dependencies {
+    implementation libs.spring.context
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

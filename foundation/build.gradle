@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'framework-neutral technical foundation'
+
+dependencies {
+    implementation libs.uuid.creator
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

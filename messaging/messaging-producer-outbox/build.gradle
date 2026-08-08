@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'transactional Outbox implementation of MessageProducer'
+
+dependencies {
+    api project(':messaging:messaging-api')
+    implementation libs.spring.boot.starter.data.jpa
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

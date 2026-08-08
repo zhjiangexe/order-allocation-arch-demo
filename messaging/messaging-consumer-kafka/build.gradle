@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Kafka adapter for typed Integration Event dispatch'
+
+dependencies {
+    api project(':messaging:messaging-api')
+    api project(':messaging:messaging-events')
+    api libs.kafka.clients
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

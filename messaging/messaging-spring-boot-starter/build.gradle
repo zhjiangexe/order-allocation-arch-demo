@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'dependency-only Spring Boot starter for Archone transactional messaging'
+
+dependencies {
+    api project(':messaging:messaging-spring-boot-autoconfigure')
+    api libs.spring.boot.starter.data.jpa
+    api libs.spring.boot.starter.kafka
+    api libs.jackson.datatype.jsr310
+}

@@ -1,0 +1,2 @@
+com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingAutoConfiguration
+com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJpaAutoConfiguration

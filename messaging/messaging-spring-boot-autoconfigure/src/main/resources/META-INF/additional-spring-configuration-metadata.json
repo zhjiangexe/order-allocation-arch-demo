@@ -1,0 +1,16 @@
+{
+  "properties": [
+    {
+      "name": "archone.messaging.jpa.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to compose the JPA Inbox, Outbox, MessageProducer, and IntegrationEventPublisher beans."
+    },
+    {
+      "name": "archone.messaging.jpa.register-package",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to add the Archone messaging root to Spring Boot auto-configuration packages. Disable when the application root already covers it."
+    }
+  ]
+}
