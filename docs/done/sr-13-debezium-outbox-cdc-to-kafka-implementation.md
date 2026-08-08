@@ -87,7 +87,7 @@ transforms.outbox.table.fields.additional.placement=type:header:eventType
 其中 CDC integration test：
 
 ```bash
-./gradlew :order-promising:sit --tests com.flowzati.archone.common.outbox.OutboxCdcIntegrationTest
+./gradlew :order-promising:sit --tests com.flowzati.archone.promising.messaging.OutboxCdcIntegrationTest
 ```
 
 結果：`1 test completed`。

@@ -168,7 +168,7 @@ SR-08 ─> SR-09 ─┐
   - 補齊 typed Inbox／Outbox entities、repositories 與 migrations。
   - Inbox 以 `event_id` unique／primary key 保證 claim idempotency。
   - Outbox 保存 event identity、aggregate reference、type、payload 與 occurred timestamp；row 寫入後不可由應用程式標記發布狀態。
-  - 實作 application-layer translator listener，將 Domain Event 映射為 Integration Event 並 append 至 Outbox；business Coordinator 不直接建立或寫入 Integration Event。
+  - 原始版本以 application-layer translator listener 將 Domain Event 映射為 Integration Event；2026-08-08 已改為 Use Case 明確同步呼叫 bounded-context publisher，再經 `IntegrationEventPublisher → MessageProducer → OutboxMessageProducer`，不再以 Spring listener 作為對外事件主線。
   - Integration Event 必須逐一寫入 Outbox，且 Domain Event translation、業務更新與 Outbox 寫入能在同 transaction rollback。
   - 修正 event list 被當成單一事件發布的問題，增加 persistence 與 rollback tests。
 
@@ -178,7 +178,7 @@ SR-08 ─> SR-09 ─┐
   - 不實作 application polling relay，也不回寫 `publishedAt`、`attempts` 或 `lastError`；connector offset、重試與故障資訊由 Kafka Connect／Debezium 營運。
   - CDC delivery 為 at-least-once；相同 `eventId` 可能重送，consumer 必須以 Inbox 保證冪等。
   - 以 Testcontainers 啟動 PostgreSQL、Kafka、Kafka Connect／Debezium，驗證 committed Outbox row 會送達 Kafka。
-  - 移除跨 context 流程對同步 `ApplicationEventPublisher` chaining 的依賴；內部 Domain Event translator 仍在原 transaction 同步寫入 Outbox。
+  - 移除跨 context 流程對同步 `ApplicationEventPublisher` chaining 的依賴；目前連對外 publication 的內部轉接也不經 `ApplicationEventPublisher`，由明確 publisher call 在原 transaction 同步寫入 Outbox。
   - 增加 committed row 發布、正常 restart 依 offset 接續、snapshot 回放與重複 delivery 的整合測試。
 
 ### Composition and verification（最外圈）
