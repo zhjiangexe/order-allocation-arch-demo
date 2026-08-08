@@ -524,17 +524,20 @@
 <main>
   <header class="hero">
     <div class="hero-copy">
-      <div class="eyebrow">Current architecture · 2026-08-05</div>
+      <div class="eyebrow">Current architecture · 2026-08-07</div>
       <h1>Archone 全流程、Use Case 與開發狀態</h1>
       <p>
         本頁依操作與事件發生順序，串起主檔查詢、入庫、接單、初次配置、缺貨重配、訂單投影、查詢與取消。
-        目前程式中的 16 個 application use case 已全部納入；系統具備可運作的 order promising 與一段式 inbound，但還不是完整 WMS／3PL execution system。
+        <code>order-promising</code> 中的 16 個 application use case 均以完整類名出現在流程與盤點表中；目前的 13 個 WMS use cases 另見
+        <a href="wms-module-architecture.html">WMS-only 模組架構</a>。跨應用技術已分成 <code>foundation</code>、<code>contracts</code>、Inbox／Outbox／Kafka messaging 子模組、Spring Boot auto-configuration／starter，以及只保留非 messaging Spring wiring 的 <code>platform-infrastructure</code>；系統具備可運作的 order promising 與基礎 WMS domain contract，但還不是完整 WMS／3PL execution system。
       </p>
     </div>
     <aside class="snapshot" aria-label="目前開發快照">
       <dl>
         <dt>Application use cases</dt><dd>16</dd>
-        <dt>本頁涵蓋</dt><dd>16 / 16</dd>
+        <dt>Order Promising</dt><dd>16 / 16</dd>
+        <dt>WMS（另頁）</dt><dd>13 / 13</dd>
+        <dt>Shared technical modules</dt><dd>10</dd>
         <dt>已有入口可達</dt><dd>15 / 16</dd>
         <dt>缺少入口</dt><dd>CancelOrder</dd>
         <dt>文件基準</dt><dd>目前 working tree</dd>
@@ -553,12 +556,12 @@
   <section aria-labelledby="journey-title">
     <div class="section-head">
       <h2 id="journey-title">一、端到端流程總覽</h2>
-      <p>先準備查詢條件與庫存，再接單與配置；結果回寫後可查詢，取消則走獨立補償事件鏈。</p>
+      <p>流程依「操作準備 → 收貨／接單 → 配置結果 → 缺貨重配 → 查詢 → 取消」閱讀；收貨與接單可各自獨立發生。</p>
     </div>
 
     <div class="coverage-strip">
       <strong>16 / 16 use cases</strong>
-      <span>Catalog 5 個、Ordering 6 個、Stock 5 個。下方先按業務旅程分段，再逐項列出入口、交易責任與結果。</span>
+      <span>Catalog 5 個、Ordering 6 個、Stock 5 個。流程圖不再用「5 個 queries」或「RecordOrder…」縮寫，每一個 use case 都會具名出現。</span>
     </div>
 
     <div class="journey">
@@ -566,8 +569,9 @@
         <h3>選擇作業範圍</h3>
         <p>先取得貨主，再依頁面需要展開商品、SKU、Facility、內部庫位與現有庫存。</p>
         <ul>
-          <li>5 個 Catalog query use cases</li>
-          <li>1 個 Stock query use case</li>
+          <li>Owner → Product → SKU</li>
+          <li>Owner → Facility → Location</li>
+          <li>Location → StockPool</li>
           <li>純讀取，不發布事件</li>
         </ul>
       </article>
@@ -593,9 +597,10 @@
         <h3>回寫、重配與查詢</h3>
         <p>Ordering 接收配置結果；缺貨單在庫存增加或排程掃描時重配，畫面再主動刷新。</p>
         <ul>
-          <li>2 個結果回寫 use cases</li>
-          <li>1 個等待需求重配 use case</li>
-          <li>2 個訂單查詢 use cases</li>
+          <li><code>RecordOrderAllocationUsecase</code></li>
+          <li><code>RecordOrderBackorderUsecase</code></li>
+          <li><code>AllocateWaitingDemandUsecase</code></li>
+          <li><code>ListRecentOrdersUsecase</code>／<code>GetOrderUsecase</code></li>
         </ul>
       </article>
       <article class="journey-stage cancel">
@@ -666,11 +671,22 @@
       <span><i style="background: var(--rose-soft)"></i>入口缺口</span>
     </div>
 
-    <div class="flow-wrap" role="img" aria-label="收貨、訂單配置、缺貨重配與取消流程圖">
+    <div class="flow-wrap" role="img" aria-label="全部 16 個 use case 依操作與事件順序編排的流程圖">
       <div class="flow-title"><strong>流程</strong><strong>執行順序</strong></div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>A. 同步收貨</strong><span>先建立庫存事實</span></div>
+        <div class="lane-name"><strong>A. 作業準備</strong><span>6 個 query use cases</span></div>
+        <div class="step sync"><strong>ListOwnersUsecase</strong><span>選擇貨主</span></div>
+        <div class="step sync"><strong>ListProductsUsecase</strong><span>依 owner 選商品款</span></div>
+        <div class="step sync"><strong>ListSkusUsecase</strong><span>依 product 選 SKU</span></div>
+        <div class="step sync"><strong>ListFacilitiesForOwnerUsecase</strong><span>選可作業 Facility</span></div>
+        <div class="step sync"><strong>ListStockLocationsUsecase</strong><span>選 internal location</span></div>
+        <div class="step sync"><strong>GetStockPoolUsecase</strong><span>查看該位置所有批次</span></div>
+        <div class="step end outcome"><strong>作業條件就緒</strong><span>可收貨或建立訂單</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>B. 同步收貨</strong><span>建立庫存事實</span></div>
         <div class="step event"><strong>POST /stock-receipts</strong><span>owner／facility／location／batch</span></div>
         <div class="step sync"><strong>ConfirmStockReceiptUsecase</strong><span>Inbox claim、驗證 location</span></div>
         <div class="step state"><strong>recordInbound</strong><span>supplier → internal location</span></div>
@@ -681,36 +697,58 @@
       </div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>B. 新訂單</strong><span>接單與初次配置</span></div>
+        <div class="lane-name"><strong>C1. 新訂單成功</strong><span>初次配置成功分支</span></div>
         <div class="step event"><strong>POST /orders</strong><span>多品項 basket</span></div>
         <div class="step sync"><strong>PlaceOrderUsecase</strong><span>Order + lines → PENDING</span></div>
         <div class="step event"><strong>OrderPlaced</strong><span>Outbox → Kafka</span></div>
         <div class="step sync"><strong>AllocateOrderUsecase</strong><span>建 moves、整單配置</span></div>
-        <div class="step outcome"><strong>完成或缺貨</strong><span>發布單一 business fact</span></div>
-        <div class="step sync"><strong>RecordOrder…Usecase</strong><span>Ordering projection</span></div>
-        <div class="step end outcome"><strong>ALLOCATED / BACKORDERED</strong><span>畫面刷新後可見</span></div>
+        <div class="step event"><strong>OrderAllocated</strong><span>Outbox → Kafka</span></div>
+        <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>Ordering projection</span></div>
+        <div class="step end outcome"><strong>ALLOCATED</strong><span>整張訂單已配置</span></div>
       </div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>C. 缺貨重配</strong><span>低延遲 + 收斂</span></div>
+        <div class="lane-name"><strong>C2. 新訂單缺貨</strong><span>初次配置失敗分支</span></div>
+        <div class="step event"><strong>OrderPlaced</strong><span>已由接單交易提交</span></div>
+        <div class="step sync"><strong>AllocateOrderUsecase</strong><span>仍建立 waiting moves</span></div>
+        <div class="step state"><strong>whole-order 判定</strong><span>任何一行不足即缺貨</span></div>
+        <div class="step event"><strong>BackorderCreated</strong><span>Outbox → Kafka</span></div>
+        <div class="step sync"><strong>RecordOrderBackorderUsecase</strong><span>保存第一次缺貨時間</span></div>
+        <div class="step outcome"><strong>BACKORDERED</strong><span>等待可用庫存</span></div>
+        <div class="step end schedule"><strong>進入 D 流程</strong><span>事件喚醒或排程收斂</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>D. 缺貨重配</strong><span>低延遲 + 最終收斂</span></div>
         <div class="step event"><strong>Availability Handler</strong><span>收貨提交後快速入口</span></div>
         <div class="step schedule"><strong>或 Scheduler</strong><span>掃描可配置 scope 補漏</span></div>
         <div class="step sync"><strong>AllocateWaitingDemandUsecase</strong><span>一輪一交易、批次上限</span></div>
         <div class="step sync"><strong>MovementAssigner</strong><span>FIFO + FEFO + whole-order</span></div>
-        <div class="step outcome"><strong>OrderAllocationCompleted</strong><span>每張成功單一個事實</span></div>
+        <div class="step event"><strong>OrderAllocated</strong><span>每張成功單一個事實</span></div>
         <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>BACKORDERED → ALLOCATED</span></div>
         <div class="step end schedule"><strong>仍有等待</strong><span>下次 Scheduler 再掃</span></div>
       </div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>D. 取消訂單</strong><span>補償路徑</span></div>
+        <div class="lane-name"><strong>E. 訂單查詢</strong><span>讀取非同步結果</span></div>
+        <div class="step event"><strong>GET /orders</strong><span>limit 1–100</span></div>
+        <div class="step sync"><strong>ListRecentOrdersUsecase</strong><span>receivedAt 由新到舊</span></div>
+        <div class="step outcome"><strong>訂單列表</strong><span>顯示目前 projection 狀態</span></div>
+        <div class="step event"><strong>GET /orders/{id}</strong><span>選擇單筆訂單</span></div>
+        <div class="step sync"><strong>GetOrderUsecase</strong><span>載入 Order 與 lines</span></div>
+        <div class="step state"><strong>目前狀態</strong><span>PENDING／BACKORDERED／ALLOCATED／CANCELLED</span></div>
+        <div class="step end schedule"><strong>主動刷新</strong><span>目前沒有 push UI</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>F. 取消訂單</strong><span>Ordering → Stock 補償</span></div>
         <div class="step missing"><strong>REST／UI 入口</strong><span>目前尚未實作</span></div>
         <div class="step sync"><strong>CancelOrderUsecase</strong><span>Order → CANCELLED</span></div>
         <div class="step event"><strong>OrderCancelled</strong><span>Outbox → Kafka</span></div>
         <div class="step sync"><strong>CancelMovementsUsecase</strong><span>Inbox claim</span></div>
         <div class="step state"><strong>MovementCanceller</strong><span>取消 moves、釋放鎖定量</span></div>
-        <div class="step missing"><strong>Availability wake</strong><span>釋放後尚未主動觸發</span></div>
-        <div class="step end schedule"><strong>Scheduler</strong><span>之後仍可掃描收斂</span></div>
+        <div class="step missing"><strong>Availability event</strong><span>釋放後尚未主動發布</span></div>
+        <div class="step end schedule"><strong>Scheduler 收斂</strong><span>舊 backorders 之後再掃</span></div>
       </div>
     </div>
   </section>
@@ -775,7 +813,7 @@
         <div class="layer-items">
           <div class="node infra"><strong>Repositories / JPA</strong><span>PostgreSQL persistence</span></div>
           <div class="node infra"><strong>Inbox</strong><span>訊息 idempotency claim</span></div>
-          <div class="node infra"><strong>Outbox + Translator</strong><span>交易內記錄 business fact</span></div>
+          <div class="node infra"><strong>Domain publisher → IntegrationEventPublisher → MessageProducer → Outbox</strong><span>直接同步寫入 caller transaction，不經 ApplicationEventPublisher</span></div>
           <div class="node infra"><strong>Kafka / Retry / DLT</strong><span>提交後傳輸與失敗處理</span></div>
         </div>
       </div>
@@ -850,7 +888,6 @@
         <tr><td>Kafka → Scheduler</td><td>兩個 adapter 共用 <code>AllocateWaitingDemandUsecase</code>。</td><td>Kafka 提供速度，Scheduler 提供最終收斂；政策只有一份。</td></tr>
         <tr><td>Cancel compensation</td><td>Ordering 先取消並提交事件，Stock 再取消 movements。</td><td>兩個 context 各自提交，重送由 Inbox 與 domain idempotency 吸收。</td></tr>
         <tr><td>Use case → Components</td><td>Recorder、Assigner、Completer、Canceller 不獨立開交易。</td><td>它們是可重用 application policy，不是獨立流程 checkpoint。</td></tr>
-        <tr><td>Future Temporal</td><td>一個 Activity 包住一個完整 transactional use case。</td><td>避免把同一資料庫交易拆成多個 Activity；分支結果需能 durable replay。</td></tr>
       </tbody>
     </table>
   </section>
@@ -858,20 +895,20 @@
   <section aria-labelledby="next-title">
     <div class="section-head">
       <h2 id="next-title">七、建議後續實作順序</h2>
-      <p>先補目前流程真正中斷的位置，再延伸至完整倉儲 execution 與長流程 orchestration。</p>
+      <p>先補目前流程真正中斷的位置，再延伸至完整倉儲 execution。</p>
     </div>
 
     <div class="next-steps">
       <article class="next-step"><h3>接通取消入口</h3><p>替 <code>CancelOrderUsecase</code> 增加 REST／UI 或明確上游訊息入口，補上 16 個 use case 中唯一不可達的一個。</p></article>
       <article class="next-step"><h3>補釋放後 wake</h3><p>取消 movements 歸還可用量後發布 availability fact，讓較舊 backorders 不必只等排程。</p></article>
       <article class="next-step"><h3>完成 outbound execution</h3><p>從 ASSIGNED move 往下建立 pick／pack／stage／ship checkpoint，並定義正式扣減 on-hand 的 use case。</p></article>
-      <article class="next-step"><h3>擴充庫存與長流程</h3><p>依序加入移庫、盤點、調整、報廢與多段 inbound；出現跨 checkpoint 等待後再評估 Temporal。</p></article>
+      <article class="next-step"><h3>穩定 WMS 業務邊界</h3><p>先定義 picking、packing、dispatch preparation 與 recovery 的 identity、commands、events 與 terminal outcomes，再判斷是否真的需要跨系統 orchestration。</p></article>
     </div>
   </section>
 
   <footer>
     <span>依據：目前 workspace 的 16 個 <code>*Usecase.java</code>、REST／Kafka／Scheduler entrypoints 與 OpenSpec。</span>
-    <span>狀態日期：2026-08-05（Asia/Taipei）</span>
+    <span>狀態日期：2026-08-07（Asia/Taipei）</span>
   </footer>
 </main>
 </body>

@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archone｜WMS-only 模組架構</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5d687a;
+      --paper: #f4f7fa;
+      --panel: #ffffff;
+      --line: #d7e0e9;
+      --navy: #193650;
+      --blue: #27669f;
+      --blue-soft: #eaf3fb;
+      --teal: #0f766e;
+      --teal-soft: #e7f6f2;
+      --amber: #9a5a0a;
+      --amber-soft: #fff4df;
+      --rose: #9d3f50;
+      --rose-soft: #fdecef;
+      --shadow: 0 14px 38px rgba(25, 54, 80, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 6% 0%, rgba(39, 102, 159, 0.10), transparent 30rem),
+        radial-gradient(circle at 96% 8%, rgba(15, 118, 110, 0.09), transparent 28rem),
+        var(--paper);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+      line-height: 1.55;
+    }
+
+    main { width: min(1320px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 64px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 12px; font-size: clamp(30px, 4vw, 52px); line-height: 1.1; letter-spacing: -0.04em; }
+    h2 { font-size: 25px; letter-spacing: -0.02em; }
+    h3 { margin-bottom: 6px; font-size: 17px; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.91em; overflow-wrap: anywhere; }
+
+    .hero { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.6fr); gap: 28px; align-items: end; }
+    .eyebrow { margin-bottom: 10px; color: var(--blue); font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+    .hero p { max-width: 840px; margin-bottom: 0; color: var(--muted); font-size: 17px; }
+
+    .snapshot, section {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: var(--shadow);
+    }
+    .snapshot { padding: 20px; }
+    .snapshot dl { display: grid; grid-template-columns: 1fr auto; gap: 8px 18px; margin: 0; }
+    .snapshot dt { color: var(--muted); }
+    .snapshot dd { margin: 0; font-weight: 800; }
+
+    nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0; }
+    nav a { padding: 7px 11px; border-radius: 999px; color: var(--navy); background: #e9eef4; font-size: 12px; font-weight: 750; text-decoration: none; }
+    section { margin-top: 24px; padding: 26px; }
+    .section-head { display: flex; justify-content: space-between; gap: 24px; align-items: baseline; margin-bottom: 18px; }
+    .section-head h2 { margin-bottom: 0; }
+    .section-head p { max-width: 690px; margin-bottom: 0; color: var(--muted); text-align: right; }
+
+    .callout { padding: 15px 17px; border-left: 5px solid var(--amber); border-radius: 10px; background: var(--amber-soft); }
+    .callout p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card { padding: 18px; border: 1px solid var(--line); border-top: 5px solid var(--blue); border-radius: 14px; background: #fbfcfe; }
+    .card.inbound { border-top-color: var(--teal); }
+    .card.future { border-style: dashed; border-top-color: var(--rose); background: var(--rose-soft); }
+    .card p, .card li { color: var(--muted); font-size: 13px; }
+    .card ul { margin: 10px 0 0; padding-left: 18px; }
+
+    .flow { overflow-x: auto; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: #fbfcfe; }
+    .flow-row { display: flex; min-width: 1060px; align-items: stretch; gap: 9px; }
+    .flow-row.outbound { min-width: 1580px; }
+    .step { flex: 1; min-width: 130px; padding: 13px; border: 1px solid #b9cee1; border-radius: 12px; background: var(--blue-soft); }
+    .step.inbound { border-color: #98cec6; background: var(--teal-soft); }
+    .step.branch { border-color: #e4b9c2; background: var(--rose-soft); }
+    .step strong, .step span { display: block; }
+    .step span { margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .arrow { display: grid; place-items: center; color: #8191a4; font-size: 22px; font-weight: 900; }
+    .flow-note { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+
+    .state-branches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .state-branch { padding: 15px; border-left: 4px solid var(--blue); background: #f7fafc; }
+    .state-branch.warn { border-left-color: var(--amber); }
+    .state-branch.stop { border-left-color: var(--rose); }
+    .state-branch p { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+
+    .diagram { overflow-x: auto; padding: 20px; border: 1px solid var(--line); border-radius: 15px; background: #fbfcfe; }
+    .class-grid { display: grid; min-width: 940px; grid-template-columns: 1.05fr 64px 1.2fr 64px 1fr; gap: 12px; align-items: center; }
+    .class-stack { display: grid; gap: 10px; }
+    .class-box { border: 1px solid #aebdcb; border-radius: 11px; background: #fff; overflow: hidden; }
+    .class-box strong { display: block; padding: 9px 11px; color: #fff; background: var(--navy); }
+    .class-box.aggregate strong { background: var(--teal); }
+    .class-box.port strong { background: var(--blue); }
+    .class-box ul { margin: 0; padding: 10px 12px 10px 28px; color: var(--muted); font-size: 12px; }
+    .relation { color: #7d8ca0; font-size: 22px; font-weight: 900; text-align: center; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--navy); background: #edf2f7; }
+    tr:last-child td { border-bottom: 0; }
+    .tag { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--teal); background: var(--teal-soft); font-size: 11px; font-weight: 800; }
+    .tag.missing { color: var(--rose); background: var(--rose-soft); }
+
+    footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 26px; color: var(--muted); font-size: 12px; }
+    footer a { color: var(--blue); }
+
+    @media (max-width: 900px) {
+      .hero, .cards, .state-branches { grid-template-columns: 1fr; }
+      .section-head { display: block; }
+      .section-head p { margin-top: 6px; text-align: left; }
+    }
+    @media (max-width: 600px) {
+      main { width: min(100% - 22px, 1320px); padding-top: 26px; }
+      section { padding: 18px; }
+      footer { display: block; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div>
+      <div class="eyebrow">WMS bounded context · current source</div>
+      <h1>WMS-only 模組架構與主要流程</h1>
+      <p>本頁只描述 <code>wms</code> business module：Inbound 與 Outbound application／domain contract。專案另有 <code>foundation</code>、<code>contracts</code>、完整的 <code>messaging:*</code> 子模組與只保留非 messaging Spring wiring 的 <code>platform-infrastructure</code>，但 WMS core 目前不依賴 Spring、Kafka、JPA 或任何 workflow engine。</p>
+    </div>
+    <aside class="snapshot" aria-label="模組快照">
+      <dl>
+        <dt>Gradle module</dt><dd>1</dd>
+        <dt>Shared technical modules</dt><dd>10</dd>
+        <dt>Bounded areas</dt><dd>Inbound / Outbound</dd>
+        <dt>Use cases</dt><dd>13</dd>
+        <dt>Repository ports</dt><dd>3</dd>
+        <dt>Repository impl</dt><dd>0</dd>
+        <dt>Workflow engine</dt><dd>0</dd>
+      </dl>
+    </aside>
+  </header>
+
+  <nav aria-label="文件目錄">
+    <a href="#boundary">邊界</a>
+    <a href="#outbound">Outbound</a>
+    <a href="#wave-design">Wave design</a>
+    <a href="#cancellation">取消</a>
+    <a href="#inbound">Inbound</a>
+    <a href="#classes">Class diagram</a>
+    <a href="#catalog">Use case catalog</a>
+    <a href="#next">尚缺能力</a>
+  </nav>
+
+  <section id="boundary" aria-labelledby="boundary-title">
+    <div class="section-head">
+      <h2 id="boundary-title">一、模組與責任邊界</h2>
+      <p>先穩定 WMS 自己的 commands、aggregate rules 與 committed events，再由未來 adapter 接 REST、Kafka、JPA、Inventory 或 TMS。</p>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <h3><code>wms.outbound</code></h3>
+        <p>Wave planning／release，以及 Warehouse Shipment 的揀貨、打包、待派運、交接與取消決策。</p>
+        <ul><li>Aggregates：<code>Wave</code>、<code>Shipment</code></li><li>Repository ports：<code>WaveRepository</code>、<code>ShipmentRepository</code></li><li>9 個 command use cases</li></ul>
+      </article>
+      <article class="card inbound">
+        <h3><code>wms.inbound</code></h3>
+        <p>一張 Inbound Operation 的登記、到貨、驗收、隔離與上架完成。</p>
+        <ul><li>Aggregate：<code>InboundOperation</code></li><li>Repository port：<code>InboundOperationRepository</code></li><li>4 個 command use cases</li></ul>
+      </article>
+      <article class="card future">
+        <h3>Adapters / Infrastructure</h3>
+        <p>共用 messaging 已拆成 API／Events、Outbox producer、Inbox consumer、Kafka consumer、Spring Boot auto-configuration 與薄 starter；<code>platform-infrastructure</code> 不再負責 messaging wiring。WMS 專屬 repository implementation、consumer 與外部系統 mapping 仍刻意未建立，且 <code>wms</code> core 不反向依賴它們。</p>
+      </article>
+    </div>
+    <div class="callout" style="margin-top: 16px">
+      <strong>依賴方向</strong>
+      <p>未來 WMS Adapter → WMS Usecase → Aggregate → Domain Event；runtime adapter 可依賴 <code>contracts</code> 與 <code>messaging:*</code>，WMS core 只宣告 ports。Messaging adapter 可以依賴 API 與契約，但不得反向依賴 WMS domain。</p>
+    </div>
+  </section>
+
+  <section id="outbound" aria-labelledby="outbound-title">
+    <div class="section-head">
+      <h2 id="outbound-title">二、Outbound 正常流程</h2>
+      <p>Wave 先選擇多張 Shipment；Release 時才建立 WarehouseWork／PickTasks。Wave 與單張 Shipment 各有生命週期，不以全 Wave 完成阻塞已揀完的單張 Shipment。</p>
+    </div>
+    <div class="flow" role="img" aria-label="WMS outbound 正常流程">
+      <div class="flow-row outbound">
+        <div class="step"><strong>CreateShipmentUsecase</strong><span>CREATED · 只建立 demand lines</span></div><div class="arrow">→</div>
+        <div class="step"><strong>PlanWaveUsecase</strong><span>WAVE_PLANNED · claim Shipment</span></div><div class="arrow">→</div>
+        <div class="step"><strong>ReleaseWaveUsecase</strong><span>建立 WarehouseWork／PickTasks</span></div><div class="arrow">→</div>
+        <div class="step"><strong>ConfirmPickUsecase</strong><span>PICKING → PICKED</span></div><div class="arrow">→</div>
+        <div class="step"><strong>PackShipmentUsecase</strong><span>PACKED</span></div><div class="arrow">→</div>
+        <div class="step"><strong>StageShipmentUsecase</strong><span>READY_FOR_DISPATCH</span></div><div class="arrow">→</div>
+        <div class="step"><strong>HandOverShipmentUsecase</strong><span>HANDED_OVER_TO_CARRIER</span></div>
+      </div>
+      <p class="flow-note">並行的 Wave checkpoint：<code>PlanWaveUsecase → ReleaseWaveUsecase → CompleteWaveUsecase</code>。只有所有 assignment 的 picking work 完成或取消才關閉 Wave；某張 Shipment 一旦 <code>PICKED</code>，即使同 Wave 仍有工作，也可先 Pack。<code>ShipmentReadyForDispatch</code> 是未來交給 dispatch／TMS 的粗粒度 readiness fact。</p>
+    </div>
+
+    <div id="wave-design" style="margin-top: 20px">
+      <h3>Wave 第一版刻意展示的實作切面</h3>
+      <table>
+        <thead><tr><th>切面</th><th>目前做法</th><th>維護界線</th></tr></thead>
+        <tbody>
+          <tr><td>演算法</td><td><code>PriorityCapacityWavePlanner</code> 先過濾 Facility／cutoff，再依 priority、dispatch deadline、created time、Shipment ID 穩定排序，最後 greedy 填入 Shipment／line／unit 容量。</td><td>結果可重現、容易解釋；暫不導入 knapsack、route optimization 或 AI optimizer。</td></tr>
+          <tr><td>資料結構</td><td>不可變 <code>WaveCandidate</code>／<code>WaveAssignment</code> snapshots、排序 <code>List</code>、重複檢查 <code>HashSet</code>、claim 時以 ID <code>Map</code> 對回 aggregate。</td><td>只保存規劃所需資料；Wave 若成長到數千張，再把 assignments 改為分頁 persistence。</td></tr>
+          <tr><td>設計模式</td><td><code>WavePlanner</code> Strategy、<code>Wave</code>／<code>Shipment</code> Aggregates、Repository ports、Domain Events，以及 command redelivery idempotency。</td><td>演算法可替換，但不把 repository、Kafka、排程或 WES 細節塞進 domain model。</td></tr>
+          <tr><td>工作產生</td><td>Planning 只 claim Shipment；Release 才建立 <code>WarehouseWork</code> 與逐 line <code>PickTask</code>。</td><td>避免候選重算時提前產生現場工作；未來真的採 zone／cluster picking 再拆 work ownership。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="cancellation" aria-labelledby="cancellation-title">
+    <div class="section-head">
+      <h2 id="cancellation-title">三、取消依實體進度分支</h2>
+      <p><code>CancelShipmentUsecase</code> 不假裝所有狀態都能立即 rollback；Aggregate 回傳 typed <code>CancellationOutcome</code>。</p>
+    </div>
+    <div class="state-branches">
+      <article class="state-branch"><h3>CREATED / WAVE_PLANNED / RELEASED</h3><p>Wave 尚未 release 時沒有 PickTask；已 release 但未開工時取消 WarehouseWork，進入 <code>CANCELLED</code>。</p></article>
+      <article class="state-branch warn"><h3>已開始實體作業</h3><p>進入 <code>CANCELLING</code>，發布 <code>ShipmentPutbackRequired</code>；Putback lifecycle 尚待實作。</p></article>
+      <article class="state-branch stop"><h3>已交給 Carrier</h3><p>不再作 WMS cancellation，發布 <code>ShipmentCancellationRejected</code>；後續應由 return／TMS 流程處理。</p></article>
+    </div>
+  </section>
+
+  <section id="inbound" aria-labelledby="inbound-title">
+    <div class="section-head">
+      <h2 id="inbound-title">四、Inbound 流程</h2>
+      <p>先以明確 checkpoint 表達最小可用流程；putaway location 演算法、差異量與部分收貨尚未細化。</p>
+    </div>
+    <div class="flow" role="img" aria-label="WMS inbound 流程">
+      <div class="flow-row">
+        <div class="step inbound"><strong>RegisterInboundOperationUsecase</strong><span>REGISTERED</span></div><div class="arrow">→</div>
+        <div class="step inbound"><strong>ConfirmArrivalUsecase</strong><span>ARRIVED</span></div><div class="arrow">→</div>
+        <div class="step inbound"><strong>RecordInspectionUsecase</strong><span>accept / reject</span></div><div class="arrow">→</div>
+        <div class="step inbound"><strong>READY_FOR_PUTAWAY</strong><span>驗收通過</span></div><div class="arrow">→</div>
+        <div class="step inbound"><strong>ConfirmPutawayUsecase</strong><span>COMPLETED</span></div><div class="arrow">／</div>
+        <div class="step branch"><strong>QUARANTINED</strong><span>驗收拒絕的 terminal branch</span></div>
+      </div>
+      <p class="flow-note">簡化規則要求實際上架的各 SKU 合計數量與 expected quantities 完全相等。</p>
+    </div>
+  </section>
+
+  <section id="classes" aria-labelledby="classes-title">
+    <div class="section-head">
+      <h2 id="classes-title">五、Class diagram</h2>
+      <p>兩個 bounded areas 使用相同 application pattern；Usecase 控制交易順序，Aggregate 擁有不變條件與事件。</p>
+    </div>
+    <div class="diagram" role="img" aria-label="WMS application 與 domain 類別依賴圖">
+      <div class="class-grid">
+        <div class="class-stack">
+          <div class="class-box"><strong>Wave Usecases</strong><ul><li>PlanWave</li><li>ReleaseWave</li><li>CompleteWave</li></ul></div>
+          <div class="class-box"><strong>Shipment Usecases</strong><ul><li>Create / ConfirmPick</li><li>Pack / Stage / HandOver</li><li>Cancel</li></ul></div>
+          <div class="class-box"><strong>Inbound Usecases</strong><ul><li>Register / ConfirmArrival</li><li>RecordInspection</li><li>ConfirmPutaway</li></ul></div>
+        </div>
+        <div class="relation">→</div>
+        <div class="class-stack">
+          <div class="class-box aggregate"><strong>Wave aggregate</strong><ul><li>WaveAssignment 1..*</li><li>WavePlanningPolicy</li><li>WaveStatus</li></ul></div>
+          <div class="class-box aggregate"><strong>Shipment aggregate</strong><ul><li>ShipmentLine 1..*</li><li>WAVE_PLANNED prevents duplicate claim</li><li>WarehouseWork 0..1</li><li>PickTask 1..* after release</li></ul></div>
+          <div class="class-box aggregate"><strong>InboundOperation aggregate</strong><ul><li>InboundLine 1..*</li><li>PutawayLine</li><li>InboundStatus</li></ul></div>
+        </div>
+        <div class="relation">→</div>
+        <div class="class-stack">
+          <div class="class-box port"><strong>Repository ports</strong><ul><li>WaveRepository</li><li>ShipmentRepository</li><li>InboundOperationRepository</li></ul></div>
+          <div class="class-box port"><strong>Shared ports</strong><ul><li>DomainEventPublisher</li><li>IdGenerator</li></ul></div>
+          <div class="class-box port"><strong>WmsDomainEvent</strong><ul><li>Outbound events</li><li>Inbound events</li></ul></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="catalog" aria-labelledby="catalog-title">
+    <div class="section-head">
+      <h2 id="catalog-title">六、Use case catalog</h2>
+      <p>目前共 13 個；Wave 與單張 Shipment 是兩條相關但不互相誤當全域閘門的 application lifecycle。</p>
+    </div>
+    <table>
+      <thead><tr><th>Area</th><th>依序 Usecases</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag">Outbound Shipment</span></td><td><code>CreateShipmentUsecase</code> → Wave assign／release → <code>ConfirmPickUsecase</code> → <code>PackShipmentUsecase</code> → <code>StageShipmentUsecase</code> → <code>HandOverShipmentUsecase</code></td><td>由已配置 demand 產生 picking work，完成 WMS custody handover。</td></tr>
+        <tr><td><span class="tag">Wave</span></td><td><code>PlanWaveUsecase</code> → <code>ReleaseWaveUsecase</code> → <code>CompleteWaveUsecase</code></td><td>服務多張 Shipment；關閉 Wave 不阻塞個別已揀完 Shipment 的 Pack。</td></tr>
+        <tr><td><span class="tag">Outbound branch</span></td><td><code>CancelShipmentUsecase</code></td><td>Cancelled、Putback required 或 rejected after handover。</td></tr>
+        <tr><td><span class="tag">Inbound</span></td><td><code>RegisterInboundOperationUsecase</code> → <code>ConfirmArrivalUsecase</code> → <code>RecordInspectionUsecase</code> → <code>ConfirmPutawayUsecase</code></td><td>Completed 或 Quarantined。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="next" aria-labelledby="next-title">
+    <div class="section-head">
+      <h2 id="next-title">七、刻意未實作與下一步</h2>
+      <p>先補 source of truth 與現場行為，不先建立新的 workflow module。</p>
+    </div>
+    <table>
+      <thead><tr><th>缺口</th><th>目前狀態</th><th>建議</th></tr></thead>
+      <tbody>
+        <tr><td>Repository／Outbox implementations</td><td><span class="tag missing">WMS wiring 未建立</span></td><td>通用 Outbox producer 已在 <code>messaging:messaging-producer-outbox</code>；WMS repository adapter、event translator 與 runtime composition 仍待建立，不放回 domain package。</td></tr>
+        <tr><td>Order Promising → WMS input</td><td><span class="tag missing">上游待補</span></td><td>目前 <code>OrderAllocatedIntegrationEvent</code> 只有 <code>orderId</code>／<code>allocatedAt</code>。order-promising integration snapshot 尚需準備 allocation／StockPicking ID、owner、Facility、committed line／move／source location／quantity、<code>dispatchBy</code> 與 <code>releasePriority</code>；整單取消也需保留 order-to-shipment correlation。各缺口已直接註解在 <code>CreateShipmentCommand</code>／<code>CancelShipmentCommand</code> 上。</td></tr>
+        <tr><td>Inventory adapter</td><td><span class="tag missing">未建立</span></td><td>以 committed receipt／putaway／handover facts 接庫存帳，不讓 WMS aggregate 直接依賴 order-promising model。</td></tr>
+        <tr><td>Short-pick resolution／Putback</td><td><span class="tag missing">僅有事件</span></td><td>先建 WMS commands、business keys 與 terminal outcomes。</td></tr>
+        <tr><td>Wave planning／release</td><td><span class="tag">Core 已建立</span></td><td>目前依 priority、dispatch cutoff、Shipment／line／unit capacity 選擇；取消的 assignment 保留 audit trail，但不產生 WarehouseWork。template persistence 與 scheduler 尚未建立。</td></tr>
+        <tr><td>Replenishment、Pick route、Container／LPN、Loading</td><td><span class="tag missing">未建立</span></td><td>依真實倉庫需求逐一形成 process；不要預先建立空殼。</td></tr>
+        <tr><td>Temporal orchestration</td><td><span class="tag missing">不採用</span></td><td>只有跨獨立系統的 durable coordination 成立後，依 ADR 重新評估。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <span>程式基準：<code>wms/src/main</code>，狀態日期 2026-08-07。</span>
+    <span><a href="temporal-adoption-decision.md">Temporal 採用決策</a> · <a href="wms-business-process-decomposition.md">WMS process 切分</a> · <a href="wms-wes-wcs-tms-workflow-boundary-review.md">WMS／WES／WCS／TMS 邊界</a></span>
+  </footer>
+</main>
+</body>
+</html>
