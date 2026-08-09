@@ -2,12 +2,9 @@ plugins {
     id 'java-library'
 }
 
-description = 'Kafka adapter for typed Integration Event dispatch'
+description = 'framework-neutral JDBC and transaction ports for messaging adapters'
 
 dependencies {
-    api project(':messaging:messaging-api')
-    api libs.kafka.clients
-
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher
 }

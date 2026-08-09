@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A 已完成；Gate B 實作中（B/4 JDBC common + boundaries）
+> 狀態：Gate A、Gate B 已完成；下一步為 Gate C producer pure JDBC + Spring bridge
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-09
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
@@ -914,7 +914,7 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 
 - [x] B1. 在 `settings.gradle` 加入 `messaging-producer-common`。
 - [x] B2. 在 `settings.gradle` 加入 `messaging-consumer-common`。
-- [ ] B3. 在 `settings.gradle` 加入 `messaging-jdbc-common`。
+- [x] B3. 在 `settings.gradle` 加入 `messaging-jdbc-common`。
 - [x] B4. 將 `Message` 演進為 immutable payload + headers envelope；建立 `MessageBuilder`、standard `MessageHeaders` 與 required-header validation。
 - [x] B5. 保留既有 event ID／type／aggregate／partition semantics：由 `messaging-events` 的 mapper 使用 `EventMessageHeaders` 建立 generic `Message`，並同步設定 `message-type = event-type`；缺少 `event-contract-version` 視為 `1`，新 message 明確設定 `1`。
 - [x] B6. 在 `messaging-api` 定義 `ChannelMapping` 與 identity／map-backed implementations；logical destination 不得再由 JDBC adapter 自行解讀。
@@ -924,11 +924,11 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 - [x] B10. 在 `messaging-consumer-common` 建立 `MessageConsumerImpl` 與唯一 generic `MessageConsumerImplementation` SPI；不得另外建立 Kafka-specific implementation SPI。
 - [x] B11. 建立 `MessageHandlerDecorator`、`MessageHandlerDecoratorChain`、built-in order constants 與 outcome：`PROCESSED`、`DUPLICATE`、`IGNORED_UNHANDLED`。
 - [x] B12. 建立最小 `DuplicateMessageDetector` contract；transactional orchestration 由 decorator chain 承接，不另公開第二套 `InboundMessageProcessor` pipeline。
-- [ ] B13. 定義 `JdbcStatementExecutor`、`MessagingTransactionTemplate`、`MessagingSqlDialect`、`MessagingSchema`、`MessagingTableNames` 等 framework-neutral ports，只實作 PostgreSQL dialect。
-- [ ] B14. 建立 `messaging-test-support`，提供 `MessageProducerImplementation`、`MessageConsumerImplementation`、`ChannelMapping` 與 decorator ordering 的最小 contract tests/TCK。
-- [ ] B15. 暫時保留舊 producer／consumer 相容路徑，不在此 Gate 搬移 persistence 或 transaction ownership。
-- [ ] B16. 加入 architecture test，禁止 pure modules import Spring、JPA、Spring Data、Spring Kafka。
-- [ ] B17. 驗證 `messaging-consumer-kafka` 只依賴 Kafka client 與 `messaging-api`，不得依賴 Spring Kafka、`messaging-events` 或 consumer-common。
+- [x] B13. 定義 `JdbcStatementExecutor`、`MessagingTransactionTemplate`、`MessagingSqlDialect`、`MessagingSchema`、`MessagingTableNames` 等 framework-neutral ports，只實作 PostgreSQL dialect。
+- [x] B14. 建立 `messaging-test-support`，提供 `MessageProducerImplementation`、`MessageConsumerImplementation`、`ChannelMapping` 與 decorator ordering 的最小 contract tests/TCK。
+- [x] B15. 暫時保留舊 producer／consumer 相容路徑，不在此 Gate 搬移 persistence 或 transaction ownership。
+- [x] B16. 加入 architecture test，禁止 pure modules import Spring、JPA、Spring Data、Spring Kafka。
+- [x] B17. 驗證 `messaging-consumer-kafka` 只依賴 Kafka client 與 `messaging-api`，不得依賴 Spring Kafka、`messaging-events` 或 consumer-common。
 
 Gate B 必須按以下 commit slices 交付；這些名稱是 commit 邊界，不取代上面的 task 編號：
 
@@ -955,6 +955,13 @@ module 必須和第一批有實際責任的 source／tests 一起建立，不先
 
 - 為完成拆模組而在 pure common 新增 Spring annotation。
 - 新 module 只有一個沒有語意的 re-export，且沒有短期 migration 用途。
+
+Gate B 驗證結果（2026-08-09）：
+
+- B/1～B/4 依序以獨立 commit slice 交付；舊 JPA Outbox、JPA Inbox 與 application-owned `@KafkaListener` runtime 仍維持可用。
+- 全部 messaging module tests 與 architecture tests 通過；pure production source／compile dependencies 未引入 Spring 或 JPA。
+- `messaging-consumer-kafka` production compile classpath 只有 `messaging-api` 與 Kafka client；typed dispatcher 已移至 `messaging-events`，舊 application API 由 Spring 組裝層的 temporary compatibility bridge 維持。
+- 完整 `order-promising:sit` 通過；`order-promising:test` 仍只有 Gate A 已記錄的同一個既有 stock unit test failure，沒有新增失敗。
 
 ### Gate C — Producer pure JDBC 與 Spring bridge
 

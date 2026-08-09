@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'framework-neutral reusable fixtures and TCK probes for messaging implementations'
+
+dependencies {
+    api project(':messaging:messaging-api')
+    api project(':messaging:messaging-producer-common')
+    api project(':messaging:messaging-consumer-common')
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test') {
+    systemProperty 'archone.rootDir', rootProject.projectDir.absolutePath
+}
