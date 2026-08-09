@@ -8,10 +8,18 @@ import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneIntegrationEventPublisherAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJdbcProducerAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJdbcConsumerAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJpaAutoConfiguration;
 import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.messaging.api.MessageHeaders;
+import com.flowzati.archone.messaging.api.MessageBuilder;
+import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageInterceptor;
+import com.flowzati.archone.messaging.consumer.common.DuplicateMessageDetector;
+import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
+import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
+import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMessageHandlerDecorator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.PublicationTarget;
@@ -37,6 +45,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +79,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
     FlywayAutoConfiguration.class,
     ArchoneMessagingAutoConfiguration.class,
     ArchoneMessagingJdbcProducerAutoConfiguration.class,
+    ArchoneMessagingJdbcConsumerAutoConfiguration.class,
     ArchoneMessagingJpaAutoConfiguration.class,
     ArchoneIntegrationEventPublisherAutoConfiguration.class
 })
@@ -79,6 +94,12 @@ class InboxRepoOutboxPersistenceIntegrationTest {
 
   @Autowired
   private InboxRepo inboxRepo;
+
+  @Autowired
+  private DuplicateMessageDetector duplicateMessageDetector;
+
+  @Autowired
+  private TransactionalIdempotencyMessageHandlerDecorator idempotencyDecorator;
 
   @Autowired
   private OutboxRepo outboxRepo;
@@ -137,7 +158,66 @@ class InboxRepoOutboxPersistenceIntegrationTest {
         UUID.randomUUID(), "ConfirmStockReceiptRequest", "stock-receipt-requests");
 
     assertThatThrownBy(() -> inboxRepo.claimIfNew(message))
-        .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("No active caller transaction for Inbox claim");
+  }
+
+  @Test
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  @DisplayName("atomic Inbox insert 應讓 concurrent duplicate race 只有一個 winner")
+  void shouldResolveConcurrentDuplicateClaimsWithTheDatabaseConstraint() throws Exception {
+    UUID eventId = UUID.randomUUID();
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      Future<Boolean> first = executor.submit(() -> concurrentClaim(eventId, ready, start));
+      Future<Boolean> second = executor.submit(() -> concurrentClaim(eventId, ready, start));
+      assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+      start.countDown();
+
+      assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder(true, false);
+    } finally {
+      jdbcTemplate.update("DELETE FROM event_inbox WHERE event_id = ?", eventId);
+    }
+  }
+
+  @Test
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  @DisplayName("transactional decorator 應 rollback failed claim 並正常完成 duplicate")
+  void shouldRollbackFailedDecoratorHandlingAndSkipADuplicate() {
+    UUID eventId = UUID.randomUUID();
+    var invocation = new MessageHandlerInvocation(
+        MessageBuilder.withPayload("{}")
+            .withId(eventId)
+            .withType("GateDMessage.v1")
+            .withPartitionId("gate-d-1")
+            .build(),
+        new MessageContext("gate-d-decorator", "gate-d.messages", 1));
+    IllegalStateException failure = new IllegalStateException("handler failed");
+    var failingChain = MessageHandlerDecoratorChain.create(
+        List.of(idempotencyDecorator),
+        ignored -> {
+          throw failure;
+        });
+
+    assertThatThrownBy(() -> failingChain.invokeNext(invocation)).isSameAs(failure);
+    assertThat(countById("event_inbox", "event_id", eventId)).isZero();
+
+    AtomicInteger handlerCalls = new AtomicInteger();
+    var successfulChain = MessageHandlerDecoratorChain.create(
+        List.of(idempotencyDecorator),
+        ignored -> {
+          handlerCalls.incrementAndGet();
+          return ProcessingOutcome.PROCESSED;
+        });
+    assertThat(successfulChain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.PROCESSED);
+    assertThat(successfulChain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.DUPLICATE);
+    assertThat(handlerCalls).hasValue(1);
+    assertThat(countById("event_inbox", "event_id", eventId)).isOne();
+
+    jdbcTemplate.update("DELETE FROM event_inbox WHERE event_id = ?", eventId);
   }
 
   @Test
@@ -344,6 +424,20 @@ class InboxRepoOutboxPersistenceIntegrationTest {
         """, messageId, ownerId.toString(), ownerId.toString(),
         "{\"messageId\":\"" + messageId + "\"}");
     transactionIds.add(jdbcTemplate.queryForObject("SELECT txid_current()", Long.class));
+  }
+
+  private boolean concurrentClaim(
+      UUID eventId,
+      CountDownLatch ready,
+      CountDownLatch start
+  ) throws InterruptedException {
+    ready.countDown();
+    if (!start.await(10, TimeUnit.SECONDS)) {
+      throw new IllegalStateException("Concurrent Inbox claim start gate timed out");
+    }
+    TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+    return Boolean.TRUE.equals(transaction.execute(status -> duplicateMessageDetector.claimIfNew(
+        "gate-d-concurrency", eventId, "GateDConcurrentMessage.v1")));
   }
 
   private int countById(String table, String column, UUID id) {

@@ -4,13 +4,19 @@
       "name": "archone.messaging.jpa.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
-      "description": "Whether to compose the legacy JPA Inbox and Outbox repository bridge beans."
+      "description": "Whether to compose the legacy JPA Outbox bridge and JPA Inbox fallback beans."
     },
     {
       "name": "archone.messaging.producer.jdbc.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
       "description": "Whether to compose the transaction-required JDBC Outbox MessageProducer."
+    },
+    {
+      "name": "archone.messaging.consumer.jdbc.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to compose the JDBC Inbox duplicate detector, transactional idempotency decorator, and legacy InboxRepo bridge."
     },
     {
       "name": "archone.messaging.jpa.register-package",

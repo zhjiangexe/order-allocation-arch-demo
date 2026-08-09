@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Spring bean composition for JDBC Inbox idempotency'
+
+dependencies {
+    api project(':messaging:messaging-consumer-jdbc')
+    api project(':messaging:messaging-spring-jdbc')
+    implementation libs.spring.context
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

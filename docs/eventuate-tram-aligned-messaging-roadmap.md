@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A、Gate B、Gate C 已完成；下一步為 Gate D consumer pure JDBC + Spring bridge
+> 狀態：Gate A、Gate B、Gate C、Gate D 已完成；下一步為 Gate E consumer transaction ownership
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-09
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
@@ -132,7 +132,7 @@ Integration Event layer
 | Inbox 去重 key | Reply 自己的 message ID | `correlation-id`／`reply-to-message-id` 只描述關係，不得取代每則訊息自己的 idempotency identity。 |
 | Reply payload contract | generic `Message` + reply headers | 參考 Tram，不強迫所有 reply 實作共同 marker；由 `reply-type`／`reply-outcome` 表達語意。 |
 
-## 4. Gate C 完成後的結構與剩餘問題
+## 4. Gate D 完成後的結構與剩餘問題
 
 ```text
 messaging
@@ -142,11 +142,13 @@ messaging
 ├── messaging-consumer-common
 ├── messaging-jdbc-common
 ├── messaging-producer-jdbc
+├── messaging-consumer-jdbc
 ├── messaging-producer-outbox        # legacy migration bridge；Gate I 移除
-├── messaging-consumer-inbox
+├── messaging-consumer-inbox         # legacy application API／JPA fallback；Gate I 移除
 ├── messaging-consumer-kafka
 ├── messaging-spring-jdbc
 ├── messaging-spring-producer-jdbc
+├── messaging-spring-consumer-jdbc
 ├── messaging-spring-flyway          # opt-in；不自動 migrate
 ├── messaging-spring-boot-autoconfigure
 └── messaging-spring-boot-starter
@@ -172,14 +174,21 @@ Application @KafkaListener
   → IntegrationEventHandler
   → InboundCommand
   → Use case
-  → InboxRepo.claimIfNew(...)
+  → InboxRepo compatibility bridge
+  → SqlTableBasedDuplicateMessageDetector
+  → atomic event_inbox INSERT ... ON CONFLICT DO NOTHING
   → business changes / possible Outbox changes
 ```
 
-Gate C 後的剩餘結構問題：
+`TransactionalIdempotencyMessageHandlerDecorator` 與 Spring transaction composition 已建立並
+通過 contract／PostgreSQL tests，但 Gate D 刻意尚未接到實際 Kafka handler chain；transaction
+ownership 仍由既有 use case 的 `@Transactional` 負責，待 Gate E 一次完成邊界遷移。
+
+Gate D 後的剩餘結構問題：
 
 1. `messaging-producer-outbox` 的 JPA types 只剩 rolling migration／既有測試相容用途，需依 I8 移除。
-2. `messaging-consumer-inbox` 仍同時包含 `InboxRepo` contract 與 Spring Data JPA adapter。
+2. `messaging-consumer-inbox` 只剩 use case signature 與 rolling fallback 相容用途，需在 Gate E
+   搬出 application dependency，並依 Gate I 移除 legacy JPA types。
 3. application use case 仍直接知道 `InboundCommand` 與 `InboxRepo`，transport metadata 和業務操作耦合。
 4. REST entrypoint 仍會建立假的 inbound metadata 才能呼叫 use case，顯示 idempotency 邊界放得太深。
 5. 單一 starter 仍讓只需要 producer 的服務帶入 consumer/Kafka，反之亦然。
@@ -1015,19 +1024,19 @@ Gate C 驗證結果（2026-08-09）：
 
 目的：建立 Tram 風格的 SQL duplicate detector 與 transactional idempotency decorator，但暫時不更動 use case transaction ownership。
 
-- [ ] D1. 定義 `DuplicateMessageDetector`，輸入至少包含 stable subscriber ID 與 message ID。
-- [ ] D2. 定義 transactional idempotency `MessageHandlerDecorator`，負責「同一交易內 claim 成功後才繼續 decorator chain」；不再建立平行的 public processor abstraction。
-- [ ] D3. 建立 pure `messaging-consumer-jdbc`。
-- [ ] D4. 建立 `messaging-spring-consumer-jdbc`，組合 pure implementation 與 `messaging-spring-jdbc` ports。
-- [ ] D5. 在 pure module 以 atomic SQL insert 實作 `SqlTableBasedDuplicateMessageDetector`。
-- [ ] D6. decorator 透過 `MessagingTransactionTemplate` 包住 Inbox claim 與後續 chain callback。
-- [ ] D7. 延用 `event_inbox` table 與既有 `(subscriber_id, event_id)` composite uniqueness。
-- [ ] D8. PostgreSQL 採 `INSERT ... ON CONFLICT DO NOTHING` 或等價 atomic claim，不使用 read-before-write。
-- [ ] D9. 建立舊 `InboxRepo` 到新 detector 的短期 bridge，讓 Gate D 本身不改所有 use case。
-- [ ] D10. 測試 same subscriber duplicate、different subscriber same event、concurrent duplicate race。
-- [ ] D11. 標記 `InboxRepo` 與舊 JPA adapter 的移除 Gate，不立即同時刪除。
-- [ ] D12. 以 `messaging-test-support` 固定 decorator order、duplicate outcome、exception propagation 與 transaction callback contract。
-- [ ] D13. 驗證自訂 `MessagingSchema`／`MessagingTableNames` 會安全產生 SQL；identifier 不得直接接受未驗證的 runtime input。
+- [x] D1. 定義 `DuplicateMessageDetector`，輸入至少包含 stable subscriber ID 與 message ID。
+- [x] D2. 定義 transactional idempotency `MessageHandlerDecorator`，負責「同一交易內 claim 成功後才繼續 decorator chain」；不再建立平行的 public processor abstraction。
+- [x] D3. 建立 pure `messaging-consumer-jdbc`。
+- [x] D4. 建立 `messaging-spring-consumer-jdbc`，組合 pure implementation 與 `messaging-spring-jdbc` ports。
+- [x] D5. 在 pure module 以 atomic SQL insert 實作 `SqlTableBasedDuplicateMessageDetector`。
+- [x] D6. decorator 透過 `MessagingTransactionTemplate` 包住 Inbox claim 與後續 chain callback。
+- [x] D7. 延用 `event_inbox` table 與既有 `(subscriber_id, event_id)` composite uniqueness。
+- [x] D8. PostgreSQL 採 `INSERT ... ON CONFLICT DO NOTHING` 或等價 atomic claim，不使用 read-before-write。
+- [x] D9. 建立舊 `InboxRepo` 到新 detector 的短期 bridge，讓 Gate D 本身不改所有 use case。
+- [x] D10. 測試 same subscriber duplicate、different subscriber same event、concurrent duplicate race。
+- [x] D11. 標記 `InboxRepo` 與舊 JPA adapter 的移除 Gate，不立即同時刪除。
+- [x] D12. 以 `messaging-test-support` 固定 decorator order、duplicate outcome、exception propagation 與 transaction callback contract。
+- [x] D13. 驗證自訂 `MessagingSchema`／`MessagingTableNames` 會安全產生 SQL；identifier 不得直接接受未驗證的 runtime input。
 
 驗收條件：
 
@@ -1042,6 +1051,24 @@ Gate C 驗證結果（2026-08-09）：
 - duplicate 判斷採用 non-atomic read-before-write。
 - Inbox claim 使用獨立 `REQUIRES_NEW` 或先於 handler commit。
 - 在此 Gate 順便移除所有 use case 的 `InboundCommand`，導致無法判斷 regression 來源。
+
+Gate D 驗證結果（2026-08-09）：
+
+- `messaging-consumer-jdbc` 只依賴 pure consumer common／JDBC ports；SQL claim 是單一
+  `INSERT ... ON CONFLICT (subscriber_id, event_id) DO NOTHING`，沒有 `exists` 再 `insert`。
+- `messaging-spring-consumer-jdbc` 只組裝 transaction-aware JDBC ports、SQL detector 與
+  transactional decorator，不建立 Kafka listener，也不接管 application handler；預設 SQL
+  detector 標記為 Spring fallback，application 可提供自訂 `DuplicateMessageDetector` SPI。
+- 舊 `InboxRepo` 預設經 `DuplicateMessageDetectorInboxRepo` 呼叫新 detector，仍要求既有 use
+  case transaction；舊 Spring Data JPA implementation 僅在 JDBC consumer 關閉時作 fallback。
+- `messaging-test-support` 固定 transaction → claim → handler ordering、duplicate outcome、原始
+  exception propagation 與 rollback callback；PostgreSQL SIT 驗證同 subscriber race 只有一個
+  winner、不同 subscriber 可分別 claim，以及 handler failure 會 rollback Inbox claim。
+- custom schema／table SQL 與惡意 identifier rejection tests 通過；pure module architecture test
+  已納入 `messaging-consumer-jdbc`。
+- 全部 messaging module tests 與完整 `order-promising:sit` 150 tests 通過；
+  `order-promising:test` 289 tests 仍只有 Gate A 已記錄的同一個 stock unit test failure，沒有
+  新增失敗。
 
 ### Gate E — Consumer transaction ownership（高風險）
 

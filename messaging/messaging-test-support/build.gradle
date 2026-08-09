@@ -9,6 +9,7 @@ dependencies {
     api project(':messaging:messaging-producer-common')
     api project(':messaging:messaging-consumer-common')
 
+    testImplementation project(':messaging:messaging-consumer-jdbc')
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher
 }

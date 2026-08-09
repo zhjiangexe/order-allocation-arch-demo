@@ -5,7 +5,12 @@ import com.flowzati.archone.messaging.inbox.InboxRepo;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** JPA Inbox adapter. Bean creation belongs to messaging auto-configuration. */
+/**
+ * JPA Inbox adapter retained only as a rolling-migration fallback.
+ *
+ * <p>Migration status: replaced by the pure JDBC duplicate detector and scheduled for removal in
+ * Gate I.
+ */
 public class InboxRepoImpl implements InboxRepo {
 
   private final JpaEventInboxRepository repository;

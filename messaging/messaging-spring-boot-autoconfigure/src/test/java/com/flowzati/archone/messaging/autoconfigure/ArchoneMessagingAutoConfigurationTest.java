@@ -7,10 +7,13 @@ import static org.mockito.Mockito.mock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.messaging.api.MessageProducer;
 import com.flowzati.archone.messaging.api.MessageBuilder;
+import com.flowzati.archone.messaging.consumer.common.DuplicateMessageDetector;
+import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMessageHandlerDecorator;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.inbox.InboxRepo;
+import com.flowzati.archone.messaging.inbox.DuplicateMessageDetectorInboxRepo;
 import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
 import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
 import com.flowzati.archone.messaging.outbox.OutboxRepo;
@@ -54,6 +57,7 @@ class ArchoneMessagingAutoConfigurationTest {
     contextRunner.withConfiguration(
             AutoConfigurations.of(
                 ArchoneMessagingJdbcProducerAutoConfiguration.class,
+                ArchoneMessagingJdbcConsumerAutoConfiguration.class,
                 ArchoneMessagingJpaAutoConfiguration.class,
                 ArchoneIntegrationEventPublisherAutoConfiguration.class))
         .withBean(JdbcOperations.class, () -> mock(JdbcOperations.class))
@@ -64,6 +68,11 @@ class ArchoneMessagingAutoConfigurationTest {
         .withBean(JpaOutboxRepository.class, () -> mock(JpaOutboxRepository.class))
         .run(context -> {
           assertThat(context).hasSingleBean(InboxRepo.class);
+          assertThat(context.getBean(InboxRepo.class))
+              .isInstanceOf(DuplicateMessageDetectorInboxRepo.class);
+          assertThat(context).hasSingleBean(DuplicateMessageDetector.class);
+          assertThat(context)
+              .hasSingleBean(TransactionalIdempotencyMessageHandlerDecorator.class);
           assertThat(context).hasSingleBean(OutboxRepo.class);
           assertThat(context).hasSingleBean(MessageProducer.class);
           assertThat(context).hasSingleBean(IntegrationEventPublisher.class);
@@ -112,6 +121,43 @@ class ArchoneMessagingAutoConfigurationTest {
           assertThat(context).doesNotHaveBean(OutboxRepo.class);
           assertThat(context).hasSingleBean(MessageProducer.class);
           assertThat(context).hasSingleBean(IntegrationEventPublisher.class);
+        });
+  }
+
+  @Test
+  @SuppressWarnings("removal")
+  void composesJdbcConsumerWithoutJpaRepositories() {
+    contextRunner.withConfiguration(
+            AutoConfigurations.of(ArchoneMessagingJdbcConsumerAutoConfiguration.class))
+        .withBean(JdbcOperations.class, () -> mock(JdbcOperations.class))
+        .withBean(
+            PlatformTransactionManager.class,
+            () -> mock(PlatformTransactionManager.class))
+        .run(context -> {
+          assertThat(context).hasSingleBean(DuplicateMessageDetector.class);
+          assertThat(context)
+              .hasSingleBean(TransactionalIdempotencyMessageHandlerDecorator.class);
+          assertThat(context).hasSingleBean(InboxRepo.class);
+          assertThat(context).doesNotHaveBean(JpaEventInboxRepository.class);
+        });
+  }
+
+  @Test
+  void canDisableTheJdbcConsumerAndKeepTheJpaFallback() {
+    contextRunner.withConfiguration(
+            AutoConfigurations.of(
+                ArchoneMessagingJdbcConsumerAutoConfiguration.class,
+                ArchoneMessagingJpaAutoConfiguration.class))
+        .withBean(JdbcOperations.class, () -> mock(JdbcOperations.class))
+        .withBean(
+            PlatformTransactionManager.class,
+            () -> mock(PlatformTransactionManager.class))
+        .withBean(JpaEventInboxRepository.class, () -> mock(JpaEventInboxRepository.class))
+        .withBean(JpaOutboxRepository.class, () -> mock(JpaOutboxRepository.class))
+        .withPropertyValues("archone.messaging.consumer.jdbc.enabled=false")
+        .run(context -> {
+          assertThat(context).doesNotHaveBean(DuplicateMessageDetector.class);
+          assertThat(context).hasSingleBean(InboxRepo.class);
         });
   }
 

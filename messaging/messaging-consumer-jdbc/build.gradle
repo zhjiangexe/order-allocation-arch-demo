@@ -2,13 +2,11 @@ plugins {
     id 'java-library'
 }
 
-description = 'Spring JDBC and transaction implementations for messaging ports'
+description = 'framework-neutral JDBC Inbox duplicate detection and transactional handling'
 
 dependencies {
+    api project(':messaging:messaging-consumer-common')
     api project(':messaging:messaging-jdbc-common')
-    api libs.spring.context
-    api libs.spring.jdbc
-    api libs.spring.tx
 
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher
