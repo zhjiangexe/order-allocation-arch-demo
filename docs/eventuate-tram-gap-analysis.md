@@ -1,9 +1,10 @@
 # Eventuate Tram 能力盤點與 Archone Messaging Gap Analysis
 
-狀態：已決定採用 Eventuate Tram 式 transactional messaging；不直接導入 Eventuate Tram
+狀態：已決定採用 Eventuate Tram 式 transactional messaging；typed handler／dispatcher／subscription API 盡量照 Tram class model實作，但不直接引入 Eventuate Tram dependency
 
 盤點日期：2026-08-07
 架構決策與第一階段修訂：2026-08-08
+Gate E 完成與 Tram handler DSL 決策：2026-08-10
 
 ## 一、文件目的
 
@@ -58,7 +59,7 @@ Business transaction
   → Event／Command handler
 ```
 
-### 3.2 Archone 修訂後路徑
+### 3.2 Archone Gate E 後現況
 
 ```text
 Use Case transaction
@@ -66,52 +67,65 @@ Use Case transaction
   → bounded-context DomainEventPublisher port（直接同步呼叫）
   → Domain Event → Integration Event Translator
   → IntegrationEventPublisher
-  → MessageProducer
-  → OutboxMessageProducer
+  → MessageProducerImpl
+  → JdbcOutboxMessageProducerImplementation
   → event_outbox
   → Debezium Outbox Event Router
   → Kafka
-  → application-owned @KafkaListener
+  → application-owned @KafkaListener（Gate F／I 過渡層）
   → KafkaIntegrationEventDispatcher
-  → broker-neutral IntegrationEventHandler
-  → InboundCommand
-  → message-driven Use Case transaction
-      ├── InboxRepo.claimIfNew()
-      └── business behavior
+  → ordered MessageHandlerDecorator chain
+      ├── optional bounded-context allocation attempt retry
+      └── transactional idempotency
+          ├── DuplicateMessageDetector.claimIfNew()
+          ├── broker-neutral IntegrationEventDispatcher
+          ├── transitional per-event IntegrationEventHandler<E>
+          └── transport-neutral usecase.execute(command)
 ```
 
 對外事件主線不經過 Spring `ApplicationEventPublisher`。publisher 呼叫與 aggregate 儲存位於
 同一個 application transaction；Outbox 寫入失敗時，業務異動一起 rollback。
-JPA Outbox adapter 使用 `Propagation.MANDATORY` 拒絕脫離 caller transaction 的獨立寫入，
-避免「看似 transactional messaging，實際上只單獨提交訊息」的誤用。
-JPA Inbox adapter 也使用相同保護，確保 duplicate claim 不會脫離 business transaction 先行提交。
+JDBC Outbox adapter 以 caller-transaction guard 拒絕脫離 caller transaction 的獨立寫入，避免
+「看似 transactional messaging，實際上只單獨提交訊息」的誤用。consumer side 則由
+transactional idempotency decorator 在同一 transaction 內依序 claim Inbox、呼叫 typed handler、
+執行 business behavior 與 optional Outbox append；handler exception 會讓三者一起 rollback。
 
 `ApplicationEventPublisher` 並未被禁止，但只適合不要求跨程序可靠傳遞的 local module event，
 不得成為 Outbox publication 的必要中介。
 
-目前不是「完全沒有 messaging framework」，而是已有可靠路徑，並已整理成：
+目前不是「完全沒有 messaging framework」，而是已有可靠路徑。Gate F／I 的目標不是再發明
+handler API，而是把 Eventuate Tram 的結構依本專案語意一對一映射：
+
+```text
+IntegrationEventHandlersBuilder
+  → IntegrationEventHandlers
+  → IntegrationEventDispatcherFactory.make(subscriberId, handlers)
+  → IntegrationEventDispatcher
+  → MessageConsumer.subscribe(subscriberId, destinations, dispatcher)
+```
+
+其中只保留必要差異：使用 `IntegrationEvent`／`forDestination` 命名、stable external event type +
+version mapping，以及可分開的 Kafka `consumerGroupId`。目前 modules 已整理成：
 
 - `messaging:messaging-api`：framework-neutral `Message`／`MessageProducer`。
 - `messaging:messaging-events`：`IntegrationEvent`、publication metadata、serializer 與
   `IntegrationEventPublisher`。
-- `messaging:messaging-producer-outbox`：`OutboxMessageProducer` 與 JPA Outbox adapter。
-- `messaging:messaging-consumer-inbox`：subscriber-aware `InboxRepo` 與 JPA adapter。
-- `messaging:messaging-consumer-kafka`：Kafka record validation 與 typed dispatcher。
-- `messaging:messaging-spring-boot-autoconfigure`：serde、dispatcher、Inbox 與 Outbox bean composition。
+- `messaging:messaging-producer-common`／`messaging-producer-jdbc`：producer orchestration 與 pure JDBC Outbox implementation。
+- `messaging:messaging-consumer-common`／`messaging-consumer-jdbc`：decorator chain、duplicate detector 與 transactional idempotency implementation。
+- `messaging:messaging-consumer-kafka`：Kafka record → generic `Message` mapping；不得擁有 typed event dispatch。
+- `messaging:messaging-spring-jdbc`／producer／consumer bridges：Spring transaction-aware JDBC wiring。
+- `messaging:messaging-spring-boot-autoconfigure`：目前仍提供 temporary dispatcher bridge；Gate F 建立不做全域掃描的新 factory，Gate I production cutover 後才移除舊的 global handler-list wiring。
 - `messaging:messaging-spring-boot-starter`：只負責依賴收納的薄 starter。
 - `contracts`：只保留具體 Integration Event payload，依賴 `messaging-events`。
 - `platform-infrastructure`：只保留 Clock 等非 messaging 的共用 Spring infrastructure。
-- `order-promising`：topic、partition policy、listener、handler、retry／DLT 與 business transaction。
+- `order-promising`：topic、partition policy、temporary listeners、bounded-context retry／DLT 與 business use cases。
 - Debezium／Kafka Connect 設定：外部 relay runtime。
 
-Auto-configuration 刻意分成兩個 Spring Boot lifecycle 階段：基礎 configuration 先提供 package、
-serde 與 dispatcher，JPA configuration 再組裝 Inbox／Outbox／publisher。一般外部應用預設由 starter
-註冊 `com.flowzati.archone.messaging`；本專案的 application root 已經涵蓋該 package，因此設定
-`archone.messaging.jpa.register-package=false`，避免 Spring Data 對 nested base package 重複掃描。
-若某個 runtime 完全不使用 JPA Inbox／Outbox，則設定 `archone.messaging.jpa.enabled=false`。
-
-Starter 不會動態產生 `@KafkaListener`。topic、group、concurrency、retry 與 DLT 是 application runtime
-policy；starter 只把所有 `IntegrationEventHandler<?>` 注入 dispatcher。
+Gate F 不會動態產生 annotated methods；`messaging-spring-consumer-kafka` 會仿 Tram，透過
+`MessageConsumer.subscribe(...)` 程式化建立 Spring Kafka containers。application 必須明確提供每個
+subscriber 的 `IntegrationEventHandlers` 與 dispatcher bean；starter 不得把 ApplicationContext 裡
+所有 handler beans 全域混成一份 catalog。topic mapping、consumer group、concurrency、retry 與 DLT
+仍是可覆寫的 runtime policy。
 
 ## 四、Eventuate Tram 能力盤點
 
@@ -220,12 +234,12 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 | M1 | 通用 Message envelope | 統一 ID、destination、partition、headers、payload | `messaging-api` 已有 transport-neutral `Message`；headers／correlation metadata 尚未補 | 🟡 | 保持 API 克制，等 metadata 需求確定後擴充，不先做任意 raw-message framework |
 | M2 | 穩定外部 event type | Java type 與外部名稱可映射 | 每種事件已有明確 `EVENT_TYPE`；Outbox 與 handler 不再使用 class simple name | ✅ | 第一階段保留既有 wire value 以相容未消費訊息；未來更名必須走版本遷移 |
 | M3 | Producer API | `MessageProducer`／`DomainEventPublisher` | 已有 `IntegrationEventPublisher → MessageProducer → OutboxMessageProducer`；application 不再依賴 `OutboxAppender` | ✅ | 保持 publisher 同步並參與 caller transaction |
-| M4 | Consumer API | `MessageConsumer.subscribe(...)` | application 以 `@KafkaListener` 顯式綁定 topic | 🟡 | 第一版保留顯式 listener；不急著做動態 subscription |
-| M5 | Typed dispatcher | Event／Command dispatcher | broker-neutral `IntegrationEventHandler<E>` 由 `KafkaIntegrationEventDispatcher` 注入並派發；Kafka record 留在 adapter | ✅ | 保留 application-owned listener，不動態產生 subscription |
-| M6 | Duplicate handler 檢查 | dispatcher 建立明確 handler catalog | dispatcher 啟動時以 `(destination, eventType)` 建 immutable map 並拒絕重複 | ✅ | 保留 fail-fast 行為 |
-| M7 | Logical channel mapping | logical channel 映射 broker destination | 使用 topic constants 與 Outbox `route`，尚無 mapping abstraction | 🟡 | `PublicationTarget.destination` 保持中性即可；暫不做完整 mapping framework |
-| M8 | Message interceptor | 有完整 send／receive lifecycle hooks | 無共用 interceptor | ❌ | 先提供 metadata／trace customizer；有第二個明確用途後再公開完整 SPI |
-| M9 | Handler decorator chain | transaction、duplicate、optimistic retry 可組合 | cross-cutting concerns 分散於 Use Case、Kafka config 與 retry executor | ❌ | 建立固定 `InboundMessageProcessor` pipeline，暫不做任意排序 DSL |
+| M4 | Consumer API | `MessageConsumer.subscribe(...)` | programmatic API／Spring Kafka runtime 尚未完成；application 暫時以 `@KafkaListener` 綁定 topic | 🟡 | Gate F 保留 Tram `subscribe(subscriberId, channels, handler)` 基本形狀，group／policy 只做 additive extension |
+| M5 | Typed dispatcher | `DomainEventHandlersBuilder` + dispatcher factory | 已有 broker-neutral dispatcher，但仍使用每類一個 `IntegrationEventHandler<E>` 與全域 bean list | 🟡 | Gate F 改成 `IntegrationEventHandlersBuilder`、envelope、name mapping 與 `make(subscriberId, handlers)` |
+| M6 | Duplicate handler 檢查 | handler collection／dispatcher 建立時 fail fast | 現有 dispatcher 會拒絕重複 `(destination, eventType)` | ✅ | 將保證前移到 builder，並對 `(destination, event class)` 與 external name mapping 都驗證 |
+| M7 | Logical channel mapping | logical channel 映射 broker destination | 已有 `ChannelMapping`、identity／map-based implementations 與 producer tests；consumer runtime 尚待接線 | 🟡 | Gate F 讓 `MessageConsumerImpl` 使用同一 mapping，不在 Kafka adapter 維護第二份 |
+| M8 | Message interceptor | 有完整 send／receive lifecycle hooks | 已有 framework-neutral `MessageInterceptor` contract；consumer receive wiring／observation 尚待 Gate G | 🟡 | 保留單一 lifecycle，不另建平行 hooks |
+| M9 | Handler decorator chain | transaction、duplicate、optimistic retry 可組合 | 已有 immutable ordered chain、transactional idempotency decorator 與 application-attempt insertion range，production Kafka path已啟用 | ✅ | 保持單一 chain；Tram handler DSL 只取代 terminal typed dispatch，不重做 transaction pipeline |
 
 ### 5.2 Producer、Outbox 與 Relay
 
@@ -244,10 +258,10 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 
 | ID | 能力 | Eventuate Tram | Archone 目前狀態 | 判定 | 建議 |
 |---|---|---|---|---:|---|
-| C1 | Subscriber identity | duplicate key 包含 subscriber 概念 | `MessageMetadata` 由入口帶入本地 subscriber；V7 將 Inbox PK 改為 `(subscriber_id, event_id)` | ✅ | listener ID 與 Inbox subscriber 共用穩定常數；歷史未知資料以 `legacy-global` 防止重複副作用 |
-| C2 | Duplicate detector SPI | SQL／transactional-noop／noop 可替換 | 固定 `InboxRepo.claimIfNew()` | 🟡 | Eventuate-lite 可先定義 `DuplicateMessageDetector`，只實作 JDBC/JPA strategy |
-| C3 | Atomic Inbox transaction | claim 與 handler 同 transaction | message-driven Use Case 先 claim，再執行 business behavior；JPA adapter 以 `MANDATORY` 拒絕無交易 claim，SIT 驗證 rollback | ✅ | 保留原子性 |
-| C4 | Channel-neutral Use Case | decorator 在 handler 外管理 transaction／Inbox | `InboundCommand` 與 `InboxRepo` 直接進 Use Case | 🟡 | 搬到 application integration processor，Use Case 改收純 Command |
+| C1 | Subscriber identity | duplicate key 包含 subscriber 概念 | `MessageContext`／subscription 提供 stable subscriber；Inbox PK 為 `(subscriber_id, event_id)` | ✅ | Gate F 顯式綁定 dispatcher ID、Inbox scope 與可分開的 Kafka group |
+| C2 | Duplicate detector SPI | SQL／transactional-noop／noop 可替換 | 已有 framework-neutral `DuplicateMessageDetector` 與 JDBC implementation；目前只實作專案需要的 SQL strategy | ✅ | 不為了形式建立無需求 strategies，但保留 SPI |
+| C3 | Atomic Inbox transaction | claim 與 handler 同 transaction | transactional idempotency decorator 在同一 transaction claim → handler → business／Outbox；PostgreSQL SIT 驗證 rollback | ✅ | 保留原子性與 handler exception propagation |
+| C4 | Channel-neutral Use Case | decorator 在 handler 外管理 transaction／Inbox | 六個 consumer-side use cases 已改收純 Command，移除 `InboundCommand`／`InboxRepo` | ✅ | Gate F envelope 停在 integration handler，不再往 application usecase 傳遞 |
 | C5 | Header／payload validation | message abstraction集中處理 | dispatcher 驗證 `id`、`eventType`、payload event ID | ✅ | 保留並補 schema version、source、correlation metadata |
 | C6 | Optimistic-lock retry | generic handler decorator | `SpringAllocationRetryExecutor` 只服務 allocation contention | 🟡 | 保留 business-specific retry；不要過早泛化所有 handler retry |
 | C7 | Broker retry／DLT | broker adapter與 handler error policy | Spring Kafka `DefaultErrorHandler`、指數退避與 DLT 已運作 | 🟡 | 抽出可覆寫的 starter default；business exception classification 留在 application |
@@ -257,9 +271,9 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 
 | ID | 能力 | Eventuate Tram | Archone 目前狀態 | 判定 | 是否應補 |
 |---|---|---|---|---:|---:|
-| H1 | Generic raw messaging | named-channel Message API | 只有 typed Integration Events | ❌ | ⏭️ |
+| H1 | Generic raw messaging | named-channel Message API | 已有 generic `Message`／`MessageProducer`；`MessageConsumer.subscribe(...)` 尚待 Gate F | 🟡 | ✅，直接支撐 Events 與 Gate J Command／Reply |
 | H2 | Transactional DomainEventPublisher | 可直接跨服務發布 Domain Event | Use Case 已直接呼叫 bounded-context publisher；publisher 先把內部 Domain Event 轉為 Integration Event，再進 transactional messaging | ✅ | 保留 Domain／Integration Event 分離，不複製 Tram 的同型別做法 |
-| H3 | Command／Async Reply | CommandProducer／Dispatcher／Reply | 無 generic command bus | ❌ | ⏭️ |
+| H3 | Command／Async Reply | CommandProducer／Dispatcher／Reply | 尚未實作，Roadmap Gate J 已規劃建立在 generic messaging 上 | ❌ | ✅，不與 Saga 綁定 |
 | H4 | Saga orchestration | Tram Sagas step DSL 與 compensation | 無；Temporal 評估後刻意移除 fulfillment workflow modules | ❌ | ⏭️，需要時優先評估 Temporal |
 | H5 | CQRS support | 以可靠 event handler 建 projection | 有 application-specific read view／projection，無 framework | 🟡 | ⏭️，projection 應由 bounded context 擁有 |
 | H6 | Command-side replica | 以事件維護其他服務資料副本 | `demand_lines` 是同 database view，不是跨服務 replica | ❌ | ⏭️，真正拆服務後才需要 |
@@ -303,17 +317,19 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 |---|---:|---:|---:|---|
 | Event contract／metadata | 20 | 3.5 / 5 | 14.0 | 尚缺 schema version、correlation／causation 與 source metadata |
 | Producer／Outbox／Relay | 25 | 4.5 / 5 | 22.5 | publisher API 與 migration ownership |
-| Consumer／Inbox／Transaction | 25 | 4.0 / 5 | 20.0 | 尚缺 decorator／processor 與可替換 duplicate detector |
+| Consumer／Inbox／Transaction | 25 | 4.5 / 5 | 22.5 | transaction／duplicate chain 已完成；尚缺 Tram handler DSL 與 programmatic subscription runtime |
 | Starter／Auto-configuration | 20 | 4.0 / 5 | 16.0 | 尚缺 migration ownership 與更完整的 feature toggles |
 | Observability／Test support | 10 | 2.5 / 5 | 5.0 | reusable test kit 與統一 messaging metrics |
-| **2026-08-08 修訂後合計** | **100** |  | **77.5 / 100** | **可靠主線與 starter 已落地；processor、migration 與 observability 尚缺** |
+| **2026-08-10 Gate E 後合計** | **100** |  | **80.0 / 100** | **可靠主線與 transaction ownership 已落地；handler DSL、subscription runtime、migration 與 observability 尚缺** |
 
 本文件初次盤點為 `57 / 100`；完成穩定 event type、subscriber-aware Inbox 與 contract tests 後提升為
-`65.5 / 100`。2026-08-08 再完成 producer／consumer 子模組、broker-neutral handler、auto-configuration
-與薄 starter，目前估為 `77.5 / 100`。這仍是架構盤點，不是產品成熟度 SLA，必須配合兩個判讀：
+`65.5 / 100`。2026-08-08 完成 producer／consumer 子模組、broker-neutral handler、auto-configuration
+與薄 starter後估為 `77.5 / 100`；2026-08-10 完成 Gate E decorator transaction ownership、pure use case
+cutover 與 REST idempotency boundary 後估為 `80.0 / 100`。這仍是架構盤點，不是產品成熟度 SLA，
+必須配合兩個判讀：
 
 1. **可靠傳送主線約已有 80%～90%。** Transactional Outbox、Debezium、Kafka dispatcher、subscriber-aware Inbox transaction、retry／DLT 與 partition ordering 都已存在並有 SIT。
-2. **可重用 starter 產品化約 65%～75%。** 模組與 bean composition 已獨立；schema ownership、通用 inbound processor、test kit 與 metrics 仍未完成。
+2. **可重用 starter 產品化約 70%～80%。** 模組、bean composition 與 transaction chain 已獨立；Tram-style handler DSL、programmatic subscription、schema ownership、test kit 與 metrics 仍未完成。
 
 換句話說，剩餘工作主要不是重新實作 Kafka 或 Outbox，而是把既有可靠機制整理成穩定 API 與可插拔 runtime。
 
@@ -326,16 +342,17 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 - [x] `IntegrationEvent` 提供穩定 `eventType()`，不再使用 class simple name。
 - [x] 定義 `IntegrationEventPublisher`、`AggregateReference`、`IntegrationEventPublication` 與
   `PublicationTarget`。
-- [x] 將既有 Kafka handler 抽成 broker-neutral `IntegrationEventHandler<E>`；Kafka record 僅存在 consumer adapter。
+- [x] 將既有 Kafka handler 抽成 broker-neutral `IntegrationEventHandler<E>`；Kafka record 僅存在 consumer adapter。這是 Gate E compatibility 形狀，不是最終 API。
 - [x] 補 JSON golden contract、round-trip 與 event type uniqueness tests。
+- [ ] Gate F 以 Tram 式 `IntegrationEventEnvelope`、`IntegrationEventHandlers`／builder、`IntegrationEventNameMapping` 與 dispatcher factory 取代 per-event handler interface。
 
 ### P1：整理 producer／consumer transaction boundary
 
 - [x] 移除 application-facing `OutboxAppender`，改成
-  `IntegrationEventPublisher → MessageProducer → OutboxMessageProducer`。
+  `IntegrationEventPublisher → MessageProducerImpl → JdbcOutboxMessageProducerImplementation`。
 - [x] 對外事件 publication 不再經過 `ApplicationEventPublisher`／`@EventListener`。
-- [ ] 建立 `InboundMessageProcessor`，集中處理 transaction、Inbox claim 與 handler invocation。
-- [ ] Use Case 改收純 Command，不再直接依賴 `InboundCommand`／`InboxRepo`。
+- [x] 以唯一 ordered decorator chain 集中處理 transaction、Inbox claim 與 handler invocation；沒有建立第二條 `InboundMessageProcessor` pipeline。
+- [x] Use Case 改收純 Command，不再直接依賴 `InboundCommand`／`InboxRepo`。
 - [x] 將 Inbox key 擴充為 `(subscriber_id, event_id)`，並提供既有資料 migration。
 - [x] 保留 exception propagation，由 Spring Kafka retry／DLT 接手。
 
@@ -359,34 +376,43 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 
 | 能力 | 不做原因 |
 |---|---|
-| Eventuate-compatible raw Message API | 現在只有 Integration Event，過度泛化會失去語意 |
-| Command／Async Reply | 容易將 broker 當成 RPC；目前沒有明確需求 |
+| Eventuate wire／binary 相容層 | 保留 Tram API shape，但不承諾可直接交換其 MESSAGE schema、headers 或序列化格式 |
 | Saga framework | Temporal 更適合真正的長時間跨系統 orchestration |
 | CQRS framework | projection schema、更新與 rebuild 應由 bounded context 擁有 |
 | 自有 CDC／poller | Debezium 已成熟處理 transaction-log relay |
 | 多 broker adapter | 沒有 RabbitMQ／ActiveMQ／Redis 需求 |
-| Dynamic Kafka listener generation | topic、group、concurrency 與 DLT 仍是 runtime policy；顯式 listener 比較易懂 |
+| Runtime 產生 annotated Kafka listener methods | 不做 annotation／proxy code generation；改由 Tram 式 `MessageConsumer.subscribe(...)` 程式化建立 containers，policy 仍可覆寫 |
 | Event Sourcing | 不屬於目前需求，也不是 Tram Core 必需能力 |
 
 ## 九、建議的最終依賴方向
 
-以下所有箭頭都表示「左側 module 依賴右側 module」。目前已落地：
+以下所有箭頭都表示「左側 module 依賴右側 module」。這是 Gate F／I 完成後的目標；legacy
+`messaging-producer-outbox`／`messaging-consumer-inbox` 只保留到 migration cleanup：
 
 ```text
 messaging:messaging-events → messaging:messaging-api
 contracts → messaging:messaging-events
-messaging:messaging-producer-outbox → messaging:messaging-api
-messaging:messaging-consumer-inbox → messaging:messaging-api
-messaging:messaging-consumer-kafka
-  → messaging:messaging-api
-  → messaging:messaging-events
+messaging:messaging-producer-common → messaging:messaging-api
+messaging:messaging-consumer-common → messaging:messaging-api
+messaging:messaging-jdbc-common → framework-neutral JDBC／transaction ports
+messaging:messaging-producer-jdbc
+  → messaging:messaging-producer-common
+  → messaging:messaging-jdbc-common
+messaging:messaging-consumer-jdbc
+  → messaging:messaging-consumer-common
+  → messaging:messaging-jdbc-common
+messaging:messaging-consumer-kafka → messaging:messaging-api
+messaging:messaging-spring-jdbc → messaging:messaging-jdbc-common
+messaging:messaging-spring-consumer-kafka
+  → messaging:messaging-consumer-common
+  → messaging:messaging-consumer-kafka
 
 messaging:messaging-spring-boot-autoconfigure
   → messaging:messaging-api
   → messaging:messaging-events
-  → messaging:messaging-producer-outbox
-  → messaging:messaging-consumer-inbox
-  → messaging:messaging-consumer-kafka
+  → messaging:messaging-spring-producer-jdbc
+  → messaging:messaging-spring-consumer-jdbc
+  → messaging:messaging-spring-consumer-kafka
 
 messaging:messaging-spring-boot-starter
   → messaging:messaging-spring-boot-autoconfigure
@@ -395,8 +421,6 @@ order-promising
   → contracts
   → messaging:messaging-api
   → messaging:messaging-events
-  → messaging:messaging-consumer-inbox
-  → messaging:messaging-consumer-kafka
   → messaging:messaging-spring-boot-starter
   → platform-infrastructure
 
@@ -412,9 +436,10 @@ wms → foundation
 ```
 
 `platform-infrastructure` 已不再是 messaging composition root。bounded context 的 domain 不依賴
-messaging；application 只在整合邊界依賴 application-owned publisher port、`InboundCommand` 與
-`InboxRepo`。後兩者仍是已知的過渡設計：要移除它們，必須先定義 transaction-owning
-`InboundMessageProcessor`，不能只靠搬 package。
+messaging；application use cases 只接收純 Command。Integration Event metadata 停在 publisher／
+handler target；consumer transaction／Inbox 由單一 decorator chain 擁有。Gate F／I 仍需把
+temporary per-event handler interface／global bean list／application `@KafkaListener` 收斂成 Tram 式
+handler group + dispatcher factory + `MessageConsumer.subscribe(...)`。
 
 ## 十、結論
 
@@ -422,21 +447,29 @@ Archone 與 Eventuate Tram 的最大差距，不是可靠消息主線，而是 f
 
 - Producer reliability 已由 Transactional Outbox + Debezium 解決。
 - Consumer reliability 已有 Inbox transaction、typed dispatcher、retry 與 DLT。
-- 穩定 event identity、subscriber-aware Inbox、consumer 子模組與 auto-configuration 已完成；下一個主要缺口是 handler pipeline、schema ownership、observability 與 reusable test support。
+- 穩定 event identity、subscriber-aware Inbox、ordered transaction chain、pure use cases、consumer 子模組與 auto-configuration 已完成；下一個主要缺口是 Tram handler DSL、programmatic subscription、schema ownership、observability 與 reusable test support。
 - 完整 Eventuate Tram 約只有 35%～40% 覆蓋，但大多數缺口不是需求。
-- `65.5 / 100` 是 2026-08-07 基線；2026-08-08 完成 producer／consumer module 與 starter 後估為 `77.5 / 100`，schema ownership、inbound processor 與 test kit 仍是主要產品化工作。
+- `65.5 / 100` 是 2026-08-07 基線；2026-08-08 完成 producer／consumer module 與 starter 後估為 `77.5 / 100`；2026-08-10 Gate E 後估為 `80.0 / 100`。
 
-因此不應以「複製 Eventuate Tram」為目標，而應只借用它最成熟的四個結構：
+本專案現在採取更明確的原則：**能直接沿用的 Tram messaging class model 就盡量照搬，只有與
+既有 bounded-context 語意或 Kafka operational requirements 衝突時才偏離。**具體包含：
 
 1. Producer／consumer API 分離。
 2. Transactional Outbox／Inbox。
 3. Subscriber-aware duplicate detection。
-4. 可組合但保持克制的 handler processing pipeline。
+4. 單一 ordered handler decorator chain。
+5. Envelope + handler collection／builder + dispatcher factory。
+6. `MessageConsumer.subscribe(subscriberId, channels, handler)` programmatic subscription。
+
+不照搬的部分是 `DomainEvent` 命名、FQCN event names、自有 CDC、多 broker／framework、Saga 與
+Kafka policy defaults；這些差異必須在 roadmap 明確記錄，不得因「仿 Tram」而悄悄混入 core API。
 
 ## 十一、主要參考資料
 
 - [About Eventuate Tram](https://eventuate.io/docs/manual/eventuate-tram/latest/about-eventuate-tram.html)
 - [Getting started with Eventuate Tram](https://eventuate.io/docs/manual/eventuate-tram/latest/getting-started-eventuate-tram.html)
+- [Eventuate Tram `DomainEventHandlersBuilder` Javadoc](https://eventuate.io/docs/javadoc/eventuate-tram/0.25.1.RELEASE/io/eventuate/tram/events/subscriber/DomainEventHandlersBuilder.html)
+- [Eventuate Tram Core source repository](https://github.com/eventuate-tram/eventuate-tram-core)
 - [Eventuate Tram CDC configuration](https://eventuate.io/docs/manual/eventuate-tram/latest/cdc-configuration.html)
 - [Eventuate Tram Sagas](https://eventuate.io/docs/manual/eventuate-tram/latest/getting-started-eventuate-tram-sagas.html)
 - [Eventuate Tram basic examples](https://github.com/eventuate-tram/eventuate-tram-core-examples-basic)

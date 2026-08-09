@@ -1,8 +1,8 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A、Gate B、Gate C、Gate D 已完成；下一步為 Gate E consumer transaction ownership
+> 狀態：Gate A～Gate E（ES0～ES4）已完成；下一步為 Gate F Tram handler DSL + Kafka subscription runtime
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
-> 更新日期：2026-08-09
+> 更新日期：2026-08-10
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
 
 ## 1. 目的
@@ -17,7 +17,10 @@
 6. 可選、低耦合的 metrics／tracing integration；
 7. 可脫離 Saga 獨立使用的 Command／async reply 與 correlation layer。
 
-這不是要複製 Eventuate Tram 的全部功能或類別，而是採用它最重要的依賴原則：
+這不是要複製 Eventuate Tram 的全部產品能力或追求 binary compatibility；但在本輪選定的
+messaging 範圍內，**class model、API shape 與責任切分預設盡量照 Tram**。只有既有
+bounded-context 語意、stable wire contract 或已驗證的 Kafka operational policy 要求不同時才偏離，
+而且差異必須在本文件明列：
 
 - domain／application use case 不依賴 Spring messaging infrastructure；
 - producer 與 consumer 可以分開使用；
@@ -47,12 +50,18 @@ Message(payload, headers)
 
 Integration Event layer
   → 在通用 Message 上加入 event-type／aggregate-type／aggregate-id 等 headers
+  → IntegrationEventHandlersBuilder／IntegrationEventHandlers
+  → IntegrationEventDispatcherFactory.make(subscriberId, handlers)
+  → MessageConsumer.subscribe(subscriberId, destinations, dispatcher)
 ```
 
 本專案刻意保留的差異：
 
 - `Message` 採不可變值物件；interceptor 若需補 header，回傳新 message，不共享可變狀態；
 - producer implementation 寫入 PostgreSQL Outbox，由 Debezium relay 到 Kafka；
+- 跨 bounded context contract 保留 `IntegrationEvent` 名稱，不把它改稱內部 `DomainEvent`；
+- Tram 的 `forAggregateType(...)` 在本專案對應為 `forDestination(...)`，routing 使用 logical destination；
+- external event name 使用既有 stable event type + version，不採 Java FQCN；
 - 只提供 PostgreSQL／Kafka／Spring implementation，但 SPI 不綁死這三者；
 - retry／DLT／concurrency 使用 Spring Kafka policy；
 - physical tables 繼續使用 `event_outbox`／`event_inbox`；
@@ -65,6 +74,7 @@ Integration Event layer
 - 通用、不可變 `Message` envelope、標準 headers 與 `MessageBuilder`；
 - `ChannelMapping`、`MessageProducerImplementation`、`MessageConsumerImplementation`；
 - Tram 風格 `MessageInterceptor` lifecycle 與 ordered consumer decorator chain；
+- Tram 風格 typed event envelope、handler collection／builder、name mapping 與 dispatcher factory；
 - JDBC Outbox／Inbox、programmatic Kafka subscription 與 Spring integration；
 - Outbox headers persistence、Debezium header relay 與 Kafka mapping；
 - producer／consumer starters、可選 schema migration 與最小 implementation contract tests；
@@ -83,7 +93,7 @@ Integration Event layer
 - 不做破壞性的 Integration Event type／payload／partition-key 改版；新增通用 headers 是向後相容的 envelope 擴充。
 - 不照搬 Eventuate Kafka runtime 的 concurrency／retry／DLT 預設；保留本專案已驗證的 Spring Kafka operational semantics。
 - 不建立 Reactive artifacts；目前 application、JDBC transaction 與 Kafka runtime 都是 imperative，只有未來出現端到端 WebFlux／R2DBC consumer 才重新評估。
-- 不建立 generic optimistic-lock retry decorator；目前由 bounded-context exception classification 與 Kafka retry policy 負責。只有多個 subscriber 都出現相同 optimistic-lock retry 語意時才抽成共用 decorator。
+- 不建立 generic optimistic-lock retry decorator。既有 allocation optimistic-lock retry 保留為 bounded-context policy，但 Gate E 必須讓它包住完整的 transactional idempotency attempt，確保每次 application retry 都使用新 transaction；Spring Kafka retry／DLT 則繼續處理整次 application attempt 最終失敗後的 broker redelivery。
 - 不建立 non-blocking retry topics；目前先保留 partition-blocking retry／DLT 語意，只有實際證明長 backoff 阻塞 partition throughput 時才另開設計。
 - 不在同一個 commit 同時做模組搬移、交易語意改造與 event contract 改版；同一 Gate 內若有相依步驟也必須分 commit 驗證。
 - 不預先建立沒有實際責任的 pass-through module。
@@ -98,7 +108,7 @@ Integration Event layer
 | 第二種 broker | 專案目前沒有 | 保留 generic producer／consumer implementation SPI，只做 Kafka consumer。 |
 | Reactive messaging | 專案目前沒有 | 不建立 reactive artifact。 |
 | 自製 CDC／一般 Kafka producer | 專案目前沒有 | 不實作；維持 Debezium relay。 |
-| Generic optimistic-lock retry | 專案目前沒有 framework abstraction | 不實作；業務 concurrency exception 交由 subscription policy 分類。 |
+| Generic optimistic-lock retry | 專案目前沒有 framework abstraction；allocation 已有 application-specific retry | 不抽成 messaging 共用 decorator；既有 allocation retry 必須位於 transactional idempotency attempt 外層。 |
 | Non-blocking retry topics | 專案目前沒有 | 延後到 partition-blocking 成為實際問題時評估。 |
 | 自動 Inbox／Outbox cleanup scheduler | 尚未有完整機制 | 本輪定義 retention ownership 與 runbook，不建立自動 scheduler。 |
 | 發佈用 BOM | 專案尚未對外發布 artifacts | 等 artifacts 需要獨立發布與版本對齊時再建立。 |
@@ -116,8 +126,13 @@ Integration Event layer
 | Consumer 去重實作 | Inbox table + database unique constraint | subscriber scope 與 message ID 共同決定唯一性。 |
 | Consumer orchestration | 單一 ordered decorator chain | transaction、idempotency、observation 等 cross-cutting behavior 不建立互相競爭的第二套 processor pipeline。 |
 | Integration Event contract | 純 Java interface／type | 不繼承 Spring class，也不帶 Spring annotation。 |
+| Typed event handler API | 仿 Tram handler collection + builder | 以 `IntegrationEventHandlersBuilder.forDestination(...).onEvent(...).build()` 建立明確 handler group；不把「每個 handler class 實作一個 public interface」當成最終 API。 |
+| Event handler callback | `Consumer<IntegrationEventEnvelope<E>>` | 仿 Tram `DomainEventEnvelope<E>`；envelope 提供 message／event identity、aggregate metadata 與 typed event，但 subscriber／Kafka metadata不進 use case。 |
+| External event type mapping | 明確 `IntegrationEventNameMapping` | 仿 Tram `DomainEventNameMapping`，由 stable wire type + version 對應 Java class；不得退回 FQCN 或 class simple name。 |
+| Event dispatcher ownership | 每個 stable subscriber 一個 dispatcher | `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 建立 dispatcher 並透過 generic `MessageConsumer` 訂閱；handler group 與 subscriber ownership 必須顯式可見。 |
+| Handler discovery | application 顯式提供 handler group | 不全域掃描並混合所有 `IntegrationEventHandler<?>` beans；Spring 只組裝 target、factory 與 dispatcher beans。 |
 | Pure JDBC artifacts | 建立 | 分別建立 `messaging-producer-jdbc` 與 `messaging-consumer-jdbc`。 |
-| Kafka subscription API | Tram 風格 | application 透過 `MessageConsumer.subscribe(...)`／dispatcher bean 宣告訂閱，不寫 `@KafkaListener`。 |
+| Kafka subscription API | 優先複製 Tram 形狀 | 基本 API 保留 `MessageConsumer.subscribe(subscriberId, channels, handler)`；Archone 只以 options／overload 加上獨立 `consumerGroupId`、policy 與 lifecycle handle。application 不寫 `@KafkaListener`。 |
 | Kafka listener lifecycle | `messaging-spring-consumer-kafka` | 程式化建立、啟停 Spring Kafka listener containers。 |
 | 未處理事件 | shared event channel 預設 `IGNORE_WITH_METRIC` | 不讓新增的無關事件毒化舊 consumer；缺 header、已知事件反序列化失敗仍為 failure。 |
 | Subscriber 與 Kafka group | 分開建模、預設同值 | `subscriberId` 是 Inbox idempotency scope；`consumerGroupId` 是 broker delivery identity。 |
@@ -195,6 +210,8 @@ Gate D 後的剩餘結構問題：
 6. consumer runtime 仍由 application `@KafkaListener` 擁有，programmatic subscription 留給 Gate F。
 7. `KafkaIntegrationEventDispatcher` 的舊 FQCN 仍是 temporary compatibility bridge，正式 generic chain 尚未接入。
 8. `subscriberId`、Kafka consumer group 與 listener identity 雖已分開建模，實際 application subscription 尚未遷移。
+9. allocation handlers 目前以 `AllocationRetryExecutor` 包住 transactional use case；Gate E 移動 transaction owner 時，不能讓 transactional decorator 反過來包住 retry，否則多次 optimistic-lock attempt 會共用同一筆已失敗的 transaction。
+10. `StockReceiptController` 的 `receiptId` 雖被包成 message metadata，實際上是 HTTP idempotency key；移除 fabricated `InboundCommand` 前必須先建立非 messaging 的 request idempotency owner。
 
 ## 5. 目標 artifact
 
@@ -581,10 +598,11 @@ Use case @Transactional
 
 ```text
 Application dispatcher/subscription bean
-  → MessageConsumer.subscribe(subscription, handler)
-      subscription.subscriberId            [Inbox scope]
-      subscription.consumerGroupId         [Kafka delivery identity]
-      subscription.logicalChannels
+  → IntegrationEventDispatcherFactory.make(subscriberId, handlers[, options])
+      subscriberId                          [Inbox scope]
+      handlers.destinations                 [logical channels]
+      options.consumerGroupId               [optional Kafka delivery identity; default = subscriberId]
+  → MessageConsumer.subscribe(subscriberId, logicalChannels, dispatcher[, options])
   → MessageConsumerImpl                    [consumer-common]
       → ChannelMapping.transform(logicalChannels)
       → MessageConsumerImplementation      [single generic SPI]
@@ -599,11 +617,13 @@ Application dispatcher/subscription bean
          → Spring TransactionTemplate       [spring-jdbc]
          → DuplicateMessageDetector.claimIfNew(subscriberId, message.id)
       3. IntegrationEventDispatcher         [messaging-events]
-         → resolve (logical channel, event type)
+         → use this subscriber's explicit IntegrationEventHandlers registry
+         → resolve destination + external event type/version through IntegrationEventNameMapping
          → deserialize and validate typed contract
+         → construct IntegrationEventEnvelope<E>
          → unknown shared-channel event: IGNORE_WITH_METRIC
-         → known event: invoke typed handler
-             → map event to command
+         → known event: invoke registered Consumer<IntegrationEventEnvelope<E>>
+             → map envelope.event() to command
              → usecase.execute(command)
              → business changes / optional Outbox append
       transaction commit
@@ -624,54 +644,102 @@ handler failure
 
 `@Transactional` 不是建立 transaction 的唯一方法。transactional idempotency decorator 透過 `MessagingTransactionTemplate.execute(...)` 執行 chain callback；Spring implementation 再委派給 Spring `TransactionTemplate`。因此不需要在 message handler 上標註 `@Transactional`，仍可讓 Inbox claim、business updates 與 chained Outbox 同時 commit／rollback。
 
-固定 decorator ordering 是 contract，不由 Spring bean discovery 的偶然順序決定。built-in order constants 必須保證 observation 包住 transaction outcome，而 Inbox claim 與 handler 位於同一 transaction；application custom decorator 只能插入明確保留的 order range。
+固定 decorator ordering 是 contract，不由 Spring bean discovery 的偶然順序決定。built-in order constants 必須保證 observation 包住 transaction outcome，而 Inbox claim 與 handler 位於同一 transaction；application decorator 只能插入明確保留的 outer attempt range 或 inner custom range。outer attempt range 只保留 insertion point，不代表 messaging framework 提供 generic retry implementation。
 
 第一版 built-in execution order 明確固定為：
 
 ```text
-Observation begin
-  → Transactional idempotency decorator opens DB transaction
-    → atomic Inbox claim
-    → typed dispatcher
-    → typed handler
-    → application use case
-    → optional chained Outbox append
-  → DB commit / rollback
-Observation records final outcome
+Spring Kafka delivery callback
+  → optional bounded-context attempt policy
+      例如 allocation optimistic-lock retry；每次 attempt 都重新進入下列 chain
+    → Observation begin
+      → Transactional idempotency decorator opens a new DB transaction
+        → atomic Inbox claim
+        → typed dispatcher
+        → typed handler
+        → application use case
+        → optional chained Outbox append
+      → DB commit / rollback
+    → Observation records this attempt outcome
 ```
 
-`Inbox claim` 不是另一個可任意排序的 public decorator，而是 transactional idempotency decorator 交易 callback 的第一個動作。retry／DLT 位於這條 semantic handler chain 外，由 Spring Kafka container 根據原樣傳出的 exception 決定。
+`Inbox claim` 不是另一個可任意排序的 public decorator，而是 transactional idempotency decorator 交易 callback 的第一個動作。這裡要區分兩種 retry：
+
+- application optimistic-lock retry 是短週期 concurrency policy；若某 subscriber 需要，必須包住整個 transactional idempotency chain。失敗 attempt 會連同 Inbox claim rollback，下一次 attempt 才能在新 transaction 重新 claim。
+- Spring Kafka retry／DLT 是 broker delivery policy，位於整次 application handling 外層；只有 application attempt policy 最終仍失敗、exception 原樣傳出後才介入。
+
+Gate E 不因此新增 generic optimistic-lock retry decorator；只固定上述 transaction ordering invariant。若未來多個 bounded context 都需要相同語意，再抽出共用 implementation。
 
 ### 6.3 Application 使用方式
 
-application 使用者不應直接操作 `TransactionTemplate`、Inbox SQL 或 Kafka container。目標用法是：
+application 使用者不應直接操作 `TransactionTemplate`、Inbox SQL 或 Kafka container。handler
+宣告方式刻意仿 Tram 的 `DomainEventHandlersBuilder`：一個 bounded-context target 提供一組
+`IntegrationEventHandlers`，以 method reference 註冊 typed callback，而不是每個事件都實作一個
+帶 `destination()`／`eventType()`／`eventClass()`／`handleTyped()` 的 interface。
+
+目標 handler target：
+
+```java
+final class AllocationIntegrationEventConsumer {
+
+  private final AllocateOrderUsecase allocateOrderUsecase;
+  private final CancelMovementsUsecase cancelMovementsUsecase;
+  private final AllocateWaitingDemandUsecase allocateWaitingDemandUsecase;
+
+  IntegrationEventHandlers integrationEventHandlers() {
+    return IntegrationEventHandlersBuilder
+        .forDestination(OrderingEventTopics.ORDER_EVENTS)
+        .onEvent(OrderPlacedIntegrationEvent.class, this::onOrderPlaced)
+        .onEvent(OrderCancelledIntegrationEvent.class, this::onOrderCancelled)
+        .andForDestination(InventoryEventTopics.STOCK_EVENTS)
+        .onEvent(
+            StockAvailabilityIncreasedIntegrationEvent.class,
+            this::onStockAvailabilityIncreased)
+        .build();
+  }
+
+  private void onOrderPlaced(
+      IntegrationEventEnvelope<OrderPlacedIntegrationEvent> envelope
+  ) {
+    allocateOrderUsecase.execute(new AllocateOrderCommand(envelope.event().getOrderId()));
+  }
+
+  // 其餘 methods 同樣只做 envelope.event() → command → usecase.execute(command)。
+}
+```
+
+目標 Spring composition：
 
 ```java
 @Bean
 IntegrationEventDispatcher allocationEventDispatcher(
     IntegrationEventDispatcherFactory factory,
-    OrderPlacedIntegrationEventHandler orderPlaced,
-    OrderCancelledIntegrationEventHandler orderCancelled
+    AllocationIntegrationEventConsumer target
 ) {
-  return factory.create(
+  return factory.make(
       "stock-allocation",
-      "stock-allocation",
-      List.of(orderPlaced, orderCancelled)
-  );
+      target.integrationEventHandlers());
 }
 ```
 
-第一個 `stock-allocation` 是 stable `subscriberId`，第二個是 `consumerGroupId`；預設 factory 可令兩者同值，但 API／properties 必須分開。前者改名會改變 Inbox scope、可能重新處理歷史訊息；後者改名會建立新的 Kafka group、可能依 offset reset policy 重放。兩者都不得使用每次啟動不同的 UUID，改名必須有 migration／replay runbook。
+`make(subscriberId, handlers)` 是刻意保留的 Tram-compatible 基本形狀。需要把 Kafka
+`consumerGroupId` 與 Inbox `subscriberId` 分開時，使用 factory overload 或 subscriber-specific
+options／properties；預設兩者同值。前者改名會改變 Inbox scope、可能重新處理歷史訊息；後者
+改名會建立新的 Kafka group、可能依 offset reset policy 重放。兩者都不得使用每次啟動不同的
+UUID，改名必須有 migration／replay runbook。
 
 同一 logical subscription 的所有 instances 必須使用相同 `subscriberId` 與 `consumerGroupId`。不同 subscriber 不得在重疊 topics 共用同一 consumer group，否則 Kafka 會把 partitions 分給不同 handler sets，造成訊息未被預期 handler 看見；auto-configuration 必須在可觀察範圍內 fail fast。
 
-Factory 從 handlers 的 logical channels 建立 subscription，`ChannelMapping` 再解析 physical Kafka topics。typed dispatcher 不知道 Kafka `ConsumerRecord`；Kafka mapper 也不知道 `IntegrationEventHandler`。
+Factory 從 `IntegrationEventHandlers` 的 destinations 建立 subscription，`ChannelMapping` 再解析
+physical Kafka topics。typed dispatcher 不知道 Kafka `ConsumerRecord`；Kafka mapper 也不知道
+Integration Event handler types。factory／dispatcher 不得從 Spring context 全域收集所有 handler
+beans，避免不同 subscriber 的 handler set 被意外混在一起。
 
 typed handler 只負責 event → command：
 
 ```java
-public void handle(OrderPlaced event, MessageContext context) {
-  allocateOrderUsecase.execute(toCommand(event));
+private void onOrderPlaced(IntegrationEventEnvelope<OrderPlacedIntegrationEvent> envelope) {
+  allocateOrderUsecase.execute(toCommand(envelope.event()));
 }
 ```
 
@@ -850,6 +918,11 @@ archone:
 | `InboundCommand<C>` | 過渡期保留，Gate E 後由 use case signature 移除 | 行為重構 |
 | `IntegrationEvent*` contracts | `messaging-events`，保留 | 不變 |
 | 尚無 `EventMessageHeaders` | 新增於 `messaging-events` | 新 contract |
+| 現有 public `IntegrationEventHandler<E>` interface | Gate F 以 package-internal registration model 取代；application 改用 `IntegrationEventHandlersBuilder.onEvent(...)` 註冊 method reference | Tram API 對齊／移除重複 metadata methods |
+| 尚無 `IntegrationEventEnvelope<E>` | Gate F 新增於 `messaging-events`，仿 Tram `DomainEventEnvelope<E>` | 新 contract |
+| 尚無 `IntegrationEventHandlers`／`IntegrationEventHandlersBuilder` | Gate F 新增於 `messaging-events`；提供 `forDestination`、`andForDestination`、`onEvent`、`build` | Tram handler DSL 對齊 |
+| 尚無 `IntegrationEventNameMapping` | Gate F 新增於 `messaging-events`；stable wire type／version 與 Java event class 雙向映射 | Tram name mapping 對齊 |
+| 尚無 `IntegrationEventDispatcherFactory` | Gate F 新增；基本 factory API 為 `make(subscriberId, handlers)`，需要時以 options overload 擴充 group／policy | Tram dispatcher composition 對齊 |
 | `JacksonIntegrationEventSerde` | 暫留 `messaging-events` | 不為單一 codec 過度拆模組 |
 | 尚無 `Command`／`CommandMessageHeaders` | Gate J 新增於 `messaging-commands` | 新 contract |
 | 尚無 `CommandProducer`／`CommandDispatcher`／`CommandReplyProducer` | Gate J 新增於 `messaging-commands`，複用 generic producer／consumer | 新 orchestration layer |
@@ -865,7 +938,7 @@ archone:
 | `OrderingKafkaIntegrationEventConsumer` | 由 ordering dispatcher/subscription bean 取代 | 移除 `@KafkaListener` glue code |
 | `AllocationKafkaIntegrationEventConsumer` | 由 allocation dispatcher/subscription bean 取代 | 移除 `@KafkaListener` glue code |
 | `AllocationKafkaErrorHandlingConfiguration` | 保留行為，演進成 `KafkaSubscriptionPolicy` 或 Spring Kafka override | operational policy 搬移 |
-| `IntegrationEventHandler<?>` implementations | 留在各 bounded context | application adapter |
+| `IntegrationEventHandler<?>` implementations | Gate I 收斂成 bounded-context target classes，其 methods 由 `IntegrationEventHandlersBuilder` 顯式註冊 | application adapter 重組 |
 | `StockReceiptController` fabricated `InboundCommand` | 直接呼叫 transactional REST application facade | entrypoint 修正 |
 
 package 名稱原則：若 package 本身仍能準確表意，優先只移 module、不立即改 Java package，避免在交易改造前製造大量無價值 import churn。
@@ -882,6 +955,22 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 6. `RecordOrderBackorderUsecase`
 
 `PlaceOrderUsecase` 與 `CancelOrderUsecase` 雖然也位於 application layer，但它們是 producer-side transaction boundary，需要原子地保存 aggregate 與 Outbox，不屬於「移除 consumer Inbox concern」的範圍。
+
+### 7.2 Gate E caller／transaction ownership matrix
+
+Gate E 的實際遷移單位不是單一 class，而是一條完整 entrypoint path。下表固定 Gate D 後現況與 Gate E 目標；同一 use case 有 Kafka 與 scheduler 兩種 caller 時，兩邊都必須保有明確 transaction owner。
+
+| Entrypoint／subscriber | Typed handler | Use case | Gate D 後 transaction／idempotency owner | Gate E 目標 |
+|---|---|---|---|---|
+| `AllocationKafkaIntegrationEventConsumer.consumeOrderingEvent`／`ORDER_LIFECYCLE` | `OrderPlacedIntegrationEventHandler` | `AllocateOrderUsecase` | handler 的 `AllocationRetryExecutor` 包住 use case；use case `@Transactional` 並以 `InboxRepo` claim | application retry 包住完整 ordered chain；decorator transaction claim Inbox，handler 只 map command 後呼叫 `execute` |
+| 同上 | `OrderCancelledIntegrationEventHandler` | `CancelMovementsUsecase` | 同上 | 同上 |
+| `AllocationKafkaIntegrationEventConsumer.consumeInventoryEvent`／`INVENTORY_AVAILABILITY` | `StockAvailabilityIncreasedIntegrationEventHandler` | `AllocateWaitingDemandUsecase` | handler 的 `AllocationRetryExecutor` 包住 use case；use case `@Transactional` 並以 `InboxRepo` claim | application retry 包住完整 ordered chain；decorator transaction claim Inbox，handler 呼叫純 command API |
+| `OrderingKafkaIntegrationEventConsumer.consumeAllocationEvent`／`ALLOCATION_RESULTS` | `OrderAllocatedIntegrationEventHandler` | `RecordOrderAllocationUsecase` | use case `@Transactional` 並以 `InboxRepo` claim；沒有 application optimistic-lock retry | ordered chain 直接建立 transaction／claim，handler 呼叫 `execute`；Spring Kafka policy 仍處理向外傳出的 failure |
+| 同上 | `BackorderCreatedIntegrationEventHandler` | `RecordOrderBackorderUsecase` | 同上 | 同上 |
+| `StockReceiptController.confirm`／HTTP `receiptId` | 無 messaging handler | `ConfirmStockReceiptUsecase` | controller 把 `receiptId` fabricated 成 `MessageMetadata`；use case `@Transactional` 並以 messaging Inbox claim | transactional application facade 以正式 receipt request identity／unique persistence 去重，再呼叫純 command API；不使用 Kafka Inbox metadata |
+| `AllocationReconciliationScheduler` | 無 messaging handler | `AllocateWaitingDemandUsecase` | 直接呼叫 transport-neutral overload；use case `@Transactional`，不 claim Inbox；optimistic conflict 留待下次 scheduler scan | 呼叫同一個 `execute` 並保留 use case transaction；不套用 message Inbox，也不把 scheduler reconciliation 偽裝成 delivery retry |
+
+固定 metadata boundary：Kafka mapper／dispatcher、entrypoint policy 與 typed handler 可以讀取 `Message`／`MessageContext` 進行 routing、diagnostics 或建立 retry context；application command 與 use case signature 不攜帶 subscriber ID、message ID、Kafka header 或 Inbox concern。
 
 ## 8. Gate 與 tasks
 
@@ -1070,28 +1159,116 @@ Gate D 驗證結果（2026-08-09）：
   `order-promising:test` 289 tests 仍只有 Gate A 已記錄的同一個 stock unit test failure，沒有
   新增失敗。
 
-### Gate E — Consumer transaction ownership（高風險）
+### Gate E — Consumer transaction ownership（高風險，完成）
 
 目的：將 idempotency 從業務 use case 移到 inbound message boundary，同時維持 REST 與 Kafka 交易正確性。
 
-- [ ] E1. 將 transactional idempotency decorator 接到實際 inbound handler chain；不得再新增 `TransactionalInboundMessageProcessor` 作為第二個 orchestration owner。
-- [ ] E2. decorator transaction 內依序執行 Inbox claim → downstream handler → use case → optional Outbox append。
-- [ ] E3. duplicate 時不呼叫 handler，正常結束而非丟出 retryable exception。
-- [ ] E4. handler exception 必須原樣向外傳遞，並 rollback Inbox／business／Outbox。
-- [ ] E5. 過渡期 Kafka entrypoint 先 map generic `Message`，再由 ordered decorator chain 包住 `IntegrationEventDispatcher` typed handler。
-- [ ] E6. 將 bounded-context handler 改成 event → command mapping 後呼叫純業務 use case。
-- [ ] E7. 將 `AllocateOrderUsecase` 從 `handle(InboundCommand<...>)` 演進為 `execute(AllocateOrderCommand)`。
-- [ ] E8. 同樣遷移 `AllocateWaitingDemandUsecase`、`CancelMovementsUsecase`、`ConfirmStockReceiptUsecase`。
-- [ ] E9. 同樣遷移 `RecordOrderAllocationUsecase`、`RecordOrderBackorderUsecase`。
-- [ ] E10. 從上述 use cases 移除 `InboxRepo` dependency。
-- [ ] E11. REST entrypoint 透過 transactional application facade 呼叫 business command，不再製造假的 `InboundCommand`／message metadata。
-- [ ] E12. 第一階段保留 use case 的 `@Transactional(REQUIRED)`，驗證 Kafka 呼叫會加入 transactional decorator 的外層 transaction。
-- [ ] E13. 若進一步移除 consumer use case annotation，先為 REST／scheduler／CLI 建立明確 transaction facade；不能直接刪除。
-- [ ] E14. `PlaceOrderUsecase`、`CancelOrderUsecase` 等 producer-side use cases 繼續保有 aggregate + Outbox transaction boundary。
-- [ ] E15. 刪除不再使用的 `InboundCommand`，或只在真正需要 envelope 的 application boundary 保留並重新命名。
-- [ ] E16. 更新 unit tests：use case test 不再 mock `InboxRepo`；idempotency 改由 decorator integration test 覆蓋。
-- [ ] E17. 更新 end-to-end tests，覆蓋 success、duplicate、failure retry 與 Outbox chaining。
-- [ ] E18. 以 integration test 驗證實際 primary transaction manager（目前預期為 `JpaTransactionManager`）能讓 JPA business repositories、`JdbcTemplate` Inbox claim 與 JDBC Outbox append 共用同一筆 transaction；任一環節失敗時三者必須一起 rollback。
+下列 E1～E18 是完成條件，不是安全的程式修改順序。Gate E 必須依後面的 ES0～ES4（execution slices）執行；尤其「實際啟用 transactional decorator」、「handler 改呼叫純 use case」與「移除該路徑的 use case Inbox claim」必須在同一個可部署切換中完成，不能讓兩層同時 claim 同一則 message。
+
+- [x] E1. 將 transactional idempotency decorator 接到實際 inbound handler chain；不得再新增 `TransactionalInboundMessageProcessor` 作為第二個 orchestration owner。
+- [x] E2. decorator transaction 內依序執行 Inbox claim → downstream handler → use case → optional Outbox append。
+- [x] E3. duplicate 時不呼叫 handler，正常結束而非丟出 retryable exception。
+- [x] E4. handler exception 必須原樣向外傳遞，並 rollback Inbox／business／Outbox。
+- [x] E5. 過渡期 Kafka entrypoint 先 map generic `Message`，再由 ordered decorator chain 包住 `IntegrationEventDispatcher` typed handler。
+- [x] E6. 將 bounded-context handler 改成 event → command mapping 後呼叫純業務 use case。
+- [x] E7. 將 `AllocateOrderUsecase` 從 `handle(InboundCommand<...>)` 演進為 `execute(AllocateOrderCommand)`。
+- [x] E8. 同樣遷移 `AllocateWaitingDemandUsecase`、`CancelMovementsUsecase`、`ConfirmStockReceiptUsecase`。
+- [x] E9. 同樣遷移 `RecordOrderAllocationUsecase`、`RecordOrderBackorderUsecase`。
+- [x] E10. 從上述 use cases 移除 `InboxRepo` dependency。
+- [x] E11. REST entrypoint 透過 transactional application facade 呼叫 business command，不再製造假的 `InboundCommand`／message metadata；`receiptId` 的 HTTP retry idempotency 必須由明確的 application／business identity 或專用 request idempotency adapter 保留。
+- [x] E12. 第一階段保留 use case 的 `@Transactional(REQUIRED)`，驗證 Kafka 呼叫會加入 transactional decorator 的外層 transaction。
+- [x] E13. 本階段保留 consumer use case 的 `@Transactional(REQUIRED)`；REST 另由 transactional facade 擁有 request claim + business transaction，scheduler 繼續安全地直接呼叫 annotated use case，未發現 CLI caller。
+- [x] E14. `PlaceOrderUsecase`、`CancelOrderUsecase` 等 producer-side use cases 繼續保有 aggregate + Outbox transaction boundary。
+- [x] E15. 刪除不再使用的 `InboundCommand`，或只在真正需要 envelope 的 application boundary 保留並重新命名。
+- [x] E16. 更新 unit tests：use case test 不再 mock `InboxRepo`；idempotency 改由 decorator integration test 覆蓋。
+- [x] E17. 更新 end-to-end tests，覆蓋 success、duplicate、handler failure、application optimistic-lock retry、Kafka redelivery 與 Outbox chaining；兩種 retry 不得混為同一個測試情境。
+- [x] E18. 以 integration test 驗證實際 primary transaction manager（目前預期為 `JpaTransactionManager`）能讓 JPA business repositories、`JdbcTemplate` Inbox claim 與 JDBC Outbox append 共用同一筆 transaction；任一環節失敗時三者必須一起 rollback。allocation optimistic-lock retry 還必須驗證每次 attempt 的 transaction ID 不同，且前次 Inbox claim 已 rollback。
+
+#### ES0 — 先固定邊界與 regression safety net（完成）
+
+- [x] ES0-1. 建立 caller matrix：逐一列出兩個 Kafka consumers、五個 Kafka handlers、REST 與 scheduler 對六個 consumer-side use cases 的呼叫路徑與 transaction owner。
+- [x] ES0-2. 以 characterization integration test 固定 allocation retry contract：每次 optimistic-lock attempt 都有不同 DB transaction，失敗 attempt 的 Inbox／business／Outbox 全部 rollback。
+- [x] ES0-3. 固定三層相對順序：Spring Kafka retry／DLT → optional bounded-context retry → transactional idempotency chain。
+- [x] ES0-4. 決定 HTTP receipt idempotency owner。預設把 `receiptId` 視為正式 application／business request identity，以同一 transaction 的 unique persistence 保證重送安全；若不能成為業務 identity，再使用專用 REST request idempotency adapter，不沿用 Kafka message metadata。
+- [x] ES0-5. 固定 metadata boundary：`Message`／`MessageContext` 可留在 entrypoint／handler 作 dispatch、diagnostics 與 retry context，但不得再進入 use case signature。
+
+ES0 驗證證據（2026-08-09）：
+
+- `AllocationConcurrencyEndToEndIntegrationTest` 的 retry-exhausted path 從實際 `AllocationKafkaIntegrationEventConsumer` 進入，驗證三次 `MovementAssigner` invocation 位於三筆不同 PostgreSQL transaction，且最終 Inbox、StockPool reservation、picking／moves／move lines 與 Outbox 均無失敗殘留。
+- `AllocationRetryTransactionIntegrationTest` 另固定 `AllocationRetryExecutor` 的三次 attempt／三筆 transaction contract，以及耗盡時每次 Inbox probe write 都 rollback。
+- targeted `./gradlew :order-promising:sit --tests com.flowzati.archone.stock.entrypoint.kafka.AllocationConcurrencyEndToEndIntegrationTest` 通過。
+
+#### ES1 — 準備純 application API，尚不切換 production path（完成）
+
+- [x] ES1-1. 為六個 use cases 建立或統一 `execute(Command)`；先保留舊 `handle(InboundCommand<...>)` compatibility wrapper 與原有 Inbox claim。
+- [x] ES1-2. unit tests 直接測試 `execute(Command)` 的業務行為；compatibility tests 暫時保留舊入口的 deduplication baseline。
+- [x] ES1-3. 保留 use case 的 `@Transactional(REQUIRED)`；scheduler 改呼叫 transport-neutral API 時仍需擁有完整 transaction。
+- [x] ES1-4. producer-side `PlaceOrderUsecase`、`CancelOrderUsecase` 與 aggregate + Outbox transaction boundary 不變。
+
+ES1 驗證證據（2026-08-09）：
+
+- 六個 consumer-side use cases 都提供 `execute(Command)`，legacy Kafka／REST callers 仍走 `handle(InboundCommand)`；沒有提早切換 Inbox ownership。
+- `AllocationReconciliationScheduler` 已改呼叫 `AllocateWaitingDemandUsecase.execute`，use case 的 transaction annotation 保留。
+- main／unit／SIT source sets 全部 compile；六個 use case 與 scheduler 的 ES1 targeted unit tests 21 tests 通過。
+- `InboundEntrypointTransactionIntegrationTest`（ES4 前原名 `InboundCommandTransactionIntegrationTest`）與 `AllocationConcurrencyEndToEndIntegrationTest` 通過，證明 compatibility path 的 Inbox／transaction／retry baseline 未變。
+- 完整 targeted unit 組仍可重現 Gate A 已記錄的單一既有 failure：mocked `StockOperationRecorder` 的 location-validation test；不是本次 API preparation 新增的 regression。
+
+#### ES2 — 組好 inbound attempt chain，但不與舊 claim path 同時啟用（完成）
+
+- [x] ES2-1. 在 temporary Kafka bridge 組好 `ConsumerRecord` → generic `Message` → ordered decorator chain → typed dispatcher 的單一 orchestration path。
+- [x] ES2-2. allocation 的 `AllocationRetryExecutor` 必須包住完整 chain invocation；ordering path 不需要 application optimistic-lock retry 時直接進入 chain。
+- [x] ES2-3. 保留既有 `@KafkaListener`、Spring Kafka error handler、backoff 與 DLT policy；Gate E 不提前執行 Gate F 的 programmatic subscription migration。
+- [x] ES2-4. 在 production listener 切換前，以 integration test 證明 duplicate、exception propagation、三者同 transaction，以及 allocation 每次 retry 會建立新 transaction。
+
+ES2 驗證證據（2026-08-09）：
+
+- `KafkaIntegrationEventDispatcher` 可接受 ordered decorators，建立 `MessageHandlerInvocation` 後只經一條 chain 進入 typed dispatcher；`PROCESSED`／`DUPLICATE` outcome 與 decorator ordering tests 通過。
+- consumer-common 新增 `APPLICATION_ATTEMPT_MIN..MAX` insertion range；`AllocationRetryMessageHandlerDecorator` 位於 transaction 之前，只對 `ORDER_LIFECYCLE`／`INVENTORY_AVAILABILITY` subscribers 生效。messaging common 沒有新增 generic optimistic-lock retry implementation。
+- `AllocationTransactionalMessageChainIntegrationTest` 以真實 `JpaTransactionManager`／PostgreSQL 驗證前兩次 conflict rollback、第三次提交、三次 transaction ID 不同，以及 retry 耗盡時 Inbox、JPA business 與 JDBC Outbox 全部為零。
+- messaging chain／dispatcher unit tests、allocation retry decorator unit test與上述 SIT 通過。
+- auto-configuration 此時仍使用沒有 decorators 的 compatibility constructor；新 chain 尚未套到 legacy handlers，避免 ES2 中間狀態造成 decorator 與 use case double claim。ES3 必須在 handlers／Inbox ownership 同一切換中啟用。
+
+#### ES3 — 依 subscriber 原子切換 Kafka consumer ownership（完成）
+
+- [x] ES3-1. allocation 的 `ORDER_LIFECYCLE`／`INVENTORY_AVAILABILITY` subscribers 依可部署單位切換：啟用 chain、三個 handlers 改成 event → command → `execute`、移除對應 use case 的 `InboxRepo`／舊 inbound wrapper，並把 application retry 移到 transaction 外層。
+- [x] ES3-2. ordering 的 `ALLOCATION_RESULTS` subscriber 同一切換內完成：啟用 chain、兩個 handlers 改成 event → command → `execute`，並移除對應 use case 的 `InboxRepo`／舊 inbound wrapper。
+- [x] ES3-3. 每個 subscriber 切換後執行 actual-entrypoint success／duplicate／failure／Outbox tests；不得只測手動呼叫 decorator 或 use case。
+- [x] ES3-4. 若要分 commit，只能在不形成 double claim 或 no claim 的 deployable boundary 分割；不能單獨部署「chain 已 claim、use case 也 claim」的中間狀態。
+
+ES3 驗證證據（2026-08-09）：
+
+- `ArchoneMessagingAutoConfiguration` 現在把 Spring context 中的 decorators 交給 temporary dispatcher；同一條 chain 依 order 執行 allocation retry → transactional Inbox → typed dispatcher。
+- allocation 三個 handlers 與 ordering 兩個 handlers 只做 event → command mapping 後呼叫 `execute`；五個 Kafka consumer use cases 已移除 `InboundCommand`／`InboxRepo` constructor dependency 與 legacy claim wrapper。
+- `AllocationBoundaryArchitectureTest` 新增 source-level rule，禁止上述五個 use cases 再引入 messaging envelope 或 Inbox repository。
+- `InboundEntrypointTransactionIntegrationTest` 的 Kafka 部分已改從真實 `AllocationKafkaIntegrationEventConsumer` 進入，不再直接呼叫 use case；success、business failure rollback、cancel failure rollback 均通過。
+- 完整 `order-promising:sit` 152 tests 通過，涵蓋 allocation／ordering subscribers、duplicate、FIFO、availability、hot-SKU、optimistic retry、Outbox 與 Kafka/DLT。
+- 完整 `order-promising:test` 288 tests 仍只有 Gate A 已記錄的同一個 mocked location-validation baseline failure，沒有新增 ES3 regression；ES3 targeted unit／auto-config tests 全部通過。
+
+#### ES4 — 非 Kafka entrypoint 與 cleanup（完成）
+
+- [x] ES4-1. 建立 stock receipt transactional application facade，保留 `receiptId` retry safety，再讓 REST controller 呼叫 transport-neutral command；同一切換移除 `ConfirmStockReceiptUsecase` 的 messaging Inbox dependency。
+- [x] ES4-2. 確認 scheduler／CLI 等非 message callers 仍透過 use case annotation 或明確 transaction facade 取得 transaction。
+- [x] ES4-3. 所有 callers 遷移後才刪除或重新命名 `InboundCommand`；不要為了 Gate E 同時大改 generic `IntegrationEventHandler` contract。
+- [x] ES4-4. 完成 E1～E18 acceptance matrix，確認沒有任何 entrypoint 失去 transaction 或 idempotency owner。
+
+ES4 驗證證據（2026-08-09）：
+
+- `StockReceiptApplicationFacade` 以同一個 Spring transaction 依序執行 request claim 與 `ConfirmStockReceiptUsecase.execute`；後者的 `@Transactional(REQUIRED)` 保留，因此 inbound picking／move／move line、StockPool 與 availability Outbox 仍在同一筆 transaction。
+- `receiptId` 現在是正式的 application request identity，不再偽裝成 Kafka message ID。V9 建立 `stock_receipt_requests`，以完整收貨 command 欄位作 request fingerprint；JDBC adapter 使用 `INSERT ... ON CONFLICT DO NOTHING` 原子 claim。
+- 同 ID、同內容重送回傳成功但不重做庫存與 Outbox；同 ID、不同內容拋出 `StockReceiptRequestConflictException` 並由 REST 映射為 HTTP 409；業務失敗時 request claim、business mutation 與 Outbox 一起 rollback。
+- `ConfirmStockReceiptUsecase` 已移除 messaging／Inbox dependency；`StockReceiptController` 不再建立 fabricated metadata。所有 application callers 遷移後，temporary `InboundCommand` 已從 `messaging-api` 刪除，整合測試更名為 `InboundEntrypointTransactionIntegrationTest`。
+- scheduler 仍呼叫 annotated `AllocateWaitingDemandUsecase.execute`，因此非 message caller 沒有失去 transaction owner；目前沒有 CLI caller。generic `IntegrationEventHandler` contract 留待後續 Gate，不在 ES4 擴張修改範圍。
+- messaging API／consumer common／events／Spring Boot auto-configuration tests 通過；完整 `order-promising:test` 290 tests 與 `order-promising:sit` 154 tests 全數通過。
+
+#### Gate E task 對照
+
+| 安全實作切片 | 對應原完成條件 | 說明 |
+|---|---|---|
+| ES0 | E4、E11、E12、E13、E17、E18 的前置決策 | 先把 retry transaction 與 HTTP idempotency 的隱含契約變成測試。 |
+| ES1 | E7～E9、E12、E14、E16（部分） | 只增加純 API 與測試，不改 production ownership。 |
+| ES2 | E2～E5、E17、E18（chain 準備） | 組好並驗證新路徑，但避免與 legacy Inbox claim 同時生效。 |
+| ES3 | E1～E10、E12、E16～E18（Kafka cutover） | 以 subscriber 為切換單位，同時搬移 claim 與 handler call。 |
+| ES4 | E11、E13～E16 | 處理 REST／scheduler transaction 與最後 cleanup。 |
 
 建議實作形狀：
 
@@ -1138,46 +1315,90 @@ transactionTemplate.execute(status -> {
 - duplicate claim 使用獨立 `REQUIRES_NEW`，導致 handler 失敗後訊息永遠被視為已處理。
 - 為模仿 Tram 而直接移除 use case transaction，卻沒有保護 REST 等非 message caller。
 
-### Gate F — Tram 風格 Kafka subscription runtime
+### Gate F — Tram handler DSL 與 Kafka subscription runtime
 
-目的：application 只宣告 subscriber、destinations 與 handlers；shared Spring Kafka adapter 程式化管理 listener containers，同時保留既有 operational policy。
+目的：先建立盡量貼近 Eventuate Tram 的 typed handler／dispatcher／`MessageConsumer.subscribe(...)`
+API，再由 shared Spring Kafka adapter 程式化管理 listener containers。Gate F 建立可重用 runtime 與
+compatibility tests；`order-promising` production handler／listener 的正式切換仍屬 Gate I，避免在
+runtime 尚未穩定時同時移除 rollback path。
 
-- [ ] F1. 將現有 `KafkaIntegrationEventDispatcher` 拆成 `KafkaMessageMapper` 與 broker-neutral `IntegrationEventDispatcher`。
-- [ ] F2. `messaging-consumer-kafka` 只負責 `ConsumerRecord` → generic `Message`、Kafka key／timestamp／headers mapping；不得引用 events layer。
-- [ ] F3. `IntegrationEventDispatcher` 位於 `messaging-events`，依 logical channel + `event-type` + compatible contract version 查找 typed handler、反序列化並驗證 contract；不得引用 Kafka types。
-- [ ] F4. 定義 `MessageConsumer.subscribe(subscription, handler)` 與 idempotent、可停止的 `MessageSubscription`；subscription 明確包含 `subscriberId`、`consumerGroupId`、logical channels。
-- [ ] F5. 沿用 consumer-common 的唯一 generic `MessageConsumerImplementation` SPI；由 Spring Kafka artifact 提供 `SpringKafkaMessageConsumerImplementation`，不建立 Kafka-specific SPI。
-- [ ] F6. 建立 `messaging-spring-consumer-kafka`。
-- [ ] F7. 透過 `ConcurrentKafkaListenerContainerFactory` 程式化建立 containers；不得 runtime 產生 annotated method。
-- [ ] F8. `ChannelMapping` 在 consumer common 將 logical channels 轉成 physical topics；Kafka implementation 不自行維護第二份 mapping。
-- [ ] F9. `subscriberId` 與 `consumerGroupId` 預設同值但可分開設定；listener/container ID 由兩者穩定導出並做 collision validation。不同 subscriber 若以重疊 topics 共用同一 group 必須 fail fast。
-- [ ] F10. `IntegrationEventDispatcherFactory` 從 explicit handler list 推導 logical channels 並管理 subscription lifecycle；同一 subscriber 的 `(channel, eventType)` 重複 handler 必須 fail fast。
-- [ ] F11. shared event channel 預設 `UnhandledEventPolicy.IGNORE_WITH_METRIC`；`FAIL` 可供 future dedicated channel 使用。ignored event 不得進 retry／DLT。
-- [ ] F12. 定義 exception taxonomy：mapping／contract／handler／infrastructure failure，並以 `MessageFailureClassifier` 接到 retry／DLT policy；不得靠 class-name YAML 設定。
-- [ ] F13. 移除 `AllocationKafkaIntegrationEventConsumer` 與 `OrderingKafkaIntegrationEventConsumer` 的 `@KafkaListener` glue code。
-- [ ] F14. 定義 subscriber-specific `KafkaSubscriptionPolicy` 或等價 customizer，支援 concurrency、ack、retry、backoff、DLT。
-- [ ] F15. 程式化 containers 必須套用 `DefaultErrorHandler` 與 `DeadLetterPublishingRecoverer`。
-- [ ] F16. 搬移並保留 `AllocationKafkaErrorHandlingConfiguration` 已驗證的 exception classification／exponential backoff／DLT 行為。
-- [ ] F17. 明確區分正常 producer path（Outbox）與 DLT recovery path（允許 `KafkaOperations`）。
-- [ ] F18. DLT record 必須保留 original message ID、key、event type、logical/physical destination、serialized headers、original topic／partition／offset 與 failure metadata。
-- [ ] F19. 定義 replay runbook：DLT replay 必須重用 original message ID，使 Inbox 仍能去重；禁止產生新 ID 後假裝是同一訊息。
-- [ ] F20. lifecycle 必須支援 start failure fail-fast、readiness、idempotent unsubscribe／close、graceful shutdown 與 partial-subscription cleanup。
-- [ ] F21. 定義 subscriber ID／consumer group rename runbook，明確說明 Inbox scope、Kafka offsets 與 replay 影響。
-- [ ] F22. 測試 duplicate handler、unknown event、header mismatch、invalid `messageHeaders`、reserved collision、decorator outcome 與 subscription lifecycle。
-- [ ] F23. 測試 concurrency、retry exhaustion、non-retryable direct DLT、DLT publish/replay failure、readiness 與 graceful shutdown。
+刻意照 Tram 的 class model：
+
+```text
+IntegrationEventHandlersBuilder
+  → IntegrationEventHandlers
+  → IntegrationEventDispatcherFactory.make(subscriberId, handlers)
+  → IntegrationEventDispatcher
+  → MessageConsumer.subscribe(subscriberId, destinations, dispatcher)
+```
+
+Archone 只保留四個必要差異：名稱使用 `IntegrationEvent` 而非 context 內部 `DomainEvent`；
+`forDestination(...)` 取代 `forAggregateType(...)`；stable external type 不使用 FQCN；Kafka
+`consumerGroupId`、operational policy 與 lifecycle 以 options／overload 擴充，不污染基本 API。
+
+| Eventuate Tram | Archone 目標 | 對齊方式 |
+|---|---|---|
+| `DomainEventEnvelope<E>` | `IntegrationEventEnvelope<E>` | 責任與 callback 形狀照搬，只做語意命名調整。 |
+| package-internal `DomainEventHandler` registration | package-internal Integration Event registration | application 不直接 implements。 |
+| `DomainEventHandlers` | `IntegrationEventHandlers` | immutable handler collection。 |
+| `DomainEventHandlersBuilder.forAggregateType(...).onEvent(...)` | `IntegrationEventHandlersBuilder.forDestination(...).onEvent(...)` | DSL 與 method reference 形狀照搬；routing dimension 改為本專案 logical destination。 |
+| `DomainEventNameMapping` | `IntegrationEventNameMapping` | 保留 stable external type／Java class mapping，另納入既有 contract version。 |
+| `DomainEventDispatcherFactory.make(id, handlers)` | `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` | 基本 factory signature 照搬；額外 policy 走 overload/options。 |
+| `MessageConsumer.subscribe(subscriberId, channels, handler)` | 同名基本 API | 保留可辨識形狀；回傳 lifecycle handle與 group override 是 additive extension。 |
+
+- [ ] F1. 先建立 Tram API parity characterization：固定 `DomainEventEnvelope`、`DomainEventHandlersBuilder`、`DomainEventDispatcherFactory.make(...)` 與 `MessageConsumer.subscribe(...)` 對應到本專案的命名／責任表，避免實作過程再次發明另一套形狀。
+- [ ] F2. 在 `messaging-events` 定義 immutable `IntegrationEventEnvelope<E>`，至少承載 typed event、message/event ID、aggregate type／ID 與必要 generic headers；不得暴露 Kafka types，subscriber metadata 不得進 use case。
+- [ ] F3. 將目前 public `IntegrationEventHandler<E>` interface 演進成 Tram 式 registration model：package-internal handler registration + public immutable `IntegrationEventHandlers` collection。
+- [ ] F4. 建立 `IntegrationEventHandlersBuilder`，提供 `forDestination(...)`、`andForDestination(...)`、`onEvent(Class<E>, Consumer<IntegrationEventEnvelope<E>>)` 與 `build()`；builder 建立時即拒絕重複 `(destination, event class)`。
+- [ ] F5. 建立 `IntegrationEventNameMapping`，以 stable external event type + contract version 雙向映射 Java event class；既有 `EVENT_TYPE` wire value保持相容，不得使用 FQCN／simple class name 作隱含 protocol。
+- [ ] F6. 重構 broker-neutral `IntegrationEventDispatcher`：只依賴 `IntegrationEventHandlers`、name mapping 與 deserializer，建立 envelope 後呼叫 method-reference handler；不得依賴 Kafka 或全域 Spring bean discovery。
+- [ ] F7. 建立 `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 的 Tram-compatible 基本 API；另以 options／overload 支援獨立 `consumerGroupId`、unhandled policy 與 subscription policy，不以另一個完全不同的 factory signature 取代基本形狀。
+- [ ] F8. factory 從該 dispatcher 的 `IntegrationEventHandlers` 推導 destinations 並呼叫 generic `MessageConsumer.subscribe(...)`；不得從 ApplicationContext 全域收集所有 handler beans。
+- [ ] F9. 定義 Tram 形狀的 `MessageConsumer.subscribe(subscriberId, channels, handler)`；若回傳 `MessageSubscription` lifecycle handle，呼叫端仍可像 Tram 一樣直接以 statement 訂閱。提供 options overload 分開 `consumerGroupId` 與 operational policy。
+- [ ] F10. 沿用 consumer-common 的唯一 generic `MessageConsumerImplementation` SPI；不建立 Kafka-specific consumer SPI。
+- [ ] F11. 將現有 `KafkaIntegrationEventDispatcher` 完整拆成 `KafkaMessageMapper` 與 broker-neutral dispatcher；compatibility bridge 可暫時委派新 API，但不得繼續擁有 handler catalog。
+- [ ] F12. `messaging-consumer-kafka` 只負責 `ConsumerRecord` → generic `Message`、Kafka key／timestamp／headers mapping；不得引用 events layer或 Spring。
+- [ ] F13. 建立 `messaging-spring-consumer-kafka`，由 `SpringKafkaMessageConsumerImplementation` 提供 programmatic subscription 與 container lifecycle。
+- [ ] F14. 透過 `ConcurrentKafkaListenerContainerFactory` 程式化建立 containers；不得 runtime 產生 annotated method。
+- [ ] F15. `ChannelMapping` 在 consumer common 將 logical destinations 轉成 physical topics；Kafka implementation 不自行維護第二份 mapping。
+- [ ] F16. `subscriberId` 與 `consumerGroupId` 預設同值但可分開設定；listener/container ID 由兩者穩定導出並做 collision validation。不同 subscriber 若以重疊 topics 共用同一 group 必須 fail fast。
+- [ ] F17. shared event channel 預設 `UnhandledEventPolicy.IGNORE_WITH_METRIC`；`FAIL` 可供 future dedicated channel 使用。ignored event 不得進 retry／DLT。
+- [ ] F18. 定義 exception taxonomy：mapping／contract／handler／infrastructure failure，並以 `MessageFailureClassifier` 接到 retry／DLT policy；不得靠 class-name YAML 設定。
+- [ ] F19. 定義 subscriber-specific `KafkaSubscriptionPolicy` 或等價 customizer，支援 concurrency、ack、retry、backoff、DLT；程式化 containers 必須套用 `DefaultErrorHandler` 與 `DeadLetterPublishingRecoverer`。
+- [ ] F20. 建立 compatibility policy adapter，證明 `AllocationKafkaErrorHandlingConfiguration` 的 exception classification／exponential backoff／direct DLT 行為能由新 runtime 等價表達；Gate F 不先刪除舊 listener。
+- [ ] F21. 明確區分正常 producer path（Outbox）與 DLT recovery path（允許 `KafkaOperations`）；DLT record 保留 original message ID、key、event type、logical/physical destination、serialized headers、original topic／partition／offset 與 failure metadata。
+- [ ] F22. lifecycle 支援 start failure fail-fast、readiness、idempotent unsubscribe／close、graceful shutdown 與 partial-subscription cleanup；另定義 subscriber／group rename與 original-ID replay runbook。
+- [ ] F23. pure events tests 覆蓋 builder chaining、multiple destinations、duplicate registration、name mapping、envelope、unknown event、header mismatch、unsupported version、handler exception propagation，並提供 Tram-style handler unit-test fixture。
+- [ ] F24. generic／Spring Kafka tests 覆蓋 decorator outcome、subscription lifecycle、collision、concurrency、retry exhaustion、non-retryable direct DLT、DLT publish/replay failure、readiness 與 graceful shutdown。
+
+#### Gate F 安全實作切片
+
+| 切片 | 內容 | 可部署邊界 |
+|---|---|---|
+| FS0 | Tram parity matrix、現有 wire／retry／DLT characterization | 只增文件與測試，不切 production path。 |
+| FS1 | Envelope、name mapping、handler collection／builder、broker-neutral dispatcher／factory | pure `messaging-events` API 可獨立測試；舊 interface 仍可由 compatibility adapter 使用。 |
+| FS2 | Tram-shaped `MessageConsumer`、single implementation SPI、ChannelMapping | generic consumer runtime 完整，但尚不建立 application production subscription。 |
+| FS3 | Spring Kafka programmatic containers、policy、DLT、lifecycle | 以 test subscriber 驗證，不刪現有 `@KafkaListener`。 |
+| FS4 | compatibility bridge 與 production-equivalence SIT | 證明 Gate I 可以依 subscriber 原子切換；本 Gate 不形成雙重 consumer。 |
 
 驗收條件：
 
 - `messaging-consumer-kafka` production code 無 Spring import。
 - `messaging-consumer-kafka` 不依賴 `messaging-events`；typed dispatcher 不依賴 Kafka client。
+- application handler target 能以 `IntegrationEventHandlersBuilder` 集中註冊多個 destinations／events，不必實作重複 metadata methods。
+- `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 與 `MessageConsumer.subscribe(subscriberId, channels, handler)` 保留 Tram 可辨識的基本形狀。
+- 每個 dispatcher 只看自己明確取得的 handler group；auto-configuration 不全域混合 handler beans。
 - `messaging-spring-consumer-kafka` 擁有 container lifecycle，但 application 仍能以 bean／properties override operational policy。
-- application 不再需要 `@KafkaListener`，仍可清楚看見 subscriber ID、consumer group、logical channels 與 handlers。
-- 移除 listener classes 前後，retry／backoff／DLT／ack 語意一致。
+- Gate F test subscriber 不需 `@KafkaListener`，且能清楚看見 subscriber ID、consumer group、logical destinations 與 handlers；production application 的移除留在 Gate I。
+- compatibility tests 證明未來移除 listener classes 前後，retry／backoff／DLT／ack 可保持等價。
 - unknown shared-channel event 不毒化 consumer；known invalid message 仍依 failure policy 進 retry／DLT。
 
 停止條件：
 
-- 移除 `@KafkaListener` 後，既有 retry／DLT 行為沒有等價測試或替代實作。
+- 在既有 retry／DLT 行為還沒有等價測試或替代實作前，就宣稱 Gate I 可移除 production `@KafkaListener`。
+- builder／dispatcher 又要求每個 application handler 重複宣告 `destination()`、`eventType()` 與 `eventClass()`。
+- event type mapping 退回 FQCN、class simple name 或不受控 reflection。
+- dispatcher factory 從 ApplicationContext 全域掃描 handlers，導致 subscriber ownership 不可見。
 - shared module 把所有 bounded contexts 強制成同一種 exception classification。
 - 同一 subscriber 被重複註冊而產生非預期 competing consumers。
 - subscriber/group rename 沒有 migration plan，或 DLT replay 改寫 original message ID。
@@ -1267,9 +1488,9 @@ archone.messaging.producer
 目的：完成 `order-promising` 接線並移除只為 migration 存在的舊 artifact。
 
 - [ ] I1. `order-promising` 依實際角色選擇 producer／consumer starter；同時收送時可先使用 all-in-one。
-- [ ] I2. 建立 ordering／allocation dispatcher beans，使用 stable subscriber IDs 與 explicit handler lists。
+- [ ] I2. 將 ordering／allocation 的個別 `IntegrationEventHandler<?>` classes 收斂為 bounded-context target classes；各 target 以 `IntegrationEventHandlersBuilder` 顯式提供 handler group，再以 `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 建立 dispatcher beans。
 - [ ] I3. 明確設定每個 subscription 的 `subscriberId`、`consumerGroupId`、logical channels 與 `UnhandledEventPolicy`，不得依賴 listener annotation 隱含值。
-- [ ] I4. 移除 application `@KafkaListener` consumer classes。
+- [ ] I4. 依 subscriber 原子切換 production subscription；切換成功後移除 application `@KafkaListener` consumer classes、每類一個 handler interface implementations，以及 auto-configuration 的 global handler-list wiring。
 - [ ] I5. 將現有 Kafka error handling 行為接成 subscription policy／shared Spring Kafka override。
 - [ ] I6. 更新 package scan／JPA repository scan，確認不再依賴舊 messaging JPA repositories。
 - [ ] I7. 更新 messaging properties、Outbox headers migration 與 Debezium connector deployment，提供 rolling-deployment migration note。
@@ -1282,13 +1503,16 @@ archone.messaging.producer
 - [ ] I14. 定義 Inbox／Outbox retention owner、最小保存期、batch cleanup SQL 與監控門檻；本輪不建立自動 scheduler。
 - [ ] I15. 更新 architecture tests、module README 與 `eventuate-tram-gap-analysis.md`，移除其中「application-owned `@KafkaListener`／延後 ChannelMapping」等舊決策。
 - [ ] I16. 更新專案 HTML 架構文件與流程圖。
-- [ ] I17. 執行完整 `check` 與端到端 Debezium/Kafka 驗證。
+- [ ] I17. 所有 application dispatcher 完成遷移後，刪除 Gate F compatibility `IntegrationEventHandler<E>` interface／adapter 與 temporary `KafkaIntegrationEventDispatcher` bridge。
+- [ ] I18. 在 compatibility cleanup 後執行完整 `check` 與端到端 Debezium/Kafka 驗證。
 
 驗收條件：
 
 - repository 內不存在對已移除 modules/classes 的引用。
 - new modules 的 dependency direction 通過 architecture tests。
 - application source 不再含 messaging `@KafkaListener` glue classes。
+- application 以 bounded-context target + `IntegrationEventHandlersBuilder` 顯式宣告每個 subscriber 的 handler group，不存在全域 handler bean catalog。
+- production dispatcher 全部經 `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 與 Tram-shaped `MessageConsumer.subscribe(...)` 建立，不再依賴 compatibility interface／bridge。
 - concurrency、retry、DLT 與 observability policies 在新 runtime 下有可驗證的對應行為。
 - 完整 producer → Debezium → Kafka → consumer → Inbox → business → optional Outbox chain 通過。
 
@@ -1418,6 +1642,17 @@ DB transaction commit
 
 若 DB commit 成功後、Kafka offset commit 前當機，Kafka 會重新投遞；Inbox unique key 讓第二次處理成為 `DUPLICATE` 並安全 acknowledge。若 handler 失敗，Inbox claim 必須跟著 rollback，讓 retry 可以重新 claim。
 
+若 bounded context 在同一次 Kafka delivery 內執行 optimistic-lock retry，transaction ordering 必須是：
+
+```text
+application retry attempt 1
+  → new transaction → Inbox claim → handler → optimistic-lock failure → rollback
+application retry attempt 2
+  → another new transaction → Inbox claim → handler → commit
+```
+
+禁止把 application retry 放在已開啟的 transactional idempotency callback 裡。Spring Kafka retry／DLT 仍位於整組 application attempts 外面，處理最後仍向外傳出的 exception。
+
 此 local DB transaction 不能原子涵蓋外部 HTTP／第三方 API side effect；這類副作用需要 receiver idempotency key、另一個 Outbox 或更高階 workflow，不能誤認 Inbox 已經處理。
 
 ### 10.3 Use case transaction rule
@@ -1484,12 +1719,12 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 
 ## 12. Rollback 策略
 
-1. 每個 Gate 使用獨立 commit；Gate E 至少再依 use case 群組拆 commit。
+1. 每個 Gate 使用獨立 commit；Gate E 依 ES0～ES4 切片，Kafka cutover 以 subscriber 為最小 deployable unit。純 API preparation 可先提交，但實際 chain claim 與該路徑 legacy use case claim 的移除不可拆成兩次部署。
 2. `event_outbox.headers` 是 additive migration；rollback 時保留欄位與資料，不執行 destructive down migration。既有 raw event payload、`eventType` 與 key contract 不變。
 3. header rollout 順序固定為 DB column → tolerant consumer mapper → Debezium connector mapping → producer header write → 觀察舊／新 records 均正常後才移除 compatibility path；rollback 反向停用 producer／connector，consumer 必須持續接受沒有 `messageHeaders` 的舊 records。任何一步都不能和下一步包在同一次不可獨立回退的 deployment。
 4. 舊 module facade 只在新 application wiring 通過前保留；不要同時維護兩套實作。
-5. Gate E 若 consumer transaction integration 失敗，回退到舊 `InboundCommand + InboxRepo` 路徑，不要用獨立 Inbox commit 暫時繞過。
-6. Gate F 移除 `@KafkaListener` 前後必須分 commit；若 programmatic runtime 的 retry／DLT regression，先恢復舊 listeners，不得關閉 DLT 當作修正。
+5. Gate E 若 consumer transaction integration 失敗，應以 subscriber 為單位同時回退 actual chain 與 handlers 到舊 `InboundCommand + InboxRepo` 路徑，不要只回退其中一側，也不要用獨立 Inbox commit 暫時繞過。
+6. Gate F 只建立並驗證 programmatic runtime；Gate I 依 subscriber 切換 production subscription 與移除 `@KafkaListener` 必須分 commit。若新 runtime 的 retry／DLT regression，先恢復舊 listeners，不得關閉 DLT 當作修正。
 7. observability decorator 必須可單獨停用；metrics／tracing failure 不得改變 message outcome。
 8. starters 切換前保留 all-in-one 使用方式，確認 narrow starters dependency tree 後再清理。
 9. Gate J 的 runtime 是 base messaging 上的 additive layer；若 Command／Reply rollout 失敗，停用 commands starter／subscriptions 即可，不得回退已驗證的 generic Outbox／Inbox schema。已送出的 Command／Reply 需依 message ID 與 Inbox 狀態完成 drain 或建立明確 replay plan。
@@ -1522,6 +1757,10 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 | 21 | Command／Reply 是否偽造 aggregate identity 以沿用 `event_outbox` |  | 否；Gate J migration 放寬 aggregate columns，Event contract 繼續在 mapper 層 required。若 Debezium 不接受則停下 review 獨立 generic Outbox。 |
 | 22 | 是否依 wire header 動態載入 Command／Reply class |  | 否；只允許 application 明確註冊的 stable type + version mapping，避免 FQCN coupling 與不受控反序列化。 |
 | 23 | 第一版是否支援一個 Command 多筆 progress／streaming Reply |  | 否；request/reply 是一個 terminal Reply，fire-and-forget 使用 `sendNotification(...)`，進度改用 Event／read model。 |
+| 24 | Typed event handler 是否改用 Tram 式 collection／builder | ✅ | 使用 `IntegrationEventHandlersBuilder.forDestination(...).onEvent(...).build()`；不保留每類一個 public handler interface 作最終 API。 |
+| 25 | Dispatcher factory 是否保留 Tram `make(subscriberId, handlers)` 基本形狀 | ✅ | 是；獨立 consumer group、policy、lifecycle 只用 options／overload 擴充，不另造無法對照 Tram 的唯一入口。 |
+| 26 | 是否將 Tram 的 `DomainEvent` 命名原樣搬入跨 context contracts |  | 否；複製 API／責任切分，但保留 `IntegrationEvent` 名稱，避免與 bounded-context 內部 Domain Event 混淆。 |
+| 27 | Spring 是否自動全域掃描所有 typed handler beans |  | 否；application 顯式提供每個 subscriber 的 `IntegrationEventHandlers`，避免不同 handler sets 被意外合併。 |
 
 ## 14. Definition of Done
 
@@ -1539,6 +1778,9 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 - [ ] producer-only 與 consumer-only starters 可各自啟動。
 - [ ] all-in-one starter 可向後提供完整能力。
 - [ ] application 透過 dispatcher/subscription bean 消費事件，不再撰寫 messaging `@KafkaListener` glue classes。
+- [ ] typed event API 具備 `IntegrationEventEnvelope`、`IntegrationEventHandlers`、`IntegrationEventHandlersBuilder`、`IntegrationEventNameMapping` 與 `IntegrationEventDispatcherFactory.make(subscriberId, handlers)`。
+- [ ] bounded-context handler target 使用 method references 集中註冊 handlers；production code 不再實作帶 `destination()`／`eventType()`／`eventClass()`／`handleTyped()` 的 per-event interface。
+- [ ] dispatcher factory 只使用 caller 明確傳入的 handler group，不從 Spring context 全域收集 handlers。
 - [ ] `KafkaMessageMapper` 與 `IntegrationEventDispatcher` 分離；前者不依賴 events layer，後者不依賴 Kafka types。
 - [ ] `subscriberId`、`consumerGroupId` 分開建模且預設同值；rename／replay 風險有測試與 runbook。
 - [ ] shared event channel 的 unknown event 採 `IGNORE_WITH_METRIC`，known invalid message 仍依 policy retry／DLT。
