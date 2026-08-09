@@ -1,6 +1,7 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Decision-aligned，實作前契約已凍結；下一步為 Gate A baseline／feasibility verification
+> 狀態：Gate A 已完成；下一步為 Gate B pure producer／consumer common
+> Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-09
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
 
@@ -877,22 +878,22 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 
 目的：在改結構前，先把現有 delivery、transaction、deduplication 行為變成可回歸的 baseline。
 
-- [ ] A1. 記錄目前所有 messaging module dependency graph。
-- [ ] A2. 確認 producer 成功時 business row 與 `event_outbox` row 同時 commit。
-- [ ] A3. 確認 producer 失敗時 business row 與 `event_outbox` row 同時 rollback。
-- [ ] A4. 確認同一 `(subscriber_id, event_id)` 只執行一次 business handler。
-- [ ] A5. 確認 handler 失敗時 Inbox claim、business mutation、Outbox append 全部 rollback。
-- [ ] A6. 確認 retry 後仍可重新 claim 並成功處理。
-- [ ] A7. 確認不同 subscriber 可各自處理同一 event ID。
-- [ ] A8. 固定 event JSON、Kafka headers、destination 與 partition key golden tests。
-- [ ] A9. 固定未知 event、缺 header、event ID 不一致時的失敗行為。
-- [ ] A10. 記錄 application-owned Kafka retry、DLT、ack mode、concurrency 現況。
-- [ ] A11. 固定目前 `event_outbox`／`event_inbox` DDL、Debezium EventRouter configuration 與 Kafka record golden fixture。
-- [ ] A12. 列出所有現有 subscriber ID、`spring.kafka.consumer.group-id`、listener ID 與 physical topic mapping，找出目前隱含相等或不相等之處。
-- [ ] A13. 固定既有 producer／consumer starter dependency tree，作為窄 starter 不得交叉引入的 baseline。
-- [ ] A14. 完成 Debezium generic headers relay feasibility test：確認 `headers:header:messageHeaders` 能把 JSON object 當作單一 Kafka header 傳遞，並固定 empty／custom／reserved collision fixture；不得等到 Gate C migration 後才發現 connector contract 不成立。
-- [ ] A15. 完成 mixed JPA + JDBC transaction feasibility test：以目前 primary `PlatformTransactionManager` 證明 JPA business write、`JdbcTemplate` Inbox insert 與 JDBC Outbox insert 能一起 commit／rollback，且沒有第二條 unmanaged connection。
-- [ ] A16. 完成 programmatic Kafka container feasibility test：由現有 `ConcurrentKafkaListenerContainerFactory` 建立 container，確認既有 ack mode、`DefaultErrorHandler`、retry／DLT、concurrency、start／stop lifecycle 仍能套用；此 Gate 不移除任何 `@KafkaListener`。
+- [x] A1. 記錄目前所有 messaging module dependency graph。
+- [x] A2. 確認 producer 成功時 business row 與 `event_outbox` row 同時 commit。
+- [x] A3. 確認 producer 失敗時 business row 與 `event_outbox` row 同時 rollback。
+- [x] A4. 確認同一 `(subscriber_id, event_id)` 只執行一次 business handler。
+- [x] A5. 確認 handler 失敗時 Inbox claim、business mutation、Outbox append 全部 rollback。
+- [x] A6. 確認 retry 後仍可重新 claim 並成功處理。
+- [x] A7. 確認不同 subscriber 可各自處理同一 event ID。
+- [x] A8. 固定 event JSON、Kafka headers、destination 與 partition key golden tests。
+- [x] A9. 固定未知 event、缺 header、event ID 不一致時的失敗行為。
+- [x] A10. 記錄 application-owned Kafka retry、DLT、ack mode、concurrency 現況。
+- [x] A11. 固定目前 `event_outbox`／`event_inbox` DDL、Debezium EventRouter configuration 與 Kafka record golden fixture。
+- [x] A12. 列出所有現有 subscriber ID、`spring.kafka.consumer.group-id`、listener ID 與 physical topic mapping，找出目前隱含相等或不相等之處。
+- [x] A13. 固定既有 producer／consumer starter dependency tree，作為窄 starter 不得交叉引入的 baseline。
+- [x] A14. 完成 Debezium generic headers relay feasibility test：確認 `headers:header:messageHeaders` 能把 JSON object 當作單一 Kafka header 傳遞，並固定 empty／custom／reserved collision fixture；不得等到 Gate C migration 後才發現 connector contract 不成立。
+- [x] A15. 完成 mixed JPA + JDBC transaction feasibility test：以目前 primary `PlatformTransactionManager` 證明 JPA business write、`JdbcTemplate` Inbox insert 與 JDBC Outbox insert 能一起 commit／rollback，且沒有第二條 unmanaged connection。
+- [x] A16. 完成 programmatic Kafka container feasibility test：由現有 `ConcurrentKafkaListenerContainerFactory` 建立 container，確認既有 ack mode、`DefaultErrorHandler`、retry／DLT、concurrency、start／stop lifecycle 仍能套用；此 Gate 不移除任何 `@KafkaListener`。
 
 驗收條件：
 

@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -43,6 +44,8 @@ class OutboxCdcIntegrationTest {
 
   private static final String ORDER_EVENTS_TOPIC = OrderingEventTopics.ORDER_EVENTS;
   private static final String PRIMARY_CONNECTOR = "order-promising-outbox";
+  private static final String GENERIC_HEADERS_CONNECTOR = "gate-a-generic-headers-outbox";
+  private static final String GENERIC_HEADERS_TOPIC = "gate-a." + ORDER_EVENTS_TOPIC;
   private static final String DEBEZIUM_IMAGE = "quay.io/debezium/connect:3.5.2.Final";
   private static final Network NETWORK = Network.newNetwork();
   private static final ObjectMapper JSON = new ObjectMapper();
@@ -140,6 +143,47 @@ class OutboxCdcIntegrationTest {
     }
   }
 
+  @Test
+  @DisplayName("Gate A: Debezium 應將 serialized generic headers relay 成單一 Kafka header")
+  void shouldRelaySerializedGenericHeadersWithoutACustomSmt() throws Exception {
+    registerConnector(
+        DEBEZIUM,
+        GENERIC_HEADERS_CONNECTOR,
+        "gate_a_generic_headers_outbox_slot",
+        "gate-a-generic-headers",
+        "gate-a.${routedByValue}",
+        "type:header:eventType,headers:header:messageHeaders");
+    awaitConnectorRunning(DEBEZIUM, GENERIC_HEADERS_CONNECTOR);
+
+    try (KafkaConsumer<String, String> consumer = consumer()) {
+      consumer.subscribe(List.of(GENERIC_HEADERS_TOPIC));
+
+      String customHeaders = JSON.writeValueAsString(new LinkedHashMap<>(Map.of(
+          "correlation-id", "conversation-123",
+          "traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")));
+      UUID customEventId = appendOutboxEventWithHeaders(customHeaders);
+      ConsumerRecord<String, String> customRecord = awaitEvent(
+          consumer, customEventId, GENERIC_HEADERS_CONNECTOR);
+      assertThat(JSON.readTree(header(customRecord, "messageHeaders")))
+          .isEqualTo(JSON.readTree(customHeaders));
+      assertThat(header(customRecord, "eventType")).isEqualTo("GateAGenericHeadersEvent");
+
+      UUID emptyEventId = appendOutboxEventWithHeaders("{}");
+      ConsumerRecord<String, String> emptyRecord = awaitEvent(
+          consumer, emptyEventId, GENERIC_HEADERS_CONNECTOR);
+      assertThat(JSON.readTree(header(emptyRecord, "messageHeaders")))
+          .isEqualTo(JSON.createObjectNode());
+
+      String reservedCollision = "{\"message-id\":\"caller-forged-id\"}";
+      UUID collisionEventId = appendOutboxEventWithHeaders(reservedCollision);
+      ConsumerRecord<String, String> collisionRecord = awaitEvent(
+          consumer, collisionEventId, GENERIC_HEADERS_CONNECTOR);
+      assertThat(header(collisionRecord, "id")).isEqualTo(collisionEventId.toString());
+      assertThat(JSON.readTree(header(collisionRecord, "messageHeaders")))
+          .isEqualTo(JSON.readTree(reservedCollision));
+    }
+  }
+
   private static GenericContainer<?> debeziumConnectContainer() {
     return new GenericContainer<>(DockerImageName.parse(DEBEZIUM_IMAGE))
         .withNetwork(NETWORK)
@@ -153,6 +197,23 @@ class OutboxCdcIntegrationTest {
   }
 
   private static void registerConnector(GenericContainer<?> connect, String name, String slotName) {
+    registerConnector(
+        connect,
+        name,
+        slotName,
+        "order-promising",
+        "${routedByValue}",
+        "type:header:eventType");
+  }
+
+  private static void registerConnector(
+      GenericContainer<?> connect,
+      String name,
+      String slotName,
+      String topicPrefix,
+      String topicReplacement,
+      String additionalPlacement
+  ) {
     Map<String, Object> configuration = new LinkedHashMap<>();
     configuration.put("connector.class", "io.debezium.connector.postgresql.PostgresConnector");
     configuration.put("database.hostname", "postgres");
@@ -161,17 +222,17 @@ class OutboxCdcIntegrationTest {
     configuration.put("database.password", POSTGRES.getPassword());
     configuration.put("database.dbname", POSTGRES.getDatabaseName());
     configuration.put("plugin.name", "pgoutput");
-    configuration.put("topic.prefix", "order-promising");
+    configuration.put("topic.prefix", topicPrefix);
     configuration.put("table.include.list", "public.event_outbox");
     configuration.put("slot.name", slotName);
     configuration.put("publication.autocreate.mode", "filtered");
     configuration.put("transforms", "outbox");
     configuration.put("transforms.outbox.type", "io.debezium.transforms.outbox.EventRouter");
     configuration.put("transforms.outbox.route.by.field", "route");
-    configuration.put("transforms.outbox.route.topic.replacement", "${routedByValue}");
+    configuration.put("transforms.outbox.route.topic.replacement", topicReplacement);
     configuration.put("transforms.outbox.table.field.event.key", "partition_key");
     configuration.put("transforms.outbox.table.expand.json.payload", true);
-    configuration.put("transforms.outbox.table.fields.additional.placement", "type:header:eventType");
+    configuration.put("transforms.outbox.table.fields.additional.placement", additionalPlacement);
     configuration.put("key.converter", "org.apache.kafka.connect.storage.StringConverter");
     configuration.put("value.converter", "org.apache.kafka.connect.json.JsonConverter");
     configuration.put("value.converter.schemas.enable", false);
@@ -231,6 +292,14 @@ class OutboxCdcIntegrationTest {
         .locations("classpath:db/migration")
         .load()
         .migrate();
+    try (Connection connection = DriverManager.getConnection(
+        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        Statement statement = connection.createStatement()) {
+      // Gate A feasibility fixture only. The production migration belongs to Gate C.
+      statement.execute("ALTER TABLE event_outbox ADD COLUMN headers TEXT NOT NULL DEFAULT '{}'");
+    } catch (Exception exception) {
+      throw new IllegalStateException("Cannot add Gate A generic headers fixture column", exception);
+    }
   }
 
   private static UUID appendOutboxEvent(String eventType, String route, String payload) {
@@ -268,6 +337,32 @@ class OutboxCdcIntegrationTest {
     }
   }
 
+  private static UUID appendOutboxEventWithHeaders(String headers) {
+    UUID eventId = UUID.randomUUID();
+    try (Connection connection = DriverManager.getConnection(
+        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO event_outbox (
+                id, aggregatetype, aggregateid, type, route, partition_key,
+                payload, timestamp, headers)
+            VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?)
+            """)) {
+      statement.setObject(1, eventId);
+      statement.setString(2, OutboxAggregateTypes.ORDER);
+      statement.setString(3, "gate-a-order");
+      statement.setString(4, "GateAGenericHeadersEvent");
+      statement.setString(5, ORDER_EVENTS_TOPIC);
+      statement.setString(6, "gate-a-order");
+      statement.setString(7, "{\"eventId\":\"" + eventId + "\"}");
+      statement.setTimestamp(8, Timestamp.from(Instant.now()));
+      statement.setString(9, headers);
+      statement.executeUpdate();
+      return eventId;
+    } catch (Exception exception) {
+      throw new IllegalStateException("Cannot append Outbox event with generic headers", exception);
+    }
+  }
+
   private static KafkaConsumer<String, String> consumer() {
     Properties properties = new Properties();
     properties.putAll(Map.of(
@@ -282,6 +377,14 @@ class OutboxCdcIntegrationTest {
       KafkaConsumer<String, String> consumer,
       UUID eventId
   ) {
+    return awaitEvent(consumer, eventId, PRIMARY_CONNECTOR);
+  }
+
+  private static ConsumerRecord<String, String> awaitEvent(
+      KafkaConsumer<String, String> consumer,
+      UUID eventId,
+      String connectorName
+  ) {
     List<ConsumerRecord<String, String>> records = new ArrayList<>();
     long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
     while (System.nanoTime() < deadline) {
@@ -294,7 +397,7 @@ class OutboxCdcIntegrationTest {
       }
     }
     throw new AssertionError("Timed out waiting for Outbox event " + eventId
-        + "; connector status=" + get(DEBEZIUM, "/connectors/" + PRIMARY_CONNECTOR + "/status")
+        + "; connector status=" + get(DEBEZIUM, "/connectors/" + connectorName + "/status")
         + "\n" + DEBEZIUM.getLogs());
   }
 

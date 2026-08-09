@@ -1,6 +1,7 @@
 package com.flowzati.archone.promising.messaging;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJpaAutoConfiguration;
 import com.flowzati.archone.messaging.api.MessageMetadata;
@@ -19,8 +20,11 @@ import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -79,6 +83,9 @@ class InboxRepoOutboxPersistenceIntegrationTest {
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
+
+  @Autowired
+  private EntityManager entityManager;
 
   @Test
   @DisplayName("同一 subscriber 只 claim 一次，不同 subscriber 可各處理一次")
@@ -190,6 +197,73 @@ class InboxRepoOutboxPersistenceIntegrationTest {
     assertThat(jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM orders WHERE id = ?", Integer.class, orderId)).isZero();
     assertThat(outboxRepository.count()).isZero();
+  }
+
+  @Test
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  @DisplayName("Gate A: JPA business write 與 JDBC Inbox/Outbox 應共用同一交易")
+  void shouldCommitAndRollbackJpaBusinessWithJdbcInboxAndOutboxAtomically() {
+    TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+    UUID committedOwnerId = UUID.randomUUID();
+    UUID committedMessageId = UUID.randomUUID();
+    List<Long> committedTransactionIds = new ArrayList<>();
+
+    transaction.executeWithoutResult(status -> appendMixedPersistenceRows(
+        committedOwnerId, committedMessageId, committedTransactionIds));
+
+    assertThat(committedTransactionIds).hasSize(2);
+    assertThat(committedTransactionIds.get(0)).isEqualTo(committedTransactionIds.get(1));
+    assertThat(countById("owners", "id", committedOwnerId)).isOne();
+    assertThat(countById("event_inbox", "event_id", committedMessageId)).isOne();
+    assertThat(countById("event_outbox", "id", committedMessageId)).isOne();
+
+    UUID rolledBackOwnerId = UUID.randomUUID();
+    UUID rolledBackMessageId = UUID.randomUUID();
+    List<Long> rolledBackTransactionIds = new ArrayList<>();
+
+    transaction.executeWithoutResult(status -> {
+      appendMixedPersistenceRows(rolledBackOwnerId, rolledBackMessageId, rolledBackTransactionIds);
+      status.setRollbackOnly();
+    });
+
+    assertThat(rolledBackTransactionIds).hasSize(2);
+    assertThat(rolledBackTransactionIds.get(0)).isEqualTo(rolledBackTransactionIds.get(1));
+    assertThat(countById("owners", "id", rolledBackOwnerId)).isZero();
+    assertThat(countById("event_inbox", "event_id", rolledBackMessageId)).isZero();
+    assertThat(countById("event_outbox", "id", rolledBackMessageId)).isZero();
+
+    jdbcTemplate.update("DELETE FROM event_inbox WHERE event_id = ?", committedMessageId);
+    jdbcTemplate.update("DELETE FROM event_outbox WHERE id = ?", committedMessageId);
+    jdbcTemplate.update("DELETE FROM owners WHERE id = ?", committedOwnerId);
+  }
+
+  private void appendMixedPersistenceRows(
+      UUID ownerId,
+      UUID messageId,
+      List<Long> transactionIds
+  ) {
+    transactionIds.add(jdbcTemplate.queryForObject("SELECT txid_current()", Long.class));
+    entityManager.persist(new OwnerEntity(ownerId, "GATE-A-" + ownerId, "Gate A owner"));
+    entityManager.flush();
+    jdbcTemplate.update("""
+        INSERT INTO event_inbox (subscriber_id, event_id, event_type, processed_at)
+        VALUES ('gate-a-mixed-transaction', ?, 'GateAMessage', CURRENT_TIMESTAMP)
+        """, messageId);
+    jdbcTemplate.update("""
+        INSERT INTO event_outbox (
+            id, aggregatetype, aggregateid, type, route, partition_key, payload, timestamp)
+        VALUES (?, 'GateAOwner', ?, 'GateAMessage', 'gate-a.messages', ?,
+                CAST(? AS jsonb), CURRENT_TIMESTAMP)
+        """, messageId, ownerId.toString(), ownerId.toString(),
+        "{\"messageId\":\"" + messageId + "\"}");
+    transactionIds.add(jdbcTemplate.queryForObject("SELECT txid_current()", Long.class));
+  }
+
+  private int countById(String table, String column, UUID id) {
+    return jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM " + table + " WHERE " + column + " = ?",
+        Integer.class,
+        id);
   }
 
   @EnableJpaRepositories(basePackageClasses = {JpaEventInboxRepository.class, JpaOutboxRepository.class})

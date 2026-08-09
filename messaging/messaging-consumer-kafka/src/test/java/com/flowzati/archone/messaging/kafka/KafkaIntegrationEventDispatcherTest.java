@@ -54,6 +54,58 @@ class KafkaIntegrationEventDispatcherTest {
         .hasMessage("Unsupported Kafka integration event: order-events/TestEvent.v1");
   }
 
+  @Test
+  void rejectsAMissingMessageIdHeader() {
+    UUID eventId = UUID.randomUUID();
+    KafkaIntegrationEventDispatcher dispatcher = new KafkaIntegrationEventDispatcher(
+        deserializerReturning(new TestEvent(eventId)), List.of(handler(new AtomicReference<>())));
+    ConsumerRecord<String, String> record = record(eventId, TestEvent.EVENT_TYPE);
+    record.headers().remove("id");
+
+    assertThatThrownBy(() -> dispatcher.dispatch(record, "order-events", "allocation"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing Kafka header: id");
+  }
+
+  @Test
+  void rejectsAMissingEventTypeHeader() {
+    UUID eventId = UUID.randomUUID();
+    KafkaIntegrationEventDispatcher dispatcher = new KafkaIntegrationEventDispatcher(
+        deserializerReturning(new TestEvent(eventId)), List.of(handler(new AtomicReference<>())));
+    ConsumerRecord<String, String> record = record(eventId, TestEvent.EVENT_TYPE);
+    record.headers().remove("eventType");
+
+    assertThatThrownBy(() -> dispatcher.dispatch(record, "order-events", "allocation"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing Kafka header: eventType");
+  }
+
+  @Test
+  void rejectsAMessageIdThatDoesNotMatchThePayload() {
+    UUID payloadEventId = UUID.randomUUID();
+    KafkaIntegrationEventDispatcher dispatcher = new KafkaIntegrationEventDispatcher(
+        deserializerReturning(new TestEvent(payloadEventId)),
+        List.of(handler(new AtomicReference<>())));
+
+    assertThatThrownBy(() -> dispatcher.dispatch(
+        record(UUID.randomUUID(), TestEvent.EVENT_TYPE), "order-events", "allocation"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Kafka event ID header does not match payload");
+  }
+
+  @Test
+  void rejectsAnEventTypeThatDoesNotMatchThePayloadContract() {
+    UUID eventId = UUID.randomUUID();
+    KafkaIntegrationEventDispatcher dispatcher = new KafkaIntegrationEventDispatcher(
+        deserializerReturning(new TestEvent(eventId, "UnexpectedEvent.v1")),
+        List.of(handler(new AtomicReference<>())));
+
+    assertThatThrownBy(() -> dispatcher.dispatch(
+        record(eventId, TestEvent.EVENT_TYPE), "order-events", "allocation"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Kafka event type header does not match payload contract");
+  }
+
   private IntegrationEventHandler<TestEvent> handler(
       AtomicReference<MessageMetadata> handledMetadata
   ) {
@@ -99,14 +151,20 @@ class KafkaIntegrationEventDispatcherTest {
 
   private static final class TestEvent extends IntegrationEvent {
     private static final String EVENT_TYPE = "TestEvent.v1";
+    private final String eventType;
 
     private TestEvent(UUID eventId) {
+      this(eventId, EVENT_TYPE);
+    }
+
+    private TestEvent(UUID eventId, String eventType) {
       super(eventId);
+      this.eventType = eventType;
     }
 
     @Override
     public String eventType() {
-      return EVENT_TYPE;
+      return eventType;
     }
   }
 }
