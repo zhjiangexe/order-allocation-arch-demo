@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A 已完成；下一步為 Gate B pure producer／consumer common
+> 狀態：Gate A 已完成；Gate B 實作中（B/1 API contracts）
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-09
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
@@ -915,12 +915,12 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 - [ ] B1. 在 `settings.gradle` 加入 `messaging-producer-common`。
 - [ ] B2. 在 `settings.gradle` 加入 `messaging-consumer-common`。
 - [ ] B3. 在 `settings.gradle` 加入 `messaging-jdbc-common`。
-- [ ] B4. 將 `Message` 演進為 immutable payload + headers envelope；建立 `MessageBuilder`、standard `MessageHeaders` 與 required-header validation。
-- [ ] B5. 保留既有 event ID／type／aggregate／partition semantics：由 `messaging-events` 的 mapper 使用 `EventMessageHeaders` 建立 generic `Message`，並同步設定 `message-type = event-type`；缺少 `event-contract-version` 視為 `1`，新 message 明確設定 `1`。
-- [ ] B6. 在 `messaging-api` 定義 `ChannelMapping` 與 identity／map-backed implementations；logical destination 不得再由 JDBC adapter 自行解讀。
+- [x] B4. 將 `Message` 演進為 immutable payload + headers envelope；建立 `MessageBuilder`、standard `MessageHeaders` 與 required-header validation。
+- [x] B5. 保留既有 event ID／type／aggregate／partition semantics：由 `messaging-events` 的 mapper 使用 `EventMessageHeaders` 建立 generic `Message`，並同步設定 `message-type = event-type`；缺少 `event-contract-version` 視為 `1`，新 message 明確設定 `1`。
+- [x] B6. 在 `messaging-api` 定義 `ChannelMapping` 與 identity／map-backed implementations；logical destination 不得再由 JDBC adapter 自行解讀。
 - [ ] B7. 在 `messaging-api` 建立 Tram 風格 `MessageInterceptor` lifecycle 與 `MessageIdGenerator` port；因 `Message` immutable，`preSend` 若補 header 必須回傳新 message。producer-common 建立 `MessageProducerImpl`、唯一 `MessageProducerImplementation` SPI，並提供 default message ID generator implementation。
 - [ ] B8. `MessageProducerImpl` 負責 channel mapping、reserved header normalization 與 interceptor lifecycle；common 不得包含 `Outbox`／SQL types。
-- [ ] B9. 在 `messaging-api` 定義 `MessageConsumer`、`MessageHandler`、`MessageSubscription` 與明確分離的 `subscriberId`／`consumerGroupId` subscription model。
+- [x] B9. 在 `messaging-api` 定義 `MessageConsumer`、`MessageHandler`、`MessageSubscription` 與明確分離的 `subscriberId`／`consumerGroupId` subscription model。
 - [ ] B10. 在 `messaging-consumer-common` 建立 `MessageConsumerImpl` 與唯一 generic `MessageConsumerImplementation` SPI；不得另外建立 Kafka-specific implementation SPI。
 - [ ] B11. 建立 `MessageHandlerDecorator`、`MessageHandlerDecoratorChain`、built-in order constants 與 outcome：`PROCESSED`、`DUPLICATE`、`IGNORED_UNHANDLED`。
 - [ ] B12. 建立最小 `DuplicateMessageDetector` contract；transactional orchestration 由 decorator chain 承接，不另公開第二套 `InboundMessageProcessor` pipeline。

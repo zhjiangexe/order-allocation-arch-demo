@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.messaging.api.Message;
+import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageProducer;
 import java.time.Instant;
 import java.util.UUID;
@@ -27,14 +28,18 @@ class DefaultIntegrationEventPublisherTest {
         occurredAt);
 
     assertThat(producer.destination).isEqualTo("ordering.order-events");
-    assertThat(producer.message).isEqualTo(new Message(
-        eventId,
-        "ordering.order-placed.v1",
-        "Order",
-        "order-1",
-        "order-1",
-        "{\"eventId\":\"" + eventId + "\",\"orderId\":\"order-1\"}",
-        occurredAt));
+    assertThat(producer.message).isEqualTo(MessageBuilder.withPayload(
+            "{\"eventId\":\"" + eventId + "\",\"orderId\":\"order-1\"}")
+        .withId(eventId)
+        .withType("ordering.order-placed.v1")
+        .withPartitionId("order-1")
+        .withMessageDate(occurredAt)
+        .withHeader(EventMessageHeaders.EVENT_TYPE, "ordering.order-placed.v1")
+        .withHeader(EventMessageHeaders.EVENT_AGGREGATE_TYPE, "Order")
+        .withHeader(EventMessageHeaders.EVENT_AGGREGATE_ID, "order-1")
+        .withHeader(EventMessageHeaders.EVENT_CONTRACT_VERSION, "1")
+        .build());
+    assertThat(EventMessageHeaders.contractVersion(producer.message)).isOne();
   }
 
   private static final class CapturingMessageProducer implements MessageProducer {
