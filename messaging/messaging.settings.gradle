@@ -13,6 +13,7 @@
     'messaging-spring-jdbc',
     'messaging-spring-producer-jdbc',
     'messaging-spring-consumer-jdbc',
+    'messaging-spring-consumer-kafka',
     'messaging-spring-flyway',
     'messaging-spring-boot-autoconfigure',
     'messaging-spring-boot-starter',

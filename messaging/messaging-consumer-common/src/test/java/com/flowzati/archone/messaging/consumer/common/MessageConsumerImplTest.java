@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageHandler;
 import com.flowzati.archone.messaging.api.MessageSubscription;
-import com.flowzati.archone.messaging.api.MessageSubscriptionConfiguration;
+import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +31,10 @@ class MessageConsumerImplTest {
     AtomicReference<MessageContext> handledContext = new AtomicReference<>();
 
     MessageSubscription handle = consumer.subscribe(
-        new MessageSubscriptionConfiguration(
-            "allocation-inbox-scope", "allocation-kafka-group", Set.of("order-events")),
-        (message, context) -> handledContext.set(context));
+        "allocation-inbox-scope",
+        Set.of("order-events"),
+        (message, context) -> handledContext.set(context),
+        MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"));
 
     assertThat(implementation.subscription.subscriberId()).isEqualTo("allocation-inbox-scope");
     assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation-kafka-group");
@@ -51,6 +52,20 @@ class MessageConsumerImplTest {
   }
 
   @Test
+  void defaultsTheConsumerGroupToTheSubscriberInTheTramShapedOverload() {
+    CapturingImplementation implementation = new CapturingImplementation();
+    MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
+
+    consumer.subscribe(
+        "allocation",
+        Set.of("order-events"),
+        (message, context) -> { });
+
+    assertThat(implementation.subscription.subscriberId()).isEqualTo("allocation");
+    assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation");
+  }
+
+  @Test
   void appliesTheDecoratorChainBeforeTheApplicationHandler() {
     CapturingImplementation implementation = new CapturingImplementation();
     List<String> calls = new ArrayList<>();
@@ -59,7 +74,7 @@ class MessageConsumerImplTest {
         logicalChannel -> logicalChannel,
         List.of(decorator(200, "inner", calls), decorator(100, "outer", calls)));
 
-    consumer.subscribe(configuration(), (message, context) -> calls.add("handler"));
+    subscribe(consumer, (message, context) -> calls.add("handler"));
     implementation.emit("order-events", message(), 1);
 
     assertThat(calls).containsExactly(
@@ -74,10 +89,8 @@ class MessageConsumerImplTest {
         implementation,
         logicalChannel -> "shared-topic",
         List.of());
-    MessageSubscriptionConfiguration configuration = new MessageSubscriptionConfiguration(
-        "subscriber", "group", Set.of("orders", "stock"));
-
-    assertThatThrownBy(() -> consumer.subscribe(configuration, (message, context) -> { }))
+    assertThatThrownBy(() -> consumer.subscribe(
+        "subscriber", Set.of("orders", "stock"), (message, context) -> { }))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Multiple logical channels map to the same destination: shared-topic");
     assertThat(implementation.subscription).isNull();
@@ -87,7 +100,7 @@ class MessageConsumerImplTest {
   void rejectsAContextThatDoesNotBelongToTheLocalSubscription() {
     CapturingImplementation implementation = new CapturingImplementation();
     MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
-    consumer.subscribe(configuration(), (message, context) -> { });
+    subscribe(consumer, (message, context) -> { });
 
     assertThatThrownBy(() -> implementation.handler.handle(
         message(), new MessageContext("another-subscriber", "order-events", 1)))
@@ -115,9 +128,12 @@ class MessageConsumerImplTest {
     };
   }
 
-  private MessageSubscriptionConfiguration configuration() {
-    return new MessageSubscriptionConfiguration(
-        "allocation-inbox-scope", "allocation-kafka-group", Set.of("order-events"));
+  private void subscribe(MessageConsumerImpl consumer, MessageHandler handler) {
+    consumer.subscribe(
+        "allocation-inbox-scope",
+        Set.of("order-events"),
+        handler,
+        MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"));
   }
 
   private Message message() {

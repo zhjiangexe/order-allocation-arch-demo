@@ -7,7 +7,10 @@ import com.flowzati.archone.messaging.api.MessageMetadata;
  *
  * <p>{@code destination()} is a logical messaging destination. Kafka topic binding belongs to the
  * application listener/runtime and is not part of the handler type.
+ *
+ * @deprecated use {@link IntegrationEventHandlersBuilder} to register typed method references.
  */
+@Deprecated
 public interface IntegrationEventHandler<E extends IntegrationEvent> {
 
   String destination();

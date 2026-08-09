@@ -5,6 +5,7 @@
 盤點日期：2026-08-07
 架構決策與第一階段修訂：2026-08-08
 Gate E 完成與 Tram handler DSL 決策：2026-08-10
+Gate F FS0～FS3 handler DSL／generic API／Spring Kafka runtime 完成：2026-08-10
 
 ## 一、文件目的
 
@@ -59,7 +60,7 @@ Business transaction
   → Event／Command handler
 ```
 
-### 3.2 Archone Gate E 後現況
+### 3.2 Archone Gate E／Gate F FS3 後現況
 
 ```text
 Use Case transaction
@@ -78,7 +79,7 @@ Use Case transaction
       ├── optional bounded-context allocation attempt retry
       └── transactional idempotency
           ├── DuplicateMessageDetector.claimIfNew()
-          ├── broker-neutral IntegrationEventDispatcher
+          ├── LegacyIntegrationEventDispatcherAdapter
           ├── transitional per-event IntegrationEventHandler<E>
           └── transport-neutral usecase.execute(command)
 ```
@@ -93,8 +94,8 @@ transactional idempotency decorator 在同一 transaction 內依序 claim Inbox�
 `ApplicationEventPublisher` 並未被禁止，但只適合不要求跨程序可靠傳遞的 local module event，
 不得成為 Outbox publication 的必要中介。
 
-目前不是「完全沒有 messaging framework」，而是已有可靠路徑。Gate F／I 的目標不是再發明
-handler API，而是把 Eventuate Tram 的結構依本專案語意一對一映射：
+目前不是「完全沒有 messaging framework」，而是已有可靠路徑。Gate F FS1～FS3 已把 Eventuate
+Tram 的 handler 與 generic consumer 結構依本專案語意一對一映射成 pure API：
 
 ```text
 IntegrationEventHandlersBuilder
@@ -105,14 +106,20 @@ IntegrationEventHandlersBuilder
 ```
 
 其中只保留必要差異：使用 `IntegrationEvent`／`forDestination` 命名、stable external event type +
-version mapping，以及可分開的 Kafka `consumerGroupId`。目前 modules 已整理成：
+version mapping，以及透過 additive options 分開 Kafka `consumerGroupId`。Spring Kafka
+programmatic container、subscriber policy、retry／DLT 與 lifecycle runtime 亦已可獨立測試；但
+production 仍刻意走上方 legacy adapter，FS4 完成 equivalence SIT、Gate I 原子切換後才移除相容層。
+目前 modules 已整理成：
 
-- `messaging:messaging-api`：framework-neutral `Message`／`MessageProducer`。
-- `messaging:messaging-events`：`IntegrationEvent`、publication metadata、serializer 與
-  `IntegrationEventPublisher`。
+- `messaging:messaging-api`：framework-neutral `Message`／`MessageProducer`，以及 FS2 Tram-shaped `MessageConsumer`／subscription options。
+- `messaging:messaging-events`：`IntegrationEvent`、publication metadata、serializer、publisher，
+  以及 FS1 envelope／handler builder／explicit name mapping／dispatcher factory；legacy adapter 暫留至 Gate I。
 - `messaging:messaging-producer-common`／`messaging-producer-jdbc`：producer orchestration 與 pure JDBC Outbox implementation。
-- `messaging:messaging-consumer-common`／`messaging-consumer-jdbc`：decorator chain、duplicate detector 與 transactional idempotency implementation。
+- `messaging:messaging-consumer-common`／`messaging-consumer-jdbc`：單一 consumer implementation SPI、logical channel resolution、decorator chain、duplicate detector 與 transactional idempotency implementation。
 - `messaging:messaging-consumer-kafka`：Kafka record → generic `Message` mapping；不得擁有 typed event dispatch。
+- `messaging:messaging-spring-consumer-kafka`：programmatic Spring Kafka containers、stable
+  subscriber/group identity、subscriber policy、failure classifier → retry／DLT adapter 與 lifecycle；
+  不依賴 typed events layer。
 - `messaging:messaging-spring-jdbc`／producer／consumer bridges：Spring transaction-aware JDBC wiring。
 - `messaging:messaging-spring-boot-autoconfigure`：目前仍提供 temporary dispatcher bridge；Gate F 建立不做全域掃描的新 factory，Gate I production cutover 後才移除舊的 global handler-list wiring。
 - `messaging:messaging-spring-boot-starter`：只負責依賴收納的薄 starter。
@@ -121,7 +128,7 @@ version mapping，以及可分開的 Kafka `consumerGroupId`。目前 modules �
 - `order-promising`：topic、partition policy、temporary listeners、bounded-context retry／DLT 與 business use cases。
 - Debezium／Kafka Connect 設定：外部 relay runtime。
 
-Gate F 不會動態產生 annotated methods；`messaging-spring-consumer-kafka` 會仿 Tram，透過
+Gate F 沒有動態產生 annotated methods；`messaging-spring-consumer-kafka` 仿 Tram，透過
 `MessageConsumer.subscribe(...)` 程式化建立 Spring Kafka containers。application 必須明確提供每個
 subscriber 的 `IntegrationEventHandlers` 與 dispatcher bean；starter 不得把 ApplicationContext 裡
 所有 handler beans 全域混成一份 catalog。topic mapping、consumer group、concurrency、retry 與 DLT
@@ -234,10 +241,10 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 | M1 | 通用 Message envelope | 統一 ID、destination、partition、headers、payload | `messaging-api` 已有 transport-neutral `Message`；headers／correlation metadata 尚未補 | 🟡 | 保持 API 克制，等 metadata 需求確定後擴充，不先做任意 raw-message framework |
 | M2 | 穩定外部 event type | Java type 與外部名稱可映射 | 每種事件已有明確 `EVENT_TYPE`；Outbox 與 handler 不再使用 class simple name | ✅ | 第一階段保留既有 wire value 以相容未消費訊息；未來更名必須走版本遷移 |
 | M3 | Producer API | `MessageProducer`／`DomainEventPublisher` | 已有 `IntegrationEventPublisher → MessageProducer → OutboxMessageProducer`；application 不再依賴 `OutboxAppender` | ✅ | 保持 publisher 同步並參與 caller transaction |
-| M4 | Consumer API | `MessageConsumer.subscribe(...)` | programmatic API／Spring Kafka runtime 尚未完成；application 暫時以 `@KafkaListener` 綁定 topic | 🟡 | Gate F 保留 Tram `subscribe(subscriberId, channels, handler)` 基本形狀，group／policy 只做 additive extension |
-| M5 | Typed dispatcher | `DomainEventHandlersBuilder` + dispatcher factory | 已有 broker-neutral dispatcher，但仍使用每類一個 `IntegrationEventHandler<E>` 與全域 bean list | 🟡 | Gate F 改成 `IntegrationEventHandlersBuilder`、envelope、name mapping 與 `make(subscriberId, handlers)` |
-| M6 | Duplicate handler 檢查 | handler collection／dispatcher 建立時 fail fast | 現有 dispatcher 會拒絕重複 `(destination, eventType)` | ✅ | 將保證前移到 builder，並對 `(destination, event class)` 與 external name mapping 都驗證 |
-| M7 | Logical channel mapping | logical channel 映射 broker destination | 已有 `ChannelMapping`、identity／map-based implementations 與 producer tests；consumer runtime 尚待接線 | 🟡 | Gate F 讓 `MessageConsumerImpl` 使用同一 mapping，不在 Kafka adapter 維護第二份 |
+| M4 | Consumer API | `MessageConsumer.subscribe(...)` | Tram 三參數 pure API、group options、Spring Kafka programmatic implementation與 lifecycle handle 已完成；production 尚未切換 | 🟡 | FS4 固定 equivalence，Gate I 原子切 subscriber；transport policy不塞入 generic API |
+| M5 | Typed dispatcher | `DomainEventHandlersBuilder` + dispatcher factory | immutable envelope／handler collection、explicit name mapping、factory 已完成；另有強制 observer 的 `FAIL`／`IGNORE_WITH_METRIC` policy，production 仍走 deprecated compatibility adapter | 🟡 | Gate I 遷移 application handler targets並替 shared subscriber 明確選 policy |
+| M6 | Duplicate handler 檢查 | handler collection／dispatcher 建立時 fail fast | builder 拒絕重複 `(destination, event class)`；name mapping 拒絕 class／external type collision，dispatcher 啟動前驗證雙向 mapping | ✅ | 保持 fail-fast，不把 validation 延後到第一筆 Kafka delivery |
+| M7 | Logical channel mapping | logical channel 映射 broker destination | producer／consumer common 共用 `ChannelMapping`；consumer 在唯一 transport SPI 前完成 reverse mapping，architecture test 禁止 Kafka adapter 維護第二份 | ✅ | 保持 logical ownership 與 physical binding 分離 |
 | M8 | Message interceptor | 有完整 send／receive lifecycle hooks | 已有 framework-neutral `MessageInterceptor` contract；consumer receive wiring／observation 尚待 Gate G | 🟡 | 保留單一 lifecycle，不另建平行 hooks |
 | M9 | Handler decorator chain | transaction、duplicate、optimistic retry 可組合 | 已有 immutable ordered chain、transactional idempotency decorator 與 application-attempt insertion range，production Kafka path已啟用 | ✅ | 保持單一 chain；Tram handler DSL 只取代 terminal typed dispatch，不重做 transaction pipeline |
 
@@ -262,16 +269,16 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 | C2 | Duplicate detector SPI | SQL／transactional-noop／noop 可替換 | 已有 framework-neutral `DuplicateMessageDetector` 與 JDBC implementation；目前只實作專案需要的 SQL strategy | ✅ | 不為了形式建立無需求 strategies，但保留 SPI |
 | C3 | Atomic Inbox transaction | claim 與 handler 同 transaction | transactional idempotency decorator 在同一 transaction claim → handler → business／Outbox；PostgreSQL SIT 驗證 rollback | ✅ | 保留原子性與 handler exception propagation |
 | C4 | Channel-neutral Use Case | decorator 在 handler 外管理 transaction／Inbox | 六個 consumer-side use cases 已改收純 Command，移除 `InboundCommand`／`InboxRepo` | ✅ | Gate F envelope 停在 integration handler，不再往 application usecase 傳遞 |
-| C5 | Header／payload validation | message abstraction集中處理 | dispatcher 驗證 `id`、`eventType`、payload event ID | ✅ | 保留並補 schema version、source、correlation metadata |
+| C5 | Header／payload validation | message abstraction集中處理 | target dispatcher 在 deserialize 前驗證 type／version／aggregate identity，再驗 payload event ID／type；mapping／contract／handler／infrastructure taxonomy 已接 retry／DLT | ✅ | source metadata 可後續增補 |
 | C6 | Optimistic-lock retry | generic handler decorator | `SpringAllocationRetryExecutor` 只服務 allocation contention | 🟡 | 保留 business-specific retry；不要過早泛化所有 handler retry |
-| C7 | Broker retry／DLT | broker adapter與 handler error policy | Spring Kafka `DefaultErrorHandler`、指數退避與 DLT 已運作 | 🟡 | 抽出可覆寫的 starter default；business exception classification 留在 application |
+| C7 | Broker retry／DLT | broker adapter與 handler error policy | shared factory 已組裝 `DefaultErrorHandler`／classifier backoff／DLT；allocation 仍保有 4 次指數退避與 direct-DLT characterization | 🟡 | Gate H 抽可覆寫 starter default；business classification 留在 application |
 | C8 | Exception propagation | handler 失敗交給 transaction／delivery policy | dispatcher 不吞 handler exception，Kafka error handler 接手 | ✅ | 保留 |
 
 ### 5.4 上層協作模型
 
 | ID | 能力 | Eventuate Tram | Archone 目前狀態 | 判定 | 是否應補 |
 |---|---|---|---|---:|---:|
-| H1 | Generic raw messaging | named-channel Message API | 已有 generic `Message`／`MessageProducer`；`MessageConsumer.subscribe(...)` 尚待 Gate F | 🟡 | ✅，直接支撐 Events 與 Gate J Command／Reply |
+| H1 | Generic raw messaging | named-channel Message API | generic `Message`／producer、Tram-shaped consumer 與 Spring Kafka programmatic runtime 均已完成 | ✅ | ✅，直接支撐 Events 與 Gate J Command／Reply |
 | H2 | Transactional DomainEventPublisher | 可直接跨服務發布 Domain Event | Use Case 已直接呼叫 bounded-context publisher；publisher 先把內部 Domain Event 轉為 Integration Event，再進 transactional messaging | ✅ | 保留 Domain／Integration Event 分離，不複製 Tram 的同型別做法 |
 | H3 | Command／Async Reply | CommandProducer／Dispatcher／Reply | 尚未實作，Roadmap Gate J 已規劃建立在 generic messaging 上 | ❌ | ✅，不與 Saga 綁定 |
 | H4 | Saga orchestration | Tram Sagas step DSL 與 compensation | 無；Temporal 評估後刻意移除 fulfillment workflow modules | ❌ | ⏭️，需要時優先評估 Temporal |
@@ -317,19 +324,21 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 |---|---:|---:|---:|---|
 | Event contract／metadata | 20 | 3.5 / 5 | 14.0 | 尚缺 schema version、correlation／causation 與 source metadata |
 | Producer／Outbox／Relay | 25 | 4.5 / 5 | 22.5 | publisher API 與 migration ownership |
-| Consumer／Inbox／Transaction | 25 | 4.5 / 5 | 22.5 | transaction／duplicate chain 已完成；尚缺 Tram handler DSL 與 programmatic subscription runtime |
+| Consumer／Inbox／Transaction | 25 | 4.75 / 5 | 23.75 | transaction／duplicate chain、Tram handler DSL 與 programmatic runtime 已完成；尚缺 production migration |
 | Starter／Auto-configuration | 20 | 4.0 / 5 | 16.0 | 尚缺 migration ownership 與更完整的 feature toggles |
 | Observability／Test support | 10 | 2.5 / 5 | 5.0 | reusable test kit 與統一 messaging metrics |
-| **2026-08-10 Gate E 後合計** | **100** |  | **80.0 / 100** | **可靠主線與 transaction ownership 已落地；handler DSL、subscription runtime、migration 與 observability 尚缺** |
+| **2026-08-10 Gate F FS3 後合計** | **100** |  | **81.25 / 100** | **programmatic runtime／policy／DLT／lifecycle 已落地；production migration 與 observability 仍缺** |
 
 本文件初次盤點為 `57 / 100`；完成穩定 event type、subscriber-aware Inbox 與 contract tests 後提升為
 `65.5 / 100`。2026-08-08 完成 producer／consumer 子模組、broker-neutral handler、auto-configuration
 與薄 starter後估為 `77.5 / 100`；2026-08-10 完成 Gate E decorator transaction ownership、pure use case
-cutover 與 REST idempotency boundary 後估為 `80.0 / 100`。這仍是架構盤點，不是產品成熟度 SLA，
+cutover 與 REST idempotency boundary 後估為 `80.0 / 100`。FS1～FS3 新增 pure handler DSL、generic
+consumer API 與 Spring Kafka programmatic runtime，因此提升為 `81.25 / 100`；production 尚未切換，
+不把 runtime readiness 誤算成 migration 完成。這仍是架構盤點，不是產品成熟度 SLA，
 必須配合兩個判讀：
 
 1. **可靠傳送主線約已有 80%～90%。** Transactional Outbox、Debezium、Kafka dispatcher、subscriber-aware Inbox transaction、retry／DLT 與 partition ordering 都已存在並有 SIT。
-2. **可重用 starter 產品化約 70%～80%。** 模組、bean composition 與 transaction chain 已獨立；Tram-style handler DSL、programmatic subscription、schema ownership、test kit 與 metrics 仍未完成。
+2. **可重用 starter 產品化約 75%～80%。** 模組、bean composition、transaction chain、Tram-style handler DSL 與 programmatic subscription 已獨立；schema ownership、production auto-wiring、test kit 與 metrics 仍未完成。
 
 換句話說，剩餘工作主要不是重新實作 Kafka 或 Outbox，而是把既有可靠機制整理成穩定 API 與可插拔 runtime。
 
@@ -344,7 +353,11 @@ cutover 與 REST idempotency boundary 後估為 `80.0 / 100`。這仍是架構�
   `PublicationTarget`。
 - [x] 將既有 Kafka handler 抽成 broker-neutral `IntegrationEventHandler<E>`；Kafka record 僅存在 consumer adapter。這是 Gate E compatibility 形狀，不是最終 API。
 - [x] 補 JSON golden contract、round-trip 與 event type uniqueness tests。
-- [ ] Gate F 以 Tram 式 `IntegrationEventEnvelope`、`IntegrationEventHandlers`／builder、`IntegrationEventNameMapping` 與 dispatcher factory 取代 per-event handler interface。
+- [x] Gate F FS1 已建立 Tram 式 `IntegrationEventEnvelope`、`IntegrationEventHandlers`／builder、`IntegrationEventNameMapping` 與 dispatcher factory；per-event handler interface 只保留至 Gate I production migration。
+- [x] Gate F FS2 已建立 Tram 三參數 `MessageConsumer.subscribe(...)`、additive consumer-group options，並固定唯一 generic consumer SPI 與 consumer-side `ChannelMapping` 邊界。
+- [x] Gate F FS3 已建立 Spring Kafka programmatic container、subscriber policy、stable
+  subscriber/group collision validation、failure taxonomy → retry／DLT adapter、readiness／graceful
+  shutdown，以及強制 observer 的 unhandled-event policy；allocation production listener 尚未切換。
 
 ### P1：整理 producer／consumer transaction boundary
 
@@ -421,6 +434,7 @@ order-promising
   → contracts
   → messaging:messaging-api
   → messaging:messaging-events
+  → messaging:messaging-spring-consumer-kafka（FS3 compatibility policy；Gate H 後可由 starter 收納）
   → messaging:messaging-spring-boot-starter
   → platform-infrastructure
 
@@ -447,9 +461,9 @@ Archone 與 Eventuate Tram 的最大差距，不是可靠消息主線，而是 f
 
 - Producer reliability 已由 Transactional Outbox + Debezium 解決。
 - Consumer reliability 已有 Inbox transaction、typed dispatcher、retry 與 DLT。
-- 穩定 event identity、subscriber-aware Inbox、ordered transaction chain、pure use cases、consumer 子模組與 auto-configuration 已完成；下一個主要缺口是 Tram handler DSL、programmatic subscription、schema ownership、observability 與 reusable test support。
+- 穩定 event identity、subscriber-aware Inbox、ordered transaction chain、pure use cases、consumer 子模組、auto-configuration、pure Tram handler DSL、generic consumer API 與 Spring Kafka programmatic runtime 已完成；下一個主要缺口是 production compatibility cutover、schema ownership、observability 與 reusable test support。
 - 完整 Eventuate Tram 約只有 35%～40% 覆蓋，但大多數缺口不是需求。
-- `65.5 / 100` 是 2026-08-07 基線；2026-08-08 完成 producer／consumer module 與 starter 後估為 `77.5 / 100`；2026-08-10 Gate E 後估為 `80.0 / 100`。
+- `65.5 / 100` 是 2026-08-07 基線；2026-08-08 完成 producer／consumer module 與 starter 後估為 `77.5 / 100`；2026-08-10 Gate E／Gate F FS2 後為 `80.0 / 100`，FS3 programmatic runtime／policy／lifecycle 完成後估為 `81.25 / 100`；production cutover 尚未完成。
 
 本專案現在採取更明確的原則：**能直接沿用的 Tram messaging class model 就盡量照搬，只有與
 既有 bounded-context 語意或 Kafka operational requirements 衝突時才偏離。**具體包含：

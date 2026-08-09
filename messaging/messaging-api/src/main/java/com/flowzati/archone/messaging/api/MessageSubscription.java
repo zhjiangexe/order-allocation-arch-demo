@@ -5,6 +5,11 @@ public interface MessageSubscription extends AutoCloseable {
 
   boolean isRunning();
 
+  /** Delivery readiness; non-broker implementations default to their running state. */
+  default boolean isReady() {
+    return isRunning();
+  }
+
   void stop();
 
   @Override

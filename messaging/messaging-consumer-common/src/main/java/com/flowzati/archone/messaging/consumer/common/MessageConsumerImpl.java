@@ -6,10 +6,12 @@ import com.flowzati.archone.messaging.api.MessageConsumer;
 import com.flowzati.archone.messaging.api.MessageHandler;
 import com.flowzati.archone.messaging.api.MessageSubscription;
 import com.flowzati.archone.messaging.api.MessageSubscriptionConfiguration;
+import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** Maps logical subscriptions and applies one explicit semantic decorator chain. */
 public final class MessageConsumerImpl implements MessageConsumer {
@@ -38,11 +40,30 @@ public final class MessageConsumerImpl implements MessageConsumer {
 
   @Override
   public MessageSubscription subscribe(
-      MessageSubscriptionConfiguration configuration,
+      String subscriberId,
+      Set<String> logicalChannels,
       MessageHandler handler
   ) {
-    Objects.requireNonNull(configuration, "Message subscription configuration is required");
+    return subscribe(
+        subscriberId,
+        logicalChannels,
+        handler,
+        MessageSubscriptionOptions.defaults());
+  }
+
+  @Override
+  public MessageSubscription subscribe(
+      String subscriberId,
+      Set<String> logicalChannels,
+      MessageHandler handler,
+      MessageSubscriptionOptions options
+  ) {
+    Objects.requireNonNull(options, "Message subscription options are required");
     Objects.requireNonNull(handler, "Message handler is required");
+    MessageSubscriptionConfiguration configuration = new MessageSubscriptionConfiguration(
+        subscriberId,
+        options.resolveConsumerGroupId(subscriberId),
+        logicalChannels);
     ResolvedMessageSubscription resolved = resolve(configuration);
     MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
         decorators,

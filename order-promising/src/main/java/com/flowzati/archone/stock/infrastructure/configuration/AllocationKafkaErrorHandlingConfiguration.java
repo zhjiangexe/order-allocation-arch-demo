@@ -1,13 +1,17 @@
 package com.flowzati.archone.stock.infrastructure.configuration;
 
+import com.flowzati.archone.messaging.consumer.common.MessageFailureCategory;
+import com.flowzati.archone.messaging.consumer.common.MessageFailureClassification;
+import com.flowzati.archone.messaging.consumer.common.MessageFailureClassifier;
+import com.flowzati.archone.messaging.consumer.common.TypeBasedMessageFailureClassifier;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterErrorHandlerFactory;
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.kafka.listener.CommonErrorHandler;
-import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
-import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
+import org.springframework.util.backoff.BackOff;
 
 /**
  * 套用到這個服務所有的 {@code @KafkaListener}（Spring Boot 自動抓單一 {@link CommonErrorHandler}
@@ -26,8 +30,8 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
  * <p>{@code AllocationConcurrencyExhaustedException} 代表 app 層重試（見
  * {@link AllocationRetryConfiguration}，3 次）已經撞底，是持續性樂觀鎖衝突，不是真正的錯誤。
  * 若用 Spring Boot 預設處理（立即重送 9 次、無間隔）只會撞回同樣的衝突，所以這裡改成只對這個
- * 例外做 4 次指數退避重送（1s→2s→4s→8s），其餘例外一律直接丟 DLT，不浪費重試額度
- * （見下面 {@code defaultFalse()}）。
+ * 例外做 4 次指數退避重送（1s→2s→4s→8s），其餘例外一律直接丟 DLT，不浪費重試額度。
+ * retry 分類是 transport-neutral contract；Spring Kafka factory 只負責把分類轉成 backoff/DLT 行為。
  *
  * <p>退避期間會 block 住該 partition 的 consumer thread，但只用來擋 app 層都解不掉的持續衝突
  * ——實測秒級可消退，遠低於 {@code max.poll.interval.ms} 預設 5 分鐘。若這個 topic 未來混進
@@ -48,16 +52,22 @@ public class AllocationKafkaErrorHandlingConfiguration {
 
   @Bean
   CommonErrorHandler allocationKafkaErrorHandler(KafkaOperations<Object, Object> kafkaOperations) {
-    DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaOperations);
+    return KafkaDeadLetterErrorHandlerFactory.create(
+        kafkaOperations, allocationRetryBackOff(), allocationFailureClassifier());
+  }
 
+  BackOff allocationRetryBackOff() {
     ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(4);
     backOff.setInitialInterval(1000);
     backOff.setMultiplier(2.0);
     backOff.setMaxInterval(10_000);
+    return backOff;
+  }
 
-    DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, backOff);
-    errorHandler.defaultFalse();
-    errorHandler.addRetryableExceptions(AllocationConcurrencyExhaustedException.class);
-    return errorHandler;
+  MessageFailureClassifier allocationFailureClassifier() {
+    return TypeBasedMessageFailureClassifier.builder()
+        .retryable(AllocationConcurrencyExhaustedException.class, MessageFailureCategory.HANDLER)
+        .fallback(MessageFailureClassification.nonRetryable(MessageFailureCategory.HANDLER))
+        .build();
   }
 }

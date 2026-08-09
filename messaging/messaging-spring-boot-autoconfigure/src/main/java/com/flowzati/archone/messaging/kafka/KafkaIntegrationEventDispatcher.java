@@ -8,8 +8,8 @@ import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
 import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
-import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventHandler;
+import com.flowzati.archone.messaging.events.LegacyIntegrationEventDispatcherAdapter;
 import com.flowzati.archone.messaging.api.MessageHeadersDecoder;
 import java.util.List;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -28,7 +28,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 public final class KafkaIntegrationEventDispatcher {
 
   private final KafkaMessageMapper kafkaMessageMapper;
-  private final IntegrationEventDispatcher eventDispatcher;
+  private final LegacyIntegrationEventDispatcherAdapter eventDispatcher;
   private final List<MessageHandlerDecorator> decorators;
 
   public KafkaIntegrationEventDispatcher(
@@ -37,7 +37,7 @@ public final class KafkaIntegrationEventDispatcher {
   ) {
     this(
         new KafkaMessageMapper(),
-        new IntegrationEventDispatcher(deserializer, handlers),
+        new LegacyIntegrationEventDispatcherAdapter(deserializer, handlers),
         List.of());
   }
 
@@ -48,7 +48,7 @@ public final class KafkaIntegrationEventDispatcher {
   ) {
     this(
         new KafkaMessageMapper(headersDecoder),
-        new IntegrationEventDispatcher(deserializer, handlers),
+        new LegacyIntegrationEventDispatcherAdapter(deserializer, handlers),
         List.of());
   }
 
@@ -60,13 +60,13 @@ public final class KafkaIntegrationEventDispatcher {
   ) {
     this(
         new KafkaMessageMapper(headersDecoder),
-        new IntegrationEventDispatcher(deserializer, handlers),
+        new LegacyIntegrationEventDispatcherAdapter(deserializer, handlers),
         decorators);
   }
 
   KafkaIntegrationEventDispatcher(
       KafkaMessageMapper kafkaMessageMapper,
-      IntegrationEventDispatcher eventDispatcher,
+      LegacyIntegrationEventDispatcherAdapter eventDispatcher,
       List<MessageHandlerDecorator> decorators
   ) {
     this.kafkaMessageMapper = kafkaMessageMapper;

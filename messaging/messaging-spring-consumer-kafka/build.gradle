@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Spring Kafka programmatic consumer runtime for generic messaging subscriptions'
+
+dependencies {
+    api project(':messaging:messaging-consumer-common')
+    api project(':messaging:messaging-consumer-kafka')
+    api libs.spring.kafka
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

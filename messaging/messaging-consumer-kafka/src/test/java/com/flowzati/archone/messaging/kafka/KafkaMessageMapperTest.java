@@ -61,6 +61,8 @@ class KafkaMessageMapperTest {
         MessageHeaders.CORRELATION_ID, "checkout-1",
         MessageHeaders.CAUSATION_ID, "command-1",
         MessageHeaders.TRACEPARENT, "00-abc-def-01",
+        "event-aggregate-type", "Order",
+        "event-aggregate-id", "order-1",
         KafkaMessageMapper.EVENT_CONTRACT_VERSION_HEADER, "2"));
     ConsumerRecord<String, String> record = record(
         UUID.randomUUID(), "OrderPlaced.v1", Instant.parse("2026-08-09T12:00:00Z"));
@@ -74,6 +76,8 @@ class KafkaMessageMapperTest {
         .containsEntry(MessageHeaders.CORRELATION_ID, "checkout-1")
         .containsEntry(MessageHeaders.CAUSATION_ID, "command-1")
         .containsEntry(MessageHeaders.TRACEPARENT, "00-abc-def-01")
+        .containsEntry("event-aggregate-type", "Order")
+        .containsEntry("event-aggregate-id", "order-1")
         .containsEntry(KafkaMessageMapper.EVENT_CONTRACT_VERSION_HEADER, "2");
   }
 

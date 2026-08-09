@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.messaging.api.MapBasedChannelMapping;
 import com.flowzati.archone.messaging.api.MessageContext;
-import com.flowzati.archone.messaging.api.MessageSubscriptionConfiguration;
+import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
 import com.flowzati.archone.messaging.consumer.common.MessageConsumerImpl;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
@@ -53,8 +53,10 @@ class MessagingCommonContractTest {
     AtomicReference<MessageContext> handled = new AtomicReference<>();
 
     consumer.subscribe(
-        new MessageSubscriptionConfiguration("inbox-scope", "broker-group", Set.of("orders")),
-        (message, context) -> handled.set(context));
+        "inbox-scope",
+        Set.of("orders"),
+        (message, context) -> handled.set(context),
+        MessageSubscriptionOptions.withConsumerGroupId("broker-group"));
     implementation.emit("inbox-scope", "prod.orders", MessageFixtures.message(), 1);
 
     assertThat(implementation.subscriptions()).singleElement().satisfies(subscription -> {

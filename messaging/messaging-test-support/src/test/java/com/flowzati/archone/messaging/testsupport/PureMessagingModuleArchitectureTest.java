@@ -67,6 +67,27 @@ class PureMessagingModuleArchitectureTest {
   }
 
   @Test
+  void springKafkaRuntimeOwnsProgrammaticContainersWithoutOwningTypedEvents()
+      throws IOException {
+    Path module = root().resolve("messaging/messaging-spring-consumer-kafka");
+    String build = Files.readString(module.resolve("build.gradle"));
+    String productionSources = readProductionSources(module.resolve("src/main/java"));
+
+    assertThat(build)
+        .contains("project(':messaging:messaging-consumer-common')")
+        .contains("project(':messaging:messaging-consumer-kafka')")
+        .contains("libs.spring.kafka")
+        .doesNotContain("messaging-events")
+        .doesNotContain("id 'org.springframework.boot'")
+        .doesNotContain("    implementation libs.spring.boot");
+    assertThat(productionSources)
+        .contains("implements MessageConsumerImplementation")
+        .contains("ConcurrentKafkaListenerContainerFactory")
+        .doesNotContain("com.flowzati.archone.messaging.events")
+        .doesNotContain("@KafkaListener");
+  }
+
+  @Test
   void commonOrchestrationDoesNotContainPersistenceModels() throws IOException {
     String producer = readProductionSources(root().resolve(
         "messaging/messaging-producer-common/src/main/java"));
@@ -79,6 +100,33 @@ class PureMessagingModuleArchitectureTest {
     assertThat(consumer)
         .doesNotContain("com.flowzati.archone.messaging.inbox.infrastructure")
         .doesNotContain("java.sql.");
+  }
+
+  @Test
+  void consumerCommonOwnsTheOnlyRuntimeSpiAndResolvesChannelMappingBeforeTransport()
+      throws IOException {
+    Path consumerCommon = root().resolve("messaging/messaging-consumer-common/src/main/java");
+    String commonSources = readProductionSources(consumerCommon);
+    String kafkaSources = readProductionSources(root().resolve(
+        "messaging/messaging-consumer-kafka/src/main/java"));
+    List<Path> runtimeSpiDefinitions;
+    try (var sources = Files.walk(root().resolve("messaging"))) {
+      runtimeSpiDefinitions = sources
+          .filter(path -> path.getFileName().toString()
+              .equals("MessageConsumerImplementation.java"))
+          .toList();
+    }
+
+    assertThat(runtimeSpiDefinitions).containsExactly(consumerCommon.resolve(
+        "com/flowzati/archone/messaging/consumer/common/MessageConsumerImplementation.java"));
+    assertThat(commonSources)
+        .contains("implements MessageConsumer")
+        .contains("channelMapping.transform(logicalChannel)")
+        .contains("MessageConsumerImplementation implementation");
+    assertThat(kafkaSources)
+        .doesNotContain("MessageConsumerImplementation")
+        .doesNotContain("ChannelMapping")
+        .doesNotContain("interface KafkaMessageConsumer");
   }
 
   private String readProductionSources(Path sourceRoot) throws IOException {

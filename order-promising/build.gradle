@@ -26,6 +26,7 @@ dependencies {
     implementation project(':messaging:messaging-events')
     implementation project(':messaging:messaging-consumer-inbox')
     implementation project(':messaging:messaging-consumer-kafka')
+    implementation project(':messaging:messaging-spring-consumer-kafka')
     implementation project(':messaging:messaging-spring-boot-starter')
     implementation project(':platform-infrastructure')
 
