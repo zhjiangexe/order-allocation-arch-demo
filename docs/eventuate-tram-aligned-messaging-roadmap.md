@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Decision-aligned Draft，待實作前 review；尚未開始修改程式碼
+> 狀態：Decision-aligned，實作前契約已凍結；下一步為 Gate A baseline／feasibility verification
 > 更新日期：2026-08-09
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
 
@@ -81,6 +81,9 @@ Integration Event layer
 - 不因模組重構而更名 `event_outbox`、`event_inbox` 資料表。
 - 不做破壞性的 Integration Event type／payload／partition-key 改版；新增通用 headers 是向後相容的 envelope 擴充。
 - 不照搬 Eventuate Kafka runtime 的 concurrency／retry／DLT 預設；保留本專案已驗證的 Spring Kafka operational semantics。
+- 不建立 Reactive artifacts；目前 application、JDBC transaction 與 Kafka runtime 都是 imperative，只有未來出現端到端 WebFlux／R2DBC consumer 才重新評估。
+- 不建立 generic optimistic-lock retry decorator；目前由 bounded-context exception classification 與 Kafka retry policy 負責。只有多個 subscriber 都出現相同 optimistic-lock retry 語意時才抽成共用 decorator。
+- 不建立 non-blocking retry topics；目前先保留 partition-blocking retry／DLT 語意，只有實際證明長 backoff 阻塞 partition throughput 時才另開設計。
 - 不在同一個 commit 同時做模組搬移、交易語意改造與 event contract 改版；同一 Gate 內若有相依步驟也必須分 commit 驗證。
 - 不預先建立沒有實際責任的 pass-through module。
 - 不實作 Saga instance、Saga DSL、補償流程或 Saga lock；Command／Reply correlation 不以此為前置。
@@ -296,7 +299,7 @@ pure 的意思是「沒有 Spring dependency」，不是「沒有 JDBC／SQL」�
 
 ```java
 public interface Message {
-  String id();
+  UUID id();
   String payload();
   Map<String, String> headers();
   Optional<String> header(String name);
@@ -304,7 +307,9 @@ public interface Message {
 }
 ```
 
-`id()` 是 required `message-id` header 的 convenience accessor，不維護第二份可分岔狀態。`MessageBuilder` 建立 immutable implementation。基礎 API 只定義所有訊息共用的 headers，例如：
+第一版固定使用 `UUID` message identity，以符合現有 Java contract、`event_outbox.id UUID`、`event_inbox.event_id UUID` 與 Debezium `id` header；不在這次重構中順便改成任意字串 ID。wire header 仍使用 UUID 的 canonical string representation。`id()` 是 required `message-id` header 的 typed convenience accessor，不維護第二份可分岔狀態；header 缺失或不是合法 UUID 時 fail fast。`MessageBuilder` 建立 immutable implementation。
+
+第一版 payload transport 固定為 JSON text，並設定 `content-type = application/json`，以符合現有 `event_outbox.payload JSONB NOT NULL`。base API 保留 payload string 形狀，但 JDBC Outbox append 前必須驗證其為合法 JSON；binary／Avro／Protobuf 或任意非 JSON payload 不在本輪假設支援。基礎 API 只定義所有訊息共用的 headers，例如：
 
 ```text
 message-id
@@ -380,6 +385,15 @@ API 將 request/reply 與 fire-and-forget 分開：`send(...)` 必須提供 repl
 `event-contract-version` 採 additive policy：既有未帶版本的訊息視為 `1`，新 publisher 明確寫入 `1`；event type 已知但版本不支援屬於 contract failure，不得當成 unrelated unknown event 忽略。未來需要 v2 時先定義 handler compatibility，再決定同 event type 加版本或建立新 event type。
 
 現有 `eventType` Kafka header 在相容期保留；mapper 將它轉成 canonical `event-type`。reserved transport headers 與 serialized header map 若值不一致，必須 fail fast，不可靜默覆寫。
+
+header merge precedence 固定如下，不能由各 adapter 自行選擇覆寫順序：
+
+1. physical envelope 的 `id`、`type`、`route`、`partition_key` 與 timestamp 是 persisted transport fact；mapper 先轉成 canonical reserved headers。
+2. serialized `messageHeaders` 再合併 application／protocol headers。它若重複 reserved key，只有值與 physical fact 完全一致才接受；不一致立即視為 contract failure。
+3. legacy `eventType` 只在沒有 `command-type`／`reply-type` 且缺少 canonical `event-type` 時提供相容補值；不得覆寫任何 canonical semantic type。
+4. Kafka topic／partition／offset 等 delivery diagnostics 由 consumer context 加入，不接受 serialized headers 冒充或覆寫。
+
+producer 端也使用相同規則：caller 不得藉由 custom headers 覆寫 producer normalization 產生的 `message-id`、`message-type`、destination 或 partition identity；相同值可接受，衝突一律 fail fast。
 
 為了在不自行實作 CDC／SMT 的前提下傳遞任意 headers，Outbox 採以下相容演進：
 
@@ -597,6 +611,22 @@ handler failure
 `@Transactional` 不是建立 transaction 的唯一方法。transactional idempotency decorator 透過 `MessagingTransactionTemplate.execute(...)` 執行 chain callback；Spring implementation 再委派給 Spring `TransactionTemplate`。因此不需要在 message handler 上標註 `@Transactional`，仍可讓 Inbox claim、business updates 與 chained Outbox 同時 commit／rollback。
 
 固定 decorator ordering 是 contract，不由 Spring bean discovery 的偶然順序決定。built-in order constants 必須保證 observation 包住 transaction outcome，而 Inbox claim 與 handler 位於同一 transaction；application custom decorator 只能插入明確保留的 order range。
+
+第一版 built-in execution order 明確固定為：
+
+```text
+Observation begin
+  → Transactional idempotency decorator opens DB transaction
+    → atomic Inbox claim
+    → typed dispatcher
+    → typed handler
+    → application use case
+    → optional chained Outbox append
+  → DB commit / rollback
+Observation records final outcome
+```
+
+`Inbox claim` 不是另一個可任意排序的 public decorator，而是 transactional idempotency decorator 交易 callback 的第一個動作。retry／DLT 位於這條 semantic handler chain 外，由 Spring Kafka container 根據原樣傳出的 exception 決定。
 
 ### 6.3 Application 使用方式
 
@@ -860,16 +890,22 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 - [ ] A11. 固定目前 `event_outbox`／`event_inbox` DDL、Debezium EventRouter configuration 與 Kafka record golden fixture。
 - [ ] A12. 列出所有現有 subscriber ID、`spring.kafka.consumer.group-id`、listener ID 與 physical topic mapping，找出目前隱含相等或不相等之處。
 - [ ] A13. 固定既有 producer／consumer starter dependency tree，作為窄 starter 不得交叉引入的 baseline。
+- [ ] A14. 完成 Debezium generic headers relay feasibility test：確認 `headers:header:messageHeaders` 能把 JSON object 當作單一 Kafka header 傳遞，並固定 empty／custom／reserved collision fixture；不得等到 Gate C migration 後才發現 connector contract 不成立。
+- [ ] A15. 完成 mixed JPA + JDBC transaction feasibility test：以目前 primary `PlatformTransactionManager` 證明 JPA business write、`JdbcTemplate` Inbox insert 與 JDBC Outbox insert 能一起 commit／rollback，且沒有第二條 unmanaged connection。
+- [ ] A16. 完成 programmatic Kafka container feasibility test：由現有 `ConcurrentKafkaListenerContainerFactory` 建立 container，確認既有 ack mode、`DefaultErrorHandler`、retry／DLT、concurrency、start／stop lifecycle 仍能套用；此 Gate 不移除任何 `@KafkaListener`。
 
 驗收條件：
 
 - messaging unit tests、`order-promising:test` 與 `order-promising:sit` baseline 全部通過。
 - 若已有無關失敗，需先明確記錄，不能把它誤算成重構造成。
+- A14～A16 各自留下可重複執行的 test／fixture 與 PASS／FAIL 結論；Gate A 不建立目標 production modules，也不改 application runtime wiring。
 
 停止條件：
 
 - 無法證明 Inbox claim 和 business handler 位於同一 transaction。
 - 無法證明 Outbox insert 與 business mutation 位於同一 transaction。
+- Debezium 無法在不自製 CDC／SMT 的前提下可靠 relay serialized headers。
+- programmatic container 無法重現目前 ack、retry／DLT 或 lifecycle 語意。
 
 ### Gate B — 建立 pure producer／consumer common
 
@@ -892,6 +928,17 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 - [ ] B15. 暫時保留舊 producer／consumer 相容路徑，不在此 Gate 搬移 persistence 或 transaction ownership。
 - [ ] B16. 加入 architecture test，禁止 pure modules import Spring、JPA、Spring Data、Spring Kafka。
 - [ ] B17. 驗證 `messaging-consumer-kafka` 只依賴 Kafka client 與 `messaging-api`，不得依賴 Spring Kafka、`messaging-events` 或 consumer-common。
+
+Gate B 必須按以下 commit slices 交付；這些名稱是 commit 邊界，不取代上面的 task 編號：
+
+| Commit slice | 內容 | 必須先通過 |
+|---|---|---|
+| B/1 API contracts | `messaging-api` 的 immutable `Message`、UUID identity、JSON content contract、headers、builder、channel mapping 與最小 producer／consumer API | API unit tests；既有 event adapter compatibility tests |
+| B/2 Producer common | `messaging-producer-common`、producer implementation SPI、normalization 與 interceptor lifecycle | producer common TCK；production classpath 無 Spring／Outbox types |
+| B/3 Consumer common | `messaging-consumer-common`、subscription、implementation SPI、outcomes 與單一 ordered decorator chain | consumer common TCK；decorator ordering tests |
+| B/4 JDBC common + boundaries | `messaging-jdbc-common` ports、`messaging-test-support` 與 architecture/dependency tests | JDBC port tests；pure module dependency rules |
+
+module 必須和第一批有實際責任的 source／tests 一起建立，不先提交空 artifact。每個 slice 都要保持舊 runtime 可編譯、可測；transaction ownership、JPA persistence 搬移與 application use case signature 仍留給後續 Gate。
 
 驗收條件：
 
@@ -1390,7 +1437,7 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 
 1. 每個 Gate 使用獨立 commit；Gate E 至少再依 use case 群組拆 commit。
 2. `event_outbox.headers` 是 additive migration；rollback 時保留欄位與資料，不執行 destructive down migration。既有 raw event payload、`eventType` 與 key contract 不變。
-3. header rollout 順序為 DB column → tolerant consumer mapper → Debezium connector mapping → producer header write；rollback 反向停用 producer／connector，consumer 必須持續接受沒有 `messageHeaders` 的舊 records。
+3. header rollout 順序固定為 DB column → tolerant consumer mapper → Debezium connector mapping → producer header write → 觀察舊／新 records 均正常後才移除 compatibility path；rollback 反向停用 producer／connector，consumer 必須持續接受沒有 `messageHeaders` 的舊 records。任何一步都不能和下一步包在同一次不可獨立回退的 deployment。
 4. 舊 module facade 只在新 application wiring 通過前保留；不要同時維護兩套實作。
 5. Gate E 若 consumer transaction integration 失敗，回退到舊 `InboundCommand + InboxRepo` 路徑，不要用獨立 Inbox commit 暫時繞過。
 6. Gate F 移除 `@KafkaListener` 前後必須分 commit；若 programmatic runtime 的 retry／DLT regression，先恢復舊 listeners，不得關閉 DLT 當作修正。
