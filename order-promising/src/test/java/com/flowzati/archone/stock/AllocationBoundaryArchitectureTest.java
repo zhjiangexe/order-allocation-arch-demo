@@ -29,6 +29,7 @@ class AllocationBoundaryArchitectureTest {
   private static final Path ORDERING_ROOT =
       Path.of("src/main/java/com/flowzati/archone/ordering");
   private static final Path APPLICATION_ROOT = STOCK_ROOT.resolve("application");
+  private static final Path ORDERING_APPLICATION_ROOT = ORDERING_ROOT.resolve("application");
 
   /** ordering 的訂單聚合根與它的 repository——allocation 兩者都不該認識。 */
   private static final Pattern ORDER_AGGREGATE_IMPORT = Pattern.compile(
@@ -165,6 +166,30 @@ class AllocationBoundaryArchitectureTest {
           return source.contains("org.apache.kafka")
               || source.contains("io.temporal")
               || source.contains("IntegrationEvent");
+        })
+        .map(Path::toString)
+        .toList();
+
+    assertThat(violations).isEmpty();
+  }
+
+  @Test
+  @DisplayName("inbound application usecases 不得依賴 message envelope 或 Inbox repository")
+  void inboundApplicationUsecasesDoNotOwnMessagingIdempotency() {
+    List<Path> consumerUsecases = List.of(
+        APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
+        APPLICATION_ROOT.resolve("usecase/AllocateWaitingDemandUsecase.java"),
+        APPLICATION_ROOT.resolve("usecase/CancelMovementsUsecase.java"),
+        APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
+        ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderAllocationUsecase.java"),
+        ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderBackorderUsecase.java"));
+
+    List<String> violations = consumerUsecases.stream()
+        .filter(path -> {
+          String source = stripComments(readSource(path));
+          return source.contains("com.flowzati.archone.messaging")
+              || source.contains("InboundCommand")
+              || source.contains("InboxRepo");
         })
         .map(Path::toString)
         .toList();

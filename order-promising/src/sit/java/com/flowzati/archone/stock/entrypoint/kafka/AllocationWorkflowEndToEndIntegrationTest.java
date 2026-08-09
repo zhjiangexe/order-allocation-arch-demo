@@ -6,8 +6,10 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
+import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.stock.application.receipt.StockReceiptApplicationFacade;
+import com.flowzati.archone.stock.application.receipt.StockReceiptRequest;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
@@ -52,7 +54,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
   private AllocationKafkaIntegrationEventConsumer consumer;
 
   @Autowired
-  private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
+  private StockReceiptApplicationFacade stockReceiptApplicationFacade;
 
   @Autowired
   private IntegrationEventSerializer eventSerializer;
@@ -170,7 +172,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     outcomeDrain().drain();
 
     assertThat(jdbcTemplate.queryForObject(
-        "SELECT count(*) FROM event_inbox WHERE event_type = 'ConfirmStockReceiptRequest'",
+        "SELECT count(*) FROM stock_receipt_requests",
         Integer.class)).isEqualTo(1);
     assertThat(orderRepository.findById(firstOrderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
@@ -358,8 +360,16 @@ class AllocationWorkflowEndToEndIntegrationTest {
   }
 
   private void receive(String sku, int quantity) {
-    com.flowzati.archone.testsupport.StockReceiptFixture.confirm(
-        confirmStockReceiptUsecase, sku, quantity);
+    stockReceiptApplicationFacade.confirm(new StockReceiptRequest(
+        UUID.randomUUID(),
+        new ConfirmStockReceiptCommand(
+            OrderFixtures.OWNER_ID,
+            OrderFixtures.FACILITY_ID,
+            OrderFixtures.LOCATION_ID,
+            sku,
+            StockFixtures.ARRIVED_ON,
+            StockFixtures.EXPIRES_ON,
+            quantity)));
     new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher).drain();
   }
 

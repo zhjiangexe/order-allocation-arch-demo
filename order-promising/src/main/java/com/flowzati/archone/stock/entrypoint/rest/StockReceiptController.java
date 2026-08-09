@@ -1,12 +1,13 @@
 package com.flowzati.archone.stock.entrypoint.rest;
 
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.stock.application.receipt.StockReceiptApplicationFacade;
+import com.flowzati.archone.stock.application.receipt.StockReceiptRequest;
+import com.flowzati.archone.stock.application.receipt.StockReceiptRequestConflictException;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,13 +24,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/stock-receipts")
 public class StockReceiptController {
 
-  private static final String REQUEST_TYPE = "ConfirmStockReceiptRequest";
-  private static final String IDEMPOTENCY_SCOPE = "stock-receipt-requests";
+  private final StockReceiptApplicationFacade stockReceiptApplicationFacade;
 
-  private final ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
-
-  public StockReceiptController(ConfirmStockReceiptUsecase confirmStockReceiptUsecase) {
-    this.confirmStockReceiptUsecase = confirmStockReceiptUsecase;
+  public StockReceiptController(StockReceiptApplicationFacade stockReceiptApplicationFacade) {
+    this.stockReceiptApplicationFacade = stockReceiptApplicationFacade;
   }
 
   @PostMapping
@@ -49,9 +47,7 @@ public class StockReceiptController {
     ConfirmStockReceiptCommand command = new ConfirmStockReceiptCommand(
         request.ownerId(), request.facilityId(), request.locationId(), request.sku(),
         request.inDate(), request.expiryDate(), request.quantity());
-    MessageMetadata message = new MessageMetadata(
-        request.receiptId(), REQUEST_TYPE, IDEMPOTENCY_SCOPE);
-    confirmStockReceiptUsecase.handle(new InboundCommand<>(command, message));
+    stockReceiptApplicationFacade.confirm(new StockReceiptRequest(request.receiptId(), command));
     return new StockReceiptConfirmedResponse(
         request.receiptId(), request.sku(), request.quantity());
   }
@@ -59,6 +55,13 @@ public class StockReceiptController {
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<String> handleInvalidRequest(IllegalArgumentException exception) {
     return ResponseEntity.badRequest().body(exception.getMessage());
+  }
+
+  @ExceptionHandler(StockReceiptRequestConflictException.class)
+  public ResponseEntity<String> handleIdempotencyConflict(
+      StockReceiptRequestConflictException exception
+  ) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
   }
 
   /** receiptId 是呼叫方產生的冪等鍵；HTTP retry 必須重用同一個值。 */

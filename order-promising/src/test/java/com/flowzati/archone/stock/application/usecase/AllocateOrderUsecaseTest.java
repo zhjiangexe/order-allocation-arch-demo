@@ -1,6 +1,5 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
@@ -10,12 +9,8 @@ import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.api.MessageMetadata;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.repository.DemandRepository;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import java.time.Clock;
@@ -42,8 +37,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
  * 收單後的處置。
  *
  * <p><b>這支測試刻意很薄。</b>建搬運的內容歸 {@code StockOperationRecorderTest}、鎖定的內容歸
- * {@code MovementAssignerTest}；這裡只驗 usecase 真正的責任：冪等、讀輸入、決定後續動作，
- * 以及那幾件事的先後。
+ * {@code MovementAssignerTest}；這裡只驗 usecase 真正的責任：讀輸入、決定後續動作，以及
+ * 那幾件事的先後。訊息冪等由 inbound decorator tests 負責。
  */
 class AllocateOrderUsecaseTest {
 
@@ -51,7 +46,6 @@ class AllocateOrderUsecaseTest {
   private final Instant fixedNow = Instant.parse("2026-07-21T23:00:00Z");
 
   private AllocateOrderUsecase usecase;
-  private InboxRepo inboxRepo;
   private DemandRepository demandRepository;
   private StockOperationRecorder stockOperationRecorder;
   private MovementAssigner movementAssigner;
@@ -59,14 +53,12 @@ class AllocateOrderUsecaseTest {
 
   @BeforeEach
   void setUp() {
-    inboxRepo = mock(InboxRepo.class);
     demandRepository = mock(DemandRepository.class);
     stockOperationRecorder = mock(StockOperationRecorder.class);
     movementAssigner = mock(MovementAssigner.class);
     eventPublisher = mock(AllocationDomainEventPublisher.class);
 
     usecase = new AllocateOrderUsecase(
-        inboxRepo,
         demandRepository,
         stockOperationRecorder,
         movementAssigner,
@@ -76,30 +68,16 @@ class AllocateOrderUsecaseTest {
   }
 
   @Test
-  @DisplayName("當訊息已被處理過時，不應執行任何邏輯")
-  void shouldDoNothingWhenMessageAlreadyProcessed() {
-    UUID messageId = UUID.randomUUID();
-    given(inboxRepo.claimIfNew(message(messageId))).willReturn(false);
-
-    usecase.handle(inbound(new AllocateOrderCommand(UUID.randomUUID()), messageId));
-
-    then(inboxRepo).should().claimIfNew(message(messageId));
-    verifyNoInteractions(demandRepository, stockOperationRecorder, movementAssigner, eventPublisher);
-  }
-
-  @Test
   @DisplayName("這張單已經沒有待配需求時，不應建立任何搬運")
   void shouldDoNothingWhenNothingIsOutstanding() {
-    UUID messageId = UUID.randomUUID();
     UUID orderId = IdGenerator.nextId();
-    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
     // 已經建了搬運的行不會出現在 demand_lines 裡，取消的整張單也不會——兩種情形都讓 view 回空。
     //
     // **判準是 view，不是訂單狀態。** ordering 的配貨狀態由事件推進，落後於 allocation 自己
     // 的決策；拿它當閘門會讓同一筆需求被建第二次搬運。
     given(demandRepository.findByOrderId(orderId)).willReturn(Optional.empty());
 
-    usecase.handle(inbound(new AllocateOrderCommand(orderId), messageId));
+    usecase.execute(new AllocateOrderCommand(orderId));
 
     then(demandRepository).should().findByOrderId(orderId);
     verifyNoInteractions(stockOperationRecorder, movementAssigner, eventPublisher);
@@ -108,15 +86,14 @@ class AllocateOrderUsecaseTest {
   @Test
   @DisplayName("搬運要在配貨之前建好，而且建好的那些就是拿去配的那些")
   void shouldRecordTheMovementBeforeAssigningAndPassThemAlong() {
-    UUID messageId = UUID.randomUUID();
     Demand demand = pendingDemand();
     List<StockMove> moves = movesFor(demand);
-    givenTheOrderIsOutstanding(messageId, demand);
+    givenTheOrderIsOutstanding(demand);
     given(stockOperationRecorder.recordOutbound(demand, fixedNow)).willReturn(moves);
     given(movementAssigner.assign(demand, moves, fixedNow))
         .willReturn(AllocationOutcome.ALLOCATED);
 
-    usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
+    usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
     // 順序不是偏好問題：鎖定是「把既有的搬運轉成已鎖定」。反過來「配到才建」則讓待配需求
     // 沒有落腳處，而那正是上一個 change 消滅的東西。
@@ -130,13 +107,12 @@ class AllocateOrderUsecaseTest {
   @Test
   @DisplayName("配到貨時只發一個完成事實")
   void shouldPublishExactlyOneCompletionWhenAllocated() {
-    UUID messageId = UUID.randomUUID();
     Demand demand = pendingDemand();
-    givenTheOrderIsOutstanding(messageId, demand);
+    givenTheOrderIsOutstanding(demand);
     given(movementAssigner.assign(any(), any(), any()))
         .willReturn(AllocationOutcome.ALLOCATED);
 
-    usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
+    usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
     then(eventPublisher).should(times(1))
         .publish(new OrderAllocationCompleted(demand.orderId(), fixedNow));
@@ -147,13 +123,12 @@ class AllocateOrderUsecaseTest {
   @Test
   @DisplayName("一批可售的都沒有時應發缺貨的事實，不得丟例外")
   void shouldRecordABackorderRatherThanFailWhenThereIsNoAllocatableStock() {
-    UUID messageId = UUID.randomUUID();
     Demand demand = pendingDemand();
-    givenTheOrderIsOutstanding(messageId, demand);
+    givenTheOrderIsOutstanding(demand);
     given(movementAssigner.assign(any(), any(), any()))
         .willReturn(AllocationOutcome.NO_ALLOCATABLE_STOCK);
 
-    usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
+    usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
     // 缺貨是正常結果，不是訊息處理失敗。丟例外的話每一次缺貨都會走進重試與 DLT。
     //
@@ -167,21 +142,19 @@ class AllocateOrderUsecaseTest {
   @Test
   @DisplayName("庫存不足時同樣發缺貨的事實——兩種配不到在這一層沒有差別")
   void shouldRecordABackorderWhenStockIsInsufficient() {
-    UUID messageId = UUID.randomUUID();
     Demand demand = pendingDemand();
-    givenTheOrderIsOutstanding(messageId, demand);
+    givenTheOrderIsOutstanding(demand);
     given(movementAssigner.assign(any(), any(), any()))
         .willReturn(AllocationOutcome.INSUFFICIENT_ATP);
 
-    usecase.handle(inbound(new AllocateOrderCommand(demand.orderId()), messageId));
+    usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
     then(eventPublisher).should(times(1))
         .publish(new OrderBackorderRecorded(demand.orderId(), fixedNow));
     verifyNoMoreInteractions(eventPublisher);
   }
 
-  private void givenTheOrderIsOutstanding(UUID messageId, Demand demand) {
-    given(inboxRepo.claimIfNew(message(messageId))).willReturn(true);
+  private void givenTheOrderIsOutstanding(Demand demand) {
     given(demandRepository.findByOrderId(demand.orderId())).willReturn(Optional.of(demand));
   }
 
@@ -197,14 +170,4 @@ class AllocateOrderUsecaseTest {
         .toList();
   }
 
-  private MessageMetadata message(UUID eventId) {
-    return new MessageMetadata(
-        eventId,
-        OrderPlacedIntegrationEvent.EVENT_TYPE,
-        AllocationEventSubscriptions.ORDER_LIFECYCLE);
-  }
-
-  private InboundCommand<AllocateOrderCommand> inbound(AllocateOrderCommand command, UUID eventId) {
-    return new InboundCommand<>(command, message(eventId));
-  }
 }

@@ -9,8 +9,6 @@ import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.repository.DemandRepository;
 import jakarta.transaction.Transactional;
@@ -23,7 +21,6 @@ import java.util.Optional;
 
 @Service
 public class AllocateOrderUsecase {
-  private final InboxRepo inboxRepo;
   private final DemandRepository demandRepository;
   private final StockOperationRecorder stockOperationRecorder;
   private final MovementAssigner movementAssigner;
@@ -31,13 +28,11 @@ public class AllocateOrderUsecase {
   private final Clock clock;
 
   public AllocateOrderUsecase(
-      InboxRepo inboxRepo,
       DemandRepository demandRepository,
       StockOperationRecorder stockOperationRecorder,
       MovementAssigner movementAssigner,
       AllocationDomainEventPublisher eventPublisher,
       Clock clock) {
-    this.inboxRepo = inboxRepo;
     this.demandRepository = demandRepository;
     this.stockOperationRecorder = stockOperationRecorder;
     this.movementAssigner = movementAssigner;
@@ -45,12 +40,13 @@ public class AllocateOrderUsecase {
     this.clock = clock;
   }
 
+  /** Transport-neutral application entrypoint; inbound idempotency belongs to the caller boundary. */
   @Transactional
-  public void handle(InboundCommand<AllocateOrderCommand> inbound) {
-    if (!inboxRepo.claimIfNew(inbound.message())) {
-      return;
-    }
-    AllocateOrderCommand command = inbound.command();
+  public void execute(AllocateOrderCommand command) {
+    allocate(command);
+  }
+
+  private void allocate(AllocateOrderCommand command) {
 
     // 查的是**還沒被執行層接手的行**。已經建了搬運的行不會出現在 demand_lines 裡，所以
     // 「這張單還需不需要接手」由 view 回答——不看訂單狀態，那是落後視圖，拿它當閘門會讓

@@ -38,7 +38,7 @@ class AllocationReconciliationSchedulerTest {
     new AllocationReconciliationScheduler(moves, usecase, appClock(), 25)
         .reconcileAllocatableWaitingDemand();
 
-    verify(usecase).handle(new AllocateWaitingDemandCommand(
+    verify(usecase).execute(new AllocateWaitingDemandCommand(
         OrderFixtures.OWNER_ID,
         OrderFixtures.FACILITY_ID,
         OrderFixtures.LOCATION_ID,
@@ -80,13 +80,13 @@ class AllocationReconciliationSchedulerTest {
     when(moves.findAllocatableWaitingScopes(TODAY, 25))
         .thenReturn(List.of(conflicted, following));
     doThrow(new OptimisticLockingFailureException("conflict"))
-        .when(usecase).handle(conflictedCommand);
+        .when(usecase).execute(conflictedCommand);
 
     new AllocationReconciliationScheduler(moves, usecase, appClock(), 25)
         .reconcileAllocatableWaitingDemand();
 
-    verify(usecase, times(1)).handle(conflictedCommand);
-    verify(usecase).handle(followingCommand);
+    verify(usecase, times(1)).execute(conflictedCommand);
+    verify(usecase).execute(followingCommand);
   }
 
   private AppClock appClock() {

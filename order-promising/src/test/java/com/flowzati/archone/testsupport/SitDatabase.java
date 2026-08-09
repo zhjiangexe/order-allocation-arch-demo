@@ -21,6 +21,7 @@ public final class SitDatabase {
     for (String table : new String[]{
         "event_outbox",
         "event_inbox",
+        "stock_receipt_requests",
         // 執行層：明細指向搬運與庫存列，搬運指向單據、訂單行、SKU 與位置。
         "stock_move_lines",
         "stock_moves",

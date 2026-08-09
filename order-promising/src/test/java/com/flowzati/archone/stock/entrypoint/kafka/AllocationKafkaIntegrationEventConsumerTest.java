@@ -7,20 +7,15 @@ import com.flowzati.archone.stock.application.command.AllocateWaitingDemandComma
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
-import com.flowzati.archone.stock.application.retry.AllocationRetryExecutor;
 import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
 import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
-import com.flowzati.archone.stock.infrastructure.retry.SpringAllocationRetryExecutor;
-import com.flowzati.archone.messaging.api.InboundCommand;
 import com.flowzati.archone.messaging.events.JacksonIntegrationEventSerde;
 import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -28,8 +23,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.core.retry.RetryPolicy;
-import org.springframework.core.retry.RetryTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,22 +36,18 @@ class AllocationKafkaIntegrationEventConsumerTest {
   private final CancelMovementsUsecase releaseReservationUsecase = mock(CancelMovementsUsecase.class);
   private final AllocateWaitingDemandUsecase allocateWaitingDemandUsecase =
       mock(AllocateWaitingDemandUsecase.class);
-  private final AllocationRetryExecutor retryExecutor = new SpringAllocationRetryExecutor(new RetryTemplate(RetryPolicy.builder()
-      .maxRetries(2)
-      .delay(Duration.ZERO)
-      .build()), new SimpleMeterRegistry());
   private final AllocationKafkaIntegrationEventConsumer consumer = new AllocationKafkaIntegrationEventConsumer(
       new KafkaIntegrationEventDispatcher(
           new JacksonIntegrationEventSerde(objectMapper),
           List.of(
-              new OrderPlacedIntegrationEventHandler(allocateOrderUsecase, retryExecutor),
-              new OrderCancelledIntegrationEventHandler(releaseReservationUsecase, retryExecutor),
+              new OrderPlacedIntegrationEventHandler(allocateOrderUsecase),
+              new OrderCancelledIntegrationEventHandler(releaseReservationUsecase),
               new StockAvailabilityIncreasedIntegrationEventHandler(
-                  allocateWaitingDemandUsecase, retryExecutor))));
+                  allocateWaitingDemandUsecase))));
 
   @Test
   @DisplayName("收到下單整合事件時應轉為配置訂單命令")
-  void shouldMapOrderPlacedEventToInboundAllocateCommand() throws Exception {
+  void shouldMapOrderPlacedEventToAllocateCommand() throws Exception {
     UUID eventId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
@@ -67,19 +56,15 @@ class AllocationKafkaIntegrationEventConsumerTest {
     consumer.consumeOrderingEvent(record(
         OrderingEventTopics.ORDER_EVENTS, event, OrderPlacedIntegrationEvent.EVENT_TYPE));
 
-    ArgumentCaptor<InboundCommand<AllocateOrderCommand>> inbound = inboundCaptor();
-    verify(allocateOrderUsecase).handle(inbound.capture());
-    assertThat(inbound.getValue().command().orderId()).isEqualTo(orderId);
-    assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
-    assertThat(inbound.getValue().message().eventType())
-        .isEqualTo(OrderPlacedIntegrationEvent.EVENT_TYPE);
-    assertThat(inbound.getValue().message().subscriberId())
-        .isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
+    ArgumentCaptor<AllocateOrderCommand> command =
+        ArgumentCaptor.forClass(AllocateOrderCommand.class);
+    verify(allocateOrderUsecase).execute(command.capture());
+    assertThat(command.getValue().orderId()).isEqualTo(orderId);
   }
 
   @Test
   @DisplayName("收到取消整合事件時應轉為釋放 Reservation 命令")
-  void shouldMapOrderCancelledEventToInboundReleaseCommand() throws Exception {
+  void shouldMapOrderCancelledEventToCancelMovementsCommand() throws Exception {
     UUID eventId = UUID.randomUUID();
     UUID orderId = UUID.randomUUID();
     OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(
@@ -88,12 +73,10 @@ class AllocationKafkaIntegrationEventConsumerTest {
     consumer.consumeOrderingEvent(record(
         OrderingEventTopics.ORDER_EVENTS, event, OrderCancelledIntegrationEvent.EVENT_TYPE));
 
-    ArgumentCaptor<InboundCommand<CancelMovementsCommand>> inbound = inboundCaptor();
-    verify(releaseReservationUsecase).handle(inbound.capture());
-    assertThat(inbound.getValue().command().orderId()).isEqualTo(orderId);
-    assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
-    assertThat(inbound.getValue().message().subscriberId())
-        .isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
+    ArgumentCaptor<CancelMovementsCommand> command =
+        ArgumentCaptor.forClass(CancelMovementsCommand.class);
+    verify(releaseReservationUsecase).execute(command.capture());
+    assertThat(command.getValue().orderId()).isEqualTo(orderId);
   }
 
   @Test
@@ -112,15 +95,11 @@ class AllocationKafkaIntegrationEventConsumerTest {
         event,
         StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE));
 
-    ArgumentCaptor<InboundCommand<AllocateWaitingDemandCommand>> inbound = inboundCaptor();
-    verify(allocateWaitingDemandUsecase).handle(inbound.capture());
-    assertThat(inbound.getValue().command()).isEqualTo(
+    ArgumentCaptor<AllocateWaitingDemandCommand> command =
+        ArgumentCaptor.forClass(AllocateWaitingDemandCommand.class);
+    verify(allocateWaitingDemandUsecase).execute(command.capture());
+    assertThat(command.getValue()).isEqualTo(
         new AllocateWaitingDemandCommand(ownerId, facilityId, locationId, "SKU-1"));
-    assertThat(inbound.getValue().message().eventId()).isEqualTo(eventId);
-    assertThat(inbound.getValue().message().eventType())
-        .isEqualTo(StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE);
-    assertThat(inbound.getValue().message().subscriberId())
-        .isEqualTo(AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
   }
 
   @Test
@@ -146,10 +125,5 @@ class AllocationKafkaIntegrationEventConsumerTest {
     record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));
     record.headers().add("eventType", eventType.getBytes(StandardCharsets.UTF_8));
     return record;
-  }
-
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  private <C> ArgumentCaptor<InboundCommand<C>> inboundCaptor() {
-    return (ArgumentCaptor) ArgumentCaptor.forClass(InboundCommand.class);
   }
 }

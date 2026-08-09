@@ -1,10 +1,5 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.catalog.domain.model.LocationUsage;
-import com.flowzati.archone.catalog.domain.model.StockLocation;
-import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
@@ -15,7 +10,6 @@ import com.flowzati.archone.stock.domain.model.StockMove;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 /**
@@ -32,31 +26,25 @@ import org.springframework.stereotype.Service;
 public class ConfirmStockReceiptUsecase {
 
   private final AppClock appClock;
-  private final InboxRepo inboxRepo;
   private final StockOperationRecorder stockOperationRecorder;
   private final MovementCompleter movementCompleter;
   private final AllocationDomainEventPublisher eventPublisher;
 
   public ConfirmStockReceiptUsecase(
       AppClock appClock,
-      InboxRepo inboxRepo,
       StockOperationRecorder stockOperationRecorder,
       MovementCompleter movementCompleter,
       AllocationDomainEventPublisher eventPublisher
   ) {
     this.appClock = appClock;
-    this.inboxRepo = inboxRepo;
     this.stockOperationRecorder = stockOperationRecorder;
     this.movementCompleter = movementCompleter;
     this.eventPublisher = eventPublisher;
   }
 
+  /** Transport-neutral application entrypoint; request idempotency belongs to the caller boundary. */
   @Transactional
-  public void handle(InboundCommand<ConfirmStockReceiptCommand> inbound) {
-    if (!inboxRepo.claimIfNew(inbound.message())) {
-      return;
-    }
-    ConfirmStockReceiptCommand command = inbound.command();
+  public void execute(ConfirmStockReceiptCommand command) {
     receive(command);
   }
 
@@ -73,5 +61,4 @@ public class ConfirmStockReceiptUsecase {
         command.ownerId(), command.facilityId(), command.locationId(),
         command.sku(), command.quantity(), now));
   }
-
 }

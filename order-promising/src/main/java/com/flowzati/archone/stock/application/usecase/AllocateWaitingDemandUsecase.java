@@ -1,7 +1,5 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
@@ -22,14 +20,13 @@ import org.springframework.stereotype.Service;
 /**
  * 執行一輪等待需求配貨的 transaction owner。
  *
- * <p>availability 事件會先在 Inbox claim；scheduler 則直接傳入 transport-neutral
- * command。兩種入口都以各自的一個交易完成有上限的配貨與完成事實。剩餘工作由後續
- * scheduler 掃描收斂，不發布 continuation control event。
+ * <p>availability 事件由 inbound decorator 在同一 transaction 先 claim Inbox；scheduler
+ * 則直接傳入 transport-neutral command。兩種入口都以各自的一個交易完成有上限的配貨與
+ * 完成事實。剩餘工作由後續 scheduler 掃描收斂，不發布 continuation control event。
  */
 @Service
 public class AllocateWaitingDemandUsecase {
 
-  private final InboxRepo inboxRepo;
   private final StockPoolRepository stockPoolRepository;
   private final StockMoveRepository stockMoveRepository;
   private final MovementAssigner movementAssigner;
@@ -38,7 +35,6 @@ public class AllocateWaitingDemandUsecase {
   private final int allocationLimit;
 
   public AllocateWaitingDemandUsecase(
-      InboxRepo inboxRepo,
       StockPoolRepository stockPoolRepository,
       StockMoveRepository stockMoveRepository,
       MovementAssigner movementAssigner,
@@ -49,7 +45,6 @@ public class AllocateWaitingDemandUsecase {
     if (allocationLimit <= 0) {
       throw new IllegalArgumentException("Waiting-demand allocation limit must be positive");
     }
-    this.inboxRepo = inboxRepo;
     this.stockPoolRepository = stockPoolRepository;
     this.stockMoveRepository = stockMoveRepository;
     this.movementAssigner = movementAssigner;
@@ -58,17 +53,9 @@ public class AllocateWaitingDemandUsecase {
     this.allocationLimit = allocationLimit;
   }
 
-  @Transactional
-  public void handle(InboundCommand<AllocateWaitingDemandCommand> inbound) {
-    if (!inboxRepo.claimIfNew(inbound.message())) {
-      return;
-    }
-    allocate(inbound.command());
-  }
-
   /** Scheduler reconciliation has no transport message to claim, but uses the same transaction. */
   @Transactional
-  public void handle(AllocateWaitingDemandCommand command) {
+  public void execute(AllocateWaitingDemandCommand command) {
     allocate(command);
   }
 

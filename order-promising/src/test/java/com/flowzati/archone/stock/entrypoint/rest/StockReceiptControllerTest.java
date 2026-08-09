@@ -6,9 +6,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.messaging.api.InboundCommand;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.stock.application.receipt.StockReceiptApplicationFacade;
+import com.flowzati.archone.stock.application.receipt.StockReceiptRequest;
+import com.flowzati.archone.stock.application.receipt.StockReceiptRequestConflictException;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,7 @@ class StockReceiptControllerTest {
       """;
 
   @Autowired private MockMvcTester mvc;
-  @MockitoBean private ConfirmStockReceiptUsecase usecase;
+  @MockitoBean private StockReceiptApplicationFacade facade;
 
   @Test
   @DisplayName("同步收貨只映射 request，並直接呼叫 transactional use case")
@@ -53,11 +54,10 @@ class StockReceiptControllerTest {
     response.bodyJson().doesNotHavePath("$.allocatedOrderIds");
     response.bodyJson().doesNotHavePath("$.limitReached");
 
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<InboundCommand<ConfirmStockReceiptCommand>> captor =
-        ArgumentCaptor.forClass(InboundCommand.class);
-    verify(usecase).handle(captor.capture());
-    assertThat(captor.getValue().message().eventId()).isEqualTo(RECEIPT_ID);
+    ArgumentCaptor<StockReceiptRequest> captor =
+        ArgumentCaptor.forClass(StockReceiptRequest.class);
+    verify(facade).confirm(captor.capture());
+    assertThat(captor.getValue().receiptId()).isEqualTo(RECEIPT_ID);
     assertThat(captor.getValue().command().facilityId().toString())
         .isEqualTo("00000000-0000-0000-0000-0000000000b1");
     assertThat(captor.getValue().command().locationId().toString())
@@ -68,12 +68,24 @@ class StockReceiptControllerTest {
   @DisplayName("use case 拒絕收貨時轉成 400")
   void shouldMapAnApplicationInputErrorToBadRequest() {
     doThrow(new IllegalArgumentException("Location is outside facility"))
-        .when(usecase).handle(any());
+        .when(facade).confirm(any());
 
     assertThat(mvc.post().uri("/stock-receipts")
         .contentType(MediaType.APPLICATION_JSON).content(BODY)).hasStatus(400);
 
-    verify(usecase).handle(any());
+    verify(facade).confirm(any());
+  }
+
+  @Test
+  @DisplayName("同一 receiptId 改送不同內容時回 409")
+  void shouldRejectAConflictingIdempotencyKey() {
+    doThrow(new StockReceiptRequestConflictException(RECEIPT_ID))
+        .when(facade).confirm(any());
+
+    assertThat(mvc.post().uri("/stock-receipts")
+        .contentType(MediaType.APPLICATION_JSON).content(BODY)).hasStatus(409);
+
+    verify(facade).confirm(any());
   }
 
   @Test
@@ -85,6 +97,6 @@ class StockReceiptControllerTest {
             "\"receiptId\": \"00000000-0000-0000-0000-0000000000f1\",", "")))
         .hasStatus(400);
 
-    verify(usecase, never()).handle(any());
+    verify(facade, never()).confirm(any());
   }
 }

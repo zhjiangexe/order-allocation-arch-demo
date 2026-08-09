@@ -7,11 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.api.MessageMetadata;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.ordering.application.command.RecordOrderBackorderCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -31,36 +26,19 @@ class RecordOrderBackorderUsecaseTest {
   @DisplayName("同一缺貨事實以不同 eventId 重送時應維持第一次結果")
   void shouldIgnoreRepeatedBackorderWithADifferentEventId() {
     OrderRepository repository = mock(OrderRepository.class);
-    InboxRepo inboxRepo = mock(InboxRepo.class);
     UUID orderId = IdGenerator.nextId();
     Order order = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
     Instant firstBackorderedAt = receivedAt.plusSeconds(10);
     Instant repeatedBackorderedAt = receivedAt.plusSeconds(20);
-    MessageMetadata firstMessage = metadata();
-    MessageMetadata repeatedMessage = metadata();
-    when(inboxRepo.claimIfNew(firstMessage)).thenReturn(true);
-    when(inboxRepo.claimIfNew(repeatedMessage)).thenReturn(true);
     when(repository.findById(orderId)).thenReturn(Optional.of(order));
-    RecordOrderBackorderUsecase usecase = new RecordOrderBackorderUsecase(repository, inboxRepo);
+    RecordOrderBackorderUsecase usecase = new RecordOrderBackorderUsecase(repository);
 
-    usecase.handle(inbound(orderId, firstBackorderedAt, firstMessage));
-    usecase.handle(inbound(orderId, repeatedBackorderedAt, repeatedMessage));
+    usecase.execute(new RecordOrderBackorderCommand(orderId, firstBackorderedAt));
+    usecase.execute(new RecordOrderBackorderCommand(orderId, repeatedBackorderedAt));
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
     assertThat(order.getBackOrderedSince()).isEqualTo(firstBackorderedAt);
     verify(repository, times(2)).findById(orderId);
     verify(repository).save(order);
-  }
-
-  private static InboundCommand<RecordOrderBackorderCommand> inbound(
-      UUID orderId, Instant backorderedAt, MessageMetadata message) {
-    return new InboundCommand<>(new RecordOrderBackorderCommand(orderId, backorderedAt), message);
-  }
-
-  private static MessageMetadata metadata() {
-    return new MessageMetadata(
-        IdGenerator.nextId(),
-        BackorderCreatedIntegrationEvent.EVENT_TYPE,
-        OrderingEventSubscriptions.ALLOCATION_RESULTS);
   }
 }

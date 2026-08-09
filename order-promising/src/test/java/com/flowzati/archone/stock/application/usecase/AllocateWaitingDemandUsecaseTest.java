@@ -9,14 +9,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.api.MessageMetadata;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
@@ -46,7 +41,6 @@ class AllocateWaitingDemandUsecaseTest {
   private static final Instant NOW = Instant.parse("2026-08-03T01:00:00Z");
   private static final LocalDate TODAY = LocalDate.of(2026, 8, 3);
 
-  private InboxRepo inboxRepo;
   private StockPoolRepository stockPoolRepository;
   private StockMoveRepository stockMoveRepository;
   private MovementAssigner movementAssigner;
@@ -55,13 +49,11 @@ class AllocateWaitingDemandUsecaseTest {
 
   @BeforeEach
   void setUp() {
-    inboxRepo = mock(InboxRepo.class);
     stockPoolRepository = mock(StockPoolRepository.class);
     stockMoveRepository = mock(StockMoveRepository.class);
     movementAssigner = mock(MovementAssigner.class);
     eventPublisher = mock(AllocationDomainEventPublisher.class);
     usecase = new AllocateWaitingDemandUsecase(
-        inboxRepo,
         stockPoolRepository,
         stockMoveRepository,
         movementAssigner,
@@ -71,43 +63,14 @@ class AllocateWaitingDemandUsecaseTest {
   }
 
   @Test
-  @DisplayName("新 availability 訊息先 claim Inbox，再執行等待需求配貨")
-  void shouldClaimThenAllocateWaitingDemand() {
-    InboundCommand<AllocateWaitingDemandCommand> inbound = inbound(UUID.randomUUID());
-    List<StockMove> waiting = givenWaitingMoves(1);
-    Demand allocated = demand();
-    when(inboxRepo.claimIfNew(inbound.message())).thenReturn(true);
-    when(movementAssigner.assignWaitingBatch(waiting, NOW)).thenReturn(List.of(allocated));
-
-    usecase.handle(inbound);
-
-    verify(inboxRepo).claimIfNew(inbound.message());
-    verify(eventPublisher).publish(
-        new OrderAllocationCompleted(allocated.orderId(), NOW));
-  }
-
-  @Test
-  @DisplayName("重複 availability 訊息不執行任何配貨工作")
-  void shouldReturnNoProgressForADuplicateMessage() {
-    InboundCommand<AllocateWaitingDemandCommand> inbound = inbound(UUID.randomUUID());
-    when(inboxRepo.claimIfNew(inbound.message())).thenReturn(false);
-
-    usecase.handle(inbound);
-
-    verifyNoInteractions(
-        stockPoolRepository, stockMoveRepository, movementAssigner, eventPublisher);
-  }
-
-  @Test
   @DisplayName("沒有可配庫存時停在守門查詢")
   void shouldStopWhenThereIsNoAllocatableStock() {
     when(stockPoolRepository.findAllocatableBatchesInFefoOrder(
         OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, TODAY))
         .thenReturn(List.of());
 
-    usecase.handle(command());
+    usecase.execute(command());
 
-    verifyNoInteractions(inboxRepo);
     verifyNoInteractions(stockMoveRepository, movementAssigner, eventPublisher);
   }
 
@@ -119,7 +82,7 @@ class AllocateWaitingDemandUsecaseTest {
         OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, SKU, ALLOCATION_LIMIT))
         .thenReturn(List.of());
 
-    usecase.handle(command());
+    usecase.execute(command());
 
     verifyNoInteractions(movementAssigner, eventPublisher);
   }
@@ -130,7 +93,7 @@ class AllocateWaitingDemandUsecaseTest {
     List<StockMove> waiting = givenWaitingMoves(ALLOCATION_LIMIT);
     when(movementAssigner.assignWaitingBatch(waiting, NOW)).thenReturn(List.of());
 
-    usecase.handle(command());
+    usecase.execute(command());
 
     verify(eventPublisher, never()).publish(any());
   }
@@ -142,7 +105,7 @@ class AllocateWaitingDemandUsecaseTest {
     List<Demand> allocated = List.of(demand(), demand());
     when(movementAssigner.assignWaitingBatch(waiting, NOW)).thenReturn(allocated);
 
-    usecase.handle(command());
+    usecase.execute(command());
 
     verify(eventPublisher, times(2)).publish(any(OrderAllocationCompleted.class));
     allocated.forEach(demand -> verify(eventPublisher)
@@ -155,13 +118,6 @@ class AllocateWaitingDemandUsecaseTest {
         OrderFixtures.FACILITY_ID,
         OrderFixtures.LOCATION_ID,
         SKU);
-  }
-
-  private InboundCommand<AllocateWaitingDemandCommand> inbound(UUID eventId) {
-    return new InboundCommand<>(command(), new MessageMetadata(
-        eventId,
-        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
-        AllocationEventSubscriptions.INVENTORY_AVAILABILITY));
   }
 
   private void givenAllocatableStock() {

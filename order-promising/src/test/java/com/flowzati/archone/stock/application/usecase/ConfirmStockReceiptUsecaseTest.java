@@ -1,8 +1,5 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.api.MessageMetadata;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
@@ -36,7 +33,6 @@ class ConfirmStockReceiptUsecaseTest {
   private static final String SKU = "SKU-1";
   private static final Instant NOW = Instant.parse("2026-07-21T23:00:00Z");
 
-  private InboxRepo inboxRepo;
   private StockOperationRecorder stockOperationRecorder;
   private MovementCompleter movementCompleter;
   private AllocationDomainEventPublisher eventPublisher;
@@ -44,13 +40,12 @@ class ConfirmStockReceiptUsecaseTest {
 
   @BeforeEach
   void setUp() {
-    inboxRepo = mock(InboxRepo.class);
     stockOperationRecorder = mock(StockOperationRecorder.class);
     movementCompleter = mock(MovementCompleter.class);
     eventPublisher = mock(AllocationDomainEventPublisher.class);
     usecase = new ConfirmStockReceiptUsecase(
         new AppClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"),
-        inboxRepo, stockOperationRecorder, movementCompleter,
+        stockOperationRecorder, movementCompleter,
         eventPublisher);
   }
 
@@ -58,14 +53,12 @@ class ConfirmStockReceiptUsecaseTest {
   @DisplayName("同一交易依序記錄、完成 inbound movement，再發布可用庫存事實")
   void shouldCompleteInboundMovementBeforePublishingAvailability() {
     ConfirmStockReceiptCommand command = command();
-    InboundCommand<ConfirmStockReceiptCommand> inbound = inbound(command, UUID.randomUUID());
     StockMove move = inboundMove(command.quantity());
-    when(inboxRepo.claimIfNew(inbound.message())).thenReturn(true);
     when(stockOperationRecorder.recordInbound(
         command.facilityId(), command.ownerId(), OrderFixtures.LOCATION_ID, SKU,
         command.quantity(), NOW)).thenReturn(List.of(move));
 
-    usecase.handle(inbound);
+    usecase.execute(command);
 
     InOrder order = inOrder(stockOperationRecorder, movementCompleter, eventPublisher);
     order.verify(stockOperationRecorder).recordInbound(
@@ -81,28 +74,21 @@ class ConfirmStockReceiptUsecaseTest {
   }
 
   @Test
-  @DisplayName("重複請求不重複收貨，也不重複發布可用庫存事實")
-  void shouldDoNothingWhenTheMessageWasAlreadyClaimed() {
-    InboundCommand<ConfirmStockReceiptCommand> inbound = inbound(command(), UUID.randomUUID());
-    when(inboxRepo.claimIfNew(inbound.message())).thenReturn(false);
-
-    usecase.handle(inbound);
-
-    verifyNoInteractions(stockOperationRecorder, movementCompleter, eventPublisher);
-  }
-
-  @Test
   @DisplayName("指定位置不屬於 Facility 時拒絕收貨，且不建立任何 movement")
   void shouldRejectALocationOutsideTheFacility() {
     ConfirmStockReceiptCommand command = command();
-    InboundCommand<ConfirmStockReceiptCommand> inbound = inbound(command, UUID.randomUUID());
-    when(inboxRepo.claimIfNew(inbound.message())).thenReturn(true);
+    when(stockOperationRecorder.recordInbound(
+        command.facilityId(), command.ownerId(), command.locationId(), command.sku(),
+        command.quantity(), NOW))
+        .thenThrow(new IllegalArgumentException(
+            "Stock location " + command.locationId()
+                + " does not belong to facility " + command.facilityId()));
 
-    assertThatThrownBy(() -> usecase.handle(inbound))
+    assertThatThrownBy(() -> usecase.execute(command))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("is not an internal location of facility");
+        .hasMessageContaining("does not belong to facility");
 
-    verifyNoInteractions(stockOperationRecorder, movementCompleter, eventPublisher);
+    verifyNoInteractions(movementCompleter, eventPublisher);
   }
 
   private ConfirmStockReceiptCommand command() {
@@ -115,13 +101,5 @@ class ConfirmStockReceiptUsecaseTest {
     return StockMove.confirmed(
         UUID.randomUUID(), UUID.randomUUID(), OrderFixtures.OWNER_ID, SKU,
         MovementFixtures.SUPPLIERS_LOCATION_ID, OrderFixtures.LOCATION_ID, null, quantity, NOW);
-  }
-
-  private InboundCommand<ConfirmStockReceiptCommand> inbound(
-      ConfirmStockReceiptCommand command, UUID receiptId) {
-    return new InboundCommand<>(
-        command,
-        new MessageMetadata(
-            receiptId, "ConfirmStockReceiptRequest", "stock-receipt-requests"));
   }
 }

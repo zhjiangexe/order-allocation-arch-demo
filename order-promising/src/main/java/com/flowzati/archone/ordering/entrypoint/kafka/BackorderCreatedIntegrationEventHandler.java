@@ -2,7 +2,6 @@ package com.flowzati.archone.ordering.entrypoint.kafka;
 
 import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.messaging.api.InboundCommand;
 import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import com.flowzati.archone.ordering.application.command.RecordOrderBackorderCommand;
@@ -36,7 +35,7 @@ class BackorderCreatedIntegrationEventHandler
 
   @Override
   public void handleTyped(BackorderCreatedIntegrationEvent event, MessageMetadata metadata) {
-    recordOrderBackorderUsecase.handle(new InboundCommand<>(
-        new RecordOrderBackorderCommand(event.getOrderId(), event.getBackorderedSince()), metadata));
+    recordOrderBackorderUsecase.execute(
+        new RecordOrderBackorderCommand(event.getOrderId(), event.getBackorderedSince()));
   }
 }

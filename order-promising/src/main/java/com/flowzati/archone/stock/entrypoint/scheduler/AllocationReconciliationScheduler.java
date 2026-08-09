@@ -50,7 +50,7 @@ public class AllocationReconciliationScheduler {
     try {
       AllocateWaitingDemandCommand command = new AllocateWaitingDemandCommand(
           scope.ownerId(), scope.facilityId(), scope.locationId(), scope.skuCode());
-      allocateWaitingDemandUsecase.handle(command);
+      allocateWaitingDemandUsecase.execute(command);
     } catch (OptimisticLockingFailureException exception) {
       log.atDebug()
           .addKeyValue("ownerId", scope.ownerId())

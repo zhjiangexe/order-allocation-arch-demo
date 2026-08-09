@@ -4,11 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
+import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
+import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
+import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
 import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -25,10 +31,69 @@ class KafkaIntegrationEventDispatcherTest {
     KafkaIntegrationEventDispatcher dispatcher = new KafkaIntegrationEventDispatcher(
         deserializerReturning(event), List.of(handler));
 
-    dispatcher.dispatch(record(eventId, TestEvent.EVENT_TYPE), "order-events", "allocation");
+    ProcessingOutcome outcome = dispatcher.dispatch(
+        record(eventId, TestEvent.EVENT_TYPE), "order-events", "allocation");
 
+    assertThat(outcome).isEqualTo(ProcessingOutcome.PROCESSED);
     assertThat(handledMetadata.get()).isEqualTo(
         new MessageMetadata(eventId, TestEvent.EVENT_TYPE, "allocation"));
+  }
+
+  @Test
+  void runsOneOrderedDecoratorChainAroundTypedDispatch() {
+    UUID eventId = UUID.randomUUID();
+    List<String> calls = new ArrayList<>();
+    IntegrationEventHandler<TestEvent> handler = handler(
+        new AtomicReference<>(), () -> calls.add("handler"));
+    MessageHandlerDecorator retry = around(1_200, "retry", calls);
+    MessageHandlerDecorator transaction = around(2_000, "transaction", calls);
+    KafkaIntegrationEventDispatcher dispatcher = new KafkaIntegrationEventDispatcher(
+        deserializerReturning(new TestEvent(eventId)),
+        List.of(handler),
+        encoded -> Map.of(),
+        List.of(transaction, retry));
+
+    ProcessingOutcome outcome = dispatcher.dispatch(
+        record(eventId, TestEvent.EVENT_TYPE), "order-events", "allocation");
+
+    assertThat(outcome).isEqualTo(ProcessingOutcome.PROCESSED);
+    assertThat(calls).containsExactly(
+        "retry-before",
+        "transaction-before",
+        "handler",
+        "transaction-after",
+        "retry-after");
+  }
+
+  @Test
+  void duplicateOutcomeStopsBeforeTypedDispatch() {
+    UUID eventId = UUID.randomUUID();
+    AtomicReference<MessageMetadata> handledMetadata = new AtomicReference<>();
+    MessageHandlerDecorator duplicate = new MessageHandlerDecorator() {
+      @Override
+      public int order() {
+        return 2_000;
+      }
+
+      @Override
+      public ProcessingOutcome handle(
+          MessageHandlerInvocation invocation,
+          MessageHandlerDecoratorChain chain
+      ) {
+        return ProcessingOutcome.DUPLICATE;
+      }
+    };
+    KafkaIntegrationEventDispatcher dispatcher = new KafkaIntegrationEventDispatcher(
+        deserializerReturning(new TestEvent(eventId)),
+        List.of(handler(handledMetadata)),
+        encoded -> Map.of(),
+        List.of(duplicate));
+
+    ProcessingOutcome outcome = dispatcher.dispatch(
+        record(eventId, TestEvent.EVENT_TYPE), "order-events", "allocation");
+
+    assertThat(outcome).isEqualTo(ProcessingOutcome.DUPLICATE);
+    assertThat(handledMetadata).hasNullValue();
   }
 
   @Test
@@ -109,6 +174,14 @@ class KafkaIntegrationEventDispatcherTest {
   private IntegrationEventHandler<TestEvent> handler(
       AtomicReference<MessageMetadata> handledMetadata
   ) {
+    return handler(handledMetadata, () -> {
+    });
+  }
+
+  private IntegrationEventHandler<TestEvent> handler(
+      AtomicReference<MessageMetadata> handledMetadata,
+      Runnable onHandled
+  ) {
     return new IntegrationEventHandler<>() {
       @Override
       public String destination() {
@@ -127,7 +200,28 @@ class KafkaIntegrationEventDispatcherTest {
 
       @Override
       public void handleTyped(TestEvent event, MessageMetadata metadata) {
+        onHandled.run();
         handledMetadata.set(metadata);
+      }
+    };
+  }
+
+  private MessageHandlerDecorator around(int order, String name, List<String> calls) {
+    return new MessageHandlerDecorator() {
+      @Override
+      public int order() {
+        return order;
+      }
+
+      @Override
+      public ProcessingOutcome handle(
+          MessageHandlerInvocation invocation,
+          MessageHandlerDecoratorChain chain
+      ) {
+        calls.add(name + "-before");
+        ProcessingOutcome outcome = chain.invokeNext(invocation);
+        calls.add(name + "-after");
+        return outcome;
       }
     };
   }

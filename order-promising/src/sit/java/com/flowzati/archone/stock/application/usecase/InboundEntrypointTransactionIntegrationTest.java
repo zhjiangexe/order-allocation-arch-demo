@@ -5,25 +5,30 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
-import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
 import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.stock.application.receipt.StockReceiptApplicationFacade;
+import com.flowzati.archone.stock.application.receipt.StockReceiptRequest;
+import com.flowzati.archone.stock.application.receipt.StockReceiptRequestConflictException;
+import com.flowzati.archone.stock.entrypoint.kafka.AllocationKafkaIntegrationEventConsumer;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.events.IntegrationEvent;
+import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
 import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
 import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.OrderFixtures;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,19 +48,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
     webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
 @Import(PostgreSQLTestConfiguration.class)
-class InboundCommandTransactionIntegrationTest {
+class InboundEntrypointTransactionIntegrationTest {
 
   @org.springframework.beans.factory.annotation.Autowired
   private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
 
   @Autowired
-  private AllocateOrderUsecase allocateOrderUsecase;
+  private AllocationKafkaIntegrationEventConsumer allocationConsumer;
 
   @Autowired
-  private CancelMovementsUsecase releaseReservationUsecase;
+  private IntegrationEventSerializer eventSerializer;
 
   @Autowired
-  private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
+  private StockReceiptApplicationFacade stockReceiptApplicationFacade;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -93,7 +98,8 @@ class InboundCommandTransactionIntegrationTest {
     orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 0));
 
-    allocateOrderUsecase.handle(inbound(orderId, eventId));
+    consumeOrderingEvent(
+        new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
 
     assertThat(inboxRepository.findById(inboxId(
         AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))).isPresent();
@@ -116,8 +122,8 @@ class InboundCommandTransactionIntegrationTest {
     UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
-    orderRepository.save(
-        OrderFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now().minusSeconds(1)));
+    Instant receivedAt = Instant.now().minusSeconds(1);
+    orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 0));
 
     // **失敗來源換過三次了，而這一次的理由與前兩次不同。**
@@ -132,7 +138,8 @@ class InboundCommandTransactionIntegrationTest {
     jdbcTemplate.update(
         "DELETE FROM stock_picking_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
 
-    assertThatThrownBy(() -> allocateOrderUsecase.handle(inbound(orderId, eventId)))
+    assertThatThrownBy(() -> consumeOrderingEvent(
+        new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("has no outbound operation type");
 
@@ -164,12 +171,8 @@ class InboundCommandTransactionIntegrationTest {
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 10, 2));
     MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockPoolId, 3);
 
-    assertThatThrownBy(() -> releaseReservationUsecase.handle(new InboundCommand<>(
-        new CancelMovementsCommand(orderId),
-        new MessageMetadata(
-            eventId,
-            OrderCancelledIntegrationEvent.EVENT_TYPE,
-            AllocationEventSubscriptions.ORDER_LIFECYCLE))))
+    assertThatThrownBy(() -> consumeOrderingEvent(
+        new OrderCancelledIntegrationEvent(eventId, orderId, Instant.now()), orderId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Quantity to release cannot exceed reserved quantity");
 
@@ -194,20 +197,11 @@ class InboundCommandTransactionIntegrationTest {
         OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 0, 0));
 
-    confirmStockReceiptUsecase.handle(new InboundCommand<>(
-        new ConfirmStockReceiptCommand(
-            OrderFixtures.OWNER_ID,
-            OrderFixtures.FACILITY_ID,
-            OrderFixtures.LOCATION_ID,
-            "SKU-1",
-            StockFixtures.ARRIVED_ON,
-            StockFixtures.EXPIRES_ON,
-            3),
-        new MessageMetadata(
-            eventId, "ConfirmStockReceiptRequest", "stock-receipt-requests")));
+    StockReceiptRequest request = receiptRequest(eventId, 3);
+    stockReceiptApplicationFacade.confirm(request);
+    stockReceiptApplicationFacade.confirm(request);
 
-    assertThat(inboxRepository.findById(inboxId(
-        "stock-receipt-requests", eventId))).isPresent();
+    assertThat(countReceiptRequests(eventId)).isEqualTo(1);
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(3);
       assertThat(pool.getReservedQuantity()).isZero();
@@ -252,21 +246,12 @@ class InboundCommandTransactionIntegrationTest {
          WHERE p.order_id = ?
         """, IdGenerator.nextId(), stockPoolId, queued.getId());
 
-    confirmStockReceiptUsecase.handle(new InboundCommand<>(
-        new ConfirmStockReceiptCommand(
-            OrderFixtures.OWNER_ID,
-            OrderFixtures.FACILITY_ID,
-            OrderFixtures.LOCATION_ID,
-            "SKU-1",
-            StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON, 3),
-        new MessageMetadata(
-            eventId, "ConfirmStockReceiptRequest", "stock-receipt-requests")));
+    stockReceiptApplicationFacade.confirm(receiptRequest(eventId, 3));
 
     assertThatThrownBy(() -> inventoryDrain().drain())
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
-    assertThat(inboxRepository.findById(inboxId(
-        "stock-receipt-requests", eventId))).isPresent();
+    assertThat(countReceiptRequests(eventId)).isEqualTo(1);
     // 收貨是已完成的獨立 checkpoint；後續 outbound 配貨失敗不能撤銷實際到貨。
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(3);
@@ -284,17 +269,85 @@ class InboundCommandTransactionIntegrationTest {
     assertThat(outboxRepository.count()).isEqualTo(1);
   }
 
-  private InboundCommand<AllocateOrderCommand> inbound(UUID orderId, UUID eventId) {
-    return new InboundCommand<>(
-        new AllocateOrderCommand(orderId),
-        new MessageMetadata(
-            eventId,
-            OrderPlacedIntegrationEvent.EVENT_TYPE,
-            AllocationEventSubscriptions.ORDER_LIFECYCLE));
+  @Test
+  @DisplayName("同一 receiptId 綁定不同收貨內容時拒絕，不得再異動庫存")
+  void shouldRejectAReceiptIdReusedForDifferentContent() {
+    UUID stockPoolId = UUID.randomUUID();
+    UUID receiptId = UUID.randomUUID();
+    stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-1", 0, 0));
+
+    stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 3));
+
+    assertThatThrownBy(() -> stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 4)))
+        .isInstanceOf(StockReceiptRequestConflictException.class)
+        .hasMessageContaining(receiptId.toString());
+
+    assertThat(countReceiptRequests(receiptId)).isEqualTo(1);
+    assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
+      assertThat(pool.getOnHandQuantity()).isEqualTo(3);
+      assertThat(pool.getReservedQuantity()).isZero();
+    });
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM stock_moves WHERE order_line_id IS NULL AND state = 'DONE'",
+        Integer.class)).isEqualTo(1);
+    assertThat(outboxRepository.count()).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("收貨業務失敗時 request claim、庫存與 Outbox 必須一起回滾")
+  void shouldRollBackTheReceiptClaimWhenBusinessHandlingFails() {
+    UUID receiptId = UUID.randomUUID();
+    jdbcTemplate.update(
+        "DELETE FROM stock_picking_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
+
+    assertThatThrownBy(() ->
+        stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 3)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("has no inbound operation type");
+
+    assertThat(countReceiptRequests(receiptId)).isZero();
+    assertThat(count("stock_pickings")).isZero();
+    assertThat(count("stock_moves")).isZero();
+    assertThat(count("stock_move_lines")).isZero();
+    assertThat(outboxRepository.count()).isZero();
+  }
+
+  private void consumeOrderingEvent(IntegrationEvent event, UUID orderId) {
+    ConsumerRecord<String, String> record = new ConsumerRecord<>(
+        OrderingEventTopics.ORDER_EVENTS,
+        0,
+        0,
+        orderId.toString(),
+        eventSerializer.serialize(event));
+    record.headers().add(
+        "id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
+    record.headers().add(
+        "eventType", event.eventType().getBytes(StandardCharsets.UTF_8));
+    allocationConsumer.consumeOrderingEvent(record);
   }
 
   private InboxId inboxId(String subscriberId, UUID eventId) {
     return new InboxId(subscriberId, eventId);
+  }
+
+  private StockReceiptRequest receiptRequest(UUID receiptId, int quantity) {
+    return new StockReceiptRequest(
+        receiptId,
+        new ConfirmStockReceiptCommand(
+            OrderFixtures.OWNER_ID,
+            OrderFixtures.FACILITY_ID,
+            OrderFixtures.LOCATION_ID,
+            "SKU-1",
+            StockFixtures.ARRIVED_ON,
+            StockFixtures.EXPIRES_ON,
+            quantity));
+  }
+
+  private int countReceiptRequests(UUID receiptId) {
+    return jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM stock_receipt_requests WHERE receipt_id = ?",
+        Integer.class,
+        receiptId);
   }
 
   private int count(String table) {

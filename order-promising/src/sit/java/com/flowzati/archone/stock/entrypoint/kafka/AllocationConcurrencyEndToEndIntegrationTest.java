@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -168,6 +169,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         .isInstanceOf(AllocationConcurrencyExhaustedException.class);
 
     assertThat(conflictInjector.invocations()).isEqualTo(3);
+    assertThat(conflictInjector.transactionIds()).hasSize(3).doesNotHaveDuplicates();
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
@@ -208,17 +210,23 @@ class AllocationConcurrencyEndToEndIntegrationTest {
   static class ConflictConfiguration {
 
     @Bean
-    AllocationConflictInjector allocationConflictInjector() {
-      return new AllocationConflictInjector();
+    AllocationConflictInjector allocationConflictInjector(JdbcTemplate jdbcTemplate) {
+      return new AllocationConflictInjector(jdbcTemplate);
     }
   }
 
   @Aspect
   static class AllocationConflictInjector {
 
+    private final JdbcTemplate jdbcTemplate;
+    private final List<Long> transactionIds = new CopyOnWriteArrayList<>();
     private final AtomicInteger invocations = new AtomicInteger();
     private volatile int forcedFailures;
     private volatile CountDownLatch concurrentAttempts;
+
+    AllocationConflictInjector(JdbcTemplate jdbcTemplate) {
+      this.jdbcTemplate = jdbcTemplate;
+    }
 
     void blockFirstTwoAllocationAttempts() {
       concurrentAttempts = new CountDownLatch(2);
@@ -238,6 +246,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         + "MovementAssigner.assign(..))")
     public Object injectConflict(ProceedingJoinPoint joinPoint) throws Throwable {
       int invocation = invocations.incrementAndGet();
+      transactionIds.add(jdbcTemplate.queryForObject("SELECT txid_current()", Long.class));
       CountDownLatch latch = concurrentAttempts;
       if (latch != null && invocation <= 2) {
         latch.countDown();
@@ -257,7 +266,12 @@ class AllocationConcurrencyEndToEndIntegrationTest {
       return invocations.get();
     }
 
+    List<Long> transactionIds() {
+      return List.copyOf(transactionIds);
+    }
+
     void reset() {
+      transactionIds.clear();
       invocations.set(0);
       forcedFailures = 0;
       concurrentAttempts = null;

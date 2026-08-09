@@ -1,6 +1,5 @@
 package com.flowzati.archone.ordering.entrypoint.kafka;
 
-import com.flowzati.archone.messaging.api.InboundCommand;
 import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
@@ -37,6 +36,6 @@ class OrderAllocatedIntegrationEventHandler
   @Override
   public void handleTyped(OrderAllocatedIntegrationEvent event, MessageMetadata metadata) {
     RecordOrderAllocationCommand command = new RecordOrderAllocationCommand(event.getOrderId(), event.getAllocatedAt());
-    recordOrderAllocationUsecase.handle(new InboundCommand<>(command, metadata));
+    recordOrderAllocationUsecase.execute(command);
   }
 }

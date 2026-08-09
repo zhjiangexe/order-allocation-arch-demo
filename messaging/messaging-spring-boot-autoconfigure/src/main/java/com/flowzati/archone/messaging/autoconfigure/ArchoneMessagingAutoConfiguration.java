@@ -3,6 +3,7 @@ package com.flowzati.archone.messaging.autoconfigure;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.flowzati.archone.messaging.MessagingPackage;
+import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
 import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
@@ -74,11 +75,13 @@ public class ArchoneMessagingAutoConfiguration {
   KafkaIntegrationEventDispatcher kafkaIntegrationEventDispatcher(
       IntegrationEventDeserializer deserializer,
       ObjectProvider<IntegrationEventHandler<?>> handlers,
+      ObjectProvider<MessageHandlerDecorator> decorators,
       MessageHeadersCodec headersCodec
   ) {
     List<IntegrationEventHandler<?>> registeredHandlers = handlers.orderedStream().toList();
+    List<MessageHandlerDecorator> registeredDecorators = decorators.orderedStream().toList();
     return new KafkaIntegrationEventDispatcher(
-        deserializer, registeredHandlers, headersCodec);
+        deserializer, registeredHandlers, headersCodec, registeredDecorators);
   }
 
 }

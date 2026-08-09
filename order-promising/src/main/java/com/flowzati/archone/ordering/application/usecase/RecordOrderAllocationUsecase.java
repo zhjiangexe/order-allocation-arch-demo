@@ -1,7 +1,5 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.messaging.api.InboundCommand;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -21,20 +19,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class RecordOrderAllocationUsecase {
 
   private final OrderRepository orderRepository;
-  private final InboxRepo inboxRepo;
 
-  public RecordOrderAllocationUsecase(OrderRepository orderRepository, InboxRepo inboxRepo) {
+  public RecordOrderAllocationUsecase(OrderRepository orderRepository) {
     this.orderRepository = orderRepository;
-    this.inboxRepo = inboxRepo;
   }
 
+  /** Transport-neutral application entrypoint; inbound idempotency belongs to the caller boundary. */
   @Transactional
-  public void handle(InboundCommand<RecordOrderAllocationCommand> inbound) {
-    if (!inboxRepo.claimIfNew(inbound.message())) {
-      return;
-    }
+  public void execute(RecordOrderAllocationCommand command) {
+    record(command);
+  }
 
-    RecordOrderAllocationCommand command = inbound.command();
+  private void record(RecordOrderAllocationCommand command) {
     Optional<Order> orderOpt = orderRepository.findById(command.orderId());
     if (orderOpt.isEmpty()) {
       return;
