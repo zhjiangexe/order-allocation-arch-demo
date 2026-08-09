@@ -1,18 +1,20 @@
 package com.flowzati.archone.messaging.jdbc;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /** PostgreSQL SQL shape used by the first JDBC producer and duplicate detector implementations. */
 public final class PostgresMessagingSqlDialect implements MessagingSqlDialect {
 
   @Override
-  public String insert(String qualifiedTable, List<String> columns) {
+  public String insert(String qualifiedTable, List<String> columns, Set<String> jsonColumns) {
     ValidatedInsert insert = validate(qualifiedTable, columns);
+    Set<String> validatedJsonColumns = validateJsonColumns(insert.columns(), jsonColumns);
     return "INSERT INTO %s (%s) VALUES (%s)".formatted(
         insert.table(),
         String.join(", ", insert.columns()),
-        placeholders(insert.columns().size()));
+        placeholders(insert.columns(), validatedJsonColumns));
   }
 
   @Override
@@ -49,9 +51,22 @@ public final class PostgresMessagingSqlDialect implements MessagingSqlDialect {
     return new ValidatedInsert(table, validatedColumns);
   }
 
-  private String placeholders(int count) {
-    return java.util.stream.IntStream.range(0, count)
-        .mapToObj(index -> "?")
+  private Set<String> validateJsonColumns(List<String> columns, Set<String> jsonColumns) {
+    if (jsonColumns == null) {
+      throw new IllegalArgumentException("JSON columns are required");
+    }
+    Set<String> validated = jsonColumns.stream()
+        .map(column -> SqlIdentifiers.requireValid("JSON column", column))
+        .collect(Collectors.toUnmodifiableSet());
+    if (!columns.containsAll(validated)) {
+      throw new IllegalArgumentException("JSON columns must be included in insert columns");
+    }
+    return validated;
+  }
+
+  private String placeholders(List<String> columns, Set<String> jsonColumns) {
+    return columns.stream()
+        .map(column -> jsonColumns.contains(column) ? "CAST(? AS jsonb)" : "?")
         .collect(Collectors.joining(", "));
   }
 

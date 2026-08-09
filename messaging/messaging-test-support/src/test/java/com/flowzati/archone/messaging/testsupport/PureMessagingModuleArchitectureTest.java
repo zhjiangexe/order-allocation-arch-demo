@@ -17,6 +17,7 @@ class PureMessagingModuleArchitectureTest {
       "messaging-producer-common",
       "messaging-consumer-common",
       "messaging-jdbc-common",
+      "messaging-producer-jdbc",
       "messaging-consumer-kafka",
       "messaging-test-support");
   private static final List<String> FORBIDDEN_IMPORTS = List.of(

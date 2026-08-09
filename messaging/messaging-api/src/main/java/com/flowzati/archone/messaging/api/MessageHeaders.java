@@ -45,14 +45,16 @@ public final class MessageHeaders {
     }
   }
 
-  static void validate(String name, String value) {
+  /** Validates a header independently of a {@link Message} instance. */
+  public static void validate(String name, String value) {
     validateName(name);
     if (value == null || value.isBlank()) {
       throw new IllegalArgumentException("Message header value is required: " + name);
     }
   }
 
-  static void validateName(String name) {
+  /** Validates the canonical lower-case header-name syntax. */
+  public static void validateName(String name) {
     if (name == null || !VALID_NAME.matcher(name).matches()) {
       throw new IllegalArgumentException("Invalid message header name: " + name);
     }

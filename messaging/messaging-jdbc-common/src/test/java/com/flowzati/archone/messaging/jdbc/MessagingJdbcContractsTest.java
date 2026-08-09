@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class MessagingJdbcContractsTest {
@@ -32,6 +33,14 @@ class MessagingJdbcContractsTest {
         .isEqualTo("INSERT INTO messaging.event_inbox "
             + "(subscriber_id, event_id, processed_at) VALUES (?, ?, ?) "
             + "ON CONFLICT (subscriber_id, event_id) DO NOTHING");
+  }
+
+  @Test
+  void castsOnlyDeclaredJsonParameters() {
+    assertThat(dialect.insert(
+        "event_outbox", List.of("id", "payload", "headers"), Set.of("payload")))
+        .isEqualTo(
+            "INSERT INTO event_outbox (id, payload, headers) VALUES (?, CAST(? AS jsonb), ?)");
   }
 
   @Test
