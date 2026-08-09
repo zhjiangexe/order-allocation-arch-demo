@@ -34,6 +34,7 @@ micrometer-registry-prometheus = { group = "io.micrometer", name = "micrometer-r
 
 # Database
 flyway-database-postgresql = { group = "org.flywaydb", name = "flyway-database-postgresql" }
+flyway-core = { group = "org.flywaydb", name = "flyway-core" }
 postgresql = { group = "org.postgresql", name = "postgresql" }
 uuid-creator = { group = "com.github.f4b6a3", name = "uuid-creator", version.ref = "uuid-creator" }
 jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations" }

@@ -5,6 +5,7 @@ import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventHandler;
+import com.flowzati.archone.messaging.api.MessageHeadersDecoder;
 import java.util.List;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
@@ -25,6 +26,16 @@ public final class KafkaIntegrationEventDispatcher {
       List<IntegrationEventHandler<?>> handlers
   ) {
     this(new KafkaMessageMapper(), new IntegrationEventDispatcher(deserializer, handlers));
+  }
+
+  public KafkaIntegrationEventDispatcher(
+      IntegrationEventDeserializer deserializer,
+      List<IntegrationEventHandler<?>> handlers,
+      MessageHeadersDecoder headersDecoder
+  ) {
+    this(
+        new KafkaMessageMapper(headersDecoder),
+        new IntegrationEventDispatcher(deserializer, handlers));
   }
 
   KafkaIntegrationEventDispatcher(

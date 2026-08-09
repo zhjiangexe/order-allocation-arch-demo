@@ -4,7 +4,13 @@
       "name": "archone.messaging.jpa.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
-      "description": "Whether to compose the JPA Inbox, Outbox, MessageProducer, and IntegrationEventPublisher beans."
+      "description": "Whether to compose the legacy JPA Inbox and Outbox repository bridge beans."
+    },
+    {
+      "name": "archone.messaging.producer.jdbc.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to compose the transaction-required JDBC Outbox MessageProducer."
     },
     {
       "name": "archone.messaging.jpa.register-package",

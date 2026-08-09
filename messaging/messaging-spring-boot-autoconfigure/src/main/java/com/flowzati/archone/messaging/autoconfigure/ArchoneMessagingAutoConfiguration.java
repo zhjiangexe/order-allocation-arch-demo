@@ -8,6 +8,9 @@ import com.flowzati.archone.messaging.events.IntegrationEventHandler;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.JacksonIntegrationEventSerde;
 import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
+import com.flowzati.archone.messaging.producer.jdbc.JacksonMessageHeadersCodec;
+import com.flowzati.archone.messaging.producer.jdbc.MessageHeadersCodec;
+import com.flowzati.archone.messaging.producer.jdbc.OutboxPhysicalHeaders;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -57,12 +60,25 @@ public class ArchoneMessagingAutoConfiguration {
 
   @Bean
   @ConditionalOnMissingBean
+  MessageHeadersCodec messageHeadersCodec(ObjectProvider<ObjectMapper> objectMappers) {
+    ObjectMapper objectMapper = objectMappers.getIfUnique(ObjectMapper::new);
+    return new JacksonMessageHeadersCodec(
+        objectMapper,
+        OutboxPhysicalHeaders.ALL,
+        JacksonMessageHeadersCodec.DEFAULT_MAX_HEADER_COUNT,
+        JacksonMessageHeadersCodec.DEFAULT_MAX_ENCODED_BYTES);
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
   KafkaIntegrationEventDispatcher kafkaIntegrationEventDispatcher(
       IntegrationEventDeserializer deserializer,
-      ObjectProvider<IntegrationEventHandler<?>> handlers
+      ObjectProvider<IntegrationEventHandler<?>> handlers,
+      MessageHeadersCodec headersCodec
   ) {
     List<IntegrationEventHandler<?>> registeredHandlers = handlers.orderedStream().toList();
-    return new KafkaIntegrationEventDispatcher(deserializer, registeredHandlers);
+    return new KafkaIntegrationEventDispatcher(
+        deserializer, registeredHandlers, headersCodec);
   }
 
 }

@@ -37,7 +37,7 @@ curl -sf -X POST "${CONNECT_URL}/connectors" \
     "transforms.outbox.route.topic.replacement": "\${routedByValue}",
     "transforms.outbox.table.field.event.key": "partition_key",
     "transforms.outbox.table.expand.json.payload": true,
-    "transforms.outbox.table.fields.additional.placement": "type:header:eventType",
+    "transforms.outbox.table.fields.additional.placement": "type:header:eventType,headers:header:messageHeaders",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": false

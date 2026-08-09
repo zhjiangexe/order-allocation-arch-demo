@@ -17,14 +17,13 @@ import com.flowzati.archone.messaging.spring.jdbc.SpringMessagingJdbcConfigurati
 import java.time.Clock;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 /**
  * Spring composition root for a JDBC Outbox producer. Protocol-specific defaults, such as which
- * headers represent aggregate identity, remain the importing application's responsibility.
+ * headers represent aggregate identity, remain the importing application's responsibility. This
+ * is import-only and intentionally has no component stereotype.
  */
-@Configuration(proxyBeanMethods = false)
 @Import(SpringMessagingJdbcConfiguration.class)
 public class SpringJdbcMessageProducerConfiguration {
 

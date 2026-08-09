@@ -2,6 +2,10 @@ package com.flowzati.archone.promising.messaging;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowzati.archone.messaging.api.Message;
+import com.flowzati.archone.messaging.api.MessageHeaders;
+import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
+import com.flowzati.archone.messaging.producer.jdbc.JacksonMessageHeadersCodec;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -11,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -84,7 +87,7 @@ class OutboxCdcIntegrationTest {
 
   @Test
   @DisplayName("已提交 Outbox row 應路由至 Kafka、重啟後續傳並可由 snapshot 回放")
-  void shouldRouteCommittedOutboxRowsResumeAfterRestartAndReplaySnapshot() {
+  void shouldRouteCommittedOutboxRowsResumeAfterRestartAndReplaySnapshot() throws Exception {
     try (KafkaConsumer<String, String> consumer = consumer()) {
       consumer.subscribe(List.of(ORDER_EVENTS_TOPIC));
 
@@ -95,6 +98,10 @@ class OutboxCdcIntegrationTest {
       assertThat(firstRecord.value()).contains("\"eventId\":\"first\"");
       assertThat(header(firstRecord, "id")).isEqualTo(firstEventId.toString());
       assertThat(header(firstRecord, "eventType")).isEqualTo("OrderPlacedIntegrationEvent");
+      assertThat(JSON.readTree(header(firstRecord, "messageHeaders")))
+          .isEqualTo(JSON.createObjectNode());
+      assertThat(new KafkaMessageMapper(new JacksonMessageHeadersCodec())
+          .map(firstRecord).id()).isEqualTo(firstEventId);
 
       DEBEZIUM.stop();
       DEBEZIUM.start();
@@ -144,7 +151,7 @@ class OutboxCdcIntegrationTest {
   }
 
   @Test
-  @DisplayName("Gate A: Debezium 應將 serialized generic headers relay 成單一 Kafka header")
+  @DisplayName("Gate C: Debezium 應將 serialized generic headers relay 成單一 Kafka header")
   void shouldRelaySerializedGenericHeadersWithoutACustomSmt() throws Exception {
     registerConnector(
         DEBEZIUM,
@@ -167,6 +174,12 @@ class OutboxCdcIntegrationTest {
       assertThat(JSON.readTree(header(customRecord, "messageHeaders")))
           .isEqualTo(JSON.readTree(customHeaders));
       assertThat(header(customRecord, "eventType")).isEqualTo("GateAGenericHeadersEvent");
+      Message restored = new KafkaMessageMapper(new JacksonMessageHeadersCodec()).map(customRecord);
+      assertThat(restored.headers())
+          .containsEntry(MessageHeaders.CORRELATION_ID, "conversation-123")
+          .containsEntry(
+              MessageHeaders.TRACEPARENT,
+              "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
 
       UUID emptyEventId = appendOutboxEventWithHeaders("{}");
       ConsumerRecord<String, String> emptyRecord = awaitEvent(
@@ -203,7 +216,7 @@ class OutboxCdcIntegrationTest {
         slotName,
         "order-promising",
         "${routedByValue}",
-        "type:header:eventType");
+        "type:header:eventType,headers:header:messageHeaders");
   }
 
   private static void registerConnector(
@@ -292,14 +305,6 @@ class OutboxCdcIntegrationTest {
         .locations("classpath:db/migration")
         .load()
         .migrate();
-    try (Connection connection = DriverManager.getConnection(
-        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-        Statement statement = connection.createStatement()) {
-      // Gate A feasibility fixture only. The production migration belongs to Gate C.
-      statement.execute("ALTER TABLE event_outbox ADD COLUMN headers TEXT NOT NULL DEFAULT '{}'");
-    } catch (Exception exception) {
-      throw new IllegalStateException("Cannot add Gate A generic headers fixture column", exception);
-    }
   }
 
   private static UUID appendOutboxEvent(String eventType, String route, String payload) {

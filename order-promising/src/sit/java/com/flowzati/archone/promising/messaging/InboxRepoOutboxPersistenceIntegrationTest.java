@@ -1,10 +1,20 @@
 package com.flowzati.archone.promising.messaging;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.ArchoneIntegrationEventPublisherAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJdbcProducerAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJpaAutoConfiguration;
 import com.flowzati.archone.messaging.api.MessageMetadata;
+import com.flowzati.archone.messaging.api.MessageHeaders;
+import com.flowzati.archone.messaging.api.MessageInterceptor;
+import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
 import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
@@ -25,6 +35,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +48,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -52,7 +64,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ImportAutoConfiguration({
     FlywayAutoConfiguration.class,
     ArchoneMessagingAutoConfiguration.class,
-    ArchoneMessagingJpaAutoConfiguration.class
+    ArchoneMessagingJdbcProducerAutoConfiguration.class,
+    ArchoneMessagingJpaAutoConfiguration.class,
+    ArchoneIntegrationEventPublisherAutoConfiguration.class
 })
 @ActiveProfiles("test")
 @Import({
@@ -80,6 +94,12 @@ class InboxRepoOutboxPersistenceIntegrationTest {
 
   @Autowired
   private OrderingDomainEventPublisher eventPublisher;
+
+  @Autowired
+  private IntegrationEventPublisher integrationEventPublisher;
+
+  @Autowired
+  private ObjectMapper objectMapper;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -200,6 +220,73 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   }
 
   @Test
+  @DisplayName("JDBC producer 應保存 payload、key、timestamp 與 generic headers")
+  void shouldPersistTheCompleteJdbcOutboxContract() throws Exception {
+    UUID eventId = UUID.randomUUID();
+    UUID orderId = UUID.randomUUID();
+    Instant occurredAt = Instant.parse("2026-08-09T12:30:00Z");
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
+        eventId, orderId, occurredAt);
+
+    integrationEventPublisher.publish(
+        event,
+        new AggregateReference(OutboxAggregateTypes.ORDER, orderId.toString()),
+        new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, "HOT-SKU"),
+        occurredAt);
+
+    Map<String, Object> row = jdbcTemplate.queryForMap("""
+        SELECT aggregatetype, aggregateid, type, route, partition_key,
+               payload::text AS payload, timestamp, headers
+          FROM event_outbox
+         WHERE id = ?
+        """, eventId);
+    assertThat(row)
+        .containsEntry("aggregatetype", OutboxAggregateTypes.ORDER)
+        .containsEntry("aggregateid", orderId.toString())
+        .containsEntry("type", OrderPlacedIntegrationEvent.EVENT_TYPE)
+        .containsEntry("route", OrderingEventTopics.ORDER_EVENTS)
+        .containsEntry("partition_key", "HOT-SKU");
+    assertThat(((Timestamp) row.get("timestamp")).toInstant()).isEqualTo(occurredAt);
+    JsonNode payload = objectMapper.readTree(row.get("payload").toString());
+    assertThat(payload.path("eventId").asText()).isEqualTo(eventId.toString());
+    JsonNode headers = objectMapper.readTree(row.get("headers").toString());
+    assertThat(headers.path("event-type").asText())
+        .isEqualTo(OrderPlacedIntegrationEvent.EVENT_TYPE);
+    assertThat(headers.path("event-contract-version").asText()).isEqualTo("1");
+    assertThat(headers.path(MessageHeaders.CORRELATION_ID).asText()).isEqualTo("checkout-1");
+    assertThat(headers.path(MessageHeaders.CAUSATION_ID).asText()).isEqualTo("command-1");
+    assertThat(headers.path(MessageHeaders.TRACEPARENT).asText())
+        .isEqualTo("00-abc-def-01");
+  }
+
+  @Test
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  @DisplayName("duplicate message ID 應讓整筆 caller transaction 回滾")
+  void shouldRollbackTheCallerTransactionForADuplicateMessageId() {
+    UUID eventId = UUID.randomUUID();
+    UUID orderId = UUID.randomUUID();
+    Instant occurredAt = Instant.parse("2026-08-09T12:45:00Z");
+    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(
+        eventId, orderId, occurredAt);
+    TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+    assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
+      integrationEventPublisher.publish(
+          event,
+          new AggregateReference(OutboxAggregateTypes.ORDER, orderId.toString()),
+          new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, orderId.toString()),
+          occurredAt);
+      integrationEventPublisher.publish(
+          event,
+          new AggregateReference(OutboxAggregateTypes.ORDER, orderId.toString()),
+          new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, orderId.toString()),
+          occurredAt);
+    }))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThat(countById("event_outbox", "id", eventId)).isZero();
+  }
+
+  @Test
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   @DisplayName("Gate A: JPA business write 與 JDBC Inbox/Outbox 應共用同一交易")
   void shouldCommitAndRollbackJpaBusinessWithJdbcInboxAndOutboxAtomically() {
@@ -275,6 +362,21 @@ class InboxRepoOutboxPersistenceIntegrationTest {
     @Bean
     com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
       return new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    }
+
+    @Bean
+    MessageInterceptor correlationAndTraceHeaders() {
+      return new MessageInterceptor() {
+        @Override
+        public com.flowzati.archone.messaging.api.Message preSend(
+            com.flowzati.archone.messaging.api.Message message
+        ) {
+          return message
+              .withHeader(MessageHeaders.CORRELATION_ID, "checkout-1")
+              .withHeader(MessageHeaders.CAUSATION_ID, "command-1")
+              .withHeader(MessageHeaders.TRACEPARENT, "00-abc-def-01");
+        }
+      };
     }
   }
 }

@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'opt-in namespaced Flyway schema support for transactional messaging'
+
+dependencies {
+    api project(':messaging:messaging-jdbc-common')
+    api libs.flyway.core
+    implementation libs.spring.context
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

@@ -7,9 +7,12 @@ description = 'Spring Boot auto-configuration for Archone transactional messagin
 dependencies {
     api project(':messaging:messaging-api')
     api project(':messaging:messaging-events')
+    api project(':messaging:messaging-producer-common')
+    api project(':messaging:messaging-producer-jdbc')
     api project(':messaging:messaging-producer-outbox')
     api project(':messaging:messaging-consumer-inbox')
     api project(':messaging:messaging-consumer-kafka')
+    api project(':messaging:messaging-spring-producer-jdbc')
 
     implementation libs.spring.boot.starter.data.jpa
     implementation libs.spring.boot.starter.kafka
