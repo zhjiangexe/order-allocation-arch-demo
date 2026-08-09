@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Spring bean composition and caller-transaction enforcement for JDBC producers'
+
+dependencies {
+    api project(':messaging:messaging-producer-jdbc')
+    api project(':messaging:messaging-spring-jdbc')
+    implementation libs.spring.context
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

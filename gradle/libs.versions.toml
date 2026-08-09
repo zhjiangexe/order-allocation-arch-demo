@@ -20,6 +20,8 @@ spring-boot-configuration-processor = { group = "org.springframework.boot", name
 # Spring Cloud
 spring-cloud-starter-circuitbreaker-resilience4j = { group = "org.springframework.cloud", name = "spring-cloud-starter-circuitbreaker-resilience4j" }
 spring-context = { group = "org.springframework", name = "spring-context" }
+spring-jdbc = { group = "org.springframework", name = "spring-jdbc" }
+spring-tx = { group = "org.springframework", name = "spring-tx" }
 
 # Spring Modulith
 spring-modulith-starter-core = { group = "org.springframework.modulith", name = "spring-modulith-starter-core" }
