@@ -13,7 +13,8 @@
 3. Spring JDBC 與 Spring Kafka integration；
 4. Spring Boot auto-configuration；
 5. 依 producer／consumer 使用情境選擇的 starter；
-6. 可選、低耦合的 metrics／tracing integration。
+6. 可選、低耦合的 metrics／tracing integration；
+7. 可脫離 Saga 獨立使用的 Command／async reply 與 correlation layer。
 
 這不是要複製 Eventuate Tram 的全部功能或類別，而是採用它最重要的依賴原則：
 
@@ -25,6 +26,7 @@
 - pure JDBC implementation 透過 framework-neutral JDBC／transaction ports 執行 SQL；
 - Spring integration 負責 JDBC／transaction ports、Kafka container lifecycle 與 bean wiring；
 - application 宣告 subscription 與 operational policy，不再重複撰寫 `@KafkaListener` glue code；
+- Command／async reply 建立在 generic `Message`、Outbox／Inbox 與 programmatic subscription 上，不依賴 Saga runtime；
 - starter 只組合依賴，不承載業務邏輯。
 
 ### 1.1 參考 Eventuate Tram 的方式
@@ -52,7 +54,8 @@ Integration Event layer
 - producer implementation 寫入 PostgreSQL Outbox，由 Debezium relay 到 Kafka；
 - 只提供 PostgreSQL／Kafka／Spring implementation，但 SPI 不綁死這三者；
 - retry／DLT／concurrency 使用 Spring Kafka policy；
-- physical tables 繼續使用 `event_outbox`／`event_inbox`。
+- physical tables 繼續使用 `event_outbox`／`event_inbox`；
+- request/reply Command 預設一個 terminal Reply；fire-and-forget 使用明確的 notification API，不把 progress stream／多 Reply 混入第一版。
 
 ## 2. 本輪範圍與延後能力
 
@@ -64,7 +67,8 @@ Integration Event layer
 - JDBC Outbox／Inbox、programmatic Kafka subscription 與 Spring integration；
 - Outbox headers persistence、Debezium header relay 與 Kafka mapping；
 - producer／consumer starters、可選 schema migration 與最小 implementation contract tests；
-- idempotency、retry／DLT、lifecycle 與 observability。
+- idempotency、retry／DLT、lifecycle 與 observability；
+- 獨立的 Command／async reply contracts、dispatcher、reply correlation 與 Spring wiring；不連帶建立 Saga。
 
 ### 2.2 本次不做的事情
 
@@ -79,13 +83,14 @@ Integration Event layer
 - 不照搬 Eventuate Kafka runtime 的 concurrency／retry／DLT 預設；保留本專案已驗證的 Spring Kafka operational semantics。
 - 不在同一個 commit 同時做模組搬移、交易語意改造與 event contract 改版；同一 Gate 內若有相依步驟也必須分 commit 驗證。
 - 不預先建立沒有實際責任的 pass-through module。
+- 不實作 Saga instance、Saga DSL、補償流程或 Saga lock；Command／Reply correlation 不以此為前置。
 
 ### 2.3 保留 SPI、延後 implementation
 
 | 能力 | 目前狀況 | 本輪處理 |
 |---|---|---|
-| Command／async reply | 專案目前沒有 | 不實作；未來建立在通用 `Message` API 上。 |
-| Saga framework | 專案目前沒有 | 不實作；若需要，另建 orchestration layer。 |
+| Command／async reply | 專案目前沒有 | 本輪在 generic messaging 穩定後，以獨立 Gate 建立 contracts、dispatcher、reply correlation 與 Spring wiring。 |
+| Saga framework | 專案目前沒有 | 不實作；未來若有跨服務補償需求，再建立在 Command／async reply 之上的 orchestration layer。 |
 | 第二種 broker | 專案目前沒有 | 保留 generic producer／consumer implementation SPI，只做 Kafka consumer。 |
 | Reactive messaging | 專案目前沒有 | 不建立 reactive artifact。 |
 | 自製 CDC／一般 Kafka producer | 專案目前沒有 | 不實作；維持 Debezium relay。 |
@@ -118,6 +123,10 @@ Integration Event layer
 | Outbox headers | 本輪持久化與 relay | 以向後相容 migration 增加 serialized headers，供 correlation／causation／trace 與未來 message type 使用。 |
 | Observability | 正式納入 | pure modules 提供 decorator／interceptor SPI；Spring module 接 Micrometer Observation。 |
 | DB schema 是否跟著改名 | 否 | artifact 名稱與 physical table 名稱是兩個問題。 |
+| Command／Reply 與 Saga 是否綁定 | 否 | Command／async reply 可單獨使用；Saga 只是未來可選的上層 orchestration。 |
+| Reply correlation key | 原 Command message ID | Reply 明確攜帶 `reply-to-message-id`；不能用 business ID、Kafka key 或泛用 `correlation-id` 猜測。 |
+| Inbox 去重 key | Reply 自己的 message ID | `correlation-id`／`reply-to-message-id` 只描述關係，不得取代每則訊息自己的 idempotency identity。 |
+| Reply payload contract | generic `Message` + reply headers | 參考 Tram，不強迫所有 reply 實作共同 marker；由 `reply-type`／`reply-outcome` 表達語意。 |
 
 ## 4. 目前結構與主要問題
 
@@ -176,6 +185,7 @@ Application @KafkaListener
 messaging
 ├── messaging-api
 ├── messaging-events
+├── messaging-commands
 ├── messaging-producer-common
 ├── messaging-consumer-common
 ├── messaging-jdbc-common
@@ -189,10 +199,12 @@ messaging
 ├── messaging-spring-observability
 ├── messaging-spring-producer-observability
 ├── messaging-spring-consumer-observability
+├── messaging-spring-commands
 ├── messaging-spring-flyway
 ├── messaging-spring-boot-autoconfigure
 ├── messaging-spring-producer-starter
 ├── messaging-spring-consumer-starter
+├── messaging-spring-commands-starter
 ├── messaging-spring-boot-starter
 └── messaging-test-support
 ```
@@ -201,8 +213,9 @@ messaging
 
 | Artifact | Spring | 主要責任 | 不應包含 |
 |---|:---:|---|---|
-| `messaging-api` | 否 | immutable `Message`、standard `MessageHeaders`、`MessageBuilder`、transport-neutral `MessageContext`、`ChannelMapping`、`MessageInterceptor`、producer／consumer／handler／subscription 最小 API | Event contract、SQL、Kafka、Spring |
+| `messaging-api` | 否 | immutable `Message`、standard `MessageHeaders`、`MessageBuilder`、`MessageIdGenerator` port、transport-neutral `MessageContext`、`ChannelMapping`、`MessageInterceptor`、producer／consumer／handler／subscription 最小 API | Event contract、SQL、Kafka、Spring |
 | `messaging-events` | 否 | `IntegrationEvent`、`EventMessageHeaders`、publisher、typed dispatcher、handler、serializer contract 與 Jackson serde | `ConsumerRecord`、Spring wiring、Inbox／Outbox persistence |
+| `messaging-commands` | 否 | `Command`、command/reply headers、name mapping、codec port、`CommandProducer`、`CommandDispatcher`、handlers builder 與 reply producer；以 generic `Message` 實作 async request/reply | Saga state、補償、Spring、Kafka types、events dependency |
 | `messaging-producer-common` | 否 | `MessageProducerImpl`、`MessageProducerImplementation`、send interceptor orchestration 與 message ID／header normalization | Outbox model、SQL、JPA、Spring transaction |
 | `messaging-consumer-common` | 否 | `MessageConsumerImpl`、唯一 generic `MessageConsumerImplementation` SPI、ordered handler decorator chain、subscriber model 與 processing outcome | SQL、Spring transaction、Kafka record／listener |
 | `messaging-jdbc-common` | 否 | `JdbcStatementExecutor`、`MessagingTransactionTemplate`、`MessagingSqlDialect`、`MessagingSchema`、`MessagingTableNames` 等 framework-neutral JDBC／transaction ports | `JdbcTemplate`、`PlatformTransactionManager` |
@@ -216,10 +229,12 @@ messaging
 | `messaging-spring-observability` | 是 | 共用 Micrometer naming／convention／context helpers；不得依賴 producer-common 或 consumer-common | producer／consumer adapters、Spring Kafka、Exporter |
 | `messaging-spring-producer-observability` | 是 | 將 `MessageInterceptor` send lifecycle 接到 `ObservationRegistry` | consumer common、Spring Kafka |
 | `messaging-spring-consumer-observability` | 是 | 將 `MessageHandlerDecorator` 接到 `ObservationRegistry` | producer common、Spring Kafka |
+| `messaging-spring-commands` | 是 | Command codec／name mapping defaults、dispatcher factory 與 conditional wiring；複用 generic producer／consumer runtime | Saga manager、業務 command classes、另一套 Kafka listener runtime |
 | `messaging-spring-flyway` | 是 | 提供 namespaced、opt-in Inbox／Outbox schema migrations 與 schema validation | 預設自動執行、application migration history 接管 |
 | `messaging-spring-boot-autoconfigure` | 是 | conditional bean wiring 與 properties | 業務 policy、schema migration ownership |
 | `messaging-spring-producer-starter` | 是 | producer common／JDBC、producer observation 與 auto-config dependency bundle | consumer/Kafka dependency |
 | `messaging-spring-consumer-starter` | 是 | consumer common、JDBC idempotency、Kafka subscription、consumer observation 與 auto-config bundle | producer Outbox dependency |
+| `messaging-spring-commands-starter` | 是 | commands、Spring commands wiring 與 generic producer + consumer runtime bundle；直接組合底層 implementations，不經 events starters | Saga framework、`messaging-events`、業務 command/reply contracts |
 | `messaging-spring-boot-starter` | 是 | producer + consumer all-in-one convenience bundle | implementation logic |
 | `messaging-test-support` | 否 | producer／consumer implementation TCK、message fixtures、duplicate/concurrency contracts | production auto-configuration、業務 fixtures |
 
@@ -231,6 +246,7 @@ Eventuate Tram 不是「全部 Spring」也不是「全部 pure Java」；它把
 |---|---|:---:|---|
 | `messaging-api` | base messaging API／messaging common | 否 | 放最小 generic `Message`、headers、`ChannelMapping`、producer／consumer contracts。 |
 | `messaging-events` | events API／serde | 否 | Integration Event contract 與 transport runtime 分離。 |
+| `messaging-commands` | `eventuate-tram-commands` | 否 | 和 Tram 一樣讓 command producer、dispatcher、handler 與 reply correlation 建立在 generic messaging 上；不依賴 Saga。 |
 | `messaging-producer-common` | `messaging-producer-common` | 否 | 保存 `MessageProducerImpl`、interceptor 與 implementation SPI；不放 Outbox model。 |
 | `messaging-consumer-common` | `messaging-consumer-common` | 否 | 保存 consumer orchestration、decorator 與 duplicate-detection contract。 |
 | `messaging-producer-jdbc` | `messaging-producer-jdbc` | 否 | 實作 Outbox persistence 與 `MessageProducerImplementation`；正常 publish 不加入 Kafka producer。 |
@@ -241,11 +257,15 @@ Eventuate Tram 不是「全部 Spring」也不是「全部 pure Java」；它把
 | `messaging-spring-consumer-jdbc` | `spring-consumer-jdbc` | 是 | 組裝 Inbox detector 與 Spring transaction boundary。 |
 | `messaging-spring-consumer-kafka` | `spring-consumer-kafka` | 是 | 以 Spring Kafka 程式化建立 listener containers，承接 retry／DLT／concurrency。 |
 | observation artifacts | 本專案擴充 | 是 | 共用 helper 與 producer／consumer adapters 分離，避免窄 starter 互相拉入對方依賴。 |
+| `messaging-spring-commands` | `eventuate-tram-spring-commands` | 是 | 提供 codec defaults 與 Spring bean wiring，不承載 command business type。 |
 | `messaging-spring-flyway` | Tram Spring Flyway support | 是 | library 可提供 schema，但由 application 明確 opt in。 |
 | `messaging-test-support` | Tram testing support | 否 | 在搬移 application 前驗證各 implementation 遵守相同 SPI contract。 |
-| auto-config／starters | Spring Boot integration artifacts | 是 | 只負責條件式 wiring 與依賴組合。 |
+| `messaging-spring-commands-starter` | `eventuate-tram-spring-commands-starter` | 是 | 將 commands 與 generic producer/consumer runtime 組合成可直接使用的功能；不拉入 Saga。 |
+| auto-config／其他 starters | Spring Boot integration artifacts | 是 | 只負責條件式 wiring 與依賴組合。 |
 
 因此「照 Tram」是指依賴方向與責任切分，不是每個 artifact 必須逐字同名，也不是把所有 pure interfaces 搬進 Spring starter。
+
+Tram 另有 `eventuate-tram-spring-commands-common`，主要服務它自己的多種 Spring／reactive 組合。本專案目前只有 imperative Spring runtime；在沒有第二個實際 consumer 前，不建立空的 `messaging-spring-commands-common`。若未來 command Spring wiring 出現兩個以上 implementation 共用責任，再從 `messaging-spring-commands` 萃取。
 
 ### 5.3 Pure JDBC 與 Spring JDBC 的分界
 
@@ -288,6 +308,7 @@ public interface Message {
 
 ```text
 message-id
+message-type                 # generic wire payload type；physical Outbox type 的來源
 logical-channel
 destination        # mapped physical destination
 partition-id
@@ -299,6 +320,8 @@ content-type
 ```
 
 `MessageContext` 只提供本次 delivery 的 transport-neutral context，例如 `subscriberId`、logical channel 與 processing attempt；event type 仍從 `EventMessageHeaders` 讀取，Kafka topic／partition／offset 則留在 transport diagnostic extension，不成為 application use case contract。
+
+`message-type` 是所有 persisted messages 的 generic payload type。protocol layer 必須同步設定自己的 semantic type，且值要一致：Integration Event 使用 `message-type = event-type`、Command 使用 `message-type = command-type`、Reply 使用 `message-type = reply-type`。JDBC Outbox 的 physical `type` 欄只讀 `message-type`；若 semantic headers 同時出現且值互相衝突，producer／mapper 必須 fail fast。legacy Integration Event 沒有 `message-type` 時，compatibility mapper 可由既有 `eventType`／`event-type` 補上。
 
 `MessageInterceptor` 參考 Tram 的 `preSend`／`postSend`／`preReceive`／`preHandle`／`postHandle`／`postReceive` lifecycle。producer common 直接執行 send hooks；consumer common 將 receive／handle hooks包成一個有固定 order 的 decorator。與 Tram 不同的是 `preSend` 不可原地 mutate message，若需加入 header 必須回傳新的 immutable `Message`。
 
@@ -313,7 +336,46 @@ event-aggregate-id
 event-contract-version
 ```
 
+`messaging-commands` 另外定義 Tram 風格的 command/reply headers；名稱延續本專案 kebab-case convention，不追求 Eventuate binary compatibility：
+
+```text
+command-type
+command-contract-version
+command-reply-to            # request/reply required；notification 不帶
+command-resource             # optional；只有需要 resource-scoped routing／locking 時使用
+reply-type
+reply-contract-version
+reply-outcome                # SUCCESS／FAILURE；技術例外不得偽裝成 business FAILURE reply
+reply-to-message-id          # required；直接指向原 Command message-id
+```
+
+correlation 規則固定如下：
+
+```text
+Command
+  message-id       = 這筆 Command 的唯一 ID
+  correlation-id   = caller 提供的 conversation ID；若無則使用 Command message-id
+  causation-id     = optional，表示觸發這筆 Command 的直接前因
+  command-reply-to = Reply logical channel
+
+Reply
+  message-id          = 這筆 Reply 自己的新唯一 ID
+  reply-to-message-id = 原 Command message-id
+  correlation-id      = 繼承原 Command correlation-id
+  causation-id        = 原 Command message-id
+```
+
+`reply-to-message-id` 是 request/reply protocol 的直接 correlation key；`correlation-id` 是整段 conversation／trace lineage，兩者不能互相取代。Inbox 對 Command 與 Reply 都只使用各自的 `message-id` 去重，否則同一 conversation 的第二則訊息會被誤判為 duplicate。
+
+API 將 request/reply 與 fire-and-forget 分開：`send(...)` 必須提供 reply logical channel 並期望一個 terminal Reply；`sendNotification(...)` 明確不帶 `command-reply-to`，handler 不得回覆。第一版不支援 progress／streaming replies；若需要長時間進度，優先發布 Integration Event 或另建 workflow/read model，而不是讓 correlation layer 變成隱性流程引擎。
+
+參考 Tram，只有 `Command` 需要 marker contract；Reply 是帶有 `reply-type`、`reply-outcome` 與 `reply-to-message-id` 的 generic `Message`。typed reply payload 仍可由 application 定義 record/class，但 framework 不強迫共同繼承 `Reply` base type。
+
+`command-type`／`reply-type` 是 wire-level stable name，不是允許外部輸入直接交給 `Class.forName(...)` 的 Java FQCN。dispatcher 只能從 application 明確註冊的 handler/type registry 取得目標 class，再交給 codec 反序列化。contract version 預設從 `1` 開始；已知 type 但不支援的 version 是 contract failure，必須依 dedicated subscription policy retry／DLT，不能當成 unknown message 忽略。
+
 現有 Integration Event publisher 以 `IntegrationEvent.eventId` 設定 `message-id`，維持 Inbox 與 payload contract validation 使用同一個 identity；generic non-event message 若未提供 ID，才由 producer common 的 ID generator 補上。
+
+需要在 `send(...)` 回傳 ID 的上層 protocol（例如 Command）必須在呼叫 generic `MessageProducer` 前，透過 `messaging-api` 的 `MessageIdGenerator` 建立 message ID；producer common 只驗證並保留既有 ID，不得再次替換。如此不必讓 commands module 依賴 producer implementation，也不必修改 generic `MessageProducer.send(...)` 的既有 `void` signature。
 
 `event-contract-version` 採 additive policy：既有未帶版本的訊息視為 `1`，新 publisher 明確寫入 `1`；event type 已知但版本不支援屬於 contract failure，不得當成 unrelated unknown event 忽略。未來需要 v2 時先定義 handler compatibility，再決定同 event type 加版本或建立新 event type。
 
@@ -338,6 +400,26 @@ KafkaMessageMapper
 
 使用單一 serialized `messageHeaders` transport header，是為了讓 Debezium EventRouter 可 relay 任意 logical headers，同時維持既有 raw event payload 與 `eventType` consumers 相容。必須加入 header size limit、合法 key/value、JSON decode failure 與 reserved-key collision tests。
 
+Gate J 啟用 Command／Reply 前必須處理現有 physical schema 的語意落差：`event_outbox.aggregatetype`／`aggregateid` 目前為 `NOT NULL`，但 generic Command／Reply 不保證具有 Aggregate identity。保留 `event_outbox` 表名的前提下，採 application-owned migration 將這兩欄改為 nullable；`messaging-events` 仍在 contract／mapper 層強制 Integration Event 必須提供兩者，不能因 DB 放寬而降低 event contract。
+
+```text
+Integration Event row
+  aggregatetype / aggregateid = required domain aggregate identity
+  type                        = message-type = event-type
+
+Command row
+  aggregatetype / aggregateid = optional；有真實 target resource identity 才填
+  type                        = message-type = command-type
+
+Reply row
+  aggregatetype / aggregateid = optional
+  type                        = message-type = reply-type
+```
+
+不得寫入 `"Message"`、`"N/A"`、command ID 等假 aggregate 值來滿足舊 constraint。若 SIT 證明 Debezium EventRouter 在目前設定下仍硬性要求 aggregate columns，Gate J 必須停止並 review 新增 generic `message_outbox` table／connector pipeline；不能把 transport 限制洩漏回 Command contract。
+
+現有 connector 會將 physical `type` 另外 relay 成 legacy `eventType` Kafka header，因此 generic mapper 必須依 serialized semantic headers 判別：有 `command-type`／`reply-type` 時不得把 legacy `eventType` 再 canonicalize 成 `event-type`；只有 Integration Event 或沒有新 headers 的 legacy event 才做相容 mapping。Gate J 必須加入這個 collision／classification golden test，避免 Command 被 event dispatcher 誤認。
+
 Schema abstraction 本輪建立 `MessagingSqlDialect`、`MessagingSchema`、`MessagingTableNames`，只提供 PostgreSQL implementation。`messaging-spring-flyway` 提供 opt-in migrations；目前已有 application-owned Flyway history 的 `order-promising` 仍以新的 application migration 加欄位，不能同時讓 library migration 重複接管。
 
 ### 5.5 目標依賴方向
@@ -346,6 +428,7 @@ Schema abstraction 本輪建立 `MessagingSqlDialect`、`MessagingSchema`、`Mes
 flowchart BT
   API[messaging-api]
   EVENTS[messaging-events]
+  COMMANDS[messaging-commands]
   PC[messaging-producer-common]
   CC[messaging-consumer-common]
   JC[messaging-jdbc-common]
@@ -359,14 +442,17 @@ flowchart BT
   OBS[messaging-spring-observability]
   POBS[messaging-spring-producer-observability]
   COBS[messaging-spring-consumer-observability]
+  SCOMMANDS[messaging-spring-commands]
   FLY[messaging-spring-flyway]
   AUTO[messaging-spring-boot-autoconfigure]
   PS[messaging-spring-producer-starter]
   CS[messaging-spring-consumer-starter]
+  COMMANDS_STARTER[messaging-spring-commands-starter]
   ALL[messaging-spring-boot-starter]
   TEST[messaging-test-support]
 
   EVENTS --> API
+  COMMANDS --> API
   PC --> API
   CC --> API
   PJ --> PC
@@ -386,6 +472,7 @@ flowchart BT
   POBS --> PC
   COBS --> OBS
   COBS --> CC
+  SCOMMANDS --> COMMANDS
   TEST --> API
   TEST --> PC
   TEST --> CC
@@ -396,6 +483,7 @@ flowchart BT
   AUTO -. compileOnly / conditional .-> SCK
   AUTO -. compileOnly / conditional .-> POBS
   AUTO -. compileOnly / conditional .-> COBS
+  AUTO -. compileOnly / conditional .-> SCOMMANDS
   AUTO -. compileOnly / conditional .-> FLY
   PS --> AUTO
   PS --> EVENTS
@@ -407,6 +495,13 @@ flowchart BT
   CS --> SCJ
   CS --> SCK
   CS --> COBS
+  COMMANDS_STARTER --> AUTO
+  COMMANDS_STARTER --> SCOMMANDS
+  COMMANDS_STARTER --> SPJ
+  COMMANDS_STARTER --> SCJ
+  COMMANDS_STARTER --> SCK
+  COMMANDS_STARTER --> POBS
+  COMMANDS_STARTER --> COBS
   ALL --> PS
   ALL --> CS
 ```
@@ -424,6 +519,9 @@ flowchart BT
 - producer starter 不得引入 consumer Inbox、Kafka client 或 Spring Kafka。
 - consumer starter 不得引入 producer Outbox。
 - all-in-one starter 只聚合兩個窄 starter。
+- `messaging-commands` 只依賴 generic messaging API，不得依賴 `messaging-events` 或任何 Saga module。
+- Command caller 需要送 Command 並收 Reply，participant 需要收 Command 並送 Reply；因此 `messaging-spring-commands-starter` 組合完整 generic producer + consumer runtime 是刻意設計，不視為窄 starter dependency leakage。它不得依賴 all-in-one／events starters，避免讓 Command capability transitively 帶入 `messaging-events`。
+- notification-only producer／consumer 若確實需要更窄 dependency，可直接組合 `messaging-commands`、`messaging-spring-commands` 與所需的 generic producer／consumer implementation artifacts；現有 producer／consumer starters仍包含 events layer，不能拿來宣稱 commands-only dependency tree。在出現重複組合需求前，不另外建立 pass-through command-producer／command-consumer starters。
 
 ## 6. 目標執行流程
 
@@ -574,11 +672,63 @@ known event but invalid payload / missing required header
   → subscription failure classifier decides retry / DLT
 ```
 
-未來若建立 dedicated command channel，預設可改為 strict `FAIL`；本輪不實作 command messaging。
+Gate J 建立 dedicated command channel 時預設採 strict `FAIL`；Command 是定向要求，不得像 shared event channel 一樣靜默忽略未知 type。
 
 `IGNORED_UNHANDLED` 使用同一個 subscriber 重新投遞時會成為 duplicate；若日後新增 handler 並需要補處理歷史事件，必須建立明確的 replay／backfill subscriber ID，而不是悄悄清除 Inbox。
 
-### 6.4 Concurrency、retry 與 DLT
+### 6.4 Command／async reply（不含 Saga）
+
+Command／Reply 直接複用 generic Outbox、Inbox、channel mapping 與 subscription runtime，不建立第二套 transport：
+
+```text
+Requester local transaction
+  → CommandProducer.send(commandChannel, command, replyChannel)
+      → Command → generic Message + command headers
+      → MessageProducer → event_outbox
+      → return command message-id
+  → commit
+  → Debezium → Kafka command channel
+
+Participant command subscription
+  → Inbox claim(command.message-id)
+  → CommandDispatcher → typed CommandHandler
+      → application use case
+      → CommandReplyProducer
+          → Reply generic Message
+          → reply-to-message-id = command.message-id
+          → correlation-id = command.correlation-id
+          → causation-id = command.message-id
+          → event_outbox
+  → Inbox + business mutation + Reply Outbox commit together
+  → Debezium → Kafka reply channel
+
+Requester reply subscription
+  → Inbox claim(reply.message-id)
+  → validate reply-to-message-id
+  → typed ReplyHandler
+      → application-specific state update／notification
+```
+
+`CommandProducer.send(...)` 回傳 Command message ID，caller 可把它存入自身 business request record；framework 不建立通用 pending-command table，也不以 `CompletableFuture`、thread blocking 或 process-local map 等待 Reply。若 application 需要 timeout、長期狀態或多步補償，應由 application state 或未來 Saga layer 負責，不塞進 correlation layer。
+
+回傳 message ID 不代表 broker 已送達；若 caller 要保存 pending request，該 record 必須和 Command Outbox append 位於同一 local transaction。transaction rollback 後，該 ID 對應的 Command 不應存在。
+
+失敗語意必須分開：
+
+```text
+expected business rejection
+  → handler 建立 FAILURE Reply
+  → business decision + Reply Outbox 正常 commit
+
+technical exception
+  → exception 原樣拋出
+  → Inbox／business／Reply Outbox rollback
+  → Spring Kafka retry／DLT policy 接手
+```
+
+Command／Reply correlation 只能提供「這個 Reply 回哪個 Command」，不會自動決定下一步、timeout、補償或 Saga completion。
+
+### 6.5 Concurrency、retry 與 DLT
 
 Tram 風格只用於 subscription／decorator／idempotency，不照搬其 Kafka operational defaults。本專案繼續使用 Spring Kafka：
 
@@ -605,7 +755,7 @@ other exceptions
 
 它可以演進為 subscriber-specific `KafkaSubscriptionPolicy`／`CommonErrorHandler` override，但不可在移除 `@KafkaListener` 時一併遺失。程式化建立的 container 必須由同一個 `ConcurrentKafkaListenerContainerFactory` 套用 `DefaultErrorHandler` 與 `DeadLetterPublishingRecoverer`。
 
-### 6.5 建議設定面
+### 6.6 建議設定面
 
 底層連線與 Kafka client properties 繼續沿用 Spring Boot：
 
@@ -651,12 +801,16 @@ archone:
 | `Message` | `messaging-api`，改為 immutable payload + headers generic envelope | contract 演進 |
 | `MessageMetadata` | 過渡成 `MessageContext`／header accessor；不再把 event metadata 固定在 base API | contract 演進 |
 | `MessageProducer` | `messaging-api`，維持 `send(logicalDestination, message)` | 保留 signature |
-| 尚無 `MessageBuilder`／`MessageHeaders` | 新增於 `messaging-api` | 新 contract |
+| 尚無 `MessageBuilder`／`MessageHeaders`／`MessageIdGenerator` | 新增於 `messaging-api` | 新 contract |
 | 尚無 `ChannelMapping` | 新增於 `messaging-api`，由 producer／consumer common 共用 | 新 contract |
 | `InboundCommand<C>` | 過渡期保留，Gate E 後由 use case signature 移除 | 行為重構 |
 | `IntegrationEvent*` contracts | `messaging-events`，保留 | 不變 |
 | 尚無 `EventMessageHeaders` | 新增於 `messaging-events` | 新 contract |
 | `JacksonIntegrationEventSerde` | 暫留 `messaging-events` | 不為單一 codec 過度拆模組 |
+| 尚無 `Command`／`CommandMessageHeaders` | Gate J 新增於 `messaging-commands` | 新 contract |
+| 尚無 `CommandProducer`／`CommandDispatcher`／`CommandReplyProducer` | Gate J 新增於 `messaging-commands`，複用 generic producer／consumer | 新 orchestration layer |
+| 尚無 Reply correlation | Gate J 以 `reply-to-message-id` 對應原 Command，另保留 correlation／causation lineage | 新 protocol contract |
+| 尚無 Saga types | 不在本輪建立 | 明確延後 |
 | `Outbox` | `messaging-producer-jdbc`，加入 serialized headers | persistence contract 演進 |
 | `OutboxRepo` | 由 `JdbcOutboxMessageProducerImplementation` 的內部 persistence port／implementation 取代 | persistence 改造 |
 | `OutboxMessageProducer` | 由 common `MessageProducerImpl` + JDBC `MessageProducerImplementation` 取代 | orchestration 拆分 |
@@ -725,9 +879,9 @@ package 名稱原則：若 package 本身仍能準確表意，優先只移 modul
 - [ ] B2. 在 `settings.gradle` 加入 `messaging-consumer-common`。
 - [ ] B3. 在 `settings.gradle` 加入 `messaging-jdbc-common`。
 - [ ] B4. 將 `Message` 演進為 immutable payload + headers envelope；建立 `MessageBuilder`、standard `MessageHeaders` 與 required-header validation。
-- [ ] B5. 保留既有 event ID／type／aggregate／partition semantics：由 `messaging-events` 的 mapper 使用 `EventMessageHeaders` 建立 generic `Message`；缺少 `event-contract-version` 視為 `1`，新 message 明確設定 `1`。
+- [ ] B5. 保留既有 event ID／type／aggregate／partition semantics：由 `messaging-events` 的 mapper 使用 `EventMessageHeaders` 建立 generic `Message`，並同步設定 `message-type = event-type`；缺少 `event-contract-version` 視為 `1`，新 message 明確設定 `1`。
 - [ ] B6. 在 `messaging-api` 定義 `ChannelMapping` 與 identity／map-backed implementations；logical destination 不得再由 JDBC adapter 自行解讀。
-- [ ] B7. 在 `messaging-api` 建立 Tram 風格 `MessageInterceptor` lifecycle；因 `Message` immutable，`preSend` 若補 header 必須回傳新 message。producer-common 建立 `MessageProducerImpl`、唯一 `MessageProducerImplementation` SPI 與 message ID generator port。
+- [ ] B7. 在 `messaging-api` 建立 Tram 風格 `MessageInterceptor` lifecycle 與 `MessageIdGenerator` port；因 `Message` immutable，`preSend` 若補 header 必須回傳新 message。producer-common 建立 `MessageProducerImpl`、唯一 `MessageProducerImplementation` SPI，並提供 default message ID generator implementation。
 - [ ] B8. `MessageProducerImpl` 負責 channel mapping、reserved header normalization 與 interceptor lifecycle；common 不得包含 `Outbox`／SQL types。
 - [ ] B9. 在 `messaging-api` 定義 `MessageConsumer`、`MessageHandler`、`MessageSubscription` 與明確分離的 `subscriberId`／`consumerGroupId` subscription model。
 - [ ] B10. 在 `messaging-consumer-common` 建立 `MessageConsumerImpl` 與唯一 generic `MessageConsumerImplementation` SPI；不得另外建立 Kafka-specific implementation SPI。
@@ -1042,18 +1196,62 @@ archone.messaging.producer
 - concurrency、retry、DLT 與 observability policies 在新 runtime 下有可驗證的對應行為。
 - 完整 producer → Debezium → Kafka → consumer → Inbox → business → optional Outbox chain 通過。
 
-### Gate J — 後續可選能力
+### Gate J — 獨立 Command／async reply correlation（不含 Saga）
+
+目的：在 generic messaging runtime 穩定後，建立可單獨使用的 Tram 風格 Command／async reply；只處理定向命令、回覆與 correlation，不引入 Saga state／補償。
+
+- [ ] J1. 在 `settings.gradle` 加入 pure `messaging-commands`、`messaging-spring-commands` 與 `messaging-spring-commands-starter`。
+- [ ] J2. 增加 application-owned migration，將 `event_outbox.aggregatetype`／`aggregateid` 改為 nullable，並讓 JDBC row mapper 對 generic Message 使用 optional aggregate headers、以 required `message-type` 寫 physical `type`；Integration Event mapper 仍強制 aggregate identity required，Command／Reply 不得填 sentinel fake aggregate。若 Debezium SIT 不接受 nullable aggregate columns，停止並 review 獨立 `message_outbox` pipeline。
+- [ ] J3. 在 `messaging-commands` 定義 `Command`、`CommandMessageHeaders`、`ReplyMessageHeaders`、`CommandReplyOutcome` 與 command/reply stable type mapping；不得依賴 `messaging-events`，也不得以不受控的 Java FQCN 動態載入 payload class。
+- [ ] J4. 定義 `CommandMessageCodec` port，涵蓋 typed Command 與 typed Reply payload 的 serialize／deserialize，讓 pure commands module 不依賴 Jackson／Spring；default implementation 由 `messaging-spring-commands` 使用 application `ObjectMapper` 提供。
+- [ ] J5. 實作 `CommandMessageFactory` 與 `CommandProducer`／`CommandProducerImpl`：`send(...)` 要求 reply channel，`sendNotification(...)` 明確不帶 reply channel；先透過 `MessageIdGenerator` 建立 command message ID，設定一致的 `message-type`／`command-type` 與 `command-contract-version`，再經 generic `MessageProducer` 寫 Outbox 並回傳該 ID，不得依賴 producer implementation class。
+- [ ] J6. command 若沒有 caller-provided `correlation-id`，在 send 前以 Command message ID 作為 root correlation ID；generic producer normalization 必須保留該 ID，禁止另產生一個無法對照的 request ID。
+- [ ] J7. 實作 type-safe `CommandHandlers`／builder、registered-type-only `CommandDispatcher` 與 programmatic command subscription；dedicated command channel 對未知 command type、已知 type 但不支援的 contract version 預設 strict `FAIL`。
+- [ ] J8. 實作 `CommandReplyProducer`：request/reply Command 產生一個 terminal Reply，每筆 Reply 取得新的 message ID，設定一致的 `message-type`／`reply-type`、`reply-contract-version`、`reply-outcome`、`reply-to-message-id`、繼承的 `correlation-id` 與指向 Command 的 `causation-id`；notification handler 嘗試回覆必須 fail fast。
+- [ ] J9. Reply payload 使用 generic `Message`；不新增沒有實際價值的共同 `Reply` marker／abstract class。application 可自行定義 typed reply record/class。
+- [ ] J10. 建立 registered-type-only Reply dispatcher／handler registration，以 `reply-to-message-id` 對應原 Command；不得從 business ID、partition key、Kafka offset 或 `correlation-id` 推測，也不得依 header 任意載入 Java class。
+- [ ] J11. Command 與 Reply 分別使用自己的 `message-id` 進行 Inbox 去重；加入同一 correlation 下多筆訊息不會互相誤判 duplicate 的測試。
+- [ ] J12. 驗證 participant transaction 原子性：Command Inbox claim、business mutation 與 Reply Outbox 一起 commit／rollback。
+- [ ] J13. 驗證 requester Reply handler transaction 原子性：Reply Inbox claim 與 application state update 一起 commit／rollback。
+- [ ] J14. 固定 expected business rejection 與 technical exception 邊界：前者產生 `FAILURE` Reply 並 commit；後者拋出並交由 retry／DLT，不得先送 failure reply。
+- [ ] J15. `messaging-spring-commands` 提供 conditional command codec、producer、dispatcher factory 與 reply producer wiring；application bean 可以 override。
+- [ ] J16. `messaging-spring-commands-starter` 直接聚合 commands 與完整 generic producer + consumer implementations；不得經 all-in-one／events starters，也不得引入 `messaging-events` 或任何 Saga artifact。
+- [ ] J17. 加入 success／business failure／duplicate Command／duplicate Reply／missing reply channel／missing or unknown command/reply type／unsupported contract version／invalid `reply-to-message-id`／unregistered class name contract tests。
+- [ ] J18. 加入 Outbox → Debezium → Kafka → Inbox 的 Command/Reply end-to-end test，確認 nullable aggregate columns、headers、message IDs、correlation、causation 與 transaction rollback。
+- [ ] J19. 加入 legacy `eventType` 與 serialized `command-type`／`reply-type` collision golden test，保證 Command／Reply 不會被 canonicalize 成 Integration Event。
+- [ ] J20. 加入 observation：command/reply type 與 outcome 可作 low-cardinality tags；message／correlation／causation IDs 只能進 trace/log。
+- [ ] J21. 文件化 caller 與 participant 的最小使用方式，並明示 framework 不提供 blocking wait、process-local pending map、timeout state machine 或補償。
+- [ ] J22. 加入 architecture test，禁止 `messaging-commands` 依賴 Spring、Kafka、events 或任何未來 Saga module。
+
+驗收條件：
+
+- 不建立 Saga 也能完成一個可靠的 Command → Reply round trip。
+- Command／Reply 都走既有 Outbox／Debezium／Kafka／Inbox，不存在第二套 producer、consumer 或 listener runtime。
+- `reply-to-message-id` 可精確找到原 Command；`correlation-id` 只負責 conversation lineage。
+- duplicate Command 不重複執行 participant use case；duplicate Reply 不重複更新 requester state。
+- technical exception 不會被誤轉成已成功送出的 business failure Reply。
+- commands starter 沒有 events 或 Saga transitive dependency。
+- Integration Event 仍保有真實 aggregate identity；Command／Reply 可在不偽造 aggregate 的情況下通過既有 Debezium pipeline。
+
+停止條件：
+
+- 使用 `correlation-id` 或 business ID 作為 Inbox unique key。
+- 以記憶體 `Future`／latch／map 等待跨程序 Reply。
+- 為了 Command serialization 讓 commands module 反向依賴 events module。
+- 以 sentinel／message ID 偽造 `aggregatetype`／`aggregateid`，或 generic mapper 將 Command／Reply 誤判為 Integration Event。
+- correlation layer 開始保存 current step、執行補償或管理 timeout state；這些已跨入 Saga／workflow responsibility，必須另開設計。
+
+### Gate K — 後續可選能力
 
 以下不是本輪完成條件，只有出現實際需求才做：
 
-- [ ] J1. 若出現實際 request/reply use case，建立 commands／replies artifacts；不得把 command semantics 塞入 events module。
-- [ ] J2. 若出現跨服務補償需求，在 messaging 之上另建 Saga orchestration modules。
-- [ ] J3. 若出現第二種 framework runtime，再為 pure JDBC／consumer SPIs 增加 Micronaut／Quarkus adapters。
-- [ ] J4. 若出現第二種 broker，再新增對應 `MessageConsumerImplementation`／producer delivery implementation；不得修改 base API 迎合 Kafka types。
-- [ ] J5. 若出現第二種 codec，再將 Jackson serde 抽出獨立 serialization artifact。
-- [ ] J6. 評估 non-blocking retry topic pattern；不得在沒有實際 partition-blocking 問題前預先複雜化。
-- [ ] J7. 若 retention volume 證明需要，再建立可停用、分批且可觀測的 Inbox／Outbox cleanup scheduler。
-- [ ] J8. artifacts 需要獨立發布時，再建立 BOM 與 compatibility matrix。
+- [ ] K1. 若出現跨服務補償需求，在 commands 之上另建 Saga orchestration modules。
+- [ ] K2. 若出現第二種 framework runtime，再為 pure JDBC／consumer SPIs 增加 Micronaut／Quarkus adapters。
+- [ ] K3. 若出現第二種 broker，再新增對應 `MessageConsumerImplementation`／producer delivery implementation；不得修改 base API 迎合 Kafka types。
+- [ ] K4. 若出現第二種 serialization technology（例如非 Jackson codec），再評估將真正共用的 payload codec contract／implementation 抽出獨立 serialization artifacts；event／command 的不同 type registry 不等於必須先拆共用 module。
+- [ ] K5. 評估 non-blocking retry topic pattern；不得在沒有實際 partition-blocking 問題前預先複雜化。
+- [ ] K6. 若 retention volume 證明需要，再建立可停用、分批且可觀測的 Inbox／Outbox cleanup scheduler。
+- [ ] K7. artifacts 需要獨立發布時，再建立 BOM 與 compatibility matrix。
 
 ## 9. Gate 依賴與風險
 
@@ -1068,14 +1266,16 @@ archone.messaging.producer
 | G | C、D、F | observation／metrics／tracing | 中 | 可與 F 同一 branch，但分 commit |
 | H | C～G | auto-config + starters | 中 | 否 |
 | I | C～H | application migration／cleanup | 中 | 否 |
-| J | I | optional capabilities | 視項目 | 不屬本輪 |
+| J | I | standalone Command／async reply correlation | 中 | 否 |
+| K | I；Saga 項目另需 J | optional Saga／other capabilities | 視項目 | 不屬本輪 |
 
 Producer 與 consumer 的實作可在 Gate B 後平行演進：
 
 ```text
 Gate A → Gate B ─┬→ Gate C ─────────────────────────┐
                  └→ Gate D → Gate E → Gate F → G ──┼→ Gate H → Gate I
-                                                     ┘
+                                                     ┘             ├→ Gate J (commands)
+                                                                   └→ Gate K (optional；Saga 另需 Gate J)
 ```
 
 ## 10. 實作時的交易規則
@@ -1147,6 +1347,7 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 | Observability | Outbox trace propagation、transport／semantic observations、outcomes、tag cardinality、no duplicate timers |
 | Application integration | logical channel → dispatcher → handler → use case、REST direct command、duplicate／ignored skip、failure retry |
 | End to end | generic headers + raw event payload：Outbox → Debezium → Kafka → mapper → Inbox → business → chained Outbox |
+| Command／async reply | Command ID creation、reply channel、`reply-to-message-id`、correlation／causation inheritance、strict dispatch、duplicate Command／Reply、business failure vs technical exception |
 | Architecture | pure common／JDBC／Kafka modules 無 Spring/JPA imports；Kafka mapper 與 event dispatcher分離；producer／consumer dependencies 獨立 |
 
 預計驗證命令；實作時依實際 task 名稱調整：
@@ -1154,6 +1355,7 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 ```bash
 ./gradlew :messaging:messaging-api:test
 ./gradlew :messaging:messaging-events:test
+./gradlew :messaging:messaging-commands:test
 ./gradlew :messaging:messaging-producer-common:test
 ./gradlew :messaging:messaging-consumer-common:test
 ./gradlew :messaging:messaging-jdbc-common:test
@@ -1167,6 +1369,7 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 ./gradlew :messaging:messaging-spring-observability:test
 ./gradlew :messaging:messaging-spring-producer-observability:test
 ./gradlew :messaging:messaging-spring-consumer-observability:test
+./gradlew :messaging:messaging-spring-commands:test
 ./gradlew :messaging:messaging-spring-flyway:test
 ./gradlew :messaging:messaging-spring-boot-autoconfigure:test
 ./gradlew :messaging:messaging-test-support:test
@@ -1180,6 +1383,7 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 ```bash
 ./gradlew :messaging:messaging-spring-producer-starter:dependencies
 ./gradlew :messaging:messaging-spring-consumer-starter:dependencies
+./gradlew :messaging:messaging-spring-commands-starter:dependencies
 ```
 
 ## 12. Rollback 策略
@@ -1192,6 +1396,8 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 6. Gate F 移除 `@KafkaListener` 前後必須分 commit；若 programmatic runtime 的 retry／DLT regression，先恢復舊 listeners，不得關閉 DLT 當作修正。
 7. observability decorator 必須可單獨停用；metrics／tracing failure 不得改變 message outcome。
 8. starters 切換前保留 all-in-one 使用方式，確認 narrow starters dependency tree 後再清理。
+9. Gate J 的 runtime 是 base messaging 上的 additive layer；若 Command／Reply rollout 失敗，停用 commands starter／subscriptions 即可，不得回退已驗證的 generic Outbox／Inbox schema。已送出的 Command／Reply 需依 message ID 與 Inbox 狀態完成 drain 或建立明確 replay plan。
+10. `aggregatetype`／`aggregateid` 放寬 nullable 後，rollback 預設保留 nullable constraint；它不會削弱 `messaging-events` 的 application-level validation。只有確認不存在 aggregate-null Command／Reply rows 時才可另做 migration 恢復 `NOT NULL`，不得在 rollback 當下直接執行。
 
 ## 13. 實作前最後 review 點
 
@@ -1213,11 +1419,18 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 | 14 | 是否分開 `subscriberId` 與 `consumerGroupId` | ✅ | 預設同值但語意不同，API、設定與 migration runbook 均分開。 |
 | 15 | 是否持久化 Outbox generic headers | ✅ | 加 additive `headers` 欄位並經 Debezium relay，支援 correlation／causation／trace。 |
 | 16 | 是否提供 opt-in library schema migration | ✅ | 建 `messaging-spring-flyway`；不自動接管已有 application migration history。 |
-| 17 | 是否本輪建立 commands／replies、Saga、多 broker implementation |  | 否；base SPI 預留擴充，本輪不建立沒有需求的 implementation。 |
+| 17 | 是否本輪建立 standalone commands／async replies | ✅ | 是；放在 generic messaging 完成後的 Gate J，只做定向 Command、Reply 與 correlation，不依賴 Saga。 |
+| 18 | 是否本輪建立 Saga／補償／Saga state |  | 否；只有出現跨服務補償需求才在 Gate K 另建 orchestration layer。 |
+| 19 | Reply 是否強迫實作共同 marker／abstract class |  | 否；參考 Tram，以 generic `Message` + reply headers 表達，application 自行定義 typed payload。 |
+| 20 | Reply correlation 是否直接使用 `correlation-id` |  | 否；直接關聯使用 `reply-to-message-id = command.message-id`，`correlation-id` 只表示 conversation lineage。 |
+| 21 | Command／Reply 是否偽造 aggregate identity 以沿用 `event_outbox` |  | 否；Gate J migration 放寬 aggregate columns，Event contract 繼續在 mapper 層 required。若 Debezium 不接受則停下 review 獨立 generic Outbox。 |
+| 22 | 是否依 wire header 動態載入 Command／Reply class |  | 否；只允許 application 明確註冊的 stable type + version mapping，避免 FQCN coupling 與不受控反序列化。 |
+| 23 | 第一版是否支援一個 Command 多筆 progress／streaming Reply |  | 否；request/reply 是一個 terminal Reply，fire-and-forget 使用 `sendNotification(...)`，進度改用 Event／read model。 |
 
 ## 14. Definition of Done
 
 - [ ] base `Message` 是 immutable payload + headers envelope；event-only metadata 由 `messaging-events` headers 定義。
+- [ ] persisted message 的 `message-type` 是 physical Outbox `type` 唯一 generic 來源；event／command／reply semantic type 與它一致，衝突時 fail fast。
 - [ ] `MessageProducerImpl`／`MessageConsumerImpl` 共用 `ChannelMapping`，logical channel 不由 JDBC／Kafka adapter 私自解析。
 - [ ] producer／consumer 各只有一個 generic implementation SPI，且通過 `messaging-test-support` contract tests。
 - [ ] pure API／events／common／JDBC／Kafka modules 無 Spring dependency。
@@ -1244,6 +1457,15 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 - [ ] schema migration 可 opt in；現有 application migration history 不會被 library 自動接管。
 - [ ] physical tables 仍為 `event_inbox`、`event_outbox`。
 - [ ] 舊 `messaging-producer-outbox`、`messaging-consumer-inbox` migration modules 已清理。
+- [ ] `messaging-commands` 可在沒有 Saga module 時完成 Command → Reply round trip，且不依賴 events／Spring／Kafka types。
+- [ ] Command 與 Reply 都有自己的 message ID；Reply 以 `reply-to-message-id` 精確對應原 Command，conversation correlation／causation headers 正確傳遞。
+- [ ] `event_outbox` 可保存沒有 aggregate identity 的 Command／Reply；Integration Event mapper 仍拒絕缺少 aggregate identity，且沒有 sentinel fake aggregate。
+- [ ] legacy `eventType` relay header 不會讓帶有 `command-type`／`reply-type` 的訊息被 mapper 誤判為 Integration Event。
+- [ ] Command／Reply dispatcher 只反序列化已註冊的 stable type/version；unknown type、unsupported version 與偽造 FQCN 都會安全失敗。
+- [ ] Command Inbox + participant business mutation + Reply Outbox 位於同一 transaction；Reply Inbox + requester state update亦位於同一 transaction。
+- [ ] duplicate Command／Reply、business failure Reply、technical exception retry／DLT 邊界均有 contract／integration tests。
+- [ ] commands runtime 不使用 blocking wait、process-local pending request map，也不包含 Saga state、timeout orchestration 或 compensation。
+- [ ] `messaging-spring-commands-starter` 只組合 commands 與既有 generic messaging runtime，沒有 events／Saga transitive dependency。
 - [ ] unit、integration、SIT、end-to-end 與 architecture tests 全數通過。
 - [ ] `eventuate-tram-gap-analysis.md` 與相關 HTML 文件已同步更新。
 
@@ -1259,7 +1481,8 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 6. bounded context 透過 policy／bean override 提供 application-specific exception classification；
 7. generic headers 以單一 serialized Kafka header 經 Debezium EventRouter relay，避免自製 CDC／SMT；
 8. observability 採 pure decorator／interceptor SPI + 分離的 Micrometer producer／consumer adapters；
-9. physical tables 保留 `event_inbox`、`event_outbox`。
+9. physical tables 保留 `event_inbox`、`event_outbox`；
+10. Command／async reply 參考 Tram 的獨立 commands artifact 與 `reply-to-message-id` correlation，但不連帶導入 Saga。
 
 因此最終目標是「Tram 風格的責任與依賴方向」，不是複製 Tram 的所有 runtime feature。
 
@@ -1272,5 +1495,8 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 - [Eventuate Tram `MessageConsumerImpl`](https://eventuate.io/docs/javadoc/eventuate-tram/0.24.0.RC5/io/eventuate/tram/consumer/common/MessageConsumerImpl.html)
 - [Eventuate Tram `DefaultChannelMapping`](https://eventuate.io/docs/javadoc/eventuate-tram/0.24.0.RC5/io/eventuate/tram/messaging/common/DefaultChannelMapping.html)
 - [Eventuate SQL duplicate detector](https://eventuate.io/docs/javadoc/eventuate-tram/0.25.1.RELEASE/io/eventuate/tram/consumer/jdbc/SqlTableBasedDuplicateMessageDetector.html)
+- [Eventuate Tram transactional commands／async reply](https://eventuate.io/docs/manual/eventuate-tram/latest/getting-started-eventuate-tram.html#_transactional_commands)
+- [Eventuate Tram `CommandMessageHeaders`](https://github.com/eventuate-tram/eventuate-tram-core/blob/master/eventuate-tram-commands/src/main/java/io/eventuate/tram/commands/common/CommandMessageHeaders.java)
+- [Eventuate Tram `ReplyMessageHeaders`](https://github.com/eventuate-tram/eventuate-tram-core/blob/master/eventuate-tram-commands/src/main/java/io/eventuate/tram/commands/common/ReplyMessageHeaders.java)
 - [Spring Kafka monitoring／Micrometer Observation](https://docs.spring.io/spring-kafka/reference/kafka/micrometer.html)
 - [Micrometer Observation introduction](https://docs.micrometer.io/micrometer/reference/observation/introduction.html)
