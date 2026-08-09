@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'framework-neutral generic message consumer orchestration'
+
+dependencies {
+    api project(':messaging:messaging-api')
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}
