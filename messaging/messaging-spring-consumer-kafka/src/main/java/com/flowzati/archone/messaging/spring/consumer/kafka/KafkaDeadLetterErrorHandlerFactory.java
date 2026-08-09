@@ -20,15 +20,20 @@ public final class KafkaDeadLetterErrorHandlerFactory {
   public static DefaultErrorHandler create(
       KafkaOperations<Object, Object> kafkaOperations,
       BackOff retryBackOff,
-      MessageFailureClassifier failureClassifier
+      MessageFailureClassifier failureClassifier,
+      KafkaDeadLetterHeadersProvider headersProvider
   ) {
     Objects.requireNonNull(kafkaOperations, "Kafka operations are required");
     Objects.requireNonNull(retryBackOff, "Kafka retry backoff is required");
     Objects.requireNonNull(failureClassifier, "Message failure classifier is required");
+    Objects.requireNonNull(headersProvider, "Kafka dead-letter headers provider is required");
 
     DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaOperations);
     recoverer.setAppendOriginalHeaders(true);
     recoverer.setFailIfSendResultIsError(true);
+    recoverer.setHeadersFunction((record, failure) -> Objects.requireNonNull(
+        headersProvider.headersFor(record, failure),
+        "Kafka dead-letter headers provider returned null"));
 
     DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, retryBackOff);
     // The transport-neutral classifier owns the retry decision, including wrapped failures.

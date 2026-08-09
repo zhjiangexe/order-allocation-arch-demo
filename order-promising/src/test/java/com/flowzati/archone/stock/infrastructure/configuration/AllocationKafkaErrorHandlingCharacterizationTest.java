@@ -3,6 +3,8 @@ package com.flowzati.archone.stock.infrastructure.configuration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterErrorHandlerFactory;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterHeaders;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
 import com.flowzati.archone.stock.application.retry.AllocationRetryContext;
 import java.nio.charset.StandardCharsets;
@@ -78,7 +80,8 @@ class AllocationKafkaErrorHandlingCharacterizationTest {
     DefaultErrorHandler errorHandler = KafkaDeadLetterErrorHandlerFactory.create(
         operations,
         new FixedBackOff(0, 1),
-        configuration.allocationFailureClassifier());
+        configuration.allocationFailureClassifier(),
+        configuration.deadLetterHeadersProvider());
     return new DltFixture(errorHandler, producer);
   }
 
@@ -114,6 +117,18 @@ class AllocationKafkaErrorHandlingCharacterizationTest {
     assertThat(header(dlt, "id")).isEqualTo(header(original, "id"));
     assertThat(header(dlt, "eventType")).isEqualTo(header(original, "eventType"));
     assertThat(header(dlt, "messageHeaders")).isEqualTo(header(original, "messageHeaders"));
+    assertThat(new String(
+        header(dlt, KafkaDeadLetterHeaders.ORIGINAL_LOGICAL_CHANNEL),
+        StandardCharsets.UTF_8)).isEqualTo(original.topic());
+    assertThat(new String(
+        header(dlt, KafkaDeadLetterHeaders.ORIGINAL_PHYSICAL_DESTINATION),
+        StandardCharsets.UTF_8)).isEqualTo(original.topic());
+    assertThat(new String(
+        header(dlt, KafkaDeadLetterHeaders.SUBSCRIBER_ID),
+        StandardCharsets.UTF_8)).isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
+    assertThat(new String(
+        header(dlt, KafkaDeadLetterHeaders.CONSUMER_GROUP_ID),
+        StandardCharsets.UTF_8)).isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
   }
 
   private byte[] header(ProducerRecord<String, String> record, String name) {

@@ -1,19 +1,24 @@
 package com.flowzati.archone.messaging.spring.consumer.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.messaging.consumer.common.MessageFailureCategory;
 import com.flowzati.archone.messaging.consumer.common.MessageFailureClassification;
+import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import com.flowzati.archone.messaging.consumer.common.TypeBasedMessageFailureClassifier;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaOperations;
@@ -52,6 +57,107 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
   }
 
   @Test
+  void appendsExactLogicalPhysicalAndSubscriberIdentitiesForReplay() {
+    DltFixture fixture = fixture(
+        new FixedBackOff(0, 0),
+        KafkaDeadLetterHeadersProvider.forSubscription(new ResolvedMessageSubscription(
+            "allocation-inbox-scope",
+            "allocation-kafka-group",
+            Map.of("ordering.order-events", "ordering-events"))));
+
+    assertThat(fixture.errorHandler().handleOne(
+        new IllegalArgumentException("invalid contract"), record(), null, null)).isTrue();
+
+    ProducerRecord<String, String> dlt = fixture.producer().history().getFirst();
+    assertThat(textHeader(dlt, KafkaDeadLetterHeaders.ORIGINAL_LOGICAL_CHANNEL))
+        .isEqualTo("ordering-events");
+    assertThat(textHeader(dlt, KafkaDeadLetterHeaders.ORIGINAL_PHYSICAL_DESTINATION))
+        .isEqualTo("ordering.order-events");
+    assertThat(textHeader(dlt, KafkaDeadLetterHeaders.SUBSCRIBER_ID))
+        .isEqualTo("allocation-inbox-scope");
+    assertThat(textHeader(dlt, KafkaDeadLetterHeaders.CONSUMER_GROUP_ID))
+        .isEqualTo("allocation-kafka-group");
+  }
+
+  @Test
+  void recreatesOriginalRecordWithoutDeadLetterMetadata() {
+    DltFixture fixture = fixture(
+        new FixedBackOff(0, 0),
+        exactHeadersProvider());
+    ConsumerRecord<String, String> original = record();
+    fixture.errorHandler().handleOne(
+        new IllegalArgumentException("invalid contract"), original, null, null);
+    ConsumerRecord<String, String> deadLetter = consumed(
+        fixture.producer().history().getFirst());
+
+    ProducerRecord<String, String> replay =
+        new KafkaDeadLetterReplayRecordFactory().create(deadLetter);
+
+    assertThat(replay.topic()).isEqualTo(original.topic());
+    assertThat(replay.partition()).isEqualTo(original.partition());
+    assertThat(replay.key()).isEqualTo(original.key());
+    assertThat(replay.value()).isEqualTo(original.value());
+    assertThat(header(replay, "id")).isEqualTo(header(original, "id"));
+    assertThat(header(replay, "eventType")).isEqualTo(header(original, "eventType"));
+    assertThat(header(replay, "messageHeaders"))
+        .isEqualTo(header(original, "messageHeaders"));
+    assertThat(replay.headers().lastHeader(KafkaHeaders.DLT_ORIGINAL_TOPIC)).isNull();
+    assertThat(replay.headers().lastHeader(
+        KafkaDeadLetterHeaders.ORIGINAL_PHYSICAL_DESTINATION)).isNull();
+  }
+
+  @Test
+  void rejectsReplayWhenOriginalPhysicalIdentityIsInconsistent() {
+    DltFixture fixture = fixture(
+        new FixedBackOff(0, 0),
+        exactHeadersProvider());
+    fixture.errorHandler().handleOne(
+        new IllegalArgumentException("invalid contract"), record(), null, null);
+    ConsumerRecord<String, String> deadLetter = consumed(
+        fixture.producer().history().getFirst());
+    deadLetter.headers().remove(KafkaDeadLetterHeaders.ORIGINAL_PHYSICAL_DESTINATION);
+    deadLetter.headers().add(
+        KafkaDeadLetterHeaders.ORIGINAL_PHYSICAL_DESTINATION,
+        bytes("another.topic"));
+
+    assertThatThrownBy(() -> new KafkaDeadLetterReplayRecordFactory().create(deadLetter))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("DLT original topic does not match physical destination");
+  }
+
+  @Test
+  void rejectsReplayWithoutRequiredDltMetadata() {
+    assertThatThrownBy(() -> new KafkaDeadLetterReplayRecordFactory().create(record()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing Kafka DLT header: " + KafkaHeaders.DLT_ORIGINAL_TOPIC);
+  }
+
+  @Test
+  void rejectsAmbiguousPhysicalDestinationsBeforeDltHandlingStarts() {
+    ResolvedMessageSubscription first = new ResolvedMessageSubscription(
+        "first-subscriber", "first-group", Map.of("shared.topic", "first-channel"));
+    ResolvedMessageSubscription second = new ResolvedMessageSubscription(
+        "second-subscriber", "second-group", Map.of("shared.topic", "second-channel"));
+
+    assertThatThrownBy(() -> KafkaDeadLetterHeadersProvider.forSubscriptions(
+        List.of(first, second)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("DLT destination belongs to multiple subscribers: shared.topic");
+  }
+
+  @Test
+  void rejectsDltRecoveryWhenTheGlobalHandlerCannotIdentifyTheSubscriber() {
+    KafkaDeadLetterHeadersProvider provider = exactHeadersProvider();
+    ConsumerRecord<String, String> unknown = new ConsumerRecord<>(
+        "unknown.topic", 0, 0L, "key", "value");
+
+    assertThatThrownBy(() -> provider.headersFor(
+        unknown, new IllegalArgumentException("invalid contract")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("No DLT subscription metadata for destination: unknown.topic");
+  }
+
+  @Test
   void doesNotReportRecoveryWhenDltPublicationFails() {
     @SuppressWarnings("unchecked")
     KafkaOperations<Object, Object> operations = mock(KafkaOperations.class);
@@ -60,13 +166,28 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
     DefaultErrorHandler errorHandler = KafkaDeadLetterErrorHandlerFactory.create(
         operations,
         new FixedBackOff(0, 0),
-        failure -> MessageFailureClassification.nonRetryable(MessageFailureCategory.CONTRACT));
+        failure -> MessageFailureClassification.nonRetryable(MessageFailureCategory.CONTRACT),
+        exactHeadersProvider());
 
     assertThat(errorHandler.handleOne(
         new IllegalArgumentException("invalid contract"), record(), null, null)).isFalse();
   }
 
   private DltFixture fixture(FixedBackOff retryBackOff) {
+    return fixture(retryBackOff, exactHeadersProvider());
+  }
+
+  private KafkaDeadLetterHeadersProvider exactHeadersProvider() {
+    return KafkaDeadLetterHeadersProvider.forSubscription(new ResolvedMessageSubscription(
+        "allocation-inbox-scope",
+        "allocation-kafka-group",
+        Map.of("ordering.order-events", "ordering-events")));
+  }
+
+  private DltFixture fixture(
+      FixedBackOff retryBackOff,
+      KafkaDeadLetterHeadersProvider headersProvider
+  ) {
     MockProducer<String, String> producer = new MockProducer<>(
         true, null, new StringSerializer(), new StringSerializer());
     KafkaTemplate<String, String> template = new KafkaTemplate<>(
@@ -78,7 +199,8 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
         .fallback(MessageFailureClassification.nonRetryable(MessageFailureCategory.CONTRACT))
         .build();
     return new DltFixture(
-        KafkaDeadLetterErrorHandlerFactory.create(operations, retryBackOff, classifier),
+        KafkaDeadLetterErrorHandlerFactory.create(
+            operations, retryBackOff, classifier, headersProvider),
         producer);
   }
 
@@ -89,6 +211,15 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
     record.headers().add("eventType", bytes("OrderPlacedIntegrationEvent"));
     record.headers().add("messageHeaders", bytes("{\"correlation-id\":\"checkout-1\"}"));
     return record;
+  }
+
+  private ConsumerRecord<String, String> consumed(ProducerRecord<String, String> produced) {
+    ConsumerRecord<String, String> consumed = new ConsumerRecord<>(
+        produced.topic(), produced.partition(), 0L, produced.key(), produced.value());
+    for (Header header : produced.headers()) {
+      consumed.headers().add(header.key(), header.value());
+    }
+    return consumed;
   }
 
   private void assertDltRecord(
@@ -108,6 +239,9 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
         .isEqualTo(original.partition());
     assertThat(ByteBuffer.wrap(header(dlt, KafkaHeaders.DLT_ORIGINAL_OFFSET)).getLong())
         .isEqualTo(original.offset());
+    assertThat(textHeader(dlt, KafkaHeaders.DLT_EXCEPTION_FQCN)).isNotBlank();
+    assertThat(textHeader(dlt, KafkaHeaders.DLT_EXCEPTION_MESSAGE)).isNotBlank();
+    assertThat(textHeader(dlt, KafkaHeaders.DLT_EXCEPTION_STACKTRACE)).isNotBlank();
   }
 
   private byte[] header(ProducerRecord<String, String> record, String name) {
@@ -116,6 +250,10 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
 
   private byte[] header(ConsumerRecord<String, String> record, String name) {
     return record.headers().lastHeader(name).value();
+  }
+
+  private String textHeader(ProducerRecord<String, String> record, String name) {
+    return new String(header(record, name), StandardCharsets.UTF_8);
   }
 
   private byte[] bytes(String value) {

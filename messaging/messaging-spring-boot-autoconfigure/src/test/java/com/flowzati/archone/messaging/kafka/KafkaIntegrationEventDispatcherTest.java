@@ -8,9 +8,14 @@ import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
 import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
+import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
+import com.flowzati.archone.messaging.events.IntegrationEventEnvelope;
 import com.flowzati.archone.messaging.events.IntegrationEventHandler;
+import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
+import com.flowzati.archone.messaging.events.MapBasedIntegrationEventNameMapping;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -94,6 +99,66 @@ class KafkaIntegrationEventDispatcherTest {
 
     assertThat(outcome).isEqualTo(ProcessingOutcome.DUPLICATE);
     assertThat(handledMetadata).hasNullValue();
+  }
+
+  @Test
+  void delegatesCurrentWireEnvelopeToTheNewBrokerNeutralDispatcher() {
+    UUID eventId = UUID.randomUUID();
+    TestEvent event = new TestEvent(eventId);
+    AtomicReference<IntegrationEventEnvelope<TestEvent>> handled = new AtomicReference<>();
+    IntegrationEventDispatcher typedDispatcher = new IntegrationEventDispatcher(
+        deserializerReturning(event),
+        IntegrationEventHandlersBuilder.forDestination("order-events")
+            .onEvent(TestEvent.class, handled::set)
+            .build(),
+        MapBasedIntegrationEventNameMapping.builder()
+            .map(TestEvent.class, TestEvent.EVENT_TYPE, 1)
+            .build());
+    KafkaIntegrationEventDispatcher bridge = new KafkaIntegrationEventDispatcher(
+        encoded -> Map.of(
+            EventMessageHeaders.EVENT_AGGREGATE_TYPE, "Order",
+            EventMessageHeaders.EVENT_AGGREGATE_ID, "order-1",
+            EventMessageHeaders.EVENT_CONTRACT_VERSION, "1"),
+        typedDispatcher,
+        List.of());
+    ConsumerRecord<String, String> record = record(eventId, TestEvent.EVENT_TYPE);
+    record.headers().add(
+        KafkaMessageMapper.SERIALIZED_HEADERS,
+        "{encoded}".getBytes(StandardCharsets.UTF_8));
+
+    ProcessingOutcome outcome = bridge.dispatch(
+        record, "order-events", "allocation");
+
+    assertThat(outcome).isEqualTo(ProcessingOutcome.PROCESSED);
+    assertThat(handled.get().event()).isSameAs(event);
+    assertThat(handled.get().aggregateType()).isEqualTo("Order");
+    assertThat(handled.get().aggregateId()).isEqualTo("order-1");
+    assertThat(handled.get().message().id()).isEqualTo(eventId);
+  }
+
+  @Test
+  void keepsTheHistoricalMissingAggregateMetadataBoundaryVisible() {
+    UUID eventId = UUID.randomUUID();
+    TestEvent event = new TestEvent(eventId);
+    KafkaIntegrationEventDispatcher legacyBridge = new KafkaIntegrationEventDispatcher(
+        deserializerReturning(event), List.of(handler(new AtomicReference<>())));
+    IntegrationEventDispatcher typedDispatcher = new IntegrationEventDispatcher(
+        deserializerReturning(event),
+        IntegrationEventHandlersBuilder.forDestination("order-events")
+            .onEvent(TestEvent.class, envelope -> { })
+            .build(),
+        MapBasedIntegrationEventNameMapping.builder()
+            .map(TestEvent.class, TestEvent.EVENT_TYPE, 1)
+            .build());
+    KafkaIntegrationEventDispatcher newBridge = new KafkaIntegrationEventDispatcher(
+        encoded -> Map.of(), typedDispatcher, List.of());
+    ConsumerRecord<String, String> historical = record(eventId, TestEvent.EVENT_TYPE);
+
+    assertThat(legacyBridge.dispatch(historical, "order-events", "allocation"))
+        .isEqualTo(ProcessingOutcome.PROCESSED);
+    assertThatThrownBy(() -> newBridge.dispatch(historical, "order-events", "allocation"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing message header: event-aggregate-type");
   }
 
   @Test

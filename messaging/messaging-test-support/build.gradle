@@ -6,6 +6,7 @@ description = 'framework-neutral reusable fixtures and TCK probes for messaging 
 
 dependencies {
     api project(':messaging:messaging-api')
+    api project(':messaging:messaging-events')
     api project(':messaging:messaging-producer-common')
     api project(':messaging:messaging-consumer-common')
 

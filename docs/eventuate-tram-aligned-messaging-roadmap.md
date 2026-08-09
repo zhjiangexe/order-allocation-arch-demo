@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A～Gate E（ES0～ES4）與 Gate F FS0～FS3 已完成；下一步為 FS4 compatibility bridge／production-equivalence SIT
+> 狀態：Gate A～Gate F（FS0～FS4）已完成；下一步為 Gate G messaging observability，production subscription cutover 仍屬 Gate I
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-10
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
@@ -1371,7 +1371,7 @@ Archone 只保留四個必要差異：名稱使用 `IntegrationEvent` 而非 con
 - [x] F8. factory 從該 dispatcher 的 `IntegrationEventHandlers` 推導 destinations 並呼叫 generic `MessageConsumer.subscribe(...)`；不得從 ApplicationContext 全域收集所有 handler beans。
 - [x] F9. 定義 Tram 形狀的 `MessageConsumer.subscribe(subscriberId, channels, handler)`；回傳 `MessageSubscription` lifecycle handle但仍可像 Tram 一樣直接以 statement 訂閱。additive `MessageSubscriptionOptions` 與 dispatcher factory overload 分開 `consumerGroupId`。未處理事件策略屬 typed dispatcher（F17），Kafka operational policy 屬 Spring Kafka adapter（F19），不得混入 generic API。
 - [x] F10. 沿用 consumer-common 的唯一 generic `MessageConsumerImplementation` SPI；不建立 Kafka-specific consumer SPI。
-- [ ] F11. 將現有 `KafkaIntegrationEventDispatcher` 完整拆成 `KafkaMessageMapper` 與 broker-neutral dispatcher；compatibility bridge 可暫時委派新 API，但不得繼續擁有 handler catalog。此 production compatibility cutover 留在 FS4／Gate I，不在 FS2 製造第二個 consumer。
+- [x] F11. 將現有 `KafkaIntegrationEventDispatcher` 完整拆成 `KafkaMessageMapper` 與 broker-neutral dispatcher；compatibility bridge 可暫時委派新 API，但不得繼續擁有 handler catalog。bridge equivalence 留在 FS4，production cutover 留在 Gate I，不製造第二個 consumer。
 - [x] F12. `messaging-consumer-kafka` 只負責 `ConsumerRecord` → generic `Message`、Kafka key／timestamp／headers mapping；architecture test 固定其不得引用 events layer、consumer orchestration 或 Spring。
 - [x] F13. 建立 `messaging-spring-consumer-kafka`，由 `SpringKafkaMessageConsumerImplementation` 提供 programmatic subscription 與 container lifecycle。
 - [x] F14. 透過 `ConcurrentKafkaListenerContainerFactory` 程式化建立 containers；不得 runtime 產生 annotated method。
@@ -1381,10 +1381,10 @@ Archone 只保留四個必要差異：名稱使用 `IntegrationEvent` 而非 con
 - [x] F18. 已定義 mapping／contract／handler／infrastructure exception taxonomy，並以 pure `MessageFailureClassifier` 接到 Spring Kafka retry／DLT policy；不使用 class-name YAML。
 - [x] F19. 已定義 subscriber-specific `KafkaSubscriptionPolicy`／resolver，支援 concurrency、ack、lifecycle 與 per-subscriber `CommonErrorHandler`；`KafkaDeadLetterErrorHandlerFactory` 組裝 `DefaultErrorHandler`、classifier backoff 與 `DeadLetterPublishingRecoverer`。
 - [x] F20. `AllocationKafkaErrorHandlingConfiguration` 已改用共用 classifier／DLT factory；characterization test 固定只有 allocation concurrency exhaustion 會重試、退避仍為 1s／2s／4s／8s，其餘錯誤直接 DLT。既有 listener 未移除。
-- [ ] F21. 明確區分正常 producer path（Outbox）與 DLT recovery path（允許 `KafkaOperations`）；DLT record 保留 original message ID、key、event type、logical/physical destination、serialized headers、original topic／partition／offset 與 failure metadata。
+- [x] F21. 明確區分正常 producer path（Outbox）與 DLT recovery path（允許 `KafkaOperations`）；DLT record 保留 original message ID、key、event type、logical/physical destination、serialized headers、original topic／partition／offset 與 failure metadata。
 - [x] F22. lifecycle 支援 start failure fail-fast、readiness、idempotent unsubscribe／close、graceful shutdown 與 partial-subscription cleanup；FS3 結果段落已定義 subscriber／group rename 與 original-ID replay runbook。
-- [ ] F23. pure events tests 覆蓋 builder chaining、multiple destinations、duplicate registration、name mapping、envelope、unknown event、header mismatch、unsupported version、handler exception propagation，並提供 Tram-style handler unit-test fixture。
-- [ ] F24. generic／Spring Kafka tests 覆蓋 decorator outcome、subscription lifecycle、collision、concurrency、retry exhaustion、non-retryable direct DLT、DLT publish/replay failure、readiness 與 graceful shutdown。
+- [x] F23. pure events tests 覆蓋 builder chaining、multiple destinations、duplicate registration、name mapping、envelope、unknown event、header mismatch、unsupported version、handler exception propagation，並提供 Tram-style handler unit-test fixture。
+- [x] F24. generic／Spring Kafka tests 覆蓋 decorator outcome、subscription lifecycle、collision、concurrency、retry exhaustion、non-retryable direct DLT、DLT publish/replay failure、readiness 與 graceful shutdown。
 
 #### Gate F 安全實作切片
 
@@ -1443,6 +1443,29 @@ FS3 驗證結果（2026-08-10）：
   subscriber 原子移除 legacy listener。
 - repository-wide `./gradlew check` 通過；包含 11 筆新 Spring Kafka runtime tests、完整 messaging
   module tests、`order-promising:test` 與 154 筆 `order-promising:sit`，0 failure／0 error。
+
+FS4 驗證結果（2026-08-10）：
+
+- temporary `KafkaIntegrationEventDispatcher` 現在只持有 `KafkaMessageMapper`、generic
+  `MessageHandler` terminal 與 decorator list；legacy constructors 只在邊界建立 adapter，bridge 本身
+  不再擁有 typed handler catalog。architecture test 固定這個限制，正式刪除 bridge 仍留給 Gate I。
+- compatibility tests 證明 current Outbox／Debezium wire envelope 可經同一 raw bridge 委派新的
+  broker-neutral dispatcher；V8 前缺 aggregate headers 的歷史紀錄則明確失敗，不從 key 或 payload
+  偽造 aggregate identity。
+- `ProgrammaticIntegrationEventDispatcherEquivalenceIntegrationTest` 不啟動第二個 Kafka consumer，而以
+  captured transport 接上 production mapper、完整 decorator chain、transaction manager、Inbox、
+  `AllocateOrderUsecase`、repositories 與 Outbox。代表性的 `OrderPlaced` path 已驗證 success、duplicate
+  與 handler failure rollback；其他 subscriber 的 production cutover 仍須依 Gate I 逐一執行。
+- DLT factory 現在強制取得 exact subscription metadata；現有三個 production topics 均映射到 stable
+  subscriber／consumer group。DLT 保留 logical／physical identity、original wire headers、
+  topic／partition／offset 與 Spring Kafka failure metadata；ambiguous／unknown topic 會 fail fast。
+- `KafkaDeadLetterReplayRecordFactory` 只重建待 replay 的 `ProducerRecord`，不自行發送，因此正常
+  producer 仍只有 Outbox。replay 保留 original message ID、key、type、payload 與 application headers，
+  並移除 DLT metadata；缺漏或矛盾的 source metadata 會被拒絕。
+- `messaging-test-support` 新增 transport-free `IntegrationEventHandlerTestFixture`，application handler
+  unit test 可直接建立完整 typed envelope，不需 Kafka record、dispatcher 或 Spring context。
+- repository-wide 驗證包含完整 messaging tests、`order-promising:test` 與 156 筆
+  `order-promising:sit`；最終 0 failure／0 error。production `@KafkaListener` 未移除，也沒有雙重消費。
 
 FS3 subscriber／group rename 與 replay runbook：
 

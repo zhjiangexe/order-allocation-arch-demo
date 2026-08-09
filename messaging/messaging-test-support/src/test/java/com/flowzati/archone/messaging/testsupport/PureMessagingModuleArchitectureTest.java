@@ -88,6 +88,20 @@ class PureMessagingModuleArchitectureTest {
   }
 
   @Test
+  void temporaryRawKafkaBridgeOwnsNoTypedHandlerCatalog() throws IOException {
+    String bridge = Files.readString(root().resolve(
+        "messaging/messaging-spring-boot-autoconfigure/src/main/java/"
+            + "com/flowzati/archone/messaging/kafka/KafkaIntegrationEventDispatcher.java"));
+
+    assertThat(bridge)
+        .contains("private final KafkaMessageMapper kafkaMessageMapper")
+        .contains("private final MessageHandler terminalHandler")
+        .contains("terminalHandler.handle(invocation.message(), invocation.context())")
+        .doesNotContain("private final LegacyIntegrationEventDispatcherAdapter")
+        .doesNotContain("Map<IntegrationEventKey");
+  }
+
+  @Test
   void commonOrchestrationDoesNotContainPersistenceModels() throws IOException {
     String producer = readProductionSources(root().resolve(
         "messaging/messaging-producer-common/src/main/java"));

@@ -3,9 +3,18 @@ package com.flowzati.archone.stock.infrastructure.configuration;
 import com.flowzati.archone.messaging.consumer.common.MessageFailureCategory;
 import com.flowzati.archone.messaging.consumer.common.MessageFailureClassification;
 import com.flowzati.archone.messaging.consumer.common.MessageFailureClassifier;
+import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import com.flowzati.archone.messaging.consumer.common.TypeBasedMessageFailureClassifier;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterErrorHandlerFactory;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterHeadersProvider;
+import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
+import java.util.List;
+import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaOperations;
@@ -53,7 +62,23 @@ public class AllocationKafkaErrorHandlingConfiguration {
   @Bean
   CommonErrorHandler allocationKafkaErrorHandler(KafkaOperations<Object, Object> kafkaOperations) {
     return KafkaDeadLetterErrorHandlerFactory.create(
-        kafkaOperations, allocationRetryBackOff(), allocationFailureClassifier());
+        kafkaOperations,
+        allocationRetryBackOff(),
+        allocationFailureClassifier(),
+        deadLetterHeadersProvider());
+  }
+
+  KafkaDeadLetterHeadersProvider deadLetterHeadersProvider() {
+    return KafkaDeadLetterHeadersProvider.forSubscriptions(List.of(
+        subscription(
+            AllocationEventSubscriptions.ORDER_LIFECYCLE,
+            OrderingEventTopics.ORDER_EVENTS),
+        subscription(
+            AllocationEventSubscriptions.INVENTORY_AVAILABILITY,
+            InventoryEventTopics.STOCK_EVENTS),
+        subscription(
+            OrderingEventSubscriptions.ALLOCATION_RESULTS,
+            PromisingEventTopics.ALLOCATION_EVENTS)));
   }
 
   BackOff allocationRetryBackOff() {
@@ -69,5 +94,12 @@ public class AllocationKafkaErrorHandlingConfiguration {
         .retryable(AllocationConcurrencyExhaustedException.class, MessageFailureCategory.HANDLER)
         .fallback(MessageFailureClassification.nonRetryable(MessageFailureCategory.HANDLER))
         .build();
+  }
+
+  private ResolvedMessageSubscription subscription(String subscriberId, String destination) {
+    return new ResolvedMessageSubscription(
+        subscriberId,
+        subscriberId,
+        Map.of(destination, destination));
   }
 }
