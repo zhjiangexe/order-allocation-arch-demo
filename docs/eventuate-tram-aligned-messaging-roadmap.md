@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A、Gate B 已完成；下一步為 Gate C producer pure JDBC + Spring bridge
+> 狀態：Gate A、Gate B、Gate C 已完成；下一步為 Gate D consumer pure JDBC + Spring bridge
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-09
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
@@ -132,15 +132,22 @@ Integration Event layer
 | Inbox 去重 key | Reply 自己的 message ID | `correlation-id`／`reply-to-message-id` 只描述關係，不得取代每則訊息自己的 idempotency identity。 |
 | Reply payload contract | generic `Message` + reply headers | 參考 Tram，不強迫所有 reply 實作共同 marker；由 `reply-type`／`reply-outcome` 表達語意。 |
 
-## 4. 目前結構與主要問題
+## 4. Gate C 完成後的結構與剩餘問題
 
 ```text
 messaging
 ├── messaging-api
 ├── messaging-events
-├── messaging-producer-outbox
+├── messaging-producer-common
+├── messaging-consumer-common
+├── messaging-jdbc-common
+├── messaging-producer-jdbc
+├── messaging-producer-outbox        # legacy migration bridge；Gate I 移除
 ├── messaging-consumer-inbox
 ├── messaging-consumer-kafka
+├── messaging-spring-jdbc
+├── messaging-spring-producer-jdbc
+├── messaging-spring-flyway          # opt-in；不自動 migrate
 ├── messaging-spring-boot-autoconfigure
 └── messaging-spring-boot-starter
 ```
@@ -151,9 +158,10 @@ messaging
 Producer
 Use case transaction
   → IntegrationEventPublisher
-  → MessageProducer
-  → OutboxMessageProducer
-  → JPA Outbox repository
+  → MessageProducerImpl
+  → CallerTransactionRequiredMessageProducerImplementation
+  → JdbcOutboxMessageProducerImplementation
+  → transaction-aware JdbcOperations
   → event_outbox
   → Debezium
   → Kafka
@@ -168,20 +176,16 @@ Application @KafkaListener
   → business changes / possible Outbox changes
 ```
 
-主要結構問題：
+Gate C 後的剩餘結構問題：
 
-1. `messaging-producer-outbox` 同時包含 pure Outbox model／port 與 Spring Data JPA adapter。
-2. `messaging-consumer-inbox` 同時包含 `InboxRepo` contract 與 Spring Data JPA adapter。
-3. application use case 直接知道 `InboundCommand` 與 `InboxRepo`，transport metadata 和業務操作耦合。
-4. REST entrypoint 也會建立假的 inbound metadata 才能呼叫 use case，顯示 idempotency 邊界放得太深。
-5. 單一 starter 會讓只需要 producer 的服務也帶入 consumer/Kafka，反之亦然。
-6. auto-configuration 對所有 implementation module 使用 `api`，optional capability 的依賴界線不夠清楚。
-7. 現有 `Message` 將 `type`、aggregate identity、partition key 與 occurred time 全部設為基礎訊息必填，實際上是 Integration Event envelope，不是通用 message。
-8. `KafkaIntegrationEventDispatcher` 同時負責 `ConsumerRecord` mapping、transport header validation、event deserialization 與 typed dispatch，Kafka adapter 和 events layer 邊界混合。
-9. producer common 尚缺 Tram 風格的 `MessageProducerImplementation`；若直接把 `OutboxMessageProducer` 放入 common，common 仍被 JDBC persistence model 綁定。
-10. logical destination 目前直接寫入 Outbox `route`，尚未真正經過 `ChannelMapping`。
-11. Outbox 沒有 generic headers 欄位，因此 correlation／causation／trace context 無法經過 Debezium 完整傳遞。
-12. `subscriberId`、Kafka consumer group 與 listener identity 尚未被分開建模，改名可能意外造成重放或 delivery 行為變化。
+1. `messaging-producer-outbox` 的 JPA types 只剩 rolling migration／既有測試相容用途，需依 I8 移除。
+2. `messaging-consumer-inbox` 仍同時包含 `InboxRepo` contract 與 Spring Data JPA adapter。
+3. application use case 仍直接知道 `InboundCommand` 與 `InboxRepo`，transport metadata 和業務操作耦合。
+4. REST entrypoint 仍會建立假的 inbound metadata 才能呼叫 use case，顯示 idempotency 邊界放得太深。
+5. 單一 starter 仍讓只需要 producer 的服務帶入 consumer/Kafka，反之亦然。
+6. consumer runtime 仍由 application `@KafkaListener` 擁有，programmatic subscription 留給 Gate F。
+7. `KafkaIntegrationEventDispatcher` 的舊 FQCN 仍是 temporary compatibility bridge，正式 generic chain 尚未接入。
+8. `subscriberId`、Kafka consumer group 與 listener identity 雖已分開建模，實際 application subscription 尚未遷移。
 
 ## 5. 目標 artifact
 
@@ -967,20 +971,20 @@ Gate B 驗證結果（2026-08-09）：
 
 目的：以 Tram 風格拆開 common producer orchestration 與 Outbox JDBC implementation，並以向後相容 migration 讓 generic headers 經 Debezium 傳遞。
 
-- [ ] C1. 建立 pure `messaging-producer-jdbc`。
-- [ ] C2. 建立 `messaging-spring-jdbc`，以 `JdbcTemplate`／`NamedParameterJdbcTemplate` 與 `PlatformTransactionManager` 實作 JDBC ports。
-- [ ] C3. 建立 `messaging-spring-producer-jdbc`，負責 bean wiring 與 caller transaction enforcement。
-- [ ] C4. 將 Outbox persistence model 放入 `messaging-producer-jdbc`，實作 `JdbcOutboxMessageProducerImplementation`；不得將 Outbox types 搬入 producer-common。
-- [ ] C5. pure producer JDBC code 只能依賴 `messaging-jdbc-common` ports，不得 import Spring。
-- [ ] C6. Spring producer adapter enforce caller transaction，例如等價於 `Propagation.MANDATORY` 的語意。
-- [ ] C7. 移除 `JpaOutboxRepository`、`OutboxEntity`、`OutboxRepoImpl`，或只保留一個明確期限的 migration bridge。
-- [ ] C8. 實作 deterministic `MessageHeadersCodec`，只接受合法的 string key/value，拒絕 reserved-key collision、過大 header map 與無法序列化的值。
-- [ ] C9. 為 `order-promising` 增加 application-owned Flyway migration：`event_outbox.headers TEXT NOT NULL DEFAULT '{}'`；不得修改既有 migration。
-- [ ] C10. 建立 opt-in `messaging-spring-flyway`，提供新 application 可用的 namespaced Inbox／Outbox schema；預設不自動執行，也不得與 application-owned history 重複建表。
-- [ ] C11. 同步更新 SIT 與 `e2e/perf` 的 Debezium EventRouter config，保留 `type:header:eventType`，新增 `headers:header:messageHeaders`。
-- [ ] C12. 加入 duplicate message ID、rollback、timestamp、payload、partition key、empty/custom/correlation/trace headers integration tests。
-- [ ] C13. 用既有 Debezium test 驗證 raw event payload、`id`、`eventType` 與 record key 完全相容，且 `messageHeaders` 可被還原。
-- [ ] C14. 驗證舊 row 的 `{}` default、rolling deployment 的新 producer／舊 consumer與舊 producer／新 consumer相容性。
+- [x] C1. 建立 pure `messaging-producer-jdbc`。
+- [x] C2. 建立 `messaging-spring-jdbc`，以 `JdbcOperations`（目前 runtime 為 `JdbcTemplate`）與 `PlatformTransactionManager` 實作 JDBC ports；pure dialect 採 positional parameters，因此不強行包成 `NamedParameterJdbcTemplate`。
+- [x] C3. 建立 `messaging-spring-producer-jdbc`，負責 bean wiring 與 caller transaction enforcement。
+- [x] C4. 將 Outbox persistence model 放入 `messaging-producer-jdbc`，實作 `JdbcOutboxMessageProducerImplementation`；不得將 Outbox types 搬入 producer-common。
+- [x] C5. pure producer JDBC code 的 JDBC I/O 只經 `messaging-jdbc-common` ports，不得 import Spring。
+- [x] C6. Spring producer adapter enforce caller transaction，例如等價於 `Propagation.MANDATORY` 的語意。
+- [x] C7. `JpaOutboxRepository`、`OutboxEntity`、`OutboxRepoImpl` 僅保留為明確的 migration bridge；新 runtime 不再使用 `OutboxMessageProducer`，依 I8 於 Gate I 移除。
+- [x] C8. 實作 deterministic `MessageHeadersCodec`，只接受合法的 string key/value，拒絕 reserved-key collision、過大 header map 與無法序列化的值。
+- [x] C9. 為 `order-promising` 增加 application-owned Flyway migration：`event_outbox.headers TEXT NOT NULL DEFAULT '{}'`；不得修改既有 migration。
+- [x] C10. 建立 opt-in `messaging-spring-flyway`，提供新 application 可用的 namespaced Inbox／Outbox schema；預設不自動執行，也不得與 application-owned history 重複建表。
+- [x] C11. 同步更新 SIT 與 `e2e/perf` 的 Debezium EventRouter config，保留 `type:header:eventType`，新增 `headers:header:messageHeaders`。
+- [x] C12. 加入 duplicate message ID、rollback、timestamp、payload、partition key、empty/custom/correlation/trace headers integration tests。
+- [x] C13. 用既有 Debezium test 驗證 raw event payload、`id`、`eventType` 與 record key 完全相容，且 `messageHeaders` 可被還原。
+- [x] C14. 驗證舊 row 的 `{}` default、rolling deployment 的新 producer／舊 consumer與舊 producer／新 consumer相容性。
 
 驗收條件：
 
@@ -996,6 +1000,16 @@ Gate B 驗證結果（2026-08-09）：
 - 只是把 JPA class 搬進名為 `*-jdbc` 的 module，卻宣稱已完成 JDBC split。
 - pure JDBC implementation 自己呼叫新的 unmanaged connection，導致無法加入 application transaction。
 - header relay 需要 custom CDC／custom SMT 或破壞 raw event payload 才能完成時，停止並重新 review transport encoding。
+
+Gate C 驗證結果（2026-08-09）：
+
+- C/1 `5a13251` 建立 pure JDBC producer；C/2 `4865c60` 建立 Spring JDBC 與 caller-transaction bridge；C/3 `7c91127` 完成 runtime 切換、migration、generic headers 與 CDC 相容性。
+- production producer 已切成 `MessageProducerImpl → caller transaction guard → JdbcOutboxMessageProducerImplementation`；JPA Outbox classes 只保留至 I8，且已有 bridge README 明確標示。
+- `messaging-spring-flyway` 使用獨立 location、named schema 與 history table，只建立 factory、不自動呼叫 `migrate()`；既有 `order-promising` 繼續由 application-owned V8 管理。
+- 全部 messaging module unit／architecture tests 通過；`messaging-producer-jdbc` production classpath 無 Spring，Spring producer module 無 Kafka producer API。
+- PostgreSQL integration tests證明 caller transaction requirement、duplicate ID rollback、JPA business + JDBC Outbox atomicity，以及 payload／timestamp／partition key／correlation／causation／trace headers persistence。
+- Debezium CDC test 通過，raw payload、`id`、`eventType`、record key 不變，`messageHeaders` 可由 `KafkaMessageMapper` 還原；舊 `{}` row、缺少新 header 的舊 connector與忽略新 header 的舊 consumer皆有相容測試。
+- 完整 `order-promising:sit` 148 tests 通過；`order-promising:test` 仍只有 Gate A 已記錄的同一個 stock unit test failure，沒有新增失敗。
 
 ### Gate D — Consumer pure JDBC 與 Spring bridge
 
