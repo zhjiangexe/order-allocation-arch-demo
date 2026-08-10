@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.messaging.api.MapBasedChannelMapping;
+import com.flowzati.archone.messaging.api.MapBasedConsumerGroupMapping;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
@@ -63,6 +64,26 @@ class MessageConsumerImplTest {
 
     assertThat(implementation.subscription.subscriberId()).isEqualTo("allocation");
     assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation");
+  }
+
+  @Test
+  void appliesConfiguredGroupMappingUnlessTheSubscriptionOverridesIt() {
+    CapturingImplementation implementation = new CapturingImplementation();
+    MessageConsumerImpl consumer = new MessageConsumerImpl(
+        implementation,
+        logicalChannel -> logicalChannel,
+        new MapBasedConsumerGroupMapping(Map.of("allocation", "allocation-v2")),
+        List.of());
+
+    consumer.subscribe("allocation", Set.of("order-events"), (message, context) -> { });
+    assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation-v2");
+
+    consumer.subscribe(
+        "allocation",
+        Set.of("order-events"),
+        (message, context) -> { },
+        MessageSubscriptionOptions.withConsumerGroupId("replay-group"));
+    assertThat(implementation.subscription.consumerGroupId()).isEqualTo("replay-group");
   }
 
   @Test

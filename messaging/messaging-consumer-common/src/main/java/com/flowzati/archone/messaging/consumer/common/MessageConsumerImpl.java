@@ -1,7 +1,9 @@
 package com.flowzati.archone.messaging.consumer.common;
 
 import com.flowzati.archone.messaging.api.ChannelMapping;
+import com.flowzati.archone.messaging.api.ConsumerGroupMapping;
 import com.flowzati.archone.messaging.api.IdentityChannelMapping;
+import com.flowzati.archone.messaging.api.IdentityConsumerGroupMapping;
 import com.flowzati.archone.messaging.api.MessageConsumer;
 import com.flowzati.archone.messaging.api.MessageHandler;
 import com.flowzati.archone.messaging.api.MessageSubscription;
@@ -18,10 +20,15 @@ public final class MessageConsumerImpl implements MessageConsumer {
 
   private final MessageConsumerImplementation implementation;
   private final ChannelMapping channelMapping;
+  private final ConsumerGroupMapping consumerGroupMapping;
   private final List<MessageHandlerDecorator> decorators;
 
   public MessageConsumerImpl(MessageConsumerImplementation implementation) {
-    this(implementation, IdentityChannelMapping.INSTANCE, List.of());
+    this(
+        implementation,
+        IdentityChannelMapping.INSTANCE,
+        IdentityConsumerGroupMapping.INSTANCE,
+        List.of());
   }
 
   public MessageConsumerImpl(
@@ -29,9 +36,24 @@ public final class MessageConsumerImpl implements MessageConsumer {
       ChannelMapping channelMapping,
       List<MessageHandlerDecorator> decorators
   ) {
+    this(
+        implementation,
+        channelMapping,
+        IdentityConsumerGroupMapping.INSTANCE,
+        decorators);
+  }
+
+  public MessageConsumerImpl(
+      MessageConsumerImplementation implementation,
+      ChannelMapping channelMapping,
+      ConsumerGroupMapping consumerGroupMapping,
+      List<MessageHandlerDecorator> decorators
+  ) {
     this.implementation = Objects.requireNonNull(
         implementation, "Message consumer implementation is required");
     this.channelMapping = Objects.requireNonNull(channelMapping, "Channel mapping is required");
+    this.consumerGroupMapping = Objects.requireNonNull(
+        consumerGroupMapping, "Consumer group mapping is required");
     if (decorators == null || decorators.stream().anyMatch(Objects::isNull)) {
       throw new IllegalArgumentException("Message handler decorators are required");
     }
@@ -62,7 +84,7 @@ public final class MessageConsumerImpl implements MessageConsumer {
     Objects.requireNonNull(handler, "Message handler is required");
     MessageSubscriptionConfiguration configuration = new MessageSubscriptionConfiguration(
         subscriberId,
-        options.resolveConsumerGroupId(subscriberId),
+        options.resolveConsumerGroupId(resolveConsumerGroupId(subscriberId)),
         logicalChannels);
     ResolvedMessageSubscription resolved = resolve(configuration);
     MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
@@ -82,6 +104,15 @@ public final class MessageConsumerImpl implements MessageConsumer {
       chain.invokeNext(new MessageHandlerInvocation(message, context));
     });
     return Objects.requireNonNull(subscription, "Message consumer implementation returned null");
+  }
+
+  private String resolveConsumerGroupId(String subscriberId) {
+    String consumerGroupId = consumerGroupMapping.transform(subscriberId);
+    if (consumerGroupId == null || consumerGroupId.isBlank()) {
+      throw new IllegalArgumentException(
+          "Consumer group mapping returned an invalid group for: " + subscriberId);
+    }
+    return consumerGroupId;
   }
 
   private ResolvedMessageSubscription resolve(MessageSubscriptionConfiguration configuration) {

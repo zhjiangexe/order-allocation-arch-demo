@@ -1,0 +1,21 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'narrow Spring Boot starter for transactional Outbox producers'
+
+dependencies {
+    api project(':messaging:messaging-spring-boot-autoconfigure')
+    api project(':messaging:messaging-events')
+    api project(':messaging:messaging-producer-common')
+    api project(':messaging:messaging-producer-jdbc')
+    api project(':messaging:messaging-spring-jdbc')
+    api project(':messaging:messaging-spring-producer-jdbc')
+    api project(':messaging:messaging-spring-observability')
+    api project(':messaging:messaging-spring-producer-observability')
+    api libs.spring.boot.starter.jdbc
+    api libs.jackson.datatype.jsr310
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

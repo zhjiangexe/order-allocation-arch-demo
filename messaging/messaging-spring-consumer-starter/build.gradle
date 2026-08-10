@@ -1,0 +1,24 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'narrow Spring Boot starter for idempotent programmatic Kafka consumers'
+
+dependencies {
+    api project(':messaging:messaging-spring-boot-autoconfigure')
+    api project(':messaging:messaging-events')
+    api project(':messaging:messaging-consumer-common')
+    api project(':messaging:messaging-consumer-jdbc')
+    api project(':messaging:messaging-consumer-kafka')
+    api project(':messaging:messaging-spring-jdbc')
+    api project(':messaging:messaging-spring-consumer-jdbc')
+    api project(':messaging:messaging-spring-consumer-kafka')
+    api project(':messaging:messaging-spring-observability')
+    api project(':messaging:messaging-spring-consumer-observability')
+    api libs.spring.boot.starter.jdbc
+    api libs.spring.boot.starter.kafka
+    api libs.jackson.datatype.jsr310
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

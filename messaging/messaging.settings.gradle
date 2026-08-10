@@ -19,6 +19,8 @@
     'messaging-spring-consumer-observability',
     'messaging-spring-flyway',
     'messaging-spring-boot-autoconfigure',
+    'messaging-spring-producer-starter',
+    'messaging-spring-consumer-starter',
     'messaging-spring-boot-starter',
     'messaging-test-support'
 ].each { module ->

@@ -8,6 +8,7 @@ dependencies {
     api project(':messaging:messaging-consumer-common')
     api project(':messaging:messaging-consumer-kafka')
     api project(':messaging:messaging-spring-observability')
+    api libs.jackson.databind
     api libs.spring.kafka
 
     testImplementation libs.spring.boot.starter.test

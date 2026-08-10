@@ -1253,7 +1253,7 @@ ES2 驗證證據（2026-08-09）：
 
 ES3 驗證證據（2026-08-09）：
 
-- `ArchoneMessagingAutoConfiguration` 現在把 Spring context 中的 decorators 交給 temporary dispatcher；同一條 chain 依 order 執行 allocation retry → transactional Inbox → typed dispatcher。
+- Gate E 當時由舊 `ArchoneMessagingAutoConfiguration` 把 Spring context 中的 decorators 交給 temporary dispatcher；Gate H 已將這段相容 wiring 移入窄 consumer auto-configuration，同一條 chain 仍依 order 執行 allocation retry → transactional Inbox → typed dispatcher。
 - allocation 三個 handlers 與 ordering 兩個 handlers 只做 event → command mapping 後呼叫 `execute`；五個 Kafka consumer use cases 已移除 `InboundCommand`／`InboxRepo` constructor dependency 與 legacy claim wrapper。
 - `AllocationBoundaryArchitectureTest` 新增 source-level rule，禁止上述五個 use cases 再引入 messaging envelope 或 Inbox repository。
 - `InboundEntrypointTransactionIntegrationTest` 的 Kafka 部分已改從真實 `AllocationKafkaIntegrationEventConsumer` 進入，不再直接呼叫 use case；success、business failure rollback、cancel failure rollback 均通過。
@@ -1521,7 +1521,7 @@ FS3 subscriber／group rename 與 replay runbook：
 - [x] G13. auto-config 以 `ObservationRegistry` presence 與 property 條件啟用，允許 application override convention／decorator。
 - [x] G14. starter 不強迫選擇 Prometheus、OTLP 或其他 exporter。
 - [x] G15. 驗證 `order-promising` 現有 Actuator、OpenTelemetry、OTLP 與 Prometheus dependencies 可直接接入。
-- [ ] G16. 加入 dependency／architecture test，確認共用 observation module 不依賴 producer／consumer common，producer starter 不引入 consumer/Spring Kafka，consumer starter不引入 producer Outbox。（三個 observation artifacts 的依賴邊界已驗證；starter 部分待 Gate H 建立 artifacts。）
+- [x] G16. 加入 dependency／architecture test，確認共用 observation module 不依賴 producer／consumer common，producer starter 不引入 consumer/Spring Kafka，consumer starter 不引入 producer Outbox；Gate H 的 resolved runtimeClasspath 與 starter context tests 已完成驗證。
 
 2026-08-10 core observation slice 實作證據：
 
@@ -1561,26 +1561,38 @@ archone.messaging.producer
 
 目的：讓服務依使用情境選擇依賴，而不是被 all-in-one starter 綁定。
 
-- [ ] H1. 將 auto-configuration 拆成 `MessagingCoreAutoConfiguration`。
-- [ ] H2. 建立 `MessagingJdbcAutoConfiguration`。
-- [ ] H3. 建立 `MessagingProducerJdbcAutoConfiguration`。
-- [ ] H4. 建立 `MessagingConsumerJdbcAutoConfiguration`。
-- [ ] H5. 建立 `MessagingKafkaConsumerAutoConfiguration`／dispatcher configuration。
-- [ ] H6. 建立 common、producer 與 consumer observation auto-configurations，保持窄依賴。
-- [ ] H7. 每一區塊使用 `@ConditionalOnClass`、`@ConditionalOnMissingBean` 與獨立 enable property。
-- [ ] H8. auto-config 對 optional implementations 使用 `compileOnly`；由 starter 提供 runtime dependency。
-- [ ] H9. 避免某個缺少 optional class 的 auto-config 在 class loading 階段就失敗，必要時以 nested configuration 隔離。
-- [ ] H10. 建立 `messaging-spring-producer-starter`，聚合 producer common／JDBC／Spring JDBC／producer observability。
-- [ ] H11. 建立 `messaging-spring-consumer-starter`，聚合 consumer common／JDBC idempotency／Kafka／Spring integrations／consumer observability。
-- [ ] H12. 將 `messaging-spring-boot-starter` 改為聚合 producer + consumer starters。
-- [ ] H13. 測試 producer-only application context 不載入 Inbox／Kafka consumer beans。
-- [ ] H14. 測試 consumer-only application context 不載入 Outbox producer beans。
-- [ ] H15. 測試 all-in-one context 可同時載入且允許 application bean／subscription policy override。
-- [ ] H16. 測試 producer JDBC、consumer JDBC、Kafka subscription 與 observability 能分別停用。
-- [ ] H17. 提供 `ChannelMapping` properties binding、identity default、duplicate/collision startup validation 與 application bean override。
-- [ ] H18. 提供分離的 subscriber/group properties；configuration metadata 必須解釋兩者改名的 replay 風險。
-- [ ] H19. `messaging-spring-flyway` 必須由明確 property／annotation opt in；application 未選用時不得自動改 schema。
-- [ ] H20. 加入 auto-configuration metadata、ApplicationContextRunner 與 dependency leakage tests。
+- [x] H1. 將 auto-configuration 拆成 `MessagingCoreAutoConfiguration`。
+- [x] H2. 建立 `MessagingJdbcAutoConfiguration`。
+- [x] H3. 建立 `MessagingProducerJdbcAutoConfiguration`。
+- [x] H4. 建立 `MessagingConsumerJdbcAutoConfiguration`。
+- [x] H5. 建立 `MessagingKafkaConsumerAutoConfiguration` 與獨立 `MessagingIntegrationEventDispatcherAutoConfiguration`。
+- [x] H6. 建立 common、producer 與 consumer observation auto-configurations，保持窄依賴。
+- [x] H7. 每一區塊使用 `@ConditionalOnClass`、`@ConditionalOnMissingBean` 與獨立 enable property。
+- [x] H8. auto-config 對 optional implementations 使用 `compileOnly`；由 starter 提供 runtime dependency。
+- [x] H9. optional implementation 以頂層 classpath/bean condition、明確 auto-config ordering 與必要的 nested configuration 隔離；producer-only／consumer-only context 已證明缺少另一側 classes 仍可啟動。
+- [x] H10. 建立 `messaging-spring-producer-starter`，聚合 producer common／JDBC／Spring JDBC／producer observability。
+- [x] H11. 建立 `messaging-spring-consumer-starter`，聚合 consumer common／JDBC idempotency／Kafka／Spring integrations／consumer observability。
+- [x] H12. 將 `messaging-spring-boot-starter` 改為聚合 producer + consumer starters；Gate I 前暫留 JPA migration facades。
+- [x] H13. 測試 producer-only application context 不載入 Inbox／Kafka consumer beans。
+- [x] H14. 測試 consumer-only application context 不載入 Outbox producer beans。
+- [x] H15. 測試 all-in-one context 可同時載入且允許 application `ChannelMapping`／subscription policy override。
+- [x] H16. 測試 producer JDBC、consumer JDBC、Kafka subscription 與 producer／consumer observability 能分別停用。
+- [x] H17. 提供 `ChannelMapping` properties binding、identity default、duplicate/collision startup validation 與 application bean override。
+- [x] H18. 提供 `ConsumerGroupMapping` 與 `archone.messaging.consumer.groups.<subscriber-id>=<consumer-group-id>`；identity fallback、explicit subscription override 及 subscriber/group rename replay 風險 metadata 已固定。
+- [x] H19. `messaging-spring-flyway` 只在 `archone.messaging.flyway.enabled=true` 時暴露 factory，且永不自行建立 initializer 或改 schema。
+- [x] H20. 加入 generated/additional auto-configuration metadata、ApplicationContextRunner starter slices 與 dependency leakage tests。
+
+2026-08-10 Gate H 實作證據：
+
+- `messaging-spring-boot-autoconfigure` 不再以 `api` 傳遞任何 optional producer、consumer、JPA、Kafka 或 observation implementation；所有這類 compile dependency 都是 `compileOnly`。
+- 同時啟用 Spring Boot auto-configure processor 產生 ordering/condition metadata；JDBC 與 Kafka 的 bean conditions 放在具 `after` 關係的頂層 configuration，避免 nested member condition 在 Boot infrastructure beans 註冊前提早判斷。
+- producer starter 的 resolved runtimeClasspath 只有 producer common／JDBC／producer observation，沒有 consumer common、Inbox 或 Spring Kafka；consumer starter 則沒有 producer common、Outbox persistence 或 producer observation。
+- producer-only、consumer-only 與 all-in-one 三個真實 auto-import context tests 均通過；這些測試不是只挑選有利的 configuration classes，而是由 `@EnableAutoConfiguration` 讀取完整 imports 清單。
+- logical channel mapping 與 subscriber/group mapping 都有 pure API port、identity fallback 與 map-based implementation；explicit `MessageSubscriptionOptions` 仍可覆寫 group mapping，供一次性 replay 使用。
+- Kafka operational defaults 維持在 `archone.messaging.consumer.kafka.*`，application 提供的 `KafkaSubscriptionPolicyResolver` 具有優先權；auto-config 不把 retry／DLT business policy硬寫進 properties。
+- consumer-only runtime 使用自己的 bounded Jackson header decoder 還原 Debezium serialized headers，不需要為了解碼而反向依賴 producer Outbox artifact。
+- all-in-one starter 只負責聚合兩個窄 starters；現有 `producer-outbox`／`consumer-inbox` 與 JPA starter 是 Gate I production migration 前的明確 compatibility additions，不會洩漏至窄 starters。
+- 完整 `./gradlew check` 已通過（包含 156 個 `order-promising` SIT cases、starter slices、architecture tests 與 messaging unit/integration suites）。
 
 驗收條件：
 

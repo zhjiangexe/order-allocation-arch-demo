@@ -2,11 +2,17 @@ plugins {
     id 'java-library'
 }
 
-description = 'dependency-only Spring Boot starter for Archone transactional messaging'
+description = 'all-in-one Spring Boot starter for Archone transactional messaging'
 
 dependencies {
-    api project(':messaging:messaging-spring-boot-autoconfigure')
+    api project(':messaging:messaging-spring-producer-starter')
+    api project(':messaging:messaging-spring-consumer-starter')
+
+    // Temporary Gate I compatibility facades for the existing application.
+    api project(':messaging:messaging-producer-outbox')
+    api project(':messaging:messaging-consumer-inbox')
     api libs.spring.boot.starter.data.jpa
-    api libs.spring.boot.starter.kafka
-    api libs.jackson.datatype.jsr310
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
 }

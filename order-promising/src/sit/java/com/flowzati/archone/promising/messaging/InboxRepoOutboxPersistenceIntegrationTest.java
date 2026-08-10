@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
-import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingAutoConfiguration;
-import com.flowzati.archone.messaging.autoconfigure.ArchoneIntegrationEventPublisherAutoConfiguration;
-import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJdbcProducerAutoConfiguration;
-import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJdbcConsumerAutoConfiguration;
-import com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJpaAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.MessagingConsumerJdbcAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.MessagingCoreAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.MessagingIntegrationEventPublisherAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.MessagingJdbcAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.MessagingJpaCompatibilityAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.MessagingLegacyInboxAutoConfiguration;
+import com.flowzati.archone.messaging.autoconfigure.MessagingProducerJdbcAutoConfiguration;
 import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.api.MessageBuilder;
@@ -77,11 +79,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({
     FlywayAutoConfiguration.class,
-    ArchoneMessagingAutoConfiguration.class,
-    ArchoneMessagingJdbcProducerAutoConfiguration.class,
-    ArchoneMessagingJdbcConsumerAutoConfiguration.class,
-    ArchoneMessagingJpaAutoConfiguration.class,
-    ArchoneIntegrationEventPublisherAutoConfiguration.class
+    MessagingCoreAutoConfiguration.class,
+    MessagingJdbcAutoConfiguration.class,
+    MessagingProducerJdbcAutoConfiguration.class,
+    MessagingConsumerJdbcAutoConfiguration.class,
+    MessagingLegacyInboxAutoConfiguration.class,
+    MessagingJpaCompatibilityAutoConfiguration.class,
+    MessagingIntegrationEventPublisherAutoConfiguration.class
 })
 @ActiveProfiles("test")
 @Import({

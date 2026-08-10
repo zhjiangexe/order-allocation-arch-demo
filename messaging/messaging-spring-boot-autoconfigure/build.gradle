@@ -5,24 +5,56 @@ plugins {
 description = 'Spring Boot auto-configuration for Archone transactional messaging'
 
 dependencies {
-    api project(':messaging:messaging-api')
-    api project(':messaging:messaging-events')
-    api project(':messaging:messaging-producer-common')
-    api project(':messaging:messaging-consumer-common')
-    api project(':messaging:messaging-producer-jdbc')
-    api project(':messaging:messaging-consumer-jdbc')
-    api project(':messaging:messaging-producer-outbox')
-    api project(':messaging:messaging-consumer-inbox')
-    api project(':messaging:messaging-consumer-kafka')
-    api project(':messaging:messaging-spring-producer-jdbc')
-    api project(':messaging:messaging-spring-consumer-jdbc')
-    api project(':messaging:messaging-spring-producer-observability')
-    api project(':messaging:messaging-spring-consumer-observability')
+    compileOnly project(':messaging:messaging-api')
+    compileOnly project(':messaging:messaging-events')
+    compileOnly project(':messaging:messaging-producer-common')
+    compileOnly project(':messaging:messaging-consumer-common')
+    compileOnly project(':messaging:messaging-jdbc-common')
+    compileOnly project(':messaging:messaging-producer-jdbc')
+    compileOnly project(':messaging:messaging-consumer-jdbc')
+    compileOnly project(':messaging:messaging-producer-outbox')
+    compileOnly project(':messaging:messaging-consumer-inbox')
+    compileOnly project(':messaging:messaging-consumer-kafka')
+    compileOnly project(':messaging:messaging-spring-jdbc')
+    compileOnly project(':messaging:messaging-spring-producer-jdbc')
+    compileOnly project(':messaging:messaging-spring-consumer-jdbc')
+    compileOnly project(':messaging:messaging-spring-consumer-kafka')
+    compileOnly project(':messaging:messaging-spring-observability')
+    compileOnly project(':messaging:messaging-spring-producer-observability')
+    compileOnly project(':messaging:messaging-spring-consumer-observability')
+    compileOnly project(':messaging:messaging-spring-flyway')
 
-    implementation libs.spring.boot.starter.data.jpa
-    implementation libs.spring.boot.starter.kafka
-    implementation libs.jackson.datatype.jsr310
+    compileOnly libs.spring.boot.starter.data.jpa
+    compileOnly libs.spring.boot.starter.flyway
+    compileOnly libs.spring.boot.starter.kafka
+    compileOnly libs.jackson.datatype.jsr310
+    compileOnly libs.micrometer.observation
+
+    annotationProcessor libs.spring.boot.configuration.processor
+    annotationProcessor libs.spring.boot.autoconfigure.processor
+
+    testImplementation project(':messaging:messaging-api')
+    testImplementation project(':messaging:messaging-events')
+    testImplementation project(':messaging:messaging-producer-common')
+    testImplementation project(':messaging:messaging-consumer-common')
+    testImplementation project(':messaging:messaging-jdbc-common')
+    testImplementation project(':messaging:messaging-producer-jdbc')
+    testImplementation project(':messaging:messaging-consumer-jdbc')
+    testImplementation project(':messaging:messaging-producer-outbox')
+    testImplementation project(':messaging:messaging-consumer-inbox')
+    testImplementation project(':messaging:messaging-consumer-kafka')
+    testImplementation project(':messaging:messaging-spring-jdbc')
+    testImplementation project(':messaging:messaging-spring-producer-jdbc')
+    testImplementation project(':messaging:messaging-spring-consumer-jdbc')
+    testImplementation project(':messaging:messaging-spring-consumer-kafka')
+    testImplementation project(':messaging:messaging-spring-observability')
+    testImplementation project(':messaging:messaging-spring-producer-observability')
+    testImplementation project(':messaging:messaging-spring-consumer-observability')
+    testImplementation project(':messaging:messaging-spring-flyway')
 
     testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.data.jpa
+    testImplementation libs.spring.boot.starter.flyway
+    testImplementation libs.spring.boot.starter.kafka
     testRuntimeOnly libs.junit.platform.launcher
 }

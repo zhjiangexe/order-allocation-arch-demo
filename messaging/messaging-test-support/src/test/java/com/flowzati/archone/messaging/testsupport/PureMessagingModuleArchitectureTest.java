@@ -150,6 +150,40 @@ class PureMessagingModuleArchitectureTest {
   }
 
   @Test
+  void narrowStartersAndOptionalAutoConfigurationDoNotLeakTheOppositeRuntime()
+      throws IOException {
+    String autoConfiguration = Files.readString(root().resolve(
+        "messaging/messaging-spring-boot-autoconfigure/build.gradle"));
+    String producerStarter = Files.readString(root().resolve(
+        "messaging/messaging-spring-producer-starter/build.gradle"));
+    String consumerStarter = Files.readString(root().resolve(
+        "messaging/messaging-spring-consumer-starter/build.gradle"));
+    String allInOneStarter = Files.readString(root().resolve(
+        "messaging/messaging-spring-boot-starter/build.gradle"));
+
+    assertThat(autoConfiguration)
+        .contains("compileOnly project(':messaging:messaging-spring-producer-jdbc')")
+        .contains("compileOnly project(':messaging:messaging-spring-consumer-kafka')")
+        .doesNotContain("    api project(")
+        .doesNotContain("    implementation project(");
+    assertThat(producerStarter)
+        .contains("messaging-producer-common")
+        .contains("messaging-spring-producer-jdbc")
+        .contains("messaging-spring-producer-observability")
+        .doesNotContain("messaging-consumer")
+        .doesNotContain("starter.kafka");
+    assertThat(consumerStarter)
+        .contains("messaging-consumer-common")
+        .contains("messaging-spring-consumer-kafka")
+        .contains("messaging-spring-consumer-observability")
+        .doesNotContain("messaging-producer")
+        .doesNotContain("messaging-producer-outbox");
+    assertThat(allInOneStarter)
+        .contains("messaging-spring-producer-starter")
+        .contains("messaging-spring-consumer-starter");
+  }
+
+  @Test
   void consumerCommonOwnsTheOnlyRuntimeSpiAndResolvesChannelMappingBeforeTransport()
       throws IOException {
     Path consumerCommon = root().resolve("messaging/messaging-consumer-common/src/main/java");

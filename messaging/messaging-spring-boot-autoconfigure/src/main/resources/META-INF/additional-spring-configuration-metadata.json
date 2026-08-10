@@ -1,10 +1,98 @@
 {
   "properties": [
     {
+      "name": "archone.messaging.core.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to compose framework-neutral messaging defaults such as ChannelMapping, Clock, and Integration Event serde."
+    },
+    {
+      "name": "archone.messaging.channels.mappings",
+      "type": "java.util.Map<java.lang.String,java.lang.String>",
+      "description": "Logical channel to physical destination mappings. Unmapped channels use identity mapping; duplicate physical destinations fail startup."
+    },
+    {
+      "name": "archone.messaging.jdbc.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to adapt Spring JDBC and the application transaction manager to the framework-neutral messaging JDBC ports."
+    },
+    {
+      "name": "archone.messaging.producer.jdbc.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to compose the caller-transaction-required JDBC Outbox MessageProducer."
+    },
+    {
+      "name": "archone.messaging.consumer.jdbc.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to compose the JDBC Inbox duplicate detector and transactional idempotency decorator."
+    },
+    {
+      "name": "archone.messaging.consumer.inbox-compatibility.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to expose the temporary InboxRepo compatibility facade when its migration artifact is present. Gate I removes this path."
+    },
+    {
+      "name": "archone.messaging.consumer.kafka.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to compose the programmatic Spring Kafka MessageConsumer runtime."
+    },
+    {
+      "name": "archone.messaging.consumer.groups",
+      "type": "java.util.Map<java.lang.String,java.lang.String>",
+      "description": "Stable subscriber ID to Kafka consumer group mapping. Unmapped subscribers use the same value for both identities. Renaming a subscriber changes Inbox idempotency identity; renaming a group changes Kafka offset ownership and requires an explicit replay or cutover plan."
+    },
+    {
+      "name": "archone.messaging.consumer.kafka.concurrency",
+      "type": "java.lang.Integer",
+      "defaultValue": 1,
+      "description": "Default concurrency for programmatically created Kafka listener containers."
+    },
+    {
+      "name": "archone.messaging.consumer.kafka.ack-mode",
+      "type": "org.springframework.kafka.listener.ContainerProperties$AckMode",
+      "defaultValue": "BATCH",
+      "description": "Default Spring Kafka acknowledgement mode for programmatic subscriptions."
+    },
+    {
+      "name": "archone.messaging.consumer.kafka.missing-topics-fatal",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether a programmatic subscription fails startup when a configured topic is missing."
+    },
+    {
+      "name": "archone.messaging.consumer.kafka.observation-enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "Whether Spring Kafka transport observation is enabled for programmatic subscriptions; semantic consumer observation is configured separately."
+    },
+    {
+      "name": "archone.messaging.consumer.kafka.shutdown-timeout",
+      "type": "java.time.Duration",
+      "defaultValue": "10s",
+      "description": "Graceful shutdown timeout for programmatically created Kafka listener containers."
+    },
+    {
+      "name": "archone.messaging.events.publisher.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to expose the typed IntegrationEventPublisher when a MessageProducer exists."
+    },
+    {
+      "name": "archone.messaging.events.dispatcher.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to expose IntegrationEventDispatcherFactory when MessageConsumer and an explicit IntegrationEventNameMapping exist."
+    },
+    {
       "name": "archone.messaging.observation.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
-      "description": "Whether messaging producer and consumer observations are composed when an ObservationRegistry bean exists. This does not select or install an exporter."
+      "description": "Whether messaging observations are composed when an ObservationRegistry bean exists. This does not select or install an exporter."
     },
     {
       "name": "archone.messaging.observation.producer.enabled",
@@ -19,28 +107,22 @@
       "description": "Whether to observe final semantic outcomes through the ordered consumer decorator chain."
     },
     {
+      "name": "archone.messaging.flyway.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "Whether to expose the namespaced MessagingFlywayFactory. This remains opt-in and never creates a Flyway initializer or changes an application schema by itself."
+    },
+    {
       "name": "archone.messaging.jpa.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
-      "description": "Whether to compose the legacy JPA Outbox bridge and JPA Inbox fallback beans."
-    },
-    {
-      "name": "archone.messaging.producer.jdbc.enabled",
-      "type": "java.lang.Boolean",
-      "defaultValue": true,
-      "description": "Whether to compose the transaction-required JDBC Outbox MessageProducer."
-    },
-    {
-      "name": "archone.messaging.consumer.jdbc.enabled",
-      "type": "java.lang.Boolean",
-      "defaultValue": true,
-      "description": "Whether to compose the JDBC Inbox duplicate detector, transactional idempotency decorator, and legacy InboxRepo bridge."
+      "description": "Whether to compose temporary legacy JPA Outbox and Inbox facades when their compatibility artifacts are present."
     },
     {
       "name": "archone.messaging.jpa.register-package",
       "type": "java.lang.Boolean",
       "defaultValue": true,
-      "description": "Whether to add the Archone messaging root to Spring Boot auto-configuration packages. Disable when the application root already covers it."
+      "description": "Whether to add the temporary legacy messaging JPA package to Spring Boot repository discovery. Disable when the application root already covers it."
     }
   ]
 }

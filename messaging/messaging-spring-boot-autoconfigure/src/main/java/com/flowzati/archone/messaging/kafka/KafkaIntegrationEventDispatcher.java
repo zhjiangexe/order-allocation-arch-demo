@@ -81,6 +81,19 @@ public final class KafkaIntegrationEventDispatcher {
     this(new KafkaMessageMapper(headersDecoder), terminalHandler, decorators);
   }
 
+  /** Compatibility composition that reuses the generic Kafka mapper selected by auto-config. */
+  public KafkaIntegrationEventDispatcher(
+      KafkaMessageMapper kafkaMessageMapper,
+      IntegrationEventDeserializer deserializer,
+      List<IntegrationEventHandler<?>> handlers,
+      List<MessageHandlerDecorator> decorators
+  ) {
+    this(
+        kafkaMessageMapper,
+        legacyMessageHandler(new LegacyIntegrationEventDispatcherAdapter(deserializer, handlers)),
+        decorators);
+  }
+
   KafkaIntegrationEventDispatcher(
       KafkaMessageMapper kafkaMessageMapper,
       MessageHandler terminalHandler,
