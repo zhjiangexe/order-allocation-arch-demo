@@ -1,4 +1,5 @@
 com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingAutoConfiguration
+com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingObservationAutoConfiguration
 com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJdbcProducerAutoConfiguration
 com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJdbcConsumerAutoConfiguration
 com.flowzati.archone.messaging.autoconfigure.ArchoneMessagingJpaAutoConfiguration

@@ -3,8 +3,6 @@ package com.flowzati.archone.messaging.spring.consumer.kafka;
 import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Headers;
@@ -33,23 +31,10 @@ public interface KafkaDeadLetterHeadersProvider {
         || subscriptions.stream().anyMatch(Objects::isNull)) {
       throw new IllegalArgumentException("Resolved message subscriptions are required");
     }
-    Map<String, ResolvedMessageSubscription> subscriptionByDestination = new LinkedHashMap<>();
-    subscriptions.forEach(subscription ->
-        subscription.destinationToLogicalChannel().keySet().forEach(destination -> {
-          ResolvedMessageSubscription previous = subscriptionByDestination.putIfAbsent(
-              destination, subscription);
-          if (previous != null) {
-            throw new IllegalArgumentException(
-                "DLT destination belongs to multiple subscribers: " + destination);
-          }
-        }));
-    Map<String, ResolvedMessageSubscription> resolved = Map.copyOf(subscriptionByDestination);
+    ResolvedKafkaSubscriptionIndex index =
+        ResolvedKafkaSubscriptionIndex.create(subscriptions, "DLT");
     return (record, failure) -> {
-      ResolvedMessageSubscription subscription = resolved.get(record.topic());
-      if (subscription == null) {
-        throw new IllegalArgumentException(
-            "No DLT subscription metadata for destination: " + record.topic());
-      }
+      ResolvedMessageSubscription subscription = index.resolve(record.topic());
       return channelHeaders(
           subscription.logicalChannelFor(record.topic()),
           record.topic(),

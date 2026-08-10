@@ -15,6 +15,7 @@ public final class KafkaSubscriptionPolicy {
   private final int concurrency;
   private final ContainerProperties.AckMode ackMode;
   private final boolean missingTopicsFatal;
+  private final boolean observationEnabled;
   private final Duration shutdownTimeout;
   private final CommonErrorHandler commonErrorHandler;
 
@@ -22,6 +23,7 @@ public final class KafkaSubscriptionPolicy {
     this.concurrency = builder.concurrency;
     this.ackMode = builder.ackMode;
     this.missingTopicsFatal = builder.missingTopicsFatal;
+    this.observationEnabled = builder.observationEnabled;
     this.shutdownTimeout = builder.shutdownTimeout;
     this.commonErrorHandler = builder.commonErrorHandler;
   }
@@ -46,6 +48,10 @@ public final class KafkaSubscriptionPolicy {
     return missingTopicsFatal;
   }
 
+  public boolean observationEnabled() {
+    return observationEnabled;
+  }
+
   public Duration shutdownTimeout() {
     return shutdownTimeout;
   }
@@ -60,6 +66,7 @@ public final class KafkaSubscriptionPolicy {
     private int concurrency = 1;
     private ContainerProperties.AckMode ackMode = ContainerProperties.AckMode.BATCH;
     private boolean missingTopicsFatal = true;
+    private boolean observationEnabled;
     private Duration shutdownTimeout = DEFAULT_SHUTDOWN_TIMEOUT;
     private CommonErrorHandler commonErrorHandler;
 
@@ -81,6 +88,12 @@ public final class KafkaSubscriptionPolicy {
 
     public Builder missingTopicsFatal(boolean missingTopicsFatal) {
       this.missingTopicsFatal = missingTopicsFatal;
+      return this;
+    }
+
+    /** Enables Spring Kafka transport observations and disables its legacy listener timers. */
+    public Builder observationEnabled(boolean observationEnabled) {
+      this.observationEnabled = observationEnabled;
       return this;
     }
 

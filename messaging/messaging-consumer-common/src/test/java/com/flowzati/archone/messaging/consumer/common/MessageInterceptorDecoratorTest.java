@@ -53,6 +53,40 @@ class MessageInterceptorDecoratorTest {
         "only.postHandle.handler failed", "only.postReceive.handler failed");
   }
 
+  @Test
+  void exposesTheSameDeliveryAttemptContextToAllContextualHooks() {
+    List<MessageContext> contexts = new ArrayList<>();
+    MessageInterceptor contextual = new MessageInterceptor() {
+      @Override
+      public void preReceive(Message message, MessageContext context) {
+        contexts.add(context);
+      }
+
+      @Override
+      public void preHandle(Message message, MessageContext context) {
+        contexts.add(context);
+      }
+
+      @Override
+      public void postHandle(Message message, MessageContext context, Throwable failure) {
+        contexts.add(context);
+      }
+
+      @Override
+      public void postReceive(Message message, MessageContext context, Throwable failure) {
+        contexts.add(context);
+      }
+    };
+    MessageHandlerInvocation invocation = invocation();
+    MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
+        List.of(new MessageInterceptorDecorator(List.of(contextual))),
+        ignored -> ProcessingOutcome.DUPLICATE);
+
+    assertThat(chain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.DUPLICATE);
+    assertThat(contexts).containsExactly(
+        invocation.context(), invocation.context(), invocation.context(), invocation.context());
+  }
+
   private MessageInterceptor interceptor(String name, List<String> calls) {
     return new MessageInterceptor() {
       @Override

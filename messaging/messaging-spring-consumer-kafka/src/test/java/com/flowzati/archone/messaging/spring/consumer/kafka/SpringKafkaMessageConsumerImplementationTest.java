@@ -41,6 +41,7 @@ class SpringKafkaMessageConsumerImplementationTest {
         .concurrency(3)
         .ackMode(ContainerProperties.AckMode.RECORD)
         .missingTopicsFatal(false)
+        .observationEnabled(true)
         .shutdownTimeout(Duration.ofSeconds(7))
         .commonErrorHandler(errorHandler)
         .build();
@@ -64,6 +65,8 @@ class SpringKafkaMessageConsumerImplementationTest {
     assertThat(container.getContainerProperties().getAckMode())
         .isEqualTo(ContainerProperties.AckMode.RECORD);
     assertThat(container.getContainerProperties().isMissingTopicsFatal()).isFalse();
+    assertThat(container.getContainerProperties().isObservationEnabled()).isTrue();
+    assertThat(container.getContainerProperties().isMicrometerEnabled()).isFalse();
     assertThat(container.getContainerProperties().getShutdownTimeout()).isEqualTo(7_000);
     assertThat(container.getCommonErrorHandler()).isSameAs(errorHandler);
     assertThat(handle.containerId()).startsWith("archone-messaging.");

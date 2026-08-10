@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.MockProducer;
@@ -32,7 +33,8 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
 
   @Test
   void retriesClassifiedFailureBeforePublishingOriginalEnvelopeToDlt() {
-    DltFixture fixture = fixture(new FixedBackOff(0, 1));
+    RecordingFailureObserver observer = new RecordingFailureObserver();
+    DltFixture fixture = fixture(new FixedBackOff(0, 1), exactHeadersProvider(), observer);
     ConsumerRecord<String, String> original = record();
 
     assertThat(fixture.errorHandler().handleOne(
@@ -42,6 +44,10 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
 
     assertThat(fixture.producer().history()).hasSize(1);
     assertDltRecord(fixture.producer().history().getFirst(), original);
+    assertThat(observer.retryAttempts).containsExactly(1);
+    assertThat(observer.retryBackOffs).containsExactly(0L);
+    assertThat(observer.published).containsExactly(original);
+    assertThat(observer.publicationFailures).isEmpty();
   }
 
   @Test
@@ -163,14 +169,60 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
     KafkaOperations<Object, Object> operations = mock(KafkaOperations.class);
     when(operations.send(any(ProducerRecord.class))).thenReturn(
         CompletableFuture.failedFuture(new IllegalStateException("broker unavailable")));
+    RecordingFailureObserver observer = new RecordingFailureObserver();
     DefaultErrorHandler errorHandler = KafkaDeadLetterErrorHandlerFactory.create(
         operations,
         new FixedBackOff(0, 0),
         failure -> MessageFailureClassification.nonRetryable(MessageFailureCategory.CONTRACT),
-        exactHeadersProvider());
+        exactHeadersProvider(),
+        observer);
 
     assertThat(errorHandler.handleOne(
         new IllegalArgumentException("invalid contract"), record(), null, null)).isFalse();
+    assertThat(observer.published).isEmpty();
+    assertThat(observer.publicationFailures).singleElement()
+        .satisfies(failure -> assertThat(failure)
+            .hasRootCauseMessage("broker unavailable"));
+  }
+
+  @Test
+  void observationFailureNeverChangesDltRecoveryBehavior() {
+    KafkaConsumerFailureObserver brokenObserver = new KafkaConsumerFailureObserver() {
+      @Override
+      public void retryScheduled(
+          ConsumerRecord<?, ?> record,
+          Exception failure,
+          int deliveryAttempt,
+          long nextBackOffMillis
+      ) {
+        throw new IllegalStateException("retry observation failed");
+      }
+
+      @Override
+      public void deadLetterPublished(ConsumerRecord<?, ?> record, Exception originalFailure) {
+        throw new IllegalStateException("DLT observation failed");
+      }
+
+      @Override
+      public void deadLetterPublicationFailed(
+          ConsumerRecord<?, ?> record,
+          Exception originalFailure,
+          Exception publicationFailure
+      ) {
+        throw new IllegalStateException("DLT failure observation failed");
+      }
+    };
+    DltFixture fixture = fixture(
+        new FixedBackOff(0, 1), exactHeadersProvider(), brokenObserver);
+    ConsumerRecord<String, String> original = record();
+
+    assertThat(fixture.errorHandler().handleOne(
+        new ListenerWrapper(new TransientFailure()), original, null, null)).isFalse();
+    assertThat(fixture.errorHandler().handleOne(
+        new ListenerWrapper(new TransientFailure()), original, null, null)).isTrue();
+
+    assertThat(fixture.producer().history()).hasSize(1);
+    assertDltRecord(fixture.producer().history().getFirst(), original);
   }
 
   private DltFixture fixture(FixedBackOff retryBackOff) {
@@ -188,6 +240,14 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
       FixedBackOff retryBackOff,
       KafkaDeadLetterHeadersProvider headersProvider
   ) {
+    return fixture(retryBackOff, headersProvider, KafkaConsumerFailureObserver.none());
+  }
+
+  private DltFixture fixture(
+      FixedBackOff retryBackOff,
+      KafkaDeadLetterHeadersProvider headersProvider,
+      KafkaConsumerFailureObserver failureObserver
+  ) {
     MockProducer<String, String> producer = new MockProducer<>(
         true, null, new StringSerializer(), new StringSerializer());
     KafkaTemplate<String, String> template = new KafkaTemplate<>(
@@ -200,7 +260,7 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
         .build();
     return new DltFixture(
         KafkaDeadLetterErrorHandlerFactory.create(
-            operations, retryBackOff, classifier, headersProvider),
+            operations, retryBackOff, classifier, headersProvider, failureObserver),
         producer);
   }
 
@@ -274,5 +334,38 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
       DefaultErrorHandler errorHandler,
       MockProducer<String, String> producer
   ) {
+  }
+
+  private static final class RecordingFailureObserver
+      implements KafkaConsumerFailureObserver {
+    private final List<Integer> retryAttempts = new ArrayList<>();
+    private final List<Long> retryBackOffs = new ArrayList<>();
+    private final List<ConsumerRecord<?, ?>> published = new ArrayList<>();
+    private final List<Exception> publicationFailures = new ArrayList<>();
+
+    @Override
+    public void retryScheduled(
+        ConsumerRecord<?, ?> record,
+        Exception failure,
+        int deliveryAttempt,
+        long nextBackOffMillis
+    ) {
+      retryAttempts.add(deliveryAttempt);
+      retryBackOffs.add(nextBackOffMillis);
+    }
+
+    @Override
+    public void deadLetterPublished(ConsumerRecord<?, ?> record, Exception originalFailure) {
+      published.add(record);
+    }
+
+    @Override
+    public void deadLetterPublicationFailed(
+        ConsumerRecord<?, ?> record,
+        Exception originalFailure,
+        Exception publicationFailure
+    ) {
+      publicationFailures.add(publicationFailure);
+    }
   }
 }

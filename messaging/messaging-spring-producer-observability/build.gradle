@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Micrometer observation adapter for message publication and Outbox append'
+
+dependencies {
+    api project(':messaging:messaging-api')
+    api project(':messaging:messaging-spring-observability')
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

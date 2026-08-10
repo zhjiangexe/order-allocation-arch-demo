@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'shared Micrometer messaging observation names, conventions, and contexts'
+
+dependencies {
+    api project(':messaging:messaging-api')
+    api libs.micrometer.observation
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

@@ -140,6 +140,11 @@ public final class SpringKafkaMessageConsumerImplementation
     container.getContainerProperties().setAckMode(policy.ackMode());
     container.getContainerProperties().setMissingTopicsFatal(policy.missingTopicsFatal());
     container.getContainerProperties().setShutdownTimeout(policy.shutdownTimeout().toMillis());
+    container.getContainerProperties().setObservationEnabled(policy.observationEnabled());
+    if (policy.observationEnabled()) {
+      // Spring Kafka observation supersedes its legacy listener timers; keep one transport meter.
+      container.getContainerProperties().setMicrometerEnabled(false);
+    }
     policy.commonErrorHandler().ifPresent(container::setCommonErrorHandler);
     CommonErrorHandler errorHandler = container.getCommonErrorHandler();
     if (errorHandler != null && errorHandler.deliveryAttemptHeader()) {

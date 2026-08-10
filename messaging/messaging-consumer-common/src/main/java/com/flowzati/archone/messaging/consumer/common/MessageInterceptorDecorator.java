@@ -1,6 +1,7 @@
 package com.flowzati.archone.messaging.consumer.common;
 
 import com.flowzati.archone.messaging.api.Message;
+import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageInterceptor;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
       MessageHandlerDecoratorChain chain
   ) {
     Message message = invocation.message();
+    MessageContext context = invocation.context();
     List<MessageInterceptor> received = new ArrayList<>(interceptors.size());
     List<MessageInterceptor> handling = new ArrayList<>(interceptors.size());
     ProcessingOutcome outcome = null;
@@ -36,11 +38,11 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
 
     try {
       for (MessageInterceptor interceptor : interceptors) {
-        interceptor.preReceive(message);
+        interceptor.preReceive(message, context);
         received.add(interceptor);
       }
       for (MessageInterceptor interceptor : interceptors) {
-        interceptor.preHandle(message);
+        interceptor.preHandle(message, context);
         handling.add(interceptor);
       }
       outcome = chain.invokeNext(invocation);
@@ -48,7 +50,7 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
       failure = exception;
     }
 
-    Throwable postFailure = invokePostHooks(message, handling, received, failure);
+    Throwable postFailure = invokePostHooks(message, context, handling, received, failure);
     if (failure != null) {
       if (postFailure != null) {
         failure.addSuppressed(postFailure);
@@ -63,6 +65,7 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
 
   private Throwable invokePostHooks(
       Message message,
+      MessageContext context,
       List<MessageInterceptor> handling,
       List<MessageInterceptor> received,
       Throwable handlingFailure
@@ -70,11 +73,11 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
     Throwable firstFailure = null;
     for (int index = handling.size() - 1; index >= 0; index--) {
       firstFailure = invokePostHandle(
-          handling.get(index), message, handlingFailure, firstFailure);
+          handling.get(index), message, context, handlingFailure, firstFailure);
     }
     for (int index = received.size() - 1; index >= 0; index--) {
       firstFailure = invokePostReceive(
-          received.get(index), message, handlingFailure, firstFailure);
+          received.get(index), message, context, handlingFailure, firstFailure);
     }
     return firstFailure;
   }
@@ -82,11 +85,12 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
   private Throwable invokePostHandle(
       MessageInterceptor interceptor,
       Message message,
+      MessageContext context,
       Throwable handlingFailure,
       Throwable firstFailure
   ) {
     try {
-      interceptor.postHandle(message, handlingFailure);
+      interceptor.postHandle(message, context, handlingFailure);
       return firstFailure;
     } catch (RuntimeException | Error exception) {
       return combine(firstFailure, exception);
@@ -96,11 +100,12 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
   private Throwable invokePostReceive(
       MessageInterceptor interceptor,
       Message message,
+      MessageContext context,
       Throwable handlingFailure,
       Throwable firstFailure
   ) {
     try {
-      interceptor.postReceive(message, handlingFailure);
+      interceptor.postReceive(message, context, handlingFailure);
       return firstFailure;
     } catch (RuntimeException | Error exception) {
       return combine(firstFailure, exception);

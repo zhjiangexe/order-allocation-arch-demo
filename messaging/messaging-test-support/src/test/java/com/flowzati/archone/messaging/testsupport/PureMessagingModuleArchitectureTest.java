@@ -23,6 +23,7 @@ class PureMessagingModuleArchitectureTest {
       "messaging-test-support");
   private static final List<String> FORBIDDEN_IMPORTS = List.of(
       "import org.springframework.",
+      "import io.micrometer.",
       "import jakarta.persistence.",
       "import javax.persistence.");
 
@@ -76,6 +77,7 @@ class PureMessagingModuleArchitectureTest {
     assertThat(build)
         .contains("project(':messaging:messaging-consumer-common')")
         .contains("project(':messaging:messaging-consumer-kafka')")
+        .contains("project(':messaging:messaging-spring-observability')")
         .contains("libs.spring.kafka")
         .doesNotContain("messaging-events")
         .doesNotContain("id 'org.springframework.boot'")
@@ -83,6 +85,8 @@ class PureMessagingModuleArchitectureTest {
     assertThat(productionSources)
         .contains("implements MessageConsumerImplementation")
         .contains("ConcurrentKafkaListenerContainerFactory")
+        .contains("setObservationEnabled(policy.observationEnabled())")
+        .contains("implements RetryListener")
         .doesNotContain("com.flowzati.archone.messaging.events")
         .doesNotContain("@KafkaListener");
   }
@@ -114,6 +118,35 @@ class PureMessagingModuleArchitectureTest {
     assertThat(consumer)
         .doesNotContain("com.flowzati.archone.messaging.inbox.infrastructure")
         .doesNotContain("java.sql.");
+  }
+
+  @Test
+  void observabilityArtifactsKeepCommonProducerAndConsumerDependenciesDirectional()
+      throws IOException {
+    String common = Files.readString(root().resolve(
+        "messaging/messaging-spring-observability/build.gradle"));
+    String producer = Files.readString(root().resolve(
+        "messaging/messaging-spring-producer-observability/build.gradle"));
+    String consumer = Files.readString(root().resolve(
+        "messaging/messaging-spring-consumer-observability/build.gradle"));
+
+    assertThat(common)
+        .contains("project(':messaging:messaging-api')")
+        .contains("libs.micrometer.observation")
+        .doesNotContain("messaging-producer-common")
+        .doesNotContain("messaging-consumer-common")
+        .doesNotContain("spring.kafka");
+    assertThat(producer)
+        .contains("project(':messaging:messaging-spring-observability')")
+        .doesNotContain("messaging-consumer")
+        .doesNotContain("messaging-producer-jdbc")
+        .doesNotContain("spring.kafka");
+    assertThat(consumer)
+        .contains("project(':messaging:messaging-consumer-common')")
+        .contains("project(':messaging:messaging-spring-observability')")
+        .doesNotContain("messaging-producer")
+        .doesNotContain("messaging-producer-outbox")
+        .doesNotContain("spring.kafka");
   }
 
   @Test

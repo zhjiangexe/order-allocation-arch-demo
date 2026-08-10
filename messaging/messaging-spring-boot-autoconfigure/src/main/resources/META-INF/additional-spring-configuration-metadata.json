@@ -1,6 +1,24 @@
 {
   "properties": [
     {
+      "name": "archone.messaging.observation.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether messaging producer and consumer observations are composed when an ObservationRegistry bean exists. This does not select or install an exporter."
+    },
+    {
+      "name": "archone.messaging.observation.producer.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to observe synchronous Outbox append attempts through the producer interceptor lifecycle."
+    },
+    {
+      "name": "archone.messaging.observation.consumer.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether to observe final semantic outcomes through the ordered consumer decorator chain."
+    },
+    {
       "name": "archone.messaging.jpa.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,

@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Micrometer observation decorator for semantic message consumption outcomes'
+
+dependencies {
+    api project(':messaging:messaging-consumer-common')
+    api project(':messaging:messaging-spring-observability')
+
+    testImplementation libs.micrometer.core
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A～Gate F（FS0～FS4）已完成；下一步為 Gate G messaging observability，production subscription cutover 仍屬 Gate I
+> 狀態：Gate A～Gate F（FS0～FS4）已完成；Gate G 除 typed ignored-outcome bridge 與 Gate H starter boundary 外均已完成；production subscription cutover 仍屬 Gate I
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-10
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
@@ -513,6 +513,7 @@ flowchart BT
   SCJ --> SJ
   SCK --> KAFKA
   SCK --> CC
+  SCK --> OBS
   OBS --> API
   POBS --> OBS
   POBS --> PC
@@ -1505,22 +1506,36 @@ FS3 subscriber／group rename 與 replay runbook：
 
 目的：讓 transport、Inbox transaction 與 typed handler 可觀測，同時保持 pure modules 不依賴 Micrometer。
 
-- [ ] G1. 在 `messaging-consumer-common` 完成 `MessageHandlerDecorator`／processing context SPI。
-- [ ] G2. 完成 `MessageInterceptor` send lifecycle／publication context；consumer receive hooks 由 consumer-common adapter 成為 ordered decorator，不建立第二條 chain。
-- [ ] G3. 建立 `messaging-spring-observability`。
-- [ ] G4. 建立 `messaging-spring-producer-observability` 與 `messaging-spring-consumer-observability`；共用 module 只放 naming／convention／context helpers。
-- [ ] G5. producer adapter 以 `ObservationRegistry` 實作 producer interceptor；consumer adapter 實作 handler decorator，不在 pure module import Micrometer。
-- [ ] G6. 在 `messaging-spring-consumer-kafka` 啟用 Spring Kafka container observation，並避免與 legacy Micrometer timers 重複計量。
-- [ ] G7. 提供 consumer `processed`、`duplicate`、`ignored_unhandled`、`failed`、`processing duration` semantic measurements。
-- [ ] G8. 提供 consumer `retry`、`dlt` measurements；由 `messaging-spring-consumer-kafka` 的 policy／recoverer hook 記錄。
-- [ ] G9. 提供 producer `outbox.appended`、`outbox.failed` measurements。
-- [ ] G10. low-cardinality tags 限定 subscriber、logical destination、event type、outcome、exception type。
-- [ ] G11. message ID、aggregate ID、order ID、partition key、correlation ID 只能進 trace/log，不得成為 metric tags。
-- [ ] G12. 使用 Outbox persisted `traceparent`／`tracestate` 建立 producer-to-consumer trace propagation；缺 header 時仍建立獨立 consumer trace。
-- [ ] G13. auto-config 以 `ObservationRegistry` presence 與 property 條件啟用，允許 application override convention／decorator。
-- [ ] G14. starter 不強迫選擇 Prometheus、OTLP 或其他 exporter。
-- [ ] G15. 驗證 `order-promising` 現有 Actuator、OpenTelemetry、OTLP 與 Prometheus dependencies 可直接接入。
-- [ ] G16. 加入 dependency／architecture test，確認共用 observation module 不依賴 producer／consumer common，producer starter 不引入 consumer/Spring Kafka，consumer starter不引入 producer Outbox。
+- [x] G1. 在 `messaging-consumer-common` 完成 `MessageHandlerDecorator`／processing context SPI。
+- [x] G2. 完成 `MessageInterceptor` send lifecycle／publication context；consumer receive hooks 由 consumer-common adapter 成為 ordered decorator，不建立第二條 chain。
+- [x] G3. 建立 `messaging-spring-observability`。
+- [x] G4. 建立 `messaging-spring-producer-observability` 與 `messaging-spring-consumer-observability`；共用 module 只放 naming／convention／context helpers。
+- [x] G5. producer adapter 以 `ObservationRegistry` 實作 producer interceptor；consumer adapter 實作 handler decorator，不在 pure module import Micrometer。
+- [x] G6. 在 `messaging-spring-consumer-kafka` 啟用 Spring Kafka container observation，並避免與 legacy Micrometer timers 重複計量。
+- [ ] G7. 提供 consumer `processed`、`duplicate`、`ignored_unhandled`、`failed`、`processing duration` semantic measurements。（decorator 已量測全部 outcome 與 duration；typed dispatcher 尚需把 ignored-unhandled 語意回傳至 generic chain。）
+- [x] G8. 提供 consumer `retry`、`dlt` measurements；由 `messaging-spring-consumer-kafka` 的 policy／recoverer hook 記錄。
+- [x] G9. 提供 producer `outbox.appended`、`outbox.failed` measurements。
+- [x] G10. low-cardinality tags 限定 subscriber、logical destination、event type、outcome、exception type。
+- [x] G11. message ID、aggregate ID、order ID、partition key、correlation ID 只能進 trace/log，不得成為 metric tags。
+- [x] G12. 使用 Outbox persisted `traceparent`／`tracestate` 建立 producer-to-consumer trace propagation；缺 header 時仍建立獨立 consumer trace。
+- [x] G13. auto-config 以 `ObservationRegistry` presence 與 property 條件啟用，允許 application override convention／decorator。
+- [x] G14. starter 不強迫選擇 Prometheus、OTLP 或其他 exporter。
+- [x] G15. 驗證 `order-promising` 現有 Actuator、OpenTelemetry、OTLP 與 Prometheus dependencies 可直接接入。
+- [ ] G16. 加入 dependency／architecture test，確認共用 observation module 不依賴 producer／consumer common，producer starter 不引入 consumer/Spring Kafka，consumer starter不引入 producer Outbox。（三個 observation artifacts 的依賴邊界已驗證；starter 部分待 Gate H 建立 artifacts。）
+
+2026-08-10 core observation slice 實作證據：
+
+- `MessagePublicationContext` 與 `MessageInterceptor` contextual overload 由既有 producer／consumer lifecycle 呼叫；legacy callback 仍由 default method 委派，沒有破壞既有 interceptor。
+- `ProducerObservationInterceptor` 使用 stack-shaped thread-local scope 支援同步 nested send，量測的是 Outbox implementation append，不增加第二個 producer pipeline。
+- `ConsumerObservationDecorator` 固定使用既有 observation order `1000` 包住完整 Inbox／dispatcher chain；`processed`、`duplicate`、`ignored_unhandled` 與 `failed` 測試均證明 terminal handler 只呼叫一次。
+- Micrometer default convention 僅把 subscriber、logical destination、message type、outcome、exception type 放入 low-cardinality tags；message／partition／correlation IDs 僅為 high-cardinality trace fields。
+- pure module architecture test 額外禁止 `io.micrometer.*` import；common、producer、consumer observation artifact 的 dependency direction 已鎖定。
+- Spring Kafka transport observation 由 subscriber policy 明確 opt in，啟用時同時關閉 legacy listener timer；semantic consumer duration 仍只由 generic decorator 擁有。
+- retry measurement 掛在真正執行的 `BackOffHandler`，不把 exhausted／non-retryable failure 誤算為 retry；DLT measurement 掛在 recoverer success／failure callback。observer exception 會被隔離，不改變原始 retry／DLT 行為。
+- OpenTelemetry W3C integration test 驗證 `traceparent` 與 `tracestate` 經 producer carrier 寫入 Outbox envelope、consumer 延續同一 trace；缺少 headers 時 receiver handler 會建立新 trace。
+- observation auto-configuration 只在 `ObservationRegistry` bean 存在且 property 開啟時建立 adapters，producer／consumer 可分別停用，application 可提供 convention 或完整 adapter；starter 未加入任何 exporter dependency。
+- auto-config 將 producer observation interceptor 排在其他 `preSend` hooks 之後，避免把 application interceptor failure 誤標成 `outbox.failed`；reverse post lifecycle 仍能精確保留 append 成功結果。
+- `:order-promising:test` 已在既有 Actuator、OpenTelemetry、OTLP、Prometheus dependency 組合下通過，application 不需改 exporter 設定。
 
 建議觀測分層：
 

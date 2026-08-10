@@ -11,7 +11,11 @@ dependencies {
     api project(':messaging:messaging-consumer-common')
 
     testImplementation project(':messaging:messaging-consumer-jdbc')
+    testImplementation project(':messaging:messaging-spring-producer-observability')
+    testImplementation project(':messaging:messaging-spring-consumer-observability')
     testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.opentelemetry.test
+    testImplementation libs.micrometer.tracing.bridge.otel
     testRuntimeOnly libs.junit.platform.launcher
 }
 

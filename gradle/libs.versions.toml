@@ -30,6 +30,9 @@ spring-modulith-starter-insight = { group = "org.springframework.modulith", name
 spring-modulith-starter-jpa = { group = "org.springframework.modulith", name = "spring-modulith-starter-jpa" }
 
 # Observability
+micrometer-core = { group = "io.micrometer", name = "micrometer-core" }
+micrometer-observation = { group = "io.micrometer", name = "micrometer-observation" }
+micrometer-tracing-bridge-otel = { group = "io.micrometer", name = "micrometer-tracing-bridge-otel" }
 micrometer-registry-otlp = { group = "io.micrometer", name = "micrometer-registry-otlp" }
 micrometer-registry-prometheus = { group = "io.micrometer", name = "micrometer-registry-prometheus" }
 

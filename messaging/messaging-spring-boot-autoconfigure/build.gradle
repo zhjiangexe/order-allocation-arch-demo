@@ -16,6 +16,8 @@ dependencies {
     api project(':messaging:messaging-consumer-kafka')
     api project(':messaging:messaging-spring-producer-jdbc')
     api project(':messaging:messaging-spring-consumer-jdbc')
+    api project(':messaging:messaging-spring-producer-observability')
+    api project(':messaging:messaging-spring-consumer-observability')
 
     implementation libs.spring.boot.starter.data.jpa
     implementation libs.spring.boot.starter.kafka

@@ -7,6 +7,7 @@ import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.api.MessageIdGenerator;
 import com.flowzati.archone.messaging.api.MessageInterceptor;
+import com.flowzati.archone.messaging.api.MessagePublicationContext;
 import com.flowzati.archone.messaging.api.MessageProducer;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -70,12 +71,14 @@ public final class MessageProducerImpl implements MessageProducer {
     }
 
     Message current = normalize(logicalChannel, destination, message);
+    MessagePublicationContext publicationContext =
+        new MessagePublicationContext(logicalChannel, destination);
     List<MessageInterceptor> invokedInterceptors = new ArrayList<>(interceptors.size());
     Throwable failure = null;
 
     try {
       for (MessageInterceptor interceptor : interceptors) {
-        Message intercepted = interceptor.preSend(current);
+        Message intercepted = interceptor.preSend(current, publicationContext);
         if (intercepted == null) {
           throw new IllegalStateException("MessageInterceptor.preSend returned null");
         }
@@ -89,7 +92,8 @@ public final class MessageProducerImpl implements MessageProducer {
       failure = exception;
     }
 
-    Throwable postSendFailure = invokePostSendInReverse(invokedInterceptors, current, failure);
+    Throwable postSendFailure = invokePostSendInReverse(
+        invokedInterceptors, current, publicationContext, failure);
     if (failure != null) {
       if (postSendFailure != null) {
         failure.addSuppressed(postSendFailure);
@@ -160,12 +164,13 @@ public final class MessageProducerImpl implements MessageProducer {
   private Throwable invokePostSendInReverse(
       List<MessageInterceptor> invokedInterceptors,
       Message message,
+      MessagePublicationContext publicationContext,
       Throwable deliveryFailure
   ) {
     Throwable firstFailure = null;
     for (int index = invokedInterceptors.size() - 1; index >= 0; index--) {
       try {
-        invokedInterceptors.get(index).postSend(message, deliveryFailure);
+        invokedInterceptors.get(index).postSend(message, publicationContext, deliveryFailure);
       } catch (RuntimeException | Error exception) {
         if (firstFailure == null) {
           firstFailure = exception;

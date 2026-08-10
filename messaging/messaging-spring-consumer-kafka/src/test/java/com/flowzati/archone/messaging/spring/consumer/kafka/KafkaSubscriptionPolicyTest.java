@@ -16,8 +16,17 @@ class KafkaSubscriptionPolicyTest {
     assertThat(policy.concurrency()).isOne();
     assertThat(policy.ackMode()).isEqualTo(ContainerProperties.AckMode.BATCH);
     assertThat(policy.missingTopicsFatal()).isTrue();
+    assertThat(policy.observationEnabled()).isFalse();
     assertThat(policy.shutdownTimeout()).isEqualTo(Duration.ofSeconds(10));
     assertThat(policy.commonErrorHandler()).isEmpty();
+  }
+
+  @Test
+  void enablesTransportObservationExplicitly() {
+    assertThat(KafkaSubscriptionPolicy.builder()
+        .observationEnabled(true)
+        .build()
+        .observationEnabled()).isTrue();
   }
 
   @Test

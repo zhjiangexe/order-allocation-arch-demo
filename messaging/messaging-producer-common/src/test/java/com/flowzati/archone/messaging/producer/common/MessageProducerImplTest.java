@@ -8,6 +8,7 @@ import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.api.MessageInterceptor;
+import com.flowzati.archone.messaging.api.MessagePublicationContext;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -75,6 +76,34 @@ class MessageProducerImplTest {
         assertThat(message.headers())
             .containsEntry("first", "present")
             .containsEntry("second", "present"));
+  }
+
+  @Test
+  void exposesLogicalAndMappedDestinationToContextualInterceptors() {
+    List<MessagePublicationContext> contexts = new ArrayList<>();
+    MessageInterceptor contextual = new MessageInterceptor() {
+      @Override
+      public Message preSend(Message message, MessagePublicationContext context) {
+        contexts.add(context);
+        return message;
+      }
+
+      @Override
+      public void postSend(
+          Message message,
+          MessagePublicationContext context,
+          Throwable failure
+      ) {
+        contexts.add(context);
+      }
+    };
+
+    producer(new CapturingImplementation(), List.of(contextual))
+        .send("order-events", baseMessage());
+
+    assertThat(contexts).containsExactly(
+        new MessagePublicationContext("order-events", "prod.order-events"),
+        new MessagePublicationContext("order-events", "prod.order-events"));
   }
 
   @Test
