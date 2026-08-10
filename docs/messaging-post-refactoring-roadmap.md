@@ -1,6 +1,6 @@
 # Messaging 整理後優化 Roadmap
 
-> 狀態：Gate P0-A／P0-B 已完成；下一步為 Gate P0-C Full-path correctness E2E
+> 狀態：Gate P0-A／P0-B／P0-C 已完成；下一步為 Gate P1-D WMS messaging vertical slice
 > 更新日期：2026-08-11
 > 適用範圍：`messaging/*`、`contracts`、使用 messaging 的 bounded-context runtime，
 > 以及 PostgreSQL／Debezium／Kafka 的端到端驗證
@@ -178,18 +178,42 @@ attempt；若 failure 發生在 transaction begin，該次嘗試甚至不會建�
 
 ### Tasks
 
-- [ ] C1. 建立可在 CI 分層執行的 PostgreSQL + Debezium Connect + Kafka + application 測試環境。
-- [ ] C2. 驗證 business transaction → Outbox → CDC → Kafka → Inbox → consumer use case。
-- [ ] C3. 驗證 duplicate delivery、application restart 與 connector restart 後仍維持冪等。
-- [ ] C4. 驗證 handler exception 時 Inbox／business／follow-up Outbox rollback，後續可 redeliver。
-- [ ] C5. 驗證 Kafka／Connect 暫停後可從 WAL／offset 正確追趕。
-- [ ] C6. 驗證 retry exhausted → DLT，原 message ID、key、type、headers 與 source metadata
+- [x] C1. 建立可在 CI 分層執行的 PostgreSQL + Debezium Connect + Kafka + application 測試環境。
+- [x] C2. 驗證 business transaction → Outbox → CDC → Kafka → Inbox → consumer use case。
+- [x] C3. 驗證 duplicate delivery、application restart 與 connector restart 後仍維持冪等。
+- [x] C4. 驗證 handler exception 時 Inbox／business／follow-up Outbox rollback，後續可 redeliver。
+- [x] C5. 驗證 Kafka／Connect 暫停後可從 WAL／offset 正確追趕。
+- [x] C6. 驗證 retry exhausted → DLT，原 message ID、key、type、headers 與 source metadata
   均保留。
 
 ### Exit criteria
 
 - 至少有一條真實 business flow 不以手動 drain Outbox 取代 Debezium。
 - correctness E2E 與較重的 performance test 分開執行，前者可以成為 CI gate。
+
+### 2026-08-11 implementation evidence
+
+- `order-promising` 新增獨立 `correctnessE2e` source set／Gradle task；source 放在 `e2e/spec`，
+  task 不綁一般 `check`，可由 Docker-capable CI job 分層執行。
+- Testcontainers 啟動 PostgreSQL 16 logical WAL、Kafka 4.1、Debezium Connect 3.5 與真實
+  `ArchoneApplication`；HTTP port、database、topics 與 consumer probes 全部隔離。
+- 正常路徑從 `POST /orders` 開始，實際走兩輪
+  business transaction → Outbox → Debezium → Kafka → Inbox → use case，最後訂單為
+  `ALLOCATED`；測試不使用 SIT 的手動 outcome drain。
+- 同一個 Kafka record 在 application restart 後重送，Inbox 與 `duplicate` observation 證明
+  handler 已執行冪等短路；Outbox、預留、Picking、Move 與 MoveLine 數量保持一次。
+- Connect 停機期間提交的 Outbox 在重啟後由 WAL／offset 追上；Kafka container 暫停期間的
+  business commit 也在恢復後完成，不遺失事件。
+- test-only Aspect 在 `MovementAssigner.assign(..)` 完成 business writes 後、transaction commit
+  前注入 optimistic conflict。15 次 processing attempts 全部 rollback Inbox、庫存、搬運與
+  follow-up Outbox，之後才進 DLT。
+- DLT assertions 固定原 message ID、key、payload、event type、generic headers、原
+  topic／partition／offset 與 subscriber metadata；解除故障並由
+  `KafkaDeadLetterReplayRecordFactory` replay 後成功收斂。
+- `./gradlew :order-promising:correctnessE2e --no-daemon --rerun-tasks` 已通過：4 tests、0 failed；
+  四個情境實際執行約 56 秒，完整 Gradle task 約 68 秒。
+- `./gradlew :order-promising:test :order-promising:sit --no-daemon --rerun-tasks` 回歸亦通過
+  （54 Gradle tasks），新增的 repository-level source set 未改變既有 unit／SIT lifecycle。
 
 ## 7. Gate P1-D — WMS messaging vertical slice
 
