@@ -7,6 +7,9 @@
 #                                                  （每步都會偵測已在跑就跳過）
 #   ./e2e/perf/run.sh perf                         up ＋ 種庫存 ＋ 跑 k6
 #   SKU=... STOCK=... VUS=... ./e2e/perf/run.sh perf
+#   KAFKA_CONCURRENCY=4 ./e2e/perf/run.sh up           啟動後核對實際 container concurrency
+#   COMPOSE_PROJECT_NAME=order-promising-e2e-clean ./e2e/perf/run.sh up
+#                                                        使用隔離的 disposable stack
 #   PARTITION_KEY_STRATEGY=stock SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh perf
 #                                                 v3：SKU 分區 single-writer
 #   ./e2e/perf/run.sh down                        拆除基礎設施＋停掉背景 app
@@ -28,8 +31,10 @@ COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
 APP_LOG="${APP_LOG:-/tmp/order-promising-e2e-perf.log}"
 CONNECT_URL="${CONNECT_URL:-http://localhost:28293}"
 CONNECTOR_NAME="${CONNECTOR_NAME:-order-promising-outbox}"
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-order-promising-e2e-perf-postgres-1}"
-NETWORK="${NETWORK:-order-promising-e2e-perf_default}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-order-promising-e2e-perf}"
+export COMPOSE_PROJECT_NAME
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-${COMPOSE_PROJECT_NAME}-postgres-1}"
+NETWORK="${NETWORK:-${COMPOSE_PROJECT_NAME}_default}"
 
 # 壓測自己的主檔。k6 script 以 PERF_OWNER_CODE／PERF_FACILITY_CODE 反查識別碼（見
 # k6/hot-sku-burst.js 的 setup），因此 UUID 只寫在這裡一處，不必兩邊同步。
@@ -59,6 +64,8 @@ PERF_EXPIRY_DATE="2099-12-31"
 cmd_up() {
   set -e
   local partition_key_strategy="${PARTITION_KEY_STRATEGY:-order-id}"
+  local kafka_concurrency="${KAFKA_CONCURRENCY:-4}"
+  local app_started=false
 
   echo "== 1/3 基礎設施 =="
   docker compose -f "${COMPOSE_FILE}" up -d
@@ -68,10 +75,11 @@ cmd_up() {
   if curl -sf -o /dev/null http://localhost:28290/actuator/health; then
     echo "app 已經在跑，略過啟動"
   else
-    echo "啟動 app（partition-key-strategy=${partition_key_strategy}），log 寫到 ${APP_LOG}"
+    echo "啟動 app（partition-key-strategy=${partition_key_strategy}，Kafka concurrency=${kafka_concurrency}），log 寫到 ${APP_LOG}"
     (cd "${REPO_ROOT}" && nohup ./gradlew :order-promising:bootRun \
-      --args="--spring.profiles.active=dev --spring.kafka.listener.concurrency=4 --management.endpoints.web.exposure.include=prometheus,health --archone.allocation.partition-key-strategy=${partition_key_strategy}" \
+      --args="--spring.profiles.active=dev --spring.kafka.listener.concurrency=${kafka_concurrency} --management.endpoints.web.exposure.include=prometheus,health --archone.allocation.partition-key-strategy=${partition_key_strategy}" \
       > "${APP_LOG}" 2>&1 &)
+    app_started=true
     echo -n "等待 app 就緒"
     for _ in $(seq 1 60); do
       if curl -sf -o /dev/null http://localhost:28290/actuator/health; then
@@ -85,6 +93,25 @@ cmd_up() {
       echo "app 啟動逾時，見 ${APP_LOG}" >&2
       exit 1
     fi
+  fi
+
+  if [ "${app_started}" = true ]; then
+    local allocation_subscription_log=""
+    for _ in $(seq 1 20); do
+      allocation_subscription_log=$(grep -F "subscriberId=allocation-ordering-events" "${APP_LOG}" \
+        | tail -n 1 || true)
+      if [[ "${allocation_subscription_log}" == *"concurrency=${kafka_concurrency}"* ]]; then
+        break
+      fi
+      sleep 0.5
+    done
+    if [[ "${allocation_subscription_log}" != *"concurrency=${kafka_concurrency}"* ]]; then
+      echo "Kafka runtime concurrency 驗證失敗：預期 ${kafka_concurrency}，見 ${APP_LOG}" >&2
+      exit 1
+    fi
+    echo "Kafka runtime concurrency 已驗證：allocation-ordering-events=${kafka_concurrency}"
+  else
+    echo "app 非本次啟動，略過 runtime concurrency 核對；需要重驗時請先執行 ${0} down"
   fi
 
   echo

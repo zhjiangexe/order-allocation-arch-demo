@@ -41,36 +41,6 @@
       "description": "Stable subscriber ID to Kafka consumer group mapping. Unmapped subscribers use the same value for both identities. Renaming a subscriber changes Inbox idempotency identity; renaming a group changes Kafka offset ownership and requires an explicit replay or cutover plan."
     },
     {
-      "name": "archone.messaging.consumer.kafka.concurrency",
-      "type": "java.lang.Integer",
-      "defaultValue": 1,
-      "description": "Default concurrency for programmatically created Kafka listener containers."
-    },
-    {
-      "name": "archone.messaging.consumer.kafka.ack-mode",
-      "type": "org.springframework.kafka.listener.ContainerProperties$AckMode",
-      "defaultValue": "BATCH",
-      "description": "Default Spring Kafka acknowledgement mode for programmatic subscriptions."
-    },
-    {
-      "name": "archone.messaging.consumer.kafka.missing-topics-fatal",
-      "type": "java.lang.Boolean",
-      "defaultValue": true,
-      "description": "Whether a programmatic subscription fails startup when a configured topic is missing."
-    },
-    {
-      "name": "archone.messaging.consumer.kafka.observation-enabled",
-      "type": "java.lang.Boolean",
-      "defaultValue": false,
-      "description": "Whether Spring Kafka transport observation is enabled for programmatic subscriptions; semantic consumer observation is configured separately."
-    },
-    {
-      "name": "archone.messaging.consumer.kafka.shutdown-timeout",
-      "type": "java.time.Duration",
-      "defaultValue": "10s",
-      "description": "Graceful shutdown timeout for programmatically created Kafka listener containers."
-    },
-    {
       "name": "archone.messaging.events.publisher.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,

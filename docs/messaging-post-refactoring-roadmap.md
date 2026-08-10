@@ -1,6 +1,6 @@
 # Messaging 整理後優化 Roadmap
 
-> 狀態：待執行；先處理 P0，再以 WMS vertical slice 驗證共用能力
+> 狀態：Gate P0-A 已完成；下一步為 Gate P0-B Consumer failure policy
 > 更新日期：2026-08-10
 > 適用範圍：`messaging/*`、`contracts`、使用 messaging 的 bounded-context runtime，
 > 以及 PostgreSQL／Debezium／Kafka 的端到端驗證
@@ -70,17 +70,17 @@ P0-C 可以在 P0-A／P0-B 的 characterization tests 建立後開始準備，�
 
 ### Tasks
 
-- [ ] A1. Characterize `spring.kafka.listener.*`、`archone.messaging.consumer.kafka.*`、
+- [x] A1. Characterize `spring.kafka.listener.*`、`archone.messaging.consumer.kafka.*`、
   `ConcurrentKafkaListenerContainerFactory` 與 per-subscription policy 的目前 precedence。
-- [ ] A2. 將 Spring Boot listener properties／factory 設定作為全域 baseline；未明確設定的
+- [x] A2. 將 Spring Boot listener properties／factory 設定作為全域 baseline；未明確設定的
   messaging property 不得用自有 default 覆寫 baseline。
-- [ ] A3. 保留 application／subscriber 的必要 override，但以 optional override 或 resolver
+- [x] A3. 保留 application／subscriber 的必要 override，但以 optional override 或 resolver
   明確表達，不建立第二套全域設定。
-- [ ] A4. 明確定義 concurrency、ack mode、missing-topics-fatal、observation、shutdown timeout
+- [x] A4. 明確定義 concurrency、ack mode、missing-topics-fatal、observation、shutdown timeout
   與 auto-startup 的 precedence，並寫入 `messaging/README.md`。
-- [ ] A5. 補 property binding／container tests，涵蓋 Boot baseline、subscriber override、未設定
+- [x] A5. 補 property binding／container tests，涵蓋 Boot baseline、subscriber override、未設定
   與非法值 fail-fast。
-- [ ] A6. 更新 `e2e/perf`，以 consumer-group/runtime metrics 或 container state 證明實際
+- [x] A6. 更新 `e2e/perf`，以 consumer-group/runtime metrics 或 container state 證明實際
   concurrency，不只依啟動參數推定。
 
 ### Exit criteria
@@ -89,6 +89,23 @@ P0-C 可以在 P0-A／P0-B 的 characterization tests 建立後開始準備，�
   必須為 4。
 - 明確 per-subscription override 必須可覆寫 baseline，且 precedence 有測試。
 - `e2e/perf` 不再宣稱與實際 runtime 不一致的 concurrency。
+
+### 2026-08-10 implementation evidence
+
+- 已刪除重複的 `MessagingKafkaConsumerProperties` 與其 configuration metadata；
+  `archone.messaging.consumer.kafka.enabled` 僅保留 capability 語意。
+- `KafkaSubscriptionPolicy.defaults()` 現在是不含任何 override 的 immutable policy；programmatic
+  container 先完整繼承 shared factory，再套用 resolver 明確提供的欄位。
+- `order-promising` 的 missing-topic 設定已遷移為
+  `spring.kafka.listener.missing-topics-fatal=false`；`e2e/perf` 原有
+  `spring.kafka.listener.concurrency=4` 不再被 runtime 預設值蓋回 1。
+- ApplicationContext test 證明 Spring Boot properties 會把 shared factory/container 設為
+  concurrency 4、RECORD ack、missing-topic false、observation true、auto-start false；runtime test
+  另證明 default policy 保留上述 factory 值，而 subscriber policy 可獨立 override。
+- A6 verifier 已落在 `e2e/perf/run.sh`：runtime 會記錄 effective container state，script 自己
+  啟動 app 時必須核對 `allocation-ordering-events` 的實際 concurrency，參數被覆蓋就直接失敗。
+  以隔離的 `order-promising-e2e-p0a` Compose project 實跑後，effective concurrency 已確認為 4，
+  Debezium connector 亦進入 RUNNING；驗證後只刪除該 disposable project。
 
 ## 5. Gate P0-B — Consumer failure policy
 

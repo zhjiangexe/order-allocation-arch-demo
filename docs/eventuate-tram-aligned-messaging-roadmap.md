@@ -922,7 +922,7 @@ archone:
       producer: true
 ```
 
-`subscriberId` 與 handlers 優先由 type-safe dispatcher bean 宣告；channel mapping、`consumerGroupId`、concurrency 等部署相關數值可以由 properties 提供預設。exception classification／recoverer 等行為使用 `KafkaSubscriptionPolicy`、`MessageFailureClassifier` 或 Spring bean override，避免在 YAML 放 Java class names。
+`subscriberId` 與 handlers 優先由 type-safe dispatcher bean 宣告；channel mapping、`consumerGroupId` 等部署相關數值由 messaging properties 提供，Kafka concurrency／ack／lifecycle 的全域 baseline 則使用 Spring Boot `spring.kafka.listener.*` 與 shared factory。exception classification／recoverer 與 subscriber-specific 特例使用 `KafkaSubscriptionPolicy`、`MessageFailureClassifier` 或 Spring bean override，避免在 YAML 放 Java class names。
 
 `ChannelMapping` 對 producer／consumer 必須使用同一套 logical names，但各 application 可映射到不同環境的 physical topics。缺少 mapping 時預設 identity mapping；同一 application 的重複 physical mapping 預設 fail fast，不能靜默覆蓋。
 
@@ -1432,8 +1432,9 @@ FS3 驗證結果（2026-08-10）：
 - 新增 `messaging-spring-consumer-kafka`；`SpringKafkaMessageConsumerImplementation` 以
   `ConcurrentKafkaListenerContainerFactory` 建立 container，沒有產生 annotated method，也不依賴
   typed events layer。
-- `KafkaSubscriptionPolicy`／resolver 在 generic API 外承接 concurrency、ack、missing-topic、shutdown
-  與 subscriber-specific error handler；stable container ID 同時包含 subscriber／group identity，同
+- `KafkaSubscriptionPolicy`／resolver 在 generic API 外承接 subscriber-specific concurrency、ack、
+  missing-topic、shutdown 與 error-handler override；未指定欄位繼承 shared factory。stable container
+  ID 同時包含 subscriber／group identity，同
   group + overlapping destination、重複 subscriber 都在 start 前 fail fast。
 - pure `MessageFailureClassifier`／taxonomy 與 Spring Kafka `KafkaDeadLetterErrorHandlerFactory` 已接通。
   retry exhaustion／non-retryable direct DLT／DLT publish failure均有測試；DLT 保留 key、payload、原始
@@ -1595,7 +1596,10 @@ archone.messaging.producer
 - producer starter 的 resolved runtimeClasspath 只有 producer common／JDBC／producer observation，沒有 consumer common、Inbox 或 Spring Kafka；consumer starter 則沒有 producer common、Outbox persistence 或 producer observation。
 - producer-only、consumer-only 與 all-in-one 三個真實 auto-import context tests 均通過；這些測試不是只挑選有利的 configuration classes，而是由 `@EnableAutoConfiguration` 讀取完整 imports 清單。
 - logical channel mapping 與 subscriber/group mapping 都有 pure API port、identity fallback 與 map-based implementation；explicit `MessageSubscriptionOptions` 仍可覆寫 group mapping，供一次性 replay 使用。
-- Kafka operational defaults 維持在 `archone.messaging.consumer.kafka.*`，application 提供的 `KafkaSubscriptionPolicyResolver` 具有優先權；auto-config 不把 retry／DLT business policy硬寫進 properties。
+- Gate H 當時先由 `archone.messaging.consumer.kafka.*` 提供 operational defaults；後續 P0-A 已移除
+  這套重複全域設定，改以 Spring Boot listener properties／shared factory 為唯一 baseline，
+  `KafkaSubscriptionPolicyResolver` 只表達 subscriber-specific override。auto-config 仍不把
+  retry／DLT business policy 硬寫進 properties。
 - consumer-only runtime 使用自己的 bounded Jackson header decoder 還原 Debezium serialized headers，不需要為了解碼而反向依賴 producer Outbox artifact。
 - all-in-one starter 只負責聚合兩個窄 starters；現有 `producer-outbox`／`consumer-inbox` 與 JPA starter 是 Gate I production migration 前的明確 compatibility additions，不會洩漏至窄 starters。
 - 完整 `./gradlew check` 已通過（包含 156 個 `order-promising` SIT cases、starter slices、architecture tests 與 messaging unit/integration suites）。

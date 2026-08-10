@@ -6,17 +6,16 @@ import java.util.Optional;
 import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.ContainerProperties;
 
-/** Immutable subscriber-specific Spring Kafka operational policy. */
+/** Immutable subscriber-specific overrides applied after the shared Kafka factory baseline. */
 public final class KafkaSubscriptionPolicy {
 
-  private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
   private static final KafkaSubscriptionPolicy DEFAULTS = builder().build();
 
-  private final int concurrency;
+  private final Integer concurrency;
   private final ContainerProperties.AckMode ackMode;
-  private final boolean missingTopicsFatal;
-  private final boolean observationEnabled;
-  private final boolean autoStartup;
+  private final Boolean missingTopicsFatal;
+  private final Boolean observationEnabled;
+  private final Boolean autoStartup;
   private final Duration shutdownTimeout;
   private final CommonErrorHandler commonErrorHandler;
 
@@ -30,6 +29,7 @@ public final class KafkaSubscriptionPolicy {
     this.commonErrorHandler = builder.commonErrorHandler;
   }
 
+  /** Returns an empty override policy that inherits every setting from the shared factory. */
   public static KafkaSubscriptionPolicy defaults() {
     return DEFAULTS;
   }
@@ -38,28 +38,28 @@ public final class KafkaSubscriptionPolicy {
     return new Builder();
   }
 
-  public int concurrency() {
-    return concurrency;
+  public Optional<Integer> concurrencyOverride() {
+    return Optional.ofNullable(concurrency);
   }
 
-  public ContainerProperties.AckMode ackMode() {
-    return ackMode;
+  public Optional<ContainerProperties.AckMode> ackModeOverride() {
+    return Optional.ofNullable(ackMode);
   }
 
-  public boolean missingTopicsFatal() {
-    return missingTopicsFatal;
+  public Optional<Boolean> missingTopicsFatalOverride() {
+    return Optional.ofNullable(missingTopicsFatal);
   }
 
-  public boolean observationEnabled() {
-    return observationEnabled;
+  public Optional<Boolean> observationEnabledOverride() {
+    return Optional.ofNullable(observationEnabled);
   }
 
-  public boolean autoStartup() {
-    return autoStartup;
+  public Optional<Boolean> autoStartupOverride() {
+    return Optional.ofNullable(autoStartup);
   }
 
-  public Duration shutdownTimeout() {
-    return shutdownTimeout;
+  public Optional<Duration> shutdownTimeoutOverride() {
+    return Optional.ofNullable(shutdownTimeout);
   }
 
   public Optional<CommonErrorHandler> commonErrorHandler() {
@@ -69,12 +69,12 @@ public final class KafkaSubscriptionPolicy {
   /** Mutable construction step; {@link #build()} returns an immutable policy. */
   public static final class Builder {
 
-    private int concurrency = 1;
-    private ContainerProperties.AckMode ackMode = ContainerProperties.AckMode.BATCH;
-    private boolean missingTopicsFatal = true;
-    private boolean observationEnabled;
-    private boolean autoStartup = true;
-    private Duration shutdownTimeout = DEFAULT_SHUTDOWN_TIMEOUT;
+    private Integer concurrency;
+    private ContainerProperties.AckMode ackMode;
+    private Boolean missingTopicsFatal;
+    private Boolean observationEnabled;
+    private Boolean autoStartup;
+    private Duration shutdownTimeout;
     private CommonErrorHandler commonErrorHandler;
 
     private Builder() {

@@ -22,6 +22,9 @@ import org.springframework.kafka.support.KafkaHeaders;
 public final class SpringKafkaMessageConsumerImplementation
     implements MessageConsumerImplementation, AutoCloseable {
 
+  private static final System.Logger LOGGER = System.getLogger(
+      SpringKafkaMessageConsumerImplementation.class.getName());
+
   private final ConcurrentKafkaListenerContainerFactory<String, String> containerFactory;
   private final KafkaMessageMapper messageMapper;
   private final KafkaSubscriptionPolicyResolver policyResolver;
@@ -90,7 +93,7 @@ public final class SpringKafkaMessageConsumerImplementation
         subscription.subscriberId(), subscription.consumerGroupId());
     ConcurrentMessageListenerContainer<String, String> container = containerFactory.createContainer(
         subscription.destinationToLogicalChannel().keySet().toArray(String[]::new));
-    configure(container, subscription, handler, policy, containerId);
+    boolean autoStartup = configure(container, subscription, handler, policy, containerId);
 
     KafkaSubscriptionRegistration registration = new KafkaSubscriptionRegistration(
         subscription.subscriberId(),
@@ -104,7 +107,7 @@ public final class SpringKafkaMessageConsumerImplementation
         () -> release(registration));
     activeSubscriptions.put(subscription.subscriberId(), handle);
     try {
-      if (policy.autoStartup()) {
+      if (autoStartup) {
         containerStarter.start(container);
       }
       return handle;
@@ -144,7 +147,7 @@ public final class SpringKafkaMessageConsumerImplementation
     }
   }
 
-  private void configure(
+  private boolean configure(
       ConcurrentMessageListenerContainer<String, String> container,
       ResolvedMessageSubscription subscription,
       MessageHandler handler,
@@ -153,14 +156,20 @@ public final class SpringKafkaMessageConsumerImplementation
   ) {
     container.setBeanName(containerId);
     container.setMainListenerId(containerId);
+    boolean autoStartup = policy.autoStartupOverride().orElse(container.isAutoStartup());
+    // The runtime owns lifecycle explicitly; the factory value only decides whether to start now.
     container.setAutoStartup(false);
-    container.setConcurrency(policy.concurrency());
+    policy.concurrencyOverride().ifPresent(container::setConcurrency);
     container.getContainerProperties().setGroupId(subscription.consumerGroupId());
-    container.getContainerProperties().setAckMode(policy.ackMode());
-    container.getContainerProperties().setMissingTopicsFatal(policy.missingTopicsFatal());
-    container.getContainerProperties().setShutdownTimeout(policy.shutdownTimeout().toMillis());
-    container.getContainerProperties().setObservationEnabled(policy.observationEnabled());
-    if (policy.observationEnabled()) {
+    policy.ackModeOverride().ifPresent(container.getContainerProperties()::setAckMode);
+    policy.missingTopicsFatalOverride()
+        .ifPresent(container.getContainerProperties()::setMissingTopicsFatal);
+    policy.shutdownTimeoutOverride()
+        .ifPresent(timeout -> container.getContainerProperties()
+            .setShutdownTimeout(timeout.toMillis()));
+    policy.observationEnabledOverride()
+        .ifPresent(container.getContainerProperties()::setObservationEnabled);
+    if (container.getContainerProperties().isObservationEnabled()) {
       // Spring Kafka observation supersedes its legacy listener timers; keep one transport meter.
       container.getContainerProperties().setMicrometerEnabled(false);
     }
@@ -173,6 +182,21 @@ public final class SpringKafkaMessageConsumerImplementation
     }
     container.getContainerProperties().setMessageListener(
         (MessageListener<String, String>) record -> dispatch(record, subscription, handler));
+    LOGGER.log(System.Logger.Level.INFO, () ->
+        "Kafka subscription configured [containerId=" + containerId
+            + ", subscriberId=" + subscription.subscriberId()
+            + ", consumerGroupId=" + subscription.consumerGroupId()
+            + ", destinations=" + subscription.destinationToLogicalChannel().keySet()
+            + ", concurrency=" + container.getConcurrency()
+            + ", ackMode=" + container.getContainerProperties().getAckMode()
+            + ", missingTopicsFatal="
+            + container.getContainerProperties().isMissingTopicsFatal()
+            + ", observationEnabled="
+            + container.getContainerProperties().isObservationEnabled()
+            + ", autoStartup=" + autoStartup
+            + ", shutdownTimeoutMs="
+            + container.getContainerProperties().getShutdownTimeout() + "]");
+    return autoStartup;
   }
 
   private void dispatch(

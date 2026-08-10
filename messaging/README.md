@@ -140,9 +140,46 @@ redelivery／DLT policy。
 
 ## 設定與維運
 
-主要開關位於 `archone.messaging.*`：producer JDBC、consumer JDBC、Kafka runtime、dispatcher、
-observation 與 Flyway 均可獨立啟停；container auto-startup 使用 Spring Boot 標準的
-`spring.kafka.listener.auto-startup`。
+`archone.messaging.*` 只管理 messaging capability、channel／consumer-group mapping、dispatcher、
+observation 與 Flyway 是否組裝。Kafka container 的全域 operational baseline 直接使用 Spring Boot
+配置好的 `ConcurrentKafkaListenerContainerFactory`，不要再維護第二套同義 properties：
+
+```properties
+spring.kafka.listener.concurrency=4
+spring.kafka.listener.ack-mode=record
+spring.kafka.listener.missing-topics-fatal=false
+spring.kafka.listener.observation-enabled=true
+spring.kafka.listener.auto-startup=true
+```
+
+`archone.messaging.consumer.kafka.enabled` 仍是 programmatic Kafka runtime 的 capability 開關；
+`archone.messaging.consumer.kafka.concurrency`、`ack-mode`、`missing-topics-fatal`、
+`observation-enabled` 與 `shutdown-timeout` 不再是有效設定。Factory 的設定是 baseline，application
+提供的 `KafkaSubscriptionPolicyResolver` 只回傳明確的 subscriber-specific overrides：
+
+```java
+@Bean
+KafkaSubscriptionPolicyResolver kafkaSubscriptionPolicyResolver() {
+  return subscription -> "slow-export".equals(subscription.subscriberId())
+      ? KafkaSubscriptionPolicy.builder()
+          .concurrency(1)
+          .shutdownTimeout(Duration.ofSeconds(30))
+          .build()
+      : KafkaSubscriptionPolicy.defaults(); // 沒有 override，完整繼承 shared factory
+}
+```
+
+precedence 固定如下：
+
+1. Spring Boot `spring.kafka.listener.*` 與 application 的 Kafka factory／container customizer
+   建立全域 baseline；
+2. `KafkaSubscriptionPolicyResolver` 的非空欄位只覆寫該 subscriber；
+3. runtime 最後補上 subscription 的 group、listener、DLT error handler 與 lifecycle ownership。
+
+Spring Boot 沒有直接提供的 container setting（例如本專案使用的 shutdown timeout），全域值應由
+Spring Kafka `ContainerCustomizer` 設定；只有單一 subscriber 特例才放在
+`KafkaSubscriptionPolicy`。Default policy 不攜帶任何 operational default，因此不會蓋掉 Boot 或
+custom factory 設定。
 
 責任切分如下：
 
@@ -151,7 +188,7 @@ observation 與 Flyway 均可獨立啟停；container auto-startup 使用 Spring
 | stable event mapping、handler routing | programmatic Kafka container 與 lifecycle |
 | stable `subscriberId` | consumer-group mapping、unhandled-event observation |
 | 可重試 exception 與特殊 backoff | 依 `ResolvedMessageSubscription` 建立 error handler |
-| 必要的 per-subscriber policy override | 精確 DLT headers、failure observation 與 Micrometer 接線 |
+| 必要的 per-subscriber policy override | 繼承 shared factory、精確 DLT headers、failure observation 與 Micrometer 接線 |
 
 Application 若有特殊失敗語意，只提供 `KafkaConsumerFailurePolicyResolver`；不需要自行建立
 `CommonErrorHandler`、`KafkaOperations`、DLT headers provider 或 Micrometer observer。同一 physical

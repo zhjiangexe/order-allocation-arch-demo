@@ -30,10 +30,13 @@ import com.flowzati.archone.messaging.spring.flyway.MessagingFlywayFactory;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.KafkaOperations;
+import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
+import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.backoff.FixedBackOff;
 
@@ -126,10 +129,7 @@ class MessagingAutoConfigurationTest {
   @Test
   void composesProgrammaticKafkaConsumerAndSeparateGroupMapping() {
     kafkaRunner()
-        .withPropertyValues(
-            "archone.messaging.consumer.groups.allocation=allocation-v2",
-            "archone.messaging.consumer.kafka.concurrency=3",
-            "archone.messaging.consumer.kafka.observation-enabled=true")
+        .withPropertyValues("archone.messaging.consumer.groups.allocation=allocation-v2")
         .run(context -> {
           assertThat(context).hasSingleBean(SpringKafkaMessageConsumerImplementation.class);
           assertThat(context).hasSingleBean(MessageConsumer.class);
@@ -141,23 +141,36 @@ class MessagingAutoConfigurationTest {
           var policy = context.getBean(KafkaSubscriptionPolicyResolver.class).resolve(
               new ResolvedMessageSubscription(
                   "allocation", "allocation-v2", Map.of("order-events", "orders")));
-          assertThat(policy.concurrency()).isEqualTo(3);
-          assertThat(policy.observationEnabled()).isTrue();
-          assertThat(policy.autoStartup()).isTrue();
+          assertThat(policy.concurrencyOverride()).isEmpty();
+          assertThat(policy.observationEnabledOverride()).isEmpty();
+          assertThat(policy.autoStartupOverride()).isEmpty();
           assertThat(context).doesNotHaveBean(IntegrationEventDispatcherFactory.class);
         });
   }
 
   @Test
-  void programmaticKafkaConsumerHonorsSpringListenerAutoStartup() {
-    kafkaRunner()
-        .withPropertyValues("spring.kafka.listener.auto-startup=false")
+  @SuppressWarnings("unchecked")
+  void standardSpringListenerPropertiesConfigureTheSharedKafkaFactory() {
+    bootKafkaRunner()
+        .withPropertyValues(
+            "spring.kafka.listener.concurrency=4",
+            "spring.kafka.listener.ack-mode=record",
+            "spring.kafka.listener.missing-topics-fatal=false",
+            "spring.kafka.listener.observation-enabled=true",
+            "spring.kafka.listener.auto-startup=false")
         .run(context -> {
-          var subscription = new ResolvedMessageSubscription(
-              "allocation", "allocation", Map.of("order-events", "orders"));
-          assertThat(context.getBean(KafkaSubscriptionPolicyResolver.class)
-              .resolve(subscription)
-              .autoStartup()).isFalse();
+          ConcurrentKafkaListenerContainerFactory<Object, Object> factory =
+              (ConcurrentKafkaListenerContainerFactory<Object, Object>)
+                  context.getBean(ConcurrentKafkaListenerContainerFactory.class);
+          ConcurrentMessageListenerContainer<Object, Object> container =
+              factory.createContainer("order-events");
+
+          assertThat(container.getConcurrency()).isEqualTo(4);
+          assertThat(container.getContainerProperties().getAckMode())
+              .isEqualTo(ContainerProperties.AckMode.RECORD);
+          assertThat(container.getContainerProperties().isMissingTopicsFatal()).isFalse();
+          assertThat(container.getContainerProperties().isObservationEnabled()).isTrue();
+          assertThat(container.isAutoStartup()).isFalse();
         });
   }
 
@@ -235,5 +248,11 @@ class MessagingAutoConfigurationTest {
         .withBean(
             ConcurrentKafkaListenerContainerFactory.class,
             ConcurrentKafkaListenerContainerFactory::new);
+  }
+
+  private ApplicationContextRunner bootKafkaRunner() {
+    return coreRunner.withConfiguration(AutoConfigurations.of(
+        KafkaAutoConfiguration.class,
+        MessagingKafkaConsumerAutoConfiguration.class));
   }
 }

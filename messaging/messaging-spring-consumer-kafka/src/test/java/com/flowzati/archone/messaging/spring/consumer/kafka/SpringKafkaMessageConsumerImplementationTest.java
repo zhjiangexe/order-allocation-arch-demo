@@ -84,6 +84,71 @@ class SpringKafkaMessageConsumerImplementationTest {
   }
 
   @Test
+  void inheritsSharedFactorySettingsWhenSubscriberHasNoOverrides() {
+    ConcurrentKafkaListenerContainerFactory<String, String> factory = containerFactory();
+    factory.setConcurrency(4);
+    factory.setAutoStartup(false);
+    factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+    factory.getContainerProperties().setMissingTopicsFatal(false);
+    factory.getContainerProperties().setObservationEnabled(true);
+    factory.getContainerProperties().setShutdownTimeout(9_000);
+    AtomicInteger starts = new AtomicInteger();
+    SpringKafkaMessageConsumerImplementation consumer = consumer(
+        factory,
+        KafkaSubscriptionPolicyResolver.fixed(KafkaSubscriptionPolicy.defaults()),
+        KafkaSubscriptionErrorHandlerFactory.none(),
+        container -> starts.incrementAndGet());
+
+    DefaultKafkaMessageSubscription handle = (DefaultKafkaMessageSubscription) consumer.subscribe(
+        subscription("subscriber-a", "group-a", TOPIC),
+        (message, context) -> { });
+    ConcurrentMessageListenerContainer<String, String> container = handle.container();
+
+    assertThat(starts).hasValue(0);
+    assertThat(container.getConcurrency()).isEqualTo(4);
+    assertThat(container.getContainerProperties().getAckMode())
+        .isEqualTo(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+    assertThat(container.getContainerProperties().isMissingTopicsFatal()).isFalse();
+    assertThat(container.getContainerProperties().isObservationEnabled()).isTrue();
+    assertThat(container.getContainerProperties().isMicrometerEnabled()).isFalse();
+    assertThat(container.getContainerProperties().getShutdownTimeout()).isEqualTo(9_000);
+    handle.stop();
+  }
+
+  @Test
+  void appliesOnlyExplicitSubscriberOverridesOnTopOfTheSharedFactory() {
+    ConcurrentKafkaListenerContainerFactory<String, String> factory = containerFactory();
+    factory.setConcurrency(4);
+    factory.setAutoStartup(false);
+    factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+    factory.getContainerProperties().setMissingTopicsFatal(false);
+    factory.getContainerProperties().setShutdownTimeout(9_000);
+    AtomicInteger starts = new AtomicInteger();
+    KafkaSubscriptionPolicy policy = KafkaSubscriptionPolicy.builder()
+        .concurrency(2)
+        .autoStartup(true)
+        .build();
+    SpringKafkaMessageConsumerImplementation consumer = consumer(
+        factory,
+        KafkaSubscriptionPolicyResolver.fixed(policy),
+        KafkaSubscriptionErrorHandlerFactory.none(),
+        container -> starts.incrementAndGet());
+
+    DefaultKafkaMessageSubscription handle = (DefaultKafkaMessageSubscription) consumer.subscribe(
+        subscription("subscriber-a", "group-a", TOPIC),
+        (message, context) -> { });
+    ConcurrentMessageListenerContainer<String, String> container = handle.container();
+
+    assertThat(starts).hasValue(1);
+    assertThat(container.getConcurrency()).isEqualTo(2);
+    assertThat(container.getContainerProperties().getAckMode())
+        .isEqualTo(ContainerProperties.AckMode.RECORD);
+    assertThat(container.getContainerProperties().isMissingTopicsFatal()).isFalse();
+    assertThat(container.getContainerProperties().getShutdownTimeout()).isEqualTo(9_000);
+    handle.stop();
+  }
+
+  @Test
   void startsReportsReadinessAndStopsTheProgrammaticContainer() {
     SpringKafkaMessageConsumerImplementation consumer =
         new SpringKafkaMessageConsumerImplementation(
@@ -267,8 +332,17 @@ class SpringKafkaMessageConsumerImplementationTest {
       KafkaSubscriptionErrorHandlerFactory errorHandlerFactory,
       SpringKafkaMessageConsumerImplementation.KafkaContainerStarter starter
   ) {
+    return consumer(containerFactory(), policyResolver, errorHandlerFactory, starter);
+  }
+
+  private SpringKafkaMessageConsumerImplementation consumer(
+      ConcurrentKafkaListenerContainerFactory<String, String> factory,
+      KafkaSubscriptionPolicyResolver policyResolver,
+      KafkaSubscriptionErrorHandlerFactory errorHandlerFactory,
+      SpringKafkaMessageConsumerImplementation.KafkaContainerStarter starter
+  ) {
     return new SpringKafkaMessageConsumerImplementation(
-        containerFactory(),
+        factory,
         new KafkaMessageMapper(),
         policyResolver,
         errorHandlerFactory,

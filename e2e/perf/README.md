@@ -20,6 +20,8 @@ kafka-connect、`28294` kafka-ui、`28295` 前端 dev server。容器內部的 p
 ```bash
 ./e2e/perf/run.sh up                                    # 基礎設施 + app + Debezium connector
 SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh perf   # up ＋ 種庫存 ＋ 跑 k6
+KAFKA_CONCURRENCY=4 ./e2e/perf/run.sh up                # 啟動後核對實際 container concurrency
+COMPOSE_PROJECT_NAME=order-promising-e2e-clean ./e2e/perf/run.sh up  # 隔離的乾淨 stack
 ```
 
 `up` 與 `perf` 分開，是因為代價差一個數量級：只想開操作台看畫面的人不該被迫跑一輪上千
@@ -32,6 +34,15 @@ VUS 的壓測。`up` 是預設的 subcommand，因此直接 `./e2e/perf/run.sh` 
 `perf` 的 exit code 就是 k6 的 exit code（見 `k6/hot-sku-burst.js` 的 `thresholds`）：0 代表這次
 跑的結果全部符合預期（不超賣、無逾時、延遲在門檻內），不用自己讀摘要判斷。結果 JSON
 存到 `k6/results/`。
+
+`run.sh` 自己啟動 app 時，會從 messaging runtime 的 effective-container startup log 核對
+`allocation-ordering-events` 真正採用的 concurrency；參數有傳進 process、但被其他設定覆蓋時，
+`up` 會直接失敗。若 app 在執行 script 前就已經運行，因無法確認它的啟動參數與 log owner，
+本次會明確略過核對；需要重驗時先執行 `./e2e/perf/run.sh down`。
+
+若預設 project 曾保留舊 DB volume，可用 `COMPOSE_PROJECT_NAME` 建立隔離環境；後續 `down` 必須帶
+回相同值，才能只清除該 project。Script 會用 project name 推導 PostgreSQL container 與 Docker
+network，不需要再手動同步 `POSTGRES_CONTAINER`／`NETWORK`。
 
 `docker compose up` 也會順便啟動 [Kafbat UI](http://localhost:28294)（純觀察用，不影響
 測試或壓測本身），可以直接在瀏覽器裡看 topic 訊息實際落在哪個 partition、key 是什麼——

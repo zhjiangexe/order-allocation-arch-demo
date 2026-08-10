@@ -10,15 +10,15 @@ import org.springframework.kafka.listener.ContainerProperties;
 class KafkaSubscriptionPolicyTest {
 
   @Test
-  void exposesConservativeImmutableDefaults() {
+  void defaultPolicyInheritsEveryOperationalSettingFromTheSharedFactory() {
     KafkaSubscriptionPolicy policy = KafkaSubscriptionPolicy.defaults();
 
-    assertThat(policy.concurrency()).isOne();
-    assertThat(policy.ackMode()).isEqualTo(ContainerProperties.AckMode.BATCH);
-    assertThat(policy.missingTopicsFatal()).isTrue();
-    assertThat(policy.observationEnabled()).isFalse();
-    assertThat(policy.autoStartup()).isTrue();
-    assertThat(policy.shutdownTimeout()).isEqualTo(Duration.ofSeconds(10));
+    assertThat(policy.concurrencyOverride()).isEmpty();
+    assertThat(policy.ackModeOverride()).isEmpty();
+    assertThat(policy.missingTopicsFatalOverride()).isEmpty();
+    assertThat(policy.observationEnabledOverride()).isEmpty();
+    assertThat(policy.autoStartupOverride()).isEmpty();
+    assertThat(policy.shutdownTimeoutOverride()).isEmpty();
     assertThat(policy.commonErrorHandler()).isEmpty();
   }
 
@@ -27,7 +27,7 @@ class KafkaSubscriptionPolicyTest {
     assertThat(KafkaSubscriptionPolicy.builder()
         .observationEnabled(true)
         .build()
-        .observationEnabled()).isTrue();
+        .observationEnabledOverride()).contains(true);
   }
 
   @Test
@@ -35,7 +35,7 @@ class KafkaSubscriptionPolicyTest {
     assertThat(KafkaSubscriptionPolicy.builder()
         .autoStartup(false)
         .build()
-        .autoStartup()).isFalse();
+        .autoStartupOverride()).contains(false);
   }
 
   @Test

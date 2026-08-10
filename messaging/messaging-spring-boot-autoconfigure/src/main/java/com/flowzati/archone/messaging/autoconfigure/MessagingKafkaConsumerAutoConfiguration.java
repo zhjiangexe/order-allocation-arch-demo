@@ -24,7 +24,6 @@ import com.flowzati.archone.messaging.spring.consumer.kafka.SpringKafkaMessageCo
 import io.micrometer.observation.ObservationRegistry;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -53,9 +52,7 @@ import org.springframework.kafka.core.KafkaOperations;
     matchIfMissing = true
 )
 @EnableConfigurationProperties({
-    MessagingConsumerProperties.class,
-    MessagingKafkaConsumerProperties.class,
-    KafkaProperties.class
+    MessagingConsumerProperties.class
 })
 public class MessagingKafkaConsumerAutoConfiguration {
 
@@ -84,19 +81,8 @@ public class MessagingKafkaConsumerAutoConfiguration {
 
   @Bean
   @ConditionalOnMissingBean
-  KafkaSubscriptionPolicyResolver kafkaSubscriptionPolicyResolver(
-      MessagingKafkaConsumerProperties properties,
-      KafkaProperties kafkaProperties
-  ) {
-    KafkaSubscriptionPolicy policy = KafkaSubscriptionPolicy.builder()
-        .concurrency(properties.getConcurrency())
-        .ackMode(properties.getAckMode())
-        .missingTopicsFatal(properties.isMissingTopicsFatal())
-        .observationEnabled(properties.isObservationEnabled())
-        .autoStartup(kafkaProperties.getListener().isAutoStartup())
-        .shutdownTimeout(properties.getShutdownTimeout())
-        .build();
-    return KafkaSubscriptionPolicyResolver.fixed(policy);
+  KafkaSubscriptionPolicyResolver kafkaSubscriptionPolicyResolver() {
+    return KafkaSubscriptionPolicyResolver.fixed(KafkaSubscriptionPolicy.defaults());
   }
 
   @Bean
