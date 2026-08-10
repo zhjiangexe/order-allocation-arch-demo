@@ -1,5 +1,6 @@
 package com.flowzati.archone.messaging.spring.consumer.kafka;
 
+import com.flowzati.archone.messaging.consumer.common.MessageFailureClassifier;
 import java.util.Objects;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -15,11 +16,17 @@ final class KafkaRetryObservationHooks implements RetryListener {
   private static final Log LOGGER = LogFactory.getLog(KafkaRetryObservationHooks.class);
 
   private final KafkaConsumerFailureObserver observer;
-  private final ThreadLocal<FailedDelivery> pendingDelivery = new ThreadLocal<>();
+  private final MessageFailureClassifier failureClassifier;
+  private final ThreadLocal<KafkaConsumerFailureContext> pendingFailure = new ThreadLocal<>();
   private final BackOffHandler delegate = new DefaultBackOffHandler();
 
-  KafkaRetryObservationHooks(KafkaConsumerFailureObserver observer) {
+  KafkaRetryObservationHooks(
+      KafkaConsumerFailureObserver observer,
+      MessageFailureClassifier failureClassifier
+  ) {
     this.observer = Objects.requireNonNull(observer, "Kafka consumer failure observer is required");
+    this.failureClassifier = Objects.requireNonNull(
+        failureClassifier, "Message failure classifier is required");
   }
 
   BackOffHandler observingBackOffHandler() {
@@ -30,11 +37,10 @@ final class KafkaRetryObservationHooks implements RetryListener {
           Exception exception,
           long nextBackOff
       ) {
-        FailedDelivery pending = pendingDelivery.get();
-        pendingDelivery.remove();
+        KafkaConsumerFailureContext pending = pendingFailure.get();
+        pendingFailure.remove();
         if (pending != null) {
-          safelyObserve(() -> observer.retryScheduled(
-              pending.record(), pending.failure(), pending.deliveryAttempt(), nextBackOff));
+          safelyObserve(() -> observer.retryScheduled(pending, nextBackOff));
         }
         delegate.onNextBackOff(container, exception, nextBackOff);
       }
@@ -47,13 +53,13 @@ final class KafkaRetryObservationHooks implements RetryListener {
       Exception exception,
       int deliveryAttempt
   ) {
-    pendingDelivery.set(new FailedDelivery(record, exception, deliveryAttempt));
+    pendingFailure.set(context(record, exception, deliveryAttempt));
   }
 
   @Override
   public void recovered(ConsumerRecord<?, ?> record, Exception exception) {
-    pendingDelivery.remove();
-    safelyObserve(() -> observer.deadLetterPublished(record, exception));
+    KafkaConsumerFailureContext context = takeOrCreateContext(record, exception);
+    safelyObserve(() -> observer.deadLetterPublished(context));
   }
 
   @Override
@@ -62,8 +68,29 @@ final class KafkaRetryObservationHooks implements RetryListener {
       Exception original,
       Exception failure
   ) {
-    pendingDelivery.remove();
-    safelyObserve(() -> observer.deadLetterPublicationFailed(record, original, failure));
+    KafkaConsumerFailureContext context = takeOrCreateContext(record, original);
+    safelyObserve(() -> observer.deadLetterPublicationFailed(context, failure));
+  }
+
+  private KafkaConsumerFailureContext takeOrCreateContext(
+      ConsumerRecord<?, ?> record,
+      Exception failure
+  ) {
+    KafkaConsumerFailureContext pending = pendingFailure.get();
+    pendingFailure.remove();
+    return pending == null ? context(record, failure, 1) : pending;
+  }
+
+  private KafkaConsumerFailureContext context(
+      ConsumerRecord<?, ?> record,
+      Exception failure,
+      int deliveryAttempt
+  ) {
+    return new KafkaConsumerFailureContext(
+        record,
+        failure,
+        failureClassifier.classify(failure),
+        deliveryAttempt);
   }
 
   private void safelyObserve(Runnable notification) {
@@ -73,12 +100,5 @@ final class KafkaRetryObservationHooks implements RetryListener {
       // Instrumentation must never alter retry, offset, or DLT behavior.
       LOGGER.warn("Kafka failure observation callback failed", observationFailure);
     }
-  }
-
-  private record FailedDelivery(
-      ConsumerRecord<?, ?> record,
-      Exception failure,
-      int deliveryAttempt
-  ) {
   }
 }

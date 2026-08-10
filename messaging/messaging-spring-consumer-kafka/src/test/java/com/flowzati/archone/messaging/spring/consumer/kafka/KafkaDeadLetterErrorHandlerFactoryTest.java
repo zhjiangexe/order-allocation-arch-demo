@@ -46,7 +46,12 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
     assertDltRecord(fixture.producer().history().getFirst(), original);
     assertThat(observer.retryAttempts).containsExactly(1);
     assertThat(observer.retryBackOffs).containsExactly(0L);
-    assertThat(observer.published).containsExactly(original);
+    assertThat(observer.published).singleElement().satisfies(context -> {
+      assertThat(context.record()).isSameAs(original);
+      assertThat(context.classification())
+          .isEqualTo(MessageFailureClassification.retryable(MessageFailureCategory.HANDLER));
+      assertThat(context.deliveryAttempt()).isEqualTo(2);
+    });
     assertThat(observer.publicationFailures).isEmpty();
   }
 
@@ -238,23 +243,20 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
     KafkaConsumerFailureObserver brokenObserver = new KafkaConsumerFailureObserver() {
       @Override
       public void retryScheduled(
-          ConsumerRecord<?, ?> record,
-          Exception failure,
-          int deliveryAttempt,
+          KafkaConsumerFailureContext context,
           long nextBackOffMillis
       ) {
         throw new IllegalStateException("retry observation failed");
       }
 
       @Override
-      public void deadLetterPublished(ConsumerRecord<?, ?> record, Exception originalFailure) {
+      public void deadLetterPublished(KafkaConsumerFailureContext context) {
         throw new IllegalStateException("DLT observation failed");
       }
 
       @Override
       public void deadLetterPublicationFailed(
-          ConsumerRecord<?, ?> record,
-          Exception originalFailure,
+          KafkaConsumerFailureContext context,
           Exception publicationFailure
       ) {
         throw new IllegalStateException("DLT failure observation failed");
@@ -388,29 +390,26 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
       implements KafkaConsumerFailureObserver {
     private final List<Integer> retryAttempts = new ArrayList<>();
     private final List<Long> retryBackOffs = new ArrayList<>();
-    private final List<ConsumerRecord<?, ?>> published = new ArrayList<>();
+    private final List<KafkaConsumerFailureContext> published = new ArrayList<>();
     private final List<Exception> publicationFailures = new ArrayList<>();
 
     @Override
     public void retryScheduled(
-        ConsumerRecord<?, ?> record,
-        Exception failure,
-        int deliveryAttempt,
+        KafkaConsumerFailureContext context,
         long nextBackOffMillis
     ) {
-      retryAttempts.add(deliveryAttempt);
+      retryAttempts.add(context.deliveryAttempt());
       retryBackOffs.add(nextBackOffMillis);
     }
 
     @Override
-    public void deadLetterPublished(ConsumerRecord<?, ?> record, Exception originalFailure) {
-      published.add(record);
+    public void deadLetterPublished(KafkaConsumerFailureContext context) {
+      published.add(context);
     }
 
     @Override
     public void deadLetterPublicationFailed(
-        ConsumerRecord<?, ?> record,
-        Exception originalFailure,
+        KafkaConsumerFailureContext context,
         Exception publicationFailure
     ) {
       publicationFailures.add(publicationFailure);

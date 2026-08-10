@@ -16,9 +16,14 @@ public final class EventMessageHeaders {
   }
 
   public static String eventType(Message message) {
-    String eventType = message.requiredHeader(EVENT_TYPE);
+    String eventType;
+    try {
+      eventType = message.requiredHeader(EVENT_TYPE);
+    } catch (IllegalArgumentException exception) {
+      throw new IntegrationEventContractException(exception.getMessage(), exception);
+    }
     if (!message.type().equals(eventType)) {
-      throw new IllegalArgumentException("Message type does not match event type");
+      throw new IntegrationEventContractException("Message type does not match event type");
     }
     return eventType;
   }
@@ -33,7 +38,8 @@ public final class EventMessageHeaders {
       }
       return version;
     } catch (NumberFormatException exception) {
-      throw new IllegalArgumentException("Invalid event-contract-version header: " + value,
+      throw new IntegrationEventContractException(
+          "Invalid event-contract-version header: " + value,
           exception);
     }
   }

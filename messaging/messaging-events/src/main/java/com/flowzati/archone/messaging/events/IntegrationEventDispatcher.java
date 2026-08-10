@@ -86,9 +86,11 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
           + eventType + "/" + contractVersion);
     }
 
-    String aggregateType = message.requiredHeader(EventMessageHeaders.EVENT_AGGREGATE_TYPE);
-    String aggregateId = message.requiredHeader(EventMessageHeaders.EVENT_AGGREGATE_ID);
-    IntegrationEvent event = deserializer.deserialize(message.payload(), eventClass);
+    String aggregateType = requiredContractHeader(
+        message, EventMessageHeaders.EVENT_AGGREGATE_TYPE);
+    String aggregateId = requiredContractHeader(
+        message, EventMessageHeaders.EVENT_AGGREGATE_ID);
+    IntegrationEvent event = deserialize(message, eventClass);
     requireMatchingContract(message, externalType, event);
     handler.invoke(new IntegrationEventEnvelope<>(
         message,
@@ -97,6 +99,27 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
         message.id(),
         event));
     return MessageHandlingOutcome.PROCESSED;
+  }
+
+  private String requiredContractHeader(Message message, String name) {
+    try {
+      return message.requiredHeader(name);
+    } catch (IllegalArgumentException exception) {
+      throw new IntegrationEventContractException(exception.getMessage(), exception);
+    }
+  }
+
+  private IntegrationEvent deserialize(
+      Message message,
+      Class<? extends IntegrationEvent> eventClass
+  ) {
+    try {
+      return deserializer.deserialize(message.payload(), eventClass);
+    } catch (IntegrationEventContractException exception) {
+      throw exception;
+    } catch (IllegalArgumentException exception) {
+      throw new IntegrationEventContractException(exception.getMessage(), exception);
+    }
   }
 
   private void handleUnhandled(
@@ -119,10 +142,11 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
       IntegrationEvent event
   ) {
     if (!event.getEventId().equals(message.id())) {
-      throw new IllegalArgumentException("Integration Event ID header does not match payload");
+      throw new IntegrationEventContractException(
+          "Integration Event ID header does not match payload");
     }
     if (!event.eventType().equals(externalType.eventType())) {
-      throw new IllegalArgumentException(
+      throw new IntegrationEventContractException(
           "Integration Event type header does not match payload contract");
     }
   }

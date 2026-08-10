@@ -20,13 +20,16 @@ public record IntegrationEventEnvelope<E extends IntegrationEvent>(
   public IntegrationEventEnvelope {
     if (message == null || isBlank(aggregateType) || isBlank(aggregateId)
         || eventId == null || event == null) {
-      throw new IllegalArgumentException("Integration Event envelope fields are required");
+      throw new IntegrationEventContractException(
+          "Integration Event envelope fields are required");
     }
     if (!message.id().equals(eventId)) {
-      throw new IllegalArgumentException("Integration Event ID does not match message ID");
+      throw new IntegrationEventContractException(
+          "Integration Event ID does not match message ID");
     }
     if (!event.getEventId().equals(eventId)) {
-      throw new IllegalArgumentException("Integration Event ID does not match payload");
+      throw new IntegrationEventContractException(
+          "Integration Event ID does not match payload");
     }
   }
 

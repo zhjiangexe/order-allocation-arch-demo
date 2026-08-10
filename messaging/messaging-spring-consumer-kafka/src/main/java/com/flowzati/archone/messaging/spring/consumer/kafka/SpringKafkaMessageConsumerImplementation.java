@@ -1,8 +1,10 @@
 package com.flowzati.archone.messaging.spring.consumer.kafka;
 
+import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageHandler;
 import com.flowzati.archone.messaging.api.MessageSubscription;
+import com.flowzati.archone.messaging.consumer.common.MessageMappingException;
 import com.flowzati.archone.messaging.consumer.common.MessageConsumerImplementation;
 import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
@@ -204,12 +206,28 @@ public final class SpringKafkaMessageConsumerImplementation
       ResolvedMessageSubscription subscription,
       MessageHandler handler
   ) {
-    handler.handle(
-        messageMapper.map(record),
-        new MessageContext(
-            subscription.subscriberId(),
-            subscription.logicalChannelFor(record.topic()),
-            deliveryAttempt(record)));
+    MappedInboundMessage inbound = mapInboundMessage(record, subscription);
+    // Handler failures must remain untouched so application failure policies can classify them.
+    handler.handle(inbound.message(), inbound.context());
+  }
+
+  private MappedInboundMessage mapInboundMessage(
+      ConsumerRecord<String, String> record,
+      ResolvedMessageSubscription subscription
+  ) {
+    try {
+      return new MappedInboundMessage(
+          messageMapper.map(record),
+          new MessageContext(
+              subscription.subscriberId(),
+              subscription.logicalChannelFor(record.topic()),
+              deliveryAttempt(record)));
+    } catch (MessageMappingException exception) {
+      throw exception;
+    } catch (RuntimeException exception) {
+      throw new MessageMappingException(
+          "Cannot map Kafka record to the generic message envelope", exception);
+    }
   }
 
   private int deliveryAttempt(ConsumerRecord<String, String> record) {
@@ -247,5 +265,11 @@ public final class SpringKafkaMessageConsumerImplementation
   interface KafkaContainerStarter {
 
     void start(ConcurrentMessageListenerContainer<String, String> container);
+  }
+
+  private record MappedInboundMessage(
+      Message message,
+      MessageContext context
+  ) {
   }
 }

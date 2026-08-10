@@ -8,6 +8,9 @@ public final class MessagingObservationTags {
   public static final String MESSAGE_TYPE = "messaging.message.type";
   public static final String OUTCOME = "messaging.outcome";
   public static final String EXCEPTION_TYPE = "exception.type";
+  public static final String FAILURE_CATEGORY = "messaging.failure.category";
+  public static final String FAILURE_RETRYABLE = "messaging.failure.retryable";
+  public static final String DLT_DISPOSITION = "messaging.dlt.disposition";
 
   public static final String MESSAGE_ID = "messaging.message.id";
   public static final String PARTITION_ID = "messaging.partition.id";

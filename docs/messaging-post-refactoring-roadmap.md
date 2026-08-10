@@ -1,7 +1,7 @@
 # Messaging 整理後優化 Roadmap
 
-> 狀態：Gate P0-A 已完成；下一步為 Gate P0-B Consumer failure policy
-> 更新日期：2026-08-10
+> 狀態：Gate P0-A／P0-B 已完成；下一步為 Gate P0-C Full-path correctness E2E
+> 更新日期：2026-08-11
 > 適用範圍：`messaging/*`、`contracts`、使用 messaging 的 bounded-context runtime，
 > 以及 PostgreSQL／Debezium／Kafka 的端到端驗證
 
@@ -111,20 +111,68 @@ P0-C 可以在 P0-A／P0-B 的 characterization tests 建立後開始準備，�
 
 ### Tasks
 
-- [ ] B1. 建立 exception matrix，至少區分 optimistic contention、transient DB／connection、
+- [x] B1. 建立 exception matrix，至少區分 optimistic contention、transient DB／connection、
   timeout、contract／deserialization、business rejection 與未知 programming error。
-- [ ] B2. 只對確認可安全重試的 transient infrastructure exceptions 設定 bounded retry；
+- [x] B2. 只對確認可安全重試的 transient infrastructure exceptions 設定 bounded retry；
   contract／validation failure 維持 non-retryable。
-- [ ] B3. 固定 local optimistic retry 與 Kafka retry 的總 attempt budget，避免兩層無意乘算。
-- [ ] B4. 以 transaction integration test 證明每次失敗時 Inbox、business changes 與 follow-up
+- [x] B3. 固定 local optimistic retry 與 Kafka retry 的總 attempt budget，避免兩層無意乘算。
+- [x] B4. 以 transaction integration test 證明每次失敗時 Inbox、business changes 與 follow-up
   Outbox 一起 rollback。
-- [ ] B5. 為 retry、exhausted、direct-DLT 與 exception category 提供低基數 metrics／logs。
+- [x] B5. 為 retry、exhausted、direct-DLT 與 exception category 提供低基數 metrics／logs。
 
 ### Exit criteria
 
 - 短暫 DB 故障不會在第一次失敗時直接送入 DLT。
 - malformed payload／unsupported version 不會反覆重試。
 - retry attempt 上限、backoff 與 DLT 結果均有 deterministic tests。
+
+### Exception matrix
+
+| Failure stage／代表型別 | Category | Local retry | Kafka policy | 最大 processing attempts |
+|---|---|---:|---|---:|
+| Kafka record → generic Message：`MessageMappingException` | `MAPPING` | 0 | direct DLT | 1 |
+| Integration Event headers／payload：`IntegrationEventContractException` | `CONTRACT` | 0 | direct DLT | 1 |
+| optimistic contention：`OptimisticLockingFailureException` | `HANDLER` | 2 retries、100 ms fixed delay | local exhausted 後 4 次 delayed redelivery | 15 |
+| Spring transient／recoverable data access、query timeout | `INFRASTRUCTURE` | 0 | 4 次 delayed redelivery | 5 |
+| DB connection／resource unavailable、transaction begin failure | `INFRASTRUCTURE` | 0 | 4 次 delayed redelivery | 5 |
+| transaction timeout、`SQLTransientException`／`SQLRecoverableException` | `INFRASTRUCTURE` | 0 | 4 次 delayed redelivery | 5 |
+| permanent DB／SQL failure，例如 constraint violation | `INFRASTRUCTURE` | 0 | direct DLT | 1 |
+| application-specific business rejection | `HANDLER` | 0 | direct DLT（預設） | 1 |
+| unknown programming error | `HANDLER` | 0 | direct DLT（預設） | 1 |
+
+Kafka backoff 固定為 1s、2s、4s、8s。`DataAccessException`、`TransactionException`、
+`SQLException` 本身不是全面 retryable；只有表中明列的安全子型別覆寫為 retryable。JPA／Hibernate
+將 JDBC connection failure 轉成 `DataAccessResourceFailureException`，因此它也納入短而有界的
+redelivery window；若服務中斷超過約 15 秒，仍會進 DLT，不在此 Gate 偷渡 long-running retry topic。
+
+optimistic contention 的 attempt 上限是刻意固定的乘積：
+
+```text
+(1 initial + 2 local retries) × (1 initial delivery + 4 Kafka redeliveries)
+= 3 × 5
+= 15 maximum transactional handler attempts
+```
+
+其他 transient infrastructure failure 不進 local optimistic retry，所以最多為 5 次 processing
+attempt；若 failure 發生在 transaction begin，該次嘗試甚至不會建立 transaction。
+
+### 2026-08-11 implementation evidence
+
+- `OrderPromisingConsumerFailurePolicy` 集中定義 local settings、Kafka backoff、exception taxonomy
+  與兩種最大 attempt budget；兩個 Spring configuration 只負責 wiring，不再各自藏一半政策。
+- Kafka transport mapping 與 typed Integration Event contract 現在有 stage-specific exception；
+  application handler 原始例外不會被 transport／contract wrapper 吞掉。
+- `KafkaConsumerFailureContext` 把 classification 與 delivery attempt 傳到 observation；retry／DLT
+  observation 新增低基數 `messaging.failure.category`、`messaging.failure.retryable`，DLT 另以
+  `messaging.dlt.disposition=direct|retry_exhausted` 區分結果。message ID、key、partition、offset
+  仍只在 high-cardinality trace fields。
+- `AllocationTransactionalMessageChainIntegrationTest` 已證明每次 local attempt 使用新 transaction，
+  exhaustion 時 Inbox、JPA business data 與 JDBC Outbox 全部 rollback；
+  `IntegrationEventSubscriberTransactionIntegrationTest` 另覆蓋 production dispatcher path 的同一邊界。
+- deterministic tests 覆蓋 exception matrix、cause-chain SQL failure、1/2/4/8 秒 backoff、15／5
+  attempt caps、mapping／handler exception boundary、retry exhausted／direct DLT 與 observation tags。
+- `./gradlew test :order-promising:sit --no-daemon --rerun-tasks` 已完整通過（108 tasks）；最後的
+  attempt-budget 命名調整後亦再次通過 `:order-promising:test` 與 `:order-promising:sit`。
 
 ## 6. Gate P0-C — Full-path correctness E2E
 
@@ -253,8 +301,8 @@ order-promising transaction
 
 ## 13. 本輪 Definition of Done
 
-- [ ] Kafka listener 的全域 baseline 與 subscriber override 只有一套可解釋、可測的 precedence。
-- [ ] transient／non-retryable failure matrix 與總 retry budget 有測試與 metrics。
+- [x] Kafka listener 的全域 baseline 與 subscriber override 只有一套可解釋、可測的 precedence。
+- [x] transient／non-retryable failure matrix 與總 retry budget 有測試與 metrics。
 - [ ] 至少一條 business flow 通過真實 Outbox → Debezium → Kafka → Inbox correctness E2E。
 - [ ] WMS 以自己的 runtime／adapter、Inbox 與 repository 邊界完成第一條 integration flow。
 - [ ] fulfillment event 可以獨立建立 WMS command，不需跨 context query。

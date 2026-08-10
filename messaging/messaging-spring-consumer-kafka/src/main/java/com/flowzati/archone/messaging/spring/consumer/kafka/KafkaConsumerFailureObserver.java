@@ -1,22 +1,14 @@
 package com.flowzati.archone.messaging.spring.consumer.kafka;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-
 /** Optional hook invoked only after retry or DLT decisions have been made by Spring Kafka. */
 public interface KafkaConsumerFailureObserver {
 
-  void retryScheduled(
-      ConsumerRecord<?, ?> record,
-      Exception failure,
-      int deliveryAttempt,
-      long nextBackOffMillis
-  );
+  void retryScheduled(KafkaConsumerFailureContext context, long nextBackOffMillis);
 
-  void deadLetterPublished(ConsumerRecord<?, ?> record, Exception originalFailure);
+  void deadLetterPublished(KafkaConsumerFailureContext context);
 
   void deadLetterPublicationFailed(
-      ConsumerRecord<?, ?> record,
-      Exception originalFailure,
+      KafkaConsumerFailureContext context,
       Exception publicationFailure
   );
 
@@ -28,22 +20,16 @@ public interface KafkaConsumerFailureObserver {
     INSTANCE;
 
     @Override
-    public void retryScheduled(
-        ConsumerRecord<?, ?> record,
-        Exception failure,
-        int deliveryAttempt,
-        long nextBackOffMillis
-    ) {
+    public void retryScheduled(KafkaConsumerFailureContext context, long nextBackOffMillis) {
     }
 
     @Override
-    public void deadLetterPublished(ConsumerRecord<?, ?> record, Exception originalFailure) {
+    public void deadLetterPublished(KafkaConsumerFailureContext context) {
     }
 
     @Override
     public void deadLetterPublicationFailed(
-        ConsumerRecord<?, ?> record,
-        Exception originalFailure,
+        KafkaConsumerFailureContext context,
         Exception publicationFailure
     ) {
     }

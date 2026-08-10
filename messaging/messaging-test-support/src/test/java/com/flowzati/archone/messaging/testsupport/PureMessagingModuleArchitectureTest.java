@@ -115,8 +115,7 @@ class PureMessagingModuleArchitectureTest {
         application.resolve("ordering/entrypoint/messaging"));
     String allocationMessaging = readProductionSources(
         application.resolve("stock/entrypoint/messaging"));
-    String failurePolicy = Files.readString(bootstrapMessaging.resolve(
-        "consumer/OrderPromisingKafkaConsumerConfiguration.java"));
+    String failurePolicy = readProductionSources(bootstrapMessaging.resolve("consumer"));
 
     assertThat(bootstrapMessaging.resolve(
         "OrderPromisingIntegrationEventPreparationConfiguration.java")).doesNotExist();

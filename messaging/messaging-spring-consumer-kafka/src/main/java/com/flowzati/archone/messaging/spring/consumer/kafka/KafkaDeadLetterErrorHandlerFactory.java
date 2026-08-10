@@ -86,7 +86,8 @@ public final class KafkaDeadLetterErrorHandlerFactory {
         headersProvider.headersFor(record, failure),
         "Kafka dead-letter headers provider returned null"));
 
-    KafkaRetryObservationHooks observationHooks = new KafkaRetryObservationHooks(failureObserver);
+    KafkaRetryObservationHooks observationHooks = new KafkaRetryObservationHooks(
+        failureObserver, failureClassifier);
     DefaultErrorHandler errorHandler = new DefaultErrorHandler(
         recoverer, retryBackOff, observationHooks.observingBackOffHandler());
     errorHandler.setRetryListeners(observationHooks);

@@ -27,7 +27,7 @@ public final class JacksonIntegrationEventSerde
     try {
       return objectMapper.readValue(payload, eventClass);
     } catch (JsonProcessingException exception) {
-      throw new IllegalArgumentException(
+      throw new IntegrationEventContractException(
           "Cannot deserialize integration event: " + eventClass.getSimpleName(), exception);
     }
   }

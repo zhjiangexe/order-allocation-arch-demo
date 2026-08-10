@@ -154,6 +154,8 @@ registry/exporter。
 - `archone.messaging.producer` 有 `appended`／`failed` outcome；
 - `archone.messaging.consumer` 有 `processed`／`duplicate`／`ignored_unhandled`／`failed` outcome；
 - `archone.messaging.consumer.retry` 與 `archone.messaging.consumer.dlt` 能反映 retry／DLT；
+- retry／DLT 具有 `messaging.failure.category`、`messaging.failure.retryable` 低基數 tags，
+  DLT 的 `messaging.dlt.disposition` 可區分 `direct` 與 `retry_exhausted`；
 - metric tags 不含 message ID、partition key 或 correlation ID；這些只可作 trace high-cardinality fields；
 - `traceparent`／`tracestate` 從 producer observation 寫入 Outbox headers，經 Debezium
   `messageHeaders` relay 後能被 consumer observation 讀取。

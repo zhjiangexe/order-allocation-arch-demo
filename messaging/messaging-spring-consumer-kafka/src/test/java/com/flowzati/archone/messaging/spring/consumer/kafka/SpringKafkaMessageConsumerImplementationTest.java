@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageContext;
+import com.flowzati.archone.messaging.consumer.common.MessageMappingException;
 import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import java.nio.ByteBuffer;
@@ -80,6 +81,47 @@ class SpringKafkaMessageConsumerImplementationTest {
     assertThat(receivedMessage.get().type()).isEqualTo("OrderPlaced.v1");
     assertThat(receivedContext.get()).isEqualTo(
         new MessageContext("subscriber-a", "ordering-events", 4));
+    handle.stop();
+  }
+
+  @Test
+  void marksTransportEnvelopeFailuresAsMappingFailures() {
+    SpringKafkaMessageConsumerImplementation consumer = consumer(
+        KafkaSubscriptionPolicyResolver.fixed(KafkaSubscriptionPolicy.defaults()),
+        container -> { });
+    DefaultKafkaMessageSubscription handle = (DefaultKafkaMessageSubscription) consumer.subscribe(
+        subscription("subscriber-a", "group-a", TOPIC),
+        (message, context) -> { });
+    @SuppressWarnings("unchecked")
+    MessageListener<String, String> listener = (MessageListener<String, String>)
+        handle.container().getContainerProperties().getMessageListener();
+    ConsumerRecord<String, String> malformed = new ConsumerRecord<>(
+        TOPIC, 0, 42, null, "{}");
+
+    assertThatThrownBy(() -> listener.onMessage(malformed))
+        .isInstanceOf(MessageMappingException.class)
+        .hasMessage("Cannot map Kafka record to the generic message envelope")
+        .hasCauseInstanceOf(IllegalArgumentException.class);
+    handle.stop();
+  }
+
+  @Test
+  void preservesTheOriginalApplicationHandlerFailure() {
+    IllegalArgumentException businessFailure =
+        new IllegalArgumentException("business request rejected");
+    SpringKafkaMessageConsumerImplementation consumer = consumer(
+        KafkaSubscriptionPolicyResolver.fixed(KafkaSubscriptionPolicy.defaults()),
+        container -> { });
+    DefaultKafkaMessageSubscription handle = (DefaultKafkaMessageSubscription) consumer.subscribe(
+        subscription("subscriber-a", "group-a", TOPIC),
+        (message, context) -> {
+          throw businessFailure;
+        });
+    @SuppressWarnings("unchecked")
+    MessageListener<String, String> listener = (MessageListener<String, String>)
+        handle.container().getContainerProperties().getMessageListener();
+
+    assertThatThrownBy(() -> listener.onMessage(record(1))).isSameAs(businessFailure);
     handle.stop();
   }
 

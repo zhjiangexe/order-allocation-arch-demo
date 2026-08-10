@@ -194,6 +194,13 @@ Application 若有特殊失敗語意，只提供 `KafkaConsumerFailurePolicyReso
 `CommonErrorHandler`、`KafkaOperations`、DLT headers provider 或 Micrometer observer。同一 physical
 topic 即使有多個 subscriber，runtime 仍以實際 subscription identity 建立各自的 DLT metadata。
 
+Transport record 無法轉成 generic Message 時，runtime 會拋出 `MessageMappingException`；typed
+Integration Event 的 header／payload 不符合 contract 時會拋出
+`IntegrationEventContractException`。兩者都不包住 application handler exception，讓 application
+policy 能分開判斷 `MAPPING`、`CONTRACT`、`HANDLER` 與 `INFRASTRUCTURE`。failure observation 會帶
+低基數 `messaging.failure.category`、`messaging.failure.retryable`，DLT 另帶
+`messaging.dlt.disposition=direct|retry_exhausted`。
+
 Rolling deployment、subscriber/group rename、DLT replay、header failure 與 retention 請見
 [`docs/messaging-operations-runbook.md`](../docs/messaging-operations-runbook.md)。完整演進決策請見
 [`docs/eventuate-tram-aligned-messaging-roadmap.md`](../docs/eventuate-tram-aligned-messaging-roadmap.md)。

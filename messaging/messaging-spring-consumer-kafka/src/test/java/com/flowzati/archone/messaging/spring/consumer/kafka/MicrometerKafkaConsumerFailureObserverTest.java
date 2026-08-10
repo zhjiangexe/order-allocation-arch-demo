@@ -2,6 +2,8 @@ package com.flowzati.archone.messaging.spring.consumer.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.messaging.consumer.common.MessageFailureCategory;
+import com.flowzati.archone.messaging.consumer.common.MessageFailureClassification;
 import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.observation.MessagingObservationNames;
@@ -38,9 +40,21 @@ class MicrometerKafkaConsumerFailureObserverTest {
     IllegalStateException original = new IllegalStateException("handler unavailable");
     IllegalArgumentException dltFailure = new IllegalArgumentException("broker unavailable");
 
-    observer.retryScheduled(record, original, 2, 1_000);
-    observer.deadLetterPublished(record, original);
-    observer.deadLetterPublicationFailed(record, original, dltFailure);
+    observer.retryScheduled(failureContext(
+        record,
+        original,
+        MessageFailureClassification.retryable(MessageFailureCategory.INFRASTRUCTURE),
+        2), 1_000);
+    observer.deadLetterPublished(failureContext(
+        record,
+        original,
+        MessageFailureClassification.retryable(MessageFailureCategory.INFRASTRUCTURE),
+        5));
+    observer.deadLetterPublicationFailed(failureContext(
+        record,
+        original,
+        MessageFailureClassification.nonRetryable(MessageFailureCategory.CONTRACT),
+        1), dltFailure);
 
     assertThat(handler.stopped).hasSize(3);
     assertObservation(
@@ -60,6 +74,17 @@ class MicrometerKafkaConsumerFailureObserverTest {
         IllegalArgumentException.class);
     assertThat(handler.stopped.get(2).getError()).isSameAs(dltFailure);
 
+    assertThat(tags(handler.stopped.get(0).getLowCardinalityKeyValues()))
+        .containsEntry(MessagingObservationTags.FAILURE_CATEGORY, "infrastructure")
+        .containsEntry(MessagingObservationTags.FAILURE_RETRYABLE, "true");
+    assertThat(tags(handler.stopped.get(1).getLowCardinalityKeyValues()))
+        .containsEntry(MessagingObservationTags.DLT_DISPOSITION, "retry_exhausted")
+        .containsEntry(MessagingObservationTags.FAILURE_CATEGORY, "infrastructure");
+    assertThat(tags(handler.stopped.get(2).getLowCardinalityKeyValues()))
+        .containsEntry(MessagingObservationTags.DLT_DISPOSITION, "direct")
+        .containsEntry(MessagingObservationTags.FAILURE_CATEGORY, "contract")
+        .containsEntry(MessagingObservationTags.FAILURE_RETRYABLE, "false");
+
     assertThat(tags(handler.stopped.get(0).getHighCardinalityKeyValues()))
         .containsEntry(MessagingObservationTags.MESSAGE_ID, recordId())
         .containsEntry(MessagingObservationTags.PARTITION_ID, "order-401")
@@ -67,6 +92,8 @@ class MicrometerKafkaConsumerFailureObserverTest {
         .containsEntry(MessagingObservationTags.KAFKA_OFFSET, "42")
         .containsEntry(MessagingObservationTags.RETRY_ATTEMPT, "2")
         .containsEntry(MessagingObservationTags.RETRY_BACKOFF_MILLIS, "1000");
+    assertThat(tags(handler.stopped.get(1).getHighCardinalityKeyValues()))
+        .containsEntry(MessagingObservationTags.RETRY_ATTEMPT, "5");
   }
 
   private void assertObservation(
@@ -101,6 +128,16 @@ class MicrometerKafkaConsumerFailureObserverTest {
         KafkaMessageMapper.LEGACY_EVENT_TYPE_HEADER,
         "OrderPlaced.v1".getBytes(StandardCharsets.UTF_8));
     return record;
+  }
+
+  private KafkaConsumerFailureContext failureContext(
+      ConsumerRecord<?, ?> record,
+      Exception failure,
+      MessageFailureClassification classification,
+      int deliveryAttempt
+  ) {
+    return new KafkaConsumerFailureContext(
+        record, failure, classification, deliveryAttempt);
   }
 
   private String recordId() {

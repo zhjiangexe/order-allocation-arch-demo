@@ -7,6 +7,7 @@ import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -30,20 +31,16 @@ public final class MicrometerKafkaConsumerFailureObserver
   }
 
   @Override
-  public void retryScheduled(
-      ConsumerRecord<?, ?> record,
-      Exception failure,
-      int deliveryAttempt,
-      long nextBackOffMillis
-  ) {
+  public void retryScheduled(KafkaConsumerFailureContext context, long nextBackOffMillis) {
     Observation observation = observation(
         MessagingObservationNames.CONSUMER_RETRY,
         "retry",
-        record,
-        failure,
+        context,
+        context.failure(),
         MessagingObservationOutcome.RETRY_SCHEDULED)
         .highCardinalityKeyValue(
-            MessagingObservationTags.RETRY_ATTEMPT, Integer.toString(deliveryAttempt))
+            MessagingObservationTags.RETRY_ATTEMPT,
+            Integer.toString(context.deliveryAttempt()))
         .highCardinalityKeyValue(
             MessagingObservationTags.RETRY_BACKOFF_MILLIS,
             Long.toString(nextBackOffMillis));
@@ -51,29 +48,40 @@ public final class MicrometerKafkaConsumerFailureObserver
   }
 
   @Override
-  public void deadLetterPublished(ConsumerRecord<?, ?> record, Exception originalFailure) {
+  public void deadLetterPublished(KafkaConsumerFailureContext context) {
     observation(
         MessagingObservationNames.CONSUMER_DLT,
         "dlt",
-        record,
-        originalFailure,
+        context,
+        context.failure(),
         MessagingObservationOutcome.PUBLISHED)
+        .lowCardinalityKeyValue(
+            MessagingObservationTags.DLT_DISPOSITION,
+            dltDisposition(context))
+        .highCardinalityKeyValue(
+            MessagingObservationTags.RETRY_ATTEMPT,
+            Integer.toString(context.deliveryAttempt()))
         .start()
         .stop();
   }
 
   @Override
   public void deadLetterPublicationFailed(
-      ConsumerRecord<?, ?> record,
-      Exception originalFailure,
+      KafkaConsumerFailureContext context,
       Exception publicationFailure
   ) {
     Observation observation = observation(
         MessagingObservationNames.CONSUMER_DLT,
         "dlt",
-        record,
+        context,
         publicationFailure,
-        MessagingObservationOutcome.FAILED);
+        MessagingObservationOutcome.FAILED)
+        .lowCardinalityKeyValue(
+            MessagingObservationTags.DLT_DISPOSITION,
+            dltDisposition(context))
+        .highCardinalityKeyValue(
+            MessagingObservationTags.RETRY_ATTEMPT,
+            Integer.toString(context.deliveryAttempt()));
     observation.start();
     observation.error(publicationFailure);
     observation.stop();
@@ -82,10 +90,11 @@ public final class MicrometerKafkaConsumerFailureObserver
   private Observation observation(
       String name,
       String operation,
-      ConsumerRecord<?, ?> record,
-      Exception failure,
+      KafkaConsumerFailureContext context,
+      Exception observedFailure,
       MessagingObservationOutcome outcome
   ) {
+    ConsumerRecord<?, ?> record = context.record();
     Objects.requireNonNull(record, "Kafka consumer record is required");
     KafkaConsumerObservationMetadata metadata = metadataResolver.resolve(record);
     Observation observation = Observation.createNotStarted(name, observationRegistry)
@@ -100,7 +109,13 @@ public final class MicrometerKafkaConsumerFailureObserver
                 .orElse(MessagingObservationTags.UNKNOWN))
         .lowCardinalityKeyValue(MessagingObservationTags.OUTCOME, outcome.tagValue())
         .lowCardinalityKeyValue(
-            MessagingObservationTags.EXCEPTION_TYPE, exceptionType(failure))
+            MessagingObservationTags.EXCEPTION_TYPE, exceptionType(observedFailure))
+        .lowCardinalityKeyValue(
+            MessagingObservationTags.FAILURE_CATEGORY,
+            context.classification().category().name().toLowerCase(Locale.ROOT))
+        .lowCardinalityKeyValue(
+            MessagingObservationTags.FAILURE_RETRYABLE,
+            Boolean.toString(context.classification().retryable()))
         .highCardinalityKeyValue(
             MessagingObservationTags.KAFKA_PARTITION, Integer.toString(record.partition()))
         .highCardinalityKeyValue(
@@ -112,6 +127,10 @@ public final class MicrometerKafkaConsumerFailureObserver
     textHeader(record, KafkaMessageMapper.LEGACY_ID_HEADER).ifPresent(messageId ->
         observation.highCardinalityKeyValue(MessagingObservationTags.MESSAGE_ID, messageId));
     return observation;
+  }
+
+  private String dltDisposition(KafkaConsumerFailureContext context) {
+    return context.classification().retryable() ? "retry_exhausted" : "direct";
   }
 
   private Optional<String> textHeader(ConsumerRecord<?, ?> record, String name) {

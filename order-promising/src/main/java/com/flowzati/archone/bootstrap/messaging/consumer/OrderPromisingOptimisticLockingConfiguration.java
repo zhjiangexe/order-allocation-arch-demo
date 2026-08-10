@@ -6,7 +6,6 @@ import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLocking
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetrySettings;
 import com.flowzati.archone.stock.infrastructure.messaging.consumer.retry.AllocationOptimisticLockRetryObserver;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -24,7 +23,7 @@ public class OrderPromisingOptimisticLockingConfiguration {
 
   @Bean
   OptimisticLockingRetrySettings orderPromisingOptimisticLockingRetrySettings() {
-    return new OptimisticLockingRetrySettings(2, Duration.ofMillis(100));
+    return OrderPromisingConsumerFailurePolicy.optimisticLockingRetrySettings();
   }
 
   @Bean

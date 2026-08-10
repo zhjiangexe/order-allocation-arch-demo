@@ -130,7 +130,7 @@ class IntegrationEventDispatcherTest {
     Message missingAggregateId = new Message(complete.payload(), headers);
 
     assertThatThrownBy(() -> dispatcher.dispatch(missingAggregateId, "order-events"))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(IntegrationEventContractException.class)
         .hasMessage("Missing message header: event-aggregate-id");
     assertThat(deserialized).isFalse();
   }
@@ -144,7 +144,7 @@ class IntegrationEventDispatcherTest {
 
     assertThatThrownBy(() -> dispatcher.dispatch(
         message(UUID.randomUUID(), TestEvent.EVENT_TYPE, 1), "order-events"))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(IntegrationEventContractException.class)
         .hasMessage("Integration Event ID header does not match payload");
   }
 
@@ -158,14 +158,29 @@ class IntegrationEventDispatcherTest {
 
     assertThatThrownBy(() -> dispatcher.dispatch(
         message(eventId, TestEvent.EVENT_TYPE, 1), "order-events"))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(IntegrationEventContractException.class)
         .hasMessage("Integration Event type header does not match payload contract");
+  }
+
+  @Test
+  void marksDeserializerInputFailuresAsContractFailures() {
+    UUID eventId = UUID.randomUUID();
+    IntegrationEventDispatcher dispatcher = dispatcher(
+        failingDeserializer(new IllegalArgumentException("invalid JSON")),
+        handlers(new AtomicReference<>()),
+        mapping());
+
+    assertThatThrownBy(() -> dispatcher.dispatch(
+        message(eventId, TestEvent.EVENT_TYPE, 1), "order-events"))
+        .isInstanceOf(IntegrationEventContractException.class)
+        .hasMessage("invalid JSON")
+        .hasCauseInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   void propagatesTheOriginalHandlerException() {
     UUID eventId = UUID.randomUUID();
-    IllegalStateException failure = new IllegalStateException("business failure");
+    IllegalArgumentException failure = new IllegalArgumentException("business rejection");
     IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
         .forDestination("order-events")
         .onEvent(TestEvent.class, envelope -> {
@@ -218,6 +233,15 @@ class IntegrationEventDispatcherTest {
       public <E extends IntegrationEvent> E deserialize(String payload, Class<E> eventClass) {
         invoked.set(true);
         throw new AssertionError("Deserializer should not be invoked");
+      }
+    };
+  }
+
+  private IntegrationEventDeserializer failingDeserializer(IllegalArgumentException failure) {
+    return new IntegrationEventDeserializer() {
+      @Override
+      public <E extends IntegrationEvent> E deserialize(String payload, Class<E> eventClass) {
+        throw failure;
       }
     };
   }

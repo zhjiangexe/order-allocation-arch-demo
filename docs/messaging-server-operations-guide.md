@@ -561,8 +561,11 @@ Outbox append rate / failure
 
 本專案至少要匯出並核對 `archone.messaging.producer`、
 `archone.messaging.consumer`、`archone.messaging.consumer.retry` 與
-`archone.messaging.consumer.dlt` outcomes。message ID、partition key 與 correlation ID
-只進 structured log／trace，不進 metric tags。
+`archone.messaging.consumer.dlt` outcomes。consumer retry／DLT 以低基數
+`messaging.failure.category`、`messaging.failure.retryable` 分類；DLT 再以
+`messaging.dlt.disposition=direct|retry_exhausted` 區分 poison message 與 retry exhaustion。
+message ID、partition key、Kafka partition／offset 與 correlation ID 只進 structured
+log／trace high-cardinality fields，不進 metric tags。
 
 ## 10. 事故處理決策表
 
