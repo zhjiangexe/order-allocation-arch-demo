@@ -9,8 +9,10 @@ import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageHandler;
+import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
 import com.flowzati.archone.messaging.api.MessageSubscription;
 import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
+import com.flowzati.archone.messaging.api.OutcomeAwareMessageHandler;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +106,28 @@ class MessageConsumerImplTest {
   }
 
   @Test
+  void preservesAnOutcomeAwareHandlersIgnoredResultThroughTheDecoratorChain() {
+    CapturingImplementation implementation = new CapturingImplementation();
+    List<String> calls = new ArrayList<>();
+    MessageConsumerImpl consumer = new MessageConsumerImpl(
+        implementation,
+        logicalChannel -> logicalChannel,
+        List.of(decorator(100, "observation", calls)));
+    OutcomeAwareMessageHandler handler = (message, context) -> {
+      calls.add("handler.ignored");
+      return MessageHandlingOutcome.IGNORED_UNHANDLED;
+    };
+
+    subscribe(consumer, handler);
+    implementation.emit("order-events", message(), 1);
+
+    assertThat(calls).containsExactly(
+        "observation.before",
+        "handler.ignored",
+        "observation.after.IGNORED_UNHANDLED");
+  }
+
+  @Test
   void rejectsAnAmbiguousMappingBeforeStartingTheRuntime() {
     CapturingImplementation implementation = new CapturingImplementation();
     MessageConsumerImpl consumer = new MessageConsumerImpl(
@@ -114,6 +138,22 @@ class MessageConsumerImplTest {
         "subscriber", Set.of("orders", "stock"), (message, context) -> { }))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Multiple logical channels map to the same destination: shared-topic");
+    assertThat(implementation.subscription).isNull();
+  }
+
+  @Test
+  void rejectsInvalidSubscriptionIdentityBeforeStartingTheRuntime() {
+    CapturingImplementation implementation = new CapturingImplementation();
+    MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
+
+    assertThatThrownBy(() -> consumer.subscribe(
+        " ", Set.of("orders"), (message, context) -> { }))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Message subscription fields are required");
+    assertThatThrownBy(() -> consumer.subscribe(
+        "allocation", Set.of(), (message, context) -> { }))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Message subscription fields are required");
     assertThat(implementation.subscription).isNull();
   }
 

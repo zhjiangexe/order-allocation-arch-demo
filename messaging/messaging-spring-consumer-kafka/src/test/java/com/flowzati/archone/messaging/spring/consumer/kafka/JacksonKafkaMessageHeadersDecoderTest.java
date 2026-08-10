@@ -2,9 +2,9 @@ package com.flowzati.archone.messaging.spring.consumer.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class JacksonKafkaMessageHeadersDecoderTest {
@@ -15,9 +15,9 @@ class JacksonKafkaMessageHeadersDecoderTest {
         new JacksonKafkaMessageHeadersDecoder(new ObjectMapper());
 
     assertThat(decoder.decode("{\"traceparent\":\"00-abc\",\"correlation-id\":\"c-1\"}"))
-        .containsExactlyEntriesOf(Map.of(
-            "correlation-id", "c-1",
-            "traceparent", "00-abc"));
+        .containsExactly(
+            entry("correlation-id", "c-1"),
+            entry("traceparent", "00-abc"));
   }
 
   @Test

@@ -1,8 +1,11 @@
 package com.flowzati.archone.messaging.spring.consumer.kafka;
 
 import com.flowzati.archone.messaging.consumer.common.MessageFailureClassifier;
+import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
 import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
@@ -15,6 +18,38 @@ public final class KafkaDeadLetterErrorHandlerFactory {
   private static final BackOff NO_RETRY = new FixedBackOff(0, 0);
 
   private KafkaDeadLetterErrorHandlerFactory() {
+  }
+
+  /**
+   * Binds DLT metadata and failure observations to each real programmatic subscription.
+   *
+   * <p>This avoids the ambiguous global pattern that attempts to derive a subscriber from a
+   * physical topic. Two subscribers may therefore consume the same topic with different groups
+   * and policies without sharing recovery metadata.
+   */
+  public static KafkaSubscriptionErrorHandlerFactory perSubscription(
+      KafkaOperations<Object, Object> kafkaOperations,
+      KafkaConsumerFailurePolicyResolver failurePolicyResolver,
+      Function<ResolvedMessageSubscription, KafkaConsumerFailureObserver> observerFactory
+  ) {
+    Objects.requireNonNull(kafkaOperations, "Kafka operations are required");
+    Objects.requireNonNull(failurePolicyResolver, "Kafka failure policy resolver is required");
+    Objects.requireNonNull(observerFactory, "Kafka failure observer factory is required");
+    return subscription -> {
+      Objects.requireNonNull(subscription, "Resolved message subscription is required");
+      KafkaConsumerFailurePolicy policy = Objects.requireNonNull(
+          failurePolicyResolver.resolve(subscription),
+          "Kafka failure policy resolver returned null");
+      KafkaConsumerFailureObserver observer = Objects.requireNonNull(
+          observerFactory.apply(subscription),
+          "Kafka failure observer factory returned null");
+      return Optional.of(create(
+          kafkaOperations,
+          policy.retryBackOff(),
+          policy.failureClassifier(),
+          KafkaDeadLetterHeadersProvider.forSubscription(subscription),
+          observer));
+    };
   }
 
   public static DefaultErrorHandler create(

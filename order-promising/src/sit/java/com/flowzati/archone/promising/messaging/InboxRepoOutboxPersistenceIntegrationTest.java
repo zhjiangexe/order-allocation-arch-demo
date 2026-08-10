@@ -9,10 +9,7 @@ import com.flowzati.archone.messaging.autoconfigure.MessagingConsumerJdbcAutoCon
 import com.flowzati.archone.messaging.autoconfigure.MessagingCoreAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.MessagingIntegrationEventPublisherAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.MessagingJdbcAutoConfiguration;
-import com.flowzati.archone.messaging.autoconfigure.MessagingJpaCompatibilityAutoConfiguration;
-import com.flowzati.archone.messaging.autoconfigure.MessagingLegacyInboxAutoConfiguration;
 import com.flowzati.archone.messaging.autoconfigure.MessagingProducerJdbcAutoConfiguration;
-import com.flowzati.archone.messaging.api.MessageMetadata;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
@@ -25,14 +22,7 @@ import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMess
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.PublicationTarget;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
-import com.flowzati.archone.messaging.outbox.Outbox;
 import com.flowzati.archone.promising.messaging.OutboxAggregateTypes;
-import com.flowzati.archone.messaging.outbox.OutboxRepo;
-import com.flowzati.archone.messaging.outbox.infrastructure.jpa.entity.OutboxEntity;
-import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
 import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
@@ -63,7 +53,6 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -83,36 +72,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
     MessagingJdbcAutoConfiguration.class,
     MessagingProducerJdbcAutoConfiguration.class,
     MessagingConsumerJdbcAutoConfiguration.class,
-    MessagingLegacyInboxAutoConfiguration.class,
-    MessagingJpaCompatibilityAutoConfiguration.class,
     MessagingIntegrationEventPublisherAutoConfiguration.class
 })
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
     OrderingDomainEventTranslator.class,
-    InboxRepoOutboxPersistenceIntegrationTest.JsonConfiguration.class,
-    InboxRepoOutboxPersistenceIntegrationTest.RepositoryConfiguration.class
+    JdbcMessagingPersistenceIntegrationTest.JsonConfiguration.class
 })
-class InboxRepoOutboxPersistenceIntegrationTest {
-
-  @Autowired
-  private InboxRepo inboxRepo;
+class JdbcMessagingPersistenceIntegrationTest {
 
   @Autowired
   private DuplicateMessageDetector duplicateMessageDetector;
 
   @Autowired
   private TransactionalIdempotencyMessageHandlerDecorator idempotencyDecorator;
-
-  @Autowired
-  private OutboxRepo outboxRepo;
-
-  @Autowired
-  private JpaEventInboxRepository jpaEventInboxRepository;
-
-  @Autowired
-  private JpaOutboxRepository outboxRepository;
 
   @Autowired
   private PlatformTransactionManager transactionManager;
@@ -137,33 +111,19 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   void shouldClaimInboxEventOncePerSubscriber() {
     UUID eventId = UUID.randomUUID();
 
-    MessageMetadata firstSubscriber = new MessageMetadata(
-        eventId, "ConfirmStockReceiptRequest", "stock-receipt-requests");
-    MessageMetadata secondSubscriber = new MessageMetadata(
-        eventId, "ConfirmStockReceiptRequest", "stock-audit-projection");
+    String eventType = "ConfirmStockReceiptRequest";
+    String firstSubscriber = "stock-receipt-requests";
+    String secondSubscriber = "stock-audit-projection";
 
-    assertThat(inboxRepo.claimIfNew(firstSubscriber)).isTrue();
-    assertThat(inboxRepo.claimIfNew(firstSubscriber)).isFalse();
-    assertThat(inboxRepo.claimIfNew(secondSubscriber)).isTrue();
-    assertThat(jpaEventInboxRepository.findById(
-        new InboxId(firstSubscriber.subscriberId(), eventId))).hasValueSatisfying(row -> {
-          assertThat(row.getSubscriberId()).isEqualTo(firstSubscriber.subscriberId());
-          assertThat(row.getEventType()).isEqualTo("ConfirmStockReceiptRequest");
-        });
-    assertThat(jpaEventInboxRepository.findById(
-        new InboxId(secondSubscriber.subscriberId(), eventId))).isPresent();
-  }
-
-  @Test
-  @Transactional(propagation = Propagation.NOT_SUPPORTED)
-  @DisplayName("Inbox adapter 應拒絕脫離 business transaction 的獨立 claim")
-  void shouldRequireAnExistingTransactionForInboxClaim() {
-    MessageMetadata message = new MessageMetadata(
-        UUID.randomUUID(), "ConfirmStockReceiptRequest", "stock-receipt-requests");
-
-    assertThatThrownBy(() -> inboxRepo.claimIfNew(message))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("No active caller transaction for Inbox claim");
+    assertThat(duplicateMessageDetector.claimIfNew(firstSubscriber, eventId, eventType)).isTrue();
+    assertThat(duplicateMessageDetector.claimIfNew(firstSubscriber, eventId, eventType)).isFalse();
+    assertThat(duplicateMessageDetector.claimIfNew(secondSubscriber, eventId, eventType)).isTrue();
+    assertThat(inboxClaimCount(firstSubscriber, eventId)).isOne();
+    assertThat(inboxClaimCount(secondSubscriber, eventId)).isOne();
+    assertThat(jdbcTemplate.queryForObject("""
+        SELECT event_type FROM event_inbox
+         WHERE subscriber_id = ? AND event_id = ?
+        """, String.class, firstSubscriber, eventId)).isEqualTo(eventType);
   }
 
   @Test
@@ -225,50 +185,6 @@ class InboxRepoOutboxPersistenceIntegrationTest {
   }
 
   @Test
-  @DisplayName("Outbox 應保存不可變的完整事件 payload")
-  void shouldPersistImmutableOutboxEventPayload() {
-    UUID eventId = UUID.randomUUID();
-    UUID orderId = IdGenerator.nextId();
-    Instant occurredAt = Instant.parse("2026-07-24T10:00:00Z");
-    outboxRepo.append(new Outbox(
-        eventId,
-        OutboxAggregateTypes.ORDER,
-        orderId.toString(),
-        "OrderPlacedIntegrationEvent",
-        OrderingEventTopics.ORDER_EVENTS,
-        "HOT-SKU",
-        "{\"eventId\":\"" + eventId + "\"}",
-        occurredAt
-    ));
-
-    OutboxEntity row = outboxRepository.findById(eventId).orElseThrow();
-    assertThat(row.getEventType()).isEqualTo("OrderPlacedIntegrationEvent");
-    assertThat(row.getRoute()).isEqualTo(OrderingEventTopics.ORDER_EVENTS);
-    assertThat(row.getAggregateId()).isEqualTo(orderId.toString());
-    assertThat(row.getPartitionKey()).isEqualTo("HOT-SKU");
-    assertThat(row.getPayload()).contains(eventId.toString());
-    assertThat(row.getOccurredAt()).isEqualTo(occurredAt);
-  }
-
-  @Test
-  @Transactional(propagation = Propagation.NOT_SUPPORTED)
-  @DisplayName("Outbox adapter 應拒絕脫離 caller transaction 的獨立寫入")
-  void shouldRequireAnExistingTransaction() {
-    UUID eventId = UUID.randomUUID();
-
-    assertThatThrownBy(() -> outboxRepo.append(new Outbox(
-        eventId,
-        OutboxAggregateTypes.ORDER,
-        UUID.randomUUID().toString(),
-        "OrderPlacedIntegrationEvent",
-        OrderingEventTopics.ORDER_EVENTS,
-        "order-1",
-        "{\"eventId\":\"" + eventId + "\"}",
-        Instant.parse("2026-07-24T10:00:00Z"))))
-        .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
-  }
-
-  @Test
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   @DisplayName("業務異動失敗時應連同翻譯後的 Outbox 一起回滾")
   void shouldRollbackBusinessChangeAndTranslatedOutboxTogether() {
@@ -300,7 +216,7 @@ class InboxRepoOutboxPersistenceIntegrationTest {
 
     assertThat(jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM orders WHERE id = ?", Integer.class, orderId)).isZero();
-    assertThat(outboxRepository.count()).isZero();
+    assertThat(tableCount("event_outbox")).isZero();
   }
 
   @Test
@@ -451,8 +367,15 @@ class InboxRepoOutboxPersistenceIntegrationTest {
         id);
   }
 
-  @EnableJpaRepositories(basePackageClasses = {JpaEventInboxRepository.class, JpaOutboxRepository.class})
-  static class RepositoryConfiguration {
+  private int inboxClaimCount(String subscriberId, UUID eventId) {
+    return jdbcTemplate.queryForObject("""
+        SELECT COUNT(*) FROM event_inbox
+         WHERE subscriber_id = ? AND event_id = ?
+        """, Integer.class, subscriberId, eventId);
+  }
+
+  private int tableCount(String table) {
+    return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
   }
 
   @TestConfiguration(proxyBeanMethods = false)

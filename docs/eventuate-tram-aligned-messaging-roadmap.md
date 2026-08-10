@@ -1,6 +1,6 @@
 # Eventuate Tram 風格 Messaging 模組重構 Roadmap
 
-> 狀態：Gate A～Gate F（FS0～FS4）已完成；Gate G 除 typed ignored-outcome bridge 與 Gate H starter boundary 外均已完成；production subscription cutover 仍屬 Gate I
+> 狀態：Gate A～Gate H、Gate I-A～I-F 已完成；下一步為 Gate J（獨立 Command／async reply correlation）
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-10
 > 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
@@ -1512,7 +1512,7 @@ FS3 subscriber／group rename 與 replay runbook：
 - [x] G4. 建立 `messaging-spring-producer-observability` 與 `messaging-spring-consumer-observability`；共用 module 只放 naming／convention／context helpers。
 - [x] G5. producer adapter 以 `ObservationRegistry` 實作 producer interceptor；consumer adapter 實作 handler decorator，不在 pure module import Micrometer。
 - [x] G6. 在 `messaging-spring-consumer-kafka` 啟用 Spring Kafka container observation，並避免與 legacy Micrometer timers 重複計量。
-- [ ] G7. 提供 consumer `processed`、`duplicate`、`ignored_unhandled`、`failed`、`processing duration` semantic measurements。（decorator 已量測全部 outcome 與 duration；typed dispatcher 尚需把 ignored-unhandled 語意回傳至 generic chain。）
+- [x] G7. 提供 consumer `processed`、`duplicate`、`ignored_unhandled`、`failed`、`processing duration` semantic measurements；typed dispatcher 以 additive outcome-aware handler contract 將 ignored-unhandled 語意回傳 generic chain，既有 void handler API 保持相容。
 - [x] G8. 提供 consumer `retry`、`dlt` measurements；由 `messaging-spring-consumer-kafka` 的 policy／recoverer hook 記錄。
 - [x] G9. 提供 producer `outbox.appended`、`outbox.failed` measurements。
 - [x] G10. low-cardinality tags 限定 subscriber、logical destination、event type、outcome、exception type。
@@ -1612,24 +1612,293 @@ archone.messaging.producer
 
 目的：完成 `order-promising` 接線並移除只為 migration 存在的舊 artifact。
 
-- [ ] I1. `order-promising` 依實際角色選擇 producer／consumer starter；同時收送時可先使用 all-in-one。
-- [ ] I2. 將 ordering／allocation 的個別 `IntegrationEventHandler<?>` classes 收斂為 bounded-context target classes；各 target 以 `IntegrationEventHandlersBuilder` 顯式提供 handler group，再以 `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 建立 dispatcher beans。
-- [ ] I3. 明確設定每個 subscription 的 `subscriberId`、`consumerGroupId`、logical channels 與 `UnhandledEventPolicy`，不得依賴 listener annotation 隱含值。
-- [ ] I4. 依 subscriber 原子切換 production subscription；切換成功後移除 application `@KafkaListener` consumer classes、每類一個 handler interface implementations，以及 auto-configuration 的 global handler-list wiring。
-- [ ] I5. 將現有 Kafka error handling 行為接成 subscription policy／shared Spring Kafka override。
-- [ ] I6. 更新 package scan／JPA repository scan，確認不再依賴舊 messaging JPA repositories。
-- [ ] I7. 更新 messaging properties、Outbox headers migration 與 Debezium connector deployment，提供 rolling-deployment migration note。
-- [ ] I8. 移除 `messaging-producer-outbox` migration facade。
-- [ ] I9. 移除 `messaging-consumer-inbox` migration facade。
-- [ ] I10. 移除舊 JPA entity／repository 與未使用 package。
-- [ ] I11. 清理 `settings.gradle` 與所有 project dependency。
-- [ ] I12. 驗證 metrics／traces 會送往現有 Prometheus／OTLP registries，並確認 trace context 經 Outbox／Debezium 傳遞。
-- [ ] I13. 建立 subscriber/group rename、DLT replay、connector rollback 與 header decode failure runbooks。
-- [ ] I14. 定義 Inbox／Outbox retention owner、最小保存期、batch cleanup SQL 與監控門檻；本輪不建立自動 scheduler。
-- [ ] I15. 更新 architecture tests、module README 與 `eventuate-tram-gap-analysis.md`，移除其中「application-owned `@KafkaListener`／延後 ChannelMapping」等舊決策。
-- [ ] I16. 更新專案 HTML 架構文件與流程圖。
-- [ ] I17. 所有 application dispatcher 完成遷移後，刪除 Gate F compatibility `IntegrationEventHandler<E>` interface／adapter 與 temporary `KafkaIntegrationEventDispatcher` bridge。
-- [ ] I18. 在 compatibility cleanup 後執行完整 `check` 與端到端 Debezium/Kafka 驗證。
+#### Gate I 執行原則
+
+Gate I-A～I-E 分成 preparation、subscriber cutover、compatibility cleanup 三段；不得在第一個
+subscriber 尚未證明新舊路徑等價前，同時刪除 listener、migration facade 與 JPA compatibility。
+Gate I-F 是遷移完成後的 application configuration simplification：不再背負雙路徑回退責任，
+但也不得改變已驗證的 wire contract、subscription identity、transaction 或 retry／DLT 語意。
+
+1. **Preparation（I1～I3）不改 production owner。** 可以建立 bounded-context target、
+   handlers、name mapping、dispatcher factory prerequisite 與明確 subscription descriptor，
+   但既有 `@KafkaListener` 仍是唯一實際 subscription owner。Tram-shaped
+   `IntegrationEventDispatcherFactory.make(...)` 是 subscribe-on-make；因此 preparation 不建立
+   dispatcher bean，而是在該 subscriber cutover 時才呼叫 `make(...)`。
+2. **以 subscriber 為最小切換單位。** 同一 application instance 不得同時註冊 legacy listener
+   與 programmatic subscription；部署流程也不得刻意讓兩條路徑長時間混跑。短暫 Kafka group
+   rebalance 不算第二條業務路徑，但開始新 consumer 前應先停止／drain 舊 consumer。
+3. **切換沿用既有 identity。** `subscriberId` 維持 Inbox idempotency scope，`consumerGroupId`
+   維持 Kafka offsets；不得為了區分新舊 implementation 臨時產生新 ID。若改 consumer group，
+   Kafka 會把它視為新訂閱並可能重播 retention window 內的歷史訊息。
+4. **每個 subscriber 獨立驗證與回退。** transaction、duplicate、retry、DLT、metrics 與 trace
+   驗證完成後才刪除該 subscriber 的 legacy listener。回退使用相同 subscriber/group identity，
+   先停新路徑再恢復舊路徑。
+5. **三個 subscriber 全數完成後才 cleanup。** Gate F compatibility handler／dispatcher bridge、
+   Inbox／Outbox migration facades、舊 JPA entity/repository 與 global handler-list wiring 都屬最後階段。
+
+#### Production subscription topology 與切換順序
+
+初次遷移保留 identity mapping，所以 logical channel 與 physical Kafka topic 相同。三種 identity
+雖然初始值相同，仍必須以不同欄位傳入 API，不可在程式內推導彼此。
+
+| 順序 | Owner／target | `subscriberId` | `consumerGroupId` | Logical channel → physical topic | 處理事件 | `UnhandledEventPolicy` | 理由 |
+|---:|---|---|---|---|---|---|---|
+| 1 | ordering allocation-result target | `ordering-allocation-events` | `ordering-allocation-events` | `promising.allocation-events` → `promising.allocation-events` | `OrderAllocatedIntegrationEvent`、`BackorderCreatedIntegrationEvent` | `FAIL` | 現有 listener class 只擁有這一組 subscription，且這條 channel 對 Ordering 是完整的 allocation outcome contract，最適合作為第一個原子切換。 |
+| 2 | allocation order-lifecycle target | `allocation-ordering-events` | `allocation-ordering-events` | `ordering.order-events` → `ordering.order-events` | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` | `IGNORE_WITH_METRIC` | Ordering lifecycle channel 未來可能加入 Allocation 不關心的事實；只忽略具備合法 type header、但未註冊於此 target 的事件。 |
+| 3 | allocation inventory-availability target | `allocation-inventory-events` | `allocation-inventory-events` | `inventory.stock-events` → `inventory.stock-events` | `StockAvailabilityIncreasedIntegrationEvent` | `IGNORE_WITH_METRIC` | Inventory facts channel 的範圍可能大於 availability increase；未知 type 仍必須留下 ignored metric。 |
+
+`IGNORE_WITH_METRIC` 不等於吞掉壞訊息：缺少必要 header、已註冊 event type 的 contract version／
+payload decode failure，以及 handler exception 都仍交由 retry／DLT。只有 header 合法但此 subscriber
+沒有註冊的 event type 才能忽略。
+
+#### 建議的 commit／release 批次
+
+| 批次 | 範圍 | Production consumption 是否改變 | 完成條件 |
+|---|---|:---:|---|
+| I-A | I1～I3：starter/dependency 盤點、三組 target + handlers、name mapping 與 subscription descriptors | 否 | Context 中沒有 `IntegrationEventDispatcher` bean，也沒有第二個 active subscription；legacy handler adapters 暫時委派給相同 target，既有 listener tests 保持通過。 |
+| I-B | 切換 `ordering-allocation-events` | 是 | 等價、Inbox transaction、retry/DLT 與 observation 測試通過；移除 `OrderingKafkaIntegrationEventConsumer`。 |
+| I-C | 切換 `allocation-ordering-events` | 是 | `OrderPlaced`／`OrderCancelled` 的 allocation 行為、duplicate 與 rollback 測試通過；只移除對應 legacy listener method。 |
+| I-D | 切換 `allocation-inventory-events` | 是 | waiting-demand allocation、duplicate、concurrency 與 rollback 測試通過；移除剩餘 `AllocationKafkaIntegrationEventConsumer`。 |
+| I-E | I6～I18 compatibility cleanup、文件與 E2E | 否（只移除已無 owner 的路徑） | repository 無 legacy bridge/facade 引用，完整 check 與 Debezium/Kafka E2E 通過。 |
+| I-F | I19～I29：Tram-shaped application configuration simplification | 否（結構重整） | application 只宣告 event contract、handlers、subscriber identity 與特殊 failure policy；通用 Kafka／DLT／observation mechanics 由 messaging runtime 擁有。 |
+
+- [x] I1. `order-promising` 依實際角色選擇 producer／consumer starter；同時收送時可先使用 all-in-one。
+- [x] I2. 將 ordering／allocation 的處理行為收斂為 bounded-context target classes；各 target 以 `IntegrationEventHandlersBuilder` 顯式提供 named handler group。Preparation 期間既有 `IntegrationEventHandler<?>` classes 只作為委派到相同 target 的 compatibility adapters，不可保留第二份 business logic；對應 subscriber 切換完成後才刪除 adapter。`IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 會立即訂閱，因此 dispatcher bean 延到 I5 的各 subscriber cutover 才建立。
+- [x] I3. 明確設定每個 subscription 的 `subscriberId`、`consumerGroupId`、logical channels 與 `UnhandledEventPolicy`，不得依賴 listener annotation 隱含值。
+- [x] I4. 在每個 subscriber 切換前，先將現有 Kafka error handling 行為接成 subscription policy／shared Spring Kafka override，並以 retry exhausted、DLT、fatal decode 與 observation tests 證明行為等價。
+  - [x] I4-B. `ordering-allocation-events` 已接到相同 `CommonErrorHandler`、DLT metadata 與 failure observer；container policy 固定為 concurrency 1、BATCH ack、missing topic non-fatal、10 秒 shutdown。
+  - [x] I4-C. `allocation-ordering-events` shared-channel ignored metric 與 error policy 驗證；合法但未註冊的 event 會完成 Inbox claim、留下 `ignored_unhandled` measurement，缺 header／payload 或 handler failure 仍沿既有 retry／DLT policy 失敗。
+  - [x] I4-D. `allocation-inventory-events` shared-channel ignored metric、application retry operation、shared container policy 與 exact DLT subscriber／group identity 均已驗證。
+- [x] I5. 依上表順序逐一原子切換 production subscription；每個 application instance 必須以 application-owned conditional wiring 保證 legacy／programmatic owner 互斥。切換成功後只移除該 subscriber 的 `@KafkaListener` method/class 與 compatibility handler adapter；global handler-list wiring 留到三組全部完成後再移除。
+  - [x] I5-B. `ordering-allocation-events` 已由 application-owned dispatcher bean 接管，並移除 ordering legacy listener 與兩個 compatibility handlers。
+  - [x] I5-C. `allocation-ordering-events` 已由 application-owned dispatcher 接管；移除 legacy ordering-listener method 與 OrderPlaced／OrderCancelled compatibility handlers，inventory listener 留到 I-D。
+  - [x] I5-D. `allocation-inventory-events` 已由 application-owned dispatcher 接管；最後的 legacy listener class 與 StockAvailability compatibility handler 已移除。
+- [x] I6. 更新 package scan／JPA repository scan，確認不再依賴舊 messaging JPA repositories。
+- [x] I7. 更新 messaging properties、Outbox headers migration 與 Debezium connector deployment，提供 rolling-deployment migration note。
+- [x] I8. 移除 `messaging-producer-outbox` migration facade。
+- [x] I9. 移除 `messaging-consumer-inbox` migration facade。
+- [x] I10. 移除舊 JPA entity／repository 與未使用 package。
+- [x] I11. 清理 `settings.gradle` 與所有 project dependency。
+- [x] I12. 驗證 metrics／traces 會送往現有 Prometheus／OTLP registries，並確認 trace context 經 Outbox／Debezium 傳遞。
+- [x] I13. 建立 subscriber/group rename、DLT replay、connector rollback 與 header decode failure runbooks。
+- [x] I14. 定義 Inbox／Outbox retention owner、最小保存期、batch cleanup SQL 與監控門檻；本輪不建立自動 scheduler。
+- [x] I15. 更新 architecture tests、module README 與 `eventuate-tram-gap-analysis.md`，移除其中「application-owned `@KafkaListener`／延後 ChannelMapping」等舊決策。
+- [x] I16. 更新專案 HTML 架構文件與流程圖。
+- [x] I17. 所有 application dispatcher 完成遷移後，刪除 Gate F compatibility `IntegrationEventHandler<E>` interface／adapter 與 temporary `KafkaIntegrationEventDispatcher` bridge。
+- [x] I18. 在 compatibility cleanup 後執行完整 `check` 與端到端 Debezium/Kafka 驗證。
+
+2026-08-10 Gate I-A 實作證據：
+
+- `order-promising` 明確保留 all-in-one starter，因為同一 application 同時發布與消費；已移除重複直連的 consumer Inbox／Kafka implementation dependencies，pure `messaging-api` 與 `messaging-events` 仍是 application source 直接使用的 contracts。
+- Ordering 以 `OrderingAllocationResultEventTarget` 集中 allocation／backorder event-to-command translation；Allocation 分成 order-lifecycle 與 inventory-availability 兩個 subscription targets。五個 legacy `IntegrationEventHandler<?>` adapters 都只委派 target，不再各自保存 command mapping。
+- `OrderPromisingIntegrationEventPreparationConfiguration` 以三個 named `IntegrationEventHandlers` beans 顯式註冊五種 contract event，另提供 registered-type-only `IntegrationEventNameMapping`；沒有掃描全域 handler catalog。
+- 三個 `IntegrationEventSubscriptionTopology` beans 分別保存 subscriber、consumer group、logical channel 與 unhandled policy。consumer group constants 即使初始字串與 subscriber 相同，也已分開命名，不由 runtime 推導。
+- Preparation context test 明確斷言存在三個 handler groups／三個 topology definitions，並且不存在 `IntegrationEventDispatcher` bean；typed target tests 與 legacy listener test 均通過，production consumption owner 未改變。
+- 完整 `./gradlew check` 已通過，包含全部 `order-promising` Testcontainers SIT、既有 programmatic dispatcher transaction equivalence，以及所有 messaging module suites。
+
+2026-08-10 Gate I-B 實作證據：
+
+- `ordering-allocation-events` 由 named `IntegrationEventDispatcher` bean 以
+  `IntegrationEventDispatcherFactory.make(...)` subscribe-on-make；明確傳入原有 subscriber ID、獨立命名但同值的 consumer group、`promising.allocation-events` handler group 與 strict `FAIL` policy。
+- dispatcher wiring 同時受 `archone.messaging.core.enabled`、
+  `archone.messaging.consumer.kafka.enabled`、`archone.messaging.events.dispatcher.enabled` 與
+  `spring.kafka.listener.auto-startup` 控制；runtime 關閉時不要求 factory，production 預設啟動。ordering
+  legacy listener class 與 allocation／backorder compatibility handler classes 已移除，因此單一 application
+  instance 不會有兩個 subscription owners。
+- application 的 `KafkaSubscriptionPolicyResolver` 將三個已知 subscriber 接回原有單一
+  `CommonErrorHandler`；DLT headers 與 Micrometer failure observer 使用同一份 exact
+  subscriber／consumer-group／logical-channel metadata。retry-exhausted、non-retryable direct DLT、
+  ordering DLT identity 與 observation callback tests 均通過。
+- `AllocationOutcomeDrain` SIT fixture 不再呼叫 temporary `KafkaIntegrationEventDispatcher`；它保留
+  Outbox 的 `partition_key` 與 serialized headers，經 production `KafkaMessageMapper`、
+  `MessageConsumerImpl` decorators、typed handler group、Inbox transaction 再進 Ordering target。
+  代表性 SIT 已驗證 successful handling 與同 event ID redelivery 只 claim 一次；既有 generic decorator
+  contract／transaction suites 持續驗證 handler failure rollback。
+- 完整 `./gradlew check` 已通過，包含全部 `order-promising` Testcontainers SIT、WMS、contracts、
+  foundation 與所有 messaging module suites。
+
+2026-08-10 Gate I-C 實作證據：
+
+- `allocation-ordering-events` 以第二個 named `IntegrationEventDispatcher` bean 接管
+  `ordering.order-events`；沿用既有 subscriber／consumer-group identity，明確使用
+  `IGNORE_WITH_METRIC` 與 application-owned `UnhandledIntegrationEventObserver`。它和已切換的
+  ordering dispatcher 共用同一組 runtime activation conditions 與 topology validation。
+- 新增 additive `OutcomeAwareMessageHandler`／`MessageHandlingOutcome` contract；
+  `IntegrationEventDispatcher` 只有在 observer 成功接受合法未處理事件後回傳
+  `IGNORED_UNHANDLED`，`MessageConsumerImpl` 再把它轉交既有 generic decorator chain。原有
+  `MessageHandler.handle(...)` 與 `dispatch(...)` void API 未破壞。
+- shared-channel equivalence SIT 經 production `KafkaMessageMapper`、generic decorators、Inbox
+  transaction 與 typed dispatcher 驗證：未知但 header 合法的事件只 claim 一次 Inbox、不呼叫
+  business target、不建立 Outbox，並產生 `ignored_unhandled` measurement；已註冊事件的成功、重送
+  去重與 handler failure rollback 仍成立。
+- 移除 `AllocationKafkaIntegrationEventConsumer.consumeOrderingEvent(...)` 以及
+  OrderPlaced／OrderCancelled compatibility handler classes；該 class 僅保留 Gate I-D 尚未切換的
+  inventory listener，並明確遵守 `spring.kafka.listener.auto-startup` test／maintenance switch。
+- PostgreSQL business SIT 透過 canonical `IntegrationEventPublication → Message` 餵入相同
+  dispatcher／decorator chain；Kafka physical record 與 serialized-header 還原責任集中在專用
+  equivalence SIT，避免每支 use-case 測試各自手刻不完整的 Debezium envelope。
+- repository-wide `./gradlew check` 已通過（111 actionable tasks），包含完整
+  `order-promising` Testcontainers SIT、WMS、contracts、foundation 與所有 messaging module suites。
+
+2026-08-10 Gate I-D 實作證據：
+
+- `allocation-inventory-events` 以第三個 named `IntegrationEventDispatcher` bean 接管
+  `inventory.stock-events`；沿用既有 subscriber／consumer-group identity，明確使用
+  `IGNORE_WITH_METRIC`、application observer、同一組 runtime activation conditions 與 topology
+  validation。application source 已不存在 `@KafkaListener` glue method。
+- 刪除最後的 `AllocationKafkaIntegrationEventConsumer` 與
+  `StockAvailabilityIncreasedIntegrationEventHandler` compatibility adapter；三個 application
+  subscribers 現在都只由 `IntegrationEventDispatcherFactory.make(...)` 擁有 subscription。
+- `InventoryEventDrainFactory` 在停用 Kafka container 的 PostgreSQL SIT 中組出 production
+  `KafkaMessageMapper → MessageConsumerImpl decorators → Inbox transaction → typed handler group`；
+  `InventoryEventDrain` 從實際 Outbox row 保留 `partition_key` 與 serialized headers，不再手刻缺少
+  aggregate identity 的 legacy envelope。
+- waiting-demand transaction SIT 已驗證成功處理、兩個 thread 同 event ID 的 concurrent
+  redelivery、後續 duplicate、handler failure rollback，以及 reservation／allocation Outbox 都只提交
+  一次；1,000 張 waiting-demand FIFO／head-of-line blocking／batch reconciliation tests 持續通過。
+- inventory shared-channel 的合法未註冊事件會完成 subscriber-scoped Inbox claim並產生
+  `ignored_unhandled` measurement，不建立 business／Outbox 資料；error policy tests 同時鎖定
+  concurrency 1、BATCH ack、retry classification 與 inventory DLT subscriber／group headers。
+- repository-wide `./gradlew check` 已通過（111 actionable tasks），包含完整
+  `order-promising` Testcontainers SIT、WMS、contracts、foundation 與所有 messaging module suites。
+
+2026-08-10 Gate I-E cleanup 與驗證證據：
+
+- `messaging-producer-outbox`／`messaging-consumer-inbox` 已從 messaging-owned settings 移除；其
+  source、tests、build files、starter dependencies、JPA auto-configurations 與 metadata properties
+  一併刪除。`event_outbox`／`event_inbox` physical schema 保持不變，由 pure JDBC implementations
+  透過 Spring JDBC ports 存取。
+- Application／SIT 不再注入 messaging JPA repositories；persistence assertions 改為直接查 golden
+  tables，mixed JPA business + JDBC Inbox／Outbox transaction tests持續通過。Application repository
+  scan 只剩 bounded-context repositories。
+- 刪除 public per-event `IntegrationEventHandler<E>`、`LegacyIntegrationEventDispatcherAdapter`、
+  temporary `KafkaIntegrationEventDispatcher` 及 global bean-list auto-wiring；另移除已無 caller 的
+  Gate B `MessageSubscriptionConfiguration` overload，public consumer API 只保留 Tram-shaped subscribe
+  與 additive options overload。
+- 新增 `messaging/README.md` 與 `messaging-operations-runbook.md`，固定 artifact direction、starter
+  selection、transaction owner、headers rolling deployment、subscriber/group rename、DLT replay、
+  connector rollback、decode failure、retention SQL／thresholds與既有 ObservationRegistry 接線。
+- `eventuate-tram-gap-analysis.md` 與 `current-system-development-status.html` 已同步 production
+  programmatic subscriber、JDBC persistence、observability與無 application `@KafkaListener` 的現況。
+- Targeted messaging／starter／architecture tests、application SIT compile，以及四組受 JPA facade
+  cleanup 影響的 PostgreSQL SIT 已通過。
+- repository-wide `./gradlew check` 已通過；另以 `--rerun-tasks` 明確執行
+  `OutboxCdcIntegrationTest`，驗證 `Outbox → Debezium → Kafka` E2E 在 compatibility cleanup 後仍成功。
+
+#### Gate I-F — Tram-shaped application configuration simplification（已完成）
+
+目的：把 Gate I 遷移期為了並行準備、逐 subscriber cutover 與行為等價驗證而產生的接線結構，
+收斂成接近 Eventuate Tram 的 application surface。每個 subscriber 應能直接看出
+`IntegrationEventHandlers + IntegrationEventDispatcherFactory.make(...)`；簡化不得改成 classpath
+掃描、全域 handler catalog 或隱藏 subscription owner 的動態註冊。
+
+Application 仍必須明確擁有以下決策：
+
+- stable event type／contract version 與 Java event class 的 allow-list mapping；
+- event → bounded-context target／use case 的 routing；
+- `subscriberId`、`consumerGroupId` 與 unhandled-event policy；
+- 哪些 application exception 可重試，以及需要偏離共用預設的 retry／DLT policy。
+
+Messaging runtime／starter 應擁有以下 mechanics：
+
+- programmatic Kafka container 建立、啟停與通用 container defaults；
+- 依實際 `ResolvedMessageSubscription` 建立 per-subscription error handler；
+- DLT headers、failure observation 與 Micrometer／OTLP 接線；
+- 共用 properties、capability conditions 與沒有 application override 時的安全預設。
+
+- [x] I19. 以現有三組 subscriber characterization tests 固定 handler routing、stable
+  `subscriberId`／`consumerGroupId`、logical channel、unhandled policy、retry／DLT 與 observation
+  行為；本 Gate 不更名 topic、group、event type 或 physical Inbox／Outbox schema。
+- [x] I20. 將過渡期 `OrderPromisingIntegrationEventPreparationConfiguration` 拆成一份 event contract
+  mapping configuration，以及由 Ordering／Allocation 各自擁有的 subscriber configurations；移除
+  `Preparation`／`Gate I cutover` 等已失效的 production 命名與註解。
+- [x] I21. 每個 subscriber configuration 收斂成 Tram-shaped handlers bean + dispatcher bean；保留
+  `IntegrationEventHandlersBuilder` 與明確 `factory.make(...)`，不得以 annotation scan、自動發現
+  handler 或動態產生 application subscription 取代。
+- [x] I22. 移除只為重複資料一致性而存在的 `IntegrationEventSubscriptionTopology`、
+  `requireTopology()` 與不必要 bean-name／qualifier constants；同一個 destination、policy 與 identity
+  不得在 application 多份 registry 重複維護。
+- [x] I23. 讓 programmatic Kafka runtime 自己遵守 consumer enabled／auto-startup semantics，或提供
+  單一明確的 capability condition；application subscriber configuration 不再重複四層
+  `@ConditionalOnProperty`。測試關閉 runtime 時不得建立 active Kafka container，也不得讓 context
+  因 factory 缺失而啟動失敗。
+- [x] I24. 將 `CommonErrorHandler` 建立、DLT headers provider 與 failure observation 接線下沉到
+  messaging Spring Kafka runtime；error handler 必須依實際 `ResolvedMessageSubscription` 建立，
+  不得再從 physical topic 反推唯一 subscriber。
+- [x] I25. 加入同一 physical topic 被兩個 subscriber 使用的 contract test，確認 DLT metadata 仍精確
+  帶出各自的 subscriber／consumer-group identity，並且兩者可以採用不同 subscription policy。
+- [x] I26. 將 `AllocationKafkaErrorHandlingConfiguration` 收斂／重新命名為 application-owned failure
+  policy configuration：只表達 `AllocationConcurrencyExhaustedException` classification、特殊 backoff
+  或 subscriber override；不手動建立 Micrometer observer、不列舉 `resolvedSubscriptions()`，也不重複
+  通用 concurrency／ack／shutdown defaults。
+- [x] I27. 保留既有兩層 retry 邊界：application optimistic-lock retry 處理單次 business attempt，
+  Kafka retry／DLT 處理整次 transactional message attempt 最終失敗；簡化不得合併兩者或改變每次
+  application retry 使用新 transaction 的保證。
+- [x] I28. 更新 messaging README、gap analysis 與 HTML 架構文件，以一組最小 application wiring
+  範例說明 Eventuate Tram 對齊點與本專案保留的 stable mapping、Outbox／Debezium、JDBC Inbox、
+  Spring Kafka DLT 差異。
+- [x] I29. 執行 architecture tests、三組 subscriber characterization／transaction／DLT tests、完整
+  `./gradlew check`，並以 `--rerun-tasks` 重跑 `OutboxCdcIntegrationTest`。
+
+建議 commit slices：
+
+| Slice | Tasks | 內容 | 停止條件 |
+|---|---|---|---|
+| I-F/1 | I19、I23～I25 | 先建立 runtime capability／per-subscription error handling，application wiring 暫不拆 | 任一現有 subscriber 的 retry／DLT identity 改變，或同 topic 多 subscriber 無法精確識別。 |
+| I-F/2 | I20～I22、I26～I27 | 逐 subscriber 拆 application configuration，最後移除 migration-era topology／global policy wiring | 需要動態掃描、全域 handler catalog，或 application retry transaction boundary 改變。 |
+| I-F/3 | I28～I29 | 文件、architecture checks、完整 regression 與 CDC E2E | 完整 check／E2E 未通過，或文件仍把 application-owned policy 誤寫成 starter mechanics。 |
+| AR | AR1～AR3 | 獨立整理 reconciliation scheduling ownership | 需要讓 messaging module 依賴 scheduling／Allocation domain，或 multi-instance ownership 仍未明確。 |
+
+##### 相鄰的 Allocation reconciliation cleanup（非 messaging 能力）
+
+`AllocationReconciliationScheduler` 是 waiting-demand 的 anti-entropy／補漏入口，Kafka event 仍是
+低延遲 trigger；是否保留 reconciliation 取決於 waiting demand 是否可能因 DLT、持續性 concurrency、
+非事件庫存修正或歷史資料而停滯，不因採用 messaging starter 就自然消失。這組工作與 I-F 可同批
+評估，但不得把 scheduling API 下沉到 messaging modules。
+
+- [x] AR1. 將 `@EnableScheduling` 放在 application bootstrap 的單一 scheduling owner，並把
+  `archone.allocation.reconciliation-scheduler-enabled` condition 放到 scheduler bean／configuration
+  本身；即使未來其他功能啟用 scheduling，關閉此 property 也不得執行 allocation reconciliation。
+- [x] AR2. 明確決定 multi-instance execution ownership：單一 leader／distributed lock、按 scope
+  partition，或允許每個 instance 重複掃描但以可證明的 idempotency／locking 保護；未決定前不得把
+  「多 instance 都跑」視為安全預設。
+- [x] AR3. 保留 scheduler → application use case 邊界；補充 disabled、single execution、failure
+  isolation 與 optimistic-lock deferral tests，不讓 scheduler 直接操作 aggregate repository mutation。
+
+I-F 驗收條件：
+
+- application configuration 中看得到每個 subscriber 的 handlers 與明確 `factory.make(...)`，但沒有
+  動態 handler scan、全域 handler list 或隱藏 owner 的 registrar。
+- `OrderPromisingIntegrationEventPreparationConfiguration`、`IntegrationEventSubscriptionTopology`、
+  `requireTopology()`、global `CommonErrorHandler` metadata duplication 與失效 Gate 註解均已移除。
+- application 不手動組裝 DLT headers／Micrometer failure observer；messaging runtime 以真正的
+  `ResolvedMessageSubscription` 建立 per-subscription operational components。
+- 三組既有 subscriber 的 identity、offset scope、Inbox idempotency、transaction、retry／DLT、metric
+  與 trace 語意不變；同 topic 多 subscriber 的 DLT identity contract 成立。
+- reconciliation cleanup 不新增 messaging dependency，且 property 關閉與 multi-instance ownership
+  有可驗證、可維運的語意。
+
+2026-08-10 Gate I-F 實作證據：
+
+- `OrderPromisingEventContractConfiguration` 只保存 stable event allow-list；Ordering 與 Allocation
+  分別以三份 bounded-context subscriber configurations 顯式建立 handlers，再直接呼叫
+  `IntegrationEventDispatcherFactory.make(...)`。過渡期 preparation configuration、topology registry
+  與 `requireTopology()` 已移除。
+- `@ConditionalOnIntegrationEventConsumption` 收斂 consumption capability 條件；programmatic runtime
+  另遵守 Spring Boot 標準 `spring.kafka.listener.auto-startup`。停用 auto-startup 時 dispatcher 與
+  subscription declaration 仍存在，但 container 不啟動。
+- `KafkaConsumerFailurePolicyResolver` 是 application extension point；`OrderPromising` 只宣告
+  allocation concurrency exception與 1s／2s／4s／8s backoff。`CommonErrorHandler`、DLT headers 與
+  Micrometer failure observer 改由 runtime 依每個 `ResolvedMessageSubscription` 建立。
+- 同一 physical topic、不同 subscriber／consumer group 的 contract test 證明各自 DLT metadata 不會
+  從 topic 反推而混淆；runtime test 另證明兩者可採不同 concurrency／ack policy。explicit
+  `KafkaSubscriptionPolicy.commonErrorHandler` 仍保留作低階 override。
+- `@EnableScheduling` 只有 application bootstrap 擁有，reconciliation property 直接控制 scheduler
+  bean。多 instance 採允許重複掃描、由 aggregate optimistic version + transactional use case 保護
+  correctness 的明確策略；衝突者延至下一輪，負載升高後才考慮 partition 或 distributed lock。
+- Messaging runtime／auto-configuration、application configuration、failure policy、scheduler 與
+  architecture tests 均已通過；repository-wide `./gradlew check` 成功，並以 `--rerun-tasks` 實際重跑
+  `OutboxCdcIntegrationTest`，確認 Outbox → Debezium → Kafka E2E 成功。
 
 驗收條件：
 
@@ -1710,17 +1979,18 @@ archone.messaging.producer
 | F | E | programmatic Kafka subscription + retry／DLT | 高 | 否 |
 | G | C、D、F | observation／metrics／tracing | 中 | 可與 F 同一 branch，但分 commit |
 | H | C～G | auto-config + starters | 中 | 否 |
-| I | C～H | application migration／cleanup | 中 | 否 |
-| J | I | standalone Command／async reply correlation | 中 | 否 |
-| K | I；Saga 項目另需 J | optional Saga／other capabilities | 視項目 | 不屬本輪 |
+| I-A～I-E | C～H | application migration／compatibility cleanup | 中 | 否 |
+| I-F | I-A～I-E | Tram-shaped application wiring／per-subscription policy simplification | 中 | 否 |
+| J | I-F | standalone Command／async reply correlation | 中 | 否 |
+| K | I-F；Saga 項目另需 J | optional Saga／other capabilities | 視項目 | 不屬本輪 |
 
 Producer 與 consumer 的實作可在 Gate B 後平行演進：
 
 ```text
 Gate A → Gate B ─┬→ Gate C ─────────────────────────┐
-                 └→ Gate D → Gate E → Gate F → G ──┼→ Gate H → Gate I
-                                                     ┘             ├→ Gate J (commands)
-                                                                   └→ Gate K (optional；Saga 另需 Gate J)
+                 └→ Gate D → Gate E → Gate F → G ──┼→ Gate H → Gate I-A～I-E → Gate I-F
+                                                     ┘                              ├→ Gate J (commands)
+                                                                                    └→ Gate K (optional；Saga 另需 Gate J)
 ```
 
 ## 10. 實作時的交易規則
@@ -1852,8 +2122,9 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 6. Gate F 只建立並驗證 programmatic runtime；Gate I 依 subscriber 切換 production subscription 與移除 `@KafkaListener` 必須分 commit。若新 runtime 的 retry／DLT regression，先恢復舊 listeners，不得關閉 DLT 當作修正。
 7. observability decorator 必須可單獨停用；metrics／tracing failure 不得改變 message outcome。
 8. starters 切換前保留 all-in-one 使用方式，確認 narrow starters dependency tree 後再清理。
-9. Gate J 的 runtime 是 base messaging 上的 additive layer；若 Command／Reply rollout 失敗，停用 commands starter／subscriptions 即可，不得回退已驗證的 generic Outbox／Inbox schema。已送出的 Command／Reply 需依 message ID 與 Inbox 狀態完成 drain 或建立明確 replay plan。
-10. `aggregatetype`／`aggregateid` 放寬 nullable 後，rollback 預設保留 nullable constraint；它不會削弱 `messaging-events` 的 application-level validation。只有確認不存在 aggregate-null Command／Reply rows 時才可另做 migration 恢復 `NOT NULL`，不得在 rollback 當下直接執行。
+9. Gate I-F 依「runtime mechanics → 單一 subscriber application wiring → 全部 subscriber」順序切片；每一步沿用既有 subscriber／group／topic 與 event contract。若 per-subscription error handling regression，回退該結構 commit，不得用 global topic-to-subscriber 猜測或關閉 DLT 規避。
+10. Gate J 的 runtime 是 base messaging 上的 additive layer；若 Command／Reply rollout 失敗，停用 commands starter／subscriptions 即可，不得回退已驗證的 generic Outbox／Inbox schema。已送出的 Command／Reply 需依 message ID 與 Inbox 狀態完成 drain 或建立明確 replay plan。
+11. `aggregatetype`／`aggregateid` 放寬 nullable 後，rollback 預設保留 nullable constraint；它不會削弱 `messaging-events` 的 application-level validation。只有確認不存在 aggregate-null Command／Reply rows 時才可另做 migration 恢復 `NOT NULL`，不得在 rollback 當下直接執行。
 
 ## 13. 實作前最後 review 點
 

@@ -12,7 +12,9 @@ import org.springframework.dao.OptimisticLockingFailureException;
 /**
  * app 層重試設定：{@link com.flowzati.archone.stock.infrastructure.retry.SpringAllocationRetryExecutor}
  * 用的 {@link RetryOperations}。跟
- * container 層的 {@link AllocationKafkaErrorHandlingConfiguration} 是同一套重試策略的兩層，
+ * container 層的
+ * {@link com.flowzati.archone.bootstrap.messaging.OrderPromisingKafkaFailurePolicyConfiguration}
+ * 是同一套重試策略的兩層，
  * 各自對應不同 Spring 子系統（這裡是純 Java 的 {@code core.retry}，跟 Kafka 無關；那邊是
  * Kafka listener container 層），分工見兩邊 Javadoc。
  */

@@ -6,9 +6,12 @@ import com.flowzati.archone.messaging.api.IdentityChannelMapping;
 import com.flowzati.archone.messaging.api.IdentityConsumerGroupMapping;
 import com.flowzati.archone.messaging.api.MessageConsumer;
 import com.flowzati.archone.messaging.api.MessageHandler;
+import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
 import com.flowzati.archone.messaging.api.MessageSubscription;
-import com.flowzati.archone.messaging.api.MessageSubscriptionConfiguration;
 import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
+import com.flowzati.archone.messaging.api.OutcomeAwareMessageHandler;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,28 +85,42 @@ public final class MessageConsumerImpl implements MessageConsumer {
   ) {
     Objects.requireNonNull(options, "Message subscription options are required");
     Objects.requireNonNull(handler, "Message handler is required");
-    MessageSubscriptionConfiguration configuration = new MessageSubscriptionConfiguration(
-        subscriberId,
-        options.resolveConsumerGroupId(resolveConsumerGroupId(subscriberId)),
-        logicalChannels);
-    ResolvedMessageSubscription resolved = resolve(configuration);
+    Set<String> subscribedChannels = validatedChannels(subscriberId, logicalChannels);
+    String consumerGroupId = options.consumerGroupId()
+        .orElseGet(() -> resolveConsumerGroupId(subscriberId));
+    ResolvedMessageSubscription resolved = resolve(
+        subscriberId, consumerGroupId, subscribedChannels);
     MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
         decorators,
-        invocation -> {
-          handler.handle(invocation.message(), invocation.context());
-          return ProcessingOutcome.PROCESSED;
-        });
+        invocation -> invokeTerminal(handler, invocation));
 
     MessageSubscription subscription = implementation.subscribe(resolved, (message, context) -> {
-      if (!configuration.subscriberId().equals(context.subscriberId())) {
+      if (!subscriberId.equals(context.subscriberId())) {
         throw new IllegalArgumentException("Message context subscriber does not match subscription");
       }
-      if (!configuration.logicalChannels().contains(context.logicalChannel())) {
+      if (!subscribedChannels.contains(context.logicalChannel())) {
         throw new IllegalArgumentException("Message context channel does not match subscription");
       }
       chain.invokeNext(new MessageHandlerInvocation(message, context));
     });
     return Objects.requireNonNull(subscription, "Message consumer implementation returned null");
+  }
+
+  private ProcessingOutcome invokeTerminal(
+      MessageHandler handler,
+      MessageHandlerInvocation invocation
+  ) {
+    if (handler instanceof OutcomeAwareMessageHandler outcomeAwareHandler) {
+      MessageHandlingOutcome outcome = Objects.requireNonNull(
+          outcomeAwareHandler.handleWithOutcome(invocation.message(), invocation.context()),
+          "Outcome-aware message handler returned null");
+      return switch (outcome) {
+        case PROCESSED -> ProcessingOutcome.PROCESSED;
+        case IGNORED_UNHANDLED -> ProcessingOutcome.IGNORED_UNHANDLED;
+      };
+    }
+    handler.handle(invocation.message(), invocation.context());
+    return ProcessingOutcome.PROCESSED;
   }
 
   private String resolveConsumerGroupId(String subscriberId) {
@@ -115,9 +132,25 @@ public final class MessageConsumerImpl implements MessageConsumer {
     return consumerGroupId;
   }
 
-  private ResolvedMessageSubscription resolve(MessageSubscriptionConfiguration configuration) {
+  private Set<String> validatedChannels(String subscriberId, Set<String> logicalChannels) {
+    if (subscriberId == null || subscriberId.isBlank()
+        || logicalChannels == null || logicalChannels.isEmpty()
+        || logicalChannels.stream().anyMatch(channel -> channel == null || channel.isBlank())) {
+      throw new IllegalArgumentException("Message subscription fields are required");
+    }
+    return Collections.unmodifiableSet(new LinkedHashSet<>(logicalChannels));
+  }
+
+  private ResolvedMessageSubscription resolve(
+      String subscriberId,
+      String consumerGroupId,
+      Set<String> logicalChannels
+  ) {
+    if (consumerGroupId == null || consumerGroupId.isBlank()) {
+      throw new IllegalArgumentException("Message subscription fields are required");
+    }
     Map<String, String> reverseMapping = new LinkedHashMap<>();
-    for (String logicalChannel : configuration.logicalChannels()) {
+    for (String logicalChannel : logicalChannels) {
       String destination = channelMapping.transform(logicalChannel);
       if (destination == null || destination.isBlank()) {
         throw new IllegalArgumentException(
@@ -130,8 +163,8 @@ public final class MessageConsumerImpl implements MessageConsumer {
       }
     }
     return new ResolvedMessageSubscription(
-        configuration.subscriberId(),
-        configuration.consumerGroupId(),
+        subscriberId,
+        consumerGroupId,
         reverseMapping);
   }
 }

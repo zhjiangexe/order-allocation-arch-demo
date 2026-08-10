@@ -1,6 +1,5 @@
 package com.flowzati.archone.messaging.api;
 
-import java.util.Objects;
 import java.util.Set;
 
 /** Subscribes a generic handler without exposing a broker-specific listener API. */
@@ -25,22 +24,4 @@ public interface MessageConsumer {
       MessageHandler handler,
       MessageSubscriptionOptions options
   );
-
-  /**
-   * Compatibility overload for the Gate B configuration value.
-   *
-   * @deprecated prefer the Tram-shaped overload plus {@link MessageSubscriptionOptions}.
-   */
-  @Deprecated
-  default MessageSubscription subscribe(
-      MessageSubscriptionConfiguration configuration,
-      MessageHandler handler
-  ) {
-    Objects.requireNonNull(configuration, "Message subscription configuration is required");
-    return subscribe(
-        configuration.subscriberId(),
-        configuration.logicalChannels(),
-        handler,
-        MessageSubscriptionOptions.withConsumerGroupId(configuration.consumerGroupId()));
-  }
 }

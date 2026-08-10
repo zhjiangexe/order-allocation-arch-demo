@@ -12,14 +12,9 @@ import com.flowzati.archone.stock.application.receipt.StockReceiptRequest;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
-import com.flowzati.archone.messaging.events.IntegrationEvent;
-import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
-import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
+import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -27,10 +22,9 @@ import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,28 +45,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AllocationWorkflowEndToEndIntegrationTest {
 
   @Autowired
-  private AllocationKafkaIntegrationEventConsumer consumer;
+  private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
   @Autowired
   private StockReceiptApplicationFacade stockReceiptApplicationFacade;
 
   @Autowired
-  private IntegrationEventSerializer eventSerializer;
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
 
   @Autowired
-  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
 
   @Autowired
   private OrderRepository orderRepository;
 
   @Autowired
   private StockPoolRepository stockPoolRepository;
-
-  @Autowired
-  private JpaEventInboxRepository inboxRepository;
-
-  @Autowired
-  private JpaOutboxRepository outboxRepository;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -99,7 +87,9 @@ class AllocationWorkflowEndToEndIntegrationTest {
     stockPoolRepository.save(StockFixtures.unexpiredBatch(stockPoolId, "SKU-AVAILABLE", 10, 0));
 
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
-    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    consumer.consume(event);
+    UUID allocationOutcomeEventId = jdbcTemplate.queryForObject(
+        "SELECT id FROM event_outbox ORDER BY timestamp", UUID.class);
 
     // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
     // Debezium，所以這裡自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
@@ -107,8 +97,18 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 這一步不只是為了讓斷言通過：它同時驗證 ordering 的 consumer 真的消費得了那些事件。
     assertThat(outcomeDrain().drain()).isPositive();
 
-    assertThat(inboxRepository.findById(new InboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))).isPresent();
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId())).isTrue();
+    assertThat(inboxClaimExists(
+        OrderingEventSubscriptions.ALLOCATION_RESULTS, allocationOutcomeEventId)).isTrue();
+
+    // 重新投遞同一則 outcome 時仍會走完整 typed chain，但 Inbox 會在 handler 前擋掉重複效果。
+    assertThat(outcomeDrain().drain()).isPositive();
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM event_inbox WHERE subscriber_id = ? AND event_id = ?",
+        Integer.class,
+        OrderingEventSubscriptions.ALLOCATION_RESULTS,
+        allocationOutcomeEventId)).isOne();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
@@ -119,11 +119,12 @@ class AllocationWorkflowEndToEndIntegrationTest {
     });
     // 搬運在收單那一刻就建好了，這裡是它被轉成已鎖定。
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
-    assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox -> {
-      assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.EVENT_TYPE);
-      assertThat(outbox.getRoute()).isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
-      assertThat(outbox.getAggregateId()).isEqualTo(orderId.toString());
-    });
+    Map<String, Object> outbox = jdbcTemplate.queryForMap(
+        "SELECT type, route, aggregateid FROM event_outbox");
+    assertThat(outbox)
+        .containsEntry("type", OrderAllocatedIntegrationEvent.EVENT_TYPE)
+        .containsEntry("route", PromisingEventTopics.ALLOCATION_EVENTS)
+        .containsEntry("aggregateid", orderId.toString());
   }
 
   @Test
@@ -141,17 +142,17 @@ class AllocationWorkflowEndToEndIntegrationTest {
     MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockPoolId, 4);
 
     OrderCancelledIntegrationEvent event = new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, Instant.now());
-    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    consumer.consume(event);
 
-    assertThat(inboxRepository.findById(new InboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))).isPresent();
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId())).isTrue();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
     // **明細被刪除，不是被標成已釋放**——一條被釋放的明細不表達任何事實。釋放的歷史留在
     // 搬運的狀態上，所以這裡兩個都要驗：沒有明細了，而搬運說得出它為什麼沒有。
     assertThat(heldBy(orderId)).isEmpty();
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("CANCELLED");
-    assertThat(outboxRepository.count()).isZero();
+    assertThat(tableCount("event_outbox")).isZero();
   }
 
   @Test
@@ -184,11 +185,10 @@ class AllocationWorkflowEndToEndIntegrationTest {
     });
     assertThat(heldBy(firstOrderId)).isNotEmpty();
     assertThat(heldBy(secondOrderId)).isEmpty();
-    assertThat(outboxRepository.findAll())
-        .filteredOn(outbox -> outbox.getEventType()
-            .equals(OrderAllocatedIntegrationEvent.EVENT_TYPE))
-        .singleElement().satisfies(outbox ->
-        assertThat(outbox.getEventType()).isEqualTo(OrderAllocatedIntegrationEvent.EVENT_TYPE));
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM event_outbox WHERE type = ?",
+        Integer.class,
+        OrderAllocatedIntegrationEvent.EVENT_TYPE)).isOne();
   }
 
   @Test
@@ -219,9 +219,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
     Order cancelled = backorderedOrder(cancelledOrderId, "SKU-FIFO", 3, earlier);
     cancelled.cancel(Instant.now().minusSeconds(2));
     MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, cancelled);
-    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS,
-        new OrderCancelledIntegrationEvent(
-            UUID.randomUUID(), cancelledOrderId, Instant.now().minusSeconds(2))));
+    consumer.consume(new OrderCancelledIntegrationEvent(
+        UUID.randomUUID(), cancelledOrderId, Instant.now().minusSeconds(2)));
 
     MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate,
         backorderedOrder(liveOrderId, "SKU-FIFO", 3, earlier.plusSeconds(1)));
@@ -255,7 +254,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     OrderPlacedIntegrationEvent event =
         new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
-    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    consumer.consume(event);
     outcomeDrain().drain();
 
     // 「有貨卻不配」正是 ship-complete 的內容：為一張出不去的單鎖住 A 的 10 件，只會讓後面
@@ -283,7 +282,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     OrderPlacedIntegrationEvent event =
         new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
-    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    consumer.consume(event);
     assertThat(outcomeDrain().drain()).isPositive();
 
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
@@ -315,7 +314,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
     OrderPlacedIntegrationEvent event =
         new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
-    consumer.consumeOrderingEvent(record(OrderingEventTopics.ORDER_EVENTS, event));
+    consumer.consume(event);
     assertThat(outcomeDrain().drain()).isPositive();
 
     // roadmap 曾記載一支缺 DISTINCT 的佇列查詢，會讓同一張單出現兩次而扣兩次量。取代它的
@@ -370,15 +369,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
             StockFixtures.ARRIVED_ON,
             StockFixtures.EXPIRES_ON,
             quantity)));
-    new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher).drain();
-  }
-
-  private ConsumerRecord<String, String> record(String topic, IntegrationEvent event) throws Exception {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        topic, 0, 0, "key", eventSerializer.serialize(event));
-    record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", event.eventType().getBytes(StandardCharsets.UTF_8));
-    return record;
+    inventoryEventDrainFactory.create().drain();
   }
 
   /**
@@ -392,6 +383,17 @@ class AllocationWorkflowEndToEndIntegrationTest {
   }
 
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+    return outcomeDrainFactory.create();
+  }
+
+  private boolean inboxClaimExists(String subscriberId, UUID eventId) {
+    return jdbcTemplate.queryForObject("""
+        SELECT COUNT(*) FROM event_inbox
+         WHERE subscriber_id = ? AND event_id = ?
+        """, Integer.class, subscriberId, eventId) == 1;
+  }
+
+  private int tableCount(String table) {
+    return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
   }
 }

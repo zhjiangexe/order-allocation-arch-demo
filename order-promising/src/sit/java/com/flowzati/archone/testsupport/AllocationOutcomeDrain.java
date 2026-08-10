@@ -1,14 +1,15 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.messaging.api.Message;
+import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -27,13 +28,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public final class AllocationOutcomeDrain {
 
   private final JdbcTemplate jdbcTemplate;
-  private final KafkaIntegrationEventDispatcher dispatcher;
+  private final KafkaMessageMapper messageMapper;
+  private final BiConsumer<String, Message> emitter;
   private final Set<UUID> consumed = new HashSet<>();
 
-  public AllocationOutcomeDrain(
-      JdbcTemplate jdbcTemplate, KafkaIntegrationEventDispatcher dispatcher) {
+  AllocationOutcomeDrain(
+      JdbcTemplate jdbcTemplate,
+      KafkaMessageMapper messageMapper,
+      BiConsumer<String, Message> emitter
+  ) {
     this.jdbcTemplate = jdbcTemplate;
-    this.dispatcher = dispatcher;
+    this.messageMapper = messageMapper;
+    this.emitter = emitter;
   }
 
   /**
@@ -44,7 +50,7 @@ public final class AllocationOutcomeDrain {
    */
   public int drain() {
     List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-        SELECT id, type, payload FROM event_outbox
+        SELECT id, type, partition_key, payload, headers FROM event_outbox
          WHERE route = ?
          ORDER BY timestamp, id
         """, PromisingEventTopics.ALLOCATION_EVENTS);
@@ -55,20 +61,35 @@ public final class AllocationOutcomeDrain {
       if (!consumed.add(eventId)) {
         continue;
       }
-      dispatch(eventId, row.get("type").toString(), row.get("payload").toString());
+      dispatch(
+          eventId,
+          row.get("type").toString(),
+          row.get("partition_key").toString(),
+          row.get("payload").toString(),
+          row.get("headers").toString());
       delivered++;
     }
     return delivered;
   }
 
-  private void dispatch(UUID eventId, String eventType, String payload) {
+  private void dispatch(
+      UUID eventId,
+      String eventType,
+      String partitionKey,
+      String payload,
+      String serializedHeaders
+  ) {
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        PromisingEventTopics.ALLOCATION_EVENTS, 0, 0, eventId.toString(), payload);
-    record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", eventType.getBytes(StandardCharsets.UTF_8));
-    dispatcher.dispatch(
-        record,
-        PromisingEventTopics.ALLOCATION_EVENTS,
-        OrderingEventSubscriptions.ALLOCATION_RESULTS);
+        PromisingEventTopics.ALLOCATION_EVENTS, 0, 0, partitionKey, payload);
+    record.headers().add(
+        KafkaMessageMapper.LEGACY_ID_HEADER,
+        eventId.toString().getBytes(StandardCharsets.UTF_8));
+    record.headers().add(
+        KafkaMessageMapper.LEGACY_EVENT_TYPE_HEADER,
+        eventType.getBytes(StandardCharsets.UTF_8));
+    record.headers().add(
+        KafkaMessageMapper.SERIALIZED_HEADERS,
+        serializedHeaders.getBytes(StandardCharsets.UTF_8));
+    emitter.accept(record.topic(), messageMapper.map(record));
   }
 }

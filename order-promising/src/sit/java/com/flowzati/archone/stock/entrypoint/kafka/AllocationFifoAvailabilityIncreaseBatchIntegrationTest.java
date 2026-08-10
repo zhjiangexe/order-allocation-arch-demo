@@ -1,30 +1,29 @@
 package com.flowzati.archone.stock.entrypoint.kafka;
 
-import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.stock.domain.model.StockFixtures;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
-import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
-import com.flowzati.archone.stock.entrypoint.scheduler.AllocationReconciliationScheduler;
-import com.flowzati.archone.stock.domain.model.StockPool;
-import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.promising.time.AppClock;
+import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
+import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.stock.domain.model.StockFixtures;
+import com.flowzati.archone.stock.domain.model.StockPool;
+import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
+import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
+import com.flowzati.archone.stock.entrypoint.scheduler.AllocationReconciliationScheduler;
 import com.flowzati.archone.testsupport.MovementFixtures;
-import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
-import java.nio.charset.StandardCharsets;
+import com.flowzati.archone.testsupport.SitDatabase;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +34,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Demo-02：1,000 張已排隊的同 SKU 缺貨訂單，被循序到達的 StockReplenished 事件喚醒後的
@@ -76,16 +74,24 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   private static final int SECOND_AVAILABILITY_INCREASE = BLOCKER_QUANTITY + FITTING_ORDERS_AFTER_BLOCKER;
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
 
   @Autowired
-  private AllocationKafkaIntegrationEventConsumer consumer;
+  private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
 
   @Autowired
   private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-  @Autowired
   private AllocationReconciliationScheduler allocationReconciliationScheduler;
+
+  @Autowired
+  private StockMoveRepository stockMoveRepository;
+
+  @Autowired
+  private AllocateWaitingDemandUsecase allocateWaitingDemandUsecase;
+
+  @Autowired
+  private AppClock appClock;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -104,6 +110,10 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
   @BeforeEach
   void seedCatalogForOrders() {
+    // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
+    // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
+    allocationReconciliationScheduler = new AllocationReconciliationScheduler(
+        stockMoveRepository, allocateWaitingDemandUsecase, appClock, BATCH_LIMIT);
     OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
   }
 
@@ -359,23 +369,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   }
 
   private void consumePendingAvailabilityEvents() {
-    List<Map<String, Object>> pending = jdbcTemplate.queryForList("""
-        SELECT o.id, o.payload
-          FROM event_outbox o
-         WHERE o.type = ?
-           AND NOT EXISTS (
-                 SELECT 1 FROM event_inbox i
-                  WHERE i.subscriber_id = ?
-                    AND i.event_id = o.id
-               )
-         ORDER BY o.timestamp, o.id
-        """,
-        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
-        AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
-    pending.forEach(row -> consumeInventory(
-        UUID.fromString(row.get("id").toString()),
-        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
-        row.get("payload").toString()));
+    inventoryEventDrainFactory.create().drain();
   }
 
   /** 直接驅動 SIT 中停用的 scheduler，直到一輪沒有新增 allocation outcome。 */
@@ -383,7 +377,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     int productiveRounds = 0;
     for (int attempt = 0; attempt < MAX_RECONCILIATION_ROUNDS; attempt++) {
       int before = allocatedOutcomeCount();
-    allocationReconciliationScheduler.reconcileAllocatableWaitingDemand();
+      allocationReconciliationScheduler.reconcileAllocatableWaitingDemand();
       int after = allocatedOutcomeCount();
       if (after == before) {
         return productiveRounds;
@@ -398,15 +392,6 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     return jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
         OrderAllocatedIntegrationEvent.EVENT_TYPE);
-  }
-
-  private void consumeInventory(UUID eventId, String eventType, String payload) {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        InventoryEventTopics.STOCK_EVENTS, 0, 0, FIFO_SKU, payload);
-    record.headers().add("id", eventId.toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType",
-        eventType.getBytes(StandardCharsets.UTF_8));
-    consumer.consumeInventoryEvent(record);
   }
 
   /** FIFO 佇列中三個關鍵位置的 orderId，用來做不依賴聚合數字的精準身分驗證。 */
@@ -426,6 +411,6 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   }
 
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+    return outcomeDrainFactory.create();
   }
 }

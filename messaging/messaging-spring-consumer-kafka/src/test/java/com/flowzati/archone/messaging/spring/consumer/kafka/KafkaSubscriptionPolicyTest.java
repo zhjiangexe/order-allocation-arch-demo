@@ -17,6 +17,7 @@ class KafkaSubscriptionPolicyTest {
     assertThat(policy.ackMode()).isEqualTo(ContainerProperties.AckMode.BATCH);
     assertThat(policy.missingTopicsFatal()).isTrue();
     assertThat(policy.observationEnabled()).isFalse();
+    assertThat(policy.autoStartup()).isTrue();
     assertThat(policy.shutdownTimeout()).isEqualTo(Duration.ofSeconds(10));
     assertThat(policy.commonErrorHandler()).isEmpty();
   }
@@ -27,6 +28,14 @@ class KafkaSubscriptionPolicyTest {
         .observationEnabled(true)
         .build()
         .observationEnabled()).isTrue();
+  }
+
+  @Test
+  void canRegisterASubscriptionWithoutStartingItsContainer() {
+    assertThat(KafkaSubscriptionPolicy.builder()
+        .autoStartup(false)
+        .build()
+        .autoStartup()).isFalse();
   }
 
   @Test

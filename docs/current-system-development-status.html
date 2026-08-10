@@ -524,12 +524,12 @@
 <main>
   <header class="hero">
     <div class="hero-copy">
-      <div class="eyebrow">Current architecture · 2026-08-07</div>
+      <div class="eyebrow">Current architecture · 2026-08-10</div>
       <h1>Archone 全流程、Use Case 與開發狀態</h1>
       <p>
         本頁依操作與事件發生順序，串起主檔查詢、入庫、接單、初次配置、缺貨重配、訂單投影、查詢與取消。
         <code>order-promising</code> 中的 16 個 application use case 均以完整類名出現在流程與盤點表中；目前的 13 個 WMS use cases 另見
-        <a href="wms-module-architecture.html">WMS-only 模組架構</a>。跨應用技術已分成 <code>foundation</code>、<code>contracts</code>、Inbox／Outbox／Kafka messaging 子模組、Spring Boot auto-configuration／starter，以及只保留非 messaging Spring wiring 的 <code>platform-infrastructure</code>；系統具備可運作的 order promising 與基礎 WMS domain contract，但還不是完整 WMS／3PL execution system。
+        <a href="wms-module-architecture.html">WMS-only 模組架構</a>。跨應用技術已分成 <code>foundation</code>、<code>contracts</code>、pure JDBC／Kafka messaging core、Spring adapters、Spring Boot auto-configuration／starters，以及只保留非 messaging Spring wiring 的 <code>platform-infrastructure</code>；舊 JPA Inbox／Outbox facade 已移除，physical tables 仍維持 <code>event_inbox</code>／<code>event_outbox</code>。系統具備可運作的 order promising 與基礎 WMS domain contract，但還不是完整 WMS／3PL execution system。
       </p>
     </div>
     <aside class="snapshot" aria-label="目前開發快照">
@@ -537,7 +537,7 @@
         <dt>Application use cases</dt><dd>16</dd>
         <dt>Order Promising</dt><dd>16 / 16</dd>
         <dt>WMS（另頁）</dt><dd>13 / 13</dd>
-        <dt>Shared technical modules</dt><dd>10</dd>
+        <dt>Messaging artifacts</dt><dd>21</dd>
         <dt>已有入口可達</dt><dd>15 / 16</dd>
         <dt>缺少入口</dt><dd>CancelOrder</dd>
         <dt>文件基準</dt><dd>目前 working tree</dd>
@@ -640,7 +640,7 @@
 
           <tr class="phase-row"><td colspan="5">C｜接單、初次配置與結果投影</td></tr>
           <tr><td>08</td><td><code>PlaceOrderUsecase</code></td><td><code>POST /orders</code></td><td>建立 order 與 lines，以系統接單時間排序並發布 <code>OrderPlaced</code>。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
-          <tr><td>09</td><td><code>AllocateOrderUsecase</code></td><td><code>OrderPlaced</code> Kafka</td><td>Inbox 去重、讀取 Demand、建立 outbound moves，以 FIFO／FEFO 整單配置。</td><td><span class="tag write">Command</span><span class="tag event">Consumer</span></td></tr>
+          <tr><td>09</td><td><code>AllocateOrderUsecase</code></td><td><code>OrderPlaced</code> Kafka</td><td>Programmatic subscriber 先在交易內完成 Inbox claim，再讀取 Demand、建立 outbound moves，以 FIFO／FEFO 整單配置。</td><td><span class="tag write">Command</span><span class="tag event">Consumer</span></td></tr>
           <tr><td>10</td><td><code>RecordOrderAllocationUsecase</code></td><td><code>OrderAllocated</code> Kafka</td><td>將 Stock context 已完成的配置事實回寫為訂單 ALLOCATED。</td><td><span class="tag write">Projection</span></td></tr>
           <tr><td>11</td><td><code>RecordOrderBackorderUsecase</code></td><td><code>BackorderCreated</code> Kafka</td><td>保留第一次缺貨時間，將尚未配置訂單回寫為 BACKORDERED。</td><td><span class="tag write">Projection</span></td></tr>
 
@@ -651,7 +651,7 @@
 
           <tr class="phase-row"><td colspan="5">E｜取消與庫存釋放</td></tr>
           <tr><td>15</td><td><code>CancelOrderUsecase</code></td><td>尚無 REST／UI／Kafka 入口</td><td>取消訂單並發布 <code>OrderCancelled</code>；domain 與 transaction 已完成，但外部目前無法觸發。</td><td><span class="tag write">Command</span><span class="tag gap">入口缺口</span></td></tr>
-          <tr><td>16</td><td><code>CancelMovementsUsecase</code></td><td><code>OrderCancelled</code> Kafka</td><td>Inbox 去重後取消該訂單的 moves，釋放已鎖定庫存。</td><td><span class="tag write">Compensation</span><span class="tag event">Consumer</span></td></tr>
+          <tr><td>16</td><td><code>CancelMovementsUsecase</code></td><td><code>OrderCancelled</code> Kafka</td><td>Programmatic subscriber 先完成 Inbox claim，再取消該訂單的 moves 並釋放已鎖定庫存。</td><td><span class="tag write">Compensation</span><span class="tag event">Consumer</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -688,7 +688,7 @@
       <div class="flow-lane">
         <div class="lane-name"><strong>B. 同步收貨</strong><span>建立庫存事實</span></div>
         <div class="step event"><strong>POST /stock-receipts</strong><span>owner／facility／location／batch</span></div>
-        <div class="step sync"><strong>ConfirmStockReceiptUsecase</strong><span>Inbox claim、驗證 location</span></div>
+        <div class="step sync"><strong>ConfirmStockReceiptUsecase</strong><span>receipt request 去重、驗證 location</span></div>
         <div class="step state"><strong>recordInbound</strong><span>supplier → internal location</span></div>
         <div class="step state"><strong>MovementCompleter</strong><span>move line + DONE</span></div>
         <div class="step state"><strong>StockPool.receive</strong><span>增加 on-hand</span><b class="checkpoint">COMMIT</b></div>
@@ -701,8 +701,10 @@
         <div class="step event"><strong>POST /orders</strong><span>多品項 basket</span></div>
         <div class="step sync"><strong>PlaceOrderUsecase</strong><span>Order + lines → PENDING</span></div>
         <div class="step event"><strong>OrderPlaced</strong><span>Outbox → Kafka</span></div>
+        <div class="step event"><strong>Programmatic subscriber</strong><span>mapper → transaction + Inbox → typed dispatcher</span></div>
         <div class="step sync"><strong>AllocateOrderUsecase</strong><span>建 moves、整單配置</span></div>
         <div class="step event"><strong>OrderAllocated</strong><span>Outbox → Kafka</span></div>
+        <div class="step event"><strong>Programmatic subscriber</strong><span>Ordering subscriber + Inbox</span></div>
         <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>Ordering projection</span></div>
         <div class="step end outcome"><strong>ALLOCATED</strong><span>整張訂單已配置</span></div>
       </div>
@@ -710,9 +712,11 @@
       <div class="flow-lane">
         <div class="lane-name"><strong>C2. 新訂單缺貨</strong><span>初次配置失敗分支</span></div>
         <div class="step event"><strong>OrderPlaced</strong><span>已由接單交易提交</span></div>
+        <div class="step event"><strong>Programmatic subscriber</strong><span>transaction + Inbox + typed dispatch</span></div>
         <div class="step sync"><strong>AllocateOrderUsecase</strong><span>仍建立 waiting moves</span></div>
         <div class="step state"><strong>whole-order 判定</strong><span>任何一行不足即缺貨</span></div>
         <div class="step event"><strong>BackorderCreated</strong><span>Outbox → Kafka</span></div>
+        <div class="step event"><strong>Programmatic subscriber</strong><span>Ordering subscriber + Inbox</span></div>
         <div class="step sync"><strong>RecordOrderBackorderUsecase</strong><span>保存第一次缺貨時間</span></div>
         <div class="step outcome"><strong>BACKORDERED</strong><span>等待可用庫存</span></div>
         <div class="step end schedule"><strong>進入 D 流程</strong><span>事件喚醒或排程收斂</span></div>
@@ -720,11 +724,12 @@
 
       <div class="flow-lane">
         <div class="lane-name"><strong>D. 缺貨重配</strong><span>低延遲 + 最終收斂</span></div>
-        <div class="step event"><strong>Availability Handler</strong><span>收貨提交後快速入口</span></div>
+        <div class="step event"><strong>Availability subscriber</strong><span>Kafka → transaction + Inbox → typed target</span></div>
         <div class="step schedule"><strong>或 Scheduler</strong><span>掃描可配置 scope 補漏</span></div>
         <div class="step sync"><strong>AllocateWaitingDemandUsecase</strong><span>一輪一交易、批次上限</span></div>
         <div class="step sync"><strong>MovementAssigner</strong><span>FIFO + FEFO + whole-order</span></div>
         <div class="step event"><strong>OrderAllocated</strong><span>每張成功單一個事實</span></div>
+        <div class="step event"><strong>Ordering subscriber</strong><span>transaction + Inbox + typed target</span></div>
         <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>BACKORDERED → ALLOCATED</span></div>
         <div class="step end schedule"><strong>仍有等待</strong><span>下次 Scheduler 再掃</span></div>
       </div>
@@ -745,10 +750,33 @@
         <div class="step missing"><strong>REST／UI 入口</strong><span>目前尚未實作</span></div>
         <div class="step sync"><strong>CancelOrderUsecase</strong><span>Order → CANCELLED</span></div>
         <div class="step event"><strong>OrderCancelled</strong><span>Outbox → Kafka</span></div>
-        <div class="step sync"><strong>CancelMovementsUsecase</strong><span>Inbox claim</span></div>
+        <div class="step event"><strong>Programmatic subscriber</strong><span>transaction + Inbox + typed dispatch</span></div>
+        <div class="step sync"><strong>CancelMovementsUsecase</strong><span>只處理 Stock business command</span></div>
         <div class="step state"><strong>MovementCanceller</strong><span>取消 moves、釋放鎖定量</span></div>
         <div class="step missing"><strong>Availability event</strong><span>釋放後尚未主動發布</span></div>
         <div class="step end schedule"><strong>Scheduler 收斂</strong><span>舊 backorders 之後再掃</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>G. Subscriber 接線</strong><span>Application 顯式擁有</span></div>
+        <div class="step state"><strong>EventContractConfiguration</strong><span>stable type／version allow-list</span></div>
+        <div class="step state"><strong>Context Configuration × 3</strong><span>Ordering 一組、Allocation 兩組</span></div>
+        <div class="step sync"><strong>HandlersBuilder</strong><span>event → typed target method</span></div>
+        <div class="step sync"><strong>Subscription identity</strong><span>subscriber／consumer group／unhandled policy</span></div>
+        <div class="step sync"><strong>factory.make(...)</strong><span>每組唯一 dispatcher owner</span></div>
+        <div class="step event"><strong>MessageConsumer.subscribe</strong><span>不掃描 handler、不寫 <code>@KafkaListener</code></span></div>
+        <div class="step end outcome"><strong>Declared subscription</strong><span>auto-startup=false 時保留接線但不啟動</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>H. Consumer runtime</strong><span>三個 subscriber 共用 mechanics</span></div>
+        <div class="step event"><strong>Spring Kafka container</strong><span><code>MessageConsumer.subscribe(...)</code> 程式化建立</span></div>
+        <div class="step sync"><strong>KafkaMessageMapper</strong><span>physical record → generic Message</span></div>
+        <div class="step sync"><strong>Decorator chain</strong><span>observation → transaction → Inbox idempotency</span></div>
+        <div class="step sync"><strong>IntegrationEventDispatcher</strong><span>stable type/version → registered handler</span></div>
+        <div class="step state"><strong>Bounded-context target</strong><span>event → command mapping</span></div>
+        <div class="step sync"><strong>Application use case</strong><span>business mutation + optional Outbox</span></div>
+        <div class="step end outcome"><strong>Commit / retry / DLT</strong><span>依 exact subscription 建立 DLT headers 與 failure observation</span></div>
       </div>
     </div>
   </section>
@@ -756,7 +784,7 @@
   <section aria-labelledby="layers-title">
     <div class="section-head">
       <h2 id="layers-title">四、目前系統分層</h2>
-      <p>外層負責傳輸與排程，16 個 use case 擁有交易或查詢邊界，application component 重用政策，domain 保存不變式。</p>
+      <p>外層負責傳輸與排程；同步入口由 use case 擁有交易，Kafka 入口由 messaging decorator 開啟交易後讓 use case 加入，application component 重用政策，domain 保存不變式。</p>
     </div>
 
     <div class="legend" aria-label="分層圖例">
@@ -774,7 +802,7 @@
           <div class="node adapter"><strong>Catalog / Facility Controllers</strong><span>貨主、商品、SKU、Facility、庫位查詢</span></div>
           <div class="node adapter"><strong>Order Controller</strong><span>下單、列表、單筆查詢；尚無取消</span></div>
           <div class="node adapter"><strong>Stock Controllers</strong><span>庫存查詢與同步收貨</span></div>
-          <div class="node adapter"><strong>Kafka Handlers + Scheduler</strong><span>配置、投影、取消補償與 reconciliation</span></div>
+          <div class="node adapter"><strong>Bounded-context Subscriber Configurations + Scheduler</strong><span>三份 handlers + <code>factory.make(...)</code> 顯式接線，typed targets 發動配置、投影、取消補償與 reconciliation</span></div>
         </div>
       </div>
 
@@ -811,10 +839,10 @@
       <div class="layer">
         <div class="layer-label"><strong>Infrastructure</strong><small>持久化與訊息</small></div>
         <div class="layer-items">
-          <div class="node infra"><strong>Repositories / JPA</strong><span>PostgreSQL persistence</span></div>
-          <div class="node infra"><strong>Inbox</strong><span>訊息 idempotency claim</span></div>
+          <div class="node infra"><strong>Business repositories / JPA</strong><span>bounded-context PostgreSQL persistence</span></div>
+          <div class="node infra"><strong>JDBC Inbox decorator</strong><span>subscriber-scoped idempotency，與 handler 同交易</span></div>
           <div class="node infra"><strong>Domain publisher → IntegrationEventPublisher → MessageProducer → Outbox</strong><span>直接同步寫入 caller transaction，不經 ApplicationEventPublisher</span></div>
-          <div class="node infra"><strong>Kafka / Retry / DLT</strong><span>提交後傳輸與失敗處理</span></div>
+          <div class="node infra"><strong>Debezium / programmatic Kafka / Retry / DLT</strong><span>提交後 relay；runtime 依實際 subscriber 組裝 container、DLT headers 與 Micrometer failure observer</span></div>
         </div>
       </div>
     </div>
@@ -823,6 +851,7 @@
       <div class="rule"><strong>直接 invoke</strong><span>必須共享資料庫交易的步驟，例如 record → complete → receive。</span></div>
       <div class="rule"><strong>Integration Event</strong><span>已提交的 business fact 跨 transaction／bounded context 傳遞。</span></div>
       <div class="rule"><strong>Scheduler</strong><span>不假設 Kafka 永遠即時成功，掃描真實等待狀態以最終收斂。</span></div>
+      <div class="rule"><strong>Tram-shaped 接線責任</strong><span>Application 只擁有 contract、routing、identity 與 exception policy；starter 擁有 container、auto-startup、DLT 與 observation mechanics。</span></div>
     </div>
   </section>
 
@@ -841,7 +870,7 @@
           <li>收貨建立 inbound picking、move、move line，再增加 StockPool。</li>
           <li>初次配置與 backorder wake 共用 FIFO／FEFO／whole-order 語意。</li>
           <li>配置／缺貨結果由各自的 projection use case 回寫 Ordering。</li>
-          <li>Inbox、Outbox、Kafka retry、DLT、reconciliation scheduler 與相關測試已存在。</li>
+          <li>Pure JDBC Inbox／Outbox、programmatic Kafka subscribers、retry、DLT、observability、reconciliation scheduler 與相關測試已存在。</li>
         </ul>
       </article>
 

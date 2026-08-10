@@ -10,12 +10,7 @@ import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEven
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
-import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
-import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -24,7 +19,6 @@ import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -35,7 +29,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -63,25 +56,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AllocationConcurrencyEndToEndIntegrationTest {
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
 
   @Autowired
-  private AllocationKafkaIntegrationEventConsumer consumer;
-
-  @Autowired
-  private IntegrationEventSerializer eventSerializer;
+  private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
   @Autowired
   private OrderRepository orderRepository;
 
   @Autowired
   private StockPoolRepository stockPoolRepository;
-
-  @Autowired
-  private JpaEventInboxRepository inboxRepository;
-
-  @Autowired
-  private JpaOutboxRepository outboxRepository;
 
   @Autowired
   private MeterRegistry meterRegistry;
@@ -143,11 +127,12 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     // 恰好一張拿到預留：兩張都拿到代表超賣，都沒拿到代表兩張都白白重試到耗盡。
     assertThat(!heldBy(firstOrderId).isEmpty()
         ^ !heldBy(secondOrderId).isEmpty()).isTrue();
-    assertThat(inboxRepository.findById(new InboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, firstEvent.getEventId()))).isPresent();
-    assertThat(inboxRepository.findById(new InboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, secondEvent.getEventId()))).isPresent();
-    assertThat(outboxRepository.findAll().stream().map(outbox -> outbox.getEventType()))
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, firstEvent.getEventId())).isTrue();
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, secondEvent.getEventId())).isTrue();
+    assertThat(jdbcTemplate.queryForList(
+        "SELECT type FROM event_outbox", String.class))
         .contains(OrderAllocatedIntegrationEvent.EVENT_TYPE,
             BackorderCreatedIntegrationEvent.EVENT_TYPE);
     assertThat(conflictInjector.invocations()).isGreaterThanOrEqualTo(3);
@@ -176,27 +161,14 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
     assertThat(heldBy(orderId)).isEmpty();
-    assertThat(inboxRepository.findById(new InboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))).isEmpty();
-    assertThat(outboxRepository.count()).isZero();
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId())).isFalse();
+    assertThat(tableCount("event_outbox")).isZero();
     assertThat(exhaustedMetricCount()).isEqualTo(metricBefore + 1.0);
   }
 
   private void consume(OrderPlacedIntegrationEvent event) {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        OrderingEventTopics.ORDER_EVENTS,
-        0,
-        0,
-        event.getOrderId().toString(),
-        serialize(event));
-    record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", OrderPlacedIntegrationEvent.EVENT_TYPE
-        .getBytes(StandardCharsets.UTF_8));
-    consumer.consumeOrderingEvent(record);
-  }
-
-  private String serialize(OrderPlacedIntegrationEvent event) {
-    return eventSerializer.serialize(event);
+    consumer.consume(event);
   }
 
   private double exhaustedMetricCount() {
@@ -204,6 +176,17 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         .tag("operation", "allocate-order")
         .counter();
     return counter == null ? 0.0 : counter.count();
+  }
+
+  private boolean inboxClaimExists(String subscriberId, UUID eventId) {
+    return jdbcTemplate.queryForObject("""
+        SELECT COUNT(*) FROM event_inbox
+         WHERE subscriber_id = ? AND event_id = ?
+        """, Integer.class, subscriberId, eventId) == 1;
+  }
+
+  private int tableCount(String table) {
+    return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
   }
 
   @TestConfiguration(proxyBeanMethods = false)
@@ -295,6 +278,6 @@ class AllocationConcurrencyEndToEndIntegrationTest {
    * 得自己走完——production 裡是 Kafka 做這件事。
    */
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+    return outcomeDrainFactory.create();
   }
 }

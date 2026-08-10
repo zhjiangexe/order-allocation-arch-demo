@@ -1,6 +1,11 @@
 package com.flowzati.archone.stock.infrastructure.configuration;
 
+import com.flowzati.archone.bootstrap.messaging.OrderPromisingKafkaFailurePolicyConfiguration;
+import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerFailureObserver;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterErrorHandlerFactory;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionErrorHandlerFactory;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +44,16 @@ class ProgrammaticKafkaContainerFeasibilityTest {
       });
       return consumer;
     });
-    CommonErrorHandler errorHandler = new AllocationKafkaErrorHandlingConfiguration()
-        .allocationKafkaErrorHandler(mock(KafkaOperations.class));
+    KafkaSubscriptionErrorHandlerFactory errorHandlerFactory =
+        KafkaDeadLetterErrorHandlerFactory.perSubscription(
+            mock(KafkaOperations.class),
+            new OrderPromisingKafkaFailurePolicyConfiguration()
+                .orderPromisingKafkaFailurePolicyResolver(),
+            subscription -> KafkaConsumerFailureObserver.none());
+    CommonErrorHandler errorHandler = errorHandlerFactory.create(
+        new ResolvedMessageSubscription(
+            "gate-a-subscriber", GROUP_ID, Map.of(TOPIC, TOPIC)))
+        .orElseThrow();
 
     ConcurrentKafkaListenerContainerFactory<String, String> factory =
         new ConcurrentKafkaListenerContainerFactory<>();

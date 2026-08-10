@@ -25,6 +25,7 @@ public final class SpringKafkaMessageConsumerImplementation
   private final ConcurrentKafkaListenerContainerFactory<String, String> containerFactory;
   private final KafkaMessageMapper messageMapper;
   private final KafkaSubscriptionPolicyResolver policyResolver;
+  private final KafkaSubscriptionErrorHandlerFactory errorHandlerFactory;
   private final KafkaSubscriptionRegistry registry;
   private final KafkaContainerStarter containerStarter;
   private final Map<String, DefaultKafkaMessageSubscription> activeSubscriptions =
@@ -36,14 +37,28 @@ public final class SpringKafkaMessageConsumerImplementation
       KafkaMessageMapper messageMapper,
       KafkaSubscriptionPolicyResolver policyResolver
   ) {
-    this(containerFactory, messageMapper, policyResolver, new KafkaSubscriptionRegistry(),
-        ConcurrentMessageListenerContainer::start);
+    this(
+        containerFactory,
+        messageMapper,
+        policyResolver,
+        KafkaSubscriptionErrorHandlerFactory.none());
+  }
+
+  public SpringKafkaMessageConsumerImplementation(
+      ConcurrentKafkaListenerContainerFactory<String, String> containerFactory,
+      KafkaMessageMapper messageMapper,
+      KafkaSubscriptionPolicyResolver policyResolver,
+      KafkaSubscriptionErrorHandlerFactory errorHandlerFactory
+  ) {
+    this(containerFactory, messageMapper, policyResolver, errorHandlerFactory,
+        new KafkaSubscriptionRegistry(), ConcurrentMessageListenerContainer::start);
   }
 
   SpringKafkaMessageConsumerImplementation(
       ConcurrentKafkaListenerContainerFactory<String, String> containerFactory,
       KafkaMessageMapper messageMapper,
       KafkaSubscriptionPolicyResolver policyResolver,
+      KafkaSubscriptionErrorHandlerFactory errorHandlerFactory,
       KafkaSubscriptionRegistry registry,
       KafkaContainerStarter containerStarter
   ) {
@@ -52,6 +67,8 @@ public final class SpringKafkaMessageConsumerImplementation
     this.messageMapper = Objects.requireNonNull(messageMapper, "Kafka message mapper is required");
     this.policyResolver = Objects.requireNonNull(
         policyResolver, "Kafka subscription policy resolver is required");
+    this.errorHandlerFactory = Objects.requireNonNull(
+        errorHandlerFactory, "Kafka subscription error handler factory is required");
     this.registry = Objects.requireNonNull(registry, "Kafka subscription registry is required");
     this.containerStarter = Objects.requireNonNull(
         containerStarter, "Kafka container starter is required");
@@ -87,7 +104,9 @@ public final class SpringKafkaMessageConsumerImplementation
         () -> release(registration));
     activeSubscriptions.put(subscription.subscriberId(), handle);
     try {
-      containerStarter.start(container);
+      if (policy.autoStartup()) {
+        containerStarter.start(container);
+      }
       return handle;
     } catch (RuntimeException failure) {
       cleanupAfterStartFailure(handle, failure);
@@ -145,7 +164,9 @@ public final class SpringKafkaMessageConsumerImplementation
       // Spring Kafka observation supersedes its legacy listener timers; keep one transport meter.
       container.getContainerProperties().setMicrometerEnabled(false);
     }
-    policy.commonErrorHandler().ifPresent(container::setCommonErrorHandler);
+    policy.commonErrorHandler()
+        .or(() -> errorHandlerFactory.create(subscription))
+        .ifPresent(container::setCommonErrorHandler);
     CommonErrorHandler errorHandler = container.getCommonErrorHandler();
     if (errorHandler != null && errorHandler.deliveryAttemptHeader()) {
       container.getContainerProperties().setDeliveryAttemptHeader(true);

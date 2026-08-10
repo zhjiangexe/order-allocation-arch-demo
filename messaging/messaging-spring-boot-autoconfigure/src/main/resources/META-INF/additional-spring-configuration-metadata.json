@@ -30,12 +30,6 @@
       "description": "Whether to compose the JDBC Inbox duplicate detector and transactional idempotency decorator."
     },
     {
-      "name": "archone.messaging.consumer.inbox-compatibility.enabled",
-      "type": "java.lang.Boolean",
-      "defaultValue": true,
-      "description": "Whether to expose the temporary InboxRepo compatibility facade when its migration artifact is present. Gate I removes this path."
-    },
-    {
       "name": "archone.messaging.consumer.kafka.enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
@@ -111,18 +105,6 @@
       "type": "java.lang.Boolean",
       "defaultValue": false,
       "description": "Whether to expose the namespaced MessagingFlywayFactory. This remains opt-in and never creates a Flyway initializer or changes an application schema by itself."
-    },
-    {
-      "name": "archone.messaging.jpa.enabled",
-      "type": "java.lang.Boolean",
-      "defaultValue": true,
-      "description": "Whether to compose temporary legacy JPA Outbox and Inbox facades when their compatibility artifacts are present."
-    },
-    {
-      "name": "archone.messaging.jpa.register-package",
-      "type": "java.lang.Boolean",
-      "defaultValue": true,
-      "description": "Whether to add the temporary legacy messaging JPA package to Spring Boot repository discovery. Disable when the application root already covers it."
     }
   ]
 }

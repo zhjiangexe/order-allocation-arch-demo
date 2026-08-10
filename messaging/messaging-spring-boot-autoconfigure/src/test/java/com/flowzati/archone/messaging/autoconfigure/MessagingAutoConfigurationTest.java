@@ -11,6 +11,8 @@ import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageConsumer;
 import com.flowzati.archone.messaging.api.MessageProducer;
 import com.flowzati.archone.messaging.consumer.common.DuplicateMessageDetector;
+import com.flowzati.archone.messaging.consumer.common.MessageFailureCategory;
+import com.flowzati.archone.messaging.consumer.common.MessageFailureClassification;
 import com.flowzati.archone.messaging.consumer.common.ResolvedMessageSubscription;
 import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMessageHandlerDecorator;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
@@ -18,10 +20,10 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.MapBasedIntegrationEventNameMapping;
-import com.flowzati.archone.messaging.inbox.DuplicateMessageDetectorInboxRepo;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
-import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionPolicyResolver;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerFailurePolicy;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerFailurePolicyResolver;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionErrorHandlerFactory;
 import com.flowzati.archone.messaging.spring.consumer.kafka.SpringKafkaMessageConsumerImplementation;
 import com.flowzati.archone.messaging.spring.flyway.MessagingFlywayFactory;
 import java.util.Map;
@@ -30,7 +32,9 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.util.backoff.FixedBackOff;
 
 class MessagingAutoConfigurationTest {
 
@@ -81,7 +85,6 @@ class MessagingAutoConfigurationTest {
       assertThat(context).hasSingleBean(IntegrationEventPublisher.class);
       assertThat(context).hasSingleBean(DuplicateMessageDetector.class);
       assertThat(context).hasSingleBean(TransactionalIdempotencyMessageHandlerDecorator.class);
-      assertThat(context).doesNotHaveBean(InboxRepo.class);
     });
 
     MessageProducer customProducer = mock(MessageProducer.class);
@@ -130,7 +133,6 @@ class MessagingAutoConfigurationTest {
           assertThat(context).hasSingleBean(SpringKafkaMessageConsumerImplementation.class);
           assertThat(context).hasSingleBean(MessageConsumer.class);
           assertThat(context).hasSingleBean(KafkaSubscriptionPolicyResolver.class);
-          assertThat(context).hasSingleBean(KafkaIntegrationEventDispatcher.class);
           assertThat(context.getBean(ConsumerGroupMapping.class).transform("allocation"))
               .isEqualTo("allocation-v2");
           assertThat(context.getBean(ConsumerGroupMapping.class).transform("ordering"))
@@ -140,8 +142,47 @@ class MessagingAutoConfigurationTest {
                   "allocation", "allocation-v2", Map.of("order-events", "orders")));
           assertThat(policy.concurrency()).isEqualTo(3);
           assertThat(policy.observationEnabled()).isTrue();
+          assertThat(policy.autoStartup()).isTrue();
           assertThat(context).doesNotHaveBean(IntegrationEventDispatcherFactory.class);
         });
+  }
+
+  @Test
+  void programmaticKafkaConsumerHonorsSpringListenerAutoStartup() {
+    kafkaRunner()
+        .withPropertyValues("spring.kafka.listener.auto-startup=false")
+        .run(context -> {
+          var subscription = new ResolvedMessageSubscription(
+              "allocation", "allocation", Map.of("order-events", "orders"));
+          assertThat(context.getBean(KafkaSubscriptionPolicyResolver.class)
+              .resolve(subscription)
+              .autoStartup()).isFalse();
+        });
+  }
+
+  @Test
+  void createsPerSubscriptionDltHandlerOnlyWhenApplicationProvidesFailurePolicy() {
+    KafkaConsumerFailurePolicy failurePolicy = new KafkaConsumerFailurePolicy(
+        new FixedBackOff(0, 0),
+        failure -> MessageFailureClassification.nonRetryable(MessageFailureCategory.HANDLER));
+    @SuppressWarnings("unchecked")
+    KafkaOperations<Object, Object> kafkaOperations = mock(KafkaOperations.class);
+
+    kafkaRunner()
+        .withBean(KafkaOperations.class, () -> kafkaOperations)
+        .withBean(
+            KafkaConsumerFailurePolicyResolver.class,
+            () -> KafkaConsumerFailurePolicyResolver.fixed(failurePolicy))
+        .run(context -> {
+          assertThat(context).hasSingleBean(KafkaSubscriptionErrorHandlerFactory.class);
+          ResolvedMessageSubscription subscription = new ResolvedMessageSubscription(
+              "allocation", "allocation", Map.of("order-events", "orders"));
+          assertThat(context.getBean(KafkaSubscriptionErrorHandlerFactory.class)
+              .create(subscription)).isPresent();
+        });
+
+    kafkaRunner().run(context ->
+        assertThat(context).doesNotHaveBean(KafkaSubscriptionErrorHandlerFactory.class));
   }
 
   @Test
@@ -170,20 +211,6 @@ class MessagingAutoConfigurationTest {
         .withConfiguration(AutoConfigurations.of(MessagingFlywayAutoConfiguration.class))
         .withPropertyValues("archone.messaging.flyway.enabled=true")
         .run(context -> assertThat(context).hasSingleBean(MessagingFlywayFactory.class));
-  }
-
-  @Test
-  void legacyInboxFacadeIsAnOrderedAndOverridableCompatibilityLayer() {
-    jdbcRunner()
-        .withConfiguration(AutoConfigurations.of(MessagingLegacyInboxAutoConfiguration.class))
-        .run(context -> assertThat(context.getBean(InboxRepo.class))
-            .isInstanceOf(DuplicateMessageDetectorInboxRepo.class));
-
-    InboxRepo custom = mock(InboxRepo.class);
-    jdbcRunner()
-        .withConfiguration(AutoConfigurations.of(MessagingLegacyInboxAutoConfiguration.class))
-        .withBean(InboxRepo.class, () -> custom)
-        .run(context -> assertThat(context.getBean(InboxRepo.class)).isSameAs(custom));
   }
 
   private ApplicationContextRunner jdbcRunner() {

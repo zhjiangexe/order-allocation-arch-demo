@@ -152,6 +152,54 @@ class KafkaDeadLetterErrorHandlerFactoryTest {
   }
 
   @Test
+  void createsIndependentDltMetadataForTwoSubscribersOnTheSameTopic() {
+    List<MockProducer<String, String>> producers = new ArrayList<>();
+    KafkaTemplate<String, String> template = new KafkaTemplate<>(
+        new MockProducerFactory<>(() -> {
+          MockProducer<String, String> producer = new MockProducer<>(
+              true, null, new StringSerializer(), new StringSerializer());
+          producers.add(producer);
+          return producer;
+        }));
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    KafkaOperations<Object, Object> operations = (KafkaOperations) template;
+    KafkaConsumerFailurePolicy failurePolicy = new KafkaConsumerFailurePolicy(
+        new FixedBackOff(0, 0),
+        failure -> MessageFailureClassification.nonRetryable(MessageFailureCategory.CONTRACT));
+    KafkaSubscriptionErrorHandlerFactory factory =
+        KafkaDeadLetterErrorHandlerFactory.perSubscription(
+            operations,
+            KafkaConsumerFailurePolicyResolver.fixed(failurePolicy),
+            subscription -> KafkaConsumerFailureObserver.none());
+    ResolvedMessageSubscription first = new ResolvedMessageSubscription(
+        "first-subscriber", "first-group", Map.of("shared.topic", "first-channel"));
+    ResolvedMessageSubscription second = new ResolvedMessageSubscription(
+        "second-subscriber", "second-group", Map.of("shared.topic", "second-channel"));
+    ConsumerRecord<String, String> sharedRecord = new ConsumerRecord<>(
+        "shared.topic", 0, 1L, "key", "{}");
+
+    DefaultErrorHandler firstHandler = (DefaultErrorHandler) factory.create(first).orElseThrow();
+    DefaultErrorHandler secondHandler = (DefaultErrorHandler) factory.create(second).orElseThrow();
+    assertThat(firstHandler.handleOne(
+        new IllegalArgumentException("first failure"), sharedRecord, null, null)).isTrue();
+    assertThat(secondHandler.handleOne(
+        new IllegalArgumentException("second failure"), sharedRecord, null, null)).isTrue();
+
+    List<ProducerRecord<String, String>> history = producers.stream()
+        .flatMap(producer -> producer.history().stream())
+        .toList();
+    assertThat(history).extracting(record ->
+        textHeader(record, KafkaDeadLetterHeaders.SUBSCRIBER_ID))
+        .containsExactly("first-subscriber", "second-subscriber");
+    assertThat(history).extracting(record ->
+        textHeader(record, KafkaDeadLetterHeaders.CONSUMER_GROUP_ID))
+        .containsExactly("first-group", "second-group");
+    assertThat(history).extracting(record ->
+        textHeader(record, KafkaDeadLetterHeaders.ORIGINAL_LOGICAL_CHANNEL))
+        .containsExactly("first-channel", "second-channel");
+  }
+
+  @Test
   void rejectsDltRecoveryWhenTheGlobalHandlerCannotIdentifyTheSubscriber() {
     KafkaDeadLetterHeadersProvider provider = exactHeadersProvider();
     ConsumerRecord<String, String> unknown = new ConsumerRecord<>(

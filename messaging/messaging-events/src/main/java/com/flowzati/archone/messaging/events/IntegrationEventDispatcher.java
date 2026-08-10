@@ -2,11 +2,12 @@ package com.flowzati.archone.messaging.events;
 
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageContext;
-import com.flowzati.archone.messaging.api.MessageHandler;
+import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
+import com.flowzati.archone.messaging.api.OutcomeAwareMessageHandler;
 import java.util.Objects;
 
 /** Broker-neutral typed Integration Event dispatcher. */
-public final class IntegrationEventDispatcher implements MessageHandler {
+public final class IntegrationEventDispatcher implements OutcomeAwareMessageHandler {
 
   private final IntegrationEventDeserializer deserializer;
   private final IntegrationEventHandlers handlers;
@@ -46,12 +47,21 @@ public final class IntegrationEventDispatcher implements MessageHandler {
   }
 
   @Override
-  public void handle(Message message, MessageContext context) {
+  public MessageHandlingOutcome handleWithOutcome(Message message, MessageContext context) {
     Objects.requireNonNull(context, "Message context is required");
-    dispatch(message, context.logicalChannel());
+    return dispatchWithOutcome(message, context.logicalChannel());
   }
 
+  /** Compatibility entrypoint for callers that do not consume semantic outcomes. */
   public void dispatch(Message message, String expectedDestination) {
+    dispatchWithOutcome(message, expectedDestination);
+  }
+
+  /** Returns ignored only after the configured observer has accepted an unhandled event. */
+  public MessageHandlingOutcome dispatchWithOutcome(
+      Message message,
+      String expectedDestination
+  ) {
     if (message == null || isBlank(expectedDestination)) {
       throw new IllegalArgumentException("Integration Event dispatch fields are required");
     }
@@ -66,7 +76,7 @@ public final class IntegrationEventDispatcher implements MessageHandler {
           expectedDestination,
           externalType,
           UnhandledIntegrationEventReason.UNKNOWN_TYPE_VERSION);
-      return;
+      return MessageHandlingOutcome.IGNORED_UNHANDLED;
     }
     IntegrationEventHandlerRegistration<?> handler = handlers.find(
         expectedDestination, eventClass).orElse(null);
@@ -76,7 +86,7 @@ public final class IntegrationEventDispatcher implements MessageHandler {
           expectedDestination,
           externalType,
           UnhandledIntegrationEventReason.NO_HANDLER_FOR_DESTINATION);
-      return;
+      return MessageHandlingOutcome.IGNORED_UNHANDLED;
     }
     if (!externalType.equals(nameMapping.externalTypeFor(eventClass))) {
       throw new IllegalStateException("Integration Event name mapping is not bidirectional: "
@@ -93,6 +103,7 @@ public final class IntegrationEventDispatcher implements MessageHandler {
         aggregateId,
         message.id(),
         event));
+    return MessageHandlingOutcome.PROCESSED;
   }
 
   private void handleUnhandled(

@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -104,6 +105,81 @@ class SpringKafkaMessageConsumerImplementationTest {
   }
 
   @Test
+  void registersButDoesNotStartWhenAutoStartupIsDisabled() {
+    AtomicInteger starts = new AtomicInteger();
+    KafkaSubscriptionPolicy policy = KafkaSubscriptionPolicy.builder()
+        .autoStartup(false)
+        .build();
+    SpringKafkaMessageConsumerImplementation consumer = consumer(
+        KafkaSubscriptionPolicyResolver.fixed(policy),
+        KafkaSubscriptionErrorHandlerFactory.none(),
+        container -> starts.incrementAndGet());
+
+    KafkaMessageSubscription handle = (KafkaMessageSubscription) consumer.subscribe(
+        subscription("subscriber-a", "group-a", TOPIC),
+        (message, context) -> { });
+
+    assertThat(starts).hasValue(0);
+    assertThat(handle.isRunning()).isFalse();
+    handle.stop();
+  }
+
+  @Test
+  void createsAnErrorHandlerFromTheExactSubscriptionWhenPolicyHasNoOverride() {
+    CommonErrorHandler errorHandler = mock(CommonErrorHandler.class);
+    AtomicReference<ResolvedMessageSubscription> resolved = new AtomicReference<>();
+    KafkaSubscriptionErrorHandlerFactory errorHandlerFactory = subscription -> {
+      resolved.set(subscription);
+      return Optional.of(errorHandler);
+    };
+    SpringKafkaMessageConsumerImplementation consumer = consumer(
+        KafkaSubscriptionPolicyResolver.fixed(KafkaSubscriptionPolicy.defaults()),
+        errorHandlerFactory,
+        container -> { });
+    ResolvedMessageSubscription subscription = subscription(
+        "subscriber-a", "group-a", TOPIC);
+
+    KafkaMessageSubscription handle = (KafkaMessageSubscription) consumer.subscribe(
+        subscription,
+        (message, context) -> { });
+    DefaultKafkaMessageSubscription implementation = (DefaultKafkaMessageSubscription) handle;
+
+    assertThat(resolved).hasValue(subscription);
+    assertThat(implementation.container().getCommonErrorHandler()).isSameAs(errorHandler);
+    handle.stop();
+  }
+
+  @Test
+  void appliesIndependentPoliciesToSubscribersSharingTheSamePhysicalTopic() {
+    KafkaSubscriptionPolicyResolver policyResolver = subscription ->
+        KafkaSubscriptionPolicy.builder()
+            .concurrency("subscriber-a".equals(subscription.subscriberId()) ? 1 : 3)
+            .ackMode("subscriber-a".equals(subscription.subscriberId())
+                ? ContainerProperties.AckMode.RECORD
+                : ContainerProperties.AckMode.BATCH)
+            .build();
+    SpringKafkaMessageConsumerImplementation consumer = consumer(
+        policyResolver,
+        container -> { });
+
+    DefaultKafkaMessageSubscription first = (DefaultKafkaMessageSubscription) consumer.subscribe(
+        subscription("subscriber-a", "group-a", TOPIC),
+        (message, context) -> { });
+    DefaultKafkaMessageSubscription second = (DefaultKafkaMessageSubscription) consumer.subscribe(
+        subscription("subscriber-b", "group-b", TOPIC),
+        (message, context) -> { });
+
+    assertThat(first.container().getConcurrency()).isEqualTo(1);
+    assertThat(first.container().getContainerProperties().getAckMode())
+        .isEqualTo(ContainerProperties.AckMode.RECORD);
+    assertThat(second.container().getConcurrency()).isEqualTo(3);
+    assertThat(second.container().getContainerProperties().getAckMode())
+        .isEqualTo(ContainerProperties.AckMode.BATCH);
+    first.stop();
+    second.stop();
+  }
+
+  @Test
   void rejectsAmbiguousSubscriberAndGroupDestinationCollisions() {
     SpringKafkaMessageConsumerImplementation consumer = consumer(
         KafkaSubscriptionPolicyResolver.fixed(KafkaSubscriptionPolicy.defaults()),
@@ -183,10 +259,19 @@ class SpringKafkaMessageConsumerImplementationTest {
       KafkaSubscriptionPolicyResolver policyResolver,
       SpringKafkaMessageConsumerImplementation.KafkaContainerStarter starter
   ) {
+    return consumer(policyResolver, KafkaSubscriptionErrorHandlerFactory.none(), starter);
+  }
+
+  private SpringKafkaMessageConsumerImplementation consumer(
+      KafkaSubscriptionPolicyResolver policyResolver,
+      KafkaSubscriptionErrorHandlerFactory errorHandlerFactory,
+      SpringKafkaMessageConsumerImplementation.KafkaContainerStarter starter
+  ) {
     return new SpringKafkaMessageConsumerImplementation(
         containerFactory(),
         new KafkaMessageMapper(),
         policyResolver,
+        errorHandlerFactory,
         new KafkaSubscriptionRegistry(),
         starter);
   }

@@ -7,12 +7,9 @@ import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEven
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.stock.entrypoint.kafka.AllocationKafkaIntegrationEventConsumer;
-import com.flowzati.archone.messaging.events.IntegrationEvent;
-import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
+import com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
@@ -20,10 +17,8 @@ import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,7 +52,10 @@ class OutboxAggregateQueryIntegrationTest {
   private static final String SKU = "SKU-CHAIN";
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
 
   @Autowired
   private PlaceOrderUsecase placeOrderUsecase;
@@ -66,10 +64,7 @@ class OutboxAggregateQueryIntegrationTest {
   private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
   @Autowired
-  private AllocationKafkaIntegrationEventConsumer consumer;
-
-  @Autowired
-  private IntegrationEventSerializer eventSerializer;
+  private AllocationOrderLifecycleEventDriver consumer;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -143,9 +138,8 @@ class OutboxAggregateQueryIntegrationTest {
 
   private void backorderIt(UUID orderId) throws Exception {
     Order order = orderRepository.findById(orderId).orElseThrow();
-    consumer.consumeOrderingEvent(record(
-        OrderingEventTopics.ORDER_EVENTS,
-        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, order.getReceivedAt())));
+    consumer.consume(
+        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, order.getReceivedAt()));
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(backordered ->
         assertThat(backordered.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
@@ -154,7 +148,7 @@ class OutboxAggregateQueryIntegrationTest {
   private void confirmStockReceipt() {
     com.flowzati.archone.testsupport.StockReceiptFixture.confirm(
         confirmStockReceiptUsecase, SKU, 3);
-    new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher).drain();
+    inventoryEventDrainFactory.create().drain();
   }
 
   private List<String> eventTypesFor(UUID orderId) {
@@ -169,14 +163,6 @@ class OutboxAggregateQueryIntegrationTest {
         String.class, OutboxAggregateTypes.ORDER, orderId.toString());
   }
 
-  private ConsumerRecord<String, String> record(String topic, IntegrationEvent event) throws Exception {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        topic, 0, 0, "key", eventSerializer.serialize(event));
-    record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", event.eventType().getBytes(StandardCharsets.UTF_8));
-    return record;
-  }
-
   /**
    * 把 outbox 的配貨結果餵回 ordering。
    *
@@ -184,6 +170,6 @@ class OutboxAggregateQueryIntegrationTest {
    * 得自己走完——production 裡是 Kafka 做這件事。
    */
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+    return outcomeDrainFactory.create();
   }
 }

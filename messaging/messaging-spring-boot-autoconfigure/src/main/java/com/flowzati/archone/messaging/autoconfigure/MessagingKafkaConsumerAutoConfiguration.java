@@ -10,16 +10,21 @@ import com.flowzati.archone.messaging.api.MessageHeadersDecoder;
 import com.flowzati.archone.messaging.consumer.common.MessageConsumerImpl;
 import com.flowzati.archone.messaging.consumer.common.MessageConsumerImplementation;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
-import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
-import com.flowzati.archone.messaging.events.IntegrationEventHandler;
-import com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerFailureObserver;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerFailurePolicyResolver;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerObservationMetadataResolver;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterErrorHandlerFactory;
 import com.flowzati.archone.messaging.spring.consumer.kafka.JacksonKafkaMessageHeadersDecoder;
+import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionErrorHandlerFactory;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionPolicy;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionPolicyResolver;
+import com.flowzati.archone.messaging.spring.consumer.kafka.MicrometerKafkaConsumerFailureObserver;
 import com.flowzati.archone.messaging.spring.consumer.kafka.SpringKafkaMessageConsumerImplementation;
+import io.micrometer.observation.ObservationRegistry;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -28,8 +33,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.KafkaOperations;
 
-/** Programmatic Spring Kafka consumer runtime and temporary legacy bridge composition. */
+/** Programmatic Spring Kafka consumer runtime composition. */
 @AutoConfiguration(after = {
     MessagingCoreAutoConfiguration.class,
     MessagingConsumerJdbcAutoConfiguration.class,
@@ -48,7 +54,8 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 )
 @EnableConfigurationProperties({
     MessagingConsumerProperties.class,
-    MessagingKafkaConsumerProperties.class
+    MessagingKafkaConsumerProperties.class,
+    KafkaProperties.class
 })
 public class MessagingKafkaConsumerAutoConfiguration {
 
@@ -78,16 +85,37 @@ public class MessagingKafkaConsumerAutoConfiguration {
   @Bean
   @ConditionalOnMissingBean
   KafkaSubscriptionPolicyResolver kafkaSubscriptionPolicyResolver(
-      MessagingKafkaConsumerProperties properties
+      MessagingKafkaConsumerProperties properties,
+      KafkaProperties kafkaProperties
   ) {
     KafkaSubscriptionPolicy policy = KafkaSubscriptionPolicy.builder()
         .concurrency(properties.getConcurrency())
         .ackMode(properties.getAckMode())
         .missingTopicsFatal(properties.isMissingTopicsFatal())
         .observationEnabled(properties.isObservationEnabled())
+        .autoStartup(kafkaProperties.getListener().isAutoStartup())
         .shutdownTimeout(properties.getShutdownTimeout())
         .build();
     return KafkaSubscriptionPolicyResolver.fixed(policy);
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  @ConditionalOnBean({KafkaConsumerFailurePolicyResolver.class, KafkaOperations.class})
+  KafkaSubscriptionErrorHandlerFactory kafkaSubscriptionErrorHandlerFactory(
+      KafkaOperations<Object, Object> kafkaOperations,
+      KafkaConsumerFailurePolicyResolver failurePolicyResolver,
+      ObjectProvider<ObservationRegistry> observationRegistries
+  ) {
+    ObservationRegistry observationRegistry = observationRegistries.getIfAvailable();
+    return KafkaDeadLetterErrorHandlerFactory.perSubscription(
+        kafkaOperations,
+        failurePolicyResolver,
+        subscription -> observationRegistry == null
+            ? KafkaConsumerFailureObserver.none()
+            : new MicrometerKafkaConsumerFailureObserver(
+                observationRegistry,
+                KafkaConsumerObservationMetadataResolver.forSubscription(subscription)));
   }
 
   @Bean(destroyMethod = "close")
@@ -95,10 +123,14 @@ public class MessagingKafkaConsumerAutoConfiguration {
   SpringKafkaMessageConsumerImplementation kafkaMessageConsumerImplementation(
       ConcurrentKafkaListenerContainerFactory<String, String> containerFactory,
       KafkaMessageMapper messageMapper,
-      KafkaSubscriptionPolicyResolver policyResolver
+      KafkaSubscriptionPolicyResolver policyResolver,
+      ObjectProvider<KafkaSubscriptionErrorHandlerFactory> errorHandlerFactories
   ) {
     return new SpringKafkaMessageConsumerImplementation(
-        containerFactory, messageMapper, policyResolver);
+        containerFactory,
+        messageMapper,
+        policyResolver,
+        errorHandlerFactories.getIfAvailable(KafkaSubscriptionErrorHandlerFactory::none));
   }
 
   @Bean
@@ -113,20 +145,4 @@ public class MessagingKafkaConsumerAutoConfiguration {
         implementation, channelMapping, consumerGroupMapping, decorators);
   }
 
-  /** Temporary global-handler bridge retained until Gate I migrates application subscribers. */
-  @Bean
-  @ConditionalOnMissingBean
-  @ConditionalOnClass(KafkaIntegrationEventDispatcher.class)
-  KafkaIntegrationEventDispatcher kafkaIntegrationEventDispatcher(
-      KafkaMessageMapper messageMapper,
-      IntegrationEventDeserializer deserializer,
-      ObjectProvider<IntegrationEventHandler<?>> handlers,
-      ObjectProvider<MessageHandlerDecorator> decorators
-  ) {
-    return new KafkaIntegrationEventDispatcher(
-        messageMapper,
-        deserializer,
-        handlers.orderedStream().toList(),
-        decorators.orderedStream().toList());
-  }
 }

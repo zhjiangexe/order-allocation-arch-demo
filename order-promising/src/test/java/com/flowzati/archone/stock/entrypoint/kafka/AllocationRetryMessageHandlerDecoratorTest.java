@@ -2,6 +2,7 @@ package com.flowzati.archone.stock.entrypoint.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
@@ -74,13 +75,46 @@ class AllocationRetryMessageHandlerDecoratorTest {
     assertThat(retryInvocations).hasValue(0);
   }
 
+  @Test
+  void classifiesInventoryAvailabilityAsWaitingDemandAllocation() {
+    AtomicReference<AllocationRetryContext> capturedContext = new AtomicReference<>();
+    AllocationRetryMessageHandlerDecorator retry = new AllocationRetryMessageHandlerDecorator(
+        (context, attempt) -> {
+          capturedContext.set(context);
+          attempt.run();
+        });
+    MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
+        List.of(retry),
+        invocation -> ProcessingOutcome.PROCESSED);
+
+    ProcessingOutcome outcome = chain.invokeNext(invocation(
+        AllocationEventSubscriptions.INVENTORY_AVAILABILITY,
+        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
+        "inventory.stock-events"));
+
+    assertThat(outcome).isEqualTo(ProcessingOutcome.PROCESSED);
+    assertThat(capturedContext.get().operation())
+        .isEqualTo("allocate-waiting-demand-after-availability-increase");
+  }
+
   private MessageHandlerInvocation invocation(String subscriberId) {
+    return invocation(
+        subscriberId,
+        OrderPlacedIntegrationEvent.EVENT_TYPE,
+        "ordering.order-events");
+  }
+
+  private MessageHandlerInvocation invocation(
+      String subscriberId,
+      String messageType,
+      String logicalChannel
+  ) {
     return new MessageHandlerInvocation(
         MessageBuilder.withPayload("{}")
             .withId(UUID.randomUUID())
-            .withType(OrderPlacedIntegrationEvent.EVENT_TYPE)
+            .withType(messageType)
             .withPartitionId("order-1")
             .build(),
-        new MessageContext(subscriberId, "ordering.order-events", 1));
+        new MessageContext(subscriberId, logicalChannel, 1));
   }
 }

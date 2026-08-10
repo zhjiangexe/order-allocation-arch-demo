@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
+import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -98,9 +99,10 @@ class IntegrationEventDispatcherTest {
             .build());
     Message message = message(UUID.randomUUID(), "FutureEvent.v1", 1);
 
-    dispatcher.dispatch(message, "order-events");
+    MessageHandlingOutcome outcome = dispatcher.dispatchWithOutcome(message, "order-events");
 
     assertThat(deserialized).isFalse();
+    assertThat(outcome).isEqualTo(MessageHandlingOutcome.IGNORED_UNHANDLED);
     assertThat(unhandled.get()).isEqualTo(new UnhandledIntegrationEvent(
         message,
         "order-events",
@@ -126,9 +128,10 @@ class IntegrationEventDispatcherTest {
             .build());
     Message message = message(UUID.randomUUID(), OtherEvent.EVENT_TYPE, 1);
 
-    dispatcher.dispatch(message, "order-events");
+    MessageHandlingOutcome outcome = dispatcher.dispatchWithOutcome(message, "order-events");
 
     assertThat(deserialized).isFalse();
+    assertThat(outcome).isEqualTo(MessageHandlingOutcome.IGNORED_UNHANDLED);
     assertThat(unhandled.get().reason())
         .isEqualTo(UnhandledIntegrationEventReason.NO_HANDLER_FOR_DESTINATION);
   }

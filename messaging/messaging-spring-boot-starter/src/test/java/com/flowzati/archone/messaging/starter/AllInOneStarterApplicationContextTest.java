@@ -8,7 +8,6 @@ import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.api.MessageConsumer;
 import com.flowzati.archone.messaging.api.MessageProducer;
 import com.flowzati.archone.messaging.consumer.common.DuplicateMessageDetector;
-import com.flowzati.archone.messaging.inbox.InboxRepo;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionPolicy;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionPolicyResolver;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,6 @@ class AllInOneStarterApplicationContextTest {
           assertThat(context).hasSingleBean(MessageProducer.class);
           assertThat(context).hasSingleBean(MessageConsumer.class);
           assertThat(context).hasSingleBean(DuplicateMessageDetector.class);
-          assertThat(context).hasSingleBean(InboxRepo.class);
           assertThat(context.getBean(ChannelMapping.class)).isSameAs(customMapping);
           assertThat(context.getBean(KafkaSubscriptionPolicyResolver.class))
               .isSameAs(customPolicy);

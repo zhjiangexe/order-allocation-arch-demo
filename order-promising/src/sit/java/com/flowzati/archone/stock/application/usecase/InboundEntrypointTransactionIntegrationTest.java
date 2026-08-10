@@ -1,7 +1,9 @@
 package com.flowzati.archone.stock.application.usecase;
 
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
@@ -10,25 +12,20 @@ import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions
 import com.flowzati.archone.stock.application.receipt.StockReceiptApplicationFacade;
 import com.flowzati.archone.stock.application.receipt.StockReceiptRequest;
 import com.flowzati.archone.stock.application.receipt.StockReceiptRequestConflictException;
-import com.flowzati.archone.stock.entrypoint.kafka.AllocationKafkaIntegrationEventConsumer;
+import com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.messaging.events.IntegrationEvent;
-import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.JpaEventInboxRepository;
-import com.flowzati.archone.messaging.inbox.infrastructure.jpa.entity.InboxId;
-import com.flowzati.archone.messaging.outbox.infrastructure.jpa.JpaOutboxRepository;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.OrderFixtures;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,13 +48,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class InboundEntrypointTransactionIntegrationTest {
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
 
   @Autowired
-  private AllocationKafkaIntegrationEventConsumer allocationConsumer;
-
-  @Autowired
-  private IntegrationEventSerializer eventSerializer;
+  private AllocationOrderLifecycleEventDriver allocationConsumer;
 
   @Autowired
   private StockReceiptApplicationFacade stockReceiptApplicationFacade;
@@ -67,12 +64,6 @@ class InboundEntrypointTransactionIntegrationTest {
 
   @Autowired
   private StockPoolRepository stockPoolRepository;
-
-  @Autowired
-  private JpaEventInboxRepository inboxRepository;
-
-  @Autowired
-  private JpaOutboxRepository outboxRepository;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -101,8 +92,8 @@ class InboundEntrypointTransactionIntegrationTest {
     consumeOrderingEvent(
         new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
 
-    assertThat(inboxRepository.findById(inboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))).isPresent();
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId)).isTrue();
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
@@ -113,7 +104,7 @@ class InboundEntrypointTransactionIntegrationTest {
         .isEqualTo("ASSIGNED");
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
     assertThat(MovementFixtures.heldBy(jdbcTemplate, orderId)).hasSize(1);
-    assertThat(outboxRepository.count()).isEqualTo(1);
+    assertThat(count("event_outbox")).isEqualTo(1);
   }
 
   @Test
@@ -145,8 +136,8 @@ class InboundEntrypointTransactionIntegrationTest {
 
     // 失敗發生在 inbox claim 之後，所以那筆 claim 必須跟著回滾——否則重送會被當成重複而丟棄，
     // 那張單就永遠停在 PENDING 且沒有任何搬運。
-    assertThat(inboxRepository.findById(inboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))).isEmpty();
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId)).isFalse();
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
@@ -176,8 +167,8 @@ class InboundEntrypointTransactionIntegrationTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Quantity to release cannot exceed reserved quantity");
 
-    assertThat(inboxRepository.findById(inboxId(
-        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))).isEmpty();
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId)).isFalse();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(2));
     // 搬運與明細都必須原封不動——一段已取消的搬運配著沒被刪的明細，是最難查的一種狀態。
@@ -187,8 +178,8 @@ class InboundEntrypointTransactionIntegrationTest {
   }
 
   @Test
-  @DisplayName("收貨 movement、庫存與 availability Outbox 先提交，配貨在後續交易完成")
-  void shouldCommitReceiptBeforeTheAvailabilityTriggeredAllocation() {
+  @DisplayName("availability 事件併發重送仍應只提交一次配置")
+  void shouldCommitReceiptBeforeTheAvailabilityTriggeredAllocation() throws Exception {
     UUID orderId = IdGenerator.nextId();
     UUID stockPoolId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
@@ -211,13 +202,27 @@ class InboundEntrypointTransactionIntegrationTest {
     assertThat(jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM stock_moves WHERE order_line_id IS NULL AND state = 'DONE'",
         Integer.class)).isEqualTo(1);
-    assertThat(outboxRepository.count()).isEqualTo(1);
+    assertThat(count("event_outbox")).isEqualTo(1);
 
-    inventoryDrain().drain();
+    UUID availabilityEventId = jdbcTemplate.queryForObject(
+        "SELECT id FROM event_outbox WHERE type = ?",
+        UUID.class,
+        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE);
+    com.flowzati.archone.testsupport.InventoryEventDrain inventoryEvents = inventoryDrain();
+    deliverConcurrently(inventoryEvents, availabilityEventId);
+    inventoryEvents.redeliver(availabilityEventId);
+    assertThat(inventoryEvents.drain()).isZero();
+
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.INVENTORY_AVAILABILITY, availabilityEventId)).isTrue();
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isEqualTo(3));
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId))
         .containsExactly("ASSIGNED");
+    assertThat(jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM event_outbox WHERE type = ?",
+        Integer.class,
+        OrderAllocatedIntegrationEvent.EVENT_TYPE)).isOne();
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
@@ -248,9 +253,16 @@ class InboundEntrypointTransactionIntegrationTest {
 
     stockReceiptApplicationFacade.confirm(receiptRequest(eventId, 3));
 
+    UUID availabilityEventId = jdbcTemplate.queryForObject(
+        "SELECT id FROM event_outbox WHERE type = ?",
+        UUID.class,
+        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE);
+
     assertThatThrownBy(() -> inventoryDrain().drain())
         .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
+    assertThat(inboxClaimExists(
+        AllocationEventSubscriptions.INVENTORY_AVAILABILITY, availabilityEventId)).isFalse();
     assertThat(countReceiptRequests(eventId)).isEqualTo(1);
     // 收貨是已完成的獨立 checkpoint；後續 outbound 配貨失敗不能撤銷實際到貨。
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
@@ -266,7 +278,7 @@ class InboundEntrypointTransactionIntegrationTest {
     assertThat(jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM stock_moves WHERE order_line_id IS NULL AND state = 'DONE'",
         Integer.class)).isEqualTo(1);
-    assertThat(outboxRepository.count()).isEqualTo(1);
+    assertThat(count("event_outbox")).isEqualTo(1);
   }
 
   @Test
@@ -290,7 +302,7 @@ class InboundEntrypointTransactionIntegrationTest {
     assertThat(jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM stock_moves WHERE order_line_id IS NULL AND state = 'DONE'",
         Integer.class)).isEqualTo(1);
-    assertThat(outboxRepository.count()).isEqualTo(1);
+    assertThat(count("event_outbox")).isEqualTo(1);
   }
 
   @Test
@@ -309,25 +321,28 @@ class InboundEntrypointTransactionIntegrationTest {
     assertThat(count("stock_pickings")).isZero();
     assertThat(count("stock_moves")).isZero();
     assertThat(count("stock_move_lines")).isZero();
-    assertThat(outboxRepository.count()).isZero();
+    assertThat(count("event_outbox")).isZero();
   }
 
-  private void consumeOrderingEvent(IntegrationEvent event, UUID orderId) {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        OrderingEventTopics.ORDER_EVENTS,
-        0,
-        0,
-        orderId.toString(),
-        eventSerializer.serialize(event));
-    record.headers().add(
-        "id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add(
-        "eventType", event.eventType().getBytes(StandardCharsets.UTF_8));
-    allocationConsumer.consumeOrderingEvent(record);
+  private void consumeOrderingEvent(OrderPlacedIntegrationEvent event, UUID orderId) {
+    if (!event.getOrderId().equals(orderId)) {
+      throw new IllegalArgumentException("Order event does not match the requested order");
+    }
+    allocationConsumer.consume(event);
   }
 
-  private InboxId inboxId(String subscriberId, UUID eventId) {
-    return new InboxId(subscriberId, eventId);
+  private void consumeOrderingEvent(OrderCancelledIntegrationEvent event, UUID orderId) {
+    if (!event.getOrderId().equals(orderId)) {
+      throw new IllegalArgumentException("Order event does not match the requested order");
+    }
+    allocationConsumer.consume(event);
+  }
+
+  private boolean inboxClaimExists(String subscriberId, UUID eventId) {
+    return jdbcTemplate.queryForObject("""
+        SELECT COUNT(*) FROM event_inbox
+         WHERE subscriber_id = ? AND event_id = ?
+        """, Integer.class, subscriberId, eventId) == 1;
   }
 
   private StockReceiptRequest receiptRequest(UUID receiptId, int quantity) {
@@ -361,10 +376,25 @@ class InboundEntrypointTransactionIntegrationTest {
    * 得自己走完——production 裡是 Kafka 做這件事。
    */
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+    return outcomeDrainFactory.create();
   }
 
   private com.flowzati.archone.testsupport.InventoryEventDrain inventoryDrain() {
-    return new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher);
+    return inventoryEventDrainFactory.create();
+  }
+
+  private void deliverConcurrently(
+      com.flowzati.archone.testsupport.InventoryEventDrain inventoryEvents,
+      UUID eventId
+  ) throws Exception {
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      Future<?> first = executor.submit(() -> inventoryEvents.redeliver(eventId));
+      Future<?> second = executor.submit(() -> inventoryEvents.redeliver(eventId));
+      first.get();
+      second.get();
+    } finally {
+      executor.shutdownNow();
+    }
   }
 }

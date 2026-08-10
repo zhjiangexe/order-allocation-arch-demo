@@ -7,8 +7,6 @@
     'messaging-jdbc-common',
     'messaging-producer-jdbc',
     'messaging-consumer-jdbc',
-    'messaging-producer-outbox',
-    'messaging-consumer-inbox',
     'messaging-consumer-kafka',
     'messaging-spring-jdbc',
     'messaging-spring-producer-jdbc',

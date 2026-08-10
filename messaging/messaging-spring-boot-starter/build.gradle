@@ -8,11 +8,6 @@ dependencies {
     api project(':messaging:messaging-spring-producer-starter')
     api project(':messaging:messaging-spring-consumer-starter')
 
-    // Temporary Gate I compatibility facades for the existing application.
-    api project(':messaging:messaging-producer-outbox')
-    api project(':messaging:messaging-consumer-inbox')
-    api libs.spring.boot.starter.data.jpa
-
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher
 }

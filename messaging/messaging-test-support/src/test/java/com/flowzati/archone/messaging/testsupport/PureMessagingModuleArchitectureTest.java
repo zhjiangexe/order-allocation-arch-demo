@@ -86,23 +86,54 @@ class PureMessagingModuleArchitectureTest {
         .contains("implements MessageConsumerImplementation")
         .contains("ConcurrentKafkaListenerContainerFactory")
         .contains("setObservationEnabled(policy.observationEnabled())")
+        .contains("if (policy.autoStartup())")
+        .contains("errorHandlerFactory.create(subscription)")
         .contains("implements RetryListener")
         .doesNotContain("com.flowzati.archone.messaging.events")
         .doesNotContain("@KafkaListener");
   }
 
   @Test
-  void temporaryRawKafkaBridgeOwnsNoTypedHandlerCatalog() throws IOException {
-    String bridge = Files.readString(root().resolve(
+  void legacyDispatcherAndJpaFacadeArtifactsAreAbsent() {
+    assertThat(root().resolve(
+        "messaging/messaging-events/src/main/java/com/flowzati/archone/messaging/events/"
+            + "IntegrationEventHandler.java")).doesNotExist();
+    assertThat(root().resolve(
         "messaging/messaging-spring-boot-autoconfigure/src/main/java/"
-            + "com/flowzati/archone/messaging/kafka/KafkaIntegrationEventDispatcher.java"));
+            + "com/flowzati/archone/messaging/kafka/KafkaIntegrationEventDispatcher.java"))
+        .doesNotExist();
+    assertThat(root().resolve("messaging/messaging-producer-outbox/build.gradle")).doesNotExist();
+    assertThat(root().resolve("messaging/messaging-consumer-inbox/build.gradle")).doesNotExist();
+  }
 
-    assertThat(bridge)
-        .contains("private final KafkaMessageMapper kafkaMessageMapper")
-        .contains("private final MessageHandler terminalHandler")
-        .contains("terminalHandler.handle(invocation.message(), invocation.context())")
-        .doesNotContain("private final LegacyIntegrationEventDispatcherAdapter")
-        .doesNotContain("Map<IntegrationEventKey");
+  @Test
+  void applicationDeclaresTramShapedSubscriptionsWithoutRecreatingKafkaMechanics()
+      throws IOException {
+    Path application = root().resolve("order-promising/src/main/java/com/flowzati/archone");
+    Path bootstrapMessaging = application.resolve("bootstrap/messaging");
+    String orderingMessaging = readProductionSources(
+        application.resolve("ordering/entrypoint/messaging"));
+    String allocationMessaging = readProductionSources(
+        application.resolve("stock/entrypoint/messaging"));
+    String failurePolicy = Files.readString(bootstrapMessaging.resolve(
+        "OrderPromisingKafkaFailurePolicyConfiguration.java"));
+
+    assertThat(bootstrapMessaging.resolve(
+        "OrderPromisingIntegrationEventPreparationConfiguration.java")).doesNotExist();
+    assertThat(bootstrapMessaging.resolve("IntegrationEventSubscriptionTopology.java"))
+        .doesNotExist();
+    assertThat(orderingMessaging + allocationMessaging)
+        .contains("IntegrationEventHandlersBuilder")
+        .contains("factory.make(")
+        .contains("@ConditionalOnIntegrationEventConsumption")
+        .doesNotContain("@KafkaListener");
+    assertThat(failurePolicy)
+        .contains("KafkaConsumerFailurePolicyResolver")
+        .contains("AllocationConcurrencyExhaustedException")
+        .doesNotContain("KafkaOperations")
+        .doesNotContain("CommonErrorHandler")
+        .doesNotContain("ObservationRegistry")
+        .doesNotContain("ResolvedMessageSubscription");
   }
 
   @Test
@@ -180,7 +211,10 @@ class PureMessagingModuleArchitectureTest {
         .doesNotContain("messaging-producer-outbox");
     assertThat(allInOneStarter)
         .contains("messaging-spring-producer-starter")
-        .contains("messaging-spring-consumer-starter");
+        .contains("messaging-spring-consumer-starter")
+        .doesNotContain("messaging-producer-outbox")
+        .doesNotContain("messaging-consumer-inbox")
+        .doesNotContain("starter.data.jpa");
   }
 
   @Test

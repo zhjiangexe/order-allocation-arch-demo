@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.entrypoint.scheduler;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -20,11 +21,31 @@ import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.dao.OptimisticLockingFailureException;
 
 class AllocationReconciliationSchedulerTest {
 
   private static final LocalDate TODAY = LocalDate.of(2026, 8, 4);
+
+  @Test
+  @DisplayName("關閉 reconciliation 時即使 application 已啟用 scheduling 也不建立 scheduler bean")
+  void shouldConditionTheSchedulerBeanInsteadOfTheSchedulingEngine() {
+    ApplicationContextRunner runner = new ApplicationContextRunner()
+        .withUserConfiguration(AllocationReconciliationScheduler.class)
+        .withBean(StockMoveRepository.class, () -> mock(StockMoveRepository.class))
+        .withBean(AllocateWaitingDemandUsecase.class, () -> mock(AllocateWaitingDemandUsecase.class))
+        .withBean(AppClock.class, this::appClock);
+
+    runner
+        .withPropertyValues("archone.allocation.reconciliation-scheduler-enabled=false")
+        .run(context -> assertThat(context)
+            .doesNotHaveBean(AllocationReconciliationScheduler.class));
+    runner
+        .withPropertyValues("archone.allocation.reconciliation-scheduler-enabled=true")
+        .run(context -> assertThat(context)
+            .hasSingleBean(AllocationReconciliationScheduler.class));
+  }
 
   @Test
   @DisplayName("依等待 scope 呼叫同一個 transactional wake use case")

@@ -4,20 +4,17 @@ import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
-import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.application.retry.AllocationConcurrencyExhaustedException;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +25,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -71,13 +67,10 @@ class AllocationHotSkuConcurrencyIntegrationTest {
   private static final int MAX_RECOVERY_ROUNDS = 5;
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
 
   @Autowired
-  private AllocationKafkaIntegrationEventConsumer consumer;
-
-  @Autowired
-  private IntegrationEventSerializer eventSerializer;
+  private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -192,7 +185,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
       throw new IllegalStateException("Interrupted while waiting for the start gate", interrupted);
     }
     try {
-      // consumer.consumeOrderingEvent(...) 內部已經包了三次重試（初始呼叫＋兩次 retry）；
+      // typed consumer chain 內部已經包了三次重試（初始呼叫＋兩次 retry）；
       // 只有三次都遇到 optimistic-lock conflict 才會冒出 AllocationConcurrencyExhaustedException。
       consume(event);
       return null;
@@ -335,20 +328,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
   }
 
   private void consume(OrderPlacedIntegrationEvent event) {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        OrderingEventTopics.ORDER_EVENTS,
-        0,
-        0,
-        event.getOrderId().toString(),
-        serialize(event));
-    record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("eventType", OrderPlacedIntegrationEvent.EVENT_TYPE
-        .getBytes(StandardCharsets.UTF_8));
-    consumer.consumeOrderingEvent(record);
-  }
-
-  private String serialize(OrderPlacedIntegrationEvent event) {
-    return eventSerializer.serialize(event);
+    consumer.consume(event);
   }
 
   @TestConfiguration(proxyBeanMethods = false)
@@ -409,6 +389,6 @@ class AllocationHotSkuConcurrencyIntegrationTest {
   }
 
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+    return outcomeDrainFactory.create();
   }
 }

@@ -7,13 +7,26 @@ import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** Periodic reconciliation for allocatable waiting demand; Kafka remains the low-latency trigger. */
+/**
+ * Periodic anti-entropy for allocatable waiting demand; Kafka remains the low-latency trigger.
+ *
+ * <p>Multiple application instances may scan the same scope. Aggregate optimistic versions and the
+ * transactional use case protect correctness; a losing instance defers that scope to the next run.
+ * This deliberately favors simple recovery over single-leader scheduling. If reconciliation load
+ * becomes material, partition scopes or add a distributed lock without moving scheduling into the
+ * messaging runtime.
+ */
 @Component
+@ConditionalOnProperty(
+    name = "archone.allocation.reconciliation-scheduler-enabled",
+    havingValue = "true",
+    matchIfMissing = true)
 public class AllocationReconciliationScheduler {
 
   private static final Logger log = LoggerFactory.getLogger(AllocationReconciliationScheduler.class);

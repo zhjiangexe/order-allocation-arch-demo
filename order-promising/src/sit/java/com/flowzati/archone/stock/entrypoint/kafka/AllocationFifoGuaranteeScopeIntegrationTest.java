@@ -6,20 +6,15 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.messaging.events.IntegrationEvent;
-import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,16 +56,16 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
   private static final int SECOND_AVAILABILITY_INCREASE = 70;
 
   @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.messaging.kafka.KafkaIntegrationEventDispatcher dispatcher;
+  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
 
   @Autowired
-  private AllocationKafkaIntegrationEventConsumer consumer;
+  private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
   @Autowired
   private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
-
-  @Autowired
-  private IntegrationEventSerializer eventSerializer;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -139,15 +134,14 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     orderRepository.save(
         OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
-    consumer.consumeOrderingEvent(
-        record(OrderingEventTopics.ORDER_EVENTS, event));
+    consumer.consume(event);
     return orderId;
   }
 
   private void receive(int quantity) {
     com.flowzati.archone.testsupport.StockReceiptFixture.confirm(
         confirmStockReceiptUsecase, SKU, quantity);
-    new com.flowzati.archone.testsupport.InventoryEventDrain(jdbcTemplate, dispatcher).drain();
+    inventoryEventDrainFactory.create().drain();
   }
 
   private OrderStatus statusOf(UUID orderId) {
@@ -162,17 +156,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     return stockPoolRepository.findById(stockPoolId).orElseThrow().availableToPromise();
   }
 
-  private ConsumerRecord<String, String> record(String topic, IntegrationEvent event)
-      throws Exception {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        topic, 0, 0, SKU, eventSerializer.serialize(event));
-    record.headers().add("id", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
-    record.headers()
-        .add("eventType", event.eventType().getBytes(StandardCharsets.UTF_8));
-    return record;
-  }
-
   private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return new com.flowzati.archone.testsupport.AllocationOutcomeDrain(jdbcTemplate, dispatcher);
+    return outcomeDrainFactory.create();
   }
 }
