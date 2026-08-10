@@ -24,7 +24,7 @@ Gate A 的四個停止條件皆未成立：
 | A3 | PASS | `InboxRepoOutboxPersistenceIntegrationTest.shouldRollbackBusinessChangeAndTranslatedOutboxTogether`。 |
 | A4 | PASS | `InboxRepoOutboxPersistenceIntegrationTest.shouldClaimInboxEventOncePerSubscriber`：相同 `(subscriber_id, event_id)` 第二次 claim 為 false。 |
 | A5 | PASS | `InboundCommandTransactionIntegrationTest` 的失敗案例確認 Inbox claim、business mutation 與 Outbox 一起 rollback。 |
-| A6 | PASS | `AllocationRetryTransactionIntegrationTest` 與 concurrency SIT 確認每次 optimistic-lock retry 使用新 transaction，失敗 claim 不殘留，後續可重新處理。 |
+| A6 | PASS | 原由 `AllocationRetryTransactionIntegrationTest` 驗證；Gate I cleanup 後由更完整的 `AllocationTransactionalMessageChainIntegrationTest` 與 concurrency SIT 接手，確認每次 optimistic-lock retry 使用新 transaction，失敗 claim 不殘留，後續可重新處理。 |
 | A7 | PASS | `InboxRepoOutboxPersistenceIntegrationTest.shouldClaimInboxEventOncePerSubscriber`：不同 subscriber 可各自 claim 同一 event ID。 |
 | A8 | PASS | `OutboxCdcIntegrationTest` 固定 payload、`id`／`eventType` headers、physical topic 與 `partition_key` record key。 |
 | A9 | PASS | `KafkaIntegrationEventDispatcherTest` 固定 unknown contract、缺 `id`、缺 `eventType`、ID mismatch 與 event-type mismatch 的 fail-fast 行為。 |
@@ -34,7 +34,7 @@ Gate A 的四個停止條件皆未成立：
 | A13 | PASS | 本文件第 3.2 節固定目前 all-in-one starter 的 dependency baseline。 |
 | A14 | PASS | `OutboxCdcIntegrationTest.shouldRelaySerializedGenericHeadersWithoutACustomSmt` 覆蓋 custom、empty 與 reserved collision fixtures。 |
 | A15 | PASS | `InboxRepoOutboxPersistenceIntegrationTest.shouldCommitAndRollbackJpaBusinessWithJdbcInboxAndOutboxAtomically` 比對 `txid_current()`，並驗證 commit／rollback。 |
-| A16 | PASS | `ProgrammaticKafkaContainerFeasibilityTest` 從 factory 建立 container，驗證 policy propagation 與 lifecycle；沒有移除 `@KafkaListener`。 |
+| A16 | PASS | 原由 `ProgrammaticKafkaContainerFeasibilityTest` 作可行性驗證；Gate I cleanup 後由 generic `SpringKafkaMessageConsumerImplementationTest` 與 auto-configuration tests 接手 container policy propagation／lifecycle。 |
 
 ## 3. 現行 module dependency baseline
 
@@ -118,7 +118,7 @@ Gate B 必須把三者建模為不同欄位，即使初始值仍相同。尤其 
 | Offset reset | `earliest`。 |
 | Missing topics | `spring.kafka.listener.missing-topics-fatal=false`。 |
 | Application optimistic-lock retry | initial attempt + 2 retries，固定延遲 100 ms，只處理 `OptimisticLockingFailureException`；每次 attempt 是新 transaction。 |
-| Container retry | 只將 `AllocationConcurrencyExhaustedException` 視為 retryable，最多 4 次，指數退避 1s、2s、4s、8s，上限 10s。 |
+| Container retry | 只將 `OptimisticLockingRetryExhaustedException` 視為 retryable，最多 4 次，指數退避 1s、2s、4s、8s，上限 10s。 |
 | 其他 consumer exception | `DefaultErrorHandler.defaultFalse()`，不做 container retry，直接交給 recoverer。 |
 | DLT | `DeadLetterPublishingRecoverer` 發到預設 `<topic>-dlt`；這是目前唯一直接使用 Kafka producer 的例外路徑。正常 producer 仍是 DB Outbox → Debezium → Kafka。 |
 | Policy scope | 單一 global `CommonErrorHandler` 套用到 allocation 與 ordering 的所有 `@KafkaListener`。 |

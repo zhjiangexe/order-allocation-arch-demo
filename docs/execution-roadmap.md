@@ -358,7 +358,7 @@ aggregate」，弱得多，代價也具體（多列更新要固定順序，見�
 
 **2. partition key 與庫存維度的先後順序**（已定，2026-07-29）
 
-**同一個 change 裡做。** partition key 那一項只有兩個檔案（`OrderingDomainEventTranslator`
+**同一個 change 裡做。** partition key 那一項只有兩個 producer adapters（`OrderingIntegrationEventPublisher`
 與收貨入口），拆出去省不到什麼，卻要記住一條順序規則。
 
 真要拆的話，**只有一個安全的順序：庫存先分維度、key 後改**。兩個方向的風險不對稱：

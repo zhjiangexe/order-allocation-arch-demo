@@ -194,9 +194,9 @@ SR-08 ─> SR-09 ─┐
   - 增加 allocation、cancel、replenishment transaction rollback integration tests。
 
 - [x] **SR-15 — Optimistic-lock retry and observability**（依賴 SR-14）
-  - 以獨立 `AllocationRetryExecutor` 與 Spring `RetryTemplate` 包住 Transactional Usecase，最多嘗試三次。
+  - 以 opt-in `OptimisticLockingDecorator` 包住完整 transactional Inbox chain，application 設定最多嘗試三次。
   - 每次重試重新讀取 Order、StockPool、Reservation 與 FIFO 清單。
-  - 重試耗盡時拋出 `AllocationConcurrencyExhaustedException`，不得轉成 BACKORDERED。
+  - 重試耗盡時拋出 `OptimisticLockingRetryExhaustedException`，不得轉成 BACKORDERED。
   - 增加 structured error log 與 `order_allocation_retry_exhausted_total` metric。
   - 測試每次 retry 使用新 transaction，以及 exhausted rollback 行為。
 
@@ -214,7 +214,7 @@ SR-08 ─> SR-09 ─┐
 - [x] **SR-18 — Retry and concurrency end-to-end verification**（依賴 SR-15、SR-17）
   - 使用 SR-08 的 PostgreSQL test environment，新增兩筆訂單競爭同一 StockPool 的整合測試，確認不會超賣。
   - 驗證 optimistic-lock conflict 會重新讀取資料並依 retry policy 收斂為正確的 allocation 或 backorder 結果。
-  - 驗證 retry exhausted 時拋出 `AllocationConcurrencyExhaustedException`、所有嘗試均 rollback，且不會將技術衝突錯誤建模為 BACKORDERED。
+  - 驗證 retry exhausted 時拋出 `OptimisticLockingRetryExhaustedException`、所有嘗試均 rollback，且不會將技術衝突錯誤建模為 BACKORDERED。
   - 驗證 retry metric 與 structured log 可辨識 operation、eventId 與 attempt。
   - 所有驗證通過後，將文件狀態改為「已實作」。
 
@@ -224,7 +224,7 @@ SR-08 ─> SR-09 ─┐
   - SR-18 只用兩筆訂單證明 optimistic-lock retry 機制存在；Demo-01 將同一機制放大到 1,000 筆同 SKU、僅 10 件庫存的併發送出，觀察在既有 datasource connection pool 限制下最終是否仍收斂為正確結果。
   - 以同一個 start gate 釋放 1,000 個 virtual-thread 任務送出 `OrderPlacedIntegrationEvent`；datasource connection pool（預設 10 個連線）自然限制同時執行的 transaction 數，不代表宣稱 1,000 個 DB transaction 真的同時執行。
   - test-only interceptor 讓最先抵達的兩個 allocation attempt 在讀到同一版 StockPool 後才同時釋放，確保至少一次真實 JPA optimistic-lock conflict 是決定性發生，而不是仰賴機率性的自然碰撞；不注入合成例外。
-  - 只收集 `AllocationConcurrencyExhaustedException` 對應的原始事件，於併發波次結束後以同一 `eventId` 重送，模擬 broker 的 at-least-once redelivery；不模擬 broker 的 backoff 或 DLT policy。
+  - 只收集 `OptimisticLockingRetryExhaustedException` 對應的原始事件，於併發波次結束後以同一 `eventId` 重送，模擬 broker 的 at-least-once redelivery；不模擬 broker 的 backoff 或 DLT policy。
   - 對帳最終持久化狀態：10 張 Order `ALLOCATED`、990 張 `BACKORDERED`；10 筆 ACTIVE StockReservation 總量為 10；StockPool 的 ATP 為 0；1,000 個 eventId 均已於 Inbox claim；Outbox 記錄總數為 1,000 且對應最終 Order 結果。
   - **範圍邊界：** 本示範驗證的是 bounded database concurrency 下的 1,000 筆併發 submissions 最終收斂，**不是** production throughput/latency benchmark，也不啟動 Kafka broker、Debezium connector 或另一套 load-testing 工具；不變更 allocation policy、Kafka topics 或 Integration Event 契約；不實作 FIFO replenishment 或 read-model replay demo。
 
@@ -610,20 +610,27 @@ Optimistic lock conflict 不代表庫存不足，不能直接將 Order 標記為
 
 ```text
 Event Listener / Consumer
-  → AllocationRetryExecutor（RetryOperations、耗盡時轉換例外與觀測）
-    → Transactional Usecase
-      → Coordinator
-        → Repositories
+  → OptimisticLockingDecorator（通用 retry mechanism）
+    → Transactional Inbox decorator
+      → Transactional Usecase
+        → Coordinator
+          → Repositories
 ```
 
-`AllocationRetryExecutor` 是 application port，`SpringAllocationRetryExecutor` 是其 infrastructure 實作；兩者與 Transactional Usecase 應為不同 Spring Bean。`AllocationRetryConfiguration` 以 `RetryPolicy` 建立 `RetryOperations` bean（目前實作為 `RetryTemplate`）；每次 retry 都重新呼叫 Transactional Usecase 的 proxy，建立新的 transaction，不能在已標記 rollback-only 的 transaction 內繼續。策略僅重試 optimistic-lock conflict，初始呼叫加最多兩次 retry。
+`messaging-spring-optimistic-locking` 提供 Tram-style generic decorator；
+`OrderPromisingOptimisticLockingConfiguration` 顯式 opt in 並擁有 retry budget，
+`AllocationOptimisticLockRetryObserver` 保留 operation、attempt metric 與 structured log。Decorator
+位於 transactional Inbox decorator 外層，每次 retry 都重新進入完整 chain 並建立新 transaction，
+不能在已標記 rollback-only 的 transaction 內繼續。策略僅重試 optimistic-lock conflict，初始呼叫
+加最多兩次 retry。這一層是 local application attempt retry，與
+`OrderPromisingKafkaConsumerConfiguration` 宣告的 broker redelivery policy 不同。
 
 重試耗盡時：
 
-- 拋出 `AllocationConcurrencyExhaustedException`。
+- 拋出 `OptimisticLockingRetryExhaustedException`。
 - 保持 transaction rollback。
 - 不得偽裝成 `BACKORDERED`。
-- 寫 structured error log，至少包含 `eventId`、`orderId`、`sku`、attempts 與 exception type。
+- 寫 structured error log，至少包含 `subscriberId`、`eventId`、operation、attempts 與 exception type。
 - 增加 Micrometer counter：`order_allocation_retry_exhausted_total`。
 
 目前不由 business code 直接寄送 Email 或 Slack，也不新增 DLQ。未來有正式 message broker 時，再由 redelivery、DLQ 與監控平台負責通知。

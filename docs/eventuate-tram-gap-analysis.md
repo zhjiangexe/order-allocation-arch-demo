@@ -285,8 +285,8 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 | C3 | Atomic Inbox transaction | claim 與 handler 同 transaction | transactional idempotency decorator 在同一 transaction claim → handler → business／Outbox；PostgreSQL SIT 驗證 rollback | ✅ | 保留原子性與 handler exception propagation |
 | C4 | Channel-neutral Use Case | decorator 在 handler 外管理 transaction／Inbox | 六個 consumer-side use cases 已改收純 Command，移除 `InboundCommand`／`InboxRepo` | ✅ | Gate F envelope 停在 integration handler，不再往 application usecase 傳遞 |
 | C5 | Header／payload validation | message abstraction集中處理 | target dispatcher 在 deserialize 前驗證 type／version／aggregate identity，再驗 payload event ID／type；mapping／contract／handler／infrastructure taxonomy 已接 retry／DLT | ✅ | source metadata 可後續增補 |
-| C6 | Optimistic-lock retry | generic handler decorator | `SpringAllocationRetryExecutor` 只服務 allocation contention | 🟡 | 保留 business-specific retry；不要過早泛化所有 handler retry |
-| C7 | Broker retry／DLT | broker adapter與 handler error policy | runtime 依每個 `ResolvedMessageSubscription` 建立 error handler、exact DLT metadata 與 observer；同 topic 多 subscriber contract test 已固定 identity 隔離，business classification 留在 application | ✅ | 保持 bounded-context exception classification，不做 generic optimistic-lock retry |
+| C6 | Optimistic-lock retry | optional generic handler decorator | `messaging-spring-optimistic-locking` 提供 opt-in `OptimisticLockingDecorator`／configuration；`order-promising` 只宣告 retry budget 與 Allocation observer，完整 transactional Inbox chain 每次都以新 transaction 重進 | ✅ | 維持可選 artifact，不塞入 consumer starter；通用機制與 application observation／policy 分離 |
+| C7 | Broker retry／DLT | broker adapter與 handler error policy | runtime 依每個 `ResolvedMessageSubscription` 建立 error handler、exact DLT metadata 與 observer；application 將通用 `OptimisticLockingRetryExhaustedException` 分類為可 redeliver | ✅ | 保留 local optimistic retry 與 broker redelivery 兩層邊界 |
 | C8 | Exception propagation | handler 失敗交給 transaction／delivery policy | dispatcher 不吞 handler exception，Kafka error handler 接手 | ✅ | 保留 |
 
 ### 5.4 上層協作模型

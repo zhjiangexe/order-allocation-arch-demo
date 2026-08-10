@@ -11,48 +11,55 @@ SR-15 為 message-driven allocation flow 加入有限次數的 optimistic-lock r
 採用 Spring Framework 7 內建的程式化 `RetryTemplate`，不使用 annotation proxy 或手寫 retry loop。
 
 ```text
-Kafka Integration Event handler
-  → AllocationRetryExecutor (application port)
-    → SpringAllocationRetryExecutor (RetryOperations)
-    → Transactional Usecase (@Transactional)
+AllocationOptimisticLockRetryDecorator
+  → RetryOperations
+    → transactional Inbox decorator
+      → Integration Event handler
+        → Transactional Usecase
 ```
 
-`AllocationRetryConfiguration` 以 `RetryPolicy` 建立具名的 `RetryOperations` bean；目前由 `RetryTemplate` 實作，設定為初始呼叫一次、最多額外重試兩次，總計最多三次。`AllocationRetryExecutor` 是 application port，Spring 實作與 use case 為不同 Spring Bean，因此每次呼叫 use case 時都會重新進入 Spring transaction proxy。
+2026-08-10 messaging cohesion cleanup 後，retry 不再偽裝成 application port。它只由
+message subscriber 使用，因此收斂在 `stock.entrypoint.messaging.retry`：configuration 建立
+`RetryOperations` 與 decorator，decorator 位於 transactional Inbox handling 外層。設定仍為初始
+呼叫一次、最多額外重試兩次，總計最多三次；每次 chain invocation 都建立新的 transaction。
 
-## 新增檔案
+## 目前檔案
 
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/application/retry/AllocationRetryContext.java`
-
-- 保存 `operation`、`eventId`、`orderId` 與 `sku` 的診斷資料。
-- 補貨或取消事件若無法從 payload 提供某項資訊，以 `unknown` 保留欄位，不省略 structured log key。
-
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/configuration/AllocationRetryConfiguration.java`
+### `../../order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/messaging/retry/AllocationOptimisticLockRetryConfiguration.java`
 
 - 以 `RetryPolicy` 定義只重試 `OptimisticLockingFailureException`、最多兩次 retry 與 100 ms 間隔。
-- 建立具名 `allocationRetryOperations` bean；目前實作為 Spring Framework 7 的 `RetryTemplate`。
+- 在同一個 configuration 內組裝 attempt metric listener 與 decorator，不暴露全域具名
+  `RetryOperations` Bean。
 
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/infrastructure/retry/SpringAllocationRetryExecutor.java`
+### `../../order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/messaging/retry/AllocationOptimisticLockRetryDecorator.java`
 
-- 依賴 `RetryOperations` 介面執行重試；預設 bean 由 Spring Framework 7 `RetryTemplate` 與 `RetryPolicy` 提供。
-- 在 retry 耗盡後將最後一個 optimistic-lock exception 轉為 `AllocationConcurrencyExhaustedException`。
-- 寫入 `order_allocation_retry_exhausted_total` Micrometer counter，並以 structured error log 記錄 `operation`、`eventId`、`orderId`、`sku`、`attempts` 與 `exceptionType`。
+- 只套用 Allocation 擁有的兩個 subscribers，Ordering subscriber 直接通過。
+- 以 `RetryOperations` 的回傳值直接承接 `ProcessingOutcome`，不再以 `Runnable` +
+  `AtomicReference` 搬運結果。
+- 在 retry 耗盡後將最後一個 optimistic-lock exception 轉為
+  `AllocationConcurrencyExhaustedException`。
+- 寫入 `order_allocation_retry_exhausted_total` counter，並記錄 `operation`、`eventId`、
+  `subscriberId`、`attempts` 與 `exceptionType`。
 
-### `../../order-promising/src/main/java/com/flowzati/archone/allocation/application/retry/AllocationConcurrencyExhaustedException.java`
+### `../../order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/messaging/retry/AllocationConcurrencyExhaustedException.java`
 
-- 表示技術性競爭在三次嘗試後仍未收斂。
+- 表示 consumer-side 技術性競爭在三次嘗試後仍未收斂。
 - 不轉換為 `BACKORDERED`，使 Kafka consumer 可依既有錯誤處理策略重送或轉交後續處理。
 
 ### 測試
 
-- `src/test/.../SpringAllocationRetryExecutorTest` 驗證 RetryTemplate 的初始呼叫加兩次 retry 語意，以及耗盡時的專用例外與 metric。
-- `src/sit/.../AllocationRetryTransactionIntegrationTest` 使用 PostgreSQL Testcontainers 驗證每次 retry 取得不同 `txid_current()`，並確認耗盡時每個 transaction 的 Inbox 寫入均 rollback。
+- `src/test/.../AllocationOptimisticLockRetryDecoratorTest` 驗證 subscriber scope、初始呼叫加兩次
+  retry、非 retryable exception、耗盡例外、metric 與 chain order。
+- 原由 `src/sit/.../AllocationRetryTransactionIntegrationTest` 驗證；2026-08-10 messaging cleanup 後由更完整的 `AllocationTransactionalMessageChainIntegrationTest` 接手，除不同 `txid_current()` 外，也驗證 transactional Inbox／business／Outbox chain 一起 rollback。
 
 ## 變更檔案
 
-### Kafka Integration Event handlers
+### Integration Event consumers
 
-- `OrderPlacedIntegrationEventHandler`、`OrderCancelledIntegrationEventHandler` 與 `StockReplenishedIntegrationEventHandler` 均改由 `AllocationRetryExecutor` 進入既有 transactional use case。
-- retry 前不快取 Order、StockPool、Reservation 或 FIFO 清單；每次 use case invocation 皆重新由 Repository 讀取。
+- `AllocationOrderLifecycleEventConsumer` 與 `AllocationInventoryAvailabilityEventConsumer` 透過全域
+  decorator chain 進入 bounded-context retry；handler 本身只做 event-to-command mapping。
+- retry 前不快取 Order、StockPool、movement 或 FIFO 清單；每次 chain invocation 皆重新由
+  Repository 讀取。
 
 ### `../stock-reservation-design.md`
 
@@ -74,7 +81,7 @@ Kafka Integration Event handler
 
 ```bash
 ./gradlew :order-promising:sit \
-  --tests '*AllocationRetryTransactionIntegrationTest' \
+  --tests '*AllocationTransactionalMessageChainIntegrationTest' \
   --no-daemon
 ```
 
@@ -87,7 +94,8 @@ Kafka Integration Event handler
 ./gradlew :order-promising:sit --no-daemon
 ```
 
-結果：兩組皆為 `BUILD SUCCESSFUL`，共 `98 unit tests completed` 與 `45 SIT tests completed`。
+結果：兩組皆為 `BUILD SUCCESSFUL`；2026-08-10 cohesion cleanup 後已重新執行完整 unit 與 SIT
+regression，不固定易隨測試演進失真的總數。
 
 ## 開發環境注意事項
 

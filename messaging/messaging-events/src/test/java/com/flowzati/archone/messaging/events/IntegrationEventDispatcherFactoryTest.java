@@ -13,6 +13,7 @@ import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class IntegrationEventDispatcherFactoryTest {
@@ -31,7 +32,8 @@ class IntegrationEventDispatcherFactoryTest {
     IntegrationEventDispatcherFactory factory = new IntegrationEventDispatcherFactory(
         consumer,
         deserializerReturning(new TestEvent(eventId)),
-        mapping());
+        mapping(),
+        event -> { });
 
     IntegrationEventDispatcher dispatcher = factory.make("allocation", handlers);
 
@@ -53,7 +55,8 @@ class IntegrationEventDispatcherFactoryTest {
     IntegrationEventDispatcherFactory factory = new IntegrationEventDispatcherFactory(
         consumer,
         deserializerReturning(new TestEvent(UUID.randomUUID())),
-        MapBasedIntegrationEventNameMapping.builder().build());
+        MapBasedIntegrationEventNameMapping.builder().build(),
+        event -> { });
     IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
         .forDestination("order-events")
         .onEvent(TestEvent.class, envelope -> { })
@@ -66,57 +69,28 @@ class IntegrationEventDispatcherFactoryTest {
   }
 
   @Test
-  void keepsAnExplicitConsumerGroupSeparateFromTheSubscriberId() {
+  void usesTheGlobalObserverAndTheTramBasicSubscriptionForUnhandledEvents() {
     CapturingMessageConsumer consumer = new CapturingMessageConsumer();
+    AtomicReference<UnhandledIntegrationEvent> unhandled = new AtomicReference<>();
     IntegrationEventDispatcherFactory factory = new IntegrationEventDispatcherFactory(
         consumer,
         deserializerReturning(new TestEvent(UUID.randomUUID())),
-        mapping());
+        mapping(),
+        unhandled::set);
     IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
         .forDestination("order-events")
         .onEvent(TestEvent.class, envelope -> { })
         .build();
 
-    factory.make(
-        "allocation-inbox-scope",
-        handlers,
-        MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"));
-
-    assertThat(consumer.subscriberId).isEqualTo("allocation-inbox-scope");
-    assertThat(consumer.basicOverloadUsed).isFalse();
-    assertThat(consumer.options.resolveConsumerGroupId(consumer.subscriberId))
-        .isEqualTo("allocation-kafka-group");
-  }
-
-  @Test
-  void passesTypedDispatchPolicyAndSubscriptionIdentityWithoutChangingTheTramBasicOverload() {
-    CapturingMessageConsumer consumer = new CapturingMessageConsumer();
-    IntegrationEventDispatcherFactory factory = new IntegrationEventDispatcherFactory(
-        consumer,
-        deserializerReturning(new TestEvent(UUID.randomUUID())),
-        mapping());
-    IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
-        .forDestination("order-events")
-        .onEvent(TestEvent.class, envelope -> { })
-        .build();
-    AtomicBoolean observed = new AtomicBoolean();
-
-    IntegrationEventDispatcher dispatcher = factory.make(
-        "allocation-inbox-scope",
-        handlers,
-        IntegrationEventDispatcherOptions.builder()
-            .subscriptionOptions(
-                MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"))
-            .ignoreUnhandledEventsWith(event -> observed.set(true))
-            .build());
+    IntegrationEventDispatcher dispatcher = factory.make("allocation", handlers);
     dispatcher.dispatch(
         message(UUID.randomUUID()).withHeader(EventMessageHeaders.EVENT_CONTRACT_VERSION, "2"),
         "order-events");
 
-    assertThat(consumer.basicOverloadUsed).isFalse();
+    assertThat(consumer.basicOverloadUsed).isTrue();
     assertThat(consumer.options.resolveConsumerGroupId(consumer.subscriberId))
-        .isEqualTo("allocation-kafka-group");
-    assertThat(observed).isTrue();
+        .isEqualTo("allocation");
+    assertThat(unhandled.get()).isNotNull();
   }
 
   private IntegrationEventNameMapping mapping() {

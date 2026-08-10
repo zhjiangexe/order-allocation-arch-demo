@@ -12,28 +12,21 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
   private final IntegrationEventDeserializer deserializer;
   private final IntegrationEventHandlers handlers;
   private final IntegrationEventNameMapping nameMapping;
-  private final IntegrationEventDispatcherOptions options;
-
-  public IntegrationEventDispatcher(
-      IntegrationEventDeserializer deserializer,
-      IntegrationEventHandlers handlers,
-      IntegrationEventNameMapping nameMapping
-  ) {
-    this(deserializer, handlers, nameMapping, IntegrationEventDispatcherOptions.strict());
-  }
+  private final UnhandledIntegrationEventObserver unhandledEventObserver;
 
   public IntegrationEventDispatcher(
       IntegrationEventDeserializer deserializer,
       IntegrationEventHandlers handlers,
       IntegrationEventNameMapping nameMapping,
-      IntegrationEventDispatcherOptions options
+      UnhandledIntegrationEventObserver unhandledEventObserver
   ) {
     this.deserializer = Objects.requireNonNull(
         deserializer, "Integration Event deserializer is required");
     this.handlers = Objects.requireNonNull(handlers, "Integration Event handlers are required");
     this.nameMapping = Objects.requireNonNull(
         nameMapping, "Integration Event name mapping is required");
-    this.options = Objects.requireNonNull(options, "Integration Event dispatcher options are required");
+    this.unhandledEventObserver = Objects.requireNonNull(
+        unhandledEventObserver, "Unhandled Integration Event observer is required");
     validateNameMappings();
   }
 
@@ -57,7 +50,7 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
     dispatchWithOutcome(message, expectedDestination);
   }
 
-  /** Returns ignored only after the configured observer has accepted an unhandled event. */
+  /** Returns ignored only after the global observer has accepted an unhandled event. */
   public MessageHandlingOutcome dispatchWithOutcome(
       Message message,
       String expectedDestination
@@ -112,19 +105,7 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
       IntegrationEventType externalType,
       UnhandledIntegrationEventReason reason
   ) {
-    if (options.unhandledEventPolicy() == UnhandledEventPolicy.FAIL) {
-      if (reason == UnhandledIntegrationEventReason.UNKNOWN_TYPE_VERSION) {
-        throw new IllegalArgumentException("Unsupported Integration Event type/version: "
-            + externalType.eventType() + "/" + externalType.contractVersion());
-      }
-      throw new IllegalArgumentException("Unsupported Integration Event handler: "
-          + destination + "/" + externalType.eventType() + "/"
-          + externalType.contractVersion());
-    }
-    UnhandledIntegrationEventObserver observer = options.unhandledEventObserver()
-        .orElseThrow(() -> new IllegalStateException(
-            "IGNORE_WITH_METRIC requires an unhandled Integration Event observer"));
-    observer.onUnhandled(new UnhandledIntegrationEvent(
+    unhandledEventObserver.onUnhandled(new UnhandledIntegrationEvent(
         message,
         destination,
         externalType.eventType(),

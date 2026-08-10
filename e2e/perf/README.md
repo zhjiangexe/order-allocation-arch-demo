@@ -68,7 +68,7 @@ VUS 的壓測。`up` 是預設的 subcommand，因此直接 `./e2e/perf/run.sh` 
 
 重試與 DLT 架構（`AllocationConcurrencyExhaustedException` → 4 次指數退避重送 →
 `DeadLetterPublishingRecoverer`）的設計與取捨見
-[`OrderPromisingKafkaFailurePolicyConfiguration`](../../order-promising/src/main/java/com/flowzati/archone/bootstrap/messaging/OrderPromisingKafkaFailurePolicyConfiguration.java)
+[`OrderPromisingKafkaConsumerConfiguration`](../../order-promising/src/main/java/com/flowzati/archone/bootstrap/messaging/consumer/OrderPromisingKafkaConsumerConfiguration.java)
 的 Javadoc。Application 只宣告 exception classification 與 backoff；error handler、DLT headers 與
 failure observation 由 messaging runtime 依實際 subscriber 組裝。兩輪即時驗證：
 

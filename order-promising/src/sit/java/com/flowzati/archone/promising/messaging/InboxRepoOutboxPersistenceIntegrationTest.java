@@ -25,7 +25,7 @@ import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.promising.messaging.OutboxAggregateTypes;
 import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
-import com.flowzati.archone.ordering.application.event.translator.OrderingDomainEventTranslator;
+import com.flowzati.archone.ordering.infrastructure.messaging.producer.OrderingIntegrationEventPublisher;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -77,7 +77,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    OrderingDomainEventTranslator.class,
+    OrderingIntegrationEventPublisher.class,
     JdbcMessagingPersistenceIntegrationTest.JsonConfiguration.class
 })
 class JdbcMessagingPersistenceIntegrationTest {

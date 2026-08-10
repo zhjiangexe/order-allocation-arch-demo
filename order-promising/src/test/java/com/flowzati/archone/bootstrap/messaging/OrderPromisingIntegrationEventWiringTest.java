@@ -1,0 +1,167 @@
+package com.flowzati.archone.bootstrap.messaging;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.flowzati.archone.bootstrap.messaging.consumer.OrderPromisingKafkaConsumerConfiguration;
+import com.flowzati.archone.bootstrap.messaging.contract.OrderPromisingIntegrationEventContractConfiguration;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.messaging.events.EventMessageHeaders;
+import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
+import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
+import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
+import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
+import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
+import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
+import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
+import com.flowzati.archone.ordering.application.usecase.RecordOrderBackorderUsecase;
+import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResultEventConsumer;
+import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.PromisingEventTopics;
+import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
+import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
+import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
+import com.flowzati.archone.stock.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
+import com.flowzati.archone.stock.entrypoint.messaging.AllocationOrderLifecycleEventConsumer;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+class OrderPromisingIntegrationEventWiringTest {
+
+  @Test
+  void declaresStableMappingsAndThreeExplicitTramShapedSubscriptions() {
+    IntegrationEventDispatcherFactory factory = factory();
+
+    contextRunner(factory).run(context -> {
+      assertThat(context).hasSingleBean(IntegrationEventNameMapping.class);
+      assertThat(context).doesNotHaveBean(IntegrationEventHandlers.class);
+      assertThat(context.getBeansOfType(IntegrationEventDispatcher.class)).hasSize(3);
+
+      IntegrationEventNameMapping mapping = context.getBean(IntegrationEventNameMapping.class);
+      IntegrationEventDeserializer deserializer = mock(IntegrationEventDeserializer.class);
+      verifySubscriptionCalls(factory, deserializer, mapping);
+    });
+  }
+
+  @Test
+  void keepsSubscriptionsDeclaredWhenContainerAutoStartupIsDisabled() {
+    contextRunner(factory())
+        .withPropertyValues("spring.kafka.listener.auto-startup=false")
+        .run(context -> {
+          assertThat(context).doesNotHaveBean(IntegrationEventHandlers.class);
+          assertThat(context.getBeansOfType(IntegrationEventDispatcher.class)).hasSize(3);
+        });
+  }
+
+  @Test
+  void doesNotRequireADispatcherFactoryWhenConsumptionCapabilityIsDisabled() {
+    disabledContext("archone.messaging.core.enabled=false");
+    disabledContext("archone.messaging.consumer.kafka.enabled=false");
+    disabledContext("archone.messaging.events.dispatcher.enabled=false");
+  }
+
+  private void disabledContext(String property) {
+    contextRunner(null)
+        .withPropertyValues(property)
+        .run(context -> {
+          assertThat(context).hasSingleBean(IntegrationEventNameMapping.class);
+          assertThat(context).doesNotHaveBean(IntegrationEventHandlers.class);
+          assertThat(context).doesNotHaveBean(IntegrationEventDispatcher.class);
+        });
+  }
+
+  private ApplicationContextRunner contextRunner(IntegrationEventDispatcherFactory factory) {
+    ApplicationContextRunner runner = new ApplicationContextRunner()
+        .withUserConfiguration(
+            OrderPromisingIntegrationEventContractConfiguration.class,
+            OrderPromisingKafkaConsumerConfiguration.class,
+            OrderingAllocationResultEventConsumer.class,
+            AllocationOrderLifecycleEventConsumer.class,
+            AllocationInventoryAvailabilityEventConsumer.class)
+        .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
+        .withBean(RecordOrderBackorderUsecase.class, () -> mock(RecordOrderBackorderUsecase.class))
+        .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
+        .withBean(CancelMovementsUsecase.class, () -> mock(CancelMovementsUsecase.class))
+        .withBean(AllocateWaitingDemandUsecase.class, () -> mock(AllocateWaitingDemandUsecase.class));
+    return factory == null
+        ? runner
+        : runner.withBean(IntegrationEventDispatcherFactory.class, () -> factory);
+  }
+
+  private IntegrationEventDispatcherFactory factory() {
+    IntegrationEventDispatcherFactory factory = mock(IntegrationEventDispatcherFactory.class);
+    IntegrationEventDispatcher dispatcher = mock(IntegrationEventDispatcher.class);
+    when(factory.make(
+        anyString(),
+        any(IntegrationEventHandlers.class))).thenReturn(dispatcher);
+    return factory;
+  }
+
+  private void verifySubscriptionCalls(
+      IntegrationEventDispatcherFactory factory,
+      IntegrationEventDeserializer deserializer,
+      IntegrationEventNameMapping mapping
+  ) {
+    ArgumentCaptor<IntegrationEventHandlers> orderingHandlers =
+        ArgumentCaptor.forClass(IntegrationEventHandlers.class);
+    verify(factory).make(
+        eq(OrderingEventSubscriptions.ALLOCATION_RESULTS),
+        orderingHandlers.capture());
+    assertThat(orderingHandlers.getValue().destinations())
+        .containsExactly(PromisingEventTopics.ALLOCATION_EVENTS);
+    assertThat(new IntegrationEventDispatcher(
+        deserializer, orderingHandlers.getValue(), mapping, event -> { }))
+        .matches(dispatcher -> dispatcher.supports(
+            PromisingEventTopics.ALLOCATION_EVENTS,
+            OrderAllocatedIntegrationEvent.EVENT_TYPE,
+            EventMessageHeaders.INITIAL_CONTRACT_VERSION))
+        .matches(dispatcher -> dispatcher.supports(
+            PromisingEventTopics.ALLOCATION_EVENTS,
+            BackorderCreatedIntegrationEvent.EVENT_TYPE,
+            EventMessageHeaders.INITIAL_CONTRACT_VERSION));
+
+    ArgumentCaptor<IntegrationEventHandlers> orderLifecycleHandlers =
+        ArgumentCaptor.forClass(IntegrationEventHandlers.class);
+    verify(factory).make(
+        eq(AllocationEventSubscriptions.ORDER_LIFECYCLE),
+        orderLifecycleHandlers.capture());
+    assertThat(orderLifecycleHandlers.getValue().destinations())
+        .containsExactly(OrderingEventTopics.ORDER_EVENTS);
+    assertThat(new IntegrationEventDispatcher(
+        deserializer, orderLifecycleHandlers.getValue(), mapping, event -> { }))
+        .matches(dispatcher -> dispatcher.supports(
+            OrderingEventTopics.ORDER_EVENTS,
+            OrderPlacedIntegrationEvent.EVENT_TYPE,
+            EventMessageHeaders.INITIAL_CONTRACT_VERSION))
+        .matches(dispatcher -> dispatcher.supports(
+            OrderingEventTopics.ORDER_EVENTS,
+            OrderCancelledIntegrationEvent.EVENT_TYPE,
+            EventMessageHeaders.INITIAL_CONTRACT_VERSION));
+
+    ArgumentCaptor<IntegrationEventHandlers> inventoryHandlers =
+        ArgumentCaptor.forClass(IntegrationEventHandlers.class);
+    verify(factory).make(
+        eq(AllocationEventSubscriptions.INVENTORY_AVAILABILITY),
+        inventoryHandlers.capture());
+    assertThat(inventoryHandlers.getValue().destinations())
+        .containsExactly(InventoryEventTopics.STOCK_EVENTS);
+    assertThat(new IntegrationEventDispatcher(
+        deserializer, inventoryHandlers.getValue(), mapping, event -> { }))
+        .matches(dispatcher -> dispatcher.supports(
+            InventoryEventTopics.STOCK_EVENTS,
+            StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
+            EventMessageHeaders.INITIAL_CONTRACT_VERSION));
+  }
+}

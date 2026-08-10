@@ -420,7 +420,7 @@ view 引用了 **R3 才存在**的東西：執行層那一側掛在**行**上而
 | 防線 | 作用 |
 | --- | --- |
 | view 的 `NOT EXISTS` | 已經有搬運的 line 直接從 `demand_lines` 消失 |
-| `StockPool` 樂觀鎖 ＋ `AllocationRetryExecutor` | 兩交易同時通過 view 時，一方 version 衝突 → 重讀 view → 該 line 已被排除 → 跳過 |
+| `StockPool` 樂觀鎖 ＋ opt-in `OptimisticLockingDecorator` | 兩交易同時通過 view 時，一方 version 衝突 → 以新 transaction 重讀 view → 該 line 已被排除 → 跳過 |
 
 ### 寫入為什麼走事件而不是同步呼叫
 
@@ -527,7 +527,8 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 | --- | --- |
 | domain | `Order`、**`OrderLine`（新）**、`OrderPlaced`、`OrderBackordered`、`OrderCancelled` |
 | infrastructure | `OrderEntity`、**`OrderLineEntity`（新）**、`OrderMapper`、`OrderRepository(+Impl)`、`JpaOrderRepository`、**新 migration** |
-| application | `PlaceOrderUsecase`、`GetOrderUsecase`、`ListRecentOrdersUsecase`、`OrderDetail`、`OrderingDomainEventTranslator` |
+| application | `PlaceOrderUsecase`、`GetOrderUsecase`、`ListRecentOrdersUsecase`、`OrderDetail`、`OrderingDomainEventPublisher` port |
+| outbound adapter | `OrderingIntegrationEventPublisher`（domain event → Integration Event → transactional Outbox） |
 | 契約 | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` → 連帶 allocation 的 `OrderPlacedIntegrationEventHandler`、`OrderCancelledIntegrationEventHandler`，以及 `e2e/perf/k6/*` |
 | entrypoint | `OrderController`、`PlaceOrderRequest`、`OrderStatusResponse` |
 | index | `idx_orders_backorder_fifo` 重建於 `order_lines`，含 `owner_id` |

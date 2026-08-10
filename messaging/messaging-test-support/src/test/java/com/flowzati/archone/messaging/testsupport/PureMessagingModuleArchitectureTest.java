@@ -116,7 +116,7 @@ class PureMessagingModuleArchitectureTest {
     String allocationMessaging = readProductionSources(
         application.resolve("stock/entrypoint/messaging"));
     String failurePolicy = Files.readString(bootstrapMessaging.resolve(
-        "OrderPromisingKafkaFailurePolicyConfiguration.java"));
+        "consumer/OrderPromisingKafkaConsumerConfiguration.java"));
 
     assertThat(bootstrapMessaging.resolve(
         "OrderPromisingIntegrationEventPreparationConfiguration.java")).doesNotExist();
@@ -129,11 +129,74 @@ class PureMessagingModuleArchitectureTest {
         .doesNotContain("@KafkaListener");
     assertThat(failurePolicy)
         .contains("KafkaConsumerFailurePolicyResolver")
-        .contains("AllocationConcurrencyExhaustedException")
+        .contains("OptimisticLockingRetryExhaustedException")
         .doesNotContain("KafkaOperations")
         .doesNotContain("CommonErrorHandler")
         .doesNotContain("ObservationRegistry")
         .doesNotContain("ResolvedMessageSubscription");
+  }
+
+  @Test
+  void optimisticLockingIsAnOptionalGenericSpringCapability() throws IOException {
+    Path root = root();
+    Path module = root.resolve("messaging/messaging-spring-optimistic-locking");
+    String build = Files.readString(module.resolve("build.gradle"));
+    String productionSources = readProductionSources(module.resolve("src/main/java"));
+    String applicationBuild = Files.readString(root.resolve("order-promising/build.gradle"));
+    String applicationMessaging = readProductionSources(root.resolve(
+        "order-promising/src/main/java/com/flowzati/archone"));
+
+    assertThat(build)
+        .contains("project(':messaging:messaging-consumer-common')")
+        .contains("libs.spring.context")
+        .contains("libs.spring.tx")
+        .doesNotContain("messaging-events")
+        .doesNotContain("spring.kafka")
+        .doesNotContain("contracts");
+    assertThat(productionSources)
+        .contains("class OptimisticLockingDecorator")
+        .contains("class OptimisticLockingDecoratorConfiguration")
+        .contains("OptimisticLockingFailureException")
+        .doesNotContain("Allocation")
+        .doesNotContain("Kafka")
+        .doesNotContain("com.flowzati.archone.contracts");
+    assertThat(applicationBuild)
+        .contains("messaging-spring-optimistic-locking");
+    assertThat(applicationMessaging)
+        .contains("@Import(OptimisticLockingDecoratorConfiguration.class)")
+        .contains("AllocationOptimisticLockRetryObserver")
+        .doesNotContain("AllocationOptimisticLockRetryDecorator");
+  }
+
+  @Test
+  void applicationKeepsInboundConsumersAndOutboundPublishersOnOppositeAdapters()
+      throws IOException {
+    Path application = root().resolve("order-promising/src/main/java/com/flowzati/archone");
+    String orderingConsumers = readProductionSources(
+        application.resolve("ordering/entrypoint/messaging"));
+    String allocationConsumers = readProductionSources(
+        application.resolve("stock/entrypoint/messaging"));
+    String orderingProducers = readProductionSources(
+        application.resolve("ordering/infrastructure/messaging/producer"));
+    String allocationProducers = readProductionSources(
+        application.resolve("stock/infrastructure/messaging/producer"));
+
+    assertThat(orderingConsumers + allocationConsumers)
+        .contains("EventConsumer")
+        .contains("IntegrationEventHandlersBuilder")
+        .doesNotContain("@Qualifier")
+        .doesNotContain("OutboxAppender");
+    assertThat(orderingProducers + allocationProducers)
+        .contains("IntegrationEventPublisher")
+        .contains("PublicationTarget")
+        .doesNotContain("OutboxAppender")
+        .doesNotContain("IntegrationEventHandlersBuilder");
+    assertThat(application.resolve(
+        "ordering/application/event/translator/OrderingDomainEventTranslator.java"))
+        .doesNotExist();
+    assertThat(application.resolve(
+        "stock/application/event/translator/AllocationDomainEventTranslator.java"))
+        .doesNotExist();
   }
 
   @Test
@@ -207,6 +270,7 @@ class PureMessagingModuleArchitectureTest {
         .contains("messaging-consumer-common")
         .contains("messaging-spring-consumer-kafka")
         .contains("messaging-spring-consumer-observability")
+        .doesNotContain("messaging-spring-optimistic-locking")
         .doesNotContain("messaging-producer")
         .doesNotContain("messaging-producer-outbox");
     assertThat(allInOneStarter)

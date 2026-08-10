@@ -34,16 +34,16 @@ SR-12 建立 Domain Event 到 Integration Event 的同步翻譯，以及可與�
 - `OutboxAppender` 使用 Spring `ObjectMapper` 將 Integration Event 序列化為 JSON payload。
 - 加入 `jackson-datatype-jsr310`，確保包含 `Instant` 的事件可一致序列化。
 
-### Domain Event translators
+### Domain Event → Integration Event publishers
 
-- `OrderingDomainEventTranslator`
+- `OrderingIntegrationEventPublisher`
   - `OrderPlaced` → `OrderPlacedIntegrationEvent`
   - `OrderCancelled` → `OrderCancelledIntegrationEvent`
-- `AllocationDomainEventTranslator`
+- `AllocationIntegrationEventPublisher`
   - `OrderAllocationCompleted` → `OrderAllocatedIntegrationEvent`
   - `OrderBackordered` → `BackorderCreatedIntegrationEvent`
 
-兩個 translator 都使用同步 `@EventListener`。因此在發布 Domain Event 的既有 transaction 內 append Outbox；不是 `@TransactionalEventListener(AFTER_COMMIT)`，避免 Outbox 與業務資料分離提交。
+兩個 publisher adapter 都由 use case 透過 bounded-context application port 同步呼叫。因此在既有 transaction 內透過 generic `IntegrationEventPublisher` append Outbox；不是 `@TransactionalEventListener(AFTER_COMMIT)`，避免 Outbox 與業務資料分離提交。2026-08-10 messaging cleanup 後，adapter 位於各 bounded context 的 `infrastructure.messaging.producer`，且不直接依賴 concrete `OutboxAppender`。
 
 ## 變更檔案
 
@@ -60,7 +60,7 @@ SR-12 建立 Domain Event 到 Integration Event 的同步翻譯，以及可與�
 
 ### 測試
 
-- `DomainEventTranslatorTest`：驗證 Order 與 Allocation translator 產生正確 Integration Event type、aggregate reference 與 payload。
+- `IntegrationEventPublisherTest`：驗證 Ordering 與 Allocation publisher 產生正確 Integration Event type、aggregate reference 與 payload。
 - `InboxRepoOutboxPersistenceIntegrationTest`：以真實 PostgreSQL 驗證 Inbox claim 只成功一次、Outbox JSONB persistence，以及業務 Order 寫入與 translator Outbox append 在同一 transaction rollback。
 - 更新既有 use case mocks 與 database foundation migration 版本預期。
 

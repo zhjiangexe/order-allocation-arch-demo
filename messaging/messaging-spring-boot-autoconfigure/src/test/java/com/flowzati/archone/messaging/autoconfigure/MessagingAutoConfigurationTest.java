@@ -20,6 +20,7 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.MapBasedIntegrationEventNameMapping;
+import com.flowzati.archone.messaging.events.UnhandledIntegrationEventObserver;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaSubscriptionPolicyResolver;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerFailurePolicy;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaConsumerFailurePolicyResolver;
@@ -193,8 +194,10 @@ class MessagingAutoConfigurationTest {
         .withBean(
             com.flowzati.archone.messaging.events.IntegrationEventNameMapping.class,
             () -> MapBasedIntegrationEventNameMapping.builder().build())
-        .run(context -> assertThat(context)
-            .hasSingleBean(IntegrationEventDispatcherFactory.class));
+        .run(context -> {
+          assertThat(context).hasSingleBean(IntegrationEventDispatcherFactory.class);
+          assertThat(context).hasSingleBean(UnhandledIntegrationEventObserver.class);
+        });
   }
 
   @Test

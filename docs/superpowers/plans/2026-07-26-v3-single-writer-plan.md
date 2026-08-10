@@ -22,7 +22,7 @@
 - Partition 數維持 4（`e2e/perf/docker-compose.yml` 的 `KAFKA_NUM_PARTITIONS=4`
   不變），確保 v1／v3 對比時基礎設施條件一致。
 - 範圍只到「下單 vs 下單」的衝突；「下單 vs 補貨」跨 consumer group 的殘留對撞
-  明確不在這次範圍內，`AllocationRetryExecutor`／`DefaultErrorHandler`／DLT 整套
+  明確不在這次範圍內，bounded-context allocation retry／`DefaultErrorHandler`／DLT 整套
   保留、不刪除、不精簡。
 - 新增的程式碼註解（Java Javadoc、Python docstring/comment）一律用台灣中文；沿用
   既有 codebase 慣例（簡體字不可混入，見過去一次 `选擇` 誤植的教訓）。

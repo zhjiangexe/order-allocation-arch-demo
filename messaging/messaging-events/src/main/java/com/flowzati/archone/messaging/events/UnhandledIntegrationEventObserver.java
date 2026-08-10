@@ -1,6 +1,6 @@
 package com.flowzati.archone.messaging.events;
 
-/** Records a metric/log before an explicitly ignored shared-channel event is acknowledged. */
+/** Receives reason-rich diagnostics before an unhandled Integration Event is acknowledged. */
 @FunctionalInterface
 public interface UnhandledIntegrationEventObserver {
 

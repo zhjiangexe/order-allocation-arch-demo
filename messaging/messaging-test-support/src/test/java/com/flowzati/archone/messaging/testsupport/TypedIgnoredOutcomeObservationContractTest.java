@@ -15,7 +15,6 @@ import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
-import com.flowzati.archone.messaging.events.IntegrationEventDispatcherOptions;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.messaging.events.MapBasedIntegrationEventNameMapping;
 import com.flowzati.archone.messaging.events.UnhandledIntegrationEvent;
@@ -58,15 +57,13 @@ class TypedIgnoredOutcomeObservationContractTest {
         },
         MapBasedIntegrationEventNameMapping.builder()
             .map(KnownEvent.class, KnownEvent.EVENT_TYPE, 1)
-            .build());
+            .build(),
+        ignored::set);
 
     factory.make(
         "allocation-ordering-events",
         IntegrationEventHandlersBuilder.forDestination("ordering.order-events")
             .onEvent(KnownEvent.class, envelope -> { })
-            .build(),
-        IntegrationEventDispatcherOptions.builder()
-            .ignoreUnhandledEventsWith(ignored::set)
             .build());
     Message message = MessageBuilder.withPayload("{}")
         .withId(UUID.randomUUID())

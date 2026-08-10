@@ -66,7 +66,7 @@ sku 當 key，一個 thread 在處理 HOT-SKU 的補貨、另一個 thread 同�
 消費路徑合併成同一個 consumer group——是更大、更侵入性的改動，跟這次「用同一劇本
 對比 v1/v3 下單吞吐與衝突率」的目標關聯不大，明確排除。
 
-**因此 optimistic lock、`AllocationRetryExecutor`、`DefaultErrorHandler` + DLT
+**因此 optimistic lock、bounded-context allocation retry、`DefaultErrorHandler` + DLT
 這整套機制在 v3 底下完全保留、不刪除**——它們不是變成死路徑，是繼續擔任「下單 vs
 補貨」這個殘留對撞情境的唯一防線。`hot-sku-burst.js` 全程不觸發補貨事件，所以這個
 已知缺口不會污染這次的對比數字，但必須誠實寫進文件，不能含糊帶過或宣稱 v3 是

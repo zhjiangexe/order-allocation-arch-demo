@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'optional Tram-style optimistic-lock retry decorator for Spring message consumers'
+
+dependencies {
+    api project(':messaging:messaging-consumer-common')
+    api libs.spring.context
+    api libs.spring.tx
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

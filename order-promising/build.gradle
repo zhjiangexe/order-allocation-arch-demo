@@ -24,6 +24,8 @@ dependencies {
     implementation project(':contracts')
     implementation project(':messaging:messaging-api')
     implementation project(':messaging:messaging-events')
+    // Optional Tram-style local retry around the complete consumer transaction.
+    implementation project(':messaging:messaging-spring-optimistic-locking')
     // This deployable both publishes and consumes, so it uses the all-in-one convenience starter.
     implementation project(':messaging:messaging-spring-boot-starter')
     implementation project(':platform-infrastructure')
@@ -50,6 +52,7 @@ dependencies {
     testImplementation libs.spring.boot.starter.opentelemetry.test
     testImplementation libs.spring.boot.starter.webmvc.test
     testImplementation libs.spring.modulith.starter.test
+    testImplementation project(':messaging:messaging-test-support')
     testRuntimeOnly libs.junit.platform.launcher
 
     sitImplementation libs.spring.boot.testcontainers

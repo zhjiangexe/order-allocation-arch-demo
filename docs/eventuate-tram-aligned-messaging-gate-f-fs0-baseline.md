@@ -85,11 +85,11 @@ production cutover 的安全條件是：
 
 ```text
 Kafka delivery
-  → allocation attempt decorator
+  → optional generic optimistic-locking decorator
       initial attempt + 2 optimistic-lock retries, fixed 100 ms
       every attempt re-enters transactional Inbox chain
   → exception propagates to DefaultErrorHandler
-      AllocationConcurrencyExhaustedException:
+      OptimisticLockingRetryExhaustedException:
         4 container retries, 1s → 2s → 4s → 8s, max interval 10s
       every other exception:
         no container retry
@@ -99,9 +99,10 @@ Kafka delivery
       Spring Kafka failure metadata appended
 ```
 
-`AllocationRetryMessageHandlerDecorator` 是 bounded-context concurrency policy，不得搬進 generic
-messaging retry。`DeadLetterPublishingRecoverer` 是唯一允許直接使用 Kafka producer 的 recovery path；
-正常 publication 仍固定為 Outbox → Debezium。
+後續 Tram-alignment 已將機制抽到 opt-in `messaging-spring-optimistic-locking`；retry budget 與
+Allocation-specific metrics／operation mapping 仍由 application 擁有。此模組不進 consumer starter，
+也不依賴 Kafka 或 Integration Event contracts。`DeadLetterPublishingRecoverer` 是唯一允許直接使用
+Kafka producer 的 recovery path；正常 publication 仍固定為 Outbox → Debezium。
 
 ## 5. Characterization evidence
 
@@ -110,9 +111,9 @@ messaging retry。`DeadLetterPublishingRecoverer` 是唯一允許直接使用 Ka
 | physical Kafka facts、legacy version 1、serialized headers 與 collision rejection | `KafkaMessageMapperTest` |
 | event ID／type payload mismatch、unsupported version、typed dispatch failure | `IntegrationEventDispatcherTest`、`KafkaIntegrationEventDispatcherTest` |
 | decorator ordering、duplicate short-circuit、transaction rollback | `KafkaIntegrationEventDispatcherTest`、`AllocationTransactionalMessageChainIntegrationTest` |
-| allocation retry 位於 transactional idempotency 外層 | `AllocationRetryMessageHandlerDecoratorTest` |
+| generic optimistic retry 位於 transactional idempotency 外層 | `OptimisticLockingDecoratorTest`、`AllocationTransactionalMessageChainIntegrationTest` |
 | retryable exception 先重送、其他 exception 直接 DLT；DLT 保留 record contract | `AllocationKafkaErrorHandlingCharacterizationTest` |
-| programmatic container 可承接現有 handler、BATCH ack、concurrency 與 lifecycle | `ProgrammaticKafkaContainerFeasibilityTest` |
+| programmatic container 可承接現有 handler、BATCH ack、concurrency 與 lifecycle | `SpringKafkaMessageConsumerImplementationTest`、`MessagingAutoConfigurationTest`（原 feasibility test 已在 Gate I cleanup 移除） |
 
 ## 6. FS1 進入規則
 

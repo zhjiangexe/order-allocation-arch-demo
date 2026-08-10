@@ -446,7 +446,7 @@ bug 修掉。
 這個排序，就不會交錯。這條全序現在有一份具名的定義
 （`StockWriteOrder.BY_GLOBAL_ORDER`），三個寫入庫存列的地方共用它，不能依賴集合的自然順序。
 
-既有的 `AllocationRetryExecutor` 處理的是樂觀鎖衝突，**處理不了死鎖**——死鎖在 DB
+既有的 opt-in `OptimisticLockingDecorator` 只分類樂觀鎖衝突，**處理不了死鎖**——死鎖在 DB
 層就 abort 了，重試邏輯看到的是不同的例外類型。
 
 ---

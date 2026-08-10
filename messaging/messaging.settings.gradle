@@ -15,6 +15,7 @@
     'messaging-spring-observability',
     'messaging-spring-producer-observability',
     'messaging-spring-consumer-observability',
+    'messaging-spring-optimistic-locking',
     'messaging-spring-flyway',
     'messaging-spring-boot-autoconfigure',
     'messaging-spring-producer-starter',

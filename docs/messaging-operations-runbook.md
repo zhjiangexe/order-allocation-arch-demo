@@ -3,6 +3,9 @@
 > 適用：PostgreSQL `event_outbox`／`event_inbox`、Debezium Outbox Event Router、Kafka programmatic
 > consumers。正常 publication 固定走 Outbox → Debezium → Kafka；只有 DLT recovery／replay 可以
 > 使用受控的 Kafka producer。
+>
+> Server sizing、PostgreSQL WAL／slot、Kafka Connect memory、Kafka durability、統一監控與
+> application 程式碼邊界，見 [messaging-server-operations-guide](./messaging-server-operations-guide.md)。
 
 ## 1. Rolling deployment：generic headers
 

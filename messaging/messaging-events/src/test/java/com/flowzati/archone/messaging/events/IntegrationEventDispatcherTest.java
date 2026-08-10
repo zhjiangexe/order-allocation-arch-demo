@@ -55,49 +55,15 @@ class IntegrationEventDispatcherTest {
   }
 
   @Test
-  void rejectsAnUnsupportedTypeOrVersionBeforeDeserialization() {
-    AtomicBoolean deserialized = new AtomicBoolean();
-    IntegrationEventDispatcher dispatcher = dispatcher(
-        trackingDeserializer(deserialized),
-        handlers(new AtomicReference<>()),
-        mapping());
-
-    assertThatThrownBy(() -> dispatcher.dispatch(
-        message(UUID.randomUUID(), TestEvent.EVENT_TYPE, 2), "order-events"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported Integration Event type/version: TestEvent.v1/2");
-    assertThat(deserialized).isFalse();
-  }
-
-  @Test
-  void rejectsAMappedEventWithoutAHandlerForThisDestination() {
-    IntegrationEventNameMapping mapping = MapBasedIntegrationEventNameMapping.builder()
-        .map(TestEvent.class, TestEvent.EVENT_TYPE, 1)
-        .map(OtherEvent.class, OtherEvent.EVENT_TYPE, 1)
-        .build();
-    IntegrationEventDispatcher dispatcher = dispatcher(
-        deserializerReturning(new TestEvent(UUID.randomUUID())),
-        handlers(new AtomicReference<>()),
-        mapping);
-
-    assertThatThrownBy(() -> dispatcher.dispatch(
-        message(UUID.randomUUID(), OtherEvent.EVENT_TYPE, 1), "order-events"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported Integration Event handler: order-events/OtherEvent.v1/1");
-  }
-
-  @Test
-  void explicitlyIgnoresAndObservesAnUnknownSharedChannelEventBeforeDeserialization() {
+  void ignoresAndObservesAnUnsupportedTypeOrVersionBeforeDeserialization() {
     AtomicBoolean deserialized = new AtomicBoolean();
     AtomicReference<UnhandledIntegrationEvent> unhandled = new AtomicReference<>();
     IntegrationEventDispatcher dispatcher = new IntegrationEventDispatcher(
         trackingDeserializer(deserialized),
         handlers(new AtomicReference<>()),
         mapping(),
-        IntegrationEventDispatcherOptions.builder()
-            .ignoreUnhandledEventsWith(unhandled::set)
-            .build());
-    Message message = message(UUID.randomUUID(), "FutureEvent.v1", 1);
+        unhandled::set);
+    Message message = message(UUID.randomUUID(), TestEvent.EVENT_TYPE, 2);
 
     MessageHandlingOutcome outcome = dispatcher.dispatchWithOutcome(message, "order-events");
 
@@ -106,13 +72,13 @@ class IntegrationEventDispatcherTest {
     assertThat(unhandled.get()).isEqualTo(new UnhandledIntegrationEvent(
         message,
         "order-events",
-        "FutureEvent.v1",
-        1,
+        TestEvent.EVENT_TYPE,
+        2,
         UnhandledIntegrationEventReason.UNKNOWN_TYPE_VERSION));
   }
 
   @Test
-  void explicitlyIgnoresAndObservesAMappedEventIrrelevantToThisDestination() {
+  void ignoresAndObservesAMappedEventWithoutAHandlerForThisDestination() {
     AtomicBoolean deserialized = new AtomicBoolean();
     AtomicReference<UnhandledIntegrationEvent> unhandled = new AtomicReference<>();
     IntegrationEventNameMapping mapping = MapBasedIntegrationEventNameMapping.builder()
@@ -123,9 +89,7 @@ class IntegrationEventDispatcherTest {
         trackingDeserializer(deserialized),
         handlers(new AtomicReference<>()),
         mapping,
-        IntegrationEventDispatcherOptions.builder()
-            .ignoreUnhandledEventsWith(unhandled::set)
-            .build());
+        unhandled::set);
     Message message = message(UUID.randomUUID(), OtherEvent.EVENT_TYPE, 1);
 
     MessageHandlingOutcome outcome = dispatcher.dispatchWithOutcome(message, "order-events");
@@ -143,11 +107,9 @@ class IntegrationEventDispatcherTest {
         trackingDeserializer(new AtomicBoolean()),
         handlers(new AtomicReference<>()),
         mapping(),
-        IntegrationEventDispatcherOptions.builder()
-            .ignoreUnhandledEventsWith(event -> {
-              throw failure;
-            })
-            .build());
+        event -> {
+          throw failure;
+        });
 
     assertThatThrownBy(() -> dispatcher.dispatch(
         message(UUID.randomUUID(), "FutureEvent.v1", 1), "order-events"))
@@ -223,7 +185,7 @@ class IntegrationEventDispatcherTest {
       IntegrationEventHandlers handlers,
       IntegrationEventNameMapping mapping
   ) {
-    return new IntegrationEventDispatcher(deserializer, handlers, mapping);
+    return new IntegrationEventDispatcher(deserializer, handlers, mapping, event -> { });
   }
 
   private IntegrationEventHandlers handlers(

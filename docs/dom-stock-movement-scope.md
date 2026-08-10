@@ -587,7 +587,7 @@ packaging、SO line、reordering rule——沒有 partner／owner。
 | 候選批次有穩定排序 | `idx_stock_pools_fefo` 的三層排序鍵（效期 → 入庫日 → id） |
 | 所有交易以相同順序鎖列 | `WRITE_ORDER` 的寫入排序 |
 | 交易保持短小 | `waiting-demand-batch-limit` 分批；availability 做首輪、Scheduler 做後續 reconciliation |
-| 死鎖有重試 | `SpringAllocationRetryExecutor` |
+| 樂觀鎖衝突有 local retry | opt-in `OptimisticLockingDecorator`＋Allocation observer |
 
 **這四項在後續 change 裡都不得被優化掉。** 它們看起來像效能措施，實際上是正確性措施——
 `docs/dom-promising-scope.md` 已經論證過為什麼喚醒上限是正確性問題而非吞吐問題。
