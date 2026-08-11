@@ -20,6 +20,10 @@ public record PlaceOrderRequest(
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate,
+    /** 上游依承運時效、截單時間與行事曆算出的最晚離倉時刻。 */
+    Instant dispatchBy,
+    /** WMS wave release 排程使用的必填 0..100 優先級；wrapper 用來區分缺欄位與明確的 0。 */
+    Integer releasePriority,
     UUID facilityId,
     /**
      * 上游說客戶下單的時刻。可省略——上游系統沒有義務送這個值，省略時訂單就不帶它，

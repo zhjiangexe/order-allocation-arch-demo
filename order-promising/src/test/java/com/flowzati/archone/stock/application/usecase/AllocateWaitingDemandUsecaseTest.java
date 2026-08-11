@@ -13,13 +13,14 @@ import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
+import com.flowzati.archone.stock.application.movement.AssignedDemand;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
+import com.flowzati.archone.stock.domain.model.DemandLine;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Clock;
@@ -102,14 +103,16 @@ class AllocateWaitingDemandUsecaseTest {
   @DisplayName("部分有進展時每張成功單只發布一個完成事實")
   void shouldPublishOneCompletionPerAllocatedOrderForAPartialRound() {
     List<StockMove> waiting = givenWaitingMoves(ALLOCATION_LIMIT);
-    List<Demand> allocated = List.of(demand(), demand());
+    List<AssignedDemand> allocated = waiting.stream().limit(2)
+        .map(this::assignedDemand)
+        .toList();
     when(movementAssigner.assignWaitingBatch(waiting, NOW)).thenReturn(allocated);
 
     usecase.execute(command());
 
     verify(eventPublisher, times(2)).publish(any(OrderAllocationCompleted.class));
-    allocated.forEach(demand -> verify(eventPublisher)
-        .publish(new OrderAllocationCompleted(demand.orderId(), NOW)));
+    allocated.forEach(result -> verify(eventPublisher)
+        .publish(OrderAllocationCompleted.from(result.demand(), result.moves(), NOW)));
   }
 
   private AllocateWaitingDemandCommand command() {
@@ -138,7 +141,16 @@ class AllocateWaitingDemandUsecaseTest {
     return waiting;
   }
 
-  private Demand demand() {
-    return DemandFixtures.demand(IdGenerator.nextId(), SKU, 1);
+  private AssignedDemand assignedDemand(StockMove move) {
+    move.assign(NOW);
+    Demand demand = new Demand(
+        IdGenerator.nextId(),
+        move.getOwnerId(),
+        OrderFixtures.FACILITY_ID,
+        move.getFromLocationId(),
+        OrderFixtures.DISPATCH_BY,
+        OrderFixtures.RELEASE_PRIORITY,
+        List.of(new DemandLine(move.getOrderLineId(), move.getSkuCode(), move.getDemandQuantity())));
+    return new AssignedDemand(demand, List.of(move));
   }
 }

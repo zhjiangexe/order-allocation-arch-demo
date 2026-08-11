@@ -104,7 +104,7 @@ class InboundEntrypointTransactionIntegrationTest {
         .isEqualTo("ASSIGNED");
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
     assertThat(MovementFixtures.heldBy(jdbcTemplate, orderId)).hasSize(1);
-    assertThat(count("event_outbox")).isEqualTo(1);
+    assertThat(count("event_outbox")).isEqualTo(2);
   }
 
   @Test

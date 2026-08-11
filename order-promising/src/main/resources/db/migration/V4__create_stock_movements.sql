@@ -104,6 +104,9 @@ CREATE TABLE stock_pickings (
     -- 這個虛擬位置。庫存是「持有」，搬運是「移動」，而移動的一端經常在公司之外。
     from_location_id UUID NOT NULL,
     to_location_id UUID NOT NULL,
+    -- Outbound handoff scheduling facts；inbound picking 兩欄皆為 NULL。
+    dispatch_by TIMESTAMPTZ,
+    release_priority INTEGER,
     state VARCHAR(32) NOT NULL DEFAULT 'CONFIRMED',
     version BIGINT NOT NULL DEFAULT 0,
 
@@ -115,7 +118,11 @@ CREATE TABLE stock_pickings (
     CONSTRAINT fk_stock_pickings_to_location
         FOREIGN KEY (to_location_id) REFERENCES stock_locations(id),
     CONSTRAINT ck_stock_pickings_state
-        CHECK (state IN ('CONFIRMED', 'ASSIGNED', 'DONE', 'CANCELLED'))
+        CHECK (state IN ('CONFIRMED', 'ASSIGNED', 'DONE', 'CANCELLED')),
+    CONSTRAINT ck_stock_pickings_fulfillment_terms CHECK (
+        (order_id IS NULL AND dispatch_by IS NULL AND release_priority IS NULL)
+     OR (order_id IS NOT NULL AND dispatch_by IS NOT NULL AND release_priority BETWEEN 0 AND 100)
+    )
 );
 
 

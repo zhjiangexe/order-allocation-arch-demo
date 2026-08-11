@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.domain.model;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -35,6 +36,9 @@ public class StockPicking {
   private final UUID orderId;
   private final UUID fromLocationId;
   private final UUID toLocationId;
+  /** Outbound handoff scheduling facts；inbound picking 不帶。 */
+  private final Instant dispatchBy;
+  private final Integer releasePriority;
   private PickingState state;
   private final Long version;
 
@@ -45,6 +49,8 @@ public class StockPicking {
       UUID orderId,
       UUID fromLocationId,
       UUID toLocationId,
+      Instant dispatchBy,
+      Integer releasePriority,
       PickingState state,
       Long version
   ) {
@@ -57,27 +63,51 @@ public class StockPicking {
     if (state == null) {
       throw new IllegalArgumentException("Picking state is required");
     }
+    if ((orderId == null && (dispatchBy != null || releasePriority != null))
+        || (orderId != null && (dispatchBy == null || releasePriority == null))) {
+      throw new IllegalArgumentException(
+          "Outbound picking requires dispatch deadline and release priority; inbound requires neither");
+    }
+    if (releasePriority != null && (releasePriority < 0 || releasePriority > 100)) {
+      throw new IllegalArgumentException("Release priority must be between 0 and 100");
+    }
     this.id = id;
     this.pickingTypeId = pickingTypeId;
     this.ownerId = ownerId;
     this.orderId = orderId;
     this.fromLocationId = fromLocationId;
     this.toLocationId = toLocationId;
+    this.dispatchBy = dispatchBy;
+    this.releasePriority = releasePriority;
     this.state = state;
     this.version = version;
   }
 
-  public static StockPicking confirmed(
+  public static StockPicking confirmedOutbound(
       UUID id,
       UUID pickingTypeId,
       UUID ownerId,
       UUID orderId,
       UUID fromLocationId,
-      UUID toLocationId
+      UUID toLocationId,
+      Instant dispatchBy,
+      int releasePriority
   ) {
     return new StockPicking(
         id, pickingTypeId, ownerId, orderId, fromLocationId, toLocationId,
-        PickingState.CONFIRMED, null);
+        dispatchBy, releasePriority, PickingState.CONFIRMED, null);
+  }
+
+  public static StockPicking confirmedInbound(
+      UUID id,
+      UUID pickingTypeId,
+      UUID ownerId,
+      UUID fromLocationId,
+      UUID toLocationId
+  ) {
+    return new StockPicking(
+        id, pickingTypeId, ownerId, null, fromLocationId, toLocationId,
+        null, null, PickingState.CONFIRMED, null);
   }
 
   public boolean assign() {
@@ -135,6 +165,14 @@ public class StockPicking {
 
   public UUID toLocationId() {
     return toLocationId;
+  }
+
+  public Instant dispatchBy() {
+    return dispatchBy;
+  }
+
+  public Integer releasePriority() {
+    return releasePriority;
   }
 
   public PickingState state() {

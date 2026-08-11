@@ -505,7 +505,12 @@ public class DevSeedDataInitializer implements ApplicationRunner {
 
   private static DeliveryTerms deliveryTerms(UUID facilityId) {
     return new DeliveryTerms(
-        facilityId, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 1, 5));
+        facilityId,
+        "100",
+        "台北市中正區重慶南路一段 122 號",
+        LocalDate.of(2026, 1, 5),
+        PARTIALLY_RESERVED_AT.plusSeconds(86_400),
+        50);
   }
 
   /**
@@ -567,7 +572,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       PickingState state) {
     stockPickingRepository.save(
         new StockPicking(
-            id, typeId, ownerId, orderId, stockLocationId, CUSTOMERS_LOCATION_ID, state, null));
+            id, typeId, ownerId, orderId, stockLocationId, CUSTOMERS_LOCATION_ID,
+            PARTIALLY_RESERVED_AT.plusSeconds(86_400), 50, state, null));
   }
 
   /** 一段還在等貨的搬運：收單時的狀態。 */

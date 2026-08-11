@@ -43,6 +43,7 @@ public final class DemandFixtures {
       int quantity
   ) {
     return new Demand(orderId, ownerId, FACILITY_ID, locationId,
+        OrderFixtures.DISPATCH_BY, OrderFixtures.RELEASE_PRIORITY,
         List.of(new DemandLine(IdGenerator.nextId(), skuCode, quantity)));
   }
 
@@ -53,7 +54,9 @@ public final class DemandFixtures {
    * R8 放寬時才第一次執行到那條路徑。
    */
   public static Demand multiLineDemand(UUID orderId, DemandLine... lines) {
-    return new Demand(orderId, OWNER_ID, FACILITY_ID, LOCATION_ID, List.of(lines));
+    return new Demand(
+        orderId, OWNER_ID, FACILITY_ID, LOCATION_ID,
+        OrderFixtures.DISPATCH_BY, OrderFixtures.RELEASE_PRIORITY, List.of(lines));
   }
 
   public static DemandLine line(String skuCode, int quantity) {

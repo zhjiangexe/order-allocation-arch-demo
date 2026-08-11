@@ -1,6 +1,7 @@
 package com.flowzati.archone.stock.infrastructure.messaging.producer;
 
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
@@ -12,6 +13,7 @@ import com.flowzati.archone.promising.messaging.OutboxAggregateTypes;
 import com.flowzati.archone.promising.messaging.StockContentionKey;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.FulfillmentEventTopics;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
@@ -62,6 +64,28 @@ public class AllocationIntegrationEventPublisher implements AllocationDomainEven
         deliveryKeyedByOrder(event.orderId()),
         event.allocatedAt()
     );
+    AllocationCommittedForFulfillmentIntegrationEvent fulfillment =
+        new AllocationCommittedForFulfillmentIntegrationEvent(
+            IdGenerator.nextId(),
+            event.allocationId(),
+            event.orderId(),
+            event.ownerId(),
+            event.facilityId(),
+            event.lines().stream()
+                .map(line -> new AllocationCommittedForFulfillmentIntegrationEvent.AllocationLine(
+                    line.orderLineId(), line.moveId(), line.skuCode(),
+                    line.sourceLocationId(), line.quantity()))
+                .toList(),
+            event.dispatchBy(),
+            event.releasePriority(),
+            event.allocatedAt());
+    eventPublisher.publish(
+        fulfillment,
+        new AggregateReference(
+            OutboxAggregateTypes.STOCK_PICKING, event.allocationId().toString()),
+        new PublicationTarget(
+            FulfillmentEventTopics.FULFILLMENT_HANDOFFS, event.orderId().toString()),
+        event.allocatedAt());
   }
 
   /** 將 allocation 記錄的缺貨事實轉成對外事件。 */

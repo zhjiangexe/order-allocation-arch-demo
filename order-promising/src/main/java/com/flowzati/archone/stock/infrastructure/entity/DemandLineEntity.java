@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.util.UUID;
+import java.time.Instant;
 import org.hibernate.annotations.Immutable;
 
 /**
@@ -41,6 +42,12 @@ public class DemandLineEntity {
   @Column(name = "location_id")
   private UUID locationId;
 
+  @Column(name = "dispatch_by")
+  private Instant dispatchBy;
+
+  @Column(name = "release_priority")
+  private int releasePriority;
+
   @Column(name = "sku_code")
   private String skuCode;
 
@@ -68,6 +75,14 @@ public class DemandLineEntity {
 
   public UUID getLocationId() {
     return locationId;
+  }
+
+  public Instant getDispatchBy() {
+    return dispatchBy;
+  }
+
+  public int getReleasePriority() {
+    return releasePriority;
   }
 
   public String getSkuCode() {

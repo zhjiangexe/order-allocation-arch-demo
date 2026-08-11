@@ -1,6 +1,7 @@
 package com.flowzati.archone.ordering.domain.model;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -17,13 +18,11 @@ import java.util.UUID;
  * <p>{@code shipToZone} 與 {@code shipToAddress} 分開存而不是只留完整地址：後者供履約與
  * 面單使用，前者是地址的粗粒度形式。合併會讓需要分區的一方從地址字串裡剖析。
  *
- * <p><b>{@code promisedDeliveryDate} 是上游給的參考值，本系統目前不據以決策。</b>它被儲存、
- * 隨事件傳遞、由 REST 揭露，但沒有任何一行程式碼拿它做判斷——配貨不看它，缺貨佇列也不依
- * 它排序（佇列依到達順序）。
+ * <p>{@code promisedDeliveryDate} 是對客承諾日期；{@code dispatchBy} 是上游排程算出的最晚離倉
+ * 時刻。兩者不可互推：前者缺少承運時效、截單時間與行事曆，WMS 不得自行猜出後者。
  *
- * <p>那不是遺漏，是這個系統目前只回答承諾的第一個問題（有沒有貨），而不回答第三個（什麼
- * 時候到）。第三個問題需要出貨前置時間、承運商時效、截單時間與行事曆——**一個都還沒有**，
- * 所以它是加一個模型而不是加一個欄位。
+ * <p>{@code releasePriority} 是上游給 WMS wave planning 的 0..100 排程事實。它不是訂單狀態，
+ * 也不改變 allocation 的 FEFO／ship-complete 決策；目前只有 fulfillment handoff 與 WMS 使用。
  *
  * <p>屆時第一件會變的是**缺貨佇列的排序鍵**：從到達順序改為承諾交期。一張今天到期的單該
  * 排在昨天下的、下週才要的單前面，而那也會一併修正「新單插隊拿走補貨餘量」這個目前已知
@@ -33,7 +32,9 @@ public record DeliveryTerms(
     UUID facilityId,
     String shipToZone,
     String shipToAddress,
-    LocalDate promisedDeliveryDate
+    LocalDate promisedDeliveryDate,
+    Instant dispatchBy,
+    int releasePriority
 ) {
 
   public DeliveryTerms {
@@ -48,6 +49,12 @@ public record DeliveryTerms(
     }
     if (promisedDeliveryDate == null) {
       throw new IllegalArgumentException("Promised delivery date is required");
+    }
+    if (dispatchBy == null) {
+      throw new IllegalArgumentException("Dispatch deadline is required");
+    }
+    if (releasePriority < 0 || releasePriority > 100) {
+      throw new IllegalArgumentException("Release priority must be between 0 and 100");
     }
   }
 }

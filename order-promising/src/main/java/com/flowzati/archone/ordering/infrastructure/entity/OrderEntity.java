@@ -49,6 +49,12 @@ public class OrderEntity {
   @Column(name = "promised_delivery_date", nullable = false)
   private LocalDate promisedDeliveryDate;
 
+  @Column(name = "dispatch_by", nullable = false)
+  private Instant dispatchBy;
+
+  @Column(name = "release_priority", nullable = false)
+  private int releasePriority;
+
   @Column(name = "facility_id", nullable = false)
   private UUID facilityId;
 
@@ -99,6 +105,8 @@ public class OrderEntity {
       String shipToZone,
       String shipToAddress,
       LocalDate promisedDeliveryDate,
+      Instant dispatchBy,
+      int releasePriority,
       UUID facilityId,
       List<OrderLineEntity> lines,
       OrderStatus status,
@@ -115,6 +123,8 @@ public class OrderEntity {
     this.shipToZone = shipToZone;
     this.shipToAddress = shipToAddress;
     this.promisedDeliveryDate = promisedDeliveryDate;
+    this.dispatchBy = dispatchBy;
+    this.releasePriority = releasePriority;
     this.facilityId = facilityId;
     this.lines = lines;
     this.status = status;
@@ -148,6 +158,14 @@ public class OrderEntity {
 
   public LocalDate getPromisedDeliveryDate() {
     return promisedDeliveryDate;
+  }
+
+  public Instant getDispatchBy() {
+    return dispatchBy;
+  }
+
+  public int getReleasePriority() {
+    return releasePriority;
   }
 
   public UUID getFacilityId() {

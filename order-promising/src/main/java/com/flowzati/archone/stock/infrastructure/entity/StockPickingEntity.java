@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -47,6 +48,12 @@ public class StockPickingEntity {
   @Column(name = "to_location_id", nullable = false)
   private UUID toLocationId;
 
+  @Column(name = "dispatch_by")
+  private Instant dispatchBy;
+
+  @Column(name = "release_priority")
+  private Integer releasePriority;
+
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
   private PickingState state;
@@ -60,13 +67,16 @@ public class StockPickingEntity {
 
   public StockPickingEntity(
       UUID id, UUID pickingTypeId, UUID ownerId, UUID orderId,
-      UUID fromLocationId, UUID toLocationId, PickingState state, Long version) {
+      UUID fromLocationId, UUID toLocationId, Instant dispatchBy, Integer releasePriority,
+      PickingState state, Long version) {
     this.id = id;
     this.pickingTypeId = pickingTypeId;
     this.ownerId = ownerId;
     this.orderId = orderId;
     this.fromLocationId = fromLocationId;
     this.toLocationId = toLocationId;
+    this.dispatchBy = dispatchBy;
+    this.releasePriority = releasePriority;
     this.state = state;
     this.version = version;
   }
@@ -93,6 +103,14 @@ public class StockPickingEntity {
 
   public UUID getToLocationId() {
     return toLocationId;
+  }
+
+  public Instant getDispatchBy() {
+    return dispatchBy;
+  }
+
+  public Integer getReleasePriority() {
+    return releasePriority;
   }
 
   public PickingState getState() {

@@ -68,7 +68,7 @@ public class AllocateOrderUsecase {
 
     boolean isAllocated = movementAssigner.assign(demand, moves, now) == AllocationOutcome.ALLOCATED;
     DomainEvent event = isAllocated ?
-        new OrderAllocationCompleted(demand.orderId(), now) :
+        OrderAllocationCompleted.from(demand, moves, now) :
         new OrderBackorderRecorded(demand.orderId(), now);
     eventPublisher.publish(event);
   }

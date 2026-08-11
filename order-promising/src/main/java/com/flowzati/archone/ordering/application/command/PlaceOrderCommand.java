@@ -26,6 +26,8 @@ public record PlaceOrderCommand(
     String shipToZone,
     String shipToAddress,
     LocalDate promisedDeliveryDate,
+    Instant dispatchBy,
+    int releasePriority,
     UUID facilityId,
     /** 上游說客戶下單的時刻。可為 {@code null}——上游沒有義務送這個值。 */
     Instant placedAt,
@@ -40,6 +42,8 @@ public record PlaceOrderCommand(
         facilityId,
         shipToZone,
         shipToAddress,
-        promisedDeliveryDate);
+        promisedDeliveryDate,
+        dispatchBy,
+        releasePriority);
   }
 }

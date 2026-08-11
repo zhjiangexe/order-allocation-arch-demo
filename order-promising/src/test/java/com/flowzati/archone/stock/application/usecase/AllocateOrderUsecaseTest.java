@@ -90,8 +90,7 @@ class AllocateOrderUsecaseTest {
     List<StockMove> moves = movesFor(demand);
     givenTheOrderIsOutstanding(demand);
     given(stockOperationRecorder.recordOutbound(demand, fixedNow)).willReturn(moves);
-    given(movementAssigner.assign(demand, moves, fixedNow))
-        .willReturn(AllocationOutcome.ALLOCATED);
+    givenAllocated(demand, moves);
 
     usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
@@ -108,14 +107,15 @@ class AllocateOrderUsecaseTest {
   @DisplayName("配到貨時只發一個完成事實")
   void shouldPublishExactlyOneCompletionWhenAllocated() {
     Demand demand = pendingDemand();
+    List<StockMove> moves = movesFor(demand);
     givenTheOrderIsOutstanding(demand);
-    given(movementAssigner.assign(any(), any(), any()))
-        .willReturn(AllocationOutcome.ALLOCATED);
+    given(stockOperationRecorder.recordOutbound(demand, fixedNow)).willReturn(moves);
+    givenAllocated(demand, moves);
 
     usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
     then(eventPublisher).should(times(1))
-        .publish(new OrderAllocationCompleted(demand.orderId(), fixedNow));
+        .publish(OrderAllocationCompleted.from(demand, moves, fixedNow));
     then(eventPublisher).should(never()).publish(any(OrderBackorderRecorded.class));
     verifyNoMoreInteractions(eventPublisher);
   }
@@ -168,6 +168,13 @@ class AllocateOrderUsecaseTest {
         .map(line -> MovementFixtures.waitingMove(
             pickingId, line.skuCode(), line.orderLineId(), line.quantity(), fixedNow))
         .toList();
+  }
+
+  private void givenAllocated(Demand demand, List<StockMove> moves) {
+    given(movementAssigner.assign(demand, moves, fixedNow)).willAnswer(invocation -> {
+      moves.forEach(move -> move.assign(fixedNow));
+      return AllocationOutcome.ALLOCATED;
+    });
   }
 
 }

@@ -4,6 +4,7 @@ import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
+import com.flowzati.archone.stock.application.movement.AssignedDemand;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.model.StockMove;
@@ -73,10 +74,8 @@ public class AllocateWaitingDemandUsecase {
     }
 
     Instant now = appClock.instant();
-    List<UUID> allocatedOrderIds = movementAssigner.assignWaitingBatch(waiting, now).stream()
-        .map(Demand::orderId)
-        .toList();
-    allocatedOrderIds.forEach(
-        orderId -> eventPublisher.publish(new OrderAllocationCompleted(orderId, now)));
+    List<AssignedDemand> assigned = movementAssigner.assignWaitingBatch(waiting, now);
+    assigned.forEach(allocation -> eventPublisher.publish(
+        OrderAllocationCompleted.from(allocation.demand(), allocation.moves(), now)));
   }
 }

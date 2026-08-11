@@ -206,11 +206,10 @@ class MovementCompleterTest {
   }
 
   private StockMove inboundMove(int quantity, UUID pickingId) {
-    StockPicking picking = StockPicking.confirmed(
+    StockPicking picking = StockPicking.confirmedInbound(
         pickingId,
         MovementFixtures.INBOUND_TYPE_ID,
         OrderFixtures.OWNER_ID,
-        null,
         MovementFixtures.SUPPLIERS_LOCATION_ID,
         OrderFixtures.LOCATION_ID);
     when(stockPickingRepository.findByIds(java.util.Set.of(pickingId)))

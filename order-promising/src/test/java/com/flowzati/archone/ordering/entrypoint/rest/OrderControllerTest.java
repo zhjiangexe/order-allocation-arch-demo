@@ -42,6 +42,8 @@ class OrderControllerTest {
         "shipToZone": "100",
         "shipToAddress": "台北市中正區重慶南路一段 122 號",
         "promisedDeliveryDate": "2026-08-01",
+        "dispatchBy": "2026-08-01T08:00:00Z",
+        "releasePriority": 50,
         "lines": [{"skuCode": "HOT-SKU", "quantity": 3}]
       }
       """;
@@ -54,6 +56,21 @@ class OrderControllerTest {
         "shipToZone": "100",
         "shipToAddress": "台北市中正區重慶南路一段 122 號",
         "promisedDeliveryDate": "2026-08-01",
+        "dispatchBy": "2026-08-01T08:00:00Z",
+        "releasePriority": 50,
+        "lines": [{"skuCode": "HOT-SKU", "quantity": 3}]
+      }
+      """;
+
+  private static final String BODY_WITHOUT_RELEASE_PRIORITY = """
+      {
+        "ownerId": "00000000-0000-0000-0000-0000000000a1",
+        "externalOrderNo": "EXT-1",
+        "facilityId": "00000000-0000-0000-0000-0000000000b1",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-08-01",
+        "dispatchBy": "2026-08-01T08:00:00Z",
         "lines": [{"skuCode": "HOT-SKU", "quantity": 3}]
       }
       """;
@@ -92,6 +109,10 @@ class OrderControllerTest {
         .isEqualTo(OrderFixtures.FACILITY_ID.toString());
     response.bodyJson().extractingPath("$.shipToZone").isEqualTo("100");
     response.bodyJson().extractingPath("$.promisedDeliveryDate").isEqualTo("2026-08-01");
+    response.bodyJson().extractingPath("$.dispatchBy")
+        .isEqualTo(OrderFixtures.DISPATCH_BY.toString());
+    response.bodyJson().extractingPath("$.releasePriority")
+        .isEqualTo(OrderFixtures.RELEASE_PRIORITY);
     response.bodyJson().extractingPath("$.status").isEqualTo("PENDING");
     response.bodyJson().extractingPath("$.receivedAt").isEqualTo(RECEIVED_AT.toString());
     // 上游沒送下單時刻時回 null，不重複收單時刻——否則呼叫端分不出「上游真的送了同一個
@@ -140,6 +161,16 @@ class OrderControllerTest {
         .contentType(MediaType.APPLICATION_JSON)
         .content(BODY_WITHOUT_NODE)).hasStatus(400);
     verify(placeOrderUsecase).placeOrder(any(PlaceOrderCommand.class));
+  }
+
+  @Test
+  @DisplayName("未指定 release priority 時回 400，不把缺欄位安靜解讀成最低優先級 0")
+  void rejectsOrdersWithoutReleasePriority() {
+    assertThat(mvc.post().uri("/orders")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(BODY_WITHOUT_RELEASE_PRIORITY)).hasStatus(400);
+
+    verifyNoInteractions(placeOrderUsecase);
   }
 
   @Test

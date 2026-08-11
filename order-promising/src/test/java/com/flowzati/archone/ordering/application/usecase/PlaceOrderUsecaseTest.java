@@ -40,6 +40,8 @@ class PlaceOrderUsecaseTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         java.time.LocalDate.of(2026, 8, 1),
+        OrderFixtures.DISPATCH_BY,
+        OrderFixtures.RELEASE_PRIORITY,
         OrderFixtures.FACILITY_ID,
         null,
         List.of(new PlaceOrderCommand.Line("SKU-1", 3))));
@@ -79,6 +81,8 @@ class PlaceOrderUsecaseTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         java.time.LocalDate.of(2026, 8, 1),
+        OrderFixtures.DISPATCH_BY,
+        OrderFixtures.RELEASE_PRIORITY,
         OrderFixtures.FACILITY_ID,
         upstreamPlacedAt,
         List.of(new PlaceOrderCommand.Line("SKU-1", 3))));

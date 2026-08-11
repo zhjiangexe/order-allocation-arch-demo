@@ -18,6 +18,8 @@ SELECT ol.order_id,
        ol.owner_id,
        o.facility_id,
        sl.id       AS location_id,
+       o.dispatch_by,
+       o.release_priority,
        ol.sku_code,
        ol.quantity
 -- **不含 received_at。** 「這張單等了多久」現在由搬運的 created_at 回答，那是執行層自己寫的

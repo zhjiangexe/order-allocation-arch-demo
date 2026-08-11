@@ -72,6 +72,8 @@ class OrderMapperTest {
         "100",
         "台北市中正區重慶南路一段 122 號",
         LocalDate.of(2026, 8, 1),
+        OrderFixtures.DISPATCH_BY,
+        OrderFixtures.RELEASE_PRIORITY,
         FACILITY_ID,
         List.of(lineEntity(1, "SKU-1", 3)),
         OrderStatus.CANCELLED,
@@ -89,7 +91,12 @@ class OrderMapperTest {
     assertThat(order.getOwnerId()).isEqualTo(OWNER_ID);
     assertThat(order.getExternalOrderNo()).isEqualTo("EXT-1");
     assertThat(order.getDeliveryTerms()).isEqualTo(new DeliveryTerms(
-        FACILITY_ID, "100", "台北市中正區重慶南路一段 122 號", LocalDate.of(2026, 8, 1)));
+        FACILITY_ID,
+        "100",
+        "台北市中正區重慶南路一段 122 號",
+        LocalDate.of(2026, 8, 1),
+        OrderFixtures.DISPATCH_BY,
+        OrderFixtures.RELEASE_PRIORITY));
     assertThat(order.getDemand()).isEqualTo(Map.of("SKU-1", 3));
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     // 兩個時間戳各自還原，不互相污染——它們在建構子裡相鄰，對調不會編譯失敗。

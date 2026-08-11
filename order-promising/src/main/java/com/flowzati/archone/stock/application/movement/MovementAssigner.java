@@ -108,7 +108,7 @@ public class MovementAssigner {
    *
    * <p>回傳真正配到的那些需求，讓喚醒元件記錄每張成功訂單的完成事實與本輪結果。
    */
-  public List<Demand> assignWaitingBatch(List<StockMove> moves, Instant now) {
+  public List<AssignedDemand> assignWaitingBatch(List<StockMove> moves, Instant now) {
     List<Demand> candidates = toDemands(moves);
     if (candidates.isEmpty()) {
       return List.of();
@@ -124,8 +124,23 @@ public class MovementAssigner {
     applyAssignment(
         allocations.stream().flatMap(a -> a.picks().stream()).toList(), moves, now);
 
-    List<Demand> allocated = allocations.stream().map(OrderAllocation::demand).toList();
-    return allocated;
+    return allocations.stream()
+        .map(allocation -> assignedDemand(allocation.demand(), moves))
+        .toList();
+  }
+
+  private AssignedDemand assignedDemand(Demand demand, List<StockMove> suppliedMoves) {
+    Set<UUID> lineIds = demand.lines().stream()
+        .map(DemandLine::orderLineId)
+        .collect(Collectors.toSet());
+    List<StockMove> demandMoves = suppliedMoves.stream()
+        .filter(move -> lineIds.contains(move.getOrderLineId()))
+        .toList();
+    if (demandMoves.size() != demand.lines().size()) {
+      throw new IllegalStateException(
+          "Allocated demand does not have one movement per demand line: " + demand.orderId());
+    }
+    return new AssignedDemand(demand, demandMoves);
   }
 
   /**
@@ -220,27 +235,36 @@ public class MovementAssigner {
     if (moves.isEmpty()) {
       return List.of();
     }
+    Set<UUID> locationIds = moves.stream()
+        .map(StockMove::getFromLocationId)
+        .collect(Collectors.toSet());
+    if (locationIds.size() != 1) {
+      throw new IllegalArgumentException(
+          "A waiting allocation batch must belong to exactly one source location");
+    }
+    UUID locationId = locationIds.iterator().next();
+    UUID facilityId = stockLocationRepository.findById(locationId)
+        .map(StockLocation::getFacilityId)
+        .orElseThrow(() -> new IllegalStateException(
+            "Location " + locationId + " no longer exists"));
+
     // LinkedHashMap 保住 FIFO：查詢已經依到達順序回來，分組不得打亂它。
     Map<UUID, List<StockMove>> byPicking = new LinkedHashMap<>();
     for (StockMove move : moves) {
       byPicking.computeIfAbsent(move.getPickingId(), key -> new ArrayList<>()).add(move);
     }
-    Map<UUID, UUID> orderIds = stockPickingRepository.findByIds(byPicking.keySet()).stream()
+    Map<UUID, StockPicking> pickings = stockPickingRepository.findByIds(byPicking.keySet()).stream()
         .filter(picking -> picking.orderId() != null)
-        .collect(Collectors.toMap(StockPicking::id, StockPicking::orderId));
+        .collect(Collectors.toMap(StockPicking::id, picking -> picking));
 
     List<Demand> demands = new ArrayList<>();
     byPicking.forEach((pickingId, pickingMoves) -> {
-      UUID orderId = orderIds.get(pickingId);
-      if (orderId == null) {
+      StockPicking picking = pickings.get(pickingId);
+      if (picking == null) {
         // 沒有訂單的單據是入庫，它不是待配需求。
         return;
       }
       StockMove first = pickingMoves.getFirst();
-      UUID facilityId = stockLocationRepository.findById(first.getFromLocationId())
-          .map(StockLocation::getFacilityId)
-          .orElseThrow(() -> new IllegalStateException(
-              "Location " + first.getFromLocationId() + " no longer exists"));
       List<DemandLine> lines = pickingMoves.stream()
           .filter(move -> move.getOrderLineId() != null)
           .map(move -> new DemandLine(
@@ -248,7 +272,8 @@ public class MovementAssigner {
           .toList();
       if (!lines.isEmpty()) {
         demands.add(new Demand(
-            orderId, first.getOwnerId(), facilityId, first.getFromLocationId(), lines));
+            picking.orderId(), first.getOwnerId(), facilityId, locationId,
+            picking.dispatchBy(), picking.releasePriority(), lines));
       }
     });
     return List.copyOf(demands);

@@ -47,8 +47,9 @@ class StockPickingTest {
   }
 
   private StockPicking confirmedPicking() {
-    return StockPicking.confirmed(
+    return StockPicking.confirmedOutbound(
         IdGenerator.nextId(), IdGenerator.nextId(), IdGenerator.nextId(), IdGenerator.nextId(),
-        IdGenerator.nextId(), IdGenerator.nextId());
+        IdGenerator.nextId(), IdGenerator.nextId(),
+        java.time.Instant.parse("2026-08-01T08:00:00Z"), 50);
   }
 }

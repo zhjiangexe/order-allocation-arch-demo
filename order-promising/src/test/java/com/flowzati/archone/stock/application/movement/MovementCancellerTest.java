@@ -250,6 +250,8 @@ class MovementCancellerTest {
         orderId,
         OrderFixtures.LOCATION_ID,
         MovementFixtures.CUSTOMERS_LOCATION_ID,
+        OrderFixtures.DISPATCH_BY,
+        OrderFixtures.RELEASE_PRIORITY,
         PickingState.ASSIGNED,
         null);
     when(stockPickingRepository.findByOrderId(orderId)).thenReturn(List.of(picking));

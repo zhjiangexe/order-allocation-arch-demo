@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.infrastructure;
 
+import com.flowzati.archone.testsupport.OrderFixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -334,9 +335,11 @@ class StockMovementSchemaIntegrationTest {
     insertPickingType(PICKING_TYPE_ID, "OUTBOUND", INTERNAL_LOCATION_ID, CUSTOMER_LOCATION_ID);
     jdbcTemplate.update(
         "INSERT INTO orders (id, owner_id, external_order_no, ship_to_zone, ship_to_address, "
-            + "promised_delivery_date, facility_id, status, received_at, version) "
-            + "VALUES (?, ?, 'EXT-1', 'Z', 'addr', ?, ?, 'PENDING', ?, 0)",
-        ORDER_ID, OWNER_ID, Date.valueOf(LocalDate.of(2026, 12, 31)), WAREHOUSE_ID,
+            + "promised_delivery_date, dispatch_by, release_priority, facility_id, status, "
+            + "received_at, version) "
+            + "VALUES (?, ?, 'EXT-1', 'Z', 'addr', ?, ?, 50, ?, 'PENDING', ?, 0)",
+        ORDER_ID, OWNER_ID, Date.valueOf(LocalDate.of(2026, 12, 31)),
+        Timestamp.from(OrderFixtures.DISPATCH_BY), WAREHOUSE_ID,
         Timestamp.from(Instant.now()));
     jdbcTemplate.update(
         "INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity) "
@@ -348,9 +351,9 @@ class StockMovementSchemaIntegrationTest {
         Date.valueOf(LocalDate.of(2026, 1, 1)), Date.valueOf(LocalDate.of(2027, 1, 1)));
     jdbcTemplate.update(
         "INSERT INTO stock_pickings (id, picking_type_id, owner_id, order_id, from_location_id, "
-            + "to_location_id) VALUES (?, ?, ?, ?, ?, ?)",
+            + "to_location_id, dispatch_by, release_priority) VALUES (?, ?, ?, ?, ?, ?, ?, 50)",
         pickingId(), PICKING_TYPE_ID, OWNER_ID, ORDER_ID, INTERNAL_LOCATION_ID,
-        CUSTOMER_LOCATION_ID);
+        CUSTOMER_LOCATION_ID, Timestamp.from(OrderFixtures.DISPATCH_BY));
   }
 
   private void insertPickingType(UUID id, String code, UUID from, UUID to) {

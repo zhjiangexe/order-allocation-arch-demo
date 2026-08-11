@@ -89,7 +89,9 @@ class AllocationWorkflowEndToEndIntegrationTest {
     OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
     consumer.consume(event);
     UUID allocationOutcomeEventId = jdbcTemplate.queryForObject(
-        "SELECT id FROM event_outbox ORDER BY timestamp", UUID.class);
+        "SELECT id FROM event_outbox WHERE type = ? ORDER BY timestamp",
+        UUID.class,
+        com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent.EVENT_TYPE);
 
     // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
     // Debezium，所以這裡自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
@@ -120,7 +122,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 搬運在收單那一刻就建好了，這裡是它被轉成已鎖定。
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
     Map<String, Object> outbox = jdbcTemplate.queryForMap(
-        "SELECT type, route, aggregateid FROM event_outbox");
+        "SELECT type, route, aggregateid FROM event_outbox WHERE type = ?",
+        OrderAllocatedIntegrationEvent.EVENT_TYPE);
     assertThat(outbox)
         .containsEntry("type", OrderAllocatedIntegrationEvent.EVENT_TYPE)
         .containsEntry("route", PromisingEventTopics.ALLOCATION_EVENTS)

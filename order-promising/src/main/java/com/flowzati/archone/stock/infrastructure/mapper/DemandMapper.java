@@ -38,6 +38,8 @@ public final class DemandMapper {
           first.getOwnerId(),
           first.getFacilityId(),
           first.getLocationId(),
+          first.getDispatchBy(),
+          first.getReleasePriority(),
           orderRows.stream().map(DemandMapper::toLine).toList()));
     }
     return List.copyOf(demands);

@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.domain.model;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,8 @@ public record Demand(
     UUID ownerId,
     UUID facilityId,
     UUID locationId,
+    Instant dispatchBy,
+    int releasePriority,
     List<DemandLine> lines
 ) {
 
@@ -47,6 +50,12 @@ public record Demand(
     }
     if (locationId == null) {
       throw new IllegalArgumentException("Location ID is required");
+    }
+    if (dispatchBy == null) {
+      throw new IllegalArgumentException("Dispatch deadline is required");
+    }
+    if (releasePriority < 0 || releasePriority > 100) {
+      throw new IllegalArgumentException("Release priority must be between 0 and 100");
     }
     if (lines == null || lines.isEmpty()) {
       throw new IllegalArgumentException("Demand must contain at least one line");

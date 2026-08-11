@@ -1,5 +1,6 @@
 package com.flowzati.archone.ordering.infrastructure;
 
+import com.flowzati.archone.testsupport.OrderFixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -421,10 +422,12 @@ class OrderingSchemaIntegrationTest {
     jdbcTemplate.update("""
         INSERT INTO orders (
             id, owner_id, external_order_no, facility_id, ship_to_zone, ship_to_address,
-            promised_delivery_date, status, received_at)
-        VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', ?, 'PENDING', ?)
+            promised_delivery_date, dispatch_by, release_priority, status, received_at)
+        VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號', ?, ?, 50,
+                'PENDING', ?)
         """, id, ownerId, externalOrderNo, facilityId,
-        Date.valueOf(LocalDate.of(2026, 8, 1)), Timestamp.from(RECEIVED_AT));
+        Date.valueOf(LocalDate.of(2026, 8, 1)), Timestamp.from(OrderFixtures.DISPATCH_BY),
+        Timestamp.from(RECEIVED_AT));
   }
 
   private void seedLine(

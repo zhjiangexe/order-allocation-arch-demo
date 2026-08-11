@@ -151,13 +151,15 @@ class StockMovePersistenceIntegrationTest {
     jdbcTemplate.update("""
         INSERT INTO orders
             (id, owner_id, external_order_no, ship_to_zone, ship_to_address,
-             promised_delivery_date, facility_id, status, received_at, version)
-        VALUES (?, ?, ?, '100', 'addr', ?, ?, 'PENDING', ?, 0)
+             promised_delivery_date, dispatch_by, release_priority, facility_id, status,
+             received_at, version)
+        VALUES (?, ?, ?, '100', 'addr', ?, ?, 50, ?, 'PENDING', ?, 0)
         """,
         orderId,
         OrderFixtures.OWNER_ID,
         externalOrderNo,
         Date.valueOf(LocalDate.of(2026, 12, 31)),
+        Timestamp.from(OrderFixtures.DISPATCH_BY),
         OrderFixtures.FACILITY_ID,
         Timestamp.from(CREATED_AT));
   }
@@ -176,17 +178,24 @@ class StockMovePersistenceIntegrationTest {
       UUID fromLocationId,
       UUID toLocationId
   ) {
+    java.sql.Timestamp dispatchBy = orderId == null
+        ? null
+        : Timestamp.from(OrderFixtures.DISPATCH_BY);
+    Integer releasePriority = orderId == null ? null : OrderFixtures.RELEASE_PRIORITY;
     jdbcTemplate.update("""
         INSERT INTO stock_pickings
-            (id, picking_type_id, owner_id, order_id, from_location_id, to_location_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (id, picking_type_id, owner_id, order_id, from_location_id, to_location_id,
+             dispatch_by, release_priority)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         pickingId,
         pickingTypeId,
         OrderFixtures.OWNER_ID,
         orderId,
         fromLocationId,
-        toLocationId);
+        toLocationId,
+        dispatchBy,
+        releasePriority);
   }
 
   private void insertMove(

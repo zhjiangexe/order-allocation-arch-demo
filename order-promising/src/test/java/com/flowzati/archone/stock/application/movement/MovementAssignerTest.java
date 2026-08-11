@@ -19,6 +19,7 @@ import com.flowzati.archone.stock.domain.service.AllocationService;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.testsupport.DemandFixtures;
 import com.flowzati.archone.testsupport.MovementFixtures;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -234,7 +235,7 @@ class MovementAssignerTest {
   @Test
   @DisplayName("喚醒時佇列是空的就不應寫入任何東西，連庫存都不必查")
   void shouldWriteNothingWhenThereAreNoWaitingMovements() {
-    List<Demand> result = assigner.assignWaitingBatch(List.of(), now);
+    List<AssignedDemand> result = assigner.assignWaitingBatch(List.of(), now);
 
     // 補貨本身已經在 usecase 的 upsert 寫進去了，這裡再存一次只是多一次無謂的寫入與衝突。
     assertThat(result).isEmpty();
@@ -265,10 +266,11 @@ class MovementAssignerTest {
             DemandFixtures.LOCATION_ID,
             Map.of("SKU-1", List.of(batch))));
 
-    List<Demand> allocated = assigner.assignWaitingBatch(List.of(first, second), now);
+    List<AssignedDemand> allocated = assigner.assignWaitingBatch(List.of(first, second), now);
 
     // 5 件只餵得飽第一張；第二張在 FIFO 之下就此停住，而不是被跳過去換一張配得到的。
-    assertThat(allocated).extracting(Demand::orderId).containsExactly(firstOrder);
+    assertThat(allocated).extracting(result -> result.demand().orderId())
+        .containsExactly(firstOrder);
     assertThat(first.getState()).isEqualTo(MoveState.ASSIGNED);
     assertThat(second.getState()).isEqualTo(MoveState.CONFIRMED);
     assertThat(firstPickingRecord.state()).isEqualTo(PickingState.ASSIGNED);
@@ -288,9 +290,15 @@ class MovementAssignerTest {
   }
 
   private StockPicking picking(UUID id, UUID orderId) {
-    return StockPicking.confirmed(
+    if (orderId == null) {
+      return StockPicking.confirmedInbound(
+          id, MovementFixtures.INBOUND_TYPE_ID, DemandFixtures.OWNER_ID,
+          MovementFixtures.SUPPLIERS_LOCATION_ID, DemandFixtures.LOCATION_ID);
+    }
+    return StockPicking.confirmedOutbound(
         id, MovementFixtures.OUTBOUND_TYPE_ID, DemandFixtures.OWNER_ID, orderId,
-        DemandFixtures.LOCATION_ID, MovementFixtures.CUSTOMERS_LOCATION_ID);
+        DemandFixtures.LOCATION_ID, MovementFixtures.CUSTOMERS_LOCATION_ID,
+        OrderFixtures.DISPATCH_BY, OrderFixtures.RELEASE_PRIORITY);
   }
 
   private Demand pendingDemand(String skuCode, int quantity) {

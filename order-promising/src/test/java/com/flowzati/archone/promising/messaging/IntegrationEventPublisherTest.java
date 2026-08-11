@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
@@ -17,6 +18,7 @@ import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.promising.domain.DomainEvent;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.application.event.FulfillmentEventTopics;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.stock.infrastructure.messaging.producer.AllocationIntegrationEventPublisher;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
@@ -110,27 +112,59 @@ class IntegrationEventPublisherTest {
   }
 
   @Test
-  @DisplayName("配置完成與缺貨事件皆以 orderId 路由到 allocation destination")
+  @DisplayName("配置完成同時產生 lifecycle notification 與完整 fulfillment handoff")
   void shouldTranslateAllocationOutcomes() {
     RecordingPublisher publisher = new RecordingPublisher();
     AllocationIntegrationEventPublisher publisherAdapter =
         new AllocationIntegrationEventPublisher(publisher);
     UUID orderId = UUID.randomUUID();
+    UUID allocationId = UUID.randomUUID();
+    UUID orderLineId = UUID.randomUUID();
+    UUID moveId = UUID.randomUUID();
+    UUID locationId = UUID.randomUUID();
 
-    publisherAdapter.publish(new OrderAllocationCompleted(orderId, OCCURRED_AT));
+    publisherAdapter.publish(new OrderAllocationCompleted(
+        allocationId,
+        orderId,
+        OWNER_ID,
+        FACILITY_ID,
+        List.of(new OrderAllocationCompleted.AllocationLine(
+            orderLineId, moveId, "SKU-1", locationId, 3)),
+        OCCURRED_AT.plusSeconds(3600),
+        80,
+        OCCURRED_AT));
     publisherAdapter.publish(new OrderBackorderRecorded(orderId, OCCURRED_AT));
 
     assertThat(publisher.publications)
         .extracting(publication -> publication.event().eventType())
         .containsExactly(
             OrderAllocatedIntegrationEvent.EVENT_TYPE,
+            AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
             BackorderCreatedIntegrationEvent.EVENT_TYPE);
+    assertThat(publisher.publications.get(0).aggregate().type())
+        .isEqualTo(OutboxAggregateTypes.ORDER);
+    assertThat(publisher.publications.get(0).target().destination())
+        .isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
+    IntegrationEventPublication fulfillmentPublication = publisher.publications.get(1);
+    assertThat(fulfillmentPublication.aggregate().type())
+        .isEqualTo(OutboxAggregateTypes.STOCK_PICKING);
+    assertThat(fulfillmentPublication.aggregate().id()).isEqualTo(allocationId.toString());
+    assertThat(fulfillmentPublication.target().destination())
+        .isEqualTo(FulfillmentEventTopics.FULFILLMENT_HANDOFFS);
+    var fulfillment = (AllocationCommittedForFulfillmentIntegrationEvent)
+        fulfillmentPublication.event();
+    assertThat(fulfillment.getOrderId()).isEqualTo(orderId);
+    assertThat(fulfillment.getLines()).singleElement().satisfies(line -> {
+      assertThat(line.moveId()).isEqualTo(moveId);
+      assertThat(line.sourceLocationId()).isEqualTo(locationId);
+      assertThat(line.quantity()).isEqualTo(3);
+    });
+    assertThat(publisher.publications.get(2).aggregate().type())
+        .isEqualTo(OutboxAggregateTypes.ORDER);
+    assertThat(publisher.publications.get(2).target().destination())
+        .isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
     assertThat(publisher.publications)
         .allSatisfy(publication -> {
-          assertThat(publication.aggregate().type()).isEqualTo(OutboxAggregateTypes.ORDER);
-          assertThat(publication.aggregate().id()).isEqualTo(orderId.toString());
-          assertThat(publication.target().destination())
-              .isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
           assertThat(publication.target().partitionKey()).isEqualTo(orderId.toString());
           assertThat(publication.occurredAt()).isEqualTo(OCCURRED_AT);
         });

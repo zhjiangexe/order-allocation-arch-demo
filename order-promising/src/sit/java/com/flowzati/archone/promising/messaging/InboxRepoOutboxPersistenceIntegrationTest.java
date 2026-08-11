@@ -197,10 +197,12 @@ class JdbcMessagingPersistenceIntegrationTest {
       jdbcTemplate.update("""
           INSERT INTO orders (
               id, owner_id, external_order_no, facility_id, ship_to_zone,
-              ship_to_address, promised_delivery_date, status, received_at, version)
+              ship_to_address, promised_delivery_date, dispatch_by, release_priority,
+              status, received_at, version)
           VALUES (?, ?, ?, ?, '100', '台北市中正區重慶南路一段 122 號',
-                  DATE '2026-08-01', ?, ?, ?)
+                  DATE '2026-08-01', ?, 50, ?, ?, ?)
           """, orderId, OrderFixtures.OWNER_ID, "EXT-" + orderId, OrderFixtures.FACILITY_ID,
+          Timestamp.from(OrderFixtures.DISPATCH_BY),
           "PENDING",
           Timestamp.from(receivedAt), 0L);
       eventPublisher.publish(new OrderPlaced(

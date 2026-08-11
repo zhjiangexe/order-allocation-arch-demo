@@ -313,8 +313,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
         BackorderCreatedIntegrationEvent.EVENT_TYPE);
     assertThat(orderingClaims).isEqualTo(TOTAL_ORDERS);
 
-    // 5) Outbox 結果：對外發布的 Integration Event 總數要等於送出的事件數，且種類分佈要對上
-    //    Order 的最終結果（10 筆 Allocated + 990 筆 Backorder），不能多也不能少。
+    // 5) 每張結果都有 lifecycle event；成功配置另外有一筆 WMS handoff snapshot。
     Integer outboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_outbox", Integer.class);
     Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
@@ -322,7 +321,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     Integer backorderedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
         BackorderCreatedIntegrationEvent.EVENT_TYPE);
-    assertThat(outboxCount).isEqualTo(TOTAL_ORDERS);
+    assertThat(outboxCount).isEqualTo(TOTAL_ORDERS + ON_HAND_QUANTITY);
     assertThat(allocatedOutboxCount).isEqualTo(ON_HAND_QUANTITY);
     assertThat(backorderedOutboxCount).isEqualTo(TOTAL_ORDERS - ON_HAND_QUANTITY);
   }

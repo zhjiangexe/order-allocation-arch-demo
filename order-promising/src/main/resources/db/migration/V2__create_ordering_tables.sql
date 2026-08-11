@@ -201,6 +201,10 @@ CREATE TABLE orders (
     ship_to_zone VARCHAR(32) NOT NULL,
     ship_to_address VARCHAR(512) NOT NULL,
     promised_delivery_date DATE NOT NULL,
+    -- 由上游排程提供，不能只靠 promised_delivery_date 猜；逾期的 deadline 仍是合法事實。
+    dispatch_by TIMESTAMPTZ NOT NULL,
+    -- WMS Wave planner 的輸入事實，不參與 allocation 的庫存決策。
+    release_priority INTEGER NOT NULL,
     -- 這張單從哪個倉出。值由貨主的上游系統在收單時給定，系統不推導、不預設、不改。
     -- 沒有選點之後它就是這張單的履約設施，因此為 NOT NULL：可空等於在型別上保留一個
     -- 永遠不會發生的狀態，而每個讀取端都得處理它。
@@ -226,6 +230,7 @@ CREATE TABLE orders (
     cancelled_at TIMESTAMPTZ,
     version BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT fk_orders_owner FOREIGN KEY (owner_id) REFERENCES owners(id),
+    CONSTRAINT ck_orders_release_priority CHECK (release_priority BETWEEN 0 AND 100),
     -- 複合外鍵，不是單欄指向 facilities。它讓「倉存在，但這個貨主沒掛這個倉」
     -- 由資料庫擋下，而不是只擋得住「倉不存在」——與 order_lines 的 (owner_id, sku_code)
     -- 走自然鍵外鍵是同一個手法：把貨主放進參照，跨貨主的錯誤組合就無法寫入。

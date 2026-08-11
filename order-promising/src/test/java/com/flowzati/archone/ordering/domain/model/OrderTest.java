@@ -422,7 +422,9 @@ class OrderTest {
         facilityId,
         "100",
         "台北市中正區重慶南路一段 122 號",
-        LocalDate.of(2026, 8, 1));
+        LocalDate.of(2026, 8, 1),
+        Instant.parse("2026-08-01T08:00:00Z"),
+        50);
   }
 
   private OrderLine line(int lineNo, String skuCode, int quantity) {

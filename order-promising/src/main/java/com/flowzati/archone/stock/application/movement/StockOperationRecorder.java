@@ -63,13 +63,15 @@ public class StockOperationRecorder {
         demand.facilityId(), demand.locationId(), PickingDirection.OUTBOUND);
 
     UUID pickingId = IdGenerator.nextId();
-    stockPickingRepository.save(StockPicking.confirmed(
+    stockPickingRepository.save(StockPicking.confirmedOutbound(
         pickingId,
         type.id(),
         demand.ownerId(),
         demand.orderId(),
         type.defaultFromLocationId(),
-        type.defaultToLocationId()));
+        type.defaultToLocationId(),
+        demand.dispatchBy(),
+        demand.releasePriority()));
 
     List<StockMove> created = demand.lines().stream()
         .map(demandLine -> StockMove.confirmed(
@@ -107,11 +109,10 @@ public class StockOperationRecorder {
     PickingType type = operationTypeFor(facilityId, locationId, PickingDirection.INBOUND);
 
     UUID pickingId = IdGenerator.nextId();
-    stockPickingRepository.save(StockPicking.confirmed(
+    stockPickingRepository.save(StockPicking.confirmedInbound(
         pickingId,
         type.id(),
         ownerId,
-        null,
         type.defaultFromLocationId(),
         locationId));
 

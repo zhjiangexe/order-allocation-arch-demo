@@ -46,6 +46,8 @@ public final class OrderFixtures {
   public static final UUID OTHER_OWNER_ID =
       UUID.fromString("00000000-0000-0000-0000-0000000000a2");
   public static final String PRODUCT_CODE = "P-TEST";
+  public static final Instant DISPATCH_BY = Instant.parse("2026-08-01T08:00:00Z");
+  public static final int RELEASE_PRIORITY = 50;
 
   private OrderFixtures() {
   }
@@ -175,7 +177,9 @@ public final class OrderFixtures {
         facilityId,
         "100",
         "台北市中正區重慶南路一段 122 號",
-        LocalDate.of(2026, 8, 1));
+        LocalDate.of(2026, 8, 1),
+        DISPATCH_BY,
+        RELEASE_PRIORITY);
   }
 
   /** 一張從指定倉出貨、已在佇列裡的單。 */
@@ -203,7 +207,9 @@ public final class OrderFixtures {
         FACILITY_ID,
         "100",
         "台北市中正區重慶南路一段 122 號",
-        LocalDate.of(2026, 8, 1));
+        LocalDate.of(2026, 8, 1),
+        DISPATCH_BY,
+        RELEASE_PRIORITY);
   }
 
   public static OrderLine line(String skuCode, int quantity) {

@@ -47,6 +47,9 @@ public class OrderController {
   }
 
   private static PlaceOrderCommand toCommand(PlaceOrderRequest request) {
+    if (request.releasePriority() == null) {
+      throw new IllegalArgumentException("Release priority is required");
+    }
     List<PlaceOrderCommand.Line> lines = request.lines() == null
         ? null
         : request.lines().stream()
@@ -58,6 +61,8 @@ public class OrderController {
         request.shipToZone(),
         request.shipToAddress(),
         request.promisedDeliveryDate(),
+        request.dispatchBy(),
+        request.releasePriority(),
         request.facilityId(),
         request.placedAt(),
         lines);
