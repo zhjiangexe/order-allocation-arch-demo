@@ -25,8 +25,10 @@ import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.OP
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.ORDER_EVENTS;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitConnectorRunning;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitEvent;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitFulfillmentHandoffEvent;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitOrderStatus;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitOutboxEvent;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitWmsShipment;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.copyOf;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.duplicateOutcomeCount;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.failureInjector;
@@ -51,6 +53,9 @@ import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.st
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.stopFullPath;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.textHeader;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.unpauseKafkaIfNecessary;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsInboxClaimCount;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsShipmentCount;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsShipmentLineQuantity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -95,7 +100,10 @@ class FullPathMessagingCorrectnessE2eTest {
       awaitOrderStatus(orderId, "ALLOCATED", NORMAL_FLOW_TIMEOUT);
       UUID allocatedEventId = awaitOutboxEvent(
           orderId, OrderAllocatedIntegrationEvent.EVENT_TYPE);
-      assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocatedEventId);
+      UUID handoffEventId = awaitFulfillmentHandoffEvent(orderId);
+      awaitWmsShipment(orderId, handoffEventId);
+      assertCompletedExactlyOnce(
+          orderId, sku, quantity, placedEventId, allocatedEventId, handoffEventId);
 
       restartApplication();
       double duplicateBefore = duplicateOutcomeCount();
@@ -105,7 +113,8 @@ class FullPathMessagingCorrectnessE2eTest {
           NORMAL_FLOW_TIMEOUT,
           () -> duplicateOutcomeCount() > duplicateBefore);
 
-      assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocatedEventId);
+      assertCompletedExactlyOnce(
+          orderId, sku, quantity, placedEventId, allocatedEventId, handoffEventId);
     }
   }
 
@@ -194,7 +203,10 @@ class FullPathMessagingCorrectnessE2eTest {
       awaitOrderStatus(orderId, "ALLOCATED", NORMAL_FLOW_TIMEOUT);
       UUID allocatedEventId = awaitOutboxEvent(
           orderId, OrderAllocatedIntegrationEvent.EVENT_TYPE);
-      assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocatedEventId);
+      UUID handoffEventId = awaitFulfillmentHandoffEvent(orderId);
+      awaitWmsShipment(orderId, handoffEventId);
+      assertCompletedExactlyOnce(
+          orderId, sku, quantity, placedEventId, allocatedEventId, handoffEventId);
     } finally {
       failureInjector().allowSuccess();
     }
@@ -205,9 +217,12 @@ class FullPathMessagingCorrectnessE2eTest {
       String sku,
       int quantity,
       UUID placedEventId,
-      UUID allocatedEventId
+      UUID allocatedEventId,
+      UUID handoffEventId
   ) {
     assertThat(orderStatus(orderId)).isEqualTo("ALLOCATED");
+    // This query counts Order aggregate events. The fulfillment handoff is intentionally owned by
+    // the StockPicking aggregate and is asserted separately through its event ID and WMS Inbox.
     assertThat(outboxCount(orderId)).isEqualTo(2);
     assertThat(inboxClaimCount(
         AllocationEventSubscriptions.ORDER_LIFECYCLE, placedEventId)).isOne();
@@ -217,6 +232,9 @@ class FullPathMessagingCorrectnessE2eTest {
     assertThat(pickingCount(orderId)).isOne();
     assertThat(moveCount(orderId)).isOne();
     assertThat(moveLineQuantity(orderId)).isEqualTo(quantity);
+    assertThat(wmsInboxClaimCount(handoffEventId)).isOne();
+    assertThat(wmsShipmentCount(orderId)).isOne();
+    assertThat(wmsShipmentLineQuantity(orderId)).isEqualTo(quantity);
   }
 
   private static void assertFailedAllocationRolledBack(

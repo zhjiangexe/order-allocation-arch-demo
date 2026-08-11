@@ -1,6 +1,7 @@
 # Messaging 整理後優化 Roadmap
 
-> 狀態：Gate P0-A／P0-B／P0-C 已完成；下一步為 Gate P1-D WMS messaging vertical slice
+> 狀態：Gate P0-A／P0-B／P0-C 已完成；Gate P1-D handoff vertical slice 已完成，
+> 下一步為 D4 order cancellation correlation／亂序保護
 > 更新日期：2026-08-11
 > 適用範圍：`messaging/*`、`contracts`、使用 messaging 的 bounded-context runtime，
 > 以及 PostgreSQL／Debezium／Kafka 的端到端驗證
@@ -36,8 +37,8 @@ messaging modules，而是處理重構後才看得見的整合與 production rea
 | P0 | Kafka listener 設定有雙重來源 | `e2e/perf/run.sh` 設 `spring.kafka.listener.concurrency=4`，programmatic runtime 卻以 `archone.messaging.consumer.kafka` 預設 `1` 覆寫 container | 建立單一基準與清楚的 override precedence |
 | P0 | transient infrastructure failure 可能直接進 DLT | order-promising 目前只將 `OptimisticLockingRetryExhaustedException` 分為 retryable，其餘 fallback 為 non-retryable | 建立有界、可觀測的例外分類矩陣 |
 | P0 | 缺少 application-to-application correctness E2E | connector 與 application 各段已有測試，但 `e2e/spec` 尚未完成 | 自動驗證 Outbox → Debezium → Kafka → Inbox → use case |
-| P1 | 第二個 bounded context 尚未接入 | WMS 目前是 pure Java，尚無 repository/runtime/messaging adapter | 用 WMS vertical slice 驗證 starter 與邊界 |
-| P1 | fulfillment contract 資料不足 | `OrderAllocatedIntegrationEvent` 只有 `orderId`／時間，不能建立 WMS Shipment | 定義不可變、可獨立消費的 fulfillment handoff snapshot |
+| P1 | 第二個 bounded context 接入尚未完整 | WMS handoff 的 repository/runtime/Inbox adapter 已完成；整單取消與 inbound adapters 尚未接 | 先完成 order cancellation correlation，再按 reader 需求擴充 |
+| P1 | fulfillment contract 原先資料不足 | 已新增獨立完整 snapshot，且保留最小 `OrderAllocatedIntegrationEvent` | 以 consumer-driven tests 守住 handoff contract |
 | P1 | Integration Event governance 仍靠手動列舉 | contract test、golden JSON 與 application mapping 都要人工同步 | 讓漏註冊、重複 type、缺 fixture 在測試期失敗 |
 | P1 | payload 沒有 producer-side byte limit | headers 已有上限；body 尚未在 Outbox INSERT 前阻擋 oversized message | 與 Kafka／Connect 限制一致並 fail fast |
 | P2 | 維運能力多數仍是文件與人工流程 | 已有 runbook，但尚缺統一 dashboard、canary 與受控 DLT replay | 上線前完成可觀測、可演練的操作面 |
@@ -230,26 +231,50 @@ order-promising transaction
 
 ### Tasks
 
-- [ ] D1. 保持 `wms` 為 pure domain/application module；建立 WMS runtime／adapter module 承接
+- [x] D1. 保持 `wms` 為 pure domain/application module；建立 WMS runtime／adapter module 承接
   Spring、transaction、JDBC repository 與 messaging starter。
-- [ ] D2. 決定 fulfillment handoff 語意：優先評估新增
+- [x] D2. 決定 fulfillment handoff 語意：優先評估新增
   `FulfillmentRequestedIntegrationEvent` 或
   `AllocationCommittedForFulfillmentIntegrationEvent`，不要只因欄位不足就任意膨脹舊事件。
-- [ ] D3. 契約至少提供 stable allocation identity、order／owner／facility、committed allocation
+- [x] D3. 契約至少提供 stable allocation identity、order／owner／facility、committed allocation
   lines、source location、quantity、dispatch-by 與實際演算法使用的 priority facts。
-- [ ] D4. 由 WMS 自己保存 order-to-shipment correlation；整單取消以 `orderId` 找到並取消可取消的
+- [x] D4a. 由 WMS 自己保存 order-to-shipment correlation，repository 可依 `orderId` 找到
   Shipments，不要求 order-promising 知道 WMS `shipmentId`。
-- [ ] D5. WMS 使用自己的 Inbox／Outbox schema ownership 與 transaction boundary，不跨 bounded
-  context 查 order-promising repository。
-- [ ] D6. WMS 只在跨邊界有價值時發布 Integration Event；Pick／Pack／Stage 內部每次狀態改變
+- [ ] D4b. 接入整單取消，以 `orderId` 取消可取消的 Shipments；必須持久化 cancellation intent，
+  防止 cancellation 與 fulfillment handoff 跨 topic 亂序時，晚到的 handoff 又建立 Shipment。
+- [x] D5. WMS 使用自己的 Inbox（以及有 reader 時才建立的 Outbox）schema ownership 與
+  transaction boundary，不跨 bounded context 查 order-promising repository。
+- [x] D6. WMS 只在跨邊界有價值時發布 Integration Event；Pick／Pack／Stage 內部每次狀態改變
   不必全部送 Kafka。
-- [ ] D7. 加入 producer contract test、WMS consumer integration test 與 full-path E2E。
+- [x] D7. 加入 producer contract test、WMS consumer integration test 與 full-path E2E。
 
 ### Exit criteria
 
 - WMS adapter 只依賴 contracts、messaging starter 與 WMS application API。
 - 相同 event 重送不會建立第二張 Shipment 或重複執行 work。
 - WMS 不需要讀取 order-promising database 才能處理 handoff。
+
+### 2026-08-11 handoff slice implementation evidence
+
+- 新增獨立 `AllocationCommittedForFulfillmentIntegrationEvent` 與
+  `promising.fulfillment-handoffs` channel。它攜帶 committed allocation snapshot；Ordering 使用的
+  `OrderAllocatedIntegrationEvent` 仍維持最小 lifecycle notification。
+- `dispatchBy` 與 `releasePriority` 在 order input 明確提供，經 `DeliveryTerms`、Demand、outbound
+  `StockPicking` 與 domain completion fact 傳到 Outbox；WMS 不從承諾日期猜離倉 deadline，也不在
+  收到逾期單時拒絕建單。
+- 新增 `wms-runtime` deployable；只依賴 WMS core、contracts、foundation 與 consumer-only starter。
+  `wms` 本身仍是 pure Java，沒有 Spring、JPA、Kafka 依賴。
+- WMS JPA adapter 擁有 `wms_shipments`、lines、pick tasks 與 `event_inbox`。Flyway 使用專屬
+  `classpath:db/wms/migration`，避免多 deployable 同 classpath 時 migration version 衝突。
+- consumer 以 Tram-style `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 註冊；
+  共用 Inbox transaction 包住 contract mapping、`CreateShipmentUsecase` 與 Shipment persistence。
+- message ID duplicate 由 Inbox 擋住；同一 allocation 以新 event ID 重發則由 `allocationId` business
+  key 收斂。相同 snapshot 回傳既有 Shipment，不同 snapshot 明確失敗。
+- correctness E2E 同 JVM 啟動兩個獨立 Spring context、兩個 DB schema／Inbox，共用真實
+  Debezium Connect／Kafka；驗證 order-promising Outbox → CDC → Kafka → WMS Inbox → Shipment，
+  且 application restart／record replay 後不會多建 Shipment。
+- D4b 刻意不和 handoff 偷綁在一起：只做 `findByOrderId` 不足以處理跨 topic 亂序；下一步須以
+  WMS 自有 cancellation intent／tombstone 建模後再接 consumer。
 
 ## 8. Gate P1-E — Integration Event contract governance
 

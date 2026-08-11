@@ -129,16 +129,16 @@
     <div>
       <div class="eyebrow">WMS bounded context · current source</div>
       <h1>WMS-only 模組架構與主要流程</h1>
-      <p>本頁只描述 <code>wms</code> business module：Inbound 與 Outbound application／domain contract。專案另有 <code>foundation</code>、<code>contracts</code>、完整的 <code>messaging:*</code> 子模組與只保留非 messaging Spring wiring 的 <code>platform-infrastructure</code>，但 WMS core 目前不依賴 Spring、Kafka、JPA 或任何 workflow engine。</p>
+      <p>本頁以 <code>wms</code> pure business module 為主，並標示第一個 <code>wms-runtime</code> fulfillment handoff adapter。Spring、Kafka、JPA 與 Inbox 留在 runtime；WMS core 仍不依賴它們或任何 workflow engine。</p>
     </div>
     <aside class="snapshot" aria-label="模組快照">
       <dl>
-        <dt>Gradle module</dt><dd>1</dd>
+        <dt>Gradle modules</dt><dd>2</dd>
         <dt>Shared technical modules</dt><dd>10</dd>
         <dt>Bounded areas</dt><dd>Inbound / Outbound</dd>
         <dt>Use cases</dt><dd>13</dd>
         <dt>Repository ports</dt><dd>3</dd>
-        <dt>Repository impl</dt><dd>0</dd>
+        <dt>Repository impl</dt><dd>1</dd>
         <dt>Workflow engine</dt><dd>0</dd>
       </dl>
     </aside>
@@ -158,7 +158,7 @@
   <section id="boundary" aria-labelledby="boundary-title">
     <div class="section-head">
       <h2 id="boundary-title">一、模組與責任邊界</h2>
-      <p>先穩定 WMS 自己的 commands、aggregate rules 與 committed events，再由未來 adapter 接 REST、Kafka、JPA、Inventory 或 TMS。</p>
+      <p>WMS core 穩定 commands、aggregate rules 與 committed events；runtime adapter 只接跨邊界 transport 與 persistence。</p>
     </div>
     <div class="cards">
       <article class="card">
@@ -171,14 +171,14 @@
         <p>一張 Inbound Operation 的登記、到貨、驗收、隔離與上架完成。</p>
         <ul><li>Aggregate：<code>InboundOperation</code></li><li>Repository port：<code>InboundOperationRepository</code></li><li>4 個 command use cases</li></ul>
       </article>
-      <article class="card future">
-        <h3>Adapters / Infrastructure</h3>
-        <p>共用 messaging 已拆成 API／Events、Outbox producer、Inbox consumer、Kafka consumer、Spring Boot auto-configuration 與薄 starter；<code>platform-infrastructure</code> 不再負責 messaging wiring。WMS 專屬 repository implementation、consumer 與外部系統 mapping 仍刻意未建立，且 <code>wms</code> core 不反向依賴它們。</p>
+      <article class="card">
+        <h3><code>wms-runtime</code></h3>
+        <p>已用 consumer-only starter 接收 fulfillment handoff，並以 WMS 自有 Inbox transaction 與 JPA <code>ShipmentRepository</code> 落地。尚未出現 reader 的 WMS domain events 不發布 Kafka；Inbound、Wave 與 Inventory/TMS adapters 仍待真實 use case 再補。</p>
       </article>
     </div>
     <div class="callout" style="margin-top: 16px">
       <strong>依賴方向</strong>
-      <p>未來 WMS Adapter → WMS Usecase → Aggregate → Domain Event；runtime adapter 可依賴 <code>contracts</code> 與 <code>messaging:*</code>，WMS core 只宣告 ports。Messaging adapter 可以依賴 API 與契約，但不得反向依賴 WMS domain。</p>
+      <p><code>wms-runtime → contracts／messaging consumer starter／wms application API → aggregate → ports</code>；<code>wms</code> 不反向依賴 runtime。order-promising 只發布不可變 handoff snapshot，不引用 WMS class，也不讓 WMS 跨庫查資料。</p>
     </div>
   </section>
 
@@ -296,8 +296,8 @@
     <table>
       <thead><tr><th>缺口</th><th>目前狀態</th><th>建議</th></tr></thead>
       <tbody>
-        <tr><td>Repository／Outbox implementations</td><td><span class="tag missing">WMS wiring 未建立</span></td><td>通用 Outbox producer 已在 <code>messaging:messaging-producer-outbox</code>；WMS repository adapter、event translator 與 runtime composition 仍待建立，不放回 domain package。</td></tr>
-        <tr><td>Order Promising → WMS input</td><td><span class="tag missing">上游待補</span></td><td>目前 <code>OrderAllocatedIntegrationEvent</code> 只有 <code>orderId</code>／<code>allocatedAt</code>。order-promising integration snapshot 尚需準備 allocation／StockPicking ID、owner、Facility、committed line／move／source location／quantity、<code>dispatchBy</code> 與 <code>releasePriority</code>；整單取消也需保留 order-to-shipment correlation。各缺口已直接註解在 <code>CreateShipmentCommand</code>／<code>CancelShipmentCommand</code> 上。</td></tr>
+        <tr><td>Repository／Outbox implementations</td><td><span class="tag">Outbound handoff 已建立</span></td><td><code>wms-runtime</code> 已提供 Shipment JPA adapter、WMS schema、Inbox consumer 與 runtime composition。WMS producer／Outbox 暫不建立，因目前沒有具體跨邊界 reader；Wave 與 Inbound repository adapter 仍待補。</td></tr>
+        <tr><td>Order Promising → WMS input</td><td><span class="tag">Handoff 已接通</span></td><td><code>AllocationCommittedForFulfillmentIntegrationEvent</code> 獨立攜帶 allocation／StockPicking ID、owner、Facility、committed lines、source locations、quantity、<code>dispatchBy</code> 與 <code>releasePriority</code>；既有最小 <code>OrderAllocatedIntegrationEvent</code> 不被膨脹。整單取消 consumer 與跨 topic 亂序保護仍待下一步。</td></tr>
         <tr><td>Inventory adapter</td><td><span class="tag missing">未建立</span></td><td>以 committed receipt／putaway／handover facts 接庫存帳，不讓 WMS aggregate 直接依賴 order-promising model。</td></tr>
         <tr><td>Short-pick resolution／Putback</td><td><span class="tag missing">僅有事件</span></td><td>先建 WMS commands、business keys 與 terminal outcomes。</td></tr>
         <tr><td>Wave planning／release</td><td><span class="tag">Core 已建立</span></td><td>目前依 priority、dispatch cutoff、Shipment／line／unit capacity 選擇；取消的 assignment 保留 audit trail，但不產生 WarehouseWork。template persistence 與 scheduler 尚未建立。</td></tr>
@@ -308,7 +308,7 @@
   </section>
 
   <footer>
-    <span>程式基準：<code>wms/src/main</code>，狀態日期 2026-08-07。</span>
+    <span>程式基準：<code>wms/src/main</code>、<code>wms-runtime/src/main</code>，狀態日期 2026-08-11。</span>
     <span><a href="temporal-adoption-decision.md">Temporal 採用決策</a> · <a href="wms-business-process-decomposition.md">WMS process 切分</a> · <a href="wms-wes-wcs-tms-workflow-boundary-review.md">WMS／WES／WCS／TMS 邊界</a></span>
   </footer>
 </main>

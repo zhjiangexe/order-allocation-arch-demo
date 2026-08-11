@@ -71,6 +71,10 @@ dependencies {
     sitImplementation libs.testcontainers.postgresql
     sitImplementation libs.testcontainers.kafka
     sitImplementation libs.kafka.clients
+
+    // The repository-level correctness spec boots WMS as an independent consumer deployable.
+    // This is a test-only dependency; order-promising production code does not depend on WMS.
+    correctnessE2eImplementation project(':wms-runtime')
 }
 
 tasks.register('sit', Test) {

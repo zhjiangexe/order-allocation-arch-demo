@@ -3,6 +3,8 @@ package com.flowzati.archone.e2e.messaging;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
 import com.flowzati.archone.messaging.observation.MessagingObservationNames;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
@@ -11,6 +13,8 @@ import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.testsupport.OrderFixtures;
+import com.flowzati.archone.wms.runtime.WmsRuntimeApplication;
+import com.flowzati.archone.wms.runtime.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -19,6 +23,7 @@ import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -96,6 +101,7 @@ final class FullPathMessagingEnvironment {
   private static final GenericContainer<?> DEBEZIUM = debeziumConnectContainer();
 
   private static ConfigurableApplicationContext application;
+  private static ConfigurableApplicationContext wmsApplication;
   private static int applicationPort;
   private static boolean kafkaPaused;
 
@@ -107,12 +113,14 @@ final class FullPathMessagingEnvironment {
     KAFKA.start();
     createTopics();
     startApplication();
+    startWmsApplication();
     DEBEZIUM.start();
     registerConnector();
     awaitConnectorRunning();
   }
 
   static void stopFullPath() {
+    closeWmsApplication();
     closeApplication();
     unpauseKafkaIfNecessary();
     if (DEBEZIUM.isRunning()) {
@@ -140,11 +148,14 @@ final class FullPathMessagingEnvironment {
 
   static void startApplication() {
     Map<String, Object> properties = new LinkedHashMap<>();
+    properties.put("spring.application.name", "order-promising-correctness");
+    properties.put("spring.main.web-application-type", "servlet");
     properties.put("server.port", "0");
     properties.put("spring.datasource.url", POSTGRES.getJdbcUrl());
     properties.put("spring.datasource.username", POSTGRES.getUsername());
     properties.put("spring.datasource.password", POSTGRES.getPassword());
     properties.put("spring.flyway.enabled", "true");
+    properties.put("spring.flyway.locations", "classpath:db/migration");
     properties.put("spring.jpa.hibernate.ddl-auto", "none");
     properties.put("spring.jpa.open-in-view", "false");
     properties.put("spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers());
@@ -174,10 +185,51 @@ final class FullPathMessagingEnvironment {
     startApplication();
   }
 
+  private static void startWmsApplication() {
+    jdbc().execute("CREATE SCHEMA IF NOT EXISTS wms");
+    String wmsJdbcUrl = POSTGRES.getJdbcUrl()
+        + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?")
+        + "currentSchema=wms";
+    Map<String, Object> properties = new LinkedHashMap<>();
+    properties.put("spring.application.name", "wms-correctness");
+    properties.put("spring.main.web-application-type", "none");
+    properties.put("spring.datasource.url", wmsJdbcUrl);
+    properties.put("spring.datasource.username", POSTGRES.getUsername());
+    properties.put("spring.datasource.password", POSTGRES.getPassword());
+    properties.put("spring.flyway.enabled", "true");
+    properties.put("spring.flyway.locations", "classpath:db/wms/migration");
+    properties.put("spring.flyway.schemas", "wms");
+    properties.put("spring.flyway.default-schema", "wms");
+    properties.put("spring.jpa.properties.hibernate.default_schema", "wms");
+    properties.put("spring.jpa.hibernate.ddl-auto", "none");
+    properties.put("spring.jpa.open-in-view", "false");
+    properties.put("spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers());
+    properties.put("spring.kafka.consumer.auto-offset-reset", "earliest");
+    properties.put("spring.kafka.listener.concurrency", "1");
+    properties.put("spring.kafka.listener.missing-topics-fatal", "false");
+    properties.put("management.otlp.metrics.export.enabled", "false");
+    properties.put("spring.main.banner-mode", "off");
+
+    String[] arguments = properties.entrySet().stream()
+        .map(entry -> "--" + entry.getKey() + "=" + entry.getValue())
+        .toArray(String[]::new);
+    wmsApplication = new SpringApplicationBuilder(WmsRuntimeApplication.class)
+        .web(WebApplicationType.NONE)
+        .run(arguments);
+    awaitWmsConsumerReady();
+  }
+
   private static void closeApplication() {
     if (application != null) {
       application.close();
       application = null;
+    }
+  }
+
+  private static void closeWmsApplication() {
+    if (wmsApplication != null) {
+      wmsApplication.close();
+      wmsApplication = null;
     }
   }
 
@@ -196,11 +248,25 @@ final class FullPathMessagingEnvironment {
     });
   }
 
+  private static void awaitWmsConsumerReady() {
+    awaitCondition("WMS fulfillment consumer to join its group", NORMAL_FLOW_TIMEOUT, () -> {
+      try (Admin admin = admin()) {
+        var description = admin.describeConsumerGroups(List.of(
+                WmsEventSubscriptions.FULFILLMENT_HANDOFF))
+            .all()
+            .get(5, TimeUnit.SECONDS)
+            .get(WmsEventSubscriptions.FULFILLMENT_HANDOFF);
+        return description != null && !description.members().isEmpty();
+      }
+    });
+  }
+
   private static void createTopics() {
     List<String> baseTopics = List.of(
         ORDER_EVENTS,
         ALLOCATION_EVENTS,
-        InventoryEventTopics.STOCK_EVENTS);
+        InventoryEventTopics.STOCK_EVENTS,
+        FulfillmentChannels.FULFILLMENT_HANDOFFS);
     List<NewTopic> topics = new ArrayList<>();
     for (String topic : baseTopics) {
       topics.add(new NewTopic(topic, 3, (short) 1));
@@ -265,10 +331,16 @@ final class FullPathMessagingEnvironment {
   static void awaitConnectorRunning() {
     awaitCondition("Debezium connector to be RUNNING", NORMAL_FLOW_TIMEOUT, () -> {
       JsonNode status = getConnect("/connectors/" + CONNECTOR_NAME + "/status");
-      return "RUNNING".equals(status.path("connector").path("state").asText())
+      boolean running = "RUNNING".equals(status.path("connector").path("state").asText())
           && status.path("tasks").isArray()
           && status.path("tasks").size() == 1
           && "RUNNING".equals(status.path("tasks").path(0).path("state").asText());
+      if (!status.isMissingNode() && !status.isNull()
+          && ("FAILED".equals(status.path("connector").path("state").asText())
+              || "FAILED".equals(status.path("tasks").path(0).path("state").asText()))) {
+        throw new IllegalStateException("Debezium connector failed: " + status);
+      }
+      return running;
     });
   }
 
@@ -312,6 +384,8 @@ final class FullPathMessagingEnvironment {
     requestBody.put("shipToZone", "100");
     requestBody.put("shipToAddress", "台北市中正區測試路 1 號");
     requestBody.put("promisedDeliveryDate", LocalDate.now().plusDays(3).toString());
+    requestBody.put("dispatchBy", Instant.now().plusSeconds(86_400).toString());
+    requestBody.put("releasePriority", 50);
     requestBody.put("facilityId", OrderFixtures.FACILITY_ID);
     requestBody.put("lines", List.of(Map.of("skuCode", sku, "quantity", quantity)));
     try {
@@ -390,6 +464,25 @@ final class FullPathMessagingEnvironment {
     return found.get();
   }
 
+  static UUID awaitFulfillmentHandoffEvent(UUID orderId) {
+    AtomicReference<UUID> found = new AtomicReference<>();
+    awaitCondition("fulfillment handoff Outbox event for order " + orderId,
+        NORMAL_FLOW_TIMEOUT, () -> {
+          List<UUID> ids = jdbc().queryForList("""
+              SELECT id FROM event_outbox
+               WHERE partition_key = ? AND type = ?
+               ORDER BY timestamp, id
+              """, UUID.class, orderId.toString(),
+              AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE);
+          if (ids.size() == 1) {
+            found.set(ids.getFirst());
+            return true;
+          }
+          return false;
+        });
+    return found.get();
+  }
+
   static int outboxCount(UUID orderId) {
     return jdbc().queryForObject(
         "SELECT COUNT(*) FROM event_outbox WHERE aggregateid = ?",
@@ -402,6 +495,35 @@ final class FullPathMessagingEnvironment {
         SELECT COUNT(*) FROM event_inbox
          WHERE subscriber_id = ? AND event_id = ?
         """, Integer.class, subscriberId, eventId);
+  }
+
+  static void awaitWmsShipment(UUID orderId, UUID handoffEventId) {
+    awaitCondition("WMS Shipment for order " + orderId, NORMAL_FLOW_TIMEOUT,
+        () -> wmsShipmentCount(orderId) == 1
+            && wmsInboxClaimCount(handoffEventId) == 1);
+  }
+
+  static int wmsInboxClaimCount(UUID eventId) {
+    return jdbc().queryForObject("""
+        SELECT COUNT(*) FROM wms.event_inbox
+         WHERE subscriber_id = ? AND event_id = ?
+        """, Integer.class, WmsEventSubscriptions.FULFILLMENT_HANDOFF, eventId);
+  }
+
+  static int wmsShipmentCount(UUID orderId) {
+    return jdbc().queryForObject(
+        "SELECT COUNT(*) FROM wms.wms_shipments WHERE order_id = ?",
+        Integer.class,
+        orderId);
+  }
+
+  static int wmsShipmentLineQuantity(UUID orderId) {
+    return jdbc().queryForObject("""
+        SELECT COALESCE(SUM(line.quantity), 0)
+          FROM wms.wms_shipment_lines line
+          JOIN wms.wms_shipments shipment ON shipment.id = line.shipment_id
+         WHERE shipment.order_id = ?
+        """, Integer.class, orderId);
   }
 
   static int reservedQuantity(String sku) {
