@@ -1,0 +1,53 @@
+plugins {
+    alias(libs.plugins.java)
+    alias(libs.plugins.spring.boot)
+}
+
+description = 'WMS Spring/JPA/Kafka runtime adapter'
+
+sourceSets {
+    sit {
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+configurations {
+    sitImplementation.extendsFrom testImplementation
+    sitRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
+dependencies {
+    implementation project(':wms')
+    implementation project(':foundation')
+    implementation project(':contracts')
+    implementation project(':messaging:messaging-events')
+    implementation project(':messaging:messaging-spring-consumer-starter')
+
+    implementation libs.spring.boot.starter.actuator
+    implementation libs.spring.boot.starter.data.jpa
+    implementation libs.spring.boot.starter.flyway
+    runtimeOnly libs.flyway.database.postgresql
+    runtimeOnly libs.postgresql
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.data.jpa.test
+    testImplementation project(':messaging:messaging-test-support')
+    testRuntimeOnly libs.junit.platform.launcher
+
+    sitImplementation libs.spring.boot.testcontainers
+    sitImplementation libs.testcontainers.postgresql
+}
+
+tasks.register('sit', Test) {
+    group = 'verification'
+    description = 'Runs WMS persistence and Inbox transaction integration tests.'
+    testClassesDirs = sourceSets.sit.output.classesDirs
+    classpath = sourceSets.sit.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter tasks.named('test')
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sit')
+}

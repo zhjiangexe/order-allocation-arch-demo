@@ -2,6 +2,7 @@ rootProject.name = 'archone'
 
 include('order-promising')
 include('wms')
+include('wms-runtime')
 include('foundation')
 include('contracts')
 include('platform-infrastructure')

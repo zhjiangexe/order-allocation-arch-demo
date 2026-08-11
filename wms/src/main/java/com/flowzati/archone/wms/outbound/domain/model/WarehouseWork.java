@@ -39,6 +39,22 @@ public class WarehouseWork {
     this.status = WarehouseWorkStatus.OPEN;
   }
 
+  /** 由 persistence adapter 還原；狀態仍由 work 自己持有，不由 JPA entity 暴露行為。 */
+  public static WarehouseWork rehydrate(
+      UUID id,
+      UUID waveId,
+      UUID shipmentId,
+      List<PickTask> pickTasks,
+      WarehouseWorkStatus status
+  ) {
+    WarehouseWork work = new WarehouseWork(id, waveId, shipmentId, pickTasks);
+    if (status == null) {
+      throw new IllegalArgumentException("Persisted WarehouseWork status is required");
+    }
+    work.status = status;
+    return work;
+  }
+
   public PickTask confirmPick(UUID pickTaskId, int actualQuantity, java.time.Instant confirmedAt) {
     PickTask task = requiredTask(pickTaskId);
     if (task.status() == PickTaskStatus.PICKED

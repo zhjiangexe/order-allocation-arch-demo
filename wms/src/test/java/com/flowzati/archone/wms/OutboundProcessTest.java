@@ -347,6 +347,13 @@ class OutboundProcessTest {
     }
 
     @Override
+    public List<Shipment> findByOrderId(UUID orderId) {
+      return shipments.values().stream()
+          .filter(shipment -> shipment.orderId().equals(orderId))
+          .toList();
+    }
+
+    @Override
     public Optional<Shipment> findByPickTaskId(UUID pickTaskId) {
       return shipments.values().stream()
           .filter(shipment -> shipment.pickTasks().stream()

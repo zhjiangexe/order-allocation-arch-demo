@@ -17,8 +17,10 @@ import com.flowzati.archone.wms.outbound.domain.event.ShortPickDetected;
 import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -62,8 +64,12 @@ public class Shipment {
     if (lines == null || lines.isEmpty()) {
       throw new IllegalArgumentException("Shipment requires allocation lines");
     }
-    if (createdAt == null || dispatchBy == null || dispatchBy.isBefore(createdAt)) {
-      throw new IllegalArgumentException("Shipment requires a valid creation time and dispatch deadline");
+    Set<UUID> moveIds = new HashSet<>();
+    if (lines.stream().anyMatch(line -> line == null || !moveIds.add(line.moveId()))) {
+      throw new IllegalArgumentException("Shipment requires unique non-null allocation lines");
+    }
+    if (createdAt == null || dispatchBy == null) {
+      throw new IllegalArgumentException("Shipment requires creation time and dispatch deadline");
     }
     if (releasePriority < 0 || releasePriority > 100) {
       throw new IllegalArgumentException("Release priority must be between 0 and 100");
@@ -95,6 +101,45 @@ public class Shipment {
         id, allocationId, orderId, ownerId, facilityId, lines,
         createdAt, dispatchBy, releasePriority);
     shipment.events.add(new ShipmentCreated(id, orderId, allocationId, createdAt));
+    return shipment;
+  }
+
+  /**
+   * 由 persistence adapter 還原完整 aggregate；不重播 command，也不重新產生 domain events。
+   */
+  public static Shipment rehydrate(
+      UUID id,
+      UUID allocationId,
+      UUID orderId,
+      UUID ownerId,
+      UUID facilityId,
+      List<ShipmentLine> lines,
+      Instant dispatchBy,
+      int releasePriority,
+      Instant createdAt,
+      ShipmentStatus status,
+      UUID waveId,
+      WarehouseWork pickingWork,
+      CancellationOutcome cancellationOutcome,
+      String cancellationRequestId
+  ) {
+    Shipment shipment = new Shipment(
+        id, allocationId, orderId, ownerId, facilityId, lines,
+        createdAt, dispatchBy, releasePriority);
+    if (status == null) {
+      throw new IllegalArgumentException("Persisted Shipment status is required");
+    }
+    if (pickingWork != null && (waveId == null || !pickingWork.belongsTo(waveId, id))) {
+      throw new IllegalArgumentException("Persisted WarehouseWork does not belong to Shipment");
+    }
+    if (cancellationOutcome == null && cancellationRequestId != null) {
+      throw new IllegalArgumentException("Cancellation request requires a persisted outcome");
+    }
+    shipment.status = status;
+    shipment.waveId = waveId;
+    shipment.pickingWork = pickingWork;
+    shipment.cancellationOutcome = cancellationOutcome;
+    shipment.cancellationRequestId = cancellationRequestId;
     return shipment;
   }
 
@@ -351,5 +396,9 @@ public class Shipment {
 
   public String cancellationRequestId() {
     return cancellationRequestId;
+  }
+
+  public Optional<CancellationOutcome> cancellationOutcomeValue() {
+    return Optional.ofNullable(cancellationOutcome);
   }
 }

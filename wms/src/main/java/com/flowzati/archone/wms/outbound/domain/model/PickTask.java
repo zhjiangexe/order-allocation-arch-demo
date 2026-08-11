@@ -42,6 +42,42 @@ public class PickTask {
     this.status = PickTaskStatus.PENDING;
   }
 
+  /** 由 persistence adapter 還原；不產生行為或事件。 */
+  public static PickTask rehydrate(
+      UUID id,
+      UUID orderLineId,
+      UUID moveId,
+      String skuCode,
+      UUID sourceLocationId,
+      int requestedQuantity,
+      int pickedQuantity,
+      PickTaskStatus status,
+      Instant confirmedAt
+  ) {
+    PickTask task = new PickTask(
+        id, orderLineId, moveId, skuCode, sourceLocationId, requestedQuantity);
+    if (status == null || pickedQuantity < 0 || pickedQuantity > requestedQuantity) {
+      throw new IllegalArgumentException("Persisted PickTask state is invalid");
+    }
+    boolean confirmed = status == PickTaskStatus.PICKED || status == PickTaskStatus.SHORT_PICKED;
+    if (confirmed != (confirmedAt != null)) {
+      throw new IllegalArgumentException("Persisted PickTask status and confirmation time disagree");
+    }
+    if (status == PickTaskStatus.PICKED && pickedQuantity != requestedQuantity) {
+      throw new IllegalArgumentException("Picked task must contain its complete quantity");
+    }
+    if (status == PickTaskStatus.SHORT_PICKED && pickedQuantity >= requestedQuantity) {
+      throw new IllegalArgumentException("Short-picked task must be below requested quantity");
+    }
+    if (!confirmed && pickedQuantity != 0) {
+      throw new IllegalArgumentException("Unconfirmed PickTask cannot contain a picked quantity");
+    }
+    task.pickedQuantity = pickedQuantity;
+    task.status = status;
+    task.confirmedAt = confirmedAt;
+    return task;
+  }
+
   /** 一次回報實揀量；主流程先不做拆次、多人與容器演算法。 */
   public PickTaskStatus confirm(int actualQuantity, Instant confirmedAt) {
     if (status == PickTaskStatus.PICKED || status == PickTaskStatus.SHORT_PICKED) {

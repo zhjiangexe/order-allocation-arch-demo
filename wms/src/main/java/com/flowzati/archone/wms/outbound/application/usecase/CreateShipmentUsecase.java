@@ -22,7 +22,30 @@ public class CreateShipmentUsecase {
   }
 
   public Shipment handle(CreateShipmentCommand command) {
-    return shipmentRepository.findByAllocationId(command.allocationId()).orElseGet(() -> create(command));
+    return shipmentRepository.findByAllocationId(command.allocationId())
+        .map(existing -> requireSameSnapshot(existing, command))
+        .orElseGet(() -> create(command));
+  }
+
+  private Shipment requireSameSnapshot(Shipment existing, CreateShipmentCommand command) {
+    List<ShipmentLine> expectedLines = command.lines().stream()
+        .map(line -> new ShipmentLine(
+            line.orderLineId(), line.moveId(), line.skuCode(),
+            line.sourceLocationId(), line.quantity()))
+        .toList();
+    boolean same = existing.orderId().equals(command.orderId())
+        && existing.ownerId().equals(command.ownerId())
+        && existing.facilityId().equals(command.facilityId())
+        && existing.lines().equals(expectedLines)
+        && existing.dispatchBy().equals(command.dispatchBy())
+        && existing.releasePriority() == command.releasePriority()
+        && existing.createdAt().equals(command.createdAt());
+    if (!same) {
+      throw new IllegalStateException(
+          "Allocation was already handed off with a different snapshot: "
+              + command.allocationId());
+    }
+    return existing;
   }
 
   private Shipment create(CreateShipmentCommand command) {
