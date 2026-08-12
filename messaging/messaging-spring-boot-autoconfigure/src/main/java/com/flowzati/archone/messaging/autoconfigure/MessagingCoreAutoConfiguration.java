@@ -1,7 +1,5 @@
 package com.flowzati.archone.messaging.autoconfigure;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.api.IdentityChannelMapping;
 import com.flowzati.archone.messaging.api.MapBasedChannelMapping;
@@ -17,6 +15,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
 
 /** Framework-neutral defaults shared by narrow producer and consumer starters. */
 @AutoConfiguration
@@ -57,9 +57,9 @@ public class MessagingCoreAutoConfiguration {
         ObjectProvider<ObjectMapper> objectMappers
     ) {
       ObjectMapper baseObjectMapper = objectMappers.getIfUnique(ObjectMapper::new);
-      ObjectMapper eventObjectMapper = baseObjectMapper.copy()
-          .findAndRegisterModules()
-          .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+      ObjectMapper eventObjectMapper = baseObjectMapper.rebuild()
+          .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+          .build();
       return new JacksonIntegrationEventSerde(eventObjectMapper);
     }
   }

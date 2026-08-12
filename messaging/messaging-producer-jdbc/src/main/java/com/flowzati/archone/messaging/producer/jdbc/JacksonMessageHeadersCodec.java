@@ -1,15 +1,16 @@
 package com.flowzati.archone.messaging.producer.jdbc;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
+import tools.jackson.databind.SerializationFeature;
 
 /** Deterministic JSON codec with bounded size and reserved-key protection. */
 public final class JacksonMessageHeadersCodec implements MessageHeadersCodec {
@@ -21,6 +22,7 @@ public final class JacksonMessageHeadersCodec implements MessageHeadersCodec {
   };
 
   private final ObjectMapper objectMapper;
+  private final ObjectWriter objectWriter;
   private final Set<String> reservedHeaders;
   private final int maxHeaderCount;
   private final int maxEncodedBytes;
@@ -45,8 +47,8 @@ public final class JacksonMessageHeadersCodec implements MessageHeadersCodec {
     if (maxHeaderCount < 0 || maxEncodedBytes < 2) {
       throw new IllegalArgumentException("Header codec limits are invalid");
     }
-    this.objectMapper = objectMapper.copy()
-        .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    this.objectMapper = objectMapper;
+    this.objectWriter = objectMapper.writer(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     this.reservedHeaders = Set.copyOf(reservedHeaders);
     this.maxHeaderCount = maxHeaderCount;
     this.maxEncodedBytes = maxEncodedBytes;
@@ -56,10 +58,10 @@ public final class JacksonMessageHeadersCodec implements MessageHeadersCodec {
   public String encode(Map<String, String> headers) {
     Map<String, String> validated = validateAndSort(headers);
     try {
-      String encoded = objectMapper.writeValueAsString(validated);
+      String encoded = objectWriter.writeValueAsString(validated);
       requireWithinSize(encoded);
       return encoded;
-    } catch (JsonProcessingException exception) {
+    } catch (JacksonException exception) {
       throw new IllegalArgumentException("Unable to serialize message headers", exception);
     }
   }
@@ -73,7 +75,7 @@ public final class JacksonMessageHeadersCodec implements MessageHeadersCodec {
     try {
       Map<String, String> decoded = objectMapper.readValue(encodedHeaders, STRING_MAP);
       return Collections.unmodifiableMap(validateAndSort(decoded));
-    } catch (JsonProcessingException | ClassCastException exception) {
+    } catch (JacksonException | ClassCastException exception) {
       throw new IllegalArgumentException("Unable to deserialize message headers", exception);
     }
   }

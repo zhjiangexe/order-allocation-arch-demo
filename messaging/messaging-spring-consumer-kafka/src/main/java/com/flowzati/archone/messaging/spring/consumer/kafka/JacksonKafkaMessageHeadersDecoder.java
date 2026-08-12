@@ -1,8 +1,5 @@
 package com.flowzati.archone.messaging.spring.consumer.kafka;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.api.MessageHeadersDecoder;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +7,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /** Bounded JSON decoder for the logical-header envelope relayed by Debezium. */
 public final class JacksonKafkaMessageHeadersDecoder implements MessageHeadersDecoder {
@@ -36,7 +36,7 @@ public final class JacksonKafkaMessageHeadersDecoder implements MessageHeadersDe
     if (maxHeaderCount < 0 || maxEncodedBytes < 2) {
       throw new IllegalArgumentException("Header decoder limits are invalid");
     }
-    this.objectMapper = objectMapper.copy();
+    this.objectMapper = objectMapper;
     this.maxHeaderCount = maxHeaderCount;
     this.maxEncodedBytes = maxEncodedBytes;
   }
@@ -49,7 +49,7 @@ public final class JacksonKafkaMessageHeadersDecoder implements MessageHeadersDe
     requireWithinSize(encodedHeaders);
     try {
       return Collections.unmodifiableMap(validateAndSort(objectMapper.readTree(encodedHeaders)));
-    } catch (JsonProcessingException exception) {
+    } catch (JacksonException exception) {
       throw new IllegalArgumentException("Unable to deserialize message headers", exception);
     }
   }
@@ -66,11 +66,11 @@ public final class JacksonKafkaMessageHeadersDecoder implements MessageHeadersDe
     Iterator<Map.Entry<String, JsonNode>> fields = headers.properties().iterator();
     while (fields.hasNext()) {
       Map.Entry<String, JsonNode> entry = fields.next();
-      if (!entry.getValue().isTextual()) {
+      if (!entry.getValue().isString()) {
         throw new IllegalArgumentException("Message headers must contain only string values");
       }
       String name = entry.getKey();
-      String value = entry.getValue().textValue();
+      String value = entry.getValue().stringValue();
       MessageHeaders.validate(name, value);
       sorted.put(name, value);
     }

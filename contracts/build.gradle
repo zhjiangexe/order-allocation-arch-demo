@@ -9,6 +9,6 @@ dependencies {
     api libs.jackson.annotations
 
     testImplementation libs.spring.boot.starter.test
-    testImplementation libs.jackson.datatype.jsr310
+    testImplementation libs.jackson.databind
     testRuntimeOnly libs.junit.platform.launcher
 }

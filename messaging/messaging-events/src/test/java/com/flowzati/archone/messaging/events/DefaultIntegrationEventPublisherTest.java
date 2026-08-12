@@ -2,13 +2,13 @@ package com.flowzati.archone.messaging.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageProducer;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 class DefaultIntegrationEventPublisherTest {
 
@@ -17,7 +17,7 @@ class DefaultIntegrationEventPublisherTest {
     CapturingMessageProducer producer = new CapturingMessageProducer();
     IntegrationEventPublisher publisher = new DefaultIntegrationEventPublisher(
         producer,
-        new JacksonIntegrationEventSerde(new ObjectMapper().findAndRegisterModules()));
+        new JacksonIntegrationEventSerde(new ObjectMapper()));
     UUID eventId = UUID.randomUUID();
     Instant occurredAt = Instant.parse("2026-08-08T00:00:00Z");
 

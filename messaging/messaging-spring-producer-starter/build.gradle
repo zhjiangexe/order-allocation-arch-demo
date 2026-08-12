@@ -14,7 +14,7 @@ dependencies {
     api project(':messaging:messaging-spring-observability')
     api project(':messaging:messaging-spring-producer-observability')
     api libs.spring.boot.starter.jdbc
-    api libs.jackson.datatype.jsr310
+    api libs.jackson.databind
 
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher

@@ -17,7 +17,7 @@ dependencies {
     api project(':messaging:messaging-spring-consumer-observability')
     api libs.spring.boot.starter.jdbc
     api libs.spring.boot.starter.kafka
-    api libs.jackson.datatype.jsr310
+    api libs.jackson.databind
 
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher

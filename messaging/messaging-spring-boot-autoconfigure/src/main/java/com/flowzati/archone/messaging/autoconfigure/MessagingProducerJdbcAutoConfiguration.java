@@ -1,6 +1,5 @@
 package com.flowzati.archone.messaging.autoconfigure;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.api.MessageIdGenerator;
 import com.flowzati.archone.messaging.api.MessageInterceptor;
@@ -29,6 +28,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import tools.jackson.databind.ObjectMapper;
 
 /** Composes the caller-transaction-required JDBC Outbox producer. */
 @AutoConfiguration(after = {MessagingCoreAutoConfiguration.class, MessagingJdbcAutoConfiguration.class})

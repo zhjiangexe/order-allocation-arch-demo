@@ -7,7 +7,7 @@ description = 'framework-neutral JDBC Outbox message producer implementation'
 dependencies {
     api project(':messaging:messaging-producer-common')
     api project(':messaging:messaging-jdbc-common')
-    implementation libs.jackson.databind
+    api libs.jackson.databind
 
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher

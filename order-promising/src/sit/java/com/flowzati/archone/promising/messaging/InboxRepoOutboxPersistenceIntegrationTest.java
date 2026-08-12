@@ -1,7 +1,5 @@
 package com.flowzati.archone.promising.messaging;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
@@ -60,6 +58,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -383,8 +383,8 @@ class JdbcMessagingPersistenceIntegrationTest {
   @TestConfiguration(proxyBeanMethods = false)
   static class JsonConfiguration {
     @Bean
-    com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
-      return new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    ObjectMapper objectMapper() {
+      return new ObjectMapper();
     }
 
     @Bean

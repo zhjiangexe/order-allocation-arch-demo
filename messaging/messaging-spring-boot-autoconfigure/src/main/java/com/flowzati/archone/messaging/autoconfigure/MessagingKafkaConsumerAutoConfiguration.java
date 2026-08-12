@@ -1,6 +1,5 @@
 package com.flowzati.archone.messaging.autoconfigure;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.api.ConsumerGroupMapping;
 import com.flowzati.archone.messaging.api.IdentityConsumerGroupMapping;
@@ -33,6 +32,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.KafkaOperations;
+import tools.jackson.databind.ObjectMapper;
 
 /** Programmatic Spring Kafka consumer runtime composition. */
 @AutoConfiguration(after = {

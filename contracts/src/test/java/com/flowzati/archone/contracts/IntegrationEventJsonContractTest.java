@@ -2,8 +2,6 @@ package com.flowzati.archone.contracts;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
@@ -18,6 +16,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
 
 class IntegrationEventJsonContractTest {
 
@@ -31,9 +31,9 @@ class IntegrationEventJsonContractTest {
   private static final UUID MOVE_ID = UUID.fromString("00000000-0000-0000-0000-000000000008");
   private static final Instant OCCURRED_AT = Instant.parse("2026-08-07T00:00:00Z");
 
-  private final ObjectMapper objectMapper = new ObjectMapper()
-      .findAndRegisterModules()
-      .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+  private final ObjectMapper objectMapper = new ObjectMapper().rebuild()
+      .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+      .build();
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("contracts")

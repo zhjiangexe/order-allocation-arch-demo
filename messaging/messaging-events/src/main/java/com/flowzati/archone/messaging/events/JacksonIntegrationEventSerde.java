@@ -1,7 +1,7 @@
 package com.flowzati.archone.messaging.events;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /** One Jackson policy shared by outbound serialization and inbound deserialization. */
 public final class JacksonIntegrationEventSerde
@@ -17,7 +17,7 @@ public final class JacksonIntegrationEventSerde
   public String serialize(IntegrationEvent event) {
     try {
       return objectMapper.writeValueAsString(event);
-    } catch (JsonProcessingException exception) {
+    } catch (JacksonException exception) {
       throw new IllegalStateException("Cannot serialize integration event", exception);
     }
   }
@@ -26,7 +26,7 @@ public final class JacksonIntegrationEventSerde
   public <E extends IntegrationEvent> E deserialize(String payload, Class<E> eventClass) {
     try {
       return objectMapper.readValue(payload, eventClass);
-    } catch (JsonProcessingException exception) {
+    } catch (JacksonException exception) {
       throw new IntegrationEventContractException(
           "Cannot deserialize integration event: " + eventClass.getSimpleName(), exception);
     }

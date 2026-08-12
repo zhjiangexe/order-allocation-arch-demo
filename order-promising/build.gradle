@@ -50,8 +50,6 @@ dependencies {
     implementation libs.spring.boot.starter.webmvc
     implementation libs.spring.cloud.starter.circuitbreaker.resilience4j
     implementation libs.bundles.spring.modulith
-    implementation libs.jackson.datatype.jsr310
-
     developmentOnly libs.spring.boot.devtools
     runtimeOnly libs.micrometer.registry.otlp
     runtimeOnly libs.micrometer.registry.prometheus

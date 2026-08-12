@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.api.ConsumerGroupMapping;
 import com.flowzati.archone.messaging.api.MessageBuilder;
@@ -39,12 +38,13 @@ import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.backoff.FixedBackOff;
+import tools.jackson.databind.ObjectMapper;
 
 class MessagingAutoConfigurationTest {
 
   private final ApplicationContextRunner coreRunner = new ApplicationContextRunner()
       .withConfiguration(AutoConfigurations.of(MessagingCoreAutoConfiguration.class))
-      .withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules());
+      .withBean(ObjectMapper.class, ObjectMapper::new);
 
   @Test
   void coreProvidesSerdeIdentityChannelMappingAndApplicationOverride() {

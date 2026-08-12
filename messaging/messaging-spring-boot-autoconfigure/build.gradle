@@ -24,7 +24,7 @@ dependencies {
 
     compileOnly libs.spring.boot.starter.flyway
     compileOnly libs.spring.boot.starter.kafka
-    compileOnly libs.jackson.datatype.jsr310
+    compileOnly libs.jackson.databind
     compileOnly libs.micrometer.observation
 
     annotationProcessor libs.spring.boot.configuration.processor
