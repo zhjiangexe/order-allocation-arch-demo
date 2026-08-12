@@ -1,0 +1,7 @@
+# Requires Java 25. This is an initial baseline, not a substitute for a load test.
+# Idle RSS is about 557 MiB; use a container limit of at least 1 GiB with this 512 MiB heap.
+-Dspring.profiles.active=prod
+-Xms256m
+-Xmx512m
+-XX:MaxMetaspaceSize=256m
+-XX:+ExitOnOutOfMemoryError
