@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1420" viewBox="0 0 1800 1420" role="img" aria-labelledby="title desc">
+  <title id="title">OrderFulfillmentProcessWorkflow 訂單履約協調流程</title>
+  <desc id="desc">顯示從配貨、WMS 建立 Shipment、揀貨包裝集貨、交付承運商、完成出庫到訂單履約完成的主線，以及安全 checkpoint 上的取消分支。</desc>
+
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#172033" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#526174"/>
+    </marker>
+    <marker id="arrow-cancel" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#C24646"/>
+    </marker>
+    <style>
+      text { font-family: "Arial Unicode MS", "Heiti TC", "Microsoft JhengHei", sans-serif; fill: #172033; }
+      .title { font-size: 38px; font-weight: 500; }
+      .subtitle { font-size: 20px; fill: #526174; }
+      .panel-title { font-size: 24px; font-weight: 500; }
+      .node-title { font-size: 22px; font-weight: 500; }
+      .node-code { font-size: 18px; font-weight: 500; }
+      .node-note { font-size: 17px; fill: #526174; }
+      .small { font-size: 16px; fill: #526174; }
+      .step-number { font-size: 19px; font-weight: 500; fill: #FFFFFF; }
+      .arrow { fill: none; stroke: #526174; stroke-width: 3; marker-end: url(#arrow); }
+      .signal-arrow { fill: none; stroke: #168783; stroke-width: 3; stroke-dasharray: 9 7; marker-end: url(#arrow); }
+      .cancel-arrow { fill: none; stroke: #C24646; stroke-width: 3; marker-end: url(#arrow-cancel); }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1420" fill="#F5F7FB"/>
+
+  <text x="70" y="62" class="title">訂單履約協調流程</text>
+  <text x="70" y="98" class="subtitle">OrderFulfillmentProcessWorkflow（Temporal）</text>
+  <text x="1730" y="72" class="subtitle" text-anchor="end">跨 bounded context checkpoint；不鏡像 WMS 內部每個狀態</text>
+
+  <!-- Main flow panel -->
+  <rect x="55" y="135" width="1065" height="1145" rx="22" fill="#FFFFFF" stroke="#D8E0EA" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="92" cy="181" r="13" fill="#4169E1"/>
+  <text x="120" y="190" class="panel-title">主線（Happy Path）</text>
+  <text x="1080" y="187" class="small" text-anchor="end">實線＝Activity command　虛線＝Signal / business fact</text>
+
+  <!-- Start -->
+  <rect x="290" y="220" width="590" height="74" rx="37" fill="#EFF4FF" stroke="#4169E1" stroke-width="2"/>
+  <text x="585" y="250" class="node-title" text-anchor="middle">Workflow 啟動</text>
+  <text x="585" y="276" class="node-note" text-anchor="middle">訂單已可靠成立，一張 Order 對應一個 Workflow ID</text>
+
+  <path d="M585 294 L585 335" class="arrow"/>
+
+  <!-- Allocation request -->
+  <circle cx="205" cy="384" r="25" fill="#4169E1"/>
+  <text x="205" y="391" class="step-number" text-anchor="middle">1</text>
+  <rect x="255" y="335" width="660" height="96" rx="14" fill="#EEF2FF" stroke="#6576D8" stroke-width="2"/>
+  <text x="585" y="368" class="node-title" text-anchor="middle">要求配貨</text>
+  <text x="585" y="397" class="node-code" text-anchor="middle">Activity: requestAllocation</text>
+  <text x="585" y="419" class="node-note" text-anchor="middle">Order Promising 接手配貨；缺貨細節留在 domain / read model</text>
+
+  <path d="M585 431 L585 476" class="signal-arrow"/>
+  <text x="610" y="462" class="small">等待事實</text>
+
+  <!-- Allocation committed -->
+  <rect x="255" y="476" width="660" height="88" rx="14" fill="#EAF8F7" stroke="#168783" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="585" y="510" class="node-title" text-anchor="middle">allocationCommitted</text>
+  <text x="585" y="540" class="node-note" text-anchor="middle">取得可交給 WMS 的 committed allocation snapshot</text>
+
+  <path d="M585 564 L585 608" class="arrow"/>
+
+  <!-- Create Shipment -->
+  <circle cx="205" cy="659" r="25" fill="#4169E1"/>
+  <text x="205" y="666" class="step-number" text-anchor="middle">2</text>
+  <rect x="255" y="608" width="660" height="102" rx="14" fill="#FFF4E8" stroke="#D37A1C" stroke-width="2"/>
+  <text x="585" y="642" class="node-title" text-anchor="middle">建立 WMS Shipment</text>
+  <text x="585" y="672" class="node-code" text-anchor="middle">Activity: createShipment</text>
+  <text x="585" y="697" class="node-note" text-anchor="middle">冪等建立並回傳 receipt（shipmentId）</text>
+
+  <path d="M585 710 L585 754" class="arrow"/>
+
+  <!-- WMS internal flow -->
+  <circle cx="205" cy="816" r="25" fill="#D37A1C"/>
+  <text x="205" y="823" class="step-number" text-anchor="middle">3</text>
+  <rect x="255" y="754" width="660" height="124" rx="14" fill="#FFFAF2" stroke="#D37A1C" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="585" y="788" class="node-title" text-anchor="middle">WMS 倉內執行</text>
+  <text x="585" y="826" class="node-title" text-anchor="middle">Pick　→　Pack　→　Stage</text>
+  <text x="585" y="857" class="node-note" text-anchor="middle">由 WMS use cases 管理，不拆成 Temporal phase</text>
+
+  <path d="M585 878 L585 920" class="signal-arrow"/>
+  <text x="610" y="907" class="small">等待事實</text>
+
+  <!-- Handover -->
+  <rect x="255" y="920" width="660" height="88" rx="14" fill="#EAF8F7" stroke="#168783" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="585" y="954" class="node-title" text-anchor="middle">ShipmentHandedOverToCarrier</text>
+  <text x="585" y="984" class="node-note" text-anchor="middle">WMS 回報實體貨物已交付承運商</text>
+
+  <path d="M585 1008 L585 1049" class="arrow"/>
+
+  <!-- Stock completion -->
+  <circle cx="205" cy="1095" r="25" fill="#4169E1"/>
+  <text x="205" y="1102" class="step-number" text-anchor="middle">4</text>
+  <rect x="255" y="1049" width="660" height="92" rx="14" fill="#EEF2FF" stroke="#6576D8" stroke-width="2"/>
+  <text x="585" y="1082" class="node-title" text-anchor="middle">完成出庫 movements</text>
+  <text x="585" y="1113" class="node-code" text-anchor="middle">Activity: completeOutboundMovements</text>
+  <text x="585" y="1134" class="node-note" text-anchor="middle">Stock 完成出庫搬運與扣帳</text>
+
+  <path d="M585 1141 L585 1171" class="arrow"/>
+
+  <!-- Order completion -->
+  <circle cx="205" cy="1216" r="25" fill="#4169E1"/>
+  <text x="205" y="1223" class="step-number" text-anchor="middle">5</text>
+  <rect x="255" y="1171" width="660" height="90" rx="14" fill="#EEF2FF" stroke="#6576D8" stroke-width="2"/>
+  <text x="585" y="1204" class="node-title" text-anchor="middle">記錄整單履約完成</text>
+  <text x="585" y="1235" class="node-code" text-anchor="middle">Activity: recordOrderFulfillment</text>
+
+  <path d="M915 1216 L950 1216" class="arrow"/>
+  <rect x="948" y="1178" width="152" height="76" rx="38" fill="#E8F7ED" stroke="#218B52" stroke-width="2"/>
+  <text x="1024" y="1207" class="small" text-anchor="middle" fill="#17683D">FULFILLMENT</text>
+  <text x="1024" y="1232" class="small" text-anchor="middle" fill="#17683D">COMPLETED</text>
+
+  <!-- Cancellation panel -->
+  <rect x="1150" y="135" width="595" height="1145" rx="22" fill="#FFFFFF" stroke="#D8E0EA" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="1187" cy="181" r="13" fill="#C24646"/>
+  <text x="1215" y="190" class="panel-title">取消分支（安全 checkpoint）</text>
+
+  <rect x="1195" y="225" width="505" height="96" rx="14" fill="#FFF0F0" stroke="#C24646" stroke-width="2"/>
+  <text x="1448" y="260" class="node-title" text-anchor="middle">requestCancellation</text>
+  <text x="1448" y="289" class="node-code" text-anchor="middle">Temporal Update：只受理請求</text>
+  <text x="1448" y="311" class="node-note" text-anchor="middle">Activity 由 execute 在安全點執行</text>
+
+  <path d="M1448 321 L1448 365" class="cancel-arrow"/>
+
+  <polygon points="1448,365 1605,425 1448,485 1291,425" fill="#FFF7E8" stroke="#C98324" stroke-width="2"/>
+  <text x="1448" y="416" class="node-title" text-anchor="middle">Shipment</text>
+  <text x="1448" y="443" class="node-title" text-anchor="middle">已建立？</text>
+
+  <!-- No shipment branch -->
+  <path d="M1291 425 L1222 425 L1222 533" class="cancel-arrow"/>
+  <text x="1248" y="410" class="small" text-anchor="middle">否</text>
+  <rect x="1175" y="533" width="270" height="94" rx="13" fill="#FFF0F0" stroke="#C24646" stroke-width="2"/>
+  <text x="1310" y="567" class="node-title" text-anchor="middle">直接取消 Order</text>
+  <text x="1310" y="598" class="node-code" text-anchor="middle">cancelOrder</text>
+  <path d="M1310 627 L1310 669" class="cancel-arrow"/>
+  <rect x="1190" y="669" width="240" height="64" rx="32" fill="#FDE9E9" stroke="#C24646" stroke-width="2"/>
+  <text x="1310" y="709" class="node-code" text-anchor="middle">ORDER_CANCELLED</text>
+
+  <!-- Shipment exists branch -->
+  <path d="M1605 425 L1672 425 L1672 533" class="cancel-arrow"/>
+  <text x="1646" y="410" class="small" text-anchor="middle">是</text>
+  <rect x="1470" y="533" width="250" height="94" rx="13" fill="#FFF0F0" stroke="#C24646" stroke-width="2"/>
+  <text x="1595" y="567" class="node-title" text-anchor="middle">提交 WMS 取消請求</text>
+  <text x="1595" y="598" class="node-code" text-anchor="middle">requestShipmentCancellation</text>
+
+  <path d="M1595 627 L1595 673" class="cancel-arrow"/>
+  <rect x="1470" y="673" width="250" height="71" rx="12" fill="#FFF7E8" stroke="#C98324" stroke-width="2"/>
+  <text x="1595" y="702" class="node-title" text-anchor="middle">等待 WMS 最終事實</text>
+  <text x="1595" y="729" class="small" text-anchor="middle">ShipmentCancellationResolved</text>
+
+  <!-- WMS decision details -->
+  <rect x="1195" y="785" width="505" height="210" rx="14" fill="#FAFBFD" stroke="#CCD5E0" stroke-width="2"/>
+  <circle cx="1225" cy="825" r="8" fill="#218B52"/>
+  <text x="1247" y="832" class="node-code">CANCELLED</text>
+  <text x="1247" y="860" class="node-note">→ cancelOrder → ORDER_CANCELLED</text>
+
+  <circle cx="1225" cy="905" r="8" fill="#4169E1"/>
+  <text x="1247" y="912" class="node-code">REJECTED_AFTER_HANDOVER</text>
+  <text x="1247" y="940" class="node-note">→ 拒絕取消，回主線等待 / 處理 handover</text>
+
+  <text x="1448" y="980" class="small" text-anchor="middle">停止作業與必要的 Putback 皆由 WMS 內部完成</text>
+
+  <!-- Driver guard -->
+  <rect x="1195" y="1040" width="505" height="155" rx="14" fill="#FFF9E5" stroke="#C59616" stroke-width="2"/>
+  <text x="1448" y="1075" class="node-title" text-anchor="middle">單一 Driver 規則</text>
+  <text x="1448" y="1110" class="node-note" text-anchor="middle">Temporal profile：取消只進 requestCancellation</text>
+  <text x="1448" y="1139" class="node-note" text-anchor="middle">Kafka-only profile：沿用既有 consumer</text>
+  <text x="1448" y="1174" class="node-code" text-anchor="middle">不可同時驅動同一張 Order</text>
+
+  <text x="1448" y="1240" class="small" text-anchor="middle">原則：先讓倉儲工作安全，再提交 Order cancellation</text>
+
+  <!-- Cross-panel cancellation checkpoint connectors -->
+  <path d="M915 520 C1035 520 1060 270 1195 270" class="cancel-arrow" stroke-dasharray="7 6"/>
+  <path d="M915 964 C1050 964 1065 300 1195 300" class="cancel-arrow" stroke-dasharray="7 6"/>
+
+  <!-- Notes -->
+  <rect x="55" y="1310" width="1690" height="78" rx="14" fill="#EAF0F8" stroke="#CBD6E4" stroke-width="2"/>
+  <text x="85" y="1341" class="node-code">設計重點</text>
+  <text x="220" y="1341" class="small">Activity 技術失敗交給 Temporal retry；Kafka / Event-driven 路徑可沿用同一 application use case。</text>
+  <text x="220" y="1370" class="small">Workflow 只保存跨系統 checkpoint；Order、Allocation、Shipment 與 Pick／Pack／Stage 狀態仍由各 bounded context 擁有。</text>
+</svg>

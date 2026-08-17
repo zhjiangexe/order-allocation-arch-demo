@@ -1,0 +1,64 @@
+%% 缺貨訂單由 StockMove 等待，補貨後重新配貨並進入 WMS Shipment
+flowchart TB
+  subgraph O[Ordering 訂單上下文]
+    OP[OrderPlaced]
+    P[Order = PENDING]
+    A[Order = ALLOCATED]
+  end
+
+  subgraph S[Stock / Allocation 庫存與配貨上下文]
+    D[建立 outbound StockMove]
+    IA[AllocateOrderUsecase]
+    DEC{全部配足？}
+    C[StockMove = CONFIRMED\n等待供應]
+    R[實際入庫\nConfirmStockReceipt]
+    AV[StockAvailabilityIncreased]
+    AVT[Availability event consumer]
+    SCH[Reconciliation scheduler\n定期掃描]
+    RETRY[AllocateWaitingDemandUsecase\nFIFO + ship-complete]
+    AS[StockMove = ASSIGNED\n全部需求配足]
+    DONE[OrderAllocationCompleted]
+  end
+
+  subgraph W[WMS 倉內作業上下文]
+    H[AllocationCommittedForFulfillment]
+    SH[建立 Shipment = CREATED]
+    WP[Wave planning / release]
+    PICK[PICKING → PICKED]
+    PACK[PACKED → READY_FOR_DISPATCH]
+    HAND[HANDED_OVER_TO_CARRIER]
+  end
+
+  OP --> D
+  D --> P
+  D --> IA
+  IA --> DEC
+  DEC -->|是：初次配貨成功| AS
+  DEC -->|否：庫存不足或 FIFO 被擋住| C
+
+  C -. 等待實際補貨 .-> R
+  R --> AV
+  AV --> AVT
+  AVT --> RETRY
+  C -. 找出可重試 scope .-> SCH
+  SCH --> RETRY
+  RETRY -->|仍不足| C
+  RETRY -->|全部配足| AS
+  AS --> DONE
+
+  DONE --> A
+  DONE --> H
+  H --> SH
+  SH --> WP --> PICK --> PACK --> HAND
+
+  classDef order fill:#E8F0FE,stroke:#356AE6,color:#17336B;
+  classDef stock fill:#E8F7EE,stroke:#2E8B57,color:#174D2E;
+  classDef wms fill:#FFF3D6,stroke:#C77D00,color:#694200;
+  classDef wait fill:#FDE8E8,stroke:#C0392B,color:#6B1D1D;
+  class OP,P,A order;
+  class D,R,AV,AVT,SCH,AS,DONE stock;
+  class IA,RETRY usecase;
+  class C wait;
+  class H,SH,WP,PICK,PACK,HAND wms;
+
+  classDef usecase fill:#F0E8FF,stroke:#7B4BB7,color:#42245F;

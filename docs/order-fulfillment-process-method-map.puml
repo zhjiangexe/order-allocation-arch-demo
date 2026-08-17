@@ -1,0 +1,85 @@
+@startwbs
+title OrderFulfillmentProcessWorkflowImpl 方法責任分層圖
+
+skinparam defaultFontName "Heiti TC"
+skinparam dpi 150
+skinparam shadowing false
+skinparam backgroundColor white
+
+<style>
+wbsDiagram {
+  node {
+    BackgroundColor #FFFFFF
+    LineColor #475569
+    FontColor #0F172A
+  }
+  :depth(0) {
+    BackgroundColor #E8F1FF
+    LineColor #2563EB
+  }
+  .boundary {
+    BackgroundColor #E8F1FF
+  }
+  .cancellation {
+    BackgroundColor #FDECEC
+  }
+  .guard {
+    BackgroundColor #FFF7D6
+  }
+  .projection {
+    BackgroundColor #F1F5F9
+  }
+}
+</style>
+
+* OrderFulfillmentProcessWorkflowImpl
+** Temporal boundary methods <<boundary>>
+*** @WorkflowInit constructor(StartInput)
+*** @WorkflowMethod execute(StartInput)
+*** @SignalMethod allocationCommitted()
+*** @SignalMethod shipmentHandedOverToCarrier()
+*** @UpdateValidatorMethod validateCancellationRequest()
+*** @UpdateMethod requestCancellation()
+*** @SignalMethod shipmentCancellationResolved()
+*** @QueryMethod state()
+** execute 主線 helpers
+*** Allocation checkpoint
+**** AllocationCheckpoint.notRequested() / waiting()
+**** isWaiting() / isCommitted()
+**** committed() / requireCommittedSnapshot()
+**** allocationId() / requireWaiting()
+*** Mainline checkpoints
+**** cancellationRequested()
+**** cancelOrderBeforeShipmentCreation() <<cancellation>>
+**** enterPhase()
+**** hasMatchingCarrierHandover()
+**** matchingCarrierHandover()
+**** requireMatchingCarrierHandover() <<guard>>
+**** finish()
+** 取消協調 helpers <<cancellation>>
+*** coordinateShipmentCancellation()
+**** requireCancellationRequest() <<guard>>
+**** requireCancellationDecision() <<guard>>
+**** requireCancellationConsistentWithHandover() <<guard>>
+**** awaitFinalShipmentCancellationResolution()
+***** rejectShipmentCancellation()
+*** cancelOrder()
+*** finishCancellation()
+*** Signal correlation
+**** acceptsShipmentCancellationResolution() <<guard>>
+** Query／progress／failure helpers <<projection>>
+*** updateProgress()
+*** cancellationRequestIdOrNull()
+*** cancellationRequestedAtOrNull()
+*** workflowNow()
+*** activityOptions()
+*** workflowInvariantViolation() <<guard>>
+*** invalidWmsCancellationDecision() <<guard>>
+
+legend bottom
+  |<#E8F1FF>| Temporal boundary |
+  |<#FDECEC>| 取消協調 |
+  |<#FFF7D6>| correlation／contract guard |
+  |<#F1F5F9>| Query／可觀測性／共用技術 helper |
+endlegend
+@endwbs

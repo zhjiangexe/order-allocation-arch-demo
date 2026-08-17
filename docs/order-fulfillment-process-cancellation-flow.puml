@@ -1,0 +1,133 @@
+@startuml
+title OrderFulfillmentProcessWorkflow 取消協調完整流程
+
+skinparam defaultFontName "Heiti TC"
+skinparam dpi 150
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam ArrowColor #475569
+skinparam ActivityBorderColor #475569
+skinparam ActivityBackgroundColor #F8FAFC
+skinparam ActivityDiamondBackgroundColor #FFF7D6
+skinparam ActivityDiamondBorderColor #B7791F
+skinparam ActivityStartColor #2563EB
+skinparam ActivityEndColor #2563EB
+skinparam NoteBorderColor #B7791F
+skinparam NoteBackgroundColor #FFF7D6
+
+start
+
+partition "A. Update 受理" {
+  :validateCancellationRequest();
+  if (request 為 null 或屬於其他 Order？) then (是)
+    :IllegalArgumentException\n拒絕本次 Update；不寫入 History; <<#FFF7D6>>
+    stop
+  endif
+
+  :requestCancellation();
+  if (CancellationState = ORDER_CANCELLED？) then (是)
+    :ACK ALREADY_CANCELLED;
+    stop
+  elseif (已觀察到 handover 或先前已拒絕？) then (是)
+    :ACK REJECTED_AFTER_HANDOVER;
+    stop
+  elseif (CancellationState != NONE？) then (是)
+    :ACK ALREADY_REQUESTED;
+    stop
+  else (首次請求)
+    :保存 CancellationRequest; <<#FDECEC>>
+    :CancellationState = REQUESTED; <<#FDECEC>>
+    :ACK ACCEPTED;
+  endif
+}
+
+note right
+  ACCEPTED 只表示請求已 durable 進入 Workflow，
+  不表示 Shipment 或 Order 已取消。
+end note
+
+partition "B. execute 在安全 checkpoint 接手" {
+  if (Shipment 尚未建立？) then (是)
+    :cancelOrderBeforeShipmentCreation(); <<#FDECEC>>
+    :enterPhase(CANCELLATION); <<#FDECEC>>
+    :cancelOrder(); <<#FDECEC>>
+    :CancelOrder Activity; <<#FDECEC>>
+    :CancellationState = ORDER_CANCELLED; <<#FDECEC>>
+    :finishCancellation(ORDER_CANCELLED); <<#FDECEC>>
+    stop
+  else (已建立)
+    :coordinateShipmentCancellation(); <<#FDECEC>>
+    :requireCancellationRequest();
+    :CancellationState = CANCELLING_SHIPMENT; <<#FDECEC>>
+    :CancelShipment Activity; <<#FDECEC>>
+    :requireCancellationDecision(); <<#FFF7D6>>
+  endif
+}
+
+partition "C. WMS immediate decision" {
+  if (decision 為 null 或 correlation 錯誤？) then (是)
+    :non-retryable ApplicationFailure\nWMS_CANCELLATION_DECISION_INVALID; <<#FFF0F0>>
+    stop
+  endif
+
+  if (decision = CANCELLED？) then (是)
+    :requireCancellationConsistentWithHandover(); <<#FFF7D6>>
+    if (同 Shipment 的 handover 已觀察？) then (是)
+      :non-retryable ApplicationFailure\nWMS_SHIPMENT_FACT_CONFLICT; <<#FFF0F0>>
+      stop
+    else (否)
+      :status = CANCELLED; <<#FDECEC>>
+    endif
+  elseif (decision = REJECTED_AFTER_HANDOVER？) then (是)
+    :rejectShipmentCancellation(); <<#FDECEC>>
+    :CancellationState = REJECTED_AFTER_HANDOVER; <<#FDECEC>>
+    :status = REJECTED_AFTER_HANDOVER;
+  else (PENDING)
+    :awaitFinalShipmentCancellationResolution(); <<#FFF7D6>>
+    :Workflow.await(ShipmentCancellationResolved); <<#FFF7D6>>
+  endif
+}
+
+partition "D. PENDING 的 final fact" {
+  if (immediate decision 原本為 PENDING？) then (是)
+    :shipmentCancellationResolved(Signal);
+    :acceptsShipmentCancellationResolution(); <<#FFF7D6>>
+    if (requestId/orderId/shipmentId/state 不相符？) then (是)
+      :安全忽略無關或重複 Signal;
+      :繼續等待正確 final fact; <<#FFF7D6>>
+      -> acceptsShipmentCancellationResolution();
+    else (相符)
+      :保存 final resolution;
+      :requireCancellationConsistentWithHandover(); <<#FFF7D6>>
+      if (final result = CANCELLED？) then (是)
+        :status = CANCELLED; <<#FDECEC>>
+      else (REJECTED_AFTER_HANDOVER)
+        :rejectShipmentCancellation(); <<#FDECEC>>
+        :status = REJECTED_AFTER_HANDOVER;
+      endif
+    endif
+  endif
+}
+
+partition "E. 回到 execute" {
+  if (status = CANCELLED？) then (是)
+    :cancelOrder(); <<#FDECEC>>
+    :CancelOrder Activity; <<#FDECEC>>
+    :CancellationState = ORDER_CANCELLED; <<#FDECEC>>
+    :finishCancellation(ORDER_CANCELLED); <<#FDECEC>>
+    stop
+  else (REJECTED_AFTER_HANDOVER)
+    :不取消 Order;
+    :Workflow.await(hasMatchingCarrierHandover()); <<#FFF7D6>>
+    :回到履約主線\nCompleteOutboundMovements -> RecordOrderFulfillment;
+  endif
+}
+
+stop
+
+legend bottom
+  |<#FDECEC>| 取消 command／狀態推進 |
+  |<#FFF7D6>| Durable wait／correlation guard |
+  |<#FFF0F0>| 明確失敗 Workflow Execution 的 contract conflict |
+endlegend
+@enduml

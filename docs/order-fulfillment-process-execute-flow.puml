@@ -1,0 +1,98 @@
+@startuml
+title OrderFulfillmentProcessWorkflow.execute 流程圖
+
+skinparam defaultFontName "Heiti TC"
+skinparam dpi 150
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam ArrowColor #475569
+skinparam ActivityBorderColor #475569
+skinparam ActivityBackgroundColor #F8FAFC
+skinparam ActivityDiamondBackgroundColor #FFF7D6
+skinparam ActivityDiamondBorderColor #B7791F
+skinparam ActivityStartColor #2563EB
+skinparam ActivityEndColor #2563EB
+
+start
+:execute(StartInput);
+:取得 processId;
+note right
+  「極早取消」與「配貨中取消」是同一業務分支：
+  Shipment 尚未建立。差別只在 RequestAllocation 是否已送出。
+end note
+
+if (cancellationRequested()？) then (是)
+  :cancelOrderBeforeShipmentCreation(); <<#FDECEC>>
+  note right
+    enterPhase(CANCELLATION)
+    -> cancelOrder()
+    -> finishCancellation()
+  end note
+  stop
+endif
+
+partition "1. Shipment 建立前：配貨" {
+  :AllocationCheckpoint.waiting();
+  :enterPhase(ALLOCATION);
+  :RequestAllocation Activity; <<#E8F1FF>>
+  :Workflow.await(isCommitted()\n或 cancellationRequested()); <<#FFF7D6>>
+
+  if (cancellationRequested()？) then (是)
+    :cancelOrderBeforeShipmentCreation(); <<#FDECEC>>
+    stop
+  else (否)
+    :requireCommittedSnapshot();
+  endif
+}
+
+partition "2. WMS 建立 Shipment" {
+  :enterPhase(WMS_SHIPMENT_CREATION);
+  :CreateShipment Activity; <<#E8F1FF>>
+  :保存 shipmentId;
+}
+
+partition "3. Shipment 已建立：等待 handover，可被取消中斷" {
+  :enterPhase(SHIPMENT_HANDOVER);
+  :Workflow.await(hasMatchingCarrierHandover()\n或 cancellationRequested()); <<#FFF7D6>>
+
+  if (cancellationRequested()？) then (是)
+    :coordinateShipmentCancellation(); <<#FDECEC>>
+    note right
+      詳細展開於 cancellation-flow 圖：
+      CancelShipment Activity
+      -> immediate decision
+      -> 必要時 await final Signal
+    end note
+
+    if (status = CANCELLED？) then (是)
+      :cancelOrder(); <<#FDECEC>>
+      :finishCancellation(); <<#FDECEC>>
+      stop
+    else (否)
+      :status = REJECTED_AFTER_HANDOVER\n（coordinate 內已更新 state）; <<#FDECEC>>
+      :Workflow.await(hasMatchingCarrierHandover()); <<#FFF7D6>>
+    endif
+  endif
+
+  :requireMatchingCarrierHandover();
+}
+
+partition "4. 出庫完成" {
+  :enterPhase(OUTBOUND_COMPLETION);
+  :CompleteOutboundMovements Activity; <<#E8F1FF>>
+}
+
+partition "5. 訂單完成" {
+  :enterPhase(ORDER_COMPLETION);
+  :RecordOrderFulfillment Activity; <<#E8F1FF>>
+  :finish(FULFILLMENT_COMPLETED);
+}
+
+stop
+
+legend bottom
+  |<#E8F1FF>| Activity 呼叫 |
+  |<#FFF7D6>| Durable wait／判斷 |
+  |<#FDECEC>| 取消分支 |
+endlegend
+@enduml
