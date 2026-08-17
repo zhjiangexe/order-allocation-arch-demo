@@ -85,11 +85,11 @@ public class OrderEntity {
   @Column(name = "allocated_at")
   private Instant allocatedAt;
 
-  @Column(name = "backordered_since")
-  private Instant backorderedSince;
-
   @Column(name = "cancelled_at")
   private Instant cancelledAt;
+
+  @Column(name = "fulfilled_at")
+  private Instant fulfilledAt;
 
   @Version
   @Column(nullable = false)
@@ -113,8 +113,34 @@ public class OrderEntity {
       Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
-      Instant backorderedSince,
+      Instant ignoredLegacySupplyWaitSince,
       Instant cancelledAt,
+      Long version
+  ) {
+    this(
+        id, ownerId, externalOrderNo, shipToZone, shipToAddress, promisedDeliveryDate,
+        dispatchBy, releasePriority, facilityId, lines, status, receivedAt, placedAt,
+        allocatedAt, ignoredLegacySupplyWaitSince, cancelledAt, null, version);
+  }
+
+  public OrderEntity(
+      UUID id,
+      UUID ownerId,
+      String externalOrderNo,
+      String shipToZone,
+      String shipToAddress,
+      LocalDate promisedDeliveryDate,
+      Instant dispatchBy,
+      int releasePriority,
+      UUID facilityId,
+      List<OrderLineEntity> lines,
+      OrderStatus status,
+      Instant receivedAt,
+      Instant placedAt,
+      Instant allocatedAt,
+      Instant ignoredLegacySupplyWaitSince,
+      Instant cancelledAt,
+      Instant fulfilledAt,
       Long version
   ) {
     this.id = id;
@@ -131,8 +157,8 @@ public class OrderEntity {
     this.receivedAt = receivedAt;
     this.placedAt = placedAt;
     this.allocatedAt = allocatedAt;
-    this.backorderedSince = backorderedSince;
     this.cancelledAt = cancelledAt;
+    this.fulfilledAt = fulfilledAt;
     this.version = version;
   }
 
@@ -192,12 +218,12 @@ public class OrderEntity {
     return allocatedAt;
   }
 
-  public Instant getBackorderedSince() {
-    return backorderedSince;
-  }
-
   public Instant getCancelledAt() {
     return cancelledAt;
+  }
+
+  public Instant getFulfilledAt() {
+    return fulfilledAt;
   }
 
   public Long getVersion() {

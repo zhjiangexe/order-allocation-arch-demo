@@ -29,8 +29,9 @@ public final class OrderMapper {
         order.getReceivedAt(),
         order.getPlacedAt(),
         order.getAllocatedAt(),
-        order.getBackOrderedSince(),
+        null,
         order.getCancelledAt(),
+        order.getFulfilledAt(),
         order.getVersion()
     );
   }
@@ -52,8 +53,9 @@ public final class OrderMapper {
         entity.getReceivedAt(),
         entity.getPlacedAt(),
         entity.getAllocatedAt(),
-        entity.getBackorderedSince(),
+        null,
         entity.getCancelledAt(),
+        entity.getFulfilledAt(),
         entity.getVersion()
     );
   }

@@ -30,9 +30,8 @@ import java.util.UUID;
  * <p>這個欄位名曾經指的是收單時刻。凡是讀 {@code placedAt} 的呼叫端都要確認自己要的是哪一
  * 個：它現在可能是 null，而且由一個我們控制不了時鐘的系統決定。要排序請用 {@code receivedAt}。
  *
- * <p>k6 polls this to measure "time to allocation decision": the exact
- * {@code allocatedAt}/{@code backOrderedSince} timestamp, not the polling interval, is
- * what should drive the latency chart — polling only tells k6 *when to stop asking*.
+ * <p>k6 polls this to measure "time to allocation decision": the exact {@code allocatedAt}
+ * timestamp, not the polling interval, is what should drive the latency chart.
  */
 public record OrderStatusResponse(
     UUID orderId,
@@ -49,8 +48,8 @@ public record OrderStatusResponse(
     Instant receivedAt,
     Instant placedAt,
     Instant allocatedAt,
-    Instant backOrderedSince,
-    Instant cancelledAt
+    Instant cancelledAt,
+    Instant fulfilledAt
 ) {
 
   /** {@code status} 隨 header 走（ship-complete），保留是為了讓多行時的畫面不必改契約。 */
@@ -73,8 +72,8 @@ public record OrderStatusResponse(
         order.getReceivedAt(),
         order.getPlacedAt(),
         order.getAllocatedAt(),
-        order.getBackOrderedSince(),
-        order.getCancelledAt());
+        order.getCancelledAt(),
+        order.getFulfilledAt());
   }
 
   /**

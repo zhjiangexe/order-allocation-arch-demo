@@ -58,7 +58,11 @@ public class ConfirmStockReceiptUsecase {
         incoming, new MovementCompleter.BatchIdentity(command.inDate(), command.expiryDate()), now);
 
     eventPublisher.publish(new StockAvailabilityIncreased(
-        command.ownerId(), command.facilityId(), command.locationId(),
-        command.sku(), command.quantity(), now));
+        command.ownerId(),
+        command.facilityId(),
+        command.locationId(),
+        command.sku(),
+        command.quantity(),
+        now));
   }
 }

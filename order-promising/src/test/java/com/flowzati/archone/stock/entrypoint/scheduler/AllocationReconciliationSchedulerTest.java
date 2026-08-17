@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
+import com.flowzati.archone.stock.application.usecase.ReconcileWaitingDemandUsecase;
 import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -33,9 +34,7 @@ class AllocationReconciliationSchedulerTest {
   void shouldConditionTheSchedulerBeanInsteadOfTheSchedulingEngine() {
     ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(AllocationReconciliationScheduler.class)
-        .withBean(StockMoveRepository.class, () -> mock(StockMoveRepository.class))
-        .withBean(AllocateWaitingDemandUsecase.class, () -> mock(AllocateWaitingDemandUsecase.class))
-        .withBean(AppClock.class, this::appClock);
+        .withBean(ReconcileWaitingDemandUsecase.class, () -> mock(ReconcileWaitingDemandUsecase.class));
 
     runner
         .withPropertyValues("archone.allocation.reconciliation-scheduler-enabled=false")
@@ -56,7 +55,7 @@ class AllocationReconciliationSchedulerTest {
         OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, "SKU-1");
     when(moves.findAllocatableWaitingScopes(TODAY, 25)).thenReturn(List.of(scope));
 
-    new AllocationReconciliationScheduler(moves, usecase, appClock(), 25)
+    new AllocationReconciliationScheduler(reconcileUsecase(moves, usecase))
         .reconcileAllocatableWaitingDemand();
 
     verify(usecase).execute(new AllocateWaitingDemandCommand(
@@ -73,7 +72,7 @@ class AllocationReconciliationSchedulerTest {
     AllocateWaitingDemandUsecase usecase = mock(AllocateWaitingDemandUsecase.class);
     when(moves.findAllocatableWaitingScopes(TODAY, 25)).thenReturn(List.of());
 
-    new AllocationReconciliationScheduler(moves, usecase, appClock(), 25)
+    new AllocationReconciliationScheduler(reconcileUsecase(moves, usecase))
         .reconcileAllocatableWaitingDemand();
 
     verifyNoInteractions(usecase);
@@ -103,7 +102,7 @@ class AllocationReconciliationSchedulerTest {
     doThrow(new OptimisticLockingFailureException("conflict"))
         .when(usecase).execute(conflictedCommand);
 
-    new AllocationReconciliationScheduler(moves, usecase, appClock(), 25)
+    new AllocationReconciliationScheduler(reconcileUsecase(moves, usecase))
         .reconcileAllocatableWaitingDemand();
 
     verify(usecase, times(1)).execute(conflictedCommand);
@@ -114,5 +113,12 @@ class AllocationReconciliationSchedulerTest {
     return new AppClock(
         Clock.fixed(Instant.parse("2026-08-03T16:00:00Z"), ZoneId.of("UTC")),
         "Asia/Taipei");
+  }
+
+  private ReconcileWaitingDemandUsecase reconcileUsecase(
+      StockMoveRepository moves,
+      AllocateWaitingDemandUsecase usecase
+  ) {
+    return new ReconcileWaitingDemandUsecase(moves, usecase, appClock(), 25);
   }
 }

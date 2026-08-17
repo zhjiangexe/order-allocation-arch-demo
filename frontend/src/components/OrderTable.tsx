@@ -8,14 +8,14 @@ interface OrderTableProps {
 }
 
 /**
- * 一列攤開訂單表示的全部欄位，包含四個階段時間戳。刻意不做點開的詳細檢視——第二層視圖會是
+ * 一列攤開訂單表示的全部欄位，包含生命週期各階段時間戳。刻意不做點開的詳細檢視——第二層視圖會是
  * 同一份資料的第二次呈現。
  *
  * <p>一列對應一張單，行則在同一格內以頓號並列——**每一行的商品與數量都看得到**，不會只顯示
  * 第一行。多行訂單是整張配或整張不配，於是一張單可能在某個 SKU 還很充足時掛帳；看得出是哪
  * 一行卡住，那個「有貨卻不配」才讀得懂。
  *
- * <p>時間戳欄位依**生命週期順序**排列（placed → backordered → allocated → cancelled），
+ * <p>時間戳欄位依**生命週期順序**排列（placed → backordered → allocated → fulfilled／cancelled），
  * 不是照 `OrderStatusResponse` 的欄位順序。後端把 allocated 排在 backordered 前面，照抄
  * 會讓一張「下單→缺貨→收貨後配置」的訂單在畫面上讀起來像時間倒退。這幾欄是階段時間戳
  * 不是狀態，狀態只有 `status` 一欄——表頭加 `at` 就是為了讓這件事不需要解釋。
@@ -51,8 +51,8 @@ export function OrderTable({ orders, catalog }: OrderTableProps) {
             <th>status</th>
             <th>received at</th>
             <th>placed upstream</th>
-            <th>backordered at</th>
             <th>allocated at</th>
+            <th>fulfilled at</th>
             <th>cancelled at</th>
           </tr>
         </thead>
@@ -75,8 +75,8 @@ export function OrderTable({ orders, catalog }: OrderTableProps) {
               {/* 上游沒送時留白（—），與其他未發生的階段同一個表示法。不重複 receivedAt：
                   兩欄一樣的話，看的人分不出上游是真的送了還是我們補的。 */}
               <td>{formatTime(order.placedAt)}</td>
-              <td>{formatTime(order.backOrderedSince)}</td>
               <td>{formatTime(order.allocatedAt)}</td>
+              <td>{formatTime(order.fulfilledAt)}</td>
               <td>{formatTime(order.cancelledAt)}</td>
             </tr>
           ))}

@@ -13,7 +13,6 @@ import com.flowzati.archone.bootstrap.messaging.contract.OrderPromisingIntegrati
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
@@ -24,7 +23,6 @@ import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
-import com.flowzati.archone.ordering.application.usecase.RecordOrderBackorderUsecase;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResultEventConsumer;
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
@@ -91,7 +89,6 @@ class OrderPromisingIntegrationEventWiringTest {
             AllocationOrderLifecycleEventConsumer.class,
             AllocationInventoryAvailabilityEventConsumer.class)
         .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
-        .withBean(RecordOrderBackorderUsecase.class, () -> mock(RecordOrderBackorderUsecase.class))
         .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
         .withBean(CancelMovementsUsecase.class, () -> mock(CancelMovementsUsecase.class))
         .withBean(AllocateWaitingDemandUsecase.class, () -> mock(AllocateWaitingDemandUsecase.class));
@@ -126,10 +123,6 @@ class OrderPromisingIntegrationEventWiringTest {
         .matches(dispatcher -> dispatcher.supports(
             PromisingEventTopics.ALLOCATION_EVENTS,
             OrderAllocatedIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION))
-        .matches(dispatcher -> dispatcher.supports(
-            PromisingEventTopics.ALLOCATION_EVENTS,
-            BackorderCreatedIntegrationEvent.EVENT_TYPE,
             EventMessageHeaders.INITIAL_CONTRACT_VERSION));
 
     ArgumentCaptor<IntegrationEventHandlers> orderLifecycleHandlers =

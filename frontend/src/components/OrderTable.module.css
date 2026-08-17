@@ -55,8 +55,8 @@
   color: var(--ok);
 }
 
-.BACKORDERED {
-  color: var(--warn);
+.FULFILLED {
+  color: var(--ok);
 }
 
 .CANCELLED {

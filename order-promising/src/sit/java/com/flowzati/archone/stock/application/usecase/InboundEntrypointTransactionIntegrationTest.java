@@ -271,7 +271,7 @@ class InboundEntrypointTransactionIntegrationTest {
     });
     outcomeDrain().drain();
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
     // 搬運仍在等貨——它沒有被那次失敗的喚醒轉成已鎖定。
     assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("CONFIRMED");
     // inbound execution 與 availability Outbox 保留，讓事件重試或 scheduler 日後收斂。

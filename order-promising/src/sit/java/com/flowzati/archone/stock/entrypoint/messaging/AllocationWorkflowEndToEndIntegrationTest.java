@@ -181,7 +181,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     assertThat(orderRepository.findById(firstOrderId)).hasValueSatisfying(order ->
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     assertThat(orderRepository.findById(secondOrderId)).hasValueSatisfying(order ->
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(5);
       assertThat(pool.getReservedQuantity()).isEqualTo(3);
@@ -263,7 +263,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 「有貨卻不配」正是 ship-complete 的內容：為一張出不去的單鎖住 A 的 10 件，只會讓後面
     // 一張本來出得了的單拿不到。整籃原子性必須在真實的資料庫路徑上成立，不只在領域測試裡。
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
     assertThat(heldBy(orderId)).isEmpty();
     assertThat(stockPoolRepository.findById(plentifulId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
@@ -338,7 +338,6 @@ class AllocationWorkflowEndToEndIntegrationTest {
     stockPoolRepository.save(StockFixtures.unexpiredBatch(poolId, "SKU-BASKET-A", 0, 0));
     Order order = OrderFixtures.pendingMultiSkuOrder(orderId, backorderedAt.minusSeconds(1),
         new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 1, "SKU-BASKET-B", 1)));
-    order.markBackOrdered(backorderedAt);
     order.releaseDomainEvents();
     MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, order);
 
@@ -348,7 +347,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     // 喚醒是由 A 觸發的，但候選單還要 B——而 B 一批都沒有。只看被補的那個 SKU 的實作會在
     // 這裡把整張單配掉。
     assertThat(orderRepository.findById(orderId)).hasValueSatisfying(woken ->
-        assertThat(woken.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
+    assertThat(woken.getStatus()).isEqualTo(OrderStatus.PENDING));
     assertThat(heldBy(orderId)).isEmpty();
     assertThat(stockPoolRepository.findById(poolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(5);

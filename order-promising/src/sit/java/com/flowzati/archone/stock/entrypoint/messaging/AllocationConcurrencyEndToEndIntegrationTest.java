@@ -5,7 +5,6 @@ import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryExhaustedException;
 import com.flowzati.archone.stock.domain.model.StockPool;
@@ -119,7 +118,8 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     List<OrderStatus> statuses = List.of(
         orderRepository.findById(firstOrderId).orElseThrow().getStatus(),
         orderRepository.findById(secondOrderId).orElseThrow().getStatus());
-    assertThat(statuses).containsExactlyInAnyOrder(OrderStatus.ALLOCATED, OrderStatus.BACKORDERED);
+    assertThat(statuses).containsExactlyInAnyOrder(
+        OrderStatus.ALLOCATED, OrderStatus.PENDING);
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool -> {
       assertThat(pool.getReservedQuantity()).isEqualTo(3);
       assertThat(pool.getReservedQuantity()).isLessThanOrEqualTo(pool.getOnHandQuantity());
@@ -133,8 +133,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         AllocationEventSubscriptions.ORDER_LIFECYCLE, secondEvent.getEventId())).isTrue();
     assertThat(jdbcTemplate.queryForList(
         "SELECT type FROM event_outbox", String.class))
-        .contains(OrderAllocatedIntegrationEvent.EVENT_TYPE,
-            BackorderCreatedIntegrationEvent.EVENT_TYPE);
+        .contains(OrderAllocatedIntegrationEvent.EVENT_TYPE);
     assertThat(conflictInjector.invocations()).isGreaterThanOrEqualTo(3);
   }
 

@@ -244,15 +244,46 @@ class OrderControllerTest {
         List.of(
             OrderLine.create(UUID.randomUUID(), 1, ownerId, "SKU-A", 3),
             OrderLine.create(UUID.randomUUID(), 2, ownerId, "SKU-B", 7)),
-        OrderStatus.BACKORDERED, RECEIVED_AT, null, null, RECEIVED_AT.plusSeconds(1), null, null);
+        OrderStatus.PENDING, RECEIVED_AT, null, null, null, null, null);
     when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(backordered));
 
     MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
 
     response.hasStatus(200);
-    response.bodyJson().extractingPath("$[0].status").isEqualTo("BACKORDERED");
-    response.bodyJson().extractingPath("$[0].lines[0].status").isEqualTo("BACKORDERED");
-    response.bodyJson().extractingPath("$[0].lines[1].status").isEqualTo("BACKORDERED");
+    response.bodyJson().extractingPath("$[0].status").isEqualTo("PENDING");
+    response.bodyJson().extractingPath("$[0].lines[0].status").isEqualTo("PENDING");
+    response.bodyJson().extractingPath("$[0].lines[1].status").isEqualTo("PENDING");
+  }
+
+  @Test
+  @DisplayName("履約完成的訂單應揭露 FULFILLED 與 fulfilledAt")
+  void exposesFulfillmentStateAndTimestamp() {
+    UUID orderId = UUID.randomUUID();
+    Instant allocatedAt = RECEIVED_AT.plusSeconds(10);
+    Instant fulfilledAt = RECEIVED_AT.plusSeconds(20);
+    Order fulfilled = Order.rehydrate(
+        orderId,
+        OrderFixtures.OWNER_ID,
+        "EXT-FULFILLED",
+        OrderFixtures.deliveryTerms(),
+        List.of(OrderLine.create(
+            UUID.randomUUID(), 1, OrderFixtures.OWNER_ID, SKU, 3)),
+        OrderStatus.FULFILLED,
+        RECEIVED_AT,
+        null,
+        allocatedAt,
+        null,
+        null,
+        fulfilledAt,
+        1L);
+    when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(fulfilled));
+
+    MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
+
+    response.hasStatus(200);
+    response.bodyJson().extractingPath("$[0].status").isEqualTo("FULFILLED");
+    response.bodyJson().extractingPath("$[0].fulfilledAt")
+        .isEqualTo(fulfilledAt.toString());
   }
 
   @Test

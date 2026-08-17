@@ -9,7 +9,7 @@ UPDATE event_inbox
            THEN 'allocation-ordering-events'
        WHEN event_type = 'StockAvailabilityIncreasedIntegrationEvent'
            THEN 'allocation-inventory-events'
-       WHEN event_type IN ('OrderAllocatedIntegrationEvent', 'BackorderCreatedIntegrationEvent')
+       WHEN event_type = 'OrderAllocatedIntegrationEvent'
            THEN 'ordering-allocation-events'
        WHEN event_type = 'ConfirmStockReceiptRequest'
            THEN 'stock-receipt-requests'

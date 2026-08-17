@@ -417,16 +417,9 @@ public class DevSeedDataInitializer implements ApplicationRunner {
 
     // 乙貨主：一張缺貨排隊中的單。SKU 代碼與甲貨主相同但指的是另一個商品（麥茶 1L）。
     //
-    // 狀態是 BACKORDERED 而不是 PENDING，這是刻意的。PENDING 的語意是「還沒試過配置」，
-    // 在真實系統裡是收單到消費之間的毫秒級過渡；把它固化成種子資料等於展示一個穩定狀態
-    // 下不存在的東西，而且那張單永遠不會動——它繞過下單 usecase 直接寫入，沒有
-    // OrderPlaced 事件，配置端從不知道它存在。
-    //
-    // （原本這裡寫「補貨只處理 BACKORDERED」，那已不成立：佇列改由 demand_lines 回答之後
-    // 刻意不看 status，PENDING 與 BACKORDERED 對它完全等價。）
-    //
-    // BACKORDERED 則三件事同時成立：它進得了 FIFO 佇列，補 SKU-EMPTY 真的會喚醒它；
-    // 語意一致，因為那個庫存池的 on-hand 是 0；撞號展示也還在，兩個貨主都有 SKU-EMPTY。
+    // 訂單維持 PENDING；是否在等待供應由下方的 StockMove（CONFIRMED）表達。
+    // 這樣補 SKU-EMPTY 時由 stock scheduler / availability event 喚醒它，Ordering 不需要
+    // 再維護一個與 stock queue 重複的狀態機。撞號展示也還在，兩個貨主都有 SKU-EMPTY。
     // 刻意指定南部倉：與甲貨主那張單的北部倉不同，R3 的分倉庫存才有資料可分。
     orderRepository.save(backorderedOrder(
         BACKORDERED_ORDER_ID,
@@ -482,7 +475,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       UUID orderId, UUID lineId, UUID ownerId, UUID facilityId, String externalOrderNo,
       String skuCode, int quantity) {
     return order(orderId, lineId, ownerId, facilityId, externalOrderNo, skuCode, quantity,
-        OrderStatus.BACKORDERED, null, null, BACKORDERED_SINCE);
+        OrderStatus.PENDING, null, null, null);
   }
 
   /** 缺貨排隊中的多行單。行由呼叫端給定——這種單存在的理由就是它那幾條行的組合。 */
@@ -494,11 +487,11 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         externalOrderNo,
         deliveryTerms(facilityId),
         lines,
-        OrderStatus.BACKORDERED,
+        OrderStatus.PENDING,
         PARTIALLY_RESERVED_AT.minusSeconds(1),
         null,
         null,
-        BACKORDERED_SINCE,
+        null,
         null,
         null);
   }

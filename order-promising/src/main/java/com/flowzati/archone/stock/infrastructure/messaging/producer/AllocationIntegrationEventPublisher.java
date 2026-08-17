@@ -2,7 +2,6 @@ package com.flowzati.archone.stock.infrastructure.messaging.producer;
 
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.events.AggregateReference;
@@ -16,7 +15,6 @@ import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.stock.application.event.FulfillmentEventTopics;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -39,10 +37,6 @@ public class AllocationIntegrationEventPublisher implements AllocationDomainEven
   public void publish(DomainEvent event) {
     if (event instanceof OrderAllocationCompleted completed) {
       translate(completed);
-      return;
-    }
-    if (event instanceof OrderBackorderRecorded backordered) {
-      translate(backordered);
       return;
     }
     if (event instanceof StockAvailabilityIncreased availabilityIncreased) {
@@ -86,20 +80,6 @@ public class AllocationIntegrationEventPublisher implements AllocationDomainEven
         new PublicationTarget(
             FulfillmentEventTopics.FULFILLMENT_HANDOFFS, event.orderId().toString()),
         event.allocatedAt());
-  }
-
-  /** 將 allocation 記錄的缺貨事實轉成對外事件。 */
-  public void translate(OrderBackorderRecorded event) {
-    BackorderCreatedIntegrationEvent integration = new BackorderCreatedIntegrationEvent(
-        IdGenerator.nextId(),
-        event.orderId(),
-        event.backorderedAt());
-    eventPublisher.publish(
-        integration,
-        new AggregateReference(OutboxAggregateTypes.ORDER, event.orderId().toString()),
-        deliveryKeyedByOrder(event.orderId()),
-        event.backorderedAt()
-    );
   }
 
   /** Receipt completion and its availability notification commit through the same Outbox. */

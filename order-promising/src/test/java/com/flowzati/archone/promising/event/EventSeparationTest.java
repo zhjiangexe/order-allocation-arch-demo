@@ -1,7 +1,6 @@
 package com.flowzati.archone.promising.event;
 
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.promising.domain.DomainEvent;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
@@ -77,15 +76,11 @@ class EventSeparationTest {
   void shouldExposeCompleteAllocationIntegrationEventContracts() {
     OrderAllocatedIntegrationEvent allocated =
         new OrderAllocatedIntegrationEvent(eventId, orderId, occurredAt);
-    BackorderCreatedIntegrationEvent backorder =
-        new BackorderCreatedIntegrationEvent(eventId, orderId, occurredAt);
 
     // 配貨結果事件是通知，不是狀態傳輸：帶得動的只有訂單識別與時間。要知道配到哪些批，
     // 回頭讀 stock_reservations——那份紀錄不會因為取消而與事件不一致。
     assertThat(allocated.getOrderId()).isEqualTo(orderId);
     assertThat(allocated.getAllocatedAt()).isEqualTo(occurredAt);
-    assertThat(backorder.getOrderId()).isEqualTo(orderId);
-    assertThat(backorder.getBackorderedSince()).isEqualTo(occurredAt);
   }
 
   @Test

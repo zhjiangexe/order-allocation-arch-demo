@@ -193,11 +193,11 @@ public final class OrderFixtures {
         deliveryTerms(facilityId),
         List.of(OrderLine.create(
             IdGenerator.nextId(), 1, ownerId, skuCode, quantity)),
-        OrderStatus.BACKORDERED,
+        OrderStatus.PENDING,
         receivedAt,
         null,
         null,
-        backorderedAt,
+        null,
         null,
         null);
   }
@@ -261,8 +261,8 @@ public final class OrderFixtures {
       Instant backorderedAt,
       Long version
   ) {
-    return order(orderId, ownerId, skuCode, quantity, OrderStatus.BACKORDERED, receivedAt,
-        null, backorderedAt, version);
+    return order(orderId, ownerId, skuCode, quantity, OrderStatus.PENDING, receivedAt,
+        null, null, version);
   }
 
   /**

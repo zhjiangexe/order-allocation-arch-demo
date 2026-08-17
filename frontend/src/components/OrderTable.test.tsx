@@ -84,8 +84,8 @@ function order(overrides: Partial<OrderView> & Pick<OrderView, 'orderId' | 'owne
     // 預設不帶上游的下單時刻——「上游沒送」是常態，讓它成為預設值，要驗有值的測試自己覆蓋。
     placedAt: null,
     allocatedAt: null,
-    backOrderedSince: null,
     cancelledAt: null,
+    fulfilledAt: null,
     ...overrides,
   };
 }

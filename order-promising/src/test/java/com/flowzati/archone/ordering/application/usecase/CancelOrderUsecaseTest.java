@@ -33,7 +33,8 @@ class CancelOrderUsecaseTest {
     order.releaseDomainEvents();
     when(repository.findById(order.getId())).thenReturn(Optional.of(order));
 
-    new CancelOrderUsecase(repository, publisher).cancel(order.getId(), cancelledAt);
+    assertThat(new CancelOrderUsecase(repository, publisher).cancel(order.getId(), cancelledAt))
+        .isEqualTo(Order.CancellationResult.CANCELLED);
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     verify(repository).save(order);
@@ -52,7 +53,9 @@ class CancelOrderUsecaseTest {
     order.releaseDomainEvents();
     when(repository.findById(order.getId())).thenReturn(Optional.of(order));
 
-    new CancelOrderUsecase(repository, publisher).cancel(order.getId(), cancelledAt.plusSeconds(1));
+    assertThat(new CancelOrderUsecase(repository, publisher)
+        .cancel(order.getId(), cancelledAt.plusSeconds(1)))
+        .isEqualTo(Order.CancellationResult.ALREADY_CANCELLED);
 
     verifyNoInteractions(publisher);
     verify(repository).findById(order.getId());

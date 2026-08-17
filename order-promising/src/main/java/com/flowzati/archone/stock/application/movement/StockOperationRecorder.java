@@ -59,8 +59,7 @@ public class StockOperationRecorder {
    * 讓那一步不必用 {@code order_line_id} 把同一批列再讀一次。
    */
   public List<StockMove> recordOutbound(Demand demand, Instant now) {
-    PickingType type = operationTypeFor(
-        demand.facilityId(), demand.locationId(), PickingDirection.OUTBOUND);
+    PickingType type = operationTypeFor(demand.facilityId(), demand.locationId(), PickingDirection.OUTBOUND);
 
     UUID pickingId = IdGenerator.nextId();
     stockPickingRepository.save(StockPicking.confirmedOutbound(
@@ -138,16 +137,13 @@ public class StockOperationRecorder {
   private PickingType operationTypeFor(
       UUID facilityId, UUID locationId, PickingDirection direction) {
     StockLocation location = stockLocationRepository.findById(locationId)
-        .orElseThrow(() -> new IllegalStateException(
-            "Stock location " + locationId + " no longer exists"));
+        .orElseThrow(() -> new IllegalStateException("Stock location " + locationId + " no longer exists"));
     if (!facilityId.equals(location.getFacilityId())) {
-      throw new IllegalArgumentException(
-          "Stock location " + locationId + " does not belong to facility " + facilityId);
+      throw new IllegalArgumentException("Stock location " + locationId + " does not belong to facility " + facilityId);
     }
 
     return pickingTypeRepository.find(facilityId, direction)
         .orElseThrow(() -> new IllegalStateException(
-            "Facility " + facilityId + " has no " + direction.name().toLowerCase()
-                + " operation type"));
+            "Facility " + facilityId + " has no " + direction.name().toLowerCase() + " operation type"));
   }
 }

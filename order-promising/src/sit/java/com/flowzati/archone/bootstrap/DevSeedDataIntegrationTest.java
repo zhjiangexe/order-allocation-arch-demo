@@ -230,7 +230,7 @@ class DevSeedDataIntegrationTest {
   void seedsAMultiSkuOrderBlockedByOneOfItsSkus() {
     assertThat(orderRepository.findById(DevSeedDataInitializer.BASKET_ORDER_ID))
         .hasValueSatisfying(order -> {
-          assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+          assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
           assertThat(order.getDemand()).containsOnlyKeys(
               DevSeedDataInitializer.AVAILABLE_SKU, DevSeedDataInitializer.EMPTY_SKU);
         });

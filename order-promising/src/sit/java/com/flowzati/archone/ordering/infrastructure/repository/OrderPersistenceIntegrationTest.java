@@ -88,15 +88,35 @@ class OrderPersistenceIntegrationTest {
     assertThat(restored.getId()).isEqualTo(orderId);
     assertThat(restored.getOwnerId()).isEqualTo(OrderFixtures.OWNER_ID);
     assertThat(restored.getDemand()).isEqualTo(Map.of("SKU-1", 3));
-    assertThat(restored.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+        assertThat(restored.getStatus()).isEqualTo(OrderStatus.PENDING);
     assertThat(restored.getReceivedAt()).isEqualTo(RECEIVED_AT);
     // fixture 不帶上游的下單時刻，往返之後仍然不帶。
     assertThat(restored.getPlacedAt()).isNull();
     assertThat(restored.getAllocatedAt()).isNull();
-    assertThat(restored.getBackOrderedSince()).isEqualTo(BACKORDERED_AT);
     assertThat(restored.getCancelledAt()).isNull();
     assertThat(restored.getVersion()).isZero();
     assertThat(restored.releaseDomainEvents()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("應持久化並還原 FULFILLED 與 fulfilledAt")
+  void persistsAndRestoresFulfilledOrder() {
+    UUID orderId = uuid(5);
+    Instant allocatedAt = RECEIVED_AT.plusSeconds(10);
+    Instant fulfilledAt = RECEIVED_AT.plusSeconds(20);
+    Order order = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, RECEIVED_AT);
+    order.markAllocated(allocatedAt);
+    order.markFulfilled(fulfilledAt);
+
+    repositoryAdapter.save(order);
+    jpaRepository.flush();
+    entityManager.clear();
+
+    Order restored = repositoryAdapter.findById(orderId).orElseThrow();
+
+    assertThat(restored.getStatus()).isEqualTo(OrderStatus.FULFILLED);
+    assertThat(restored.getAllocatedAt()).isEqualTo(allocatedAt);
+    assertThat(restored.getFulfilledAt()).isEqualTo(fulfilledAt);
   }
 
   @Test
@@ -124,7 +144,6 @@ class OrderPersistenceIntegrationTest {
         orderId
     );
     entityManager.clear();
-    staleOrder.markBackOrdered(BACKORDERED_AT);
 
     assertThatThrownBy(() -> {
       repositoryAdapter.save(staleOrder);

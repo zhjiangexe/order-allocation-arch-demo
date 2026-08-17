@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import java.util.UUID;
 
-/** Physical stock became available and eligible backorders may be retried. */
+/** Physical stock became available and waiting stock movements may be retried. */
 public final class StockAvailabilityIncreasedIntegrationEvent extends IntegrationEvent {
 
   /** Kept equal to the existing wire value so this change is backward compatible. */

@@ -4,7 +4,6 @@ import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedInt
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
@@ -22,10 +21,6 @@ public class OrderPromisingIntegrationEventContractConfiguration {
         .map(
             OrderAllocatedIntegrationEvent.class,
             OrderAllocatedIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-        .map(
-            BackorderCreatedIntegrationEvent.class,
-            BackorderCreatedIntegrationEvent.EVENT_TYPE,
             EventMessageHeaders.INITIAL_CONTRACT_VERSION)
         .map(
             OrderPlacedIntegrationEvent.class,

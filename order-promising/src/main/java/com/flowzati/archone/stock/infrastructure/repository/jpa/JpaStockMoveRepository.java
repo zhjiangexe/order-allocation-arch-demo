@@ -54,6 +54,28 @@ public interface JpaStockMoveRepository extends JpaRepository<StockMoveEntity, U
       @Param("skuCode") String skuCode,
       Limit limit);
 
+  /**
+   * 找出 reconciliation 本輪值得嘗試的等待配貨 scope。
+   *
+   * <p>一個 scope 由 {@code ownerId + facilityId + locationId + skuCode} 定義；呼叫端會把每個
+   * scope 轉成一個 {@code AllocateWaitingDemandCommand}，再交給真正的配貨 use case 執行。
+   * 這個查詢只負責找候選 scope，不在這裡修改庫存、搬運或訂單狀態。
+   *
+   * <p>候選 scope 必須同時符合三個條件：
+   * <ol>
+   *   <li>存在訂單 outbound picking 的 {@code CONFIRMED} move，代表仍有等待配貨的需求；</li>
+   *   <li>該 move 所在的 location 屬於一個 facility；</li>
+   *   <li>同一個 owner、location、SKU 存在今天仍未過期且尚有可用數量的 stock pool。</li>
+   * </ol>
+   *
+   * <p>{@code EXISTS} 只用來確認有可配庫存，避免一個 scope 因為多個 stock pool 批次而產生
+   * 重複列；真正的 FEFO 取批與 ship-complete 判斷仍由配貨流程負責。結果依最早等待需求
+   * 排序，{@code limit} 限制的是本輪要交給 application layer 的 scope 數量，不是 move 或
+   * stock pool 數量。
+   *
+   * <p>這是提示性查詢，不是鎖定或保證：查詢完成後庫存可能被另一個 transaction 先配走，
+   * 因此後續 use case 必須接受沒有成功配出的正常結果。
+   */
   @Query("""
       SELECT m.ownerId AS ownerId,
              l.facilityId AS facilityId,
@@ -80,9 +102,7 @@ public interface JpaStockMoveRepository extends JpaRepository<StockMoveEntity, U
        GROUP BY m.ownerId, l.facilityId, m.fromLocationId, m.skuCode
        ORDER BY MIN(m.createdAt), MIN(m.orderLineId)
       """)
-  List<WaitingAllocationScopeView> findAllocatableWaitingScopes(
-      @Param("today") LocalDate today,
-      Limit limit);
+  List<WaitingAllocationScopeView> findAllocatableWaitingScopes(@Param("today") LocalDate today, Limit limit);
 
   /**
    * 第二段：**取那幾張單據的全部搬運**——含別的 SKU 的那些。

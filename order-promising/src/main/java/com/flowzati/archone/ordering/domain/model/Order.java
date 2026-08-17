@@ -39,8 +39,8 @@ public class Order {
   private final Long version;
   private OrderStatus status;
   private Instant allocatedAt;
-  private Instant backOrderedSince;
   private Instant cancelledAt;
+  private Instant fulfilledAt;
 
   private Order(
       UUID id,
@@ -52,12 +52,13 @@ public class Order {
       Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
-      Instant backOrderedSince,
+      Instant ignoredLegacySupplyWaitSince,
       Instant cancelledAt,
+      Instant fulfilledAt,
       Long version
   ) {
     validateState(id, ownerId, externalOrderNo, deliveryTerms, lines, status, receivedAt,
-        placedAt, allocatedAt, backOrderedSince, cancelledAt, version);
+        placedAt, allocatedAt, cancelledAt, fulfilledAt, version);
     this.id = id;
     this.ownerId = ownerId;
     this.externalOrderNo = externalOrderNo;
@@ -67,8 +68,8 @@ public class Order {
     this.receivedAt = receivedAt;
     this.placedAt = placedAt;
     this.allocatedAt = allocatedAt;
-    this.backOrderedSince = backOrderedSince;
     this.cancelledAt = cancelledAt;
+    this.fulfilledAt = fulfilledAt;
     this.version = version;
   }
 
@@ -97,7 +98,7 @@ public class Order {
   ) {
     Order order = new Order(
         id, ownerId, externalOrderNo, deliveryTerms, lines, OrderStatus.PENDING, receivedAt,
-        placedAt, null, null, null, null);
+        placedAt, null, null, null, null, null);
     order.events.add(new OrderPlaced(
         id,
         ownerId,
@@ -122,13 +123,34 @@ public class Order {
       Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
-      Instant backOrderedSince,
+      Instant ignoredLegacySupplyWaitSince,
       Instant cancelledAt,
+      Long version
+  ) {
+    return rehydrate(
+        id, ownerId, externalOrderNo, deliveryTerms, lines, status, receivedAt, placedAt,
+        allocatedAt, ignoredLegacySupplyWaitSince, cancelledAt, null, version);
+  }
+
+  /** 由儲存還原，包含履約終態時間。 */
+  public static Order rehydrate(
+      UUID id,
+      UUID ownerId,
+      String externalOrderNo,
+      DeliveryTerms deliveryTerms,
+      List<OrderLine> lines,
+      OrderStatus status,
+      Instant receivedAt,
+      Instant placedAt,
+      Instant allocatedAt,
+      Instant ignoredLegacySupplyWaitSince,
+      Instant cancelledAt,
+      Instant fulfilledAt,
       Long version
   ) {
     return new Order(
         id, ownerId, externalOrderNo, deliveryTerms, lines, status, receivedAt, placedAt,
-        allocatedAt, backOrderedSince, cancelledAt, version);
+        allocatedAt, ignoredLegacySupplyWaitSince, cancelledAt, fulfilledAt, version);
   }
 
   /**
@@ -164,39 +186,41 @@ public class Order {
 
   /** 將 stock 的配貨結果寫入訂單投影；來源事實已由 stock 發布，因此這裡不另發領域事件。 */
   public void markAllocated(Instant allocatedAt) {
-    if (status != OrderStatus.PENDING && status != OrderStatus.BACKORDERED) {
-      throw new IllegalStateException("Only pending or backordered orders can be allocated");
+    if (status != OrderStatus.PENDING) {
+      throw new IllegalStateException("Only pending orders can be allocated");
     }
     requireNotBefore(allocatedAt, receivedAt, "Allocated time cannot be before received time");
-    if (backOrderedSince != null) {
-      requireNotBefore(
-          allocatedAt, backOrderedSince, "Allocated time cannot be before backordered time");
-    }
-
     status = OrderStatus.ALLOCATED;
     this.allocatedAt = allocatedAt;
   }
 
-  /** 將 stock 的缺貨結果寫入訂單投影；來源事實已由 stock 發布，因此這裡不另發領域事件。 */
-  public void markBackOrdered(Instant backorderedSince) {
-    if (status != OrderStatus.PENDING) {
-      throw new IllegalStateException("Only pending orders can be backordered");
+  /**
+   * 在實際出庫完成後將訂單推進為履約完成。重複通知維持第一次的時間並回 {@code false}；其他
+   * 非 ALLOCATED 狀態代表跨邊界順序或補償 invariant 被破壞，必須明確失敗。
+   */
+  public boolean markFulfilled(Instant fulfilledAt) {
+    if (status == OrderStatus.FULFILLED) {
+      return false;
     }
-    requireNotBefore(
-        backorderedSince, receivedAt, "Backordered time cannot be before received time");
+    if (status != OrderStatus.ALLOCATED) {
+      throw new IllegalStateException("Only allocated orders can be fulfilled");
+    }
+    requireNotBefore(fulfilledAt, allocatedAt, "Fulfilled time cannot be before allocated time");
 
-    status = OrderStatus.BACKORDERED;
-    this.backOrderedSince = backorderedSince;
+    status = OrderStatus.FULFILLED;
+    this.fulfilledAt = fulfilledAt;
+    return true;
   }
 
   /**
-   * 取消這張單。已取消時為 no-op 並回 {@code false}，不拋錯。
+   * 取消這張單。已取消時回 {@link CancellationResult#ALREADY_CANCELLED}；已履約時回
+   * {@link CancellationResult#REJECTED}，兩者都不產生新的 Domain Event。
    *
-   * <p><b>與 {@link #markAllocated} / {@link #markBackOrdered} 刻意不同慣例</b>，兩者狀態不對
+   * <p><b>與 {@link #markAllocated} 刻意不同慣例</b>，狀態不對
    *時是拋錯。差別在驅動來源：
    *
    * <ul>
-   *   <li>{@code markAllocated} / {@code markBackOrdered} 由系統內部的配貨決策驅動。狀態不對
+   *   <li>{@code markAllocated} 由系統內部的配貨決策驅動。狀態不對
    *       代表**程式錯誤**，該大聲失敗。
    *   <li>{@code cancel} 由**外部請求**驅動——訊息重送、使用者連點兩下、上游重試都會讓同一個
    *       取消到達兩次。冪等是正確行為，不是寬容。
@@ -205,31 +229,34 @@ public class Order {
    * <p>所以看到這個不一致時**不要把它「修」成拋錯**。等取消接上 Kafka 入口之後，冪等會從
    * 「比較好」變成必要。
    *
-   * <p><b>目前允許從 {@code PENDING}、{@code ALLOCATED}、{@code BACKORDERED} 取消</b>，因為那
-   * 三個狀態下實體上都還沒發生任何事，補償就只是釋放預留。
+   * <p><b>目前允許從 {@code PENDING}、{@code ALLOCATED} 取消。</b>
+   * ALLOCATED 後是否還要取消 WMS 作業／回架，是跨 bounded context 的取消協調政策，不由
+   * Order aggregate 猜測；本方法只負責 Ordering 自己的狀態轉換與事件。
    *
-   * <p><b>缺一條禁令：離倉後不得取消。</b>逆物流不在範圍內，那條路徑沒有補償手段（見
-   * {@code docs/system-layer-map.md} 交會點 4）。它今天不是被違反而是**表達不出來**——
-   * {@code OrderStatus} 還沒有 {@code FULFILLED}，那個狀態隨 R7 履約層到來。R7 加它的時候
-   * 必須連同這條禁令一起加，否則會出現無法補償的路徑。
+   * <p><b>離倉後不得取消。</b>逆物流不在範圍內，因此 {@code FULFILLED} 必須明確拒絕取消；
+   * 不能把沒有補償手段的路徑當作一般冪等重送。
    */
-  public boolean cancel(Instant cancelledAt) {
+  public CancellationResult cancel(Instant cancelledAt) {
     if (status == OrderStatus.CANCELLED) {
-      return false;
+      return CancellationResult.ALREADY_CANCELLED;
+    }
+    if (status == OrderStatus.FULFILLED) {
+      return CancellationResult.REJECTED;
     }
     requireNotBefore(cancelledAt, receivedAt, "Cancelled time cannot be before received time");
     if (allocatedAt != null) {
       requireNotBefore(cancelledAt, allocatedAt, "Cancelled time cannot be before allocated time");
     }
-    if (backOrderedSince != null) {
-      requireNotBefore(
-          cancelledAt, backOrderedSince, "Cancelled time cannot be before backordered time");
-    }
-
     status = OrderStatus.CANCELLED;
     this.cancelledAt = cancelledAt;
     events.add(new OrderCancelled(id, ownerId, deliveryTerms.facilityId(), cancelledAt));
-    return true;
+    return CancellationResult.CANCELLED;
+  }
+
+  public enum CancellationResult {
+    CANCELLED,
+    ALREADY_CANCELLED,
+    REJECTED
   }
 
   public List<DomainEvent> releaseDomainEvents() {
@@ -254,8 +281,8 @@ public class Order {
       Instant receivedAt,
       Instant placedAt,
       Instant allocatedAt,
-      Instant backOrderedSince,
       Instant cancelledAt,
+      Instant fulfilledAt,
       Long version
   ) {
     if (id == null) {
@@ -300,36 +327,33 @@ public class Order {
     if (allocatedAt != null) {
       requireNotBefore(allocatedAt, receivedAt, "Allocated time cannot be before received time");
     }
-    if (backOrderedSince != null) {
-      requireNotBefore(
-          backOrderedSince, receivedAt, "Backordered time cannot be before received time");
-    }
-    if (allocatedAt != null && backOrderedSince != null) {
-      requireNotBefore(
-          allocatedAt, backOrderedSince, "Allocated time cannot be before backordered time");
-    }
     if (cancelledAt != null) {
       requireNotBefore(cancelledAt, receivedAt, "Cancelled time cannot be before received time");
       if (allocatedAt != null) {
         requireNotBefore(cancelledAt, allocatedAt, "Cancelled time cannot be before allocated time");
       }
-      if (backOrderedSince != null) {
-        requireNotBefore(
-            cancelledAt, backOrderedSince, "Cancelled time cannot be before backordered time");
+    }
+    if (fulfilledAt != null) {
+      requireNotBefore(fulfilledAt, receivedAt, "Fulfilled time cannot be before received time");
+      if (allocatedAt != null) {
+        requireNotBefore(fulfilledAt, allocatedAt, "Fulfilled time cannot be before allocated time");
       }
     }
 
     switch (status) {
       case PENDING -> require(
-          allocatedAt == null && backOrderedSince == null && cancelledAt == null,
+          allocatedAt == null && cancelledAt == null
+              && fulfilledAt == null,
           "Pending order cannot contain transition timestamps");
       case ALLOCATED -> require(
-          allocatedAt != null && cancelledAt == null,
-          "Allocated order requires allocated time and cannot contain cancelled time");
-      case BACKORDERED -> require(
-          backOrderedSince != null && allocatedAt == null && cancelledAt == null,
-          "Backordered order requires backordered time only");
-      case CANCELLED -> require(cancelledAt != null, "Cancelled order requires cancelled time");
+          allocatedAt != null && cancelledAt == null && fulfilledAt == null,
+          "Allocated order requires allocated time and cannot be cancelled or fulfilled");
+      case FULFILLED -> require(
+          allocatedAt != null && fulfilledAt != null && cancelledAt == null,
+          "Fulfilled order requires allocated and fulfilled times and cannot be cancelled");
+      case CANCELLED -> require(
+          cancelledAt != null && fulfilledAt == null,
+          "Cancelled order requires cancelled time and cannot be fulfilled");
     }
   }
 
@@ -392,12 +416,12 @@ public class Order {
     return allocatedAt;
   }
 
-  public Instant getBackOrderedSince() {
-    return backOrderedSince;
-  }
-
   public Instant getCancelledAt() {
     return cancelledAt;
+  }
+
+  public Instant getFulfilledAt() {
+    return fulfilledAt;
   }
 
   public Long getVersion() {

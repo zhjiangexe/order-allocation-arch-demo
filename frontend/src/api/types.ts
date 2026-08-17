@@ -12,7 +12,11 @@
  * 入庫日與效期）。
  */
 
-export type OrderStatus = 'PENDING' | 'ALLOCATED' | 'BACKORDERED' | 'CANCELLED';
+export type OrderStatus =
+  | 'PENDING'
+  | 'ALLOCATED'
+  | 'FULFILLED'
+  | 'CANCELLED';
 
 export type TemperatureZone = 'AMBIENT' | 'CHILLED' | 'FROZEN';
 
@@ -95,8 +99,8 @@ export interface OrderView {
    */
   placedAt: string | null;
   allocatedAt: string | null;
-  backOrderedSince: string | null;
   cancelledAt: string | null;
+  fulfilledAt: string | null;
 }
 
 export interface PlaceOrderCommand {

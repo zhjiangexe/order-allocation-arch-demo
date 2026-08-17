@@ -181,8 +181,7 @@ class AllocationBoundaryArchitectureTest {
         APPLICATION_ROOT.resolve("usecase/AllocateWaitingDemandUsecase.java"),
         APPLICATION_ROOT.resolve("usecase/CancelMovementsUsecase.java"),
         APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
-        ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderAllocationUsecase.java"),
-        ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderBackorderUsecase.java"));
+        ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderAllocationUsecase.java"));
 
     List<String> violations = consumerUsecases.stream()
         .filter(path -> {

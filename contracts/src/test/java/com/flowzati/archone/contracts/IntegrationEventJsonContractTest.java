@@ -6,7 +6,6 @@ import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfi
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import java.io.InputStream;
@@ -68,10 +67,6 @@ class IntegrationEventJsonContractTest {
             "order-allocated-v1.json",
             new OrderAllocatedIntegrationEvent(EVENT_ID, ORDER_ID, OCCURRED_AT),
             OrderAllocatedIntegrationEvent.class),
-        Arguments.of(
-            "backorder-created-v1.json",
-            new BackorderCreatedIntegrationEvent(EVENT_ID, ORDER_ID, OCCURRED_AT),
-            BackorderCreatedIntegrationEvent.class),
         Arguments.of(
             "stock-availability-increased-v1.json",
             new StockAvailabilityIncreasedIntegrationEvent(

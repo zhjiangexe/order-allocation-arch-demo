@@ -42,14 +42,14 @@ class OrderMapperTest {
     assertThat(entity.getShipToAddress()).isEqualTo("台北市中正區重慶南路一段 122 號");
     assertThat(entity.getPromisedDeliveryDate()).isEqualTo(LocalDate.of(2026, 8, 1));
     assertThat(entity.getFacilityId()).isEqualTo(FACILITY_ID);
-    assertThat(entity.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(entity.getStatus()).isEqualTo(OrderStatus.PENDING);
     assertThat(entity.getReceivedAt()).isEqualTo(RECEIVED_AT);
     // fixture 不帶上游的下單時刻，映射也不得憑空補一個——補了就與「上游真的送了同一個
     // 時間」在資料庫裡長得一樣。
     assertThat(entity.getPlacedAt()).isNull();
     assertThat(entity.getAllocatedAt()).isNull();
-    assertThat(entity.getBackorderedSince()).isEqualTo(BACKORDERED_AT);
     assertThat(entity.getCancelledAt()).isNull();
+    assertThat(entity.getFulfilledAt()).isNull();
     assertThat(entity.getVersion()).isEqualTo(7L);
 
     assertThat(entity.getLines()).singleElement().satisfies(line -> {
@@ -103,7 +103,6 @@ class OrderMapperTest {
     assertThat(order.getReceivedAt()).isEqualTo(RECEIVED_AT);
     assertThat(order.getPlacedAt()).isEqualTo(UPSTREAM_PLACED_AT);
     assertThat(order.getAllocatedAt()).isEqualTo(allocatedAt);
-    assertThat(order.getBackOrderedSince()).isNull();
     assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
     assertThat(order.getVersion()).isEqualTo(4L);
     assertThat(order.releaseDomainEvents()).isEmpty();
@@ -133,6 +132,32 @@ class OrderMapperTest {
         .containsExactly("SKU-1", "SKU-2");
     assertThat(restored.getLines()).extracting(OrderLine::getQuantity).containsExactly(3, 7);
     assertThat(restored.getDemand()).isEqualTo(Map.of("SKU-1", 3, "SKU-2", 7));
+  }
+
+  @Test
+  @DisplayName("應往返保留 FULFILLED 與 fulfilledAt")
+  void roundTripsFulfilledOrder() {
+    Instant allocatedAt = RECEIVED_AT.plusSeconds(10);
+    Instant fulfilledAt = RECEIVED_AT.plusSeconds(20);
+    Order order = Order.rehydrate(
+        ORDER_ID,
+        OWNER_ID,
+        "EXT-1",
+        OrderFixtures.deliveryTerms(),
+        List.of(OrderLine.create(UUID.randomUUID(), 1, OWNER_ID, "SKU-1", 3)),
+        OrderStatus.FULFILLED,
+        RECEIVED_AT,
+        null,
+        allocatedAt,
+        null,
+        null,
+        fulfilledAt,
+        2L);
+
+    Order restored = OrderMapper.toDomain(OrderMapper.toEntity(order));
+
+    assertThat(restored.getStatus()).isEqualTo(OrderStatus.FULFILLED);
+    assertThat(restored.getFulfilledAt()).isEqualTo(fulfilledAt);
   }
 
   private static OrderLineEntity lineEntity(int lineNo, String skuCode, int quantity) {

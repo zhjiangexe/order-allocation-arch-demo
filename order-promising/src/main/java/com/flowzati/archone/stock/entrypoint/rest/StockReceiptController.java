@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Stock context 的同步收貨入口。
  *
  * <p>HTTP 成功表示 inbound picking、move、move line、StockPool 與 availability Outbox 已在
- * 同一交易提交；backorder allocation 由 Integration Event 快速觸發，Scheduler 定期補漏。
+ * 同一交易提交；等待中的 StockMove 由 availability event 快速觸發，Scheduler 定期補漏。
  */
 @RestController
 @RequestMapping("/stock-receipts")

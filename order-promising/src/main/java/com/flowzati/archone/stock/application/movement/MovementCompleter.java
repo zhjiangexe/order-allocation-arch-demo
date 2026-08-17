@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
  * 完成已記錄的 inbound movement，建立 move line 並據此增加實體庫存。
  *
  * <p>這是 application component，不是 transaction owner；呼叫端把 inbound 記錄、完成與
- * availability fact 包在同一個 transaction。Outbound backorder allocation 在提交後另開交易。
+ * availability fact 包在同一個 transaction。Outbound waiting-move allocation 在提交後另開交易。
  */
 @Component
 public class MovementCompleter {

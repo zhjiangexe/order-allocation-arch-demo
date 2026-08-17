@@ -70,42 +70,14 @@ class OrderTest {
   }
 
   @Test
-  @DisplayName("PENDING 訂單應可轉為欠單且不另發領域事件")
-  void shouldBackorderPendingOrder() {
-    Instant backorderedAt = receivedAt.plusSeconds(10);
-    Order order = pendingOrder();
-
-    order.markBackOrdered(backorderedAt);
-
-    assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(order.getBackOrderedSince()).isEqualTo(backorderedAt);
-    assertThat(order.releaseDomainEvents()).isEmpty();
-  }
-
-  @Test
-  @DisplayName("欠單配置成功時應保留欠單歷程")
-  void shouldAllocateBackorderedOrderAndPreserveHistory() {
-    Instant backorderedAt = receivedAt.plusSeconds(10);
-    Instant allocatedAt = receivedAt.plusSeconds(20);
-    Order order = pendingOrder();
-    order.markBackOrdered(backorderedAt);
-    order.releaseDomainEvents();
-
-    order.markAllocated(allocatedAt);
-
-    assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(order.getBackOrderedSince()).isEqualTo(backorderedAt);
-    assertThat(order.getAllocatedAt()).isEqualTo(allocatedAt);
-  }
-
-  @Test
   @DisplayName("訂單取消應只成功一次")
   void shouldCancelOrderOnlyOnce() {
     Instant cancelledAt = receivedAt.plusSeconds(10);
     Order order = pendingOrder();
 
-    assertThat(order.cancel(cancelledAt)).isTrue();
-    assertThat(order.cancel(cancelledAt.plusSeconds(1))).isFalse();
+    assertThat(order.cancel(cancelledAt)).isEqualTo(Order.CancellationResult.CANCELLED);
+    assertThat(order.cancel(cancelledAt.plusSeconds(1)))
+        .isEqualTo(Order.CancellationResult.ALREADY_CANCELLED);
 
     assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
@@ -129,13 +101,28 @@ class OrderTest {
   }
 
   @Test
+  @DisplayName("已配置訂單應只履約完成一次，且離倉後不得取消")
+  void shouldFulfillAllocatedOrderOnlyOnceAndRejectCancellation() {
+    Instant allocatedAt = receivedAt.plusSeconds(10);
+    Instant fulfilledAt = receivedAt.plusSeconds(20);
+    Order order = pendingOrder();
+    order.markAllocated(allocatedAt);
+
+    assertThat(order.markFulfilled(fulfilledAt)).isTrue();
+    assertThat(order.markFulfilled(fulfilledAt.plusSeconds(1))).isFalse();
+
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.FULFILLED);
+    assertThat(order.getFulfilledAt()).isEqualTo(fulfilledAt);
+    assertThat(order.cancel(fulfilledAt.plusSeconds(2)))
+        .isEqualTo(Order.CancellationResult.REJECTED);
+  }
+
+  @Test
   @DisplayName("不合法狀態轉換應被拒絕")
   void shouldRejectIllegalTransitions() {
     Order allocated = pendingOrder();
     allocated.markAllocated(receivedAt.plusSeconds(1));
 
-    assertThatThrownBy(() -> allocated.markBackOrdered(receivedAt.plusSeconds(2)))
-        .isInstanceOf(IllegalStateException.class);
     assertThatThrownBy(() -> allocated.markAllocated(receivedAt.plusSeconds(2)))
         .isInstanceOf(IllegalStateException.class);
   }
@@ -146,8 +133,6 @@ class OrderTest {
     Order order = pendingOrder();
 
     assertThatThrownBy(() -> order.markAllocated(receivedAt.minusSeconds(1)))
-        .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> order.markBackOrdered(receivedAt.minusSeconds(1)))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> order.cancel(receivedAt.minusSeconds(1)))
         .isInstanceOf(IllegalArgumentException.class);
@@ -199,7 +184,6 @@ class OrderTest {
     );
 
     assertThat(order.getVersion()).isEqualTo(4L);
-    assertThat(order.getBackOrderedSince()).isEqualTo(backorderedAt);
     assertThat(order.releaseDomainEvents()).isEmpty();
   }
 
@@ -315,20 +299,6 @@ class OrderTest {
   @Nested
   @DisplayName("行的狀態與時間戳跟隨 header")
   class LinesMirrorHeader {
-
-    @Test
-    @DisplayName("兩行訂單轉為欠單後，header 與兩行帶同一個時間戳與狀態")
-    void mirrorsBackorderAcrossAllLines() {
-      Instant backorderedAt = receivedAt.plusSeconds(10);
-      Order order = twoLineOrder();
-
-      order.markBackOrdered(backorderedAt);
-
-      // 逐行的狀態已經不存在了——它恆等於 header，而「恆等於別人的東西不該有自己的欄位」。
-      // 對外仍然逐行揭露，由 header 導出，那條性質由 OrderControllerTest 守著。
-      assertThat(order.getBackOrderedSince()).isEqualTo(backorderedAt);
-    }
-
 
   }
 

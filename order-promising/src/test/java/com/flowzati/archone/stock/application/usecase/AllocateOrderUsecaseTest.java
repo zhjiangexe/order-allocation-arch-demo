@@ -5,7 +5,6 @@ import com.flowzati.archone.stock.application.event.AllocationDomainEventPublish
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
 import com.flowzati.archone.foundation.identity.IdGenerator;
@@ -116,13 +115,12 @@ class AllocateOrderUsecaseTest {
 
     then(eventPublisher).should(times(1))
         .publish(OrderAllocationCompleted.from(demand, moves, fixedNow));
-    then(eventPublisher).should(never()).publish(any(OrderBackorderRecorded.class));
     verifyNoMoreInteractions(eventPublisher);
   }
 
   @Test
-  @DisplayName("一批可售的都沒有時應發缺貨的事實，不得丟例外")
-  void shouldRecordABackorderRatherThanFailWhenThereIsNoAllocatableStock() {
+  @DisplayName("一批可售的都沒有時維持待配，不改變訂單狀態")
+  void shouldKeepDemandPendingWhenThereIsNoAllocatableStock() {
     Demand demand = pendingDemand();
     givenTheOrderIsOutstanding(demand);
     given(movementAssigner.assign(any(), any(), any()))
@@ -130,18 +128,12 @@ class AllocateOrderUsecaseTest {
 
     usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
-    // 缺貨是正常結果，不是訊息處理失敗。丟例外的話每一次缺貨都會走進重試與 DLT。
-    //
-    // 缺貨事實留在這支 usecase，而不是交給鎖定那一步：補貨路徑配不到時什麼都不發，兩條
-    // 路徑的處置不同。
-    then(eventPublisher).should(times(1))
-        .publish(new OrderBackorderRecorded(demand.orderId(), fixedNow));
-    verifyNoMoreInteractions(eventPublisher);
+    verifyNoInteractions(eventPublisher);
   }
 
   @Test
-  @DisplayName("庫存不足時同樣發缺貨的事實——兩種配不到在這一層沒有差別")
-  void shouldRecordABackorderWhenStockIsInsufficient() {
+  @DisplayName("庫存不足時維持待配，不改變訂單狀態")
+  void shouldKeepDemandPendingWhenStockIsInsufficient() {
     Demand demand = pendingDemand();
     givenTheOrderIsOutstanding(demand);
     given(movementAssigner.assign(any(), any(), any()))
@@ -149,9 +141,7 @@ class AllocateOrderUsecaseTest {
 
     usecase.execute(new AllocateOrderCommand(demand.orderId()));
 
-    then(eventPublisher).should(times(1))
-        .publish(new OrderBackorderRecorded(demand.orderId(), fixedNow));
-    verifyNoMoreInteractions(eventPublisher);
+    verifyNoInteractions(eventPublisher);
   }
 
   private void givenTheOrderIsOutstanding(Demand demand) {

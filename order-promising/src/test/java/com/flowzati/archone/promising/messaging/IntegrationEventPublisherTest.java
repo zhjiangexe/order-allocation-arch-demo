@@ -7,7 +7,6 @@ import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedInt
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -22,7 +21,6 @@ import com.flowzati.archone.stock.application.event.FulfillmentEventTopics;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
 import com.flowzati.archone.stock.infrastructure.messaging.producer.AllocationIntegrationEventPublisher;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -133,14 +131,11 @@ class IntegrationEventPublisherTest {
         OCCURRED_AT.plusSeconds(3600),
         80,
         OCCURRED_AT));
-    publisherAdapter.publish(new OrderBackorderRecorded(orderId, OCCURRED_AT));
-
     assertThat(publisher.publications)
         .extracting(publication -> publication.event().eventType())
         .containsExactly(
             OrderAllocatedIntegrationEvent.EVENT_TYPE,
-            AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
-            BackorderCreatedIntegrationEvent.EVENT_TYPE);
+            AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE);
     assertThat(publisher.publications.get(0).aggregate().type())
         .isEqualTo(OutboxAggregateTypes.ORDER);
     assertThat(publisher.publications.get(0).target().destination())
@@ -159,10 +154,6 @@ class IntegrationEventPublisherTest {
       assertThat(line.sourceLocationId()).isEqualTo(locationId);
       assertThat(line.quantity()).isEqualTo(3);
     });
-    assertThat(publisher.publications.get(2).aggregate().type())
-        .isEqualTo(OutboxAggregateTypes.ORDER);
-    assertThat(publisher.publications.get(2).target().destination())
-        .isEqualTo(PromisingEventTopics.ALLOCATION_EVENTS);
     assertThat(publisher.publications)
         .allSatisfy(publication -> {
           assertThat(publication.target().partitionKey()).isEqualTo(orderId.toString());

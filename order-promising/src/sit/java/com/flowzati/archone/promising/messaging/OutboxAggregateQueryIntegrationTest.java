@@ -2,7 +2,6 @@ package com.flowzati.archone.promising.messaging;
 
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.promising.v1.BackorderCreatedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.domain.model.StockPool;
@@ -92,7 +91,7 @@ class OutboxAggregateQueryIntegrationTest {
     stockPoolRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
     UUID orderId = placeOrder();
-    backorderIt(orderId);
+    attemptAllocation(orderId);
     confirmStockReceipt();
 
     outcomeDrain().drain();
@@ -101,7 +100,6 @@ class OutboxAggregateQueryIntegrationTest {
 
     assertThat(eventTypesFor(orderId)).containsExactly(
         OrderPlacedIntegrationEvent.EVENT_TYPE,
-        BackorderCreatedIntegrationEvent.EVENT_TYPE,
         OrderAllocatedIntegrationEvent.EVENT_TYPE);
   }
 
@@ -111,7 +109,7 @@ class OutboxAggregateQueryIntegrationTest {
     stockPoolRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
     UUID orderId = placeOrder();
-    backorderIt(orderId);
+    attemptAllocation(orderId);
     confirmStockReceipt();
 
     // 下單事件的 key 是爭用群組（貨主/倉/SKU），配貨結果事件維持 orderId。
@@ -138,13 +136,13 @@ class OutboxAggregateQueryIntegrationTest {
     return placed.getId();
   }
 
-  private void backorderIt(UUID orderId) throws Exception {
-    Order order = orderRepository.findById(orderId).orElseThrow();
+  private void attemptAllocation(UUID orderId) throws Exception {
+    Order currentOrder = orderRepository.findById(orderId).orElseThrow();
     consumer.consume(
-        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, order.getReceivedAt()));
+        new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, currentOrder.getReceivedAt()));
     outcomeDrain().drain();
-    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(backordered ->
-        assertThat(backordered.getStatus()).isEqualTo(OrderStatus.BACKORDERED));
+    assertThat(orderRepository.findById(orderId)).hasValueSatisfying(order ->
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
   }
 
   private void confirmStockReceipt() {

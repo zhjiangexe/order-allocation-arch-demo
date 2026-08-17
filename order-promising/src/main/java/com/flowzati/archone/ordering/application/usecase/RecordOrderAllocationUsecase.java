@@ -12,8 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 將 stock context 已完成的配貨事實記錄到訂單。
  *
  * <p>事件只帶識別碼與時間戳；本 use case 重讀 {@link Order} 並推進狀態。已取消是配貨與取消
- * 競爭下的正常結果，已配置則代表重複通知，兩者都不應落入 DLT。缺貨訂單仍可在補到貨後推進為
- * 已配置。
+ * 競爭下的正常結果，已配置或已履約則代表重複／遲到通知，皆不應落入 DLT。缺貨訂單仍可在
+ * 補到貨後推進為已配置。
  */
 @Service
 public class RecordOrderAllocationUsecase {
@@ -38,7 +38,8 @@ public class RecordOrderAllocationUsecase {
 
     Order order = orderOpt.get();
     if (order.getStatus() == OrderStatus.CANCELLED
-        || order.getStatus() == OrderStatus.ALLOCATED) {
+        || order.getStatus() == OrderStatus.ALLOCATED
+        || order.getStatus() == OrderStatus.FULFILLED) {
       return;
     }
 

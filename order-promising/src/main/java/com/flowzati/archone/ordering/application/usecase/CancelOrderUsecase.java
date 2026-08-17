@@ -38,14 +38,16 @@ public class CancelOrderUsecase {
   }
 
   @Transactional
-  public void cancel(UUID orderId, Instant cancelledAt) {
+  public Order.CancellationResult cancel(UUID orderId, Instant cancelledAt) {
     Order order = orderRepository.findById(orderId)
         .orElseThrow(() -> new IllegalStateException("Order not found: " + orderId));
-    if (!order.cancel(cancelledAt)) {
-      return;
+    Order.CancellationResult result = order.cancel(cancelledAt);
+    if (result != Order.CancellationResult.CANCELLED) {
+      return result;
     }
 
     orderRepository.save(order);
     eventPublisher.publishAll(order.releaseDomainEvents());
+    return result;
   }
 }

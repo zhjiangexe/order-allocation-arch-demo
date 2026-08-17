@@ -99,7 +99,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     // 這 30 個單位原封不動留在池裡。
     receive(FIRST_AVAILABILITY_INCREASE);
 
-    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.PENDING);
     assertThat(availableToPromise(stockPoolId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
 
     // Step 3：此時一張全新的訂單到達，需求 10。即使 ATP 足夠，它仍須先看相同
@@ -107,8 +107,8 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     UUID newOrderId = placeNewOrder();
 
     // Step 4：新單也進 waiting queue，30 件不被後到需求取走。
-    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.PENDING);
+    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.PENDING);
     assertThat(availableToPromise(stockPoolId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
 
     // Step 5：再補 70，兩次補貨合計正好 100——恰好是舊單的需求量。
@@ -116,7 +116,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
     // Step 6：舊單先取得完整 100 件；新單繼續等待，不會因 arrival gap 插隊。
     assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.PENDING);
     assertThat(availableToPromise(stockPoolId)).isZero();
   }
 

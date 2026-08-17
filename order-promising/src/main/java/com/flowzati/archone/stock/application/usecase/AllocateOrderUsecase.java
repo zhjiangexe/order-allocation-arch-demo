@@ -6,7 +6,6 @@ import com.flowzati.archone.stock.application.event.AllocationDomainEventPublish
 import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
 import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.stock.domain.event.OrderBackorderRecorded;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.service.AllocationOutcome;
 import com.flowzati.archone.stock.domain.model.Demand;
@@ -66,10 +65,13 @@ public class AllocateOrderUsecase {
     // 建好的搬運直接交給下一步：鎖定要做的是把它們轉狀態，不必回頭再讀一次。
     List<StockMove> moves = stockOperationRecorder.recordOutbound(demand, now);
 
-    boolean isAllocated = movementAssigner.assign(demand, moves, now) == AllocationOutcome.ALLOCATED;
-    DomainEvent event = isAllocated ?
-        OrderAllocationCompleted.from(demand, moves, now) :
-        new OrderBackorderRecorded(demand.orderId(), now);
-    eventPublisher.publish(event);
+    AllocationOutcome outcome = movementAssigner.assign(demand, moves, now);
+    if (outcome == AllocationOutcome.ALLOCATED) {
+      eventPublisher.publish(OrderAllocationCompleted.from(demand, moves, now));
+    }
+
+    // FIFO 被較早需求擋住或 ATP 不足，都留在同一個 waiting queue；Order 維持 PENDING，
+    // 由 availability event 或 reconciliation scheduler 之後再試。
+    // 未完成的 StockMove 會留在 waiting queue，availability event 或 scheduler 之後再重算。
   }
 }

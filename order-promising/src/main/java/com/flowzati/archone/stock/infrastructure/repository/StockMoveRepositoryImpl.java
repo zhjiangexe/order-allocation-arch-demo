@@ -57,10 +57,9 @@ public class StockMoveRepositoryImpl implements StockMoveRepository {
   }
 
   @Override
-  public List<StockMove> findWaitingInFifoOrder(
-      UUID ownerId, UUID locationId, String skuCode, int limit) {
-    List<UUID> pickingIds = moveRepository.findWaitingPickingIdsInFifoOrder(
-        ownerId, locationId, skuCode, Limit.of(limit));
+  public List<StockMove> findWaitingInFifoOrder(UUID ownerId, UUID locationId, String skuCode, int limit) {
+    List<UUID> pickingIds =
+        moveRepository.findWaitingPickingIdsInFifoOrder(ownerId, locationId, skuCode, Limit.of(limit));
     return findByPickingIds(pickingIds);
   }
 

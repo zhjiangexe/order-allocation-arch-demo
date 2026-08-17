@@ -68,9 +68,9 @@ class OrderingSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("orders 不應有 fulfilled_at——它是 R7 才產生的輸出，此階段沒有寫入路徑")
-    void doesNotCreateFulfilledAt() {
-      assertThat(columnNames("orders")).doesNotContain("fulfilled_at");
+    @DisplayName("orders 應以 fulfilled_at 記錄整單出庫完成時間")
+    void createsFulfilledAt() {
+      assertThat(columnNames("orders")).contains("fulfilled_at");
     }
 
     @Test

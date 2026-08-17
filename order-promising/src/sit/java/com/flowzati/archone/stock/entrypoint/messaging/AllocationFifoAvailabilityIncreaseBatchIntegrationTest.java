@@ -11,11 +11,11 @@ import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.stock.application.usecase.ReconcileWaitingDemandUsecase;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockPool;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.stock.entrypoint.scheduler.AllocationReconciliationScheduler;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -82,7 +82,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   @Autowired
   private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-  private AllocationReconciliationScheduler allocationReconciliationScheduler;
+  private ReconcileWaitingDemandUsecase reconcileWaitingDemandUsecase;
 
   @Autowired
   private StockMoveRepository stockMoveRepository;
@@ -112,7 +112,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   void seedCatalogForOrders() {
     // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
     // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
-    allocationReconciliationScheduler = new AllocationReconciliationScheduler(
+    reconcileWaitingDemandUsecase = new ReconcileWaitingDemandUsecase(
         stockMoveRepository, allocateWaitingDemandUsecase, appClock, BATCH_LIMIT);
     OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
   }
@@ -156,8 +156,8 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         /* inboxCount */ 2,
         /* outboxAllocatedCount */ FITTING_ORDERS_BEFORE_BLOCKER));
     assertThat(statusOf(queue.firstOrderId())).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(statusOf(queue.blockerOrderId())).isEqualTo(OrderStatus.BACKORDERED);
-    assertThat(statusOf(queue.lastOrderId())).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(statusOf(queue.blockerOrderId())).isEqualTo(OrderStatus.PENDING);
+    assertThat(statusOf(queue.lastOrderId())).isEqualTo(OrderStatus.PENDING);
 
     // Step 4：第二次（循序、非併發）補貨，數量等於 blocker 與其後 499 張的總和，
     // 驗證「喚醒佇列」的後半段——先前被 head-of-line blocking 卡住的訂單，補貨到位後
@@ -208,7 +208,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     assertThat(rounds)
         .withFailMessage("blocker 卡住時不該有 productive scheduler round，實際有 %d 輪", rounds)
         .isZero();
-    assertThat(statusOf(blockerOrderId)).isEqualTo(OrderStatus.BACKORDERED);
+    assertThat(statusOf(blockerOrderId)).isEqualTo(OrderStatus.PENDING);
     // 庫存一件都沒被動用：head-of-line blocking 不是「跳過去配小單」。
     assertThat(stockPoolRepository.findById(stockPoolId)).hasValueSatisfying(pool ->
         assertThat(pool.getReservedQuantity()).isZero());
@@ -241,7 +241,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     assertThat(statusOf(mine)).isEqualTo(OrderStatus.ALLOCATED);
     assertThat(otherWarehouseOrders)
         .withFailMessage("別的倉的訂單不該被這次補貨碰到")
-        .allSatisfy(id -> assertThat(statusOf(id)).isEqualTo(OrderStatus.BACKORDERED));
+        .allSatisfy(id -> assertThat(statusOf(id)).isEqualTo(OrderStatus.PENDING));
   }
 
   /** 建立 FIFO 排序穩定的 1,000 張 BACKORDERED Order：前 500 張、blocker、後 499 張。 */
@@ -295,7 +295,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         """
         SELECT count(*) FROM orders o
         JOIN order_lines l ON l.order_id = o.id
-        WHERE l.sku_code = ? AND o.status = 'BACKORDERED'
+        WHERE l.sku_code = ? AND o.status = 'PENDING'
         """, Integer.class, FIFO_SKU);
     assertThat(allocatedCount).isEqualTo(expected.allocated());
     assertThat(backorderedCount).isEqualTo(expected.backordered());
@@ -354,8 +354,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     assertThat(duplicateInboxClaims).isZero();
 
     // 5) Outbox 結果：只有被配置的訂單各發一筆 OrderAllocatedIntegrationEvent，這個測試
-    //    情境全程不會發布 BackorderCreatedIntegrationEvent（訂單一開始就是直接種成
-    //    BACKORDERED，沒有經過真正的下單配置流程）。
+    //    情境全程只由 StockMove.CONFIRMED 表達待配貨，不發布額外的缺貨訂單事件。
     Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM event_outbox WHERE type = ?", Integer.class,
         OrderAllocatedIntegrationEvent.EVENT_TYPE);
@@ -377,7 +376,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     int productiveRounds = 0;
     for (int attempt = 0; attempt < MAX_RECONCILIATION_ROUNDS; attempt++) {
       int before = allocatedOutcomeCount();
-      allocationReconciliationScheduler.reconcileAllocatableWaitingDemand();
+      reconcileWaitingDemandUsecase.execute();
       int after = allocatedOutcomeCount();
       if (after == before) {
         return productiveRounds;
