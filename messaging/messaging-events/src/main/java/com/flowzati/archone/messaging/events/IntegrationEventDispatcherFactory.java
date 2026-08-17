@@ -34,10 +34,7 @@ public final class IntegrationEventDispatcherFactory {
    * <p>The consumer group starts from the stable subscriber ID and may be transformed by runtime
    * consumer-group mapping. The returned dispatcher is already subscribed.
    */
-  public IntegrationEventDispatcher make(
-      String subscriberId,
-      IntegrationEventHandlers handlers
-  ) {
+  public IntegrationEventDispatcher make(String subscriberId, IntegrationEventHandlers handlers) {
     if (subscriberId == null || subscriberId.isBlank() || handlers == null) {
       throw new IllegalArgumentException("Integration Event dispatcher fields are required");
     }
