@@ -1,10 +1,18 @@
-# Temporal 採用決策
+# Temporal 採用決策（歷史版本）
 
-> 狀態：已採用
+> 狀態：已被後續的限縮導入決策取代（2026-08-15）
 > 日期：2026-08-07
 > 範圍：WMS 與未來跨系統 fulfillment orchestration
 
-## 決策
+現行決策見 [`order-fulfillment-temporal-hybrid-architecture.md`](order-fulfillment-temporal-hybrid-architecture.md)：
+專案保留 Kafka-only profile，同時以 `order-fulfillment-workflow` 比較一條粗粒度、跨
+Order Promising／WMS／Stock 的 Temporal orchestration。Temporal 不接管 Pick／Pack／Stage
+等 WMS 內部流程，而且同一環境只能啟用一個 command driver。
+
+以下內容保留為當時移除第一版 WMS workflow prototype 的歷史理由，不再表示目前完全不導入
+Temporal。
+
+## 原始決策
 
 目前不在專案導入 Temporal，並移除 `fulfillment-workflow`、`fulfillment-workflow-wms-adapter`、`fulfillment-workflow-runtime` prototype modules。
 

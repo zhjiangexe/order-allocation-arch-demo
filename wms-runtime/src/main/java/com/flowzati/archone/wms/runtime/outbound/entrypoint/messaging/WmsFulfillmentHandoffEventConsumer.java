@@ -43,6 +43,8 @@ public class WmsFulfillmentHandoffEventConsumer {
   }
 
   void onAllocationCommitted(AllocationCommittedForFulfillmentIntegrationEvent event) {
+    // Event-driven driver 不需要同步回覆；CreateShipmentResult 仍確保相同 application use case
+    // 也能被 Temporal Activity adapter 使用，而不必回傳 domain Shipment aggregate。
     createShipmentUsecase.handle(new CreateShipmentCommand(
         idGenerator.nextId(),
         event.getAllocationId(),

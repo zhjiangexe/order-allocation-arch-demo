@@ -1,6 +1,7 @@
 package com.flowzati.archone.wms.outbound.application.usecase;
 
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
+import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.outbound.domain.model.Shipment;
 import com.flowzati.archone.wms.outbound.domain.model.ShipmentLine;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
@@ -21,10 +22,15 @@ public class CreateShipmentUsecase {
     this.eventPublisher = eventPublisher;
   }
 
-  public Shipment handle(CreateShipmentCommand command) {
-    return shipmentRepository.findByAllocationId(command.allocationId())
+  /**
+   * 建立或依 allocation ID 冪等讀回 Shipment，並只回傳 application-layer result。
+   * 呼叫端若需要後續操作 aggregate，應透過對應 use case，而不是持有這裡回傳的 domain object。
+   */
+  public CreateShipmentResult handle(CreateShipmentCommand command) {
+    Shipment shipment = shipmentRepository.findByAllocationId(command.allocationId())
         .map(existing -> requireSameSnapshot(existing, command))
         .orElseGet(() -> create(command));
+    return new CreateShipmentResult(shipment.id());
   }
 
   private Shipment requireSameSnapshot(Shipment existing, CreateShipmentCommand command) {

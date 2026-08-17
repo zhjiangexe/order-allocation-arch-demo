@@ -15,6 +15,7 @@ import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUseca
 import com.flowzati.archone.wms.outbound.application.usecase.HandOverShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.PackShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.outbound.domain.event.PickingWorkCreated;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentCancellationRejected;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentAssignedToWave;
@@ -112,6 +113,29 @@ class OutboundProcessTest {
     assertThat(events).anyMatch(WavePlanned.class::isInstance);
     assertThat(events).anyMatch(PickingWorkCreated.class::isInstance);
     assertThat(events).anyMatch(WaveReleased.class::isInstance);
+  }
+
+  @Test
+  void returnsTheSameShipmentIdWhenTheAllocationCommandIsRetried() {
+    CreateShipmentCommand firstCommand = createShipmentCommand(
+        nextId(), nextId(), 70, T0.plusSeconds(3_600));
+
+    CreateShipmentResult first = createShipment.handle(firstCommand);
+    CreateShipmentCommand retry = new CreateShipmentCommand(
+        nextId(),
+        firstCommand.allocationId(),
+        firstCommand.orderId(),
+        firstCommand.ownerId(),
+        firstCommand.facilityId(),
+        firstCommand.lines(),
+        firstCommand.dispatchBy(),
+        firstCommand.releasePriority(),
+        firstCommand.createdAt());
+    CreateShipmentResult replayed = createShipment.handle(retry);
+
+    assertThat(replayed.shipmentId()).isEqualTo(first.shipmentId());
+    assertThat(shipmentRepository.findByAllocationId(firstCommand.allocationId()))
+        .hasValueSatisfying(shipment -> assertThat(shipment.id()).isEqualTo(first.shipmentId()));
   }
 
   @Test
@@ -315,15 +339,25 @@ class OutboundProcessTest {
   }
 
   private Shipment createTwoLineShipment(int releasePriority, Instant dispatchBy) {
-    CreateShipmentCommand command = new CreateShipmentCommand(
-        nextId(), nextId(), nextId(), OWNER_ID, FACILITY_ID,
+    CreateShipmentCommand command = createShipmentCommand(
+        nextId(), nextId(), releasePriority, dispatchBy);
+    CreateShipmentResult result = createShipment.handle(command);
+    return shipmentRepository.findById(result.shipmentId()).orElseThrow();
+  }
+
+  private CreateShipmentCommand createShipmentCommand(
+      UUID shipmentId,
+      UUID allocationId,
+      int releasePriority,
+      Instant dispatchBy) {
+    return new CreateShipmentCommand(
+        shipmentId, allocationId, nextId(), OWNER_ID, FACILITY_ID,
         List.of(
             new CreateShipmentCommand.AllocationLine(nextId(), nextId(), "SKU-A", nextId(), 3),
             new CreateShipmentCommand.AllocationLine(nextId(), nextId(), "SKU-B", nextId(), 2)),
         dispatchBy,
         releasePriority,
         T0);
-    return createShipment.handle(command);
   }
 
   private UUID nextId() {

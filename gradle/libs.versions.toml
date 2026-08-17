@@ -5,6 +5,7 @@ springModulith = "2.0.7"
 dependencyManagement = "1.1.7"
 java = "25"
 uuid-creator = "6.1.1"
+temporal = "1.35.0"
 
 [libraries]
 # Spring Boot Starters
@@ -45,6 +46,10 @@ postgresql = { group = "org.postgresql", name = "postgresql" }
 uuid-creator = { group = "com.github.f4b6a3", name = "uuid-creator", version.ref = "uuid-creator" }
 jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations" }
 jackson-databind = { group = "tools.jackson.core", name = "jackson-databind" }
+
+# Temporal
+temporal-sdk = { group = "io.temporal", name = "temporal-sdk", version.ref = "temporal" }
+temporal-testing = { group = "io.temporal", name = "temporal-testing", version.ref = "temporal" }
 
 # Test
 spring-boot-starter-test = { group = "org.springframework.boot", name = "spring-boot-starter-test", version.ref = "springBoot" }
