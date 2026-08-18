@@ -1,19 +1,29 @@
 package com.flowzati.archone.stock.application.usecase;
 
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import com.flowzati.archone.catalog.domain.model.PickingDirection;
+import com.flowzati.archone.promising.time.AppClock;
+import com.flowzati.archone.stock.application.command.AcceptAllocationDemandCommand;
+import com.flowzati.archone.stock.application.command.AcceptAllocationDemandCommand.SourceDemandLine;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
-import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
-import com.flowzati.archone.stock.application.movement.MovementAssigner;
-import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
-import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.stock.domain.model.StockMove;
-import com.flowzati.archone.stock.domain.service.AllocationOutcome;
-import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.stock.domain.model.Demand;
-import com.flowzati.archone.stock.domain.repository.DemandRepository;
-import com.flowzati.archone.testsupport.DemandFixtures;
-import com.flowzati.archone.testsupport.MovementFixtures;
+import com.flowzati.archone.stock.application.command.AllocationExecutionIntent;
+import com.flowzati.archone.stock.application.demand.AllocationDemandAcceptance;
+import com.flowzati.archone.stock.application.demand.AllocationDemandAcceptor;
+import com.flowzati.archone.stock.application.movement.AllocationAttemptCoordinator;
+import com.flowzati.archone.stock.application.source.order.OrderAllocationDemandAdapter;
+import com.flowzati.archone.stock.domain.model.AllocationDemand;
+import com.flowzati.archone.stock.domain.model.AllocationDemandLineRequest;
+import com.flowzati.archone.stock.domain.model.SourceAllocationUnit;
+import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
+import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -23,148 +33,94 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-
-/**
- * 收單後的處置。
- *
- * <p><b>這支測試刻意很薄。</b>建搬運的內容歸 {@code StockOperationRecorderTest}、鎖定的內容歸
- * {@code MovementAssignerTest}；這裡只驗 usecase 真正的責任：讀輸入、決定後續動作，以及
- * 那幾件事的先後。訊息冪等由 inbound decorator tests 負責。
- */
+@DisplayName("order allocation source adapter entrypoint")
 class AllocateOrderUsecaseTest {
 
-  /** 台北 2026-07-22 早上 7 點——UTC 此刻還停在 07-21，剛好落在會出錯的那八小時內。 */
-  private final Instant fixedNow = Instant.parse("2026-07-21T23:00:00Z");
+  private static final Instant NOW = Instant.parse("2026-07-21T23:00:00Z");
+  private static final UUID ORDER_ID = uuid(10);
 
+  private OrderAllocationDemandAdapter adapter;
+  private AllocationDemandAcceptor acceptor;
+  private AllocationAttemptCoordinator allocationAttempt;
   private AllocateOrderUsecase usecase;
-  private DemandRepository demandRepository;
-  private StockOperationRecorder stockOperationRecorder;
-  private MovementAssigner movementAssigner;
-  private AllocationDomainEventPublisher eventPublisher;
 
   @BeforeEach
   void setUp() {
-    demandRepository = mock(DemandRepository.class);
-    stockOperationRecorder = mock(StockOperationRecorder.class);
-    movementAssigner = mock(MovementAssigner.class);
-    eventPublisher = mock(AllocationDomainEventPublisher.class);
-
+    adapter = mock(OrderAllocationDemandAdapter.class);
+    acceptor = mock(AllocationDemandAcceptor.class);
+    allocationAttempt = mock(AllocationAttemptCoordinator.class);
     usecase = new AllocateOrderUsecase(
-        demandRepository,
-        stockOperationRecorder,
-        movementAssigner,
-        eventPublisher,
-        Clock.fixed(fixedNow, ZoneId.of("UTC"))
-    );
+        adapter,
+        acceptor,
+        allocationAttempt,
+        new AppClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"),
+        5);
   }
 
   @Test
-  @DisplayName("這張單已經沒有待配需求時，不應建立任何搬運")
-  void shouldDoNothingWhenNothingIsOutstanding() {
-    UUID orderId = IdGenerator.nextId();
-    // 已經建了搬運的行不會出現在 demand_lines 裡，取消的整張單也不會——兩種情形都讓 view 回空。
-    //
-    // **判準是 view，不是訂單狀態。** ordering 的配貨狀態由事件推進，落後於 allocation 自己
-    // 的決策；拿它當閘門會讓同一筆需求被建第二次搬運。
-    given(demandRepository.findByOrderId(orderId)).willReturn(Optional.empty());
+  @DisplayName("取消或不存在的 source 不建立 allocation demand")
+  void shouldIgnoreAbsentOrderSource() {
+    when(adapter.find(ORDER_ID)).thenReturn(Optional.empty());
 
-    usecase.execute(new AllocateOrderCommand(orderId));
+    usecase.execute(new AllocateOrderCommand(ORDER_ID));
 
-    then(demandRepository).should().findByOrderId(orderId);
-    verifyNoInteractions(stockOperationRecorder, movementAssigner, eventPublisher);
+    verify(adapter).find(ORDER_ID);
+    verifyNoInteractions(acceptor, allocationAttempt);
   }
 
   @Test
-  @DisplayName("搬運要在配貨之前建好，而且建好的那些就是拿去配的那些")
-  void shouldRecordTheMovementBeforeAssigningAndPassThemAlong() {
-    Demand demand = pendingDemand();
-    List<StockMove> moves = movesFor(demand);
-    givenTheOrderIsOutstanding(demand);
-    given(stockOperationRecorder.recordOutbound(demand, fixedNow)).willReturn(moves);
-    givenAllocated(demand, moves);
+  @DisplayName("先接受 ORDER/id/PRIMARY，再走共用 demand-first allocator")
+  void shouldAcceptBeforeInvokingSharedAllocator() {
+    AcceptAllocationDemandCommand command = sourceCommand();
+    AllocationDemand demand = acceptedDemand(command);
+    when(adapter.find(ORDER_ID)).thenReturn(Optional.of(command));
+    when(acceptor.accept(command))
+        .thenReturn(new AllocationDemandAcceptance(demand, List.of(move(demand)), true));
 
-    usecase.execute(new AllocateOrderCommand(demand.orderId()));
+    usecase.execute(new AllocateOrderCommand(ORDER_ID));
 
-    // 順序不是偏好問題：鎖定是「把既有的搬運轉成已鎖定」。反過來「配到才建」則讓待配需求
-    // 沒有落腳處，而那正是上一個 change 消滅的東西。
-    //
-    // **傳遞也不是細節**：建好的搬運直接交出去，鎖定才不必回頭再讀一次。
-    InOrder inOrder = org.mockito.Mockito.inOrder(stockOperationRecorder, movementAssigner);
-    inOrder.verify(stockOperationRecorder).recordOutbound(demand, fixedNow);
-    inOrder.verify(movementAssigner).assign(demand, moves, fixedNow);
+    InOrder order = inOrder(adapter, acceptor, allocationAttempt);
+    order.verify(adapter).find(ORDER_ID);
+    order.verify(acceptor).accept(command);
+    order.verify(allocationAttempt).allocateOne(
+        new WaitingAllocationScope(
+            OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID,
+            OrderFixtures.LOCATION_ID, "SKU-1"),
+        "SKU-1", 5, LocalDate.of(2026, 7, 22), NOW);
   }
 
-  @Test
-  @DisplayName("配到貨時只發一個完成事實")
-  void shouldPublishExactlyOneCompletionWhenAllocated() {
-    Demand demand = pendingDemand();
-    List<StockMove> moves = movesFor(demand);
-    givenTheOrderIsOutstanding(demand);
-    given(stockOperationRecorder.recordOutbound(demand, fixedNow)).willReturn(moves);
-    givenAllocated(demand, moves);
-
-    usecase.execute(new AllocateOrderCommand(demand.orderId()));
-
-    then(eventPublisher).should(times(1))
-        .publish(OrderAllocationCompleted.from(demand, moves, fixedNow));
-    verifyNoMoreInteractions(eventPublisher);
+  private static AcceptAllocationDemandCommand sourceCommand() {
+    return new AcceptAllocationDemandCommand(
+        SourceAllocationUnit.primaryOrder(ORDER_ID.toString()),
+        OrderFixtures.OWNER_ID,
+        OrderFixtures.FACILITY_ID,
+        OrderFixtures.LOCATION_ID,
+        OrderFixtures.DISPATCH_BY,
+        OrderFixtures.RELEASE_PRIORITY,
+        NOW.minusSeconds(60),
+        List.of(new SourceDemandLine(uuid(11).toString(), "SKU-1", 5, uuid(11))),
+        new AllocationExecutionIntent(
+            uuid(12), PickingDirection.OUTBOUND, OrderFixtures.LOCATION_ID,
+            uuid(13), true, ORDER_ID));
   }
 
-  @Test
-  @DisplayName("一批可售的都沒有時維持待配，不改變訂單狀態")
-  void shouldKeepDemandPendingWhenThereIsNoAllocatableStock() {
-    Demand demand = pendingDemand();
-    givenTheOrderIsOutstanding(demand);
-    given(movementAssigner.assign(any(), any(), any()))
-        .willReturn(AllocationOutcome.NO_ALLOCATABLE_STOCK);
-
-    usecase.execute(new AllocateOrderCommand(demand.orderId()));
-
-    verifyNoInteractions(eventPublisher);
+  private static AllocationDemand acceptedDemand(AcceptAllocationDemandCommand command) {
+    return AllocationDemand.accept(
+        uuid(20), command.source(), command.ownerId(), command.facilityId(),
+        command.sourceLocationId(), command.requiredBy(), command.releasePriority(),
+        command.enqueuedAt(),
+        List.of(new AllocationDemandLineRequest(uuid(11).toString(), "SKU-1", 5)),
+        () -> uuid(21));
   }
 
-  @Test
-  @DisplayName("庫存不足時維持待配，不改變訂單狀態")
-  void shouldKeepDemandPendingWhenStockIsInsufficient() {
-    Demand demand = pendingDemand();
-    givenTheOrderIsOutstanding(demand);
-    given(movementAssigner.assign(any(), any(), any()))
-        .willReturn(AllocationOutcome.INSUFFICIENT_ATP);
-
-    usecase.execute(new AllocateOrderCommand(demand.orderId()));
-
-    verifyNoInteractions(eventPublisher);
+  private static com.flowzati.archone.stock.domain.model.StockMove move(AllocationDemand demand) {
+    return com.flowzati.archone.stock.domain.model.StockMove.confirmedForDemand(
+        uuid(30), uuid(31), demand.ownerId(), "SKU-1", demand.locationId(), uuid(13),
+        demand.id(), demand.lines().getFirst().id(), uuid(11).toString(), uuid(11),
+        5, demand.enqueuedAt());
   }
 
-  private void givenTheOrderIsOutstanding(Demand demand) {
-    given(demandRepository.findByOrderId(demand.orderId())).willReturn(Optional.of(demand));
+  private static UUID uuid(int seed) {
+    return UUID.fromString(String.format("00000000-0000-7000-8000-%012d", seed));
   }
-
-  private Demand pendingDemand() {
-    return DemandFixtures.demand(IdGenerator.nextId(), "SKU-1", 5);
-  }
-
-  private List<StockMove> movesFor(Demand demand) {
-    UUID pickingId = IdGenerator.nextId();
-    return demand.lines().stream()
-        .map(line -> MovementFixtures.waitingMove(
-            pickingId, line.skuCode(), line.orderLineId(), line.quantity(), fixedNow))
-        .toList();
-  }
-
-  private void givenAllocated(Demand demand, List<StockMove> moves) {
-    given(movementAssigner.assign(demand, moves, fixedNow)).willAnswer(invocation -> {
-      moves.forEach(move -> move.assign(fixedNow));
-      return AllocationOutcome.ALLOCATED;
-    });
-  }
-
 }

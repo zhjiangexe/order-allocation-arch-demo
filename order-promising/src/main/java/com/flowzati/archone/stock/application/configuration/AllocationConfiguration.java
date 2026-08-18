@@ -1,6 +1,7 @@
 package com.flowzati.archone.stock.application.configuration;
 
-import com.flowzati.archone.stock.domain.service.AllocationService;
+import com.flowzati.archone.stock.domain.service.AllocationDemandPlanner;
+import com.flowzati.archone.stock.domain.service.AllocationFifoSelector;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,7 +9,12 @@ import org.springframework.context.annotation.Configuration;
 public class AllocationConfiguration {
 
   @Bean
-  AllocationService allocationService() {
-    return new AllocationService();
+  AllocationDemandPlanner allocationDemandPlanner() {
+    return new AllocationDemandPlanner();
+  }
+
+  @Bean
+  AllocationFifoSelector allocationFifoSelector() {
+    return new AllocationFifoSelector();
   }
 }

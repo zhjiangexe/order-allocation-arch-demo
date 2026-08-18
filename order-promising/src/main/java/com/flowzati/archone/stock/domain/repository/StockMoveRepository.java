@@ -2,9 +2,7 @@ package com.flowzati.archone.stock.domain.repository;
 
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockMoveLine;
-import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
 import java.util.Collection;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,26 +34,12 @@ public interface StockMoveRepository {
 
   void saveLines(Collection<StockMoveLine> lines);
 
-  /**
-   * 待配佇列：這個貨主在這個位置、這個 SKU 上還在等貨的單據，依到達順序，最多 {@code limit} 張。
-   *
-   * <p>回的是**整張單據的全部搬運**（含別的 SKU 的），不是只有命中這個 SKU 的那些：一張單
-   * 整批配到或整批不配，而上限數的也是單據張數，兩者的維度因此一致。
-   *
-   * <p>只收 {@code picking.orderId != null} 的訂單 outbound 分組。獨立 move 與 inbound
-   * picking 不是待配需求，也不得占用 {@code limit}。
-   *
-   * <p>佇列的範圍含位置：庫存按位置持有，別的位置的單這次補貨滿足不了。把它們撈進來不會出錯，
-   * 但會佔滿以張數計的上限然後被跳過。
-   */
-  List<StockMove> findWaitingInFifoOrder(UUID ownerId, UUID locationId, String skuCode, int limit);
-
-  /** Oldest waiting owner/facility/location/SKU queues considered by scheduled reconciliation. */
-  List<WaitingAllocationScope> findAllocatableWaitingScopes(LocalDate today, int limit);
-
   List<StockMove> findByPickingIds(Collection<UUID> pickingIds);
 
   List<StockMove> findByOrderLineIds(Collection<UUID> orderLineIds);
+
+  /** All execution movements belonging to one allocation-owned demand. */
+  List<StockMove> findByAllocationDemandId(UUID allocationDemandId);
 
   List<StockMoveLine> findLinesOf(Collection<UUID> moveIds);
 

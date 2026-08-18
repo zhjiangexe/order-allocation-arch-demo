@@ -25,6 +25,9 @@ public final class SitDatabase {
         // 執行層：明細指向搬運與庫存列，搬運指向單據、訂單行、SKU 與位置。
         "stock_move_lines",
         "stock_moves",
+        "allocation_cancellation_operations",
+        "allocation_demand_lines",
+        "allocation_demands",
         "stock_pickings",
         "stock_picking_types",
         // 需求層

@@ -737,7 +737,7 @@ final class FullPathMessagingEnvironment {
     }
 
     @Around("execution(* com.flowzati.archone.stock.application.movement."
-        + "MovementAssigner.assign(..))")
+        + "AllocationAttemptCoordinator.allocateOne(..))")
     Object failAfterBusinessWrites(ProceedingJoinPoint joinPoint) throws Throwable {
       Object result = joinPoint.proceed();
       invocations.incrementAndGet();

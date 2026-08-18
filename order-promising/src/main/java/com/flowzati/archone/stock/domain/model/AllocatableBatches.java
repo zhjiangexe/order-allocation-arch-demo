@@ -80,8 +80,8 @@ public final class AllocatableBatches {
     return batchesBySku.values().stream().allMatch(List::isEmpty);
   }
 
-  /** 確認這組批涵蓋需求；可以包含本需求未使用、但同一輪其他需求會使用的 SKU。 */
-  public void requireCovers(Demand demand) {
+  /** Source-agnostic demand boundary used by the pure allocation planner. */
+  public void requireCovers(AllocationDemand demand) {
     Objects.requireNonNull(demand, "demand must not be null");
     if (!ownerId.equals(demand.ownerId())) {
       throw new IllegalArgumentException("Demand and batches must belong to the same owner");
@@ -92,16 +92,14 @@ public final class AllocatableBatches {
     if (!batchesBySku.keySet().containsAll(demand.totalsBySku().keySet())) {
       Set<String> missing = new LinkedHashSet<>(demand.totalsBySku().keySet());
       missing.removeAll(batchesBySku.keySet());
-      throw new IllegalArgumentException(
-          "Batches are missing a group for demanded SKUs " + missing);
+      throw new IllegalArgumentException("Batches are missing a group for demanded SKUs " + missing);
     }
   }
 
   private void requireBatchInScope(String skuCode, StockPool batch) {
     Objects.requireNonNull(batch, "Batch grouped under " + skuCode + " must not be null");
     if (!batch.getSkuCode().equals(skuCode)) {
-      throw new IllegalArgumentException(
-          "Batch grouped under " + skuCode + " belongs to " + batch.getSkuCode());
+      throw new IllegalArgumentException("Batch grouped under " + skuCode + " belongs to " + batch.getSkuCode());
     }
     if (!batch.getOwnerId().equals(ownerId)) {
       throw new IllegalArgumentException("Demand and batches must belong to the same owner");

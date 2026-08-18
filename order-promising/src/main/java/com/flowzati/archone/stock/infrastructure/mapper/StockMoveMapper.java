@@ -16,7 +16,8 @@ public final class StockMoveMapper {
   public static StockMoveEntity toEntity(StockMove move) {
     return new StockMoveEntity(
         move.getId(), move.getPickingId(), move.getOwnerId(), move.getSkuCode(),
-        move.getFromLocationId(), move.getToLocationId(), move.getOrderLineId(),
+        move.getFromLocationId(), move.getToLocationId(), move.getAllocationDemandId(),
+        move.getAllocationDemandLineId(), move.getSourceLineId(), move.getOrderLineId(),
         move.getDemandQuantity(), move.getState(), move.getCreatedAt(), move.getAssignedAt(),
         move.getVersion());
   }
@@ -24,7 +25,8 @@ public final class StockMoveMapper {
   public static StockMove toDomain(StockMoveEntity entity) {
     return new StockMove(
         entity.getId(), entity.getPickingId(), entity.getOwnerId(), entity.getSkuCode(),
-        entity.getFromLocationId(), entity.getToLocationId(), entity.getOrderLineId(),
+        entity.getFromLocationId(), entity.getToLocationId(), entity.getAllocationDemandId(),
+        entity.getAllocationDemandLineId(), entity.getSourceLineId(), entity.getOrderLineId(),
         entity.getDemandQuantity(), entity.getState(), entity.getCreatedAt(),
         entity.getAssignedAt(), entity.getVersion());
   }

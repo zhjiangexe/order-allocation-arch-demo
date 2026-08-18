@@ -37,6 +37,15 @@ public class StockMoveEntity {
   @Column(name = "order_line_id")
   private UUID orderLineId;
 
+  @Column(name = "allocation_demand_id")
+  private UUID allocationDemandId;
+
+  @Column(name = "allocation_demand_line_id")
+  private UUID allocationDemandLineId;
+
+  @Column(name = "source_line_id")
+  private String sourceLineId;
+
   @Column(name = "demand_quantity", nullable = false)
   private int demandQuantity;
 
@@ -58,7 +67,8 @@ public class StockMoveEntity {
 
   public StockMoveEntity(
       UUID id, UUID pickingId, UUID ownerId, String skuCode,
-      UUID fromLocationId, UUID toLocationId, UUID orderLineId,
+      UUID fromLocationId, UUID toLocationId,
+      UUID allocationDemandId, UUID allocationDemandLineId, String sourceLineId, UUID orderLineId,
       int demandQuantity, MoveState state, Instant createdAt, Instant assignedAt, Long version) {
     this.id = id;
     this.pickingId = pickingId;
@@ -66,6 +76,9 @@ public class StockMoveEntity {
     this.skuCode = skuCode;
     this.fromLocationId = fromLocationId;
     this.toLocationId = toLocationId;
+    this.allocationDemandId = allocationDemandId;
+    this.allocationDemandLineId = allocationDemandLineId;
+    this.sourceLineId = sourceLineId;
     this.orderLineId = orderLineId;
     this.demandQuantity = demandQuantity;
     this.state = state;
@@ -100,6 +113,18 @@ public class StockMoveEntity {
 
   public UUID getOrderLineId() {
     return orderLineId;
+  }
+
+  public UUID getAllocationDemandId() {
+    return allocationDemandId;
+  }
+
+  public UUID getAllocationDemandLineId() {
+    return allocationDemandLineId;
+  }
+
+  public String getSourceLineId() {
+    return sourceLineId;
   }
 
   public int getDemandQuantity() {

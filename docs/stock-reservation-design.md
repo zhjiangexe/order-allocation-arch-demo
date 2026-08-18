@@ -1,5 +1,11 @@
 # Stock Reservation 設計
 
+> 歷史設計。現行 generic queue、planner/committer、cancellation 與 cutover boundary 請以
+> [allocation-demand-boundary-and-cutover.md](allocation-demand-boundary-and-cutover.md) 為準；
+> 本文中 `demand_lines`、`MovementAssigner` 與 `picking.orderId` queue path 已退役。
+> 若要由程式入口理解現行流程，請先讀
+> [從 AllocateOrderUsecase 看懂配貨流程](allocation-demand-flow.md)。
+
 狀態：歷史設計脈絡；現行收貨邊界以 `refine-allocation-workflow-boundaries` 為準
 
 日期：2026-07-22

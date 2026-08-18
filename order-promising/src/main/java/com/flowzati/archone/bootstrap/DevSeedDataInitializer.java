@@ -9,6 +9,10 @@ import com.flowzati.archone.stock.domain.model.PickingState;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
 import com.flowzati.archone.stock.domain.repository.StockPickingRepository;
+import com.flowzati.archone.stock.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.stock.domain.model.AllocationDemand;
+import com.flowzati.archone.stock.domain.model.AllocationDemandLineRequest;
+import com.flowzati.archone.stock.domain.model.SourceAllocationUnit;
 import com.flowzati.archone.catalog.domain.model.Owner;
 import com.flowzati.archone.catalog.domain.model.Product;
 import com.flowzati.archone.catalog.domain.model.Sku;
@@ -34,6 +38,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -202,6 +209,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final StockMoveRepository stockMoveRepository;
   private final StockPickingRepository stockPickingRepository;
   private final PickingTypeRepository pickingTypeRepository;
+  private final AllocationDemandRepository allocationDemandRepository;
   private final AppClock appClock;
 
   public DevSeedDataInitializer(
@@ -215,6 +223,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       StockMoveRepository stockMoveRepository,
       StockPickingRepository stockPickingRepository,
       PickingTypeRepository pickingTypeRepository,
+      AllocationDemandRepository allocationDemandRepository,
       AppClock appClock
   ) {
     this.ownerRepository = ownerRepository;
@@ -227,6 +236,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     this.stockMoveRepository = stockMoveRepository;
     this.stockPickingRepository = stockPickingRepository;
     this.pickingTypeRepository = pickingTypeRepository;
+    this.allocationDemandRepository = allocationDemandRepository;
     this.appClock = appClock;
   }
 
@@ -379,39 +389,45 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     }
 
     // 甲貨主：一張已配到貨的單，連同它的預留
-    orderRepository.save(allocatedOrder(
+    Order partiallyReservedOrder = allocatedOrder(
         PARTIALLY_RESERVED_ORDER_ID,
         PARTIALLY_RESERVED_LINE_ID,
         FIRST_OWNER_ID,
         NORTH_FACILITY_ID,
         "SEED-A-0001",
         PARTIALLY_RESERVED_SKU,
-        5));
+        5);
+    orderRepository.save(partiallyReservedOrder);
+    SeedDemand partiallyReservedDemand = seedDemand(
+        uuid(501), 511, partiallyReservedOrder, NORTH_STOCK_LOCATION_ID, true);
     UUID partiallyReservedMove = uuid(411);
     picking(uuid(401), PARTIALLY_RESERVED_ORDER_ID, NORTH_OUTBOUND_TYPE_ID,
         FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PickingState.ASSIGNED);
     assignedMove(partiallyReservedMove, uuid(401), FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID,
-        PARTIALLY_RESERVED_SKU, PARTIALLY_RESERVED_LINE_ID, 5);
+        PARTIALLY_RESERVED_SKU, PARTIALLY_RESERVED_LINE_ID, 5, partiallyReservedDemand);
     moveLine(uuid(421), partiallyReservedMove, PARTIALLY_RESERVED_STOCK_POOL_ID, 5);
 
     // 甲貨主：一張需求跨兩批的單。80 件 = 近效期 60 + 中效期 20，因此有兩筆預留。
     // 這是「多批取用」與「一條行對多筆預留」在種子裡唯一的證據——少了它，跨批那條路徑
     // 只有測試看得到，畫面上看不到。
-    orderRepository.save(allocatedOrder(
+    Order spanningOrder = allocatedOrder(
         SPANNING_ORDER_ID,
         SPANNING_LINE_ID,
         FIRST_OWNER_ID,
         NORTH_FACILITY_ID,
         "SEED-A-0002",
         AVAILABLE_SKU,
-        80));
+        80);
+    orderRepository.save(spanningOrder);
+    SeedDemand spanningDemand = seedDemand(
+        uuid(502), 512, spanningOrder, NORTH_STOCK_LOCATION_ID, true);
     // **一條行對兩條明細**——「多批取用」在種子裡唯一的證據。少了它，跨批那條路徑只有
     // 測試看得到，畫面上看不到。
     UUID spanningMove = uuid(412);
     picking(uuid(402), SPANNING_ORDER_ID, NORTH_OUTBOUND_TYPE_ID,
         FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PickingState.ASSIGNED);
     assignedMove(spanningMove, uuid(402), FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID,
-        AVAILABLE_SKU, SPANNING_LINE_ID, 80);
+        AVAILABLE_SKU, SPANNING_LINE_ID, 80, spanningDemand);
     moveLine(uuid(422), spanningMove, NEAR_EXPIRY_STOCK_POOL_ID, 60);
     moveLine(uuid(423), spanningMove, MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, 20);
 
@@ -421,14 +437,17 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     // 這樣補 SKU-EMPTY 時由 stock scheduler / availability event 喚醒它，Ordering 不需要
     // 再維護一個與 stock queue 重複的狀態機。撞號展示也還在，兩個貨主都有 SKU-EMPTY。
     // 刻意指定南部倉：與甲貨主那張單的北部倉不同，R3 的分倉庫存才有資料可分。
-    orderRepository.save(backorderedOrder(
+    Order backordered = backorderedOrder(
         BACKORDERED_ORDER_ID,
         BACKORDERED_LINE_ID,
         SECOND_OWNER_ID,
         SOUTH_FACILITY_ID,
         "SEED-B-0001",
         EMPTY_SKU,
-        2));
+        2);
+    orderRepository.save(backordered);
+    SeedDemand backorderedDemand = seedDemand(
+        uuid(503), 513, backordered, SOUTH_STOCK_LOCATION_ID, false);
 
     // 乙貨主：一張跨兩個 SKU 的缺貨單。SKU-AVAILABLE 在同一個倉有 50 件、要 5 件；
     // SKU-EMPTY 一件都沒有、要 3 件。整張因此掛帳，而那 50 件一件都不會被鎖住。
@@ -437,24 +456,27 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     picking(uuid(403), BACKORDERED_ORDER_ID, SOUTH_OUTBOUND_TYPE_ID,
         SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, PickingState.CONFIRMED);
     waitingMove(uuid(413), uuid(403), SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID,
-        EMPTY_SKU, BACKORDERED_LINE_ID, 2);
+        EMPTY_SKU, BACKORDERED_LINE_ID, 2, backorderedDemand);
 
-    orderRepository.save(backorderedBasket(
+    Order basket = backorderedBasket(
         BASKET_ORDER_ID,
         SECOND_OWNER_ID,
         SOUTH_FACILITY_ID,
         "SEED-B-0002",
         List.of(
             OrderLine.create(BASKET_PLENTIFUL_LINE_ID, 1, SECOND_OWNER_ID, AVAILABLE_SKU, 5),
-            OrderLine.create(BASKET_SHORT_LINE_ID, 2, SECOND_OWNER_ID, EMPTY_SKU, 3))));
+            OrderLine.create(BASKET_SHORT_LINE_ID, 2, SECOND_OWNER_ID, EMPTY_SKU, 3)));
+    orderRepository.save(basket);
+    SeedDemand basketDemand = seedDemand(
+        uuid(504), 514, basket, SOUTH_STOCK_LOCATION_ID, false);
     // 一張單兩段搬運，兩段都還在等貨——即使其中一個 SKU 的庫存很充足。**ship-complete 在
     // 資料上的樣子就是這個**：充足的那一段也停在「等貨」，一件都沒有被鎖住。
     picking(uuid(404), BASKET_ORDER_ID, SOUTH_OUTBOUND_TYPE_ID,
         SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, PickingState.CONFIRMED);
     waitingMove(uuid(414), uuid(404), SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID,
-        AVAILABLE_SKU, BASKET_PLENTIFUL_LINE_ID, 5);
+        AVAILABLE_SKU, BASKET_PLENTIFUL_LINE_ID, 5, basketDemand);
     waitingMove(uuid(415), uuid(404), SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID,
-        EMPTY_SKU, BASKET_SHORT_LINE_ID, 3);
+        EMPTY_SKU, BASKET_SHORT_LINE_ID, 3, basketDemand);
   }
 
   /**
@@ -571,24 +593,55 @@ public class DevSeedDataInitializer implements ApplicationRunner {
 
   /** 一段還在等貨的搬運：收單時的狀態。 */
   private void waitingMove(
-      UUID id, UUID pickingId, UUID ownerId, UUID from, String sku, UUID orderLineId, int qty) {
-    stockMoveRepository.save(StockMove.confirmed(
-        id, pickingId, ownerId, sku, from, CUSTOMERS_LOCATION_ID, orderLineId, qty,
-        PARTIALLY_RESERVED_AT));
+      UUID id, UUID pickingId, UUID ownerId, UUID from, String sku, UUID orderLineId, int qty,
+      SeedDemand demand) {
+    stockMoveRepository.save(StockMove.confirmedForDemand(
+        id, pickingId, ownerId, sku, from, CUSTOMERS_LOCATION_ID,
+        demand.id(), demand.lineIds().get(orderLineId), orderLineId.toString(), orderLineId,
+        qty, PARTIALLY_RESERVED_AT));
   }
 
   /** 一段已鎖定的搬運。明細另外建——一段跨幾批就有幾條。 */
   private void assignedMove(
-      UUID id, UUID pickingId, UUID ownerId, UUID from, String sku, UUID orderLineId, int qty) {
-    StockMove move = StockMove.confirmed(
-        id, pickingId, ownerId, sku, from, CUSTOMERS_LOCATION_ID, orderLineId, qty,
-        PARTIALLY_RESERVED_AT);
+      UUID id, UUID pickingId, UUID ownerId, UUID from, String sku, UUID orderLineId, int qty,
+      SeedDemand demand) {
+    StockMove move = StockMove.confirmedForDemand(
+        id, pickingId, ownerId, sku, from, CUSTOMERS_LOCATION_ID,
+        demand.id(), demand.lineIds().get(orderLineId), orderLineId.toString(), orderLineId,
+        qty, PARTIALLY_RESERVED_AT);
     move.assign(PARTIALLY_RESERVED_AT);
     stockMoveRepository.save(move);
   }
 
   private void moveLine(UUID id, UUID moveId, UUID stockPoolId, int quantity) {
     stockMoveRepository.saveLines(List.of(new StockMoveLine(id, moveId, stockPoolId, quantity)));
+  }
+
+  private SeedDemand seedDemand(
+      UUID demandId, int firstLineSuffix, Order order, UUID locationId, boolean allocated) {
+    AtomicInteger lineIds = new AtomicInteger(firstLineSuffix);
+    AllocationDemand demand = AllocationDemand.accept(
+        demandId,
+        SourceAllocationUnit.primaryOrder(order.getId().toString()),
+        order.getOwnerId(),
+        order.getDeliveryTerms().facilityId(),
+        locationId,
+        order.getDeliveryTerms().dispatchBy(),
+        order.getDeliveryTerms().releasePriority(),
+        order.getReceivedAt(),
+        order.getLines().stream().map(line -> new AllocationDemandLineRequest(
+            line.getId().toString(), line.getSkuCode(), line.getQuantity())).toList(),
+        () -> uuid(lineIds.getAndIncrement()));
+    if (allocated) {
+      demand.markAllocated();
+    }
+    AllocationDemand saved = allocationDemandRepository.save(demand);
+    return new SeedDemand(saved.id(), saved.lines().stream().collect(Collectors.toMap(
+        line -> UUID.fromString(line.sourceLineId()),
+        com.flowzati.archone.stock.domain.model.AllocationDemandLine::id)));
+  }
+
+  private record SeedDemand(UUID id, Map<UUID, UUID> lineIds) {
   }
 
   private static UUID uuid(int suffix) {

@@ -1,0 +1,67 @@
+flowchart TB
+    subgraph TRIGGERS["觸發來源"]
+      direction TB
+      ORDER_EVENT([OrderPlaced event])
+      STOCK_EVENT([Stock availability event])
+      SCHEDULER([Reconciliation scheduler])
+    end
+
+    subgraph ENTRIES["Application 入口／transaction owner"]
+      direction TB
+      ORDER_UC["<b>AllocateOrderUsecase</b><br/>初次路徑的 transaction owner<br/>接受需求後立即嘗試一次配置"]
+      WAITING_TX["<b>TransactionalAllocationAttempt</b><br/>等待需求路徑的 transaction owner<br/>每次最多 commit 一筆 demand"]
+      RECONCILE_UC["<b>ReconcileWaitingDemandUsecase</b><br/>找 scope keys 後用 queue 做 round-robin<br/>成功 scope 放回隊尾，未成功不回列"]
+    end
+
+    subgraph ACCEPTANCE["階段 1｜接受需求（只有初次訂單路徑會走）"]
+      direction TB
+      ADAPTER["<b>OrderAllocationDemandAdapter</b><br/>order read model → common command<br/><i>只讀，不改庫存</i>"]
+      ACCEPTOR["<b>AllocationDemandAcceptor</b><br/>建立或冪等重播 immutable demand"]
+      ACCEPTED_STATE["階段結束狀態<br/><b>Demand = PENDING</b><br/><b>Moves / Picking = CONFIRMED</b><br/><i>尚未 reserve StockPool</i>"]
+    end
+
+    subgraph ATTEMPT["階段 2｜選需求、算供需、寫 reservation"]
+      direction TB
+      COORDINATOR["<b>AllocationAttemptCoordinator</b><br/>依 scope 重新載入 PENDING candidates、FIFO predecessors<br/>與全部 required SKU supply"]
+      FIFO["<b>AllocationFifoSelector</b><br/>shared-SKU strict FIFO<br/><i>選出可前進的 demand</i>"]
+      PLANNER["<b>AllocationDemandPlanner</b><br/>aggregate preflight → FEFO batch queues<br/><i>規劃 demand / supply，不寫資料庫</i>"]
+      DECISION{"本次 plan 可 commit？"}
+      WAITING_STATE["本次結束<br/><b>Demand 仍為 PENDING</b><br/>等下一次 availability / scheduler"]
+      COMMITTER["<b>AllocationCommitter</b><br/>reserve stock → assign moves / picking<br/>→ demand ALLOCATED"]
+    end
+
+    subgraph COMPLETION["階段 3｜完成事件"]
+      direction TB
+      ROUTER["<b>AllocationCompletionRouter</b><br/>generic fact → ORDER adapter"]
+      OUTBOX["transactional Outbox<br/>既有 order / fulfillment v1 events"]
+    end
+
+    ORDER_EVENT --> ORDER_UC
+    ORDER_UC --> ADAPTER --> ACCEPTOR --> ACCEPTED_STATE
+    ACCEPTED_STATE --> COORDINATOR
+
+    STOCK_EVENT --> WAITING_TX
+    SCHEDULER --> RECONCILE_UC
+    RECONCILE_UC -- "removeFirst 後逐個 scope 呼叫" --> WAITING_TX
+    WAITING_TX --> COORDINATOR
+
+    COORDINATOR --> FIFO --> PLANNER --> DECISION
+    DECISION -- "FIFO 未輪到或任一 SKU 不足" --> WAITING_STATE
+    DECISION -- "完整可行" --> COMMITTER
+    COMMITTER --> ROUTER --> OUTBOX
+
+    classDef trigger fill:#e8f1ff,stroke:#2563eb,color:#172554,stroke-width:1.5px;
+    classDef usecase fill:#ede9fe,stroke:#7c3aed,color:#2e1065,stroke-width:2px;
+    classDef transaction fill:#ecfeff,stroke:#0891b2,color:#164e63,stroke-width:2px;
+    classDef adapter fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
+    classDef domain fill:#ecfdf5,stroke:#059669,color:#064e3b,stroke-width:1.5px;
+    classDef state fill:#f5f3ff,stroke:#8b5cf6,color:#2e1065,stroke-width:1.5px;
+    classDef write fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:1.5px;
+
+    class ORDER_EVENT,STOCK_EVENT,SCHEDULER trigger;
+    class ORDER_UC,RECONCILE_UC usecase;
+    class WAITING_TX transaction;
+    class ADAPTER,ACCEPTOR,COORDINATOR,ROUTER adapter;
+    class FIFO,PLANNER domain;
+    class ACCEPTED_STATE,WAITING_STATE state;
+    class COMMITTER,OUTBOX write;

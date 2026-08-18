@@ -3,7 +3,6 @@ package com.flowzati.archone.stock.entrypoint.messaging;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryExhaustedException;
 import com.flowzati.archone.stock.domain.model.StockPool;
@@ -121,29 +120,27 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     // （模擬 Kafka 的 at-least-once redelivery）。若仍收斂不了才視為測試失敗。
     redeliverUntilConverged(exhaustedAfterWave);
 
-    // Step 4：佐證「真的發生過至少一次 optimistic-lock conflict」——如果 1,000 筆都一次成功，
-    // allocateOrder 恰好會被呼叫 1,000 次；只要次數超過 1,000，代表有訂單被 retry 重新呼叫過，
-    // 而 retry 只會因為真實的 OptimisticLockingFailureException 觸發（沒有注入合成例外）。
+    // Step 4：佐證「真的發生過至少一次 optimistic-lock conflict」。只有 10 筆可成功進入
+    // commit；committer 呼叫次數超過 10 代表至少一個 stale plan 曾與 winner 競爭後重試。
     // FirstWaveConflictSynchronizer 已經讓最先抵達的兩筆一定會撞在一起，所以這個斷言必過。
     assertThat(conflictSynchronizer.invocations())
         .as("至少一次重試代表 first-wave synchronization gate 觸發了真實的 optimistic-lock conflict")
-        .isGreaterThan(TOTAL_ORDERS);
+        .isGreaterThan(ON_HAND_QUANTITY);
 
     // Step 5：所有事件都已經有確定結果，對帳持久化狀態，確認沒有超賣、遺失事件或重複 reservation。
     assertReconciledState(stockPoolId);
   }
 
-  /** 從同一個 start gate 釋放 1,000 個 virtual-thread 任務，回傳耗盡重試的原始事件供重送。 */
+  /** 從同一個 start gate 釋放 bounded worker 任務，回傳耗盡重試的原始事件供重送。 */
   private List<OrderPlacedIntegrationEvent> submitConcurrentWave(
       List<OrderPlacedIntegrationEvent> events) throws Exception {
     CountDownLatch startGate = new CountDownLatch(1);
-    // 用 virtual thread（一個任務一條 thread）而不是固定大小的 thread pool，
-    // 是為了讓「同時送出 1,000 筆」這個 submission burst 真的成立；
-    // 真正同時執行的 DB transaction 數量則由下面的 datasource connection pool 自然限制住，
-    // 不會因為開了 1,000 條 thread 就真的打開 1,000 條 DB 連線。
-    ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    // Worker 數對齊 test datasource 的預設連線池上限；其餘 submission 留在 executor queue，
+    // 避免 1,000 個 virtual threads 同時在 Hikari acquisition timeout 上排隊，讓測試測到
+    // allocation contention 而不是 connection-pool admission timeout。
+    ExecutorService executor = Executors.newFixedThreadPool(10);
     try {
-      // 先把 1,000 個任務全部排進去，此時每個任務都卡在 startGate.await()，還沒有真的送出事件。
+      // 先把 1,000 個任務全部排進去；首批 worker 卡在 startGate，後續留在 executor queue。
       List<CompletableFuture<OrderPlacedIntegrationEvent>> futures = events.stream()
           .map(event -> CompletableFuture.supplyAsync(
               () -> deliverAwaitingGate(event, startGate), executor))
@@ -343,23 +340,21 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     private final AtomicInteger invocations = new AtomicInteger();
     private volatile CountDownLatch firstWaveGate = new CountDownLatch(2);
 
-    // 這個 pointcut 卡在 allocateOrder(..) 的「呼叫當下」，此時呼叫端（AllocateOrderUsecase）
-    // 已經在同一個 transaction 裡讀好了 StockPool；只要最先抵達的兩個 attempt 都卡在這裡，
+    // 這個 pointcut 卡在 committer 的「呼叫當下」，此時 coordinator 已在同一個 transaction
+    // 裡讀好了 StockPool；只要最先抵達的兩個 attempt 都卡在這裡，
     // 就代表兩邊都是讀到同一個已提交版本的 StockPool，之後放行時必定有一邊會在真正 flush／
     // commit 時因為 @Version 不符而被 JPA 拒絕——這就是「真實」而非「合成」的 conflict。
-    // 切在「鎖定一張單」上——交易之內、庫存被寫入之後。這個位置決定了注入的衝突會不會被
-    // 重試機制看見；往外移到 usecase 就會落在交易之外，往內移到 AllocationService 則碰不到
-    // 持久化。
+    // 切在 planner 與持久化 commit 之間；往外移到 usecase 就會落在 stock read 之前，往內移到
+    // AllocationDemandPlanner 則碰不到持久化。
     //
     // **切點是字串，指錯不會編譯失敗，只會靜默匹配不到任何東西**——那時每一條斷言都仍然
     // 執行，只是重試次數變成 0。元件改名或搬家時，這一行必須跟著改。
     @Around("execution(* com.flowzati.archone.stock.application.movement."
-        + "MovementAssigner.assign(..))")
+        + "AllocationCommitter.commit(..))")
     public Object synchronizeFirstWave(ProceedingJoinPoint joinPoint) throws Throwable {
       int invocation = invocations.incrementAndGet();
-      // 注意：allocateOrder(..) 對「每一筆」提交的訂單都會被呼叫一次（不論庫存夠不夠），
-      // 所以 1,000 筆事件在沒有任何 retry 的情況下，invocations() 最終應該剛好是 1,000；
-      // 只有第 1、2 次呼叫會被攔下來同步，第 3 次以後直接放行，避免把整批 1,000 筆
+      // 只有可行 plan 才會進 committer。第 1、2 次呼叫被攔下來同步，第 3 次以後直接放行，
+      // 避免把整批競爭者
       // 都卡在同一個屏障上而在 connection pool 後面死鎖。
       if (invocation <= 2) {
         CountDownLatch gate = firstWaveGate;

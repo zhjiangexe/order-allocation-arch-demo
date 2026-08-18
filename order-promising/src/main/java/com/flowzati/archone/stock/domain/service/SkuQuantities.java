@@ -5,14 +5,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * SKU 對數量的映射——需求、可用額度、缺口三者共用的形狀。
+ * SKU 對數量的映射——需求、可用額度、缺少數量三者共用的形狀。
  *
  * <p><b>收成型別而不是用裸 {@code Map<String, Integer>}</b>：這三處身上有同一組不變式——數量
  * 非負、扣減不得為負、涵蓋檢查要對**每一個** SKU 成立。留成裸 Map 的話，那些操作會散在挑單
  * 政策與取用規劃的迴圈裡，而每一處都要自己記得「別扣成負的」與「別漏檢查某個 SKU」。
  *
  * <p>同一個手法在這個 repo 已經用過：{@code StockContentionKey} 把 partition key 的組成收成
- * 型別，{@code Demand.demandFor()} 把「同 SKU 多行加總」收成具名方法。
+ * 型別，allocation demand 把「同 SKU 多行加總」收成具名方法。
  *
  * <p>不可變。{@link #minus} 回新的實例而不是就地扣減——挑單政策要在「試算這張單配不配得下」
  * 與「真的把額度扣掉」之間分開，就地扣減會讓試算留下痕跡。
@@ -22,7 +22,7 @@ public final class SkuQuantities {
   private final Map<String, Integer> quantities;
 
   private SkuQuantities(Map<String, Integer> quantities) {
-    this.quantities = Map.copyOf(quantities);
+    this.quantities = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(quantities));
   }
 
   public static SkuQuantities of(Map<String, Integer> quantities) {
@@ -71,8 +71,8 @@ public final class SkuQuantities {
     return new SkuQuantities(remaining);
   }
 
-  /** 這份需求裡，每一個 SKU 相對於 {@code available} 還差多少。全部蓋得住時為空。 */
-  public SkuQuantities shortfallAgainst(SkuQuantities available) {
+  /** 這份需求裡，每一個 SKU 還缺多少 {@code available} 才能滿足。全部足夠時為空。 */
+  public SkuQuantities missingFrom(SkuQuantities available) {
     Map<String, Integer> missing = new LinkedHashMap<>();
     quantities.forEach((skuCode, required) -> {
       int gap = required - available.quantityOf(skuCode);

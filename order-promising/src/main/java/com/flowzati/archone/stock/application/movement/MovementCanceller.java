@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * 搬運的第四個動作：**取消**（Odoo 的 {@code stock.move._action_cancel}）。
  *
  * <p>它與鎖定完全不共用任何決策——沒有可承諾量的問題、沒有整籃判斷、不碰
- * {@code AllocationService}。那正是它從配貨的協調者裡分出來的理由。
+ * {@code AllocationDemandPlanner}。那正是它從配貨的協調者裡分出來的理由。
  *
  * <p><b>明細是刪除，不是標記為已釋放。</b>一條被釋放的明細不表達任何事實：貨沒有動，也沒有被
  * 鎖住。留著它等於讓每個讀取端都要記得過濾。釋放的歷史留在搬運的狀態轉換上。
@@ -58,7 +58,22 @@ public class MovementCanceller {
     }
 
     List<UUID> pickingIds = pickings.stream().map(StockPicking::id).toList();
-    List<StockMove> allMovements = stockMoveRepository.findByPickingIds(pickingIds);
+    return cancel(pickings, stockMoveRepository.findByPickingIds(pickingIds));
+  }
+
+  /** Source-agnostic cancellation path keyed by allocation demand rather than picking.orderId. */
+  public boolean cancelForDemand(UUID allocationDemandId) {
+    List<StockMove> allMovements = stockMoveRepository.findByAllocationDemandId(allocationDemandId);
+    if (allMovements.isEmpty()) {
+      return false;
+    }
+    java.util.Set<UUID> pickingIds = allMovements.stream().map(StockMove::getPickingId)
+        .filter(java.util.Objects::nonNull)
+        .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+    return cancel(stockPickingRepository.findByIds(pickingIds), allMovements);
+  }
+
+  private boolean cancel(List<StockPicking> pickings, List<StockMove> allMovements) {
     List<StockMove> cancellableMovements = allMovements.stream()
         .filter(StockMove::canCancel)
         .toList();

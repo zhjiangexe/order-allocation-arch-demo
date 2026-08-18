@@ -49,6 +49,6 @@ public class AllocationOrderLifecycleEventConsumer {
   }
 
   void onOrderCancelled(OrderCancelledIntegrationEvent event) {
-    cancelMovementsUsecase.execute(new CancelMovementsCommand(event.getOrderId()));
+    cancelMovementsUsecase.execute(new CancelMovementsCommand(event.getOrderId(), event.getEventId()));
   }
 }

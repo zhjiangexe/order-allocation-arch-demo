@@ -27,8 +27,8 @@ import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResu
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
 import com.flowzati.archone.stock.application.event.PromisingEventTopics;
+import com.flowzati.archone.stock.application.movement.TransactionalAllocationAttempt;
 import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
 import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
 import com.flowzati.archone.stock.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
 import com.flowzati.archone.stock.entrypoint.messaging.AllocationOrderLifecycleEventConsumer;
@@ -91,7 +91,9 @@ class OrderPromisingIntegrationEventWiringTest {
         .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
         .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
         .withBean(CancelMovementsUsecase.class, () -> mock(CancelMovementsUsecase.class))
-        .withBean(AllocateWaitingDemandUsecase.class, () -> mock(AllocateWaitingDemandUsecase.class));
+        .withBean(
+            TransactionalAllocationAttempt.class,
+            () -> mock(TransactionalAllocationAttempt.class));
     return factory == null
         ? runner
         : runner.withBean(IntegrationEventDispatcherFactory.class, () -> factory);

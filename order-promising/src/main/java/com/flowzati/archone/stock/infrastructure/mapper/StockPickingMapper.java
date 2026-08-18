@@ -10,14 +10,20 @@ public final class StockPickingMapper {
 
   public static StockPickingEntity toEntity(StockPicking picking) {
     return new StockPickingEntity(
-        picking.id(), picking.pickingTypeId(), picking.ownerId(), picking.orderId(),
+        picking.id(), picking.pickingTypeId(), picking.direction(), picking.ownerId(), picking.orderId(),
         picking.fromLocationId(), picking.toLocationId(), picking.dispatchBy(),
         picking.releasePriority(), picking.state(), picking.version());
   }
 
   public static StockPicking toDomain(StockPickingEntity entity) {
     return new StockPicking(
-        entity.getId(), entity.getPickingTypeId(), entity.getOwnerId(), entity.getOrderId(),
+        entity.getId(), entity.getPickingTypeId(),
+        entity.getDirection() == null
+            ? (entity.getDispatchBy() == null
+                ? com.flowzati.archone.catalog.domain.model.PickingDirection.INBOUND
+                : com.flowzati.archone.catalog.domain.model.PickingDirection.OUTBOUND)
+            : entity.getDirection(),
+        entity.getOwnerId(), entity.getOrderId(),
         entity.getFromLocationId(), entity.getToLocationId(), entity.getDispatchBy(),
         entity.getReleasePriority(), entity.getState(),
         entity.getVersion());

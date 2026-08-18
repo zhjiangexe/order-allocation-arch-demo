@@ -116,7 +116,7 @@ class OutboxAggregateQueryIntegrationTest {
     String contentionKey = com.flowzati.archone.promising.messaging.StockContentionKey.of(
         OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID);
     assertThat(partitionKeysFor(orderId))
-        .containsExactly(contentionKey, orderId.toString(), orderId.toString());
+        .containsExactly(contentionKey, orderId.toString());
   }
 
   private UUID placeOrder() {

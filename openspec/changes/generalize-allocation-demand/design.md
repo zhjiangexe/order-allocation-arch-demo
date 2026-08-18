@@ -142,11 +142,11 @@ AND scope 內存在今天仍可配且尚有 ATP 的 stock pool
 
 `AllocationDemand.status` 是「是否需要配貨」的主要判斷；move/picking 條件確認它是否仍可執行；stock pool 條件只是候選預篩選，最後的完整數量與 ship-complete 判斷仍由 allocation planner 負責。
 
-triggering SKU query 先回傳包含該 SKU 的 demands，再載入每筆 demand 的全部 lines；planner/eligibility query 必須同時檢查這些 lines 在其他 SKU queues 的較早 predecessor，不能只因某個 SKU 的 wake-up 就越過另一個 SKU queue 的隊首。stock-availability prefilter 不得把缺貨 predecessor 從 precedence 檢查排除。候選結果按 `(enqueuedAt, allocationDemandId)` 排序，並以 demand 數量限制 batch；picking 是否存在不改變 limit unit。每個 allocation transaction 最多提交一筆 demand；前序成功提交後，reconciliation loop 才在下一個 bounded iteration 重新查詢並處理後續 demand，不在同一 transaction 串接或鎖住整批候選。相同 demand 可能因多 SKU scope 被多次喚醒，但 optimistic locking 與 idempotent commit 必須讓只有一個 transaction 成功套用。
+triggering SKU query 先回傳包含該 SKU 的 demands，再載入每筆 demand 的全部 lines；FIFO selector 必須同時檢查這些 lines 在其他 SKU queues 的較早 predecessor，不能只因某個 SKU 的 wake-up 就越過另一個 SKU queue 的隊首。stock-availability prefilter 不得把缺貨 predecessor 從 precedence 檢查排除。候選結果按 `(enqueuedAt, allocationDemandId)` 排序，並以 demand 數量限制 batch；picking 是否存在不改變 limit unit。每個 allocation transaction 最多提交一筆 demand；前序成功提交後，reconciliation loop 才在下一個 bounded iteration 重新查詢並處理後續 demand，不在同一 transaction 串接或鎖住整批候選。相同 demand 可能因多 SKU scope 被多次喚醒，但 optimistic locking 與 idempotent commit 必須讓只有一個 transaction 成功套用。
 
 ### 6. 將配貨決策與結果套用分離
 
-保留純 domain `AllocationService`，輸入 source-agnostic `AllocationDemandSnapshot` 與 `AllocatableBatches`，輸出不可變 `AllocationPlan`。輸入、plan line 與 batch pick 都以 `allocationDemandId` / `allocationDemandLineId` 識別，不保留 `orderId` / `orderLineId` 命名。同 SKU 多條 lines 先用 aggregate quantity 驗證 ship-complete，再依固定 `lineSequence` 將 FEFO batch quantity 分回各 demand line，確保 move lines 與 completion details 可重現。service 不查 repository、不寫 `StockPool`、不更新 move，也不發布事件。
+保留純 domain `AllocationFifoSelector` 與 `AllocationDemandPlanner`。Selector 只判斷 candidate 是否在每個 required SKU queue 都位於 head-of-line；Planner 輸入 source-agnostic `AllocationDemandSnapshot` 與 `AllocatableBatches`，輸出不可變 `AllocationPlan`。輸入、plan line 與 batch pick 都以 `allocationDemandId` / `allocationDemandLineId` 識別，不保留 `orderId` / `orderLineId` 命名。同 SKU 多條 lines 先用 aggregate quantity 驗證 ship-complete，再依固定 `lineSequence` 將 FEFO batch quantity 分回各 demand line，確保 move lines 與 completion details 可重現。Selector 與 Planner 都不查 repository、不寫 `StockPool`、不更新 move，也不發布事件。
 
 新增或重整 application-level `AllocationCommitter`，負責：
 
@@ -157,6 +157,10 @@ triggering SKU query 先回傳包含該 SKU 的 demands，再載入每筆 demand
 5. 將 `AllocationDemand` 從 `PENDING` 轉為 `ALLOCATED`。
 
 上述變更在同一個 transaction 中提交；任何 optimistic-locking failure 都使整個 allocation attempt rollback，由 availability trigger 或 scheduler 重新嘗試。
+
+每條 `AllocationDemandLine` 在 execution 層最多只能對應一筆 `StockMove`；資料庫以
+`(allocation_demand_id, allocation_demand_line_id)` partial unique index 保證，避免把正常流程的
+結構性 invariant 重複留給 Committer 做 defensive validation。
 
 所有會修改 allocation execution 的本地 transaction 採一致的 lock hierarchy：先 claim inbox/cancellation operation，再鎖定 `AllocationDemand`，接著依穩定全域順序鎖定 `StockPool`，最後依 id 順序更新 `StockMove`、`StockPicking` 與 outbox/result records。只修改其中部分資料的路徑仍遵守相同相對順序。warehouse cancellation coordinator 的外部呼叫必須在本地 database transaction 之外完成；取得 acknowledgement 後才進入上述 lock hierarchy，避免在持有資料庫鎖時等待物理世界。
 
@@ -231,7 +235,7 @@ rollback boundary 分成兩段：new consumers 尚未恢復前，可在維持 qu
 1. 建立 allocation demand/demand line 表、完整 source allocation-unit identity、allocation status、version 與唯一約束，並定義 order source location 來自 outbound picking type。
 2. 建立 allocation context 的 repository、候選 projection 與 domain model；先加入 read/consistency tests。
 3. 將現有 order intake 接成 `ORDER` demand creator，並 backfill 尚無 move、`CONFIRMED` 與 active `ASSIGNED` 三種資料，不發布 completion。
-4. 讓初次配貨與 waiting reconciliation 共用新的 planner/committer；先以正規化的 shadow read 比較 legacy/new candidates，已有 execution 時沿用其 source location、尚無 move 時使用 outbound default，並將其餘 legacy 多 location 展開列與跨 SKU precedence 修正標記為已知差異。
+4. 讓初次配貨與 waiting reconciliation 共用新的 FIFO selector、planner 與 committer；先以正規化的 shadow read 比較 legacy/new candidates，已有 execution 時沿用其 source location、尚無 move 時使用 outbound default，並將其餘 legacy 多 location 展開列與跨 SKU precedence 修正標記為已知差異。
 5. 將 cancellation/release 接到 allocation demand，驗證 `PENDING`、已確認外部停止的可逆 `ALLOCATED` 與未確認時拒絕取消三種情況。
 6. 將 inbound receipt 保持為 supply-only 流程，確認 availability fact 仍能喚醒 demand candidate。
 7. 以非訂單 contract fixture 驗證 generic demand 不依賴 `orderId`；正式 transfer、replenishment、production、manual source adapter 分別留給後續 change。

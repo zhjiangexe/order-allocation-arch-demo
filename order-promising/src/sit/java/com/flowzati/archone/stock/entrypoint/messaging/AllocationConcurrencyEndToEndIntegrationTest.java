@@ -3,7 +3,6 @@ package com.flowzati.archone.stock.entrypoint.messaging;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.application.movement.MovementAssigner;
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryExhaustedException;
@@ -218,14 +217,14 @@ class AllocationConcurrencyEndToEndIntegrationTest {
       forcedFailures = attempts;
     }
 
-    // 切在「鎖定一張單」上——交易之內、庫存被寫入之後。這個位置決定了注入的衝突會不會被
-    // 重試機制看見；往外移到 usecase 就會落在交易之外，往內移到 AllocationService 則碰不到
-    // 持久化。
+    // 切在 demand-first coordinator 上——仍位於 message transaction 之內，而且自然衝突重試
+    // 後即使庫存已被 winner 用完也一定會再次經過這裡。這個位置同時觀測「重試後不可行」與
+    // 「進入 committer」兩種合法結果。
     //
     // **切點是字串，指錯不會編譯失敗，只會靜默匹配不到任何東西**——那時每一條斷言都仍然
     // 執行，只是重試次數變成 0。元件改名或搬家時，這一行必須跟著改。
     @Around("execution(* com.flowzati.archone.stock.application.movement."
-        + "MovementAssigner.assign(..))")
+        + "AllocationAttemptCoordinator.allocateOne(..))")
     public Object injectConflict(ProceedingJoinPoint joinPoint) throws Throwable {
       int invocation = invocations.incrementAndGet();
       transactionIds.add(jdbcTemplate.queryForObject("SELECT txid_current()", Long.class));

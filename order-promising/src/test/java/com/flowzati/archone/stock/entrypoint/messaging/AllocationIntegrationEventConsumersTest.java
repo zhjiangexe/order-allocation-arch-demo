@@ -9,8 +9,8 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
+import com.flowzati.archone.stock.application.movement.TransactionalAllocationAttempt;
 import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
 import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
 import java.time.Instant;
 import java.util.UUID;
@@ -29,18 +29,20 @@ class AllocationIntegrationEventConsumersTest {
 
     consumer.onOrderPlaced(new OrderPlacedIntegrationEvent(
         UUID.randomUUID(), orderId, occurredAt));
+    UUID cancellationEventId = UUID.randomUUID();
     consumer.onOrderCancelled(new OrderCancelledIntegrationEvent(
-        UUID.randomUUID(), orderId, occurredAt));
+        cancellationEventId, orderId, occurredAt));
 
     verify(allocateOrderUsecase).execute(new AllocateOrderCommand(orderId));
-    verify(cancelMovementsUsecase).execute(new CancelMovementsCommand(orderId));
+    verify(cancelMovementsUsecase).execute(
+        new CancelMovementsCommand(orderId, cancellationEventId));
   }
 
   @Test
   void shouldTranslateAvailabilityEventToOneBoundedWaitingDemandCommand() {
-    AllocateWaitingDemandUsecase usecase = mock(AllocateWaitingDemandUsecase.class);
+    TransactionalAllocationAttempt allocationAttempt = mock(TransactionalAllocationAttempt.class);
     AllocationInventoryAvailabilityEventConsumer consumer =
-        new AllocationInventoryAvailabilityEventConsumer(usecase);
+        new AllocationInventoryAvailabilityEventConsumer(allocationAttempt);
     UUID ownerId = UUID.randomUUID();
     UUID facilityId = UUID.randomUUID();
     UUID locationId = UUID.randomUUID();
@@ -48,7 +50,7 @@ class AllocationIntegrationEventConsumersTest {
     consumer.onStockAvailabilityIncreased(new StockAvailabilityIncreasedIntegrationEvent(
         UUID.randomUUID(), ownerId, facilityId, locationId, "SKU-1", 5));
 
-    verify(usecase).execute(new AllocateWaitingDemandCommand(
+    verify(allocationAttempt).attempt(new AllocateWaitingDemandCommand(
         ownerId, facilityId, locationId, "SKU-1"));
   }
 }

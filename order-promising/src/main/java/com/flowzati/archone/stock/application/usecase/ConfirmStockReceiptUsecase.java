@@ -5,6 +5,7 @@ import com.flowzati.archone.stock.application.command.ConfirmStockReceiptCommand
 import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
 import com.flowzati.archone.stock.application.movement.MovementCompleter;
 import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
+import com.flowzati.archone.stock.application.movement.TransactionalAllocationAttempt;
 import com.flowzati.archone.stock.domain.event.StockAvailabilityIncreased;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import jakarta.transaction.Transactional;
@@ -20,7 +21,7 @@ import org.springframework.stereotype.Service;
  * 呼叫者指定實際收貨庫位；本 use case 在交易內驗證它是該 Facility 的 internal location。
  *
  * <p>這裡不執行 outbound 配貨。availability Integration Event 與 reconciliation scheduler
- * 都在收貨提交後呼叫 {@link AllocateWaitingDemandUsecase}，避免 inbound 交易承擔等待佇列的負載。
+ * 都在收貨提交後呼叫 {@link TransactionalAllocationAttempt}，避免 inbound 交易承擔等待佇列的負載。
  */
 @Service
 public class ConfirmStockReceiptUsecase {

@@ -1,6 +1,5 @@
 package com.flowzati.archone.stock.application.movement;
 
-import com.flowzati.archone.stock.domain.model.Demand;
 import com.flowzati.archone.stock.domain.model.StockMove;
 import com.flowzati.archone.stock.domain.model.StockPicking;
 import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
@@ -19,8 +18,8 @@ import org.springframework.stereotype.Component;
 /**
  * 搬運的第一個動作：**建立**（Odoo 的 {@code stock.move._action_confirm}）。
  *
- * <p><b>它不配貨。</b>建立 outbound work 與從庫存批中配貨是兩個動作；這個元件只負責
- * 為訂單建立一張 picking 與它的 moves。
+ * <p><b>它不配貨。</b>這個元件保留 supply-only inbound recording；stock-consuming outbound
+ * execution 一律由 allocation demand acceptance transaction 建立。
  *
  * <p><b>picking 是這兩條作業流程的必要分組，不是 {@link StockMove} 型別的全域
  * 不變式。</b>{@code recordOutbound} 每張訂單建一張獨立 picking，該單全部 move 共用。
@@ -44,49 +43,6 @@ public class StockOperationRecorder {
     this.pickingTypeRepository = pickingTypeRepository;
     this.stockPickingRepository = stockPickingRepository;
     this.stockMoveRepository = stockMoveRepository;
-  }
-
-  /**
-   * 為這張需求建一張出庫作業單與每一條行的搬運，狀態是「還在等貨」。
-   *
-   * <p>起訖取自作業類型的預設值：庫存位置 → 客戶。作業類型以 Facility 為鍵，並確認
-   * 需求指定的庫存位置屬於同一個 Facility。
-   *
-   * <p>Facility 沒有設出庫類型時**拋錯而不是靜默略過**：那張單無處可去，而「收下卻不記」會讓需求
-   * 消失得無聲無息——它不會出現在任何佇列裡，因為佇列讀的是搬運。
-   *
-   * <p><b>回傳建好的搬運</b>，而不是 void 或單據 id：呼叫端接著要把它們交給鎖定那一步，回傳
-   * 讓那一步不必用 {@code order_line_id} 把同一批列再讀一次。
-   */
-  public List<StockMove> recordOutbound(Demand demand, Instant now) {
-    PickingType type = operationTypeFor(demand.facilityId(), demand.locationId(), PickingDirection.OUTBOUND);
-
-    UUID pickingId = IdGenerator.nextId();
-    stockPickingRepository.save(StockPicking.confirmedOutbound(
-        pickingId,
-        type.id(),
-        demand.ownerId(),
-        demand.orderId(),
-        type.defaultFromLocationId(),
-        type.defaultToLocationId(),
-        demand.dispatchBy(),
-        demand.releasePriority()));
-
-    List<StockMove> created = demand.lines().stream()
-        .map(demandLine -> StockMove.confirmed(
-            IdGenerator.nextId(),
-            pickingId,
-            demand.ownerId(),
-            demandLine.skuCode(),
-            type.defaultFromLocationId(),
-            type.defaultToLocationId(),
-            demandLine.orderLineId(),
-            demandLine.quantity(),
-            now))
-        .toList();
-    // 回傳寫入後的樣子，不是剛建構的那些：同一個交易裡接著鎖定會對同一列寫第二次，而那一次
-    // 必須帶著第一次之後的版號，否則持久層會當成一列全新的資料。
-    return stockMoveRepository.saveAll(created);
   }
 
   /**

@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.domain.model;
 
+import com.flowzati.archone.catalog.domain.model.PickingDirection;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -32,6 +33,7 @@ public class StockPicking {
 
   private final UUID id;
   private final UUID pickingTypeId;
+  private final PickingDirection direction;
   private final UUID ownerId;
   private final UUID orderId;
   private final UUID fromLocationId;
@@ -45,6 +47,7 @@ public class StockPicking {
   public StockPicking(
       UUID id,
       UUID pickingTypeId,
+      PickingDirection direction,
       UUID ownerId,
       UUID orderId,
       UUID fromLocationId,
@@ -54,7 +57,7 @@ public class StockPicking {
       PickingState state,
       Long version
   ) {
-    if (id == null || pickingTypeId == null || ownerId == null) {
+    if (id == null || pickingTypeId == null || direction == null || ownerId == null) {
       throw new IllegalArgumentException("Picking requires an id, a type and an owner");
     }
     if (fromLocationId == null || toLocationId == null) {
@@ -63,8 +66,9 @@ public class StockPicking {
     if (state == null) {
       throw new IllegalArgumentException("Picking state is required");
     }
-    if ((orderId == null && (dispatchBy != null || releasePriority != null))
-        || (orderId != null && (dispatchBy == null || releasePriority == null))) {
+    if ((direction == PickingDirection.INBOUND && (dispatchBy != null || releasePriority != null))
+        || (direction != PickingDirection.INBOUND
+            && (dispatchBy == null || releasePriority == null))) {
       throw new IllegalArgumentException(
           "Outbound picking requires dispatch deadline and release priority; inbound requires neither");
     }
@@ -73,6 +77,7 @@ public class StockPicking {
     }
     this.id = id;
     this.pickingTypeId = pickingTypeId;
+    this.direction = direction;
     this.ownerId = ownerId;
     this.orderId = orderId;
     this.fromLocationId = fromLocationId;
@@ -81,6 +86,24 @@ public class StockPicking {
     this.releasePriority = releasePriority;
     this.state = state;
     this.version = version;
+  }
+
+  /** Compatibility constructor for records written before picking direction was persisted. */
+  public StockPicking(
+      UUID id,
+      UUID pickingTypeId,
+      UUID ownerId,
+      UUID orderId,
+      UUID fromLocationId,
+      UUID toLocationId,
+      Instant dispatchBy,
+      Integer releasePriority,
+      PickingState state,
+      Long version
+  ) {
+    this(id, pickingTypeId,
+        dispatchBy == null ? PickingDirection.INBOUND : PickingDirection.OUTBOUND,
+        ownerId, orderId, fromLocationId, toLocationId, dispatchBy, releasePriority, state, version);
   }
 
   public static StockPicking confirmedOutbound(
@@ -94,7 +117,7 @@ public class StockPicking {
       int releasePriority
   ) {
     return new StockPicking(
-        id, pickingTypeId, ownerId, orderId, fromLocationId, toLocationId,
+        id, pickingTypeId, PickingDirection.OUTBOUND, ownerId, orderId, fromLocationId, toLocationId,
         dispatchBy, releasePriority, PickingState.CONFIRMED, null);
   }
 
@@ -106,8 +129,28 @@ public class StockPicking {
       UUID toLocationId
   ) {
     return new StockPicking(
-        id, pickingTypeId, ownerId, null, fromLocationId, toLocationId,
+        id, pickingTypeId, PickingDirection.INBOUND, ownerId, null, fromLocationId, toLocationId,
         null, null, PickingState.CONFIRMED, null);
+  }
+
+  /** Source-agnostic stock-consuming execution group; legacyOrderId is adapter-only trace. */
+  public static StockPicking confirmedDemand(
+      UUID id,
+      UUID pickingTypeId,
+      PickingDirection direction,
+      UUID ownerId,
+      UUID legacyOrderId,
+      UUID fromLocationId,
+      UUID toLocationId,
+      Instant requiredBy,
+      int releasePriority
+  ) {
+    if (direction == PickingDirection.INBOUND) {
+      throw new IllegalArgumentException("An inbound picking is supply-only, not allocation demand");
+    }
+    return new StockPicking(
+        id, pickingTypeId, direction, ownerId, legacyOrderId, fromLocationId, toLocationId,
+        requiredBy, releasePriority, PickingState.CONFIRMED, null);
   }
 
   public boolean assign() {
@@ -149,6 +192,10 @@ public class StockPicking {
 
   public UUID pickingTypeId() {
     return pickingTypeId;
+  }
+
+  public PickingDirection direction() {
+    return direction;
   }
 
   public UUID ownerId() {

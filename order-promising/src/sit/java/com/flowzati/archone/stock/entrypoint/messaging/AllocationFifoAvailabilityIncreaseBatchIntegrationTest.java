@@ -9,12 +9,12 @@ import com.flowzati.archone.ordering.domain.model.Order;
 import com.flowzati.archone.ordering.domain.model.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.promising.time.AppClock;
-import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
+import com.flowzati.archone.stock.application.movement.TransactionalAllocationAttempt;
 import com.flowzati.archone.stock.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.stock.application.usecase.ReconcileWaitingDemandUsecase;
 import com.flowzati.archone.stock.domain.model.StockFixtures;
 import com.flowzati.archone.stock.domain.model.StockPool;
-import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
+import com.flowzati.archone.stock.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -85,10 +85,10 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
   private ReconcileWaitingDemandUsecase reconcileWaitingDemandUsecase;
 
   @Autowired
-  private StockMoveRepository stockMoveRepository;
+  private AllocationDemandRepository allocationDemandRepository;
 
   @Autowired
-  private AllocateWaitingDemandUsecase allocateWaitingDemandUsecase;
+  private TransactionalAllocationAttempt allocationAttempt;
 
   @Autowired
   private AppClock appClock;
@@ -113,7 +113,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
     // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
     reconcileWaitingDemandUsecase = new ReconcileWaitingDemandUsecase(
-        stockMoveRepository, allocateWaitingDemandUsecase, appClock, BATCH_LIMIT);
+        allocationDemandRepository, allocationAttempt, appClock, BATCH_LIMIT);
     OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
   }
 

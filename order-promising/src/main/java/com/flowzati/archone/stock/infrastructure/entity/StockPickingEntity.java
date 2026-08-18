@@ -1,5 +1,6 @@
 package com.flowzati.archone.stock.infrastructure.entity;
 
+import com.flowzati.archone.catalog.domain.model.PickingDirection;
 import com.flowzati.archone.stock.domain.model.PickingState;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,6 +27,10 @@ public class StockPickingEntity {
 
   @Column(name = "picking_type_id", nullable = false)
   private UUID pickingTypeId;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "direction")
+  private PickingDirection direction;
 
   @Column(name = "owner_id", nullable = false)
   private UUID ownerId;
@@ -66,11 +71,12 @@ public class StockPickingEntity {
   }
 
   public StockPickingEntity(
-      UUID id, UUID pickingTypeId, UUID ownerId, UUID orderId,
+      UUID id, UUID pickingTypeId, PickingDirection direction, UUID ownerId, UUID orderId,
       UUID fromLocationId, UUID toLocationId, Instant dispatchBy, Integer releasePriority,
       PickingState state, Long version) {
     this.id = id;
     this.pickingTypeId = pickingTypeId;
+    this.direction = direction;
     this.ownerId = ownerId;
     this.orderId = orderId;
     this.fromLocationId = fromLocationId;
@@ -87,6 +93,10 @@ public class StockPickingEntity {
 
   public UUID getPickingTypeId() {
     return pickingTypeId;
+  }
+
+  public PickingDirection getDirection() {
+    return direction;
   }
 
   public UUID getOwnerId() {

@@ -139,16 +139,25 @@ public final class MovementFixtures {
           "No fixture operation type for warehouse " + facilityId);
     }
 
+    java.util.Map<UUID, UUID> allocationLines =
+        seedAllocationDemand(jdbcTemplate, order, fromLocationId, "PENDING");
+    UUID allocationDemandId = jdbcTemplate.queryForObject("""
+        SELECT id FROM allocation_demands
+         WHERE source_type = 'ORDER' AND source_id = ? AND allocation_unit_key = 'PRIMARY'
+        """, UUID.class, order.getId().toString());
     UUID pickingId = IdGenerator.nextId();
     insertPicking(jdbcTemplate, pickingId, order, pickingTypeId, fromLocationId);
     order.getLines().forEach(line -> jdbcTemplate.update("""
         INSERT INTO stock_moves
             (id, picking_id, owner_id, sku_code, from_location_id, to_location_id,
+             allocation_demand_id, allocation_demand_line_id, source_line_id,
              order_line_id, demand_quantity, state, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?)
         """,
         IdGenerator.nextId(), pickingId, order.getOwnerId(), line.getSkuCode(),
-        fromLocationId, CUSTOMERS_LOCATION_ID, line.getId(), line.getQuantity(),
+        fromLocationId, CUSTOMERS_LOCATION_ID,
+        allocationDemandId, allocationLines.get(line.getId()), line.getId().toString(),
+        line.getId(), line.getQuantity(),
         java.sql.Timestamp.from(order.getReceivedAt())));
     return pickingId;
   }
@@ -173,6 +182,12 @@ public final class MovementFixtures {
    */
   public static UUID seedAssignedPicking(
       JdbcTemplate jdbcTemplate, Order order, UUID stockPoolId, int quantity) {
+    java.util.Map<UUID, UUID> allocationLines = seedAllocationDemand(
+        jdbcTemplate, order, OrderFixtures.LOCATION_ID, "ALLOCATED");
+    UUID allocationDemandId = jdbcTemplate.queryForObject("""
+        SELECT id FROM allocation_demands
+         WHERE source_type = 'ORDER' AND source_id = ? AND allocation_unit_key = 'PRIMARY'
+        """, UUID.class, order.getId().toString());
     UUID pickingId = IdGenerator.nextId();
     UUID moveId = IdGenerator.nextId();
     var line = order.getLines().getFirst();
@@ -180,11 +195,14 @@ public final class MovementFixtures {
     jdbcTemplate.update("""
         INSERT INTO stock_moves
             (id, picking_id, owner_id, sku_code, from_location_id, to_location_id,
+             allocation_demand_id, allocation_demand_line_id, source_line_id,
              order_line_id, demand_quantity, state, created_at, assigned_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ASSIGNED', ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ASSIGNED', ?, ?)
         """,
         moveId, pickingId, order.getOwnerId(), line.getSkuCode(),
-        OrderFixtures.LOCATION_ID, CUSTOMERS_LOCATION_ID, line.getId(), line.getQuantity(),
+        OrderFixtures.LOCATION_ID, CUSTOMERS_LOCATION_ID,
+        allocationDemandId, allocationLines.get(line.getId()), line.getId().toString(),
+        line.getId(), line.getQuantity(),
         java.sql.Timestamp.from(order.getReceivedAt()),
         java.sql.Timestamp.from(order.getReceivedAt()));
     jdbcTemplate.update("""
@@ -192,6 +210,44 @@ public final class MovementFixtures {
         VALUES (?, ?, ?, ?)
         """, IdGenerator.nextId(), moveId, stockPoolId, quantity);
     return moveId;
+  }
+
+  private static java.util.Map<UUID, UUID> seedAllocationDemand(
+      JdbcTemplate jdbcTemplate,
+      Order order,
+      UUID sourceLocationId,
+      String status) {
+    UUID demandId = IdGenerator.nextId();
+    jdbcTemplate.update("""
+        INSERT INTO allocation_demands
+            (id, source_type, source_id, allocation_unit_key,
+             owner_id, facility_id, location_id, required_by, release_priority,
+             enqueued_at, accepted_content_version, status, version)
+        VALUES (?, 'ORDER', ?, 'PRIMARY', ?, ?, ?, ?, ?, ?, 1, ?, 0)
+        """,
+        demandId, order.getId().toString(), order.getOwnerId(),
+        order.getDeliveryTerms().facilityId(), sourceLocationId,
+        java.sql.Timestamp.from(order.getDeliveryTerms().dispatchBy()),
+        order.getDeliveryTerms().releasePriority(),
+        java.sql.Timestamp.from(order.getReceivedAt()), status);
+
+    java.util.Map<UUID, UUID> allocationLines = new java.util.LinkedHashMap<>();
+    java.util.List<com.flowzati.archone.ordering.domain.model.OrderLine> canonical =
+        order.getLines().stream().sorted(java.util.Comparator.comparing(line -> line.getId().toString()))
+            .toList();
+    for (int index = 0; index < canonical.size(); index++) {
+      var line = canonical.get(index);
+      UUID allocationLineId = IdGenerator.nextId();
+      allocationLines.put(line.getId(), allocationLineId);
+      jdbcTemplate.update("""
+          INSERT INTO allocation_demand_lines
+              (id, allocation_demand_id, source_line_id, sku_code, quantity, line_sequence)
+          VALUES (?, ?, ?, ?, ?, ?)
+          """,
+          allocationLineId, demandId, line.getId().toString(), line.getSkuCode(),
+          line.getQuantity(), index + 1);
+    }
+    return allocationLines;
   }
 
   private static void insertPicking(

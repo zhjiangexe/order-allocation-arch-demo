@@ -26,6 +26,9 @@ public class StockMove {
   private final String skuCode;
   private final UUID fromLocationId;
   private final UUID toLocationId;
+  private final UUID allocationDemandId;
+  private final UUID allocationDemandLineId;
+  private final String sourceLineId;
   private final UUID orderLineId;
   private final int demandQuantity;
   private MoveState state;
@@ -42,6 +45,9 @@ public class StockMove {
       String skuCode,
       UUID fromLocationId,
       UUID toLocationId,
+      UUID allocationDemandId,
+      UUID allocationDemandLineId,
+      String sourceLineId,
       UUID orderLineId,
       int demandQuantity,
       MoveState state,
@@ -66,6 +72,13 @@ public class StockMove {
     if (toLocationId == null) {
       throw new IllegalArgumentException("A movement must say where the goods go");
     }
+    if ((allocationDemandId == null) != (allocationDemandLineId == null)) {
+      throw new IllegalArgumentException(
+          "Allocation demand and allocation demand line references must appear together");
+    }
+    if (allocationDemandId != null && (sourceLineId == null || sourceLineId.isBlank())) {
+      throw new IllegalArgumentException("A demand movement requires a source-line reference");
+    }
     if (demandQuantity <= 0) {
       throw new IllegalArgumentException("Demand quantity must be positive");
     }
@@ -89,12 +102,34 @@ public class StockMove {
     this.skuCode = skuCode;
     this.fromLocationId = fromLocationId;
     this.toLocationId = toLocationId;
+    this.allocationDemandId = allocationDemandId;
+    this.allocationDemandLineId = allocationDemandLineId;
+    this.sourceLineId = sourceLineId;
     this.orderLineId = orderLineId;
     this.demandQuantity = demandQuantity;
     this.state = state;
     this.createdAt = createdAt;
     this.assignedAt = assignedAt;
     this.version = version;
+  }
+
+  /** Rolling-version compatibility constructor for movements created before demand references. */
+  public StockMove(
+      UUID id,
+      UUID pickingId,
+      UUID ownerId,
+      String skuCode,
+      UUID fromLocationId,
+      UUID toLocationId,
+      UUID orderLineId,
+      int demandQuantity,
+      MoveState state,
+      Instant createdAt,
+      Instant assignedAt,
+      Long version
+  ) {
+    this(id, pickingId, ownerId, skuCode, fromLocationId, toLocationId,
+        null, null, null, orderLineId, demandQuantity, state, createdAt, assignedAt, version);
   }
 
   /**
@@ -121,7 +156,27 @@ public class StockMove {
       Instant createdAt
   ) {
     return new StockMove(id, pickingId, ownerId, skuCode, fromLocationId, toLocationId,
-        orderLineId, demandQuantity, MoveState.CONFIRMED, createdAt, null, null);
+        null, null, null, orderLineId, demandQuantity, MoveState.CONFIRMED, createdAt, null, null);
+  }
+
+  /** 建立會消耗庫存、且由 allocation demand 驅動的 outbound movement。 */
+  public static StockMove confirmedForDemand(
+      UUID id,
+      UUID pickingId,
+      UUID ownerId,
+      String skuCode,
+      UUID fromLocationId,
+      UUID toLocationId,
+      UUID allocationDemandId,
+      UUID allocationDemandLineId,
+      String sourceLineId,
+      UUID orderLineId,
+      int demandQuantity,
+      Instant createdAt
+  ) {
+    return new StockMove(id, pickingId, ownerId, skuCode, fromLocationId, toLocationId,
+        allocationDemandId, allocationDemandLineId, sourceLineId, orderLineId,
+        demandQuantity, MoveState.CONFIRMED, createdAt, null, null);
   }
 
   /**
@@ -220,6 +275,18 @@ public class StockMove {
 
   public UUID getOrderLineId() {
     return orderLineId;
+  }
+
+  public UUID getAllocationDemandId() {
+    return allocationDemandId;
+  }
+
+  public UUID getAllocationDemandLineId() {
+    return allocationDemandLineId;
+  }
+
+  public String getSourceLineId() {
+    return sourceLineId;
   }
 
   public int getDemandQuantity() {

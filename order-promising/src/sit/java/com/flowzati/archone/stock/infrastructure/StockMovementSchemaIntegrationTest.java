@@ -49,6 +49,8 @@ class StockMovementSchemaIntegrationTest {
   private static final UUID ORDER_ID = uuid(6);
   private static final UUID ORDER_LINE_ID = uuid(7);
   private static final UUID STOCK_POOL_ID = uuid(8);
+  private static final UUID ALLOCATION_DEMAND_ID = uuid(12);
+  private static final UUID ALLOCATION_DEMAND_LINE_ID = uuid(13);
   private static final String SKU = "SKU-A";
 
   @Autowired
@@ -86,9 +88,13 @@ class StockMovementSchemaIntegrationTest {
       seed();
       assertThatThrownBy(() -> jdbcTemplate.update(
           "INSERT INTO stock_moves (id, picking_id, owner_id, sku_code, from_location_id, "
-              + "to_location_id, order_line_id, demand_quantity, state, created_at, version) "
-              + "VALUES (?, ?, ?, ?, ?, NULL, ?, 3, 'CONFIRMED', CURRENT_TIMESTAMP, 0)",
-          uuid(20), pickingId(), OWNER_ID, SKU, INTERNAL_LOCATION_ID, ORDER_LINE_ID))
+              + "to_location_id, allocation_demand_id, allocation_demand_line_id, "
+              + "source_line_id, order_line_id, demand_quantity, state, created_at, version) "
+              + "VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 3, 'CONFIRMED', "
+              + "CURRENT_TIMESTAMP, 0)",
+          uuid(20), pickingId(), OWNER_ID, SKU, INTERNAL_LOCATION_ID,
+          ALLOCATION_DEMAND_ID, ALLOCATION_DEMAND_LINE_ID, ORDER_LINE_ID.toString(),
+          ORDER_LINE_ID))
           .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -139,6 +145,23 @@ class StockMovementSchemaIntegrationTest {
       seed();
       assertThatThrownBy(() -> insertMove(
           uuid(34), INTERNAL_LOCATION_ID, CUSTOMER_LOCATION_ID, null, "WAITING"))
+          .isInstanceOf(DataIntegrityViolationException.class);
+    }
+  }
+
+  @Nested
+  @DisplayName("Allocation demand execution reference")
+  class AllocationExecutionReference {
+
+    @Test
+    @DisplayName("一條 allocation demand line 最多只能建立一筆 move")
+    void rejectsDuplicateMoveForOneAllocationDemandLine() {
+      seed();
+      insertMove(
+          uuid(35), INTERNAL_LOCATION_ID, CUSTOMER_LOCATION_ID, ORDER_LINE_ID, "CONFIRMED");
+
+      assertThatThrownBy(() -> insertMove(
+          uuid(36), INTERNAL_LOCATION_ID, CUSTOMER_LOCATION_ID, ORDER_LINE_ID, "CONFIRMED"))
           .isInstanceOf(DataIntegrityViolationException.class);
     }
   }
@@ -344,6 +367,19 @@ class StockMovementSchemaIntegrationTest {
     jdbcTemplate.update(
         "INSERT INTO order_lines (id, order_id, line_no, owner_id, sku_code, quantity) "
             + "VALUES (?, ?, 1, ?, ?, 3)", ORDER_LINE_ID, ORDER_ID, OWNER_ID, SKU);
+    jdbcTemplate.update("""
+        INSERT INTO allocation_demands
+            (id, source_type, source_id, allocation_unit_key, owner_id, facility_id,
+             location_id, required_by, release_priority, enqueued_at,
+             accepted_content_version, status, version)
+        VALUES (?, 'ORDER', ?, 'PRIMARY', ?, ?, ?, ?, 50, CURRENT_TIMESTAMP, 1, 'PENDING', 0)
+        """, ALLOCATION_DEMAND_ID, ORDER_ID.toString(), OWNER_ID, WAREHOUSE_ID,
+        INTERNAL_LOCATION_ID, Timestamp.from(OrderFixtures.DISPATCH_BY));
+    jdbcTemplate.update("""
+        INSERT INTO allocation_demand_lines
+            (id, allocation_demand_id, source_line_id, sku_code, quantity, line_sequence)
+        VALUES (?, ?, ?, ?, 3, 1)
+        """, ALLOCATION_DEMAND_LINE_ID, ALLOCATION_DEMAND_ID, ORDER_LINE_ID.toString(), SKU);
     jdbcTemplate.update(
         "INSERT INTO stock_pools (id, owner_id, location_id, sku_code, in_date, expiry_date, "
             + "on_hand_quantity, reserved_quantity, version) VALUES (?, ?, ?, ?, ?, ?, 10, 0, 0)",
@@ -366,9 +402,13 @@ class StockMovementSchemaIntegrationTest {
   private void insertMove(UUID id, UUID from, UUID to, UUID orderLineId, String state) {
     jdbcTemplate.update(
         "INSERT INTO stock_moves (id, picking_id, owner_id, sku_code, from_location_id, "
-            + "to_location_id, order_line_id, demand_quantity, state, created_at, assigned_at, "
-            + "version) VALUES (?, ?, ?, ?, ?, ?, ?, 3, ?, ?, ?, 0)",
-        id, pickingId(), OWNER_ID, SKU, from, to, orderLineId, state,
+            + "to_location_id, allocation_demand_id, allocation_demand_line_id, source_line_id, "
+            + "order_line_id, demand_quantity, state, created_at, assigned_at, version) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 3, ?, ?, ?, 0)",
+        id, pickingId(), OWNER_ID, SKU, from, to,
+        orderLineId == null ? null : ALLOCATION_DEMAND_ID,
+        orderLineId == null ? null : ALLOCATION_DEMAND_LINE_ID,
+        orderLineId == null ? null : orderLineId.toString(), orderLineId, state,
         Timestamp.from(Instant.now()),
         "CONFIRMED".equals(state) || "CANCELLED".equals(state)
             ? null : Timestamp.from(Instant.now()));

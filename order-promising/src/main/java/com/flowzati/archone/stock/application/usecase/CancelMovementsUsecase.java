@@ -2,38 +2,74 @@ package com.flowzati.archone.stock.application.usecase;
 
 import com.flowzati.archone.stock.application.command.CancelMovementsCommand;
 import com.flowzati.archone.stock.application.movement.MovementCanceller;
+import com.flowzati.archone.stock.domain.model.AllocationCancellationOperation;
+import com.flowzati.archone.stock.domain.model.AllocationCancellationState;
+import com.flowzati.archone.stock.domain.model.AllocationDemand;
+import com.flowzati.archone.stock.domain.model.AllocationDemandStatus;
+import com.flowzati.archone.stock.domain.model.SourceAllocationUnit;
+import com.flowzati.archone.stock.domain.repository.AllocationCancellationOperationRepository;
+import com.flowzati.archone.stock.domain.repository.AllocationDemandRepository;
 import jakarta.transaction.Transactional;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
-/**
- * 取消一張單：把它的搬運取消，鎖住的量還給庫存。
- *
- * <p>訊息冪等由 inbound decorator 負責；本 use case 把工作交給 {@link MovementCanceller}。
- * 取消要碰哪些表、要濾掉什麼、要按什麼順序寫，全是「取消搬運」這個動作的內容。
- *
- * <p>名字取自它做的事，與它委派的 {@code MovementCanceller} 對得起來。曾經叫
- * {@code ReleaseReservation}——那時預留還是一個獨立的東西，而現在它是一段搬運被鎖定的狀態，
- * 「釋放」因此沒有受詞。
- *
- * <p><b>對外事件 {@code OrderCancelledIntegrationEvent} 沒有跟著改</b>：那是 ordering 發的，
- * 說的是訂單被取消，與這一側怎麼稱呼它的處置無關。
- */
+/** Order cancellation adapter over source-agnostic demand cancellation progress. */
 @Service
 public class CancelMovementsUsecase {
 
+  private final AllocationDemandRepository demandRepository;
+  private final AllocationCancellationOperationRepository operationRepository;
   private final MovementCanceller movementCanceller;
+  private final Clock clock;
 
-  public CancelMovementsUsecase(MovementCanceller movementCanceller) {
+  public CancelMovementsUsecase(
+      AllocationDemandRepository demandRepository,
+      AllocationCancellationOperationRepository operationRepository,
+      MovementCanceller movementCanceller,
+      Clock clock) {
+    this.demandRepository = demandRepository;
+    this.operationRepository = operationRepository;
     this.movementCanceller = movementCanceller;
+    this.clock = clock;
   }
 
-  /** Transport-neutral application entrypoint; inbound idempotency belongs to the caller boundary. */
+  /** OrderCancelled v1 is itself the required external execution-cancellation confirmation. */
   @Transactional
   public void execute(CancelMovementsCommand command) {
-    cancel(command);
-  }
+    Optional<AllocationDemand> found = demandRepository.findBySource(
+        SourceAllocationUnit.primaryOrder(command.orderId().toString()));
+    if (found.isEmpty()) {
+      // Rolling-version fallback for a row created by an old binary before demand backfill.
+      movementCanceller.cancelForOrder(command.orderId());
+      return;
+    }
 
-  private void cancel(CancelMovementsCommand command) {
-    movementCanceller.cancelForOrder(command.orderId());
+    AllocationDemand demand = found.get();
+    Instant now = clock.instant();
+    AllocationCancellationOperation operation = operationRepository.find(
+            demand.id(), command.cancellationOperationId())
+        .orElseGet(() -> operationRepository.save(AllocationCancellationOperation.start(
+            demand.id(), command.cancellationOperationId(), now)));
+    if (operation.state() == AllocationCancellationState.COMPLETED
+        || operation.state() == AllocationCancellationState.EXTERNAL_REJECTED) {
+      return;
+    }
+    if (operation.state() == AllocationCancellationState.STARTED) {
+      operation.confirmExternally(now);
+      operation = operationRepository.save(operation);
+    }
+
+    movementCanceller.cancelForDemand(demand.id());
+    if (demand.status() == AllocationDemandStatus.PENDING) {
+      demand.cancelPending();
+      demandRepository.save(demand);
+    } else if (demand.status() == AllocationDemandStatus.ALLOCATED) {
+      demand.cancelAllocatedAfterExecutionStopped();
+      demandRepository.save(demand);
+    }
+    operation.completeLocally(now);
+    operationRepository.save(operation);
   }
 }

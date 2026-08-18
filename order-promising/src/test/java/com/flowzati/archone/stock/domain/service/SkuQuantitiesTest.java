@@ -79,12 +79,12 @@ class SkuQuantitiesTest {
   }
 
   @Test
-  @DisplayName("shortfallAgainst 應列出每一個不足的 SKU 與各差幾件")
+  @DisplayName("missingFrom 應列出每一個不足的 SKU 與各差幾件")
   void namesEverySkuThatFallsShort() {
     SkuQuantities demand = SkuQuantities.of(Map.of("SKU-1", 10, "SKU-2", 5, "SKU-3", 4));
 
     SkuQuantities missing =
-        demand.shortfallAgainst(SkuQuantities.of(Map.of("SKU-1", 100, "SKU-2", 3, "SKU-3", 1)));
+        demand.missingFrom(SkuQuantities.of(Map.of("SKU-1", 100, "SKU-2", 3, "SKU-3", 1)));
 
     assertThat(missing.asMap()).containsExactlyInAnyOrderEntriesOf(
         Map.of("SKU-2", 2, "SKU-3", 3));

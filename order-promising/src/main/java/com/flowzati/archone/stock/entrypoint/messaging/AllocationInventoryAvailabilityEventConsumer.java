@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
+import com.flowzati.archone.stock.application.movement.TransactionalAllocationAttempt;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,10 +18,10 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnIntegrationEventConsumption
 public class AllocationInventoryAvailabilityEventConsumer {
 
-  private final AllocateWaitingDemandUsecase allocateWaitingDemandUsecase;
+  private final TransactionalAllocationAttempt allocationAttempt;
 
-  public AllocationInventoryAvailabilityEventConsumer(AllocateWaitingDemandUsecase allocateWaitingDemandUsecase) {
-    this.allocateWaitingDemandUsecase = allocateWaitingDemandUsecase;
+  public AllocationInventoryAvailabilityEventConsumer(TransactionalAllocationAttempt allocationAttempt) {
+    this.allocationAttempt = allocationAttempt;
   }
 
   @Bean
@@ -32,7 +32,7 @@ public class AllocationInventoryAvailabilityEventConsumer {
     //
     // 這裡只負責「訂閱哪個 destination、收到哪種 integration event 後呼叫哪個 handler」；
     // 不在 messaging adapter 裡實作配貨規則。真正的等待需求配貨由
-    // AllocateWaitingDemandUsecase 負責，scheduler 也會共用同一個 usecase。
+    // TransactionalAllocationAttempt 負責，scheduler 也會共用同一個 transaction operation。
     IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
         // STOCK_EVENTS 是 Inventory／StockPool 發布實際庫存增加事實的 destination。
         .forDestination(InventoryEventTopics.STOCK_EVENTS)
@@ -49,8 +49,8 @@ public class AllocationInventoryAvailabilityEventConsumer {
 
   void onStockAvailabilityIncreased(StockAvailabilityIncreasedIntegrationEvent event) {
     // Availability event 是低延遲觸發來源；定期 reconciliation scheduler 也會呼叫同一個
-    // AllocateWaitingDemandUsecase，兩者因此共用 FIFO、FEFO 與 ship-complete 規則。
-    allocateWaitingDemandUsecase.execute(new AllocateWaitingDemandCommand(
+    // TransactionalAllocationAttempt，兩者因此共用 FIFO、FEFO 與 ship-complete 規則。
+    allocationAttempt.attempt(new AllocateWaitingDemandCommand(
         event.getOwnerId(), event.getFacilityId(), event.getLocationId(), event.getSku()));
   }
 }

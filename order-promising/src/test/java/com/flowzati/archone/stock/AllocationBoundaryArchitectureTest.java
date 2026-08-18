@@ -15,8 +15,9 @@ import org.junit.jupiter.api.Test;
 /**
  * allocation 與 ordering 之間的邊界。
  *
- * <p>配貨取得需求的唯一來源是 {@code demand_lines} view，記錄結果的唯一方式是寫自己的表並
- * 發事件。這支測試把那條邊界變成建置失敗，而不是一條寫在文件裡、下一次重構就被穿過去的約定。
+ * <p>配貨決策取得需求的唯一來源是 allocation-owned {@code allocation_demands} projection；
+ * order source adapter 只讀 published adapter view。記錄結果的唯一方式是寫 allocation 的表並
+ * 發事件。這支測試把那條邊界變成建置失敗，而不是只留在文件裡的約定。
  *
  * <p><b>為什麼不只檢查 import。</b>不 import 型別但在 SQL 字串裡寫表名，一樣是跨過邊界，
  * 而且更難發現——它不會出現在任何依賴圖上。
@@ -38,8 +39,7 @@ class AllocationBoundaryArchitectureTest {
   /**
    * ordering 擁有的表名。
    *
-   * <p>{@code demand_lines} 不在此列：那是 ordering 發布給 allocation 的介面，查它正是這個
-   * 設計要的。
+   * <p>order adapter view 的 SQL 定義留在 migration；Java allocation code 不直接命名來源表。
    */
   private static final Pattern ORDERING_TABLE_NAME =
       Pattern.compile("\\b(orders|order_lines)\\b");
@@ -63,13 +63,45 @@ class AllocationBoundaryArchitectureTest {
   /** allocation 擁有的表名，ordering 不該碰。 */
   private static final Pattern ALLOCATION_TABLE_NAME = Pattern.compile(
       "\\b(stock_pools|stock_locations|stock_pickings|stock_picking_types"
-          + "|stock_moves|stock_move_lines)\\b");
+          + "|stock_moves|stock_move_lines|allocation_demands|allocation_demand_lines"
+          + "|allocation_cancellation_operations)\\b");
+
+  private static final List<Path> ALLOCATION_DECISION_CORE = List.of(
+      STOCK_ROOT.resolve("domain/model/AllocationDemand.java"),
+      STOCK_ROOT.resolve("domain/model/AllocationDemandLine.java"),
+      STOCK_ROOT.resolve("domain/model/AllocationCandidateBatch.java"),
+      STOCK_ROOT.resolve("domain/service/AllocationFifoSelector.java"),
+      STOCK_ROOT.resolve("domain/service/AllocationDemandPlanner.java"),
+      STOCK_ROOT.resolve("domain/service/FefoBatchQueue.java"),
+      STOCK_ROOT.resolve("domain/service/AllocationDemandPlan.java"),
+      STOCK_ROOT.resolve("domain/service/AllocationBatchPick.java"));
 
   @Test
-  @DisplayName("allocation 不得認識 ordering 的訂單聚合根——它看到的需求來自 demand_lines")
+  @DisplayName("allocation 不得認識 ordering 的訂單聚合根——決策只讀 persisted demand")
   void allocationDoesNotImportTheOrderAggregate() {
     List<String> violations = sourcesUnder(STOCK_ROOT)
         .filter(source -> ORDER_AGGREGATE_IMPORT.matcher(readSource(source)).find())
+        .map(Path::toString)
+        .toList();
+
+    assertThat(violations).isEmpty();
+  }
+
+  @Test
+  @DisplayName("allocation decision core 只使用 allocation-owned identity，不含 source aggregate 欄位")
+  void allocationDecisionCoreUsesOnlyAllocationOwnedIdentity() {
+    Pattern sourceSpecificIdentity = Pattern.compile(
+        "\\b(orderId|orderLineId|transferId|replenishmentId|productionOrderId)\\b");
+    Pattern sourceAggregateImport = Pattern.compile(
+        "import\\s+com\\.flowzati\\.archone\\.(ordering|transfer|replenishment|production)\\.");
+
+    List<String> violations = ALLOCATION_DECISION_CORE.stream()
+        .filter(path -> {
+          String source = stripComments(readSource(path));
+          return sourceSpecificIdentity.matcher(source).find()
+              || sourceAggregateImport.matcher(source).find()
+              || source.contains("Repository");
+        })
         .map(Path::toString)
         .toList();
 
@@ -157,7 +189,7 @@ class AllocationBoundaryArchitectureTest {
         APPLICATION_ROOT.resolve("command/AllocateWaitingDemandCommand.java"),
         APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
         APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
-        APPLICATION_ROOT.resolve("usecase/AllocateWaitingDemandUsecase.java"))
+        APPLICATION_ROOT.resolve("movement/TransactionalAllocationAttempt.java"))
         .toList();
 
     List<String> violations = boundaries.stream()
@@ -178,7 +210,7 @@ class AllocationBoundaryArchitectureTest {
   void inboundApplicationUsecasesDoNotOwnMessagingIdempotency() {
     List<Path> consumerUsecases = List.of(
         APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
-        APPLICATION_ROOT.resolve("usecase/AllocateWaitingDemandUsecase.java"),
+        APPLICATION_ROOT.resolve("movement/TransactionalAllocationAttempt.java"),
         APPLICATION_ROOT.resolve("usecase/CancelMovementsUsecase.java"),
         APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
         ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderAllocationUsecase.java"));

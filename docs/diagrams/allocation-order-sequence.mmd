@@ -1,0 +1,66 @@
+sequenceDiagram
+    autonumber
+    actor Event as OrderPlaced event
+    participant UC as AllocateOrderUsecase
+    participant Adapter as OrderDemandAdapter
+    participant Acceptor as AllocationDemandAcceptor
+    participant DemandRepo as DemandRepository
+    participant Attempt as AllocationAttemptCoordinator
+    participant Fifo as AllocationFifoSelector
+    participant Planner as AllocationDemandPlanner
+    participant StockRepo as StockPoolRepository
+    participant Committer as AllocationCommitter
+    participant Completion as CompletionRouter / Outbox
+
+    Event->>UC: execute(AllocateOrderCommand)
+    Note over UC,Completion: 初次訂單路徑：AllocateOrderUsecase 擁有整段本地 transaction
+
+    rect rgb(239, 246, 255)
+        Note over UC,DemandRepo: 階段 1｜接受需求，尚未 reserve 庫存
+        UC->>Adapter: find(orderId)
+        Adapter-->>UC: AcceptAllocationDemandCommand
+        Note right of Adapter: Optional.empty 時 UC 直接 return
+
+        UC->>Acceptor: accept(command)
+        Acceptor->>DemandRepo: findBySource(ORDER / orderId / PRIMARY)
+        alt 首次接受
+            Acceptor->>DemandRepo: save(PENDING demand + canonical lines)
+            Note over Acceptor,DemandRepo: 同一 transaction 建立<br/>CONFIRMED moves 與 optional picking
+            Acceptor-->>UC: new demand
+        else immutable content 相同
+            Acceptor-->>UC: existing demand（冪等 replay）
+        end
+        Note right of Acceptor: immutable content 不同時拋 SourceDemandConflict
+    end
+
+    rect rgb(240, 253, 244)
+        Note over UC,Committer: 階段 2｜FIFO eligibility + demand / supply planning
+        UC->>Attempt: allocateOne(scope, triggeringSku, limit, today, now)
+        Attempt->>DemandRepo: findPendingCandidates + shared-SKU predecessors
+        DemandRepo-->>Attempt: AllocationCandidateBatch
+        Attempt->>Fifo: selectFirstEligible(batch)
+
+        alt FIFO 尚未輪到
+            Fifo-->>Attempt: empty
+            Attempt-->>UC: empty，demand 維持 PENDING
+        else 選到 queue head demand
+            Fifo-->>Attempt: eligible demand
+            Attempt->>StockRepo: findAllocatableBatchesBySku(all required SKUs)
+            StockRepo-->>Attempt: FEFO AllocatableBatches
+            Attempt->>Planner: aggregate preflight → FEFO batch queues
+
+            alt 任一 SKU 不足
+                Planner-->>Attempt: missingQuantities，picks 為空
+                Attempt-->>UC: empty，demand 維持 PENDING
+            else all-or-nothing plan 可行
+                Planner-->>Attempt: immutable AllocationDemandPlan
+                Attempt->>Committer: commit(plan, now)
+                Note over Committer: demand → globally ordered stock pools → moves / picking<br/>reserve → ASSIGNED → ALLOCATED
+                Committer-->>Attempt: AllocationCommitted
+                Note over Attempt,Completion: 階段 3｜來源事件轉譯與 Outbox
+                Attempt->>Completion: publish(generic AllocationCommitted)
+                Completion->>Completion: ORDER adapter → existing v1 events
+                Completion-->>UC: allocated demand；events 已寫入 Outbox
+            end
+        end
+    end

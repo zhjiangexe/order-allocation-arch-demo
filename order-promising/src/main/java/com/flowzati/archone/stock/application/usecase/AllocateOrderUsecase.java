@@ -1,77 +1,82 @@
 package com.flowzati.archone.stock.application.usecase;
 
-import com.flowzati.archone.promising.domain.DomainEvent;
+import com.flowzati.archone.promising.time.AppClock;
+import com.flowzati.archone.stock.application.command.AcceptAllocationDemandCommand;
 import com.flowzati.archone.stock.application.command.AllocateOrderCommand;
-import com.flowzati.archone.stock.application.event.AllocationDomainEventPublisher;
-import com.flowzati.archone.stock.application.movement.MovementAssigner;
-import com.flowzati.archone.stock.application.movement.StockOperationRecorder;
-import com.flowzati.archone.stock.domain.event.OrderAllocationCompleted;
-import com.flowzati.archone.stock.domain.model.StockMove;
-import com.flowzati.archone.stock.domain.service.AllocationOutcome;
-import com.flowzati.archone.stock.domain.model.Demand;
-import com.flowzati.archone.stock.domain.repository.DemandRepository;
+import com.flowzati.archone.stock.application.demand.AllocationDemandAcceptor;
+import com.flowzati.archone.stock.application.movement.AllocationAttemptCoordinator;
+import com.flowzati.archone.stock.application.source.order.OrderAllocationDemandAdapter;
+import com.flowzati.archone.stock.domain.model.AllocationDemand;
+import com.flowzati.archone.stock.domain.model.AllocationDemandLine;
+import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
 import jakarta.transaction.Transactional;
+import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-
+/**
+ * 訂單首次配貨的 application 入口。
+ *
+ * <p>這裡只負責編排，不實作供需演算法。流程依序為：
+ *
+ * <ol>
+ *   <li>用 order adapter 把訂單 read model 轉成共用 demand command；
+ *   <li>冪等接受 {@code ORDER/orderId/PRIMARY} demand，建立 outbound execution；
+ *   <li>以第一條 canonical line 的 SKU 喚醒共用 allocator；
+ *   <li>allocator 仍會檢查 demand 的全部 SKU，不是只配 triggering SKU；
+ *   <li>若庫存不足或 FIFO 尚未輪到，保留 PENDING 等後續 availability/reconciliation。</li>
+ * </ol>
+ */
 @Service
 public class AllocateOrderUsecase {
-  private final DemandRepository demandRepository;
-  private final StockOperationRecorder stockOperationRecorder;
-  private final MovementAssigner movementAssigner;
-  private final AllocationDomainEventPublisher eventPublisher;
-  private final Clock clock;
+
+  private final OrderAllocationDemandAdapter orderAdapter;
+  private final AllocationDemandAcceptor demandAcceptor;
+  private final AllocationAttemptCoordinator allocationAttempt;
+  private final AppClock appClock;
+  private final int candidateLimit;
 
   public AllocateOrderUsecase(
-      DemandRepository demandRepository,
-      StockOperationRecorder stockOperationRecorder,
-      MovementAssigner movementAssigner,
-      AllocationDomainEventPublisher eventPublisher,
-      Clock clock) {
-    this.demandRepository = demandRepository;
-    this.stockOperationRecorder = stockOperationRecorder;
-    this.movementAssigner = movementAssigner;
-    this.eventPublisher = eventPublisher;
-    this.clock = clock;
+      OrderAllocationDemandAdapter orderAdapter,
+      AllocationDemandAcceptor demandAcceptor,
+      AllocationAttemptCoordinator allocationAttempt,
+      AppClock appClock,
+      @Value("${archone.allocation.waiting-demand-batch-limit:200}") int candidateLimit) {
+    if (candidateLimit <= 0) {
+      throw new IllegalArgumentException("Initial allocation candidate limit must be positive");
+    }
+    this.orderAdapter = orderAdapter;
+    this.demandAcceptor = demandAcceptor;
+    this.allocationAttempt = allocationAttempt;
+    this.appClock = appClock;
+    this.candidateLimit = candidateLimit;
   }
 
-  /** Transport-neutral application entrypoint; inbound idempotency belongs to the caller boundary. */
+  /**
+   * Inbox claim、demand acceptance、execution rows，以及可能成功的首次 allocation 共用此 transaction。
+   */
   @Transactional
   public void execute(AllocateOrderCommand command) {
-    allocate(command);
-  }
-
-  private void allocate(AllocateOrderCommand command) {
-
-    // 查的是**還沒被執行層接手的行**。已經建了搬運的行不會出現在 demand_lines 裡，所以
-    // 「這張單還需不需要接手」由 view 回答——不看訂單狀態，那是落後視圖，拿它當閘門會讓
-    // 同一筆需求被建兩次搬運。
-    //
-    // 查無需求是正常結果而非錯誤：這則命令重送、或訂單已被取消，都會走到這裡。
-    Optional<Demand> demandOpt = demandRepository.findByOrderId(command.orderId());
-    if (demandOpt.isEmpty()) {
+    // 來源轉接只讀 order 發布給 allocation 的 read model，不把 Order aggregate 傳入 allocation core。
+    Optional<AcceptAllocationDemandCommand> source = orderAdapter.find(command.orderId());
+    if (source.isEmpty()) {
+      // 已取消或不存在的來源不會出現在 adapter view；這種情況不建立 demand，也不是錯誤。
       return;
     }
-    Demand demand = demandOpt.get();
-    Instant now = clock.instant();
 
-    // **先建搬運，再配貨。** 即使一件貨都沒有也要建——那讓「還在等貨」成為一列真實資料而
-    // 不是一個查詢的副產物，而一張永遠配不到的單因此留得下痕跡（含它等了多久）。
-    //
-    // 建好的搬運直接交給下一步：鎖定要做的是把它們轉狀態，不必回頭再讀一次。
-    List<StockMove> moves = stockOperationRecorder.recordOutbound(demand, now);
+    // Acceptance 只建立/重播 immutable demand 與 outbound execution，還沒有 reserve 庫存。
+    AllocationDemand accepted = demandAcceptor.accept(source.get()).demand();
 
-    AllocationOutcome outcome = movementAssigner.assign(demand, moves, now);
-    if (outcome == AllocationOutcome.ALLOCATED) {
-      eventPublisher.publish(OrderAllocationCompleted.from(demand, moves, now));
-    }
-
-    // FIFO 被較早需求擋住或 ATP 不足，都留在同一個 waiting queue；Order 維持 PENDING，
-    // 由 availability event 或 reconciliation scheduler 之後再試。
-    // 未完成的 StockMove 會留在 waiting queue，availability event 或 scheduler 之後再重算。
+    // triggering SKU 只用來縮小 wake-up 查詢；真正的 FIFO 與庫存檢查仍涵蓋 demand 的所有 SKU。
+    String triggeringSku = accepted.lines().stream()
+        .min(java.util.Comparator.comparingInt(AllocationDemandLine::lineSequence))
+        .orElseThrow()
+        .skuCode();
+    allocationAttempt.allocateOne(
+        new WaitingAllocationScope(accepted.ownerId(), accepted.facilityId(), accepted.locationId(), triggeringSku),
+        triggeringSku,
+        candidateLimit,
+        appClock.today(),
+        appClock.instant());
   }
 }

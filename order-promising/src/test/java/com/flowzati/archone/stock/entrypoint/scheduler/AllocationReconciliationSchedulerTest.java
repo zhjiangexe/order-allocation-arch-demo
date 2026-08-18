@@ -10,10 +10,10 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.promising.time.AppClock;
 import com.flowzati.archone.stock.application.command.AllocateWaitingDemandCommand;
-import com.flowzati.archone.stock.application.usecase.AllocateWaitingDemandUsecase;
+import com.flowzati.archone.stock.application.movement.TransactionalAllocationAttempt;
 import com.flowzati.archone.stock.application.usecase.ReconcileWaitingDemandUsecase;
 import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
-import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
+import com.flowzati.archone.stock.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Clock;
 import java.time.Instant;
@@ -49,16 +49,16 @@ class AllocationReconciliationSchedulerTest {
   @Test
   @DisplayName("依等待 scope 呼叫同一個 transactional wake use case")
   void shouldReconcileWaitingScopesThroughTheSharedUsecase() {
-    StockMoveRepository moves = mock(StockMoveRepository.class);
-    AllocateWaitingDemandUsecase usecase = mock(AllocateWaitingDemandUsecase.class);
+    AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+    TransactionalAllocationAttempt allocationAttempt = mock(TransactionalAllocationAttempt.class);
     WaitingAllocationScope scope = new WaitingAllocationScope(
         OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, "SKU-1");
-    when(moves.findAllocatableWaitingScopes(TODAY, 25)).thenReturn(List.of(scope));
+    when(demands.findAllocatablePendingScopes(TODAY, 25)).thenReturn(List.of(scope));
 
-    new AllocationReconciliationScheduler(reconcileUsecase(moves, usecase))
+    new AllocationReconciliationScheduler(reconcileUsecase(demands, allocationAttempt))
         .reconcileAllocatableWaitingDemand();
 
-    verify(usecase).execute(new AllocateWaitingDemandCommand(
+    verify(allocationAttempt).attempt(new AllocateWaitingDemandCommand(
         OrderFixtures.OWNER_ID,
         OrderFixtures.FACILITY_ID,
         OrderFixtures.LOCATION_ID,
@@ -68,21 +68,21 @@ class AllocationReconciliationSchedulerTest {
   @Test
   @DisplayName("沒有等待 scope 時不呼叫配貨")
   void shouldDoNothingWithoutWaitingScopes() {
-    StockMoveRepository moves = mock(StockMoveRepository.class);
-    AllocateWaitingDemandUsecase usecase = mock(AllocateWaitingDemandUsecase.class);
-    when(moves.findAllocatableWaitingScopes(TODAY, 25)).thenReturn(List.of());
+    AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+    TransactionalAllocationAttempt allocationAttempt = mock(TransactionalAllocationAttempt.class);
+    when(demands.findAllocatablePendingScopes(TODAY, 25)).thenReturn(List.of());
 
-    new AllocationReconciliationScheduler(reconcileUsecase(moves, usecase))
+    new AllocationReconciliationScheduler(reconcileUsecase(demands, allocationAttempt))
         .reconcileAllocatableWaitingDemand();
 
-    verifyNoInteractions(usecase);
+    verifyNoInteractions(allocationAttempt);
   }
 
   @Test
   @DisplayName("樂觀鎖衝突不在同一輪重試，並繼續處理其他 scope")
   void shouldDeferConflictedScopeUntilTheNextRun() {
-    StockMoveRepository moves = mock(StockMoveRepository.class);
-    AllocateWaitingDemandUsecase usecase = mock(AllocateWaitingDemandUsecase.class);
+    AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+    TransactionalAllocationAttempt allocationAttempt = mock(TransactionalAllocationAttempt.class);
     WaitingAllocationScope conflicted = new WaitingAllocationScope(
         OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, "SKU-1");
     WaitingAllocationScope following = new WaitingAllocationScope(
@@ -97,16 +97,16 @@ class AllocationReconciliationSchedulerTest {
         OrderFixtures.FACILITY_ID,
         OrderFixtures.LOCATION_ID,
         "SKU-2");
-    when(moves.findAllocatableWaitingScopes(TODAY, 25))
+    when(demands.findAllocatablePendingScopes(TODAY, 25))
         .thenReturn(List.of(conflicted, following));
     doThrow(new OptimisticLockingFailureException("conflict"))
-        .when(usecase).execute(conflictedCommand);
+        .when(allocationAttempt).attempt(conflictedCommand);
 
-    new AllocationReconciliationScheduler(reconcileUsecase(moves, usecase))
+    new AllocationReconciliationScheduler(reconcileUsecase(demands, allocationAttempt))
         .reconcileAllocatableWaitingDemand();
 
-    verify(usecase, times(1)).execute(conflictedCommand);
-    verify(usecase).execute(followingCommand);
+    verify(allocationAttempt, times(1)).attempt(conflictedCommand);
+    verify(allocationAttempt).attempt(followingCommand);
   }
 
   private AppClock appClock() {
@@ -116,9 +116,9 @@ class AllocationReconciliationSchedulerTest {
   }
 
   private ReconcileWaitingDemandUsecase reconcileUsecase(
-      StockMoveRepository moves,
-      AllocateWaitingDemandUsecase usecase
+      AllocationDemandRepository demands,
+      TransactionalAllocationAttempt allocationAttempt
   ) {
-    return new ReconcileWaitingDemandUsecase(moves, usecase, appClock(), 25);
+    return new ReconcileWaitingDemandUsecase(demands, allocationAttempt, appClock(), 25);
   }
 }
