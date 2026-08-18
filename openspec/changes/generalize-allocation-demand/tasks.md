@@ -14,6 +14,7 @@
 - [ ] 2.5 Implement source type and source reference value objects with validation.
 - [ ] 2.6 Implement persistence entities, mappers, repositories, and optimistic-locking support.
 - [ ] 2.7 Add unit and persistence tests for creation, idempotent retry, invalid quantities, invalid transitions, and cancellation.
+- [ ] 2.8 Add model/architecture tests proving `AllocationDemand` contains only common allocation data and does not depend on source-specific aggregate status or fulfillment transitions.
 
 ## 3. Create source adapters and execution links
 

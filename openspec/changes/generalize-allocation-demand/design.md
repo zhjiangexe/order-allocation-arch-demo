@@ -51,6 +51,8 @@
 
 替代方案是繼續以 `StockMove` 作為通用需求來源。這會少一張表，但仍把「是否需要庫存」與「如何執行搬運」綁在一起，且無法可靠支援沒有 order 的來源，因此不採用。
 
+`AllocationDemand` 只保存所有來源共通的 allocation 資料。order status、transfer status、production status、來源特有的取消規則與完成後動作不得放進 demand aggregate；這些責任由 `OrderAllocationAdapter`、`TransferAllocationAdapter` 或其他 source adapter 處理。source type/source id 是尋址資訊，不是把來源 context 的整個模型搬進 allocation。
+
 ### 2. Demand 只擁有 allocation lifecycle
 
 allocation status 定義為：
@@ -123,6 +125,8 @@ allocation context 發布通用 `AllocationCompleted` fact，攜帶：
 - allocation time
 
 order consumer 只處理 `sourceType = ORDER` 的 fact，transfer、replenishment、production 各自處理自己的 source。這避免 allocation core 內出現 order-specific event policy。
+
+來源 adapter 也負責來源特有的建立、取消、版本檢查與完成後動作；`AllocationDemand` 只驗證共通的 source identity、scope、數量與 allocation transition。如此可讓多個來源共用 allocation engine，而不讓 allocation demand 變成包含所有業務流程的萬用 aggregate。
 
 ### 8. 採分階段 migration，不一次刪除既有 order path
 

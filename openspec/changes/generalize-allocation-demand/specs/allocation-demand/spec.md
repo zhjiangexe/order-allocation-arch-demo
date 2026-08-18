@@ -21,6 +21,22 @@ Inbound receipts and operations whose purpose is only to add or move supply with
 - **WHEN** goods are received into a stock location
 - **THEN** the receipt creates or completes an inbound movement and increases supply without creating a pending allocation demand
 
+### Requirement: Source-specific behavior remains outside allocation demand
+
+`AllocationDemand` SHALL contain only data and transitions common to stock allocation: source identity, allocation scope, demand lines, allocation status, and allocation version. Source-specific statuses, cancellation policy, fulfillment lifecycle, and post-allocation actions SHALL remain in the source adapter or source context.
+
+The allocation context SHALL use `sourceType` and `sourceId` to address a source, but SHALL NOT load or embed the source aggregate as part of the allocation-demand model.
+
+#### Scenario: An order-specific status is not stored on allocation demand
+
+- **WHEN** an order-backed demand is created
+- **THEN** the demand stores the order source reference and allocation state without storing order fulfillment status
+
+#### Scenario: A source adapter handles its own completion
+
+- **WHEN** a transfer-backed allocation completion fact is published
+- **THEN** the transfer adapter handles the transfer-specific transition and the allocation demand remains responsible only for allocation state
+
 ### Requirement: Allocation demand creation is idempotent per source
 
 The allocation context SHALL enforce uniqueness for a source identity. Reprocessing the same `(sourceType, sourceId)` SHALL return or update the existing allocation demand and SHALL NOT create a second demand that competes for the same stock.

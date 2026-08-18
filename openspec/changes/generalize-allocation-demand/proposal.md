@@ -5,6 +5,7 @@
 ## What Changes
 
 - 新增通用的 `AllocationDemand`，代表任何需要競爭可用庫存的需求，並以來源類型與來源識別碼連結 order、transfer、replenishment、production 或 manual request。
+- 將 `AllocationDemand` 維持為薄的共通 allocation 模型；來源特有的建立、取消、完成與後續狀態轉換由各來源 adapter 處理，不把 order、transfer 或 production 的欄位與流程集中到 allocation demand。
 - **BREAKING** 將等待配貨的主要判斷從 order-specific `Demand` / `orderId` 與 `StockMove` 推導，改為持久化的 allocation demand 狀態；`PENDING` demand 才是配貨佇列的主要來源。
 - 讓入庫與其他只增加 supply 的 movement 不建立 `AllocationDemand`；入庫完成後增加 `StockPool`，再觸發等待需求重新配貨。
 - 以複合查詢找出可處理的候選需求：`AllocationDemand` 仍為 `PENDING`、存在尚未 `ASSIGNED` 的出庫 `StockMove`、相關 `StockPicking` 可執行，且 scope 有可用庫存。
