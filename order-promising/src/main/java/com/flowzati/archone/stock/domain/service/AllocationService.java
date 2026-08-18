@@ -92,7 +92,7 @@ public class AllocationService {
       return AllocationResult.notAllocated(outcomeFor(demand, batches), plan.shortfall());
     }
 
-    applyPicks(plan.picks());
+    plan.picks().forEach(pick -> pick.batch().reserve(pick.quantity()));
     return AllocationResult.allocated(plan.picks());
   }
 
@@ -165,13 +165,6 @@ public class AllocationService {
     return shortfall.isEmpty()
         ? AllocationPlan.feasible(picks)
         : AllocationPlan.shortOf(SkuQuantities.of(shortfall));
-  }
-
-  /**
-   * 只動庫存。**訂單的狀態不在這裡改**——配貨結果經事件送回 ordering，由它自己推進。
-   */
-  private void applyPicks(List<BatchPick> picks) {
-    picks.forEach(pick -> pick.batch().reserve(pick.quantity()));
   }
 
 }
