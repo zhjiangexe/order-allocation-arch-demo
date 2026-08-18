@@ -133,8 +133,11 @@ public class AllocationService {
    * 不足的 SKU——問「這張單在等什麼」的人需要全部，而短路會讓答案取決於檢查順序。
    */
   private AllocationPlan planPicks(Demand demand, AllocatableBatches batches) {
+    // picks 只是試算結果；整張單可行以前，不會呼叫 reserve() 改動庫存。
     List<BatchPick> picks = new ArrayList<>();
+    // 同一個批可能被多條需求行命中，先扣掉本輪已規劃量，避免重複承諾。
     Map<UUID, Integer> planned = new HashMap<>();
+    // 同一 SKU 可能出現在多條需求行，缺口必須累加成訂單層級的數量。
     Map<String, Integer> shortfall = new LinkedHashMap<>();
 
     for (DemandLine line : demand.lines()) {
@@ -147,6 +150,7 @@ public class AllocationService {
         if (available <= 0) {
           continue;
         }
+        // 依批次既有順序攤量：批可供量與本行剩餘量取較小者。
         int quantity = Math.min(available, remaining);
         picks.add(new BatchPick(line.orderLineId(), batch, quantity));
         planned.merge(batch.getId(), quantity, Integer::sum);
@@ -157,6 +161,7 @@ public class AllocationService {
       }
     }
 
+    // ship-complete：只要有缺口就捨棄半套 picks，回傳整張單的完整缺口。
     return shortfall.isEmpty()
         ? AllocationPlan.feasible(picks)
         : AllocationPlan.shortOf(SkuQuantities.of(shortfall));
