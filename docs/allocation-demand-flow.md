@@ -50,22 +50,22 @@ demand」。因此 scope 需要放回隊尾，之後重新查詢是否還有 suc
 | --- | --- | --- | --- | --- |
 | 0. 進入 | `AllocateOrderUsecase` | 收到 `orderId` | 不直接寫 domain data | 開始同一個本地 transaction |
 | 1. 轉接來源 | `OrderAllocationDemandAdapter` | 讀 order 提供給 allocation 的 read model | 不寫資料 | 找不到或已取消：整個 use case 直接結束；否則產生共用 command |
-| 2. 接受需求 | `AllocationDemandAcceptor` | 依 `ORDER / orderId / PRIMARY` 查 demand、moves、picking | 首次建立 `PENDING` demand、canonical lines、`CONFIRMED` moves／picking；冪等重播不重建 | 新建成功、回傳既有 demand，或 immutable content 衝突而失敗 |
+| 2. 接受需求 | `AllocationDemandRegistrar` | 依 `ORDER / orderId / PRIMARY` 查 demand、moves、picking | 首次建立 `PENDING` demand、canonical lines、`CONFIRMED` moves／picking；冪等重播不重建 | 新建成功、回傳既有 demand，或 immutable content 衝突而失敗 |
 | 3. 準備喚醒 | `AllocateOrderUsecase` | 從已接受 demand 的 canonical 第一條 line 取 SKU | 不寫資料 | 得到 `triggeringSku`；它只縮小查詢，不代表只配這個 SKU |
-| 4. 選 demand 與規劃 | `AllocationAttemptCoordinator`、repositories、`AllocationFifoSelector`、`AllocationDemandPlanner` | 讀 `PENDING` candidates、所有 required SKU 的 FIFO predecessors、所有 required SKU 的 FEFO stock batches | Selector 與 Planner 都是純演算法，不寫資料庫 | FIFO 未輪到或任一 SKU 不足：維持 `PENDING`；全部可行：得到 immutable plan |
+| 4. 選 demand 與規劃 | `PendingDemandAllocator`、repositories、`AllocationFifoSelector`、`AllocationDemandPlanner` | 讀 `PENDING` candidates、所有 required SKU 的 FIFO predecessors、所有 required SKU 的 FEFO stock batches | Selector 與 Planner 都是純演算法，不寫資料庫 | FIFO 未輪到或任一 SKU 不足：維持 `PENDING`；全部可行：得到 immutable plan |
 | 5. Commit 配置 | `AllocationCommitter` | 重新驗證 demand、moves、picking、stock pools 與 plan | reserve stock；moves／picking 變 `ASSIGNED`；demand 變 `ALLOCATED` | 成功產生 `AllocationCommitted`；任何 invariant／lock failure 使整個 transaction rollback |
 | 6. 完成事件 | `AllocationCompletionRouter` | 接收 generic `AllocationCommitted` | ORDER adapter 轉成既有 v1 events，寫入 transactional Outbox | transaction commit 後，由既有訊息管線發布 |
 
 ## 最容易混淆的狀態時間線
 
-| 時點 | Demand | Moves / Picking | StockPool reservation | Outbox completion |
+| 時點 | Demand | Moves / Picking | StockQuant reservation | Outbox completion |
 | --- | --- | --- | --- | --- |
 | acceptance 前 | 不存在 | 不存在 | 無 | 無 |
 | acceptance 完成後 | `PENDING` | `CONFIRMED` | **尚未 reserve** | 無 |
 | FIFO blocked／缺貨後 | `PENDING` | `CONFIRMED` | **尚未 reserve** | 無 |
 | allocation commit 後 | `ALLOCATED` | `ASSIGNED` | **已 reserve** | 已寫入 |
 
-所以 `demandAcceptor.accept(...)` 的「accepted」是**系統已接受並保存需求**，不是「庫存已配置」。
+所以 `demandRegistrar.register(...)` 的 registration 是**系統已登記並保存需求**，不是「庫存已配置」。
 FIFO 排隊資格由 `AllocationFifoSelector` 決定；真正的 demand／supply 演算在
 `AllocationDemandPlanner`；真正扣住庫存則在 `AllocationCommitter`。
 
@@ -97,11 +97,11 @@ FIFO 排隊資格由 `AllocationFifoSelector` 決定；真正的 demand／supply
 
 ## 建議的程式閱讀順序
 
-1. [`AllocateOrderUsecase`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/application/usecase/AllocateOrderUsecase.java)：看首次訂單入口與 transaction。
-2. [`AllocationDemandAcceptor`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/application/demand/AllocationDemandAcceptor.java)：看 acceptance 建立了什麼。
-3. [`AllocationAttemptCoordinator`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/application/AllocationAttemptCoordinator.java)：看決策需要哪些 repository 資料。
-4. [`AllocationFifoSelector`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/domain/service/AllocationFifoSelector.java)：只看 shared-SKU FIFO eligibility。
-5. [`AllocationDemandPlanner`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/domain/service/AllocationDemandPlanner.java)：只看 all-or-nothing 與 FEFO demand／supply planning；ready plan 建立時就會驗證每條 demand line 的 picks 總量。
-6. [`AllocationCommitter`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/application/AllocationCommitter.java)：依「load data → validate cross-model scope → reserve → assign moves → assign pickings → complete demand → fact」閱讀。`AllocationCommitData` 只保存資料；`AllocationCommitValidator` 只保留無法由 plan、DB constraint 或單一 aggregate 保證的跨模型檢查，兩者都不是另外的 use case。
-7. [`AllocationCompletionRouter`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/application/event/AllocationCompletionRouter.java)：看 generic result 如何轉回 ORDER events。
-8. [`ReconcileWaitingDemandUsecase`](../order-promising/src/main/java/com/flowzati/archone/stock/allocation/application/usecase/ReconcileWaitingDemandUsecase.java)：最後再看背景補配；它從階段 2 開始，不重做 acceptance。
+1. [`AllocateOrderUsecase`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/AllocateOrderUsecase.java)：看首次訂單入口與 transaction。
+2. [`AllocationDemandRegistrar`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/demand/AllocationDemandRegistrar.java)：看 acceptance 建立了什麼。
+3. [`PendingDemandAllocator`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/PendingDemandAllocator.java)：看決策需要哪些 repository 資料。
+4. [`AllocationFifoSelector`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationFifoSelector.java)：只看 shared-SKU FIFO eligibility。
+5. [`AllocationDemandPlanner`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationDemandPlanner.java)：只看 all-or-nothing 與 FEFO demand／supply planning；ready plan 建立時就會驗證每條 demand line 的 picks 總量。
+6. [`AllocationCommitter`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/AllocationCommitter.java)：依「load data → validate cross-model scope → reserve → assign moves → assign pickings → complete demand → fact」閱讀。`AllocationCommitData` 只保存資料；`AllocationCommitValidator` 只保留無法由 plan、DB constraint 或單一 aggregate 保證的跨模型檢查，兩者都不是另外的 use case。
+7. [`AllocationCompletionRouter`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/event/AllocationCompletionRouter.java)：看 generic result 如何轉回 ORDER events。
+8. [`ReconcileWaitingDemandUsecase`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/ReconcileWaitingDemandUsecase.java)：最後再看背景補配；它從階段 2 開始，不重做 acceptance。

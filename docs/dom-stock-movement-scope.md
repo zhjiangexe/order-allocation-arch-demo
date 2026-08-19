@@ -1,13 +1,29 @@
 # 庫存異動模型：需求與執行分成兩層
 
 > **現行邊界說明（2026-08-04）：** 本文件主要保留搬運模型形成時的設計脈絡。後續
-> `refine-allocation-workflow-boundaries` 最終確認本系統的 `StockPool` 是實體庫存 source of truth。
-> 本地一段式收貨會建立並完成 inbound picking/move/move line，再由 move line 增加 `StockPool`；
+> `refine-allocation-workflow-boundaries` 最終確認本系統的 `StockQuant` 是實體庫存 source of truth。
+> 本地一段式收貨會建立並完成 inbound picking/move/move line，再由 move line 增加 `StockQuant`；
 > 同交易寫 availability Outbox，Kafka 提交後快速觸發配貨，Scheduler 定期補漏。收貨不直接
 > invoke outbound 配貨。
+>
+> **Package 命名更新（2026-08-19）：** 現行 Java namespace 已由
+> `stock/{allocation,inventory,movement}` 整理為
+> `inventory/{allocation,balance,movement}`。下文的 `stock` 若出現在既有 change 名稱或
+> 歷史決策中仍予保留；這次只整理內部 namespace，不改資料表與對外事件契約。
 
 本文記錄一個跨越五個 change 的決定：**把庫存從「一個可被加減的數字」改成有來源與目的的
 異動流水**，並把「貨主要什麼」與「倉庫做什麼」分成兩層。概念與命名對齊 Odoo 19。
+
+## 現行庫存生命週期總覽
+
+下圖用一張總覽串起 inbound receipt、allocation reservation、WMS outbound、正式扣帳與取消。
+它只呈現跨元件 checkpoint；allocation 的 FIFO／FEFO 細節仍看既有活動圖與循序圖。
+
+![庫存生命週期總覽](images/inventory-stock-lifecycle-overview.png)
+
+圖的 Mermaid 原始檔位於
+[`diagrams/inventory-stock-lifecycle-overview.mmd`](diagrams/inventory-stock-lifecycle-overview.mmd)。紅色虛線節點
+表示目前只有 Workflow Activity contract，還沒有呼叫 `StockQuant.consume()` 的 production use case。
 
 決定散落在五個 change 裡，但共用同一組前提。寫在這裡，各 change 的 design 才不必各自重述，
 也才不會在第三個 change 時發現第一個的前提已經被改掉。
@@ -552,7 +568,7 @@ packaging、SO line、reordering rule——沒有 partner／owner。
 `stock_moves.order_line_id` 跨過這條線。**這道參照的紀律是：執行層持有需求行的 id，但不讀
 它的任何其他欄位。**
 
-現有的 `AllocationBoundaryArchitectureTest` 禁止 `stock` 的原始碼出現 `order_lines` 字面
+現有的 `InventoryBoundaryArchitectureTest` 禁止 `inventory` 的原始碼出現 `order_lines` 字面
 字串（連 SQL 都掃），而新的外鍵必然要提到它。**危險不在測試變紅，在它被「加一個例外」修掉**
 ——那支測試的註解寫著「這條規則不需要為讀取開任何例外」，開了第一個例外它就從硬性約束退化
 成裝飾。
@@ -625,8 +641,8 @@ Odoo 的 quant 會在供應商位置留下**負數**，全域總量因此守恆�
 
 > 在庫量的每一次變動，都有一條 `stock_move_lines` 對得上。
 
-而那一條是由型別保證的：`StockPool` 上沒有任何以數量增加在庫量的方法，只有
-`receive(StockMoveLine)`。`StockPoolTest` 有一支用反射守著這件事。
+而那一條是由型別保證的：`StockQuant` 上沒有任何以數量增加在庫量的方法，只有
+`receive(StockMoveLine)`。`StockQuantTest` 有一支用反射守著這件事。
 
 ### 三處刻意偏離 Odoo 的命名與結構
 
@@ -697,20 +713,21 @@ Odoo 19 把它們全放在 `stock.move` 上：`_action_confirm` / `_action_assig
 
 | 動作 | Odoo | 元件 | 內容 |
 | --- | --- | --- | --- |
-| ① 建立 | `_action_confirm` | `StockOperationRecorder` | 位置→倉→作業類型 → 建 picking → 建 `CONFIRMED` 搬運 |
-| ② 鎖定 | `_action_assign` | `MovementAssigner` | 取批 → `AllocationService` → 轉 `ASSIGNED`、造明細 → 寫入；回傳結果，不發事件 |
-| ③ 完成 | `_action_done` | `MovementCompleter` | 建 move line、完成 inbound move，並由 line 增加實體庫存 |
-| ④ 取消 | `_action_cancel` | `MovementCanceller` | 找 picking → 濾掉 `DONE` → 還量 → 取消 → 刪明細 |
+| ① 建立 | `_action_confirm` | `InboundReceiptRegistrar`／`AllocationDemandRegistrar` | inbound 登記收貨 execution；outbound 登記 demand 與 `CONFIRMED` execution |
+| ② 鎖定 | `_action_assign` | `AllocationCommitter` | 套用完整 allocation plan、reserve Quant、建立明細並轉 `ASSIGNED` |
+| ③ 完成 | `_action_done` | `InboundReceiptCompleter` | 建 move line、完成 inbound move，並由 line 增加實體庫存 |
+| ④ 取消 | `_action_cancel` | `AllocationReservationCanceller` | 找 picking → 濾掉 `DONE` → 還量 → 取消 → 刪明細 |
 
 垂直切片後不再把這些 application component 全塞進同一個 package，而是依「誰擁有 use case」放置：
-純粹建立搬運的 `StockOperationRecorder` 在 `stock/movement/application/`；完成收貨並增加庫存的
-`MovementCompleter` 在 `stock/inventory/application/`；釋放配貨與取消 outbound execution 的
-`MovementCanceller` 在 `stock/allocation/application/`。底層的 `StockMove`、`StockPicking` 與 repository
-仍集中在 `stock/movement/domain/`。這樣依賴方向保持為 `allocation → inventory → movement`。
+建立 inbound execution 的 `InboundReceiptRegistrar` 在 `inventory/movement/application/`；建立 outbound
+demand/execution 的 `AllocationDemandRegistrar` 在 `inventory/allocation/application/`；完成收貨並增加庫存的
+`InboundReceiptCompleter` 在 `inventory/balance/application/`；釋放配貨與取消 outbound execution 的
+`AllocationReservationCanceller` 在 `inventory/allocation/application/`。底層的 `StockMove`、`StockPicking` 與 repository
+仍集中在 `inventory/movement/domain/`。這樣依賴方向保持為 `allocation → balance → movement`。
 
 本系統已擁有簡化的一段式 inbound execution。若未來接外部 WMS，應讓 Kafka handler 與
 Temporal Activity 呼叫同一個「完成收貨」transactional use case，或明確切換 source of truth；
-不能同時保留兩條可各自增加 `StockPool` 的寫入路徑。
+不能同時保留兩條可各自增加 `StockQuant` 的寫入路徑。
 
 收貨完成只發布 `StockAvailabilityIncreased`；Kafka handler 與
 `AllocationReconciliationScheduler` 共用 `AllocateWaitingDemandUsecase`。因此 inbound rollback 不受 outbound
@@ -732,7 +749,7 @@ Temporal Activity 呼叫同一個「完成收貨」transactional use case，或�
 | 待配佇列 | 只接受有 `order_id` 的 outbound picking；standalone 與 inbound 不占上限 |
 
 因此現在不建 `StockMoveFactory` / `StockPickingFactory` / `InboundOperationCreator` /
-`OutboundOperationCreator`。`StockOperationRecorder` 已是「依具體流程建作業」的元件；再加一層只會
+`OutboundOperationCreator`。`InboundReceiptRegistrar` 已是「依具體流程建作業」的元件；再加一層只會
 把同一個決定分散。
 
 **`WRITE_ORDER` 要從私有欄位抽成共用的具名常數。** 防死鎖的全序是全系統的規則，②④ 都要用，

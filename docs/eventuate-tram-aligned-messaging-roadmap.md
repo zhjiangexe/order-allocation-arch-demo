@@ -1215,9 +1215,9 @@ Gate D 驗證結果（2026-08-09）：
 
 ES0 驗證證據（2026-08-09）：
 
-- `AllocationConcurrencyEndToEndIntegrationTest` 的 retry-exhausted path 從實際 `AllocationKafkaIntegrationEventConsumer` 進入，驗證三次 `MovementAssigner` invocation 位於三筆不同 PostgreSQL transaction，且最終 Inbox、StockPool reservation、picking／moves／move lines 與 Outbox 均無失敗殘留。
+- `AllocationConcurrencyEndToEndIntegrationTest` 的 retry-exhausted path 從實際 `AllocationKafkaIntegrationEventConsumer` 進入，驗證三次 `MovementAssigner` invocation 位於三筆不同 PostgreSQL transaction，且最終 Inbox、StockQuant reservation、picking／moves／move lines 與 Outbox 均無失敗殘留。
 - `AllocationRetryTransactionIntegrationTest` 當時另固定三次 attempt／三筆 transaction contract，以及耗盡時每次 Inbox probe write 都 rollback；後續由完整 chain SIT 接手。
-- targeted `./gradlew :order-promising:sit --tests com.flowzati.archone.stock.entrypoint.kafka.AllocationConcurrencyEndToEndIntegrationTest` 通過。
+- targeted `./gradlew :order-promising:sit --tests com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationConcurrencyEndToEndIntegrationTest` 通過。
 
 #### ES1 — 準備純 application API，尚不切換 production path（完成）
 
@@ -1232,7 +1232,7 @@ ES1 驗證證據（2026-08-09）：
 - `AllocationReconciliationScheduler` 已改呼叫 `AllocateWaitingDemandUsecase.execute`，use case 的 transaction annotation 保留。
 - main／unit／SIT source sets 全部 compile；六個 use case 與 scheduler 的 ES1 targeted unit tests 21 tests 通過。
 - `InboundEntrypointTransactionIntegrationTest`（ES4 前原名 `InboundCommandTransactionIntegrationTest`）與 `AllocationConcurrencyEndToEndIntegrationTest` 通過，證明 compatibility path 的 Inbox／transaction／retry baseline 未變。
-- 完整 targeted unit 組仍可重現 Gate A 已記錄的單一既有 failure：mocked `StockOperationRecorder` 的 location-validation test；不是本次 API preparation 新增的 regression。
+- 完整 targeted unit 組仍可重現 Gate A 已記錄的單一既有 failure：mocked `InboundReceiptRegistrar` 的 location-validation test；不是本次 API preparation 新增的 regression。
 
 #### ES2 — 組好 inbound attempt chain，但不與舊 claim path 同時啟用（完成）
 
@@ -1274,7 +1274,7 @@ ES3 驗證證據（2026-08-09）：
 
 ES4 驗證證據（2026-08-09）：
 
-- `StockReceiptApplicationFacade` 以同一個 Spring transaction 依序執行 request claim 與 `ConfirmStockReceiptUsecase.execute`；後者的 `@Transactional(REQUIRED)` 保留，因此 inbound picking／move／move line、StockPool 與 availability Outbox 仍在同一筆 transaction。
+- `StockReceiptApplicationFacade` 以同一個 Spring transaction 依序執行 request claim 與 `ConfirmStockReceiptUsecase.execute`；後者的 `@Transactional(REQUIRED)` 保留，因此 inbound picking／move／move line、StockQuant 與 availability Outbox 仍在同一筆 transaction。
 - `receiptId` 現在是正式的 application request identity，不再偽裝成 Kafka message ID。V9 建立 `stock_receipt_requests`，以完整收貨 command 欄位作 request fingerprint；JDBC adapter 使用 `INSERT ... ON CONFLICT DO NOTHING` 原子 claim。
 - 同 ID、同內容重送回傳成功但不重做庫存與 Outbox；同 ID、不同內容拋出 `StockReceiptRequestConflictException` 並由 REST 映射為 HTTP 409；業務失敗時 request claim、business mutation 與 Outbox 一起 rollback。
 - `ConfirmStockReceiptUsecase` 已移除 messaging／Inbox dependency；`StockReceiptController` 不再建立 fabricated metadata。所有 application callers 遷移後，temporary `InboundCommand` 已從 `messaging-api` 刪除，整合測試更名為 `InboundEntrypointTransactionIntegrationTest`。

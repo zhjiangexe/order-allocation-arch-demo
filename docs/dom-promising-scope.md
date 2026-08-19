@@ -21,7 +21,7 @@
 
 ## 現況與缺口
 
-② 是三個職責中唯一已實作的：`StockPool`、`StockMove` 與它的明細、`AllocationService`、
+② 是三個職責中唯一已實作的：`StockQuant`、`StockMove` 與它的明細、`AllocationService`、
 `AllocationPolicy` 抽象、樂觀鎖重試、backorder 與補貨後的 FIFO 重配都已完成。
 
 三個缺口：
@@ -63,7 +63,7 @@
 | **2 Hard** | 預留時就指定批次 | **WMS／3PL 主流**，尤其食品藥品 |
 | **3 兩階段** | 收單時 soft 檢查 ATP，出貨前才 hard 決定批次 | SAP 等大型系統 |
 
-**本系統已經是流派 2。** 鎖定的明細持有 `stockPoolId`，指向特定的庫存列——批次化是這個
+**本系統已經是流派 2。** 鎖定的明細持有 `stockQuantId`，指向特定的庫存列——批次化是這個
 模型的自然延伸，不是換流派。
 
 （那份明細當初叫 `StockReservation`，現在是 `stock_move_lines`：預留不再是與搬運平行的
@@ -72,7 +72,7 @@
 證據在取消那條路徑：
 
 ```java
-StockPool stockPool = stockPoolRepository.findById(reservation.getStockPoolId())
+StockQuant stockQuant = stockQuantRepository.findById(reservation.getStockQuantId())
 ```
 
 它靠 reservation 上的 id 反查，**批次化之後這行完全不用改**。流派 1 沒有這個性質。
@@ -117,24 +117,24 @@ FEFO 依 `expiry_date` 排序、`in_date` 作 tie-breaker（同效期不同日�
 ### 模型改動
 
 ```text
-現況   StockPool(sku)                                     ← 一個數字
-目標   StockPool(ownerId, facilityId, skuCode, inDate, expiryDate)
+現況   StockQuant(sku)                                     ← 一個數字
+目標   StockQuant(ownerId, facilityId, skuCode, inDate, expiryDate)
 ```
 
-一個貨主的一個 SKU 在一個節點上，會有**多筆** `StockPool`，各自代表一個批次。
+一個貨主的一個 SKU 在一個節點上，會有**多筆** `StockQuant`，各自代表一個批次。
 
 | 方案 | 判定 |
 | --- | --- |
-| `StockPool` 的 key 加批次維度 | **採用**（2026-07-29 定為 `(inDate, expiryDate)` 兩維，批號與品質狀態不做） |
-| 保留 `StockPool` 為聚合視圖，另建 `StockLot` 明細表 | 不採用 |
+| `StockQuant` 的 key 加批次維度 | **採用**（2026-07-29 定為 `(inDate, expiryDate)` 兩維，批號與品質狀態不做） |
+| 保留 `StockQuant` 為聚合視圖，另建 `StockLot` 明細表 | 不採用 |
 
-不採用第二案的理由：它會製造**第三本帳**（`StockPool` 總量、`StockLot` 明細、儲位層的
+不採用第二案的理由：它會製造**第三本帳**（`StockQuant` 總量、`StockLot` 明細、儲位層的
 實體數量），違反已定的「同一事實只記一處」原則。ATP 本來就該從批次算出
 來，聚合值是查詢結果而非儲存值。
 
 ### `group` 取代 `damagedQuantity`
 
-曾考慮在 `StockPool` 上加 `damagedQuantity` / `blockedQuantity` 欄位。`group` 作為
+曾考慮在 `StockQuant` 上加 `damagedQuantity` / `blockedQuantity` 欄位。`group` 作為
 **維度**比它們更正確：
 
 | | `damagedQuantity` 欄位 | `group` 維度 |
@@ -214,7 +214,7 @@ FEFO 依 `expiry_date` 排序、`in_date` 作 tie-breaker（同效期不同日�
 | 一條 line 缺貨 | 其他 line 照配，整單 `PARTIALLY_ALLOCATED` | **整單都不配** |
 | 可滿足性判斷 | 逐 line、逐 SKU 獨立 | **整籃的所有 SKU 必須同時可滿足** |
 | `StrictFifoAllocationPolicy` | 現有邏輯直接適用 | **要改為整籃原子判斷** |
-| 一次交易碰幾個 `StockPool` | 一個 | **多個** |
+| 一次交易碰幾個 `StockQuant` | 一個 | **多個** |
 | `PARTIALLY_ALLOCATED` | 存在 | **不存在** |
 
 **這不是一個 boolean 分支，是不同的配貨演算法。** 三個連帶後果：
@@ -239,7 +239,7 @@ line）之前不產生任何可觀察差異。但它改變段 C 的性質：段 
 
 ## P2：實體庫存目前只完成入庫，尚未完成出庫
 
-`StockPool.onHandQuantity` **只有 `receive(StockMoveLine)` 一條遞增路徑，沒有正式出庫遞減路徑**。
+`StockQuant.onHandQuantity` **只有 `receive(StockMoveLine)` 一條遞增路徑，沒有正式出庫遞減路徑**。
 `release()` 只動 `reservedQuantity`（取消退回）。系統的貨從未真正出去過。
 
 ```java
@@ -248,9 +248,9 @@ public void release(int q)              { reservedQuantity -= q; }  // 取消退
 public void receive(StockMoveLine line) { onHandQuantity += line.quantity(); } // 完成 inbound move
 ```
 
-目前本系統把 `StockPool` 當作實體庫存 source of truth。`POST /stock-receipts` 同步呼叫
+目前本系統把 `StockQuant` 當作實體庫存 source of truth。`POST /stock-receipts` 同步呼叫
 `ConfirmStockReceiptUsecase`，在同一交易建立 inbound picking／move／move line、完成 move、
-由該 line 增加指定 `locationId` 的 `StockPool`，並寫出 `StockAvailabilityIncreased` Outbox。
+由該 line 增加指定 `locationId` 的 `StockQuant`，並寫出 `StockAvailabilityIncreased` Outbox。
 backorder wake 在提交後由 Integration Event 快速觸發，Scheduler 定期補漏。它是一段式收貨，
 不表達預約到貨、卸貨、驗收等待或分段上架。
 
@@ -268,7 +268,7 @@ backorder wake 在提交後由 Integration Event 快速觸發，Scheduler 定期
 
 ## 鎖定的明細要帶批次
 
-鎖定的明細記錄 `stockPoolId` 與 `quantity`。批次化之後，**一張訂單的一個 line 可能吃到
+鎖定的明細記錄 `stockQuantId` 與 `quantity`。批次化之後，**一張訂單的一個 line 可能吃到
 多個批次**：
 
 ```text
@@ -303,15 +303,15 @@ backorder wake 在提交後由 Integration Event 快速觸發，Scheduler 定期
 
 ## Repository 介面的改動
 
-`StockPoolRepository.findBySku(String) → Optional<StockPool>` 在批次化後不成立。
+`StockQuantRepository.findBySku(String) → Optional<StockQuant>` 在批次化後不成立。
 四個呼叫點各有不同的改法：
 
 | 呼叫點 | 現在 | 改成 |
 | --- | --- | --- |
 | `AllocateOrderUsecase:53` | `findBySku` → `Optional` | `findSellableBatchesInFefoOrder(owner, node, sku, asOf)` → **已排序的 List** |
-| `GetStockPoolUsecase:18` | 同上 | `findBatches(owner, node, sku)` → List，**含不可售批次**（畫面要標落選理由） |
+| `GetStockQuantUsecase:18` | 同上 | `findBatches(owner, node, sku)` → List，**含不可售批次**（畫面要標落選理由） |
 | `ConfirmStockReceiptUsecase` | 建立並完成 inbound picking/move/line，再 `receive(line)` | 可建立新批次，並在同交易喚醒 backorder |
-| `ReleaseReservationUsecase:53` | `findById(reservation.getStockPoolId())` | **不用改** |
+| `ReleaseReservationUsecase:53` | `findById(reservation.getStockQuantId())` | **不用改** |
 
 最後一列是流派 2（hard reservation）的紅利：reservation 已指向特定批次，反查不受
 批次化影響。
@@ -358,7 +358,7 @@ OrderRepository.findBackordersBySkuInFifoOrder(sku)
 | # | 理由 |
 | --- | --- |
 | 1 | **一則事件只描述一個 SKU 批次增量。** Kafka record key 使用 `(ownerId, facilityId)` 爭用群組，以支援未來多行訂單；payload 仍需單一 SKU，才能讓一個 transaction 精確 upsert 一個批次 identity |
-| 2 | **一則事件 = 一個 aggregate 的一次狀態變更。** `StockPool` 有樂觀鎖；多 SKU 事件等於一次交易鎖多個 `StockPool`，直接踩進「一個新的併發風險：死鎖」那一節要防的東西，且沒有任何補償收益 |
+| 2 | **一則事件 = 一個 aggregate 的一次狀態變更。** `StockQuant` 有樂觀鎖；多 SKU 事件等於一次交易鎖多個 `StockQuant`，直接踩進「一個新的併發風險：死鎖」那一節要防的東西，且沒有任何補償收益 |
 | 3 | **inbox 冪等單位要跟交易單位對齊。** `InboxRepo.claimIfNew()` 以 eventId 去重、全有全無。多筆時「三個 SKU 其中一個 pool 不存在」只剩兩條路：整批回滾（上游要重送整批）或部分成功（inbox 語意破掉） |
 
 上游若真的以「一張進貨單多 SKU」為單位發事件，**拆分點在 entrypoint 不在 usecase**
@@ -374,7 +374,7 @@ OrderRepository.findBackordersBySkuInFifoOrder(sku)
 
 若改成「availability event 只加庫存，另發事件非同步喚醒第一輪」，在增量 commit 到喚醒 commit 之間，
 任何新單走 `AllocateOrderUsecase` 會直接吃掉剛補進來的 ATP——**新單反超整個 backorder
-佇列**。現況之所以不會，正是因為兩者共用同一個 `StockPool` 的樂觀鎖，併發的新單會
+佇列**。現況之所以不會，正是因為兩者共用同一個 `StockQuant` 的樂觀鎖，併發的新單會
 衝突重試。
 
 `StrictFifoAllocationPolicy` 用 `break` 而非 `continue`（刻意保留 head-of-line
@@ -404,10 +404,10 @@ bug 修掉。
 
 `OrderRepository.findBackordersBySkuInFifoOrder()` **目前沒有上限**，而
 `AllocationFifoAvailabilityIncreaseBatchIntegrationTest` 已經是「1,000 張排隊、單次增量喚醒
-500 張」的情境——一個交易裡改 1 個 `StockPool`、500 張 `Order`、寫 500 筆
+500 張」的情境——一個交易裡改 1 個 `StockQuant`、500 張 `Order`、寫 500 筆
 `stock_reservations`、發 1,000 則事件。
 
-交易時間隨佇列長度線性成長，而 `StockPool` 的樂觀鎖在整段期間持續暴露在衝突下。這是
+交易時間隨佇列長度線性成長，而 `StockQuant` 的樂觀鎖在整段期間持續暴露在衝突下。這是
 **自我加強的失敗模式**：交易越久越容易衝突，衝突觸發重試，重試讓它更久。
 
 批次化之後這件事從效能問題升級為正確性問題：一次補貨涉及的批次數量不再由事件決定，
@@ -457,7 +457,7 @@ bug 修掉。
 一條「策略本身的限制」，兩者都已被取代，理由如下。
 
 該策略的目的是 **single-writer**——會碰到同一批庫存的事件收斂到同一 partition，讓那些
-`StockPool` 列只有一個 consumer 在寫。
+`StockQuant` 列只有一個 consumer 在寫。
 
 原本的推導是「爭用單位就是庫存的識別」，於是往 `(owner, node, sku)` 走。它在單行訂單下正確，
 但有一個到期日：

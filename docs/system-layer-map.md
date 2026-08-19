@@ -72,19 +72,19 @@
 | 訂單層 ② Promising | 分倉分貨主的 ATP。倉別由上游指定，② 只在該倉的庫存裡配 |
 | 履約層 | 實體帳（儲位庫存）必須與邏輯帳對得上 |
 
-上下兩層都要用它，中間不可能簡單。但「不簡單」不等於要做完整 IMS——現行 `StockPool` 已在
+上下兩層都要用它，中間不可能簡單。但「不簡單」不等於要做完整 IMS——現行 `StockQuant` 已在
 扮演這個角色，需要的是把它做對，不是新增一層。
 
 ### 一本帳，兩種粒度的問法
 
-**這一節原本寫的是「兩本帳」**——邏輯帳 `StockPool` 與實體帳 `LocationStock`，中間靠一條
+**這一節原本寫的是「兩本帳」**——邏輯帳 `StockQuant` 與實體帳 `LocationStock`，中間靠一條
 對帳等式維繫。庫存異動模型交付之後那個框架不成立了：只有一本帳。
 
 | | `stock_pools` |
 | --- | --- |
 | 粒度 | `(owner, location, sku, in_date, expiry)` |
 | 回答 | 這一批貨放在哪、還能承諾多少 |
-| 維護者 | 執行層（`stock`），而且**只能由搬運的明細改** |
+| 維護者 | 庫存執行層（`inventory.balance` / `inventory.movement`），而且**只能由搬運的明細改** |
 
 位置本身分層：現在是「一個 Facility 可有多個平面 internal locations」，R7 讓它長出
 `parent_id` 之後，庫存列仍掛在
@@ -115,7 +115,7 @@ IMS 所稱的「全網視圖」是對庫存列的聚合查詢，不是第三張�
 
 ### 設計原則：同一事實只記一處
 
-已揀未出的貨**不在 `StockPool` 上額外記狀態**。它本來就已經 `reserved`，不在 ATP
+已揀未出的貨**不在 `StockQuant` 上額外記狀態**。它本來就已經 `reserved`，不在 ATP
 裡，增設 `picked` 欄位不提供任何新資訊，只製造兩處可能不一致。需要「揀到哪了」時讀
 `PickTask` 狀態。
 
@@ -176,7 +176,7 @@ IMS 所稱的「全網視圖」是對庫存列的聚合查詢，不是第三張�
 
 | 取消時機 | 補償 | 最小版 |
 | --- | --- | --- |
-| 未產生 `PickTask` | `MovementCanceller`：取消搬運、刪除明細、把量還給庫存 | ✓ |
+| 未產生 `PickTask` | `AllocationReservationCanceller`：取消搬運、刪除明細、把量還給庫存 | ✓ |
 | `PickTask` 未開始 | 取消 `PickTask`，同上 | ✓ |
 | 已揀貨、未離倉 | **須先回架（putback）**，貨回到儲位後才取消搬運 | **不存在**——最小版揀貨確認即出貨，無此窗口 |
 | 已離倉 | **不允許取消**。逆物流不在範圍內，此路徑無補償手段 | ✓ |
@@ -326,8 +326,18 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 
 | Module | 內容 | 狀態 |
 | --- | --- | --- |
-| `order-promising` | `ordering`、`stock/{allocation,inventory,movement}`、`catalog`、`demo`、`bootstrap` | 已存在 |
+| `order-promising` | `ordering`、`inventory/{allocation,balance,movement}`、`catalog`、`demo`、`bootstrap` | 已存在 |
 | `fulfillment` | 履約層（最小版：兩本帳與短揀對帳） | **新增** |
+
+`inventory` 目前是同一 bounded context 的 package 根；`allocation` 負責需求排序、供需規劃與批次選擇，
+`balance` 負責 `StockQuant` 與收貨，`movement` 負責 picking／move 的執行紀錄。這是內部 namespace
+整理，不改資料表、Kafka topic 或 integration contract 名稱。
+
+餘額 aggregate 採 Odoo ubiquitous language 命名為 `StockQuant`。既有 PostgreSQL 表
+`stock_pools`、欄位 `stock_pool_id`、`GET /stock-pool`、v1 JSON 的 `stockPoolId`，以及
+integration aggregate type `StockPool` 暫時維持相容；Java domain 與 persistence adapter 內部則
+統一使用 `StockQuant`／`stockQuantId`。這些外部識別若要改，必須另做 migration／API versioning，
+不能混在單純的 model rename 裡。
 
 ### 為何是獨立 module 而非新 package
 

@@ -8,7 +8,7 @@ flowchart TB
     DONE(["本次 reconciliation 結束"])
     POP["scope = pendingScopes.removeFirst()<br/>remainingAttempts--"]
     TX["<b>TransactionalAllocationAttempt.attempt</b><br/>開啟該 scope 的獨立 transaction<br/>本次最多 commit 一筆 demand"]
-    PIPELINE["<b>AllocationAttemptCoordinator</b><br/>依 scope 重新查 PENDING candidate<br/>→ <b>AllocationFifoSelector</b><br/>→ <b>AllocationDemandPlanner</b><br/>→ 可行才呼叫 <b>AllocationCommitter</b>"]
+    PIPELINE["<b>PendingDemandAllocator</b><br/>依 scope 重新查 PENDING candidate<br/>→ <b>AllocationFifoSelector</b><br/>→ <b>AllocationDemandPlanner</b><br/>→ 可行才呼叫 <b>AllocationCommitter</b>"]
     SUCCESS{"本次有成功<br/>commit 一筆 demand？"}
     REQUEUE["pendingScopes.addLast(scope)<br/><b>放回隊尾</b><br/>該 scope 可能還有 successor<br/>但先讓其他 scope 獲得機會"]
     DROP["<b>不放回 queue</b><br/>FIFO blocked / 缺貨 / 衝突 / 失敗<br/>避免同一 tick 無效重試"]

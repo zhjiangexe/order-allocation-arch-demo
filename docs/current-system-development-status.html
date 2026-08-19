@@ -571,7 +571,7 @@
         <ul>
           <li>Owner → Product → SKU</li>
           <li>Owner → Facility → Location</li>
-          <li>Location → StockPool</li>
+          <li>Location → StockQuant</li>
           <li>純讀取，不發布事件</li>
         </ul>
       </article>
@@ -633,10 +633,10 @@
           <tr><td>03</td><td><code>ListSkusUsecase</code></td><td><code>GET /owners/{ownerId}/products/{productCode}/skus</code></td><td>依商品款列出可下單規格。</td><td><span class="tag">Query</span></td></tr>
           <tr><td>04</td><td><code>ListFacilitiesForOwnerUsecase</code></td><td><code>GET /owners/{ownerId}/facilities</code></td><td>只顯示該貨主已指派的 Facility。</td><td><span class="tag">Query</span></td></tr>
           <tr><td>05</td><td><code>ListStockLocationsUsecase</code></td><td><code>GET /facilities/{facilityId}/locations</code></td><td>列出 Facility 內可持有庫存的 internal locations。</td><td><span class="tag">Query</span></td></tr>
-          <tr><td>06</td><td><code>GetStockPoolUsecase</code></td><td><code>GET /stock-pool</code></td><td>依貨主與庫位查詢所有批次，含過期批與空庫位。</td><td><span class="tag">Query</span></td></tr>
+          <tr><td>06</td><td><code>GetStockQuantUsecase</code></td><td><code>GET /stock-pool</code></td><td>依貨主與庫位查詢所有批次，含過期批與空庫位。</td><td><span class="tag">Query</span></td></tr>
 
           <tr class="phase-row"><td colspan="5">B｜建立實體庫存</td></tr>
-          <tr><td>07</td><td><code>ConfirmStockReceiptUsecase</code></td><td><code>POST /stock-receipts</code></td><td>一個交易內完成 inbound picking、move、move line、StockPool 增加與 availability event。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
+          <tr><td>07</td><td><code>ConfirmStockReceiptUsecase</code></td><td><code>POST /stock-receipts</code></td><td>一個交易內完成 inbound picking、move、move line、StockQuant 增加與 availability event。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
 
           <tr class="phase-row"><td colspan="5">C｜接單、初次配置與結果投影</td></tr>
           <tr><td>08</td><td><code>PlaceOrderUsecase</code></td><td><code>POST /orders</code></td><td>建立 order 與 lines，以系統接單時間排序並發布 <code>OrderPlaced</code>。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
@@ -681,7 +681,7 @@
         <div class="step sync"><strong>ListSkusUsecase</strong><span>依 product 選 SKU</span></div>
         <div class="step sync"><strong>ListFacilitiesForOwnerUsecase</strong><span>選可作業 Facility</span></div>
         <div class="step sync"><strong>ListStockLocationsUsecase</strong><span>選 internal location</span></div>
-        <div class="step sync"><strong>GetStockPoolUsecase</strong><span>查看該位置所有批次</span></div>
+        <div class="step sync"><strong>GetStockQuantUsecase</strong><span>查看該位置所有批次</span></div>
         <div class="step end outcome"><strong>作業條件就緒</strong><span>可收貨或建立訂單</span></div>
       </div>
 
@@ -689,9 +689,9 @@
         <div class="lane-name"><strong>B. 同步收貨</strong><span>建立庫存事實</span></div>
         <div class="step event"><strong>POST /stock-receipts</strong><span>owner／facility／location／batch</span></div>
         <div class="step sync"><strong>ConfirmStockReceiptUsecase</strong><span>receipt request 去重、驗證 location</span></div>
-        <div class="step state"><strong>recordInbound</strong><span>supplier → internal location</span></div>
-        <div class="step state"><strong>MovementCompleter</strong><span>move line + DONE</span></div>
-        <div class="step state"><strong>StockPool.receive</strong><span>增加 on-hand</span><b class="checkpoint">COMMIT</b></div>
+        <div class="step state"><strong>register</strong><span>supplier → internal location</span></div>
+        <div class="step state"><strong>InboundReceiptCompleter</strong><span>move line + DONE</span></div>
+        <div class="step state"><strong>StockQuant.receive</strong><span>增加 on-hand</span><b class="checkpoint">COMMIT</b></div>
         <div class="step event"><strong>StockAvailabilityIncreased</strong><span>Domain Event → Outbox</span></div>
         <div class="step end event"><strong>Kafka after commit</strong><span>快速喚醒等待需求</span></div>
       </div>
@@ -752,7 +752,7 @@
         <div class="step event"><strong>OrderCancelled</strong><span>Outbox → Kafka</span></div>
         <div class="step event"><strong>Programmatic subscriber</strong><span>transaction + Inbox + typed dispatch</span></div>
         <div class="step sync"><strong>CancelMovementsUsecase</strong><span>只處理 Stock business command</span></div>
-        <div class="step state"><strong>MovementCanceller</strong><span>取消 moves、釋放鎖定量</span></div>
+        <div class="step state"><strong>AllocationReservationCanceller</strong><span>取消 moves、釋放鎖定量</span></div>
         <div class="step missing"><strong>Availability event</strong><span>釋放後尚未主動發布</span></div>
         <div class="step end schedule"><strong>Scheduler 收斂</strong><span>舊 backorders 之後再掃</span></div>
       </div>
@@ -819,10 +819,10 @@
       <div class="layer">
         <div class="layer-label"><strong>Components</strong><small>不擁有交易</small></div>
         <div class="layer-items">
-          <div class="node component"><strong>StockOperationRecorder</strong><span>建立 picking 與 moves</span></div>
-          <div class="node component"><strong>MovementCompleter</strong><span>完成 inbound 與 move lines</span></div>
+          <div class="node component"><strong>InboundReceiptRegistrar</strong><span>建立 picking 與 moves</span></div>
+          <div class="node component"><strong>InboundReceiptCompleter</strong><span>完成 inbound 與 move lines</span></div>
           <div class="node component"><strong>MovementAssigner</strong><span>FIFO／FEFO／whole-order 配置</span></div>
-          <div class="node component"><strong>MovementCanceller</strong><span>取消搬運並釋放鎖定量</span></div>
+          <div class="node component"><strong>AllocationReservationCanceller</strong><span>取消搬運並釋放鎖定量</span></div>
         </div>
       </div>
 
@@ -831,7 +831,7 @@
         <div class="layer-items">
           <div class="node domain"><strong>Order + OrderLine</strong><span>需求生命週期與 projection</span></div>
           <div class="node domain"><strong>StockPicking + StockMove</strong><span>作業分組與實際搬運</span></div>
-          <div class="node domain"><strong>StockPool + MoveLine</strong><span>批次實體庫存 source of truth</span></div>
+          <div class="node domain"><strong>StockQuant + MoveLine</strong><span>批次實體庫存 source of truth</span></div>
           <div class="node domain"><strong>Demand + AllocationService</strong><span>待配需求與配置決策</span></div>
         </div>
       </div>
@@ -867,7 +867,7 @@
         <ul>
           <li>Catalog 查詢鏈可提供貨主、商品、SKU、Facility 與 internal location。</li>
           <li>前端可查位置批次庫存、建立多品項訂單並同步確認收貨。</li>
-          <li>收貨建立 inbound picking、move、move line，再增加 StockPool。</li>
+          <li>收貨建立 inbound picking、move、move line，再增加 StockQuant。</li>
           <li>初次配置與 backorder wake 共用 FIFO／FEFO／whole-order 語意。</li>
           <li>配置／缺貨結果由各自的 projection use case 回寫 Ordering。</li>
           <li>Pure JDBC Inbox／Outbox、programmatic Kafka subscribers、retry、DLT、observability、reconciliation scheduler 與相關測試已存在。</li>
@@ -910,7 +910,7 @@
         <tr><th>邊界</th><th>現在的做法</th><th>理由</th></tr>
       </thead>
       <tbody>
-        <tr><td>Receipt → StockPool</td><td><code>ConfirmStockReceiptUsecase</code> 同交易 invoke recorder 與 completer。</td><td>picking、move line 與實體庫存必須一起成功或一起 rollback。</td></tr>
+        <tr><td>Receipt → StockQuant</td><td><code>ConfirmStockReceiptUsecase</code> 同交易 invoke recorder 與 completer。</td><td>picking、move line 與實體庫存必須一起成功或一起 rollback。</td></tr>
         <tr><td>Receipt → Backorder</td><td>提交 <code>StockAvailabilityIncreased</code>，由 Kafka 另開交易。</td><td>收貨成立後不應因 outbound queue 失敗而撤銷。</td></tr>
         <tr><td>Ordering → Stock</td><td><code>OrderPlaced</code> 啟動 <code>AllocateOrderUsecase</code>。</td><td>Ordering 只擁有需求；Stock 擁有配置與搬運事實。</td></tr>
         <tr><td>Stock → Ordering</td><td>兩個 record use cases 各自消費 allocated／backordered facts。</td><td>訂單狀態是落後投影，不拿來當 Stock 的配置閘門。</td></tr>

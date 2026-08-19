@@ -146,12 +146,12 @@ F4 只做箱單記錄，不做裝箱演算法。若要做，須先在 `skus` 補
 | --- | --- |
 | 1 | `Shipment` → `CANCELLED` |
 | 2 | 已 `PICKED` 的 `PickTask` 逐一回架 |
-| 3 | 回架完成後，發事實給庫存側取消那段出庫搬運（`MovementCanceller`） |
+| 3 | 回架完成後，發事實給庫存側取消那段出庫搬運（`AllocationReservationCanceller`） |
 
 **順序不可顛倒。** 若先取消搬運、把量還給庫存，會出現「ATP 顯示可用、但貨還在出貨區」的
 視窗，此時新訂單可能配到不存在的可揀庫存。
 
-判斷「揀到哪了」讀 `PickTask` 狀態，`StockPool` 不持有此資訊——同一事實只記一處。
+判斷「揀到哪了」讀 `PickTask` 狀態，`StockQuant` 不持有此資訊——同一事實只記一處。
 
 ### 為何值得
 
@@ -175,7 +175,7 @@ GoodsReceived ──▶ 選儲位規則 ──▶ 入庫搬運的目的地改為
 
 目前本系統擁有簡化的一段式收貨：確認時直接建立並完成 inbound picking／move／move line。
 深做版再把它拆成到貨、驗收、上架等 checkpoint；每個 Kafka handler 或 Temporal Activity 都應
-呼叫同一組 transactional use case，且只能在完成可入庫的 movement 時增加 `StockPool`。
+呼叫同一組 transactional use case，且只能在完成可入庫的 movement 時增加 `StockQuant`。
 
 | 動作 | 內容 |
 | --- | --- |

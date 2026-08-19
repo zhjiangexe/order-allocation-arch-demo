@@ -221,7 +221,7 @@ RECEIVED
 
 它不應複製：
 
-- `StockPool` 數量；
+- `StockQuant` 數量；
 - FIFO queue；
 - `StockMove` 狀態；
 - `Shipment`／`PickTask` 的完整狀態；
@@ -243,7 +243,7 @@ RECEIVED
 | `ReleaseShipmentActivity` | 未來的 release use case |
 | `DepartShipmentActivity` | 未來的 depart use case |
 
-不把 `StockOperationRecorder`、`MovementAssigner`、repository save 或 domain event publication 分拆成
+不把 `InboundReceiptRegistrar`、`MovementAssigner`、repository save 或 domain event publication 分拆成
 不同 Activities，因為它們之間沒有可獨立 commit、等待或補償的 checkpoint。
 
 任何會寫資料庫且回傳值供 Workflow branching 的 Activity，都必須使用穩定 invocation id，

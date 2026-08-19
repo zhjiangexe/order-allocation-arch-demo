@@ -10,10 +10,14 @@
 
 日期：2026-07-22
 
-> **2026-08-04 邊界修正：** `StockPool` 是本系統的實體庫存 source of truth。正式
-> `POST /stock-receipts` 同步建立並完成 inbound picking／move／move line，再增加 StockPool 並
+> **2026-08-04 邊界修正：** `StockQuant` 是本系統的實體庫存 source of truth。正式
+> `POST /stock-receipts` 同步建立並完成 inbound picking／move／move line，再增加 StockQuant 並
 > 同交易寫入 `StockAvailabilityIncreased` Outbox。Kafka 在提交後快速觸發 backorder allocation，
 > Scheduler 定期補漏；兩者呼叫同一個 transactional use case。
+>
+> **2026-08-19 命名修正：** Java aggregate 與 adapter 已由 `StockPool` 改名為 `StockQuant`。
+> 資料表 `stock_pools`、欄位 `stock_pool_id` 與既有 v1 HTTP／integration identifiers 暫不改名，
+> 以免內部 ubiquitous language 整理同時造成 schema 或 API breaking change。
 
 ## 目標
 
@@ -89,12 +93,12 @@ SR-08 ─> SR-09 ─┐
 
 ### Domain layer（內圈）
 
-- [x] **SR-01 — StockPool ATP domain model**（可獨立執行）
+- [x] **SR-01 — StockQuant ATP domain model**（可獨立執行）
   - 將 `available` 改為 `onHandQuantity`。
   - 新增 `reservedQuantity` 與衍生的 `availableToPromise()`。
   - 將 `tryAllocate()` 改為 `canReserve()`／`reserve()`，並加入 `release()`。
   - 驗證 quantity 與 `reservedQuantity <= onHandQuantity` invariant。
-  - 更新 StockPool domain unit tests。
+  - 更新 StockQuant domain unit tests。
 
 - [x] **SR-02 — StockReservation domain model**（可獨立執行）
   - 新增 `StockReservation`、`ReservationStatus.ACTIVE/RELEASED`。
@@ -119,9 +123,9 @@ SR-08 ─> SR-09 ─┐
 ### Application layer
 
 - [x] **SR-05 — Allocate Order application flow**（依賴 SR-01～SR-04）
-  - 定義／補齊 Order、StockPool 與 StockReservation ports；`AllocateOrderUsecase` 的輸入改為 `AllocateOrderCommand(orderId)`，而非直接處理 Integration Event。
+  - 定義／補齊 Order、StockQuant 與 StockReservation ports；`AllocateOrderUsecase` 的輸入改為 `AllocateOrderCommand(orderId)`，而非直接處理 Integration Event。
   - 重構 `AllocationService`、`OrderAllocationCoordinator` 與 `AllocateOrderUsecase`。
-  - 成功時更新 StockPool、建立 ACTIVE reservation，並發布 `OrderAllocationCompleted` Domain Event；ordering 消費對外事件後更新 Order 投影。
+  - 成功時更新 StockQuant、建立 ACTIVE reservation，並發布 `OrderAllocationCompleted` Domain Event；ordering 消費對外事件後更新 Order 投影。
   - ATP 不足時不建立 reservation，並發布 `OrderBackorderRecorded` Domain Event；ordering 消費對外事件後更新 Order 投影。
   - 作為 Integration Event 來源的 Domain Event 必須帶齊 translator 所需的業務資料；translator 不額外查詢 Repository 拼裝 payload。
   - 使用 mocked ports 完成成功、不足、非 PENDING Order 的 application tests；Integration Event、Inbox 與 Outbox 的測試屬於 SR-12／SR-14。
@@ -139,7 +143,7 @@ SR-08 ─> SR-09 ─┐
   - 收貨交易只發布 availability fact，不直接執行 waiting-demand allocation；Kafka 與 Scheduler 共用 `AllocateWaitingDemandUsecase`。
   - 透過 FIFO repository port 取得穩定排序的 backorders，交由 SR-04 policy 執行。
   - 第一張無法完整 reservation 時停止。
-  - 每張成功配置的 backorder 建立 ACTIVE `StockReservation`；由 Coordinator 統一保存 StockPool、Orders 與 Reservations，並發布完整的 `OrderAllocationCompleted` Domain Event。
+  - 每張成功配置的 backorder 建立 ACTIVE `StockReservation`；由 Coordinator 統一保存 StockQuant、Orders 與 Reservations，並發布完整的 `OrderAllocationCompleted` Domain Event。
   - 使用 mocked ports 測試增量冪等、FIFO、head-of-line blocking 與未知 SKU 錯誤。
 
 ### Independent infrastructure foundation（可與內圈平行）
@@ -152,8 +156,8 @@ SR-08 ─> SR-09 ─┐
 
 ### Infrastructure adapters（外圈）
 
-- [x] **SR-09 — StockPool persistence adapter**（依賴 SR-01、SR-08）
-  - 更新 `StockPoolEntity`、`StockPoolMapper` 與 Repository adapter。
+- [x] **SR-09 — StockQuant persistence adapter**（依賴 SR-01、SR-08）
+  - 更新 `StockQuantEntity`、`StockQuantMapper` 與 Repository adapter。
   - 保留 `@Version`，新增 `updatedAt`。
   - 以 migration 加入 `stock_pools` table、SKU unique、非負數與 reserved 不超過 on-hand 的資料庫限制。
   - 確認補貨、reserve 與 release 都會更新 `updatedAt`。
@@ -201,14 +205,14 @@ SR-08 ─> SR-09 ─┐
 
 - [x] **SR-15 — Optimistic-lock retry and observability**（依賴 SR-14）
   - 以 opt-in `OptimisticLockingDecorator` 包住完整 transactional Inbox chain，application 設定最多嘗試三次。
-  - 每次重試重新讀取 Order、StockPool、Reservation 與 FIFO 清單。
+  - 每次重試重新讀取 Order、StockQuant、Reservation 與 FIFO 清單。
   - 重試耗盡時拋出 `OptimisticLockingRetryExhaustedException`，不得轉成 BACKORDERED。
   - 增加 structured error log 與 `order_allocation_retry_exhausted_total` metric。
   - 測試每次 retry 使用新 transaction，以及 exhausted rollback 行為。
 
 - [x] **SR-16 — Dev-only consistent seed data**（依賴 SR-09～SR-11；可獨立於 SR-12～SR-15 執行）
   - 新增 `@Profile("dev")`、idempotent 的 `ApplicationRunner`。
-  - 建立 `SKU-AVAILABLE` 與 `SKU-EMPTY` StockPools。
+  - 建立 `SKU-AVAILABLE` 與 `SKU-EMPTY` 的 StockQuant 資料。
   - `SKU-PARTIALLY-RESERVED` 必須同時建立對應的 ALLOCATED Order 與 ACTIVE StockReservation，不得只設定孤立的 `reservedQuantity`。
   - 驗證重啟不會重複建立，且 test／production profile 不載入 seed。
 
@@ -218,7 +222,7 @@ SR-08 ─> SR-09 ─┐
   - 確認未引入多倉、shipment、WMS、expiration 或 safety stock。
 
 - [x] **SR-18 — Retry and concurrency end-to-end verification**（依賴 SR-15、SR-17）
-  - 使用 SR-08 的 PostgreSQL test environment，新增兩筆訂單競爭同一 StockPool 的整合測試，確認不會超賣。
+  - 使用 SR-08 的 PostgreSQL test environment，新增兩筆訂單競爭同一 StockQuant 的整合測試，確認不會超賣。
   - 驗證 optimistic-lock conflict 會重新讀取資料並依 retry policy 收斂為正確的 allocation 或 backorder 結果。
   - 驗證 retry exhausted 時拋出 `OptimisticLockingRetryExhaustedException`、所有嘗試均 rollback，且不會將技術衝突錯誤建模為 BACKORDERED。
   - 驗證 retry metric 與 structured log 可辨識 operation、eventId 與 attempt。
@@ -229,9 +233,9 @@ SR-08 ─> SR-09 ─┐
 - [x] **Demo-01 — Hot-SKU concurrency demo**（依賴 SR-18）
   - SR-18 只用兩筆訂單證明 optimistic-lock retry 機制存在；Demo-01 將同一機制放大到 1,000 筆同 SKU、僅 10 件庫存的併發送出，觀察在既有 datasource connection pool 限制下最終是否仍收斂為正確結果。
   - 以同一個 start gate 釋放 1,000 個 virtual-thread 任務送出 `OrderPlacedIntegrationEvent`；datasource connection pool（預設 10 個連線）自然限制同時執行的 transaction 數，不代表宣稱 1,000 個 DB transaction 真的同時執行。
-  - test-only interceptor 讓最先抵達的兩個 allocation attempt 在讀到同一版 StockPool 後才同時釋放，確保至少一次真實 JPA optimistic-lock conflict 是決定性發生，而不是仰賴機率性的自然碰撞；不注入合成例外。
+  - test-only interceptor 讓最先抵達的兩個 allocation attempt 在讀到同一版 StockQuant 後才同時釋放，確保至少一次真實 JPA optimistic-lock conflict 是決定性發生，而不是仰賴機率性的自然碰撞；不注入合成例外。
   - 只收集 `OptimisticLockingRetryExhaustedException` 對應的原始事件，於併發波次結束後以同一 `eventId` 重送，模擬 broker 的 at-least-once redelivery；不模擬 broker 的 backoff 或 DLT policy。
-  - 對帳最終持久化狀態：10 張 Order `ALLOCATED`、990 張 `BACKORDERED`；10 筆 ACTIVE StockReservation 總量為 10；StockPool 的 ATP 為 0；1,000 個 eventId 均已於 Inbox claim；Outbox 記錄總數為 1,000 且對應最終 Order 結果。
+  - 對帳最終持久化狀態：10 張 Order `ALLOCATED`、990 張 `BACKORDERED`；10 筆 ACTIVE StockReservation 總量為 10；StockQuant 的 ATP 為 0；1,000 個 eventId 均已於 Inbox claim；Outbox 記錄總數為 1,000 且對應最終 Order 結果。
   - **範圍邊界：** 本示範驗證的是 bounded database concurrency 下的 1,000 筆併發 submissions 最終收斂，**不是** production throughput/latency benchmark，也不啟動 Kafka broker、Debezium connector 或另一套 load-testing 工具；不變更 allocation policy、Kafka topics 或 Integration Event 契約；不實作 FIFO replenishment 或 read-model replay demo。
 
 ### Demo-02 — FIFO 補貨批次劇本（不在 SR-01～SR-18 編號內）
@@ -240,8 +244,8 @@ SR-08 ─> SR-09 ─┐
   - 既有的 `AllocationWorkflowEndToEndIntegrationTest` 只用兩張訂單驗證 FIFO 收貨喚醒，不足以在量體下暴露 head-of-line blocking 類錯誤。Demo-02 將排隊量體放大到 1,000 張同 SKU BACKORDERED 訂單，驗證循序確認收貨後的批次配置決策。
   - 直接以 `Order.rehydrate(...)` 種入已排序穩定（`backorderedSince` 逐筆遞增）的 BACKORDERED fixture，不經過真正的下單配置流程；驗證的是補貨觸發批次配置這一段，下單配置路徑已由 Demo-01 覆蓋。
   - 數量分布固定、可手算：前 500 張 quantity 皆為 1，第 501 張是刻意補不滿的 blocker（quantity 999），後 499 張 quantity 皆為 1。不用隨機數量，避免測試自己重新實作一次 FIFO 演算法來推導期望值。
-  - 第一次補貨量精準等於前 500 張總和（500），對帳：500 張 Order `ALLOCATED`、500 張仍 `BACKORDERED`（含 blocker 與其後 499 張未被跳過配置的小單）；500 筆 ACTIVE StockReservation 總量為 500；StockPool on-hand=500、reserved=500、ATP=0；1 個 eventId 已於 Inbox claim；Outbox 恰 500 筆 `OrderAllocatedIntegrationEvent`。
-  - 接著送第二次（循序）補貨，量等於 blocker 與其後 499 張的總和（1,498），驗證「喚醒佇列」的後半段——先前卡住的訂單能正確恢復配置：全部 1,000 張變為 `ALLOCATED`、1,000 筆 ACTIVE StockReservation 總量 1,998、StockPool on-hand=1,998、reserved=1,998、ATP=0、Inbox 累積 2 筆 claim、Outbox 恰 1,000 筆 `OrderAllocatedIntegrationEvent`。
+  - 第一次補貨量精準等於前 500 張總和（500），對帳：500 張 Order `ALLOCATED`、500 張仍 `BACKORDERED`（含 blocker 與其後 499 張未被跳過配置的小單）；500 筆 ACTIVE StockReservation 總量為 500；StockQuant on-hand=500、reserved=500、ATP=0；1 個 eventId 已於 Inbox claim；Outbox 恰 500 筆 `OrderAllocatedIntegrationEvent`。
+  - 接著送第二次（循序）補貨，量等於 blocker 與其後 499 張的總和（1,498），驗證「喚醒佇列」的後半段——先前卡住的訂單能正確恢復配置：全部 1,000 張變為 `ALLOCATED`、1,000 筆 ACTIVE StockReservation 總量 1,998、StockQuant on-hand=1,998、reserved=1,998、ATP=0、Inbox 累積 2 筆 claim、Outbox 恰 1,000 筆 `OrderAllocatedIntegrationEvent`。
   - 除了聚合數字，額外用 `firstOrderId`／`blockerOrderId`／`lastOrderId` 三個關鍵位置的逐筆身分驗證，確認 blocker 在第一階段仍是 BACKORDERED、第二階段才變 ALLOCATED——因為除了 blocker 外每張訂單 quantity 都是 1，只看聚合數字無法分辨「選對哪幾張」，只能證明「選對幾張」。
   - **範圍邊界：** 本示範驗證的是循序補貨事件觸發的 FIFO 批次配置決策，**不含**併發競爭（多個補貨事件同時到達、補貨當下有新訂單插隊）；不隨機化數量分布；不變更 `StrictFifoAllocationPolicy`、Kafka topics 或 Integration Event 契約；不是 production benchmark；不實作 read-model replay demo。
 
@@ -387,7 +391,7 @@ public int availableToPromise() {
 }
 ```
 
-**「能不能配」不是這一列的屬性。** `StockPool.isExpired(today)` 只回答「過期了沒有」；配貨拿
+**「能不能配」不是這一列的屬性。** `StockQuant.isExpired(today)` 只回答「過期了沒有」；配貨拿
 得到什麼還要看有沒有量，那個判斷在查詢裡（`findAllocatableBatchesInFefoOrder`，兩個篩選條件：
 `expiry_date >= today` **且** `on_hand_quantity > reserved_quantity`）。分開是刻意的——「有 100
 件但一件都出不了」與「什麼都沒有」在畫面上要引導出不同的動作。
@@ -476,7 +480,7 @@ ACTIVE ──出貨────> CONSUMED
 RELEASED ──重複取消──> no-op
 ```
 
-`CONSUMED` 已加入，但**本階段不產生它**——它為履約層的出貨扣帳準備（`StockPool.consume()`
+`CONSUMED` 已加入，但**本階段不產生它**——它為履約層的出貨扣帳準備（`StockQuant.consume()`
 同時扣 `reservedQuantity` 與 `onHandQuantity`，與只扣前者的 `release()` 語意不同）。
 
 必須現在就存在的理由是 R4 的 `demand_lines` view 會用 `status IN ('ACTIVE','CONSUMED')` 當
@@ -508,7 +512,7 @@ RELEASED ──重複取消──> no-op
 
 若可配總量不足（或一批可配的都沒有）：
 
-1. **不修改任何一批** StockPool——跨批的總量不足時，一批都不預留。
+1. **不修改任何一批** StockQuant——跨批的總量不足時，一批都不預留。
 2. 不建立 StockReservation。
 3. 發布 `OrderBackorderRecorded` Domain Event。
 4. translator listener 將它轉成 `BackorderCreatedIntegrationEvent` 並寫入 Outbox。
@@ -516,7 +520,7 @@ RELEASED ──重複取消──> no-op
 ordering 消費 `OrderAllocatedIntegrationEvent`／`BackorderCreatedIntegrationEvent` 後，分別以
 `markAllocated()`／`markBackOrdered()` 更新 Order 投影；這兩個方法不再產生第二組 Domain Event。
 
-`StockPool` 以 `canReserve()` 表達單一批的 ATP capability query，並以 `reserve()` 執行預留；跨批的整籃判斷在 `AllocationService.planPicks()`。
+`StockQuant` 以 `canReserve()` 表達單一批的 ATP capability query，並以 `reserve()` 執行預留；跨批的整籃判斷在 `AllocationService.planPicks()`。
 
 ### 取消並釋放 reservation
 
@@ -529,7 +533,7 @@ Ordering 在取消 transaction 中將 Order 改為 `CANCELLED` 並發布 `OrderC
    要釋放——只放第一筆會讓其餘批的量永遠鎖著，而且不會有任何錯誤浮現。
 3. 找不到時視為合法 no-op；PENDING／BACKORDERED 訂單本來就沒有 reservation。
 4. 每一筆改為 `RELEASED` 並設定 `releasedAt`。
-5. 對每一批呼叫 `StockPool.release(quantity)`，減少 `reservedQuantity`；批次的寫入同樣依
+5. 對每一批呼叫 `StockQuant.release(quantity)`，減少 `reservedQuantity`；批次的寫入同樣依
    `(sku_code, expiry_date, in_date, id)` 排序。
 6. Commit。
 
@@ -545,7 +549,7 @@ Ordering 在取消 transaction 中將 Order 改為 `CANCELLED` 並發布 `OrderC
 數量必須大於零；use case 先建立並完成 inbound execution，再依批次身分更新實體庫存：
 
 ```text
-命中既有列 → move line 指向該列，StockPool.receive(line)
+命中既有列 → move line 指向該列，StockQuant.receive(line)
 沒有命中   → 先開空列，再由 move line 收入
 ```
 
@@ -703,7 +707,7 @@ Backorder 的後續輪次不使用 Integration Event 串接；Scheduler 會從�
 | `OrderCancelled` | `OrderCancelledIntegrationEvent` |
 
 `ConfirmStockReceiptCommand` 由正式 REST entrypoint 建立；Kafka handler 與 Temporal Activity
-若未來加入，必須呼叫同一 transactional use case，不能另開直接改 `StockPool` 的路徑。
+若未來加入，必須呼叫同一 transactional use case，不能另開直接改 `StockQuant` 的路徑。
 
 ## Integration Event 契約
 
@@ -773,7 +777,9 @@ quantity
 
 Topic 命名採用 `{事件生產端 bounded context}.{事件主題}-events`。它描述的是**誰擁有並發布這份跨邊界契約**，不是目前程式部署在哪個 application，也不是 Java package 或 Aggregate 名稱。故即使目前 `Ordering` 與 `Promising` 同在 `order-promising` 專案中，仍保留各自的 topic prefix；日後拆成獨立服務時，topic 契約不必因此改名。
 
-目前的 bounded context 邊界如下：`Ordering` 擁有訂單生命週期事件；本地 `stock` 擁有收貨與實體庫存；`Promising` 擁有配置結果。`allocation` 是目前 Promising 內部的核心能力，不是獨立對外契約。
+目前的 bounded context 邊界如下：`Ordering` 擁有訂單生命週期事件；本地 `inventory` 擁有收貨、
+實體庫存與批次預留。Java namespace 依責任分為 `inventory.balance`、`inventory.movement` 與
+`inventory.allocation`；對外仍由 `Promising` 擁有配置結果契約，`reservation` 不是獨立對外契約。
 
 Topic 依生產端 bounded context 劃分，而非每個 event type 一個 topic。每則訊息仍保留 `eventType`，consumer 依 type 分派；未來若個別事件有不同吞吐、權限或 SLA，再拆出獨立 topic。
 
@@ -819,8 +825,8 @@ Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直�
 
 | 交易 use case | 交易內直接組合 | 回傳結果 | Integration Event 模式 |
 | --- | --- | --- | --- |
-| `AllocateOrderUsecase` | Inbox → 讀 demand → `StockOperationRecorder` → `MovementAssigner` → outcome event | 無；結果由 Integration Event 表達 | Kafka handler 呼叫；成功／缺貨事實經 Outbox 推進 ordering |
-| `ConfirmStockReceiptUsecase` | Inbox → 建立並完成 inbound execution → `StockPool.receive` → availability fact | 無 | HTTP 同步提交；translator 在同交易寫 availability Outbox |
+| `AllocateOrderUsecase` | Inbox → order demand source → `AllocationDemandRegistrar` → `PendingDemandAllocator` → completion event | 無；結果由 Integration Event 表達 | Kafka handler 呼叫；成功事實經 Outbox 推進 ordering／WMS |
+| `ConfirmStockReceiptUsecase` | Inbox → 建立並完成 inbound execution → `StockQuant.receive` → availability fact | 無 | HTTP 同步提交；translator 在同交易寫 availability Outbox |
 | `AllocateWaitingDemandUsecase` | event 入口先 claim Inbox；scheduler 入口直接帶 command → 庫存守門查詢 → FIFO 取一頁 → `MovementAssigner.assignWaitingBatch` → completion events | 無；結果由 completion events 與持久化狀態表達 | availability 做首輪，Scheduler 做後續 reconciliation；不發布 continuation event |
 
 `AllocateWaitingDemandUsecase` 直接擁有一輪有上限的工作與 transaction：庫存守門查詢、FIFO
@@ -828,7 +834,7 @@ Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直�
 工作，Scheduler 會在後續 tick 重新查詢；head-of-line blocker 不會造成 control event 無限循環。
 
 Kafka handler 與未來 Temporal Activity 的交換點是上表的**完整交易 use case**，不是
-`StockOperationRecorder` 或 `MovementAssigner` 這些交易內元件。未來 Temporal Workflow
+`AllocationDemandRegistrar`、`PendingDemandAllocator` 或 `AllocationCommitter` 這些交易內元件。未來 Temporal Workflow
 若要依一輪配置結果分支，應在導入 Temporal 的 change 中一併建立 durable result contract，並讓
 adapter 能以 deterministic invocation id 回放原交易結果，或從 authoritative state 完整重建；
 配貨完成與缺貨這些跨 bounded context 的業務事實仍保留。
@@ -858,7 +864,7 @@ HTTP 端點分成兩類，界線不可模糊：**正式業務能力**不受 prof
 
 ### 為什麼收貨同步呼叫 use case
 
-Controller 與 `StockPool` 同屬本地 stock context。`receiptId` 由呼叫方提供並映射成 Inbox metadata，
+Controller 與 `StockQuant` 同屬本地 stock context。`receiptId` 由呼叫方提供並映射成 Inbox metadata，
 所以 HTTP retry 仍有冪等保護。`ConfirmStockReceiptUsecase` 是 transaction owner：建立並完成 inbound
 execution、增加庫存，並讓 availability Outbox 與收貨同進退。Backorder allocation 不屬於這個
 交易；Kafka 負責 availability 的低延遲首輪觸發，Scheduler 負責後續與定期 reconciliation。
@@ -905,7 +911,7 @@ usecase 直接寫入資料庫，不會產生 `OrderPlaced` 事件——配置端
 ## 必要測試
 
 - ATP 足夠時建立一筆 ACTIVE reservation，增加 `reservedQuantity` 並將 Order 標為 `ALLOCATED`。
-- ATP 不足時不改 StockPool、不建立 reservation，Order 進入 `BACKORDERED`。
+- ATP 不足時不改 StockQuant、不建立 reservation，Order 進入 `BACKORDERED`。
 - 同一 Order 不能建立兩筆 reservation。
 - 取消 ALLOCATED Order 會釋放 reservation 並減少 `reservedQuantity`。
 - 取消 PENDING／BACKORDERED Order 時，reservation handler 合法 no-op。

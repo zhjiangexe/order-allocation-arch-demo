@@ -81,7 +81,7 @@
 | --- | --- | --- |
 | `Shipment` | **一次交付**，粒度為 `(order, node)`，兩態 | `DEPARTED` 後不可變更 |
 | `PickTask` | 為滿足某條 line，從一個儲位揀一個批次 | 實揀數不得超過應揀數 |
-**沒有第三個聚合。** 「某個儲位上某批次有多少」是 `stock_pools` 回答的——它由 `stock`
+**沒有第三個聚合。** 「某個儲位上某批次有多少」是 `stock_pools` 回答的——它由 `inventory`
 擁有，而履約層**不寫它**（見「跨層交會點」）。這一節原本有一個 `LocationStock` 聚合，
 那個框架在庫存異動模型交付後不成立了：庫存只有一本帳，儲位只是它的位置維度變細。
 
@@ -126,7 +126,7 @@ PickTask
 
 ### `PickTask` 為何帶 `orderLineId`
 
-沒有它，揀到 8 個時**不知道這 8 個是為了滿足哪條 line**——訂單層要修正 `StockPool` 與
+沒有它，揀到 8 個時**不知道這 8 個是為了滿足哪條 line**——訂單層要修正 `StockQuant` 與
 重新決策，都必須知道是哪條 line 短少。
 
 拆單時一條 line 可能橫跨兩個 `Shipment`，因此這個關聯是**多對一**：
@@ -189,7 +189,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | 3 | 揀貨員回報實揀數 | `PickTask` → `PICKED`。**履約層不動庫存** | — |
 | 4 | 全部 `PickTask` 皆 `PICKED` | `Shipment` → `DEPARTED` | **`ShipmentDeparted`** |
 
-第 4 步的事件由 `stock` 消費，**完成那段出庫搬運**，由它的明細扣掉在庫量。契約定義於
+第 4 步的事件由 `inventory` 消費，**完成那段出庫搬運**，由它的明細扣掉在庫量。契約定義於
 [system-layer-map.md 交會點 2](system-layer-map.md)。
 
 **第 3 步刻意不動庫存。** 揀貨後貨仍在倉庫內，在庫量還沒有變；而「揀到哪了」由
@@ -303,7 +303,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 | `ConfirmPickUsecase` | 揀貨回報，含短揀分支；全部完成時發 `ShipmentDeparted` |
 | `CancelShipmentUsecase` | 消費 `OrderCancelled` |
 | `ListPickTasksUsecase` | 查詢，操作台用 |
-| ~~`GetLocationStockUsecase`~~ | **不需要**——儲位上的庫存就是 `stock_pools`，已有 `GetStockPoolUsecase` |
+| ~~`GetLocationStockUsecase`~~ | **不需要**——儲位上的庫存就是 `stock_pools`，已有 `GetStockQuantUsecase` |
 
 共 5 支，其中 1 支是查詢。
 
@@ -317,7 +317,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 **只有兩張新表。** 原本還規劃 `locations` 與 `location_stock`——前者現在是
 `stock_locations` 長出 `parent_id`（Odoo 也只有一棵樹），後者不存在，因為只有一本帳。
 
-`stock_locations` 加 `parent_id` **屬於 `stock` 的 migration，不是履約層的**——履約層不擁有
+`stock_locations` 加 `parent_id` **屬於 `inventory` 的 migration，不是履約層的**——履約層不擁有
 位置，它只是使用者。
 
 ### 事件
@@ -335,7 +335,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 ### 邊界規則
 
 `fulfillment` module **不得依賴** `order-promising`。所有跨層通訊經 Kafka 事件，
-不直接 import `Order`、`StockPool` 或其 repository。
+不直接 import `Order`、`StockQuant` 或其 repository。
 
 此規則由 Gradle module 邊界在編譯期強制。**本專案有過那個反例**：配貨曾經注入
 `OrderRepository`、由 domain service 直接呼叫 `order.markAllocated()`——皆因同在一個
@@ -355,7 +355,7 @@ module，package 邊界擋不住。後來以事件斷開，並補了一支架構
 W3 上架不做，儲位上的庫存由 seed 直接建立。
 
 **現行一段式收貨會建立實體搬運。** `ConfirmStockReceiptUsecase` 建立並完成 inbound
-picking／move／move line，再由 move line 增加 `StockPool` 並喚醒缺貨單。若日後導入儲位級
+picking／move／move line，再由 move line 增加 `StockQuant` 並喚醒缺貨單。若日後導入儲位級
 收貨／上架，應拆分既有 receipt workflow，而不是另開一條直接改庫存的路。
 
 ---

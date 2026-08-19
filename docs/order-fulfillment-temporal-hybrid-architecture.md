@@ -310,7 +310,7 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 
 ### Gate C：Activity adapters（後續）
 
-- [ ] 新增正式、outbound-only 的 `CompleteOutboundMovementsUsecase`；不可重用目前只接受 inbound 的 `MovementCompleter`。
+- [ ] 新增正式、outbound-only 的 `CompleteOutboundMovementsUsecase`；不可重用目前只接受 inbound 的 `InboundReceiptCompleter`。
 - [ ] `order-promising` Activity adapter 委派 allocation、outbound stock、ordering use cases。
 - [ ] `wms-runtime` Activity adapter 委派 `CreateShipmentUsecase` 並回傳既有或新建 Shipment ID。
 - [ ] `CreateWmsShipment` adapter 以 transaction 包住 repository、domain event／Outbox，並在 Activity

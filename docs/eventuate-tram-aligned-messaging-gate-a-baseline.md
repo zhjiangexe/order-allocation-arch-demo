@@ -253,7 +253,7 @@ ConfirmStockReceiptUsecaseTest.shouldRejectALocationOutsideTheFacility
 Expecting code to raise a throwable.
 ```
 
-該失敗可單獨穩定重現。原因是 test mock 了 `StockOperationRecorder`，但 facility／location 驗證目前已位於實際 `StockOperationRecorder.operationTypeFor(...)`；mock 不會執行該驗證，所以 use case 不會拋例外。Gate A 沒有修改這個 use case、recorder 或 test。
+該失敗可單獨穩定重現。原因是 test mock 了 `InboundReceiptRegistrar`，但 facility／location 驗證目前已位於實際 `InboundReceiptRegistrar.operationTypeFor(...)`；mock 不會執行該驗證，所以 use case 不會拋例外。Gate A 沒有修改這個 use case、recorder 或 test。
 
 本文件將它記為 pre-existing baseline failure，不把它誤算成 messaging 重構回歸；但在宣稱 repository 全綠之前，仍應由對應 WMS／stock task 修正 test boundary 或驗證責任。
 

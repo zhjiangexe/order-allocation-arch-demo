@@ -242,7 +242,7 @@ order_lines
 | 後果 | 說明 |
 | --- | --- |
 | migration 要明確處理既有列 | 既有列的 `in_date` 與 `expiry_date` 該填什麼是資料決定，不是技術細節 |
-| 「一個 SKU 只有一列」的假設全部失效 | `StockPoolRepository.findBySku()` 目前回傳 `Optional<StockPool>`，擴維度後必須回傳 `List`。所有依賴單筆回傳的呼叫端都要改 |
+| 「一個 SKU 只有一列」的假設全部失效 | `StockQuantRepository.findBySku()` 目前回傳 `Optional<StockQuant>`，擴維度後必須回傳 `List`。所有依賴單筆回傳的呼叫端都要改 |
 
 ### Index 的連鎖
 
@@ -287,7 +287,7 @@ order_lines
 | 同上 | `order.markBackOrdered(now)` |
 | 同上 | `publishDomainEvents(orders)`，代發他層的 domain event |
 | `AllocationService:58` | `order.markAllocated(now)`，domain service 跨層改他層 aggregate |
-| `AllocateOrderUsecase:47-54` | 載入 `Order` 後由 `order.getSku()` 反查 `StockPool` |
+| `AllocateOrderUsecase:47-54` | 載入 `Order` 後由 `order.getSku()` 反查 `StockQuant` |
 | `ConfirmStockReceiptUsecase:54` | `orderRepository.findBackordersBySkuInFifoOrder(sku)` |
 | `AllocationSelector:14`、`AllocationPolicy:8`、兩個 Policy | 排序邏輯建立在 `List<Order>` 上 |
 
@@ -410,7 +410,7 @@ view 引用了 **R3 才存在**的東西：執行層那一側掛在**行**上而
 
 ### 超賣防線不受本段影響
 
-要明確記錄，避免日後誤解：**超賣的防線在 `StockPool` aggregate 本身**——`canReserve()`
+要明確記錄，避免日後誤解：**超賣的防線在 `StockQuant` aggregate 本身**——`canReserve()`
 檢查 ATP、`reserve()` 不滿足就拋、建構子拒絕 `reserved > onHand`、樂觀鎖處理併發。
 這條線與「誰改 `Order`」無關，本段不動它。
 
@@ -420,14 +420,14 @@ view 引用了 **R3 才存在**的東西：執行層那一側掛在**行**上而
 | 防線 | 作用 |
 | --- | --- |
 | view 的 `NOT EXISTS` | 已經有搬運的 line 直接從 `demand_lines` 消失 |
-| `StockPool` 樂觀鎖 ＋ opt-in `OptimisticLockingDecorator` | 兩交易同時通過 view 時，一方 version 衝突 → 以新 transaction 重讀 view → 該 line 已被排除 → 跳過 |
+| `StockQuant` 樂觀鎖 ＋ opt-in `OptimisticLockingDecorator` | 兩交易同時通過 view 時，一方 version 衝突 → 以新 transaction 重讀 view → 該 line 已被排除 → 跳過 |
 
 ### 寫入為什麼走事件而不是同步呼叫
 
 allocation 不呼叫 ordering,只發事實;`Order` 的狀態由 ordering 收到事實後自己推進。
 三個理由,第一個與 module 邊界無關:
 
-**（一）一個交易只修改一個 aggregate。** 當時一個交易同時改 `Order`、`StockPool` 與預留
+**（一）一個交易只修改一個 aggregate。** 當時一個交易同時改 `Order`、`StockQuant` 與預留
 三者,這違反 aggregate 作為一致性邊界的規則——即使兩個 context 在同一個 module 裡也一樣
 違反。
 
@@ -436,7 +436,7 @@ allocation 不呼叫 ordering,只發事實;`Order` 的狀態由 ordering 收到�
 Promising 的對外契約,與 R4 無關。該 topic 目前**沒有任何 consumer**——R4 只是給它接上。
 若改成同步呼叫,同一件事會有兩條路徑陳述,還要保證兩者一致。
 
-**（三）鎖競爭不外溢。** 這個專案的核心量測是 `StockPool` 的樂觀鎖競爭。把 `Order` 綁進
+**（三）鎖競爭不外溢。** 這個專案的核心量測是 `StockQuant` 的樂觀鎖競爭。把 `Order` 綁進
 同一個交易,會讓那個競爭的分析多一個變數。
 
 代價要說清楚:配貨完成到訂單狀態更新之間有短暫落後,畫面上會看到「已配貨但列表仍顯示
@@ -509,9 +509,9 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 | 建 `products` 款主檔 | 新 migration、`Product`、`ProductEntity`、`ProductRepository(+Impl)`。key 為 `(owner_id, product_code)`，持有 `temperature_zone` |
 | 建 `skus` 規格主檔 | 新 migration、`Sku`、`SkuEntity`、`SkuRepository(+Impl)`。key 為 `(owner_id, sku_code)`，FK 指向 `products`，持有 `weight_gram` |
 | `orders` 加 `owner_id` | `Order`、`OrderEntity`、`OrderMapper`、新 migration |
-| `stock_pools` key 加 `owner_id` 與 `facility_id`（**不改名**，理由見「資料模型」） | `StockPool`、`StockPoolEntity`、`StockPoolMapper`、`StockPoolRepository(+Impl)`（`findBySku` 改回傳 `List`）、`JpaStockRepository`、新 migration |
+| `stock_pools` key 加 `owner_id` 與 `facility_id`（**不改名**，理由見「資料模型」） | `StockQuant`、`StockQuantEntity`、`StockQuantMapper`、`StockQuantRepository(+Impl)`（`findBySku` 改回傳 `List`）、`JpaStockRepository`、新 migration |
 | 加跨貨主校驗 | `AllocationService.requireMatchingOwner()` |
-| 查詢帶貨主 | `AllocateOrderUsecase`、`ConfirmStockReceiptUsecase`、`GetStockPoolUsecase` |
+| 查詢帶貨主 | `AllocateOrderUsecase`、`ConfirmStockReceiptUsecase`、`GetStockQuantUsecase` |
 | Seed | `DevSeedDataInitializer` 加一至兩個貨主；商品含常溫與冷凍各一款，其中一款帶兩個規格以顯示款／規格兩層 |
 | 畫面 | 訂單列表與庫存頁加貨主欄；庫存頁顯示「品名 · 規格」 |
 
@@ -539,7 +539,7 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 
 代價是本段從「放寬一個 domain 檢查」變成**重寫配貨為整籃原子判斷**：可滿足性從逐 SKU
 獨立變成「整籃的所有 SKU 必須同時可滿足」，`StrictFifoAllocationPolicy` 要跟著改，且一次
-交易會碰多個 `StockPool`。詳見 [dom-promising-scope.md](dom-promising-scope.md) 的
+交易會碰多個 `StockQuant`。詳見 [dom-promising-scope.md](dom-promising-scope.md) 的
 「缺貨時的行為」。
 
 新增 usecase：`AmendOrderUsecase`、`SplitOrderUsecase`。
