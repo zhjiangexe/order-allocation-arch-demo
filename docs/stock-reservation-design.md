@@ -629,12 +629,12 @@ Event Listener / Consumer
 ```
 
 `messaging-spring-optimistic-locking` 提供 Tram-style generic decorator；
-`OrderPromisingOptimisticLockingConfiguration` 顯式 opt in 並擁有 retry budget，
+`BootstrapOptimisticLockingConfiguration` 顯式 opt in 並擁有 retry budget，
 `AllocationOptimisticLockRetryObserver` 保留 operation、attempt metric 與 structured log。Decorator
 位於 transactional Inbox decorator 外層，每次 retry 都重新進入完整 chain 並建立新 transaction，
 不能在已標記 rollback-only 的 transaction 內繼續。策略僅重試 optimistic-lock conflict，初始呼叫
 加最多兩次 retry。這一層是 local application attempt retry，與
-`OrderPromisingKafkaConsumerConfiguration` 宣告的 broker redelivery policy 不同。
+`BootstrapKafkaConsumerConfiguration` 宣告的 broker redelivery policy 不同。
 
 重試耗盡時：
 
@@ -775,11 +775,15 @@ quantity
 
 ## Kafka topics 與 partition key
 
-Topic 命名採用 `{事件生產端 bounded context}.{事件主題}-events`。它描述的是**誰擁有並發布這份跨邊界契約**，不是目前程式部署在哪個 application，也不是 Java package 或 Aggregate 名稱。故即使目前 `Ordering` 與 `Promising` 同在 `order-promising` 專案中，仍保留各自的 topic prefix；日後拆成獨立服務時，topic 契約不必因此改名。
+Topic 命名採用 `{事件生產端 bounded context}.{事件主題}-events`。它描述的是**誰擁有並發布這份跨邊界契約**，
+不是目前程式部署在哪個 application，也不是 Java package 或 Aggregate 名稱。目前 `Ordering` 與 Inventory
+已分別抽成 `ordering-context`、`inventory-context` Gradle module，但仍由 `bootstrap` deployable
+共同啟動；兩者保留各自的 topic prefix，日後拆成獨立服務時，topic 契約不必因此改名。
 
 目前的 bounded context 邊界如下：`Ordering` 擁有訂單生命週期事件；本地 `inventory` 擁有收貨、
-實體庫存與批次預留。Java namespace 依責任分為 `inventory.balance`、`inventory.movement` 與
-`inventory.allocation`；對外仍由 `Promising` 擁有配置結果契約，`reservation` 不是獨立對外契約。
+實體庫存與批次預留。Java namespace 依責任分為 `inventory.balance`、`inventory.movement`、
+`inventory.allocation` 與倉儲位置／作業設定 `inventory.warehouse`；對外仍由 `Promising` 擁有配置結果契約，
+`reservation` 不是獨立對外契約。
 
 Topic 依生產端 bounded context 劃分，而非每個 event type 一個 topic。每則訊息仍保留 `eventType`，consumer 依 type 分派；未來若個別事件有不同吞吐、權限或 SLA，再拆出獨立 topic。
 

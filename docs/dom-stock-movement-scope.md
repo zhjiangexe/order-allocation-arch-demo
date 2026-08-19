@@ -8,7 +8,7 @@
 >
 > **Package 命名更新（2026-08-19）：** 現行 Java namespace 已由
 > `stock/{allocation,inventory,movement}` 整理為
-> `inventory/{allocation,balance,movement}`。下文的 `stock` 若出現在既有 change 名稱或
+> `inventory/{allocation,balance,movement,warehouse}`。下文的 `stock` 若出現在既有 change 名稱或
 > 歷史決策中仍予保留；這次只整理內部 namespace，不改資料表與對外事件契約。
 
 本文記錄一個跨越五個 change 的決定：**把庫存從「一個可被加減的數字」改成有來源與目的的

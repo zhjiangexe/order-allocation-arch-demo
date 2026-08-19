@@ -1,11 +1,13 @@
 rootProject.name = 'archone'
 
-include('order-promising')
+include('bootstrap')
+include('ordering-context')
+include('inventory-context')
+include('logistics-data-context')
 include('order-fulfillment-workflow')
 include('wms')
 include('wms-runtime')
 include('foundation')
 include('contracts')
-include('platform-infrastructure')
 
 apply from: file('messaging/messaging.settings.gradle')

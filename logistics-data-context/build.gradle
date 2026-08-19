@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'logistics data bounded context'
+
+dependencies {
+    api libs.spring.boot.starter.data.jpa
+    api libs.spring.boot.starter.webmvc
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.webmvc.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

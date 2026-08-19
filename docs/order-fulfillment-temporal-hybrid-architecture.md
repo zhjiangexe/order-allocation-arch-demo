@@ -339,7 +339,7 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 ## 本階段驗證
 
 - `./gradlew :order-fulfillment-workflow:check`
-- `./gradlew :order-promising:test`
-- `./gradlew :order-promising:sit`（包含 PostgreSQL／Flyway／JPA）
+- `./gradlew :bootstrap:test`
+- `./gradlew :bootstrap:sit`（包含 PostgreSQL／Flyway／JPA）
 - `./gradlew test`
 - `npm run typecheck` 與 `npm test -- --run`（`frontend`）

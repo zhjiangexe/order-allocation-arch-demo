@@ -1,0 +1,31 @@
+package com.flowzati.archone.logisticsdata.infrastructure.repository;
+
+import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
+import com.flowzati.archone.logisticsdata.domain.repository.SkuRepository;
+import com.flowzati.archone.logisticsdata.infrastructure.mapper.SkuMapper;
+import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaSkuRepository;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class SkuRepositoryImpl implements SkuRepository {
+
+    private final JpaSkuRepository repository;
+
+    public SkuRepositoryImpl(JpaSkuRepository repository) {
+        this.repository = repository;
+    }
+
+    @Override
+    public void save(Sku sku) {
+        repository.save(SkuMapper.toEntity(sku));
+    }
+
+    @Override
+    public List<Sku> findByProduct(UUID ownerId, String productCode) {
+        return repository.findByOwnerIdAndProductCodeOrderBySkuCodeAsc(ownerId, productCode).stream()
+                .map(SkuMapper::toDomain)
+                .toList();
+    }
+}

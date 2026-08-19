@@ -1,0 +1,25 @@
+plugins {
+    id 'java-library'
+    id 'java-test-fixtures'
+}
+
+description = 'inventory bounded context'
+
+dependencies {
+    api project(':foundation')
+    api project(':contracts')
+    api project(':messaging:messaging-events')
+    api project(':messaging:messaging-consumer-common')
+    api project(':messaging:messaging-spring-optimistic-locking')
+    implementation project(':messaging:messaging-spring-boot-autoconfigure')
+
+    api libs.spring.boot.starter.data.jpa
+    api libs.spring.boot.starter.webmvc
+    implementation libs.spring.boot.starter.actuator
+    implementation libs.spring.boot.starter.jdbc
+    implementation libs.micrometer.core
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.webmvc.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

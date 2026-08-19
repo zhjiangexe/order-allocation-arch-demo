@@ -109,11 +109,12 @@ class PureMessagingModuleArchitectureTest {
 
     @Test
     void applicationDeclaresTramShapedSubscriptionsWithoutRecreatingKafkaMechanics() throws IOException {
-        Path application = root().resolve("order-promising/src/main/java/com/flowzati/archone");
-        Path bootstrapMessaging = application.resolve("bootstrap/messaging");
-        String orderingMessaging = readProductionSources(application.resolve("ordering/entrypoint/messaging"));
-        String allocationMessaging =
-                readProductionSources(application.resolve("inventory/allocation/entrypoint/messaging"));
+        Path bootstrap = root().resolve("bootstrap/src/main/java/com/flowzati/archone");
+        Path ordering = root().resolve("ordering-context/src/main/java/com/flowzati/archone/ordering");
+        Path inventory = root().resolve("inventory-context/src/main/java/com/flowzati/archone/inventory");
+        Path bootstrapMessaging = bootstrap.resolve("bootstrap/messaging");
+        String orderingMessaging = readProductionSources(ordering.resolve("entrypoint/messaging"));
+        String allocationMessaging = readProductionSources(inventory.resolve("allocation/entrypoint/messaging"));
         String failurePolicy = readProductionSources(bootstrapMessaging.resolve("consumer"));
 
         assertThat(bootstrapMessaging.resolve("OrderPromisingIntegrationEventPreparationConfiguration.java"))
@@ -140,9 +141,10 @@ class PureMessagingModuleArchitectureTest {
         Path module = root.resolve("messaging/messaging-spring-optimistic-locking");
         String build = Files.readString(module.resolve("build.gradle"));
         String productionSources = readProductionSources(module.resolve("src/main/java"));
-        String applicationBuild = Files.readString(root.resolve("order-promising/build.gradle"));
-        String applicationMessaging =
-                readProductionSources(root.resolve("order-promising/src/main/java/com/flowzati/archone"));
+        String applicationBuild = Files.readString(root.resolve("bootstrap/build.gradle"));
+        String applicationMessaging = readProductionSources(
+                        root.resolve("bootstrap/src/main/java/com/flowzati/archone"))
+                + readProductionSources(root.resolve("inventory-context/src/main/java/com/flowzati/archone/inventory"));
 
         assertThat(build)
                 .contains("project(':messaging:messaging-consumer-common')")
@@ -167,16 +169,15 @@ class PureMessagingModuleArchitectureTest {
 
     @Test
     void applicationKeepsInboundConsumersAndOutboundPublishersOnOppositeAdapters() throws IOException {
-        Path application = root().resolve("order-promising/src/main/java/com/flowzati/archone");
-        String orderingConsumers = readProductionSources(application.resolve("ordering/entrypoint/messaging"));
-        String allocationConsumers =
-                readProductionSources(application.resolve("inventory/allocation/entrypoint/messaging"));
-        String orderingProducers =
-                readProductionSources(application.resolve("ordering/infrastructure/messaging/producer"));
+        Path ordering = root().resolve("ordering-context/src/main/java/com/flowzati/archone/ordering");
+        Path inventory = root().resolve("inventory-context/src/main/java/com/flowzati/archone/inventory");
+        String orderingConsumers = readProductionSources(ordering.resolve("entrypoint/messaging"));
+        String allocationConsumers = readProductionSources(inventory.resolve("allocation/entrypoint/messaging"));
+        String orderingProducers = readProductionSources(ordering.resolve("infrastructure/messaging/producer"));
         String allocationProducers =
-                readProductionSources(application.resolve("inventory/allocation/infrastructure/messaging/producer"));
+                readProductionSources(inventory.resolve("allocation/infrastructure/messaging/producer"));
         String inventoryProducers =
-                readProductionSources(application.resolve("inventory/balance/infrastructure/messaging/producer"));
+                readProductionSources(inventory.resolve("balance/infrastructure/messaging/producer"));
 
         assertThat(orderingConsumers + allocationConsumers)
                 .contains("EventConsumer")
@@ -188,10 +189,9 @@ class PureMessagingModuleArchitectureTest {
                 .contains("PublicationTarget")
                 .doesNotContain("OutboxAppender")
                 .doesNotContain("IntegrationEventHandlersBuilder");
-        assertThat(application.resolve("ordering/application/event/translator/OrderingDomainEventTranslator.java"))
+        assertThat(ordering.resolve("application/event/translator/OrderingDomainEventTranslator.java"))
                 .doesNotExist();
-        assertThat(application.resolve(
-                        "inventory/allocation/application/event/translator/AllocationDomainEventTranslator.java"))
+        assertThat(inventory.resolve("allocation/application/event/translator/AllocationDomainEventTranslator.java"))
                 .doesNotExist();
     }
 

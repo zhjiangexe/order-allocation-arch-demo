@@ -97,11 +97,11 @@ FIFO 排隊資格由 `AllocationFifoSelector` 決定；真正的 demand／supply
 
 ## 建議的程式閱讀順序
 
-1. [`AllocateOrderUsecase`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/AllocateOrderUsecase.java)：看首次訂單入口與 transaction。
-2. [`AllocationDemandRegistrar`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/service/demand/AllocationDemandRegistrar.java)：看 demand registration 建立了什麼。
-3. [`PendingDemandAllocator`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/service/reservation/PendingDemandAllocator.java)：看決策需要哪些 repository 資料。
-4. [`AllocationFifoSelector`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationFifoSelector.java)：只看 shared-SKU FIFO eligibility。
-5. [`AllocationDemandPlanner`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationDemandPlanner.java)：只看 all-or-nothing 與 FEFO demand／supply planning；ready plan 建立時就會驗證每條 demand line 的 picks 總量。
-6. [`AllocationCommitter`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/service/reservation/AllocationCommitter.java)：依「load data → validate cross-model scope → reserve → assign moves → assign pickings → complete demand → fact」閱讀。`AllocationCommitData` 只保存資料；`AllocationCommitValidator` 只保留無法由 plan、DB constraint 或單一 aggregate 保證的跨模型檢查，兩者都不是另外的 use case。
-7. [`AllocationCompletionRouter`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/event/AllocationCompletionRouter.java)：看 generic result 如何轉回 ORDER events。
-8. [`ReconcileWaitingDemandUsecase`](../order-promising/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/ReconcileWaitingDemandUsecase.java)：最後再看背景補配；它從階段 2 開始，不重做 acceptance。
+1. [`AllocateOrderUsecase`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/AllocateOrderUsecase.java)：看首次訂單入口與 transaction。
+2. [`AllocationDemandRegistrar`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/service/demand/AllocationDemandRegistrar.java)：看 demand registration 建立了什麼。
+3. [`PendingDemandAllocator`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/service/reservation/PendingDemandAllocator.java)：看決策需要哪些 repository 資料。
+4. [`AllocationFifoSelector`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationFifoSelector.java)：只看 shared-SKU FIFO eligibility。
+5. [`AllocationDemandPlanner`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationDemandPlanner.java)：只看 all-or-nothing 與 FEFO demand／supply planning；ready plan 建立時就會驗證每條 demand line 的 picks 總量。
+6. [`AllocationCommitter`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/service/reservation/AllocationCommitter.java)：依「load data → validate cross-model scope → reserve → assign moves → assign pickings → complete demand → fact」閱讀。`AllocationCommitData` 只保存資料；`AllocationCommitValidator` 只保留無法由 plan、DB constraint 或單一 aggregate 保證的跨模型檢查，兩者都不是另外的 use case。
+7. [`AllocationCompletionRouter`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/event/AllocationCompletionRouter.java)：看 generic result 如何轉回 ORDER events。
+8. [`ReconcileWaitingDemandUsecase`](../inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/ReconcileWaitingDemandUsecase.java)：最後再看背景補配；它從階段 2 開始，不重做 acceptance。

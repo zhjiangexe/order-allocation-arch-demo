@@ -326,12 +326,24 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 
 | Module | 內容 | 狀態 |
 | --- | --- | --- |
-| `order-promising` | `ordering`、`inventory/{allocation,balance,movement}`、`catalog`、`demo`、`bootstrap` | 已存在 |
+| `ordering-context` | `ordering/{application,domain,entrypoint,infrastructure}` | 已抽離為獨立 Gradle module |
+| `inventory-context` | `inventory/{allocation,balance,movement,warehouse}` | 已抽離為獨立 Gradle module |
+| `logistics-data-context` | `logisticsdata/{application,domain,entrypoint,infrastructure}` | 貨主、商品、SKU 與倉別等物流主檔 context |
+| `bootstrap` | Spring Boot 啟動、跨 context 組裝、migration 與 `demo` | 單一 deployable runtime |
 | `fulfillment` | 履約層（最小版：兩本帳與短揀對帳） | **新增** |
 
+`ordering-context`、`inventory-context` 與 `logistics-data-context` 都已取得編譯期 module 邊界，但尚未成為獨立微服務。
+資料庫 migration、跨 context 的 adapter view 與 Spring Boot 啟動仍由 `bootstrap` 擁有；若日後需要
+獨立部署，再分別建立 runtime module，並先以事件或外部 API 取代跨資料庫查詢。
+
+單一 context 的 unit／MVC slice tests 跟著各自的 module；`inventory-context` 另外以 Gradle test fixtures
+發布 context-owned 測試資料。需要同時組裝 Ordering、Inventory、migration 或 PostgreSQL 的測試才留在
+`bootstrap`，避免測試 fixture 反向模糊 production module 邊界。
+
 `inventory` 目前是同一 bounded context 的 package 根；`allocation` 負責需求排序、供需規劃與批次選擇，
-`balance` 負責 `StockQuant` 與收貨，`movement` 負責 picking／move 的執行紀錄。這是內部 namespace
-整理，不改資料表、Kafka topic 或 integration contract 名稱。
+`balance` 負責 `StockQuant` 與收貨，`movement` 負責 picking／move 的執行紀錄，`warehouse` 擁有
+`StockLocation` 與 `PickingType` 倉儲設定。這是內部 namespace 整理，不改資料表、Kafka topic 或
+integration contract 名稱。
 
 餘額 aggregate 採 Odoo ubiquitous language 命名為 `StockQuant`。既有 PostgreSQL 表
 `stock_pools`、欄位 `stock_pool_id`、`GET /stock-pool`、v1 JSON 的 `stockPoolId`，以及
@@ -349,10 +361,10 @@ integration aggregate type `StockPool` 暫時維持相容；Java domain 與 pers
 本專案有過那個前例：配貨曾經注入 `OrderRepository`、由 domain service 直接呼叫
 `order.markAllocated()`——兩者都是因為 `ordering` 與執行層同在一個 module，package 邊界
 擋不住。後來以事件斷開並補了架構測試，但那是**事後檢查**；module 邊界在編譯期就擋下來。
-履約層量級更大，同樣的錯誤更難回頭。另外 `order-promising` 這個 module 名稱已界定範圍，將履約層納入會使名稱失效。
+履約層量級更大，同樣的錯誤更難回頭。`bootstrap` 只是技術組裝層，不是可以容納任意 domain model 的共用業務 module；履約仍應擁有自己的 module 邊界。
 
-仍為**單一 Spring Boot 應用**，由 `bootstrap` 同時依賴兩個 module。這不是「先合併
-之後再拆服務」的過渡安排——module 邊界已提供拆分所需的全部準備，是否拆為獨立部署
+仍為**單一 Spring Boot 應用**，由 `bootstrap` 組裝各 bounded context module。
+這不是「先合併之後再拆服務」的過渡安排——module 邊界已提供拆分所需的基礎，是否拆為獨立部署
 單元屬於部署決策，不是設計決策。
 
 ### 為何叫 `fulfillment` 而非 `wms` 或 `warehouse`
@@ -362,7 +374,7 @@ YMS、庫內移動、補貨策略。
 
 | 候選 | 判定 |
 | --- | --- |
-| `fulfillment` | **採用**。語意剛好是「把已配貨的訂單變成實際出貨」；與 DOM 分工清楚（DOM 決策、fulfillment 執行）；且與既有 `order-promising` 同為**能力導向**命名 |
+| `fulfillment` | **採用**。語意剛好是「把已配貨的訂單變成實際出貨」；與 DOM 分工清楚（DOM 決策、fulfillment 執行）；並且是**能力導向**命名 |
 | `warehouse` | 偏廣，暗示涵蓋庫內全部作業 |
 | `wms` | 承諾過大，且是系統導向、與既有命名風格不一致 |
 | `outbound` | 語意精準，但 putaway（上架）屬入庫作業，會被名稱排除——而沒有 putaway，貨就永遠只掛在倉層的位置上，進不到儲位 |

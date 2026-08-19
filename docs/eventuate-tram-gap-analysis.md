@@ -135,10 +135,9 @@ event contract、handlers、subscriber identity 與 exception policy，runtime �
 - `messaging:messaging-test-support`：generic recording producer／controllable consumer、contract probes，
   以及 transport-free typed handler envelope fixture。
 - `contracts`：只保留具體 Integration Event payload，依賴 `messaging-events`。
-- `platform-infrastructure`：只保留 Clock 等非 messaging 的共用 Spring infrastructure。
-- `order-promising`：一份 stable event allow-list mapping、三份 bounded-context-owned handler +
+- `bootstrap`：組裝 UTC `Clock`、營運日曆、stable event allow-list mapping、三份 bounded-context-owned handler +
   dispatcher configurations、subscriber identities、bounded-context exception classification 與 business
-  use cases；不建立 `CommonErrorHandler` 或 Micrometer failure observer。
+  use cases；對外 application identity 仍是 `order-promising`，不建立 `CommonErrorHandler` 或 Micrometer failure observer。
 - Debezium／Kafka Connect 設定：外部 relay runtime。
 
 Gate F 沒有動態產生 annotated methods；`messaging-spring-consumer-kafka` 仿 Tram，透過
@@ -305,7 +304,7 @@ Tram 提供的是可靠事件與 idempotent handler 基礎；projection schema�
 
 | ID | 能力 | Eventuate Tram | Archone 目前狀態 | 判定 | 建議 |
 |---|---|---|---|---:|---|
-| O1 | Spring Boot Starter | 多個 starter／auto-configuration artifacts | 已有獨立 auto-configuration、`AutoConfiguration.imports` 與 dependency-only starter；不再由 `platform-infrastructure` wiring | ✅ | 維持薄 starter，不放 application listener policy |
+| O1 | Spring Boot Starter | 多個 starter／auto-configuration artifacts | 已有獨立 auto-configuration、`AutoConfiguration.imports` 與 dependency-only starter；不再由 application-owned infrastructure module wiring | ✅ | 維持薄 starter，不放 application listener policy |
 | O2 | Conditional configuration | 依 broker／database／bean 選擇 implementation | core、producer JDBC、consumer JDBC、Kafka、dispatcher、observation與 Flyway 均有獨立 conditions；單一 consumption capability condition取代 application 四層 property，runtime 遵守標準 Spring Kafka auto-startup | ✅ | 保持 producer-only／consumer-only與 disabled／inactive subscription context tests |
 | O3 | Dedicated serializer | message serialization abstraction | `JacksonIntegrationEventSerde` 使用 event-scoped Jackson 2 mapper；會複製唯一的 app mapper，否則自行建立，且不發布全域 mapper bean | ✅ | 維持 REST／Jackson 3 與 messaging wire policy 隔離 |
 | O4 | Reusable test kit | in-memory producer／consumer 與 handler test support | shared test-support 已有 recording producer、controllable consumer、contract probes 與 typed handler envelope fixture；部分 event-level scenario helper 仍在 application | 🟡 | 只在重複樣板出現時再補 captured event publisher／duplicate-redelivery scenario helper |
@@ -453,25 +452,22 @@ messaging:messaging-spring-boot-starter
   → messaging:messaging-spring-producer-starter
   → messaging:messaging-spring-consumer-starter
 
-order-promising
+bootstrap
   → contracts
   → messaging:messaging-api
   → messaging:messaging-events
   → messaging:messaging-spring-boot-starter
-  → platform-infrastructure
-
-platform-infrastructure → spring-context（Clock 等非 messaging wiring）
+  → foundation
 
 wms-runtime（未來）
   → wms
   → contracts
   → messaging:messaging-spring-boot-starter
 
-order-promising → foundation
 wms → foundation
 ```
 
-`platform-infrastructure` 已不再是 messaging composition root。bounded context 的 domain 不依賴
+`bootstrap` 是 application composition root；不再為單一 `Clock` bean 保留獨立 infrastructure module。bounded context 的 domain 不依賴
 messaging；application use cases 只接收純 Command。Integration Event metadata 停在 publisher／
 handler target；consumer transaction／Inbox 由單一 decorator chain 擁有。Application 已使用 Tram 式
 handler group + dispatcher factory + `MessageConsumer.subscribe(...)`，不存在 temporary per-event

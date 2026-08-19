@@ -24,7 +24,7 @@ port 皆由 Testcontainers 隔離，不依賴 `../perf` 的長駐 Compose projec
 images。
 
 ```bash
-./gradlew :order-promising:correctnessE2e --no-daemon
+./gradlew :bootstrap:correctnessE2e --no-daemon
 ```
 
 測試報告位於：

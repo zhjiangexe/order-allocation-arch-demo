@@ -652,10 +652,10 @@ log／trace high-cardinality fields，不進 metric tags。
 |---|---|
 | Local infra baseline | `e2e/perf/docker-compose.yml` |
 | Debezium connector registration | `e2e/perf/kafka-connect/register-outbox-connector.sh` |
-| Application Kafka defaults | `order-promising/src/main/resources/application.properties` |
-| Inbox／Outbox schema | `order-promising/src/main/resources/db/migration/V5__create_event_inbox_and_outbox.sql` |
-| Subscriber-aware Inbox | `order-promising/src/main/resources/db/migration/V7__make_event_inbox_subscriber_aware.sql` |
-| Generic headers migration | `order-promising/src/main/resources/db/migration/V8__add_generic_headers_to_event_outbox.sql` |
+| Application Kafka defaults | `bootstrap/src/main/resources/application.properties` |
+| Inbox／Outbox schema | `bootstrap/src/main/resources/db/migration/V5__create_event_inbox_and_outbox.sql` |
+| Subscriber-aware Inbox | `bootstrap/src/main/resources/db/migration/V7__make_event_inbox_subscriber_aware.sql` |
+| Generic headers migration | `bootstrap/src/main/resources/db/migration/V8__add_generic_headers_to_event_outbox.sql` |
 | JDBC Outbox writer | `messaging/messaging-producer-jdbc` |
 | Transactional Inbox | `messaging/messaging-consumer-jdbc` |
 | Spring transaction adapters | `messaging/messaging-spring-jdbc`、`messaging/messaging-spring-consumer-jdbc` |

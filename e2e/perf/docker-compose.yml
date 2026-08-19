@@ -2,7 +2,7 @@ name: order-promising-e2e-perf
 
 # Infra-only stack for e2e/perf (and, later, e2e/spec): PostgreSQL + Kafka (KRaft) +
 # Kafka Connect/Debezium. The order-promising app itself is NOT containerized here —
-# run it on the host (./gradlew :order-promising:bootRun --args='--spring.profiles.active=dev')
+# run it on the host (./gradlew :bootstrap:bootRun --args='--spring.profiles.active=dev')
 # so it picks up the default localhost:28291 / localhost:28292 already baked into
 # application-dev.properties / application.properties with zero extra config.
 #

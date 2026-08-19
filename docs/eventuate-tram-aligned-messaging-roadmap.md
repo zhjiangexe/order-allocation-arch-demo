@@ -874,7 +874,7 @@ Tram 風格只用於 subscription／decorator／idempotency，不照搬其 Kafka
 | business event publishing | Outbox → Debezium，不能改走 `KafkaTemplate` |
 | DLT recovery publishing | consumer transport exception path，可使用 `KafkaOperations` |
 
-現有 `OrderPromisingKafkaConsumerConfiguration` 行為必須保留：
+現有 `BootstrapKafkaConsumerConfiguration` 行為必須保留：
 
 ```text
 OptimisticLockingRetryExhaustedException
@@ -1217,7 +1217,7 @@ ES0 驗證證據（2026-08-09）：
 
 - `AllocationConcurrencyEndToEndIntegrationTest` 的 retry-exhausted path 從實際 `AllocationKafkaIntegrationEventConsumer` 進入，驗證三次 `MovementAssigner` invocation 位於三筆不同 PostgreSQL transaction，且最終 Inbox、StockQuant reservation、picking／moves／move lines 與 Outbox 均無失敗殘留。
 - `AllocationRetryTransactionIntegrationTest` 當時另固定三次 attempt／三筆 transaction contract，以及耗盡時每次 Inbox probe write 都 rollback；後續由完整 chain SIT 接手。
-- targeted `./gradlew :order-promising:sit --tests com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationConcurrencyEndToEndIntegrationTest` 通過。
+- targeted `./gradlew :bootstrap:sit --tests com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationConcurrencyEndToEndIntegrationTest` 通過。
 
 #### ES1 — 準備純 application API，尚不切換 production path（完成）
 
@@ -1542,7 +1542,7 @@ FS3 subscriber／group rename 與 replay runbook：
 - OpenTelemetry W3C integration test 驗證 `traceparent` 與 `tracestate` 經 producer carrier 寫入 Outbox envelope、consumer 延續同一 trace；缺少 headers 時 receiver handler 會建立新 trace。
 - observation auto-configuration 只在 `ObservationRegistry` bean 存在且 property 開啟時建立 adapters，producer／consumer 可分別停用，application 可提供 convention 或完整 adapter；starter 未加入任何 exporter dependency。
 - auto-config 將 producer observation interceptor 排在其他 `preSend` hooks 之後，避免把 application interceptor failure 誤標成 `outbox.failed`；reverse post lifecycle 仍能精確保留 append 成功結果。
-- `:order-promising:test` 已在既有 Actuator、OpenTelemetry、OTLP、Prometheus dependency 組合下通過，application 不需改 exporter 設定。
+- `:bootstrap:test` 已在既有 Actuator、OpenTelemetry、OTLP、Prometheus dependency 組合下通過，application 不需改 exporter 設定。
 
 建議觀測分層：
 
@@ -1898,7 +1898,7 @@ I-F 驗收條件：
 
 2026-08-10 Gate I-F 實作證據（含完成後的 application naming cleanup）：
 
-- `OrderPromisingIntegrationEventContractConfiguration` 只保存 stable event allow-list；Ordering 與
+- `BootstrapIntegrationEventContractConfiguration` 只保存 stable event allow-list；Ordering 與
   Allocation 分別以三個 bounded-context `...EventConsumer` 顯式完成 event-to-usecase mapping、建立
   handlers，再直接呼叫
   `IntegrationEventDispatcherFactory.make(...)`。過渡期 preparation configuration、topology registry
@@ -1912,9 +1912,9 @@ I-F 驗收條件：
   JDBC `OutboxAppender` concrete implementation。
 - optimistic-lock retry mechanism 收斂在 opt-in
   `messaging-spring-optimistic-locking`，名稱與 artifact responsibility 對齊 Tram；
-  `OrderPromisingOptimisticLockingConfiguration` 顯式 import、設定 retry budget，Allocation 專屬
+  `BootstrapOptimisticLockingConfiguration` 顯式 import、設定 retry budget，Allocation 專屬
   operation metrics／structured log 則留在 `AllocationOptimisticLockRetryObserver`。Kafka
-  redelivery／DLT policy 集中於 `OrderPromisingKafkaConsumerConfiguration`，兩層 retry 仍保持不同
+  redelivery／DLT policy 集中於 `BootstrapKafkaConsumerConfiguration`，兩層 retry 仍保持不同
   transaction 與 operational boundary。
 - `@ConditionalOnIntegrationEventConsumption` 收斂 consumption capability 條件；programmatic runtime
   另遵守 Spring Boot 標準 `spring.kafka.listener.auto-startup`。停用 auto-startup 時 dispatcher 與
@@ -2141,8 +2141,8 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 ./gradlew :messaging:messaging-spring-flyway:test
 ./gradlew :messaging:messaging-spring-boot-autoconfigure:test
 ./gradlew :messaging:messaging-test-support:test
-./gradlew :order-promising:test
-./gradlew :order-promising:sit
+./gradlew :bootstrap:test
+./gradlew :bootstrap:sit
 ./gradlew check
 ```
 

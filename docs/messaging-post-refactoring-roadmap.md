@@ -159,7 +159,7 @@ attempt；若 failure 發生在 transaction begin，該次嘗試甚至不會建�
 
 ### 2026-08-11 implementation evidence
 
-- `OrderPromisingConsumerFailurePolicy` 集中定義 local settings、Kafka backoff、exception taxonomy
+- `BootstrapConsumerFailurePolicy` 集中定義 local settings、Kafka backoff、exception taxonomy
   與兩種最大 attempt budget；兩個 Spring configuration 只負責 wiring，不再各自藏一半政策。
 - Kafka transport mapping 與 typed Integration Event contract 現在有 stage-specific exception；
   application handler 原始例外不會被 transport／contract wrapper 吞掉。
@@ -172,8 +172,8 @@ attempt；若 failure 發生在 transaction begin，該次嘗試甚至不會建�
   `IntegrationEventSubscriberTransactionIntegrationTest` 另覆蓋 production dispatcher path 的同一邊界。
 - deterministic tests 覆蓋 exception matrix、cause-chain SQL failure、1/2/4/8 秒 backoff、15／5
   attempt caps、mapping／handler exception boundary、retry exhausted／direct DLT 與 observation tags。
-- `./gradlew test :order-promising:sit --no-daemon --rerun-tasks` 已完整通過（108 tasks）；最後的
-  attempt-budget 命名調整後亦再次通過 `:order-promising:test` 與 `:order-promising:sit`。
+- `./gradlew test :bootstrap:sit --no-daemon --rerun-tasks` 已完整通過（108 tasks）；最後的
+  attempt-budget 命名調整後亦再次通過 `:bootstrap:test` 與 `:bootstrap:sit`。
 
 ## 6. Gate P0-C — Full-path correctness E2E
 
@@ -211,9 +211,9 @@ attempt；若 failure 發生在 transaction begin，該次嘗試甚至不會建�
 - DLT assertions 固定原 message ID、key、payload、event type、generic headers、原
   topic／partition／offset 與 subscriber metadata；解除故障並由
   `KafkaDeadLetterReplayRecordFactory` replay 後成功收斂。
-- `./gradlew :order-promising:correctnessE2e --no-daemon --rerun-tasks` 已通過：4 tests、0 failed；
+- `./gradlew :bootstrap:correctnessE2e --no-daemon --rerun-tasks` 已通過：4 tests、0 failed；
   四個情境實際執行約 56 秒，完整 Gradle task 約 68 秒。
-- `./gradlew :order-promising:test :order-promising:sit --no-daemon --rerun-tasks` 回歸亦通過
+- `./gradlew :bootstrap:test :bootstrap:sit --no-daemon --rerun-tasks` 回歸亦通過
   （54 Gradle tasks），新增的 repository-level source set 未改變既有 unit／SIT lifecycle。
 
 ## 7. Gate P1-D — WMS messaging vertical slice
