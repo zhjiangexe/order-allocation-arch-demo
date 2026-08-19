@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.runtime.outbound.infrastructure.persistence.entity;
 
-import com.flowzati.archone.wms.outbound.domain.model.ShipmentLine;
+import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

@@ -3,8 +3,8 @@ package com.flowzati.archone.testsupport;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +26,7 @@ public class InventoryEventDrainFactory {
     this.jdbcTemplate = jdbcTemplate;
     this.messageMapper = messageMapper;
     this.transport = transport;
-    this.physicalDestination = channelMapping.transform(InventoryEventTopics.STOCK_EVENTS);
+    this.physicalDestination = channelMapping.transform(InventoryChannels.STOCK_EVENTS);
   }
 
   public InventoryEventDrain create() {

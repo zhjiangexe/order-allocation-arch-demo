@@ -696,10 +696,10 @@ final class AllocationIntegrationEventConsumer {
 
   IntegrationEventHandlers integrationEventHandlers() {
     return IntegrationEventHandlersBuilder
-        .forDestination(OrderingEventTopics.ORDER_EVENTS)
+        .forDestination(OrderingChannels.ORDER_EVENTS)
         .onEvent(OrderPlacedIntegrationEvent.class, this::onOrderPlaced)
         .onEvent(OrderCancelledIntegrationEvent.class, this::onOrderCancelled)
-        .andForDestination(InventoryEventTopics.STOCK_EVENTS)
+        .andForDestination(InventoryChannels.STOCK_EVENTS)
         .onEvent(
             StockAvailabilityIncreasedIntegrationEvent.class,
             this::onStockAvailabilityIncreased)

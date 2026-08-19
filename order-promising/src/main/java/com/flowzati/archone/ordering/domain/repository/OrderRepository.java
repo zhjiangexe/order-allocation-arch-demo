@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.domain.repository;
 
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
 
 import java.util.List;
 import java.util.Optional;

@@ -27,14 +27,20 @@ class AllocationBoundaryArchitectureTest {
 
   private static final Path STOCK_ROOT =
       Path.of("src/main/java/com/flowzati/archone/stock");
+  private static final Path ALLOCATION_ROOT = STOCK_ROOT.resolve("allocation");
+  private static final Path INVENTORY_ROOT = STOCK_ROOT.resolve("inventory");
+  private static final Path MOVEMENT_ROOT = STOCK_ROOT.resolve("movement");
   private static final Path ORDERING_ROOT =
       Path.of("src/main/java/com/flowzati/archone/ordering");
-  private static final Path APPLICATION_ROOT = STOCK_ROOT.resolve("application");
+  private static final Path ALLOCATION_APPLICATION_ROOT = ALLOCATION_ROOT.resolve("application");
+  private static final Path INVENTORY_APPLICATION_ROOT = INVENTORY_ROOT.resolve("application");
   private static final Path ORDERING_APPLICATION_ROOT = ORDERING_ROOT.resolve("application");
 
   /** ordering 的訂單聚合根與它的 repository——allocation 兩者都不該認識。 */
   private static final Pattern ORDER_AGGREGATE_IMPORT = Pattern.compile(
-      "import\\s+com\\.flowzati\\.archone\\.ordering\\.domain\\.(model\\.Order(Line|Status)?|repository\\.OrderRepository)\\s*;");
+      "import\\s+com\\.flowzati\\.archone\\.ordering\\.domain\\."
+          + "(aggregate\\.Order|entity\\.OrderLine|type\\.OrderStatus"
+          + "|repository\\.OrderRepository)\\s*;");
 
   /**
    * ordering 擁有的表名。
@@ -67,14 +73,14 @@ class AllocationBoundaryArchitectureTest {
           + "|allocation_cancellation_operations)\\b");
 
   private static final List<Path> ALLOCATION_DECISION_CORE = List.of(
-      STOCK_ROOT.resolve("domain/model/AllocationDemand.java"),
-      STOCK_ROOT.resolve("domain/model/AllocationDemandLine.java"),
-      STOCK_ROOT.resolve("domain/model/AllocationCandidateBatch.java"),
-      STOCK_ROOT.resolve("domain/service/AllocationFifoSelector.java"),
-      STOCK_ROOT.resolve("domain/service/AllocationDemandPlanner.java"),
-      STOCK_ROOT.resolve("domain/service/FefoBatchQueue.java"),
-      STOCK_ROOT.resolve("domain/service/AllocationDemandPlan.java"),
-      STOCK_ROOT.resolve("domain/service/AllocationBatchPick.java"));
+      ALLOCATION_ROOT.resolve("domain/aggregate/AllocationDemand.java"),
+      ALLOCATION_ROOT.resolve("domain/entity/AllocationDemandLine.java"),
+      ALLOCATION_ROOT.resolve("domain/valueobject/AllocationCandidateBatch.java"),
+      ALLOCATION_ROOT.resolve("domain/service/AllocationFifoSelector.java"),
+      ALLOCATION_ROOT.resolve("domain/service/AllocationDemandPlanner.java"),
+      ALLOCATION_ROOT.resolve("domain/service/FefoBatchQueue.java"),
+      ALLOCATION_ROOT.resolve("domain/valueobject/AllocationDemandPlan.java"),
+      ALLOCATION_ROOT.resolve("domain/valueobject/AllocationBatchPick.java"));
 
   @Test
   @DisplayName("allocation 不得認識 ordering 的訂單聚合根——決策只讀 persisted demand")
@@ -181,15 +187,15 @@ class AllocationBoundaryArchitectureTest {
   }
 
   @Test
-  @DisplayName("配貨命令、喚醒結果與交易 usecase 不得依賴 Kafka 或 Temporal SDK")
+  @DisplayName("stock 命令、喚醒結果與交易 usecase 不得依賴 Kafka 或 Temporal SDK")
   void allocationTransactionBoundariesAreTransportNeutral() {
     List<Path> boundaries = Stream.of(
-        APPLICATION_ROOT.resolve("command/AllocateOrderCommand.java"),
-        APPLICATION_ROOT.resolve("command/ConfirmStockReceiptCommand.java"),
-        APPLICATION_ROOT.resolve("command/AllocateWaitingDemandCommand.java"),
-        APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
-        APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
-        APPLICATION_ROOT.resolve("movement/TransactionalAllocationAttempt.java"))
+        ALLOCATION_APPLICATION_ROOT.resolve("command/AllocateOrderCommand.java"),
+        INVENTORY_APPLICATION_ROOT.resolve("command/ConfirmStockReceiptCommand.java"),
+        ALLOCATION_APPLICATION_ROOT.resolve("command/AllocateWaitingDemandCommand.java"),
+        ALLOCATION_APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
+        INVENTORY_APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
+        ALLOCATION_APPLICATION_ROOT.resolve("TransactionalAllocationAttempt.java"))
         .toList();
 
     List<String> violations = boundaries.stream()
@@ -209,10 +215,10 @@ class AllocationBoundaryArchitectureTest {
   @DisplayName("inbound application usecases 不得依賴 message envelope 或 Inbox repository")
   void inboundApplicationUsecasesDoNotOwnMessagingIdempotency() {
     List<Path> consumerUsecases = List.of(
-        APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
-        APPLICATION_ROOT.resolve("movement/TransactionalAllocationAttempt.java"),
-        APPLICATION_ROOT.resolve("usecase/CancelMovementsUsecase.java"),
-        APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
+        ALLOCATION_APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
+        ALLOCATION_APPLICATION_ROOT.resolve("TransactionalAllocationAttempt.java"),
+        ALLOCATION_APPLICATION_ROOT.resolve("usecase/CancelMovementsUsecase.java"),
+        INVENTORY_APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
         ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderAllocationUsecase.java"));
 
     List<String> violations = consumerUsecases.stream()
@@ -228,6 +234,22 @@ class AllocationBoundaryArchitectureTest {
     assertThat(violations).isEmpty();
   }
 
+  @Test
+  @DisplayName("stock 垂直模組依賴方向固定為 allocation → inventory → movement")
+  void stockModulesFollowTheDeclaredDependencyDirection() {
+    Pattern allocationImport = Pattern.compile(
+        "import\\s+com\\.flowzati\\.archone\\.stock\\.allocation\\.");
+    Pattern upstreamImport = Pattern.compile(
+        "import\\s+com\\.flowzati\\.archone\\.stock\\.(allocation|inventory)\\.");
+
+    assertThat(forbiddenImportsUnder(INVENTORY_ROOT, allocationImport))
+        .as("inventory 不得反向依賴 allocation")
+        .isEmpty();
+    assertThat(forbiddenImportsUnder(MOVEMENT_ROOT, upstreamImport))
+        .as("movement 不得反向依賴 allocation 或 inventory")
+        .isEmpty();
+  }
+
   /** 註解裡提到這些表名是為了解釋邊界，不該被當成違規。 */
   private static String stripComments(String source) {
     return source
@@ -241,6 +263,13 @@ class AllocationBoundaryArchitectureTest {
     } catch (IOException exception) {
       throw new UncheckedIOException(exception);
     }
+  }
+
+  private static List<String> forbiddenImportsUnder(Path root, Pattern forbiddenImport) {
+    return sourcesUnder(root)
+        .filter(source -> forbiddenImport.matcher(stripComments(readSource(source))).find())
+        .map(Path::toString)
+        .toList();
   }
 
   private static String readSource(Path path) {

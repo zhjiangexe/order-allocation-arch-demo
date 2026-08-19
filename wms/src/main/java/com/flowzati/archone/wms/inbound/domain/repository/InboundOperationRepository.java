@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.inbound.domain.repository;
 
-import com.flowzati.archone.wms.inbound.domain.model.InboundOperation;
+import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
 import java.util.Optional;
 import java.util.UUID;
 

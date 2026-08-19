@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.repository;
 
-import com.flowzati.archone.catalog.domain.model.Sku;
+import com.flowzati.archone.catalog.domain.aggregate.Sku;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;
 import com.flowzati.archone.catalog.infrastructure.mapper.SkuMapper;
 import com.flowzati.archone.catalog.infrastructure.repository.jpa.JpaSkuRepository;

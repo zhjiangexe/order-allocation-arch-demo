@@ -495,7 +495,8 @@ RELEASED ──重複取消──> no-op
 4. 以 `findAllocatableBatchesInFefoOrder(ownerId, facilityId, skuCode, today)` 取得**已依 FEFO
    排序的可配批次**。篩選（未過期、還有量）與排序（`expiry_date, in_date, id`）都在資料庫做
    ——批數隨營運時間成長，把配不到的載進記憶體只為了丟掉是錯的方向。「今天」由
-   `AppClock` 依營運時區決定，不是 UTC。
+   `BusinessClock` 依營運時區決定，不是 UTC；Spring 實作是 bootstrap 的
+   `ConfiguredBusinessClock`。
 5. **先把整張單的取用計畫算完**（跨批依序取用直到湊滿），確認每一條行都湊得滿，才真正動
    `reserve()`。規劃與套用分開是 ship-complete 的實作機制：邊算邊扣的話，需求 80 而可配只有
    50 時會先扣掉 50 才發現配不到，那 50 件就被一張出不了貨的單鎖住。

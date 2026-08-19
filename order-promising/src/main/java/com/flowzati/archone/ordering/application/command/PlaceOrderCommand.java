@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.application.command;
 
-import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
+import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 
 import java.time.Instant;
 import java.time.LocalDate;

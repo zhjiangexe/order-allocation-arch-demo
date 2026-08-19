@@ -1,11 +1,11 @@
 package com.flowzati.archone.ordering.entrypoint.rest;
 
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import java.time.Instant;

@@ -1,7 +1,7 @@
 package com.flowzati.archone.catalog.infrastructure.repository;
 
-import com.flowzati.archone.catalog.domain.model.LocationUsage;
-import com.flowzati.archone.catalog.domain.model.StockLocation;
+import com.flowzati.archone.catalog.domain.type.LocationUsage;
+import com.flowzati.archone.catalog.domain.aggregate.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.catalog.infrastructure.mapper.StockLocationMapper;
 import com.flowzati.archone.catalog.infrastructure.repository.jpa.JpaStockLocationRepository;

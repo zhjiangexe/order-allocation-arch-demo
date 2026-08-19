@@ -114,7 +114,7 @@ class PureMessagingModuleArchitectureTest {
     String orderingMessaging = readProductionSources(
         application.resolve("ordering/entrypoint/messaging"));
     String allocationMessaging = readProductionSources(
-        application.resolve("stock/entrypoint/messaging"));
+        application.resolve("stock/allocation/entrypoint/messaging"));
     String failurePolicy = readProductionSources(bootstrapMessaging.resolve("consumer"));
 
     assertThat(bootstrapMessaging.resolve(
@@ -174,18 +174,20 @@ class PureMessagingModuleArchitectureTest {
     String orderingConsumers = readProductionSources(
         application.resolve("ordering/entrypoint/messaging"));
     String allocationConsumers = readProductionSources(
-        application.resolve("stock/entrypoint/messaging"));
+        application.resolve("stock/allocation/entrypoint/messaging"));
     String orderingProducers = readProductionSources(
         application.resolve("ordering/infrastructure/messaging/producer"));
     String allocationProducers = readProductionSources(
-        application.resolve("stock/infrastructure/messaging/producer"));
+        application.resolve("stock/allocation/infrastructure/messaging/producer"));
+    String inventoryProducers = readProductionSources(
+        application.resolve("stock/inventory/infrastructure/messaging/producer"));
 
     assertThat(orderingConsumers + allocationConsumers)
         .contains("EventConsumer")
         .contains("IntegrationEventHandlersBuilder")
         .doesNotContain("@Qualifier")
         .doesNotContain("OutboxAppender");
-    assertThat(orderingProducers + allocationProducers)
+    assertThat(orderingProducers + allocationProducers + inventoryProducers)
         .contains("IntegrationEventPublisher")
         .contains("PublicationTarget")
         .doesNotContain("OutboxAppender")
@@ -194,7 +196,7 @@ class PureMessagingModuleArchitectureTest {
         "ordering/application/event/translator/OrderingDomainEventTranslator.java"))
         .doesNotExist();
     assertThat(application.resolve(
-        "stock/application/event/translator/AllocationDomainEventTranslator.java"))
+        "stock/allocation/application/event/translator/AllocationDomainEventTranslator.java"))
         .doesNotExist();
   }
 

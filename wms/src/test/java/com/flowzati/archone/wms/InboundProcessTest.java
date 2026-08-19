@@ -12,8 +12,8 @@ import com.flowzati.archone.wms.inbound.application.usecase.RecordInspectionUsec
 import com.flowzati.archone.wms.inbound.application.usecase.RegisterInboundOperationUsecase;
 import com.flowzati.archone.wms.inbound.domain.event.PutawayCompleted;
 import com.flowzati.archone.wms.inbound.domain.event.StockQuarantined;
-import com.flowzati.archone.wms.inbound.domain.model.InboundOperation;
-import com.flowzati.archone.wms.inbound.domain.model.InboundStatus;
+import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
+import com.flowzati.archone.wms.inbound.domain.type.InboundStatus;
 import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;

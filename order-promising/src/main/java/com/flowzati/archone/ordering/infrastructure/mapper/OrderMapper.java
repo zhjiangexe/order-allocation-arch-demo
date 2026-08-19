@@ -1,8 +1,8 @@
 package com.flowzati.archone.ordering.infrastructure.mapper;
 
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
 import com.flowzati.archone.ordering.infrastructure.entity.OrderEntity;
 import com.flowzati.archone.ordering.infrastructure.entity.OrderLineEntity;
 import java.util.List;

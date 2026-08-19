@@ -21,17 +21,17 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
+import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResultEventConsumer;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.PromisingEventTopics;
-import com.flowzati.archone.stock.application.movement.TransactionalAllocationAttempt;
-import com.flowzati.archone.stock.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.stock.application.usecase.CancelMovementsUsecase;
-import com.flowzati.archone.stock.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
-import com.flowzati.archone.stock.entrypoint.messaging.AllocationOrderLifecycleEventConsumer;
+import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
+import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.stock.allocation.application.TransactionalAllocationAttempt;
+import com.flowzati.archone.stock.allocation.application.usecase.AllocateOrderUsecase;
+import com.flowzati.archone.stock.allocation.application.usecase.CancelMovementsUsecase;
+import com.flowzati.archone.stock.allocation.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
+import com.flowzati.archone.stock.allocation.entrypoint.messaging.AllocationOrderLifecycleEventConsumer;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -119,11 +119,11 @@ class OrderPromisingIntegrationEventWiringTest {
         eq(OrderingEventSubscriptions.ALLOCATION_RESULTS),
         orderingHandlers.capture());
     assertThat(orderingHandlers.getValue().destinations())
-        .containsExactly(PromisingEventTopics.ALLOCATION_EVENTS);
+        .containsExactly(AllocationChannels.ALLOCATION_EVENTS);
     assertThat(new IntegrationEventDispatcher(
         deserializer, orderingHandlers.getValue(), mapping, event -> { }))
         .matches(dispatcher -> dispatcher.supports(
-            PromisingEventTopics.ALLOCATION_EVENTS,
+            AllocationChannels.ALLOCATION_EVENTS,
             OrderAllocatedIntegrationEvent.EVENT_TYPE,
             EventMessageHeaders.INITIAL_CONTRACT_VERSION));
 
@@ -133,15 +133,15 @@ class OrderPromisingIntegrationEventWiringTest {
         eq(AllocationEventSubscriptions.ORDER_LIFECYCLE),
         orderLifecycleHandlers.capture());
     assertThat(orderLifecycleHandlers.getValue().destinations())
-        .containsExactly(OrderingEventTopics.ORDER_EVENTS);
+        .containsExactly(OrderingChannels.ORDER_EVENTS);
     assertThat(new IntegrationEventDispatcher(
         deserializer, orderLifecycleHandlers.getValue(), mapping, event -> { }))
         .matches(dispatcher -> dispatcher.supports(
-            OrderingEventTopics.ORDER_EVENTS,
+            OrderingChannels.ORDER_EVENTS,
             OrderPlacedIntegrationEvent.EVENT_TYPE,
             EventMessageHeaders.INITIAL_CONTRACT_VERSION))
         .matches(dispatcher -> dispatcher.supports(
-            OrderingEventTopics.ORDER_EVENTS,
+            OrderingChannels.ORDER_EVENTS,
             OrderCancelledIntegrationEvent.EVENT_TYPE,
             EventMessageHeaders.INITIAL_CONTRACT_VERSION));
 
@@ -151,11 +151,11 @@ class OrderPromisingIntegrationEventWiringTest {
         eq(AllocationEventSubscriptions.INVENTORY_AVAILABILITY),
         inventoryHandlers.capture());
     assertThat(inventoryHandlers.getValue().destinations())
-        .containsExactly(InventoryEventTopics.STOCK_EVENTS);
+        .containsExactly(InventoryChannels.STOCK_EVENTS);
     assertThat(new IntegrationEventDispatcher(
         deserializer, inventoryHandlers.getValue(), mapping, event -> { }))
         .matches(dispatcher -> dispatcher.supports(
-            InventoryEventTopics.STOCK_EVENTS,
+            InventoryChannels.STOCK_EVENTS,
             StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
             EventMessageHeaders.INITIAL_CONTRACT_VERSION));
   }

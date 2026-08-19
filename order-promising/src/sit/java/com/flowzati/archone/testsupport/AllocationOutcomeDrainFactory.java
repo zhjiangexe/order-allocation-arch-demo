@@ -4,7 +4,7 @@ import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
-import com.flowzati.archone.stock.application.event.PromisingEventTopics;
+import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +26,7 @@ public class AllocationOutcomeDrainFactory {
     this.jdbcTemplate = jdbcTemplate;
     this.messageMapper = messageMapper;
     this.transport = transport;
-    this.physicalDestination = channelMapping.transform(PromisingEventTopics.ALLOCATION_EVENTS);
+    this.physicalDestination = channelMapping.transform(AllocationChannels.ALLOCATION_EVENTS);
   }
 
   public AllocationOutcomeDrain create() {

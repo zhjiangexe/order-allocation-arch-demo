@@ -1,12 +1,12 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.stock.domain.model.StockMove;
-import com.flowzati.archone.catalog.domain.model.LocationUsage;
-import com.flowzati.archone.catalog.domain.model.PickingDirection;
-import com.flowzati.archone.catalog.domain.model.PickingType;
-import com.flowzati.archone.catalog.domain.model.StockLocation;
+import com.flowzati.archone.stock.movement.domain.aggregate.StockMove;
+import com.flowzati.archone.catalog.domain.type.LocationUsage;
+import com.flowzati.archone.catalog.domain.type.PickingDirection;
+import com.flowzati.archone.catalog.domain.aggregate.PickingType;
+import com.flowzati.archone.catalog.domain.aggregate.StockLocation;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.time.Instant;
 import java.util.List;
@@ -232,7 +232,7 @@ public final class MovementFixtures {
         java.sql.Timestamp.from(order.getReceivedAt()), status);
 
     java.util.Map<UUID, UUID> allocationLines = new java.util.LinkedHashMap<>();
-    java.util.List<com.flowzati.archone.ordering.domain.model.OrderLine> canonical =
+    java.util.List<com.flowzati.archone.ordering.domain.entity.OrderLine> canonical =
         order.getLines().stream().sorted(java.util.Comparator.comparing(line -> line.getId().toString()))
             .toList();
     for (int index = 0; index < canonical.size(); index++) {

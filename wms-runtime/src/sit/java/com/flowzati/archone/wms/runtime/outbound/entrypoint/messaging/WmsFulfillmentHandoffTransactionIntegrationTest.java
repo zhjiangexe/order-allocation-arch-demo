@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
-import com.flowzati.archone.wms.outbound.domain.model.ShipmentStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.runtime.WmsRuntimeApplication;
 import com.flowzati.archone.wms.runtime.testsupport.WmsPostgreSQLTestConfiguration;

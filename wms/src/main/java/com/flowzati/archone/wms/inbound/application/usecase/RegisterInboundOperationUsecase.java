@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.inbound.application.usecase;
 
 import com.flowzati.archone.wms.inbound.application.command.RegisterInboundOperationCommand;
-import com.flowzati.archone.wms.inbound.domain.model.InboundLine;
-import com.flowzati.archone.wms.inbound.domain.model.InboundOperation;
+import com.flowzati.archone.wms.inbound.domain.valueobject.InboundLine;
+import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
 import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 

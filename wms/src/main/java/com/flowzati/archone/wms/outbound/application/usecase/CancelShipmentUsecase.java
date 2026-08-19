@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.outbound.application.usecase;
 
 import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
-import com.flowzati.archone.wms.outbound.domain.model.CancellationOutcome;
-import com.flowzati.archone.wms.outbound.domain.model.Shipment;
+import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 

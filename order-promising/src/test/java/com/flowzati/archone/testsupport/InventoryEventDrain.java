@@ -2,8 +2,8 @@ package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.stock.application.event.InventoryEventTopics;
+import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +45,7 @@ public final class InventoryEventDrain {
                       AND i.event_id = o.id
                  )
            ORDER BY o.timestamp, o.id
-          """, InventoryEventTopics.STOCK_EVENTS,
+          """, InventoryChannels.STOCK_EVENTS,
           AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
       if (rows.isEmpty()) {
         return delivered;
@@ -66,7 +66,7 @@ public final class InventoryEventDrain {
           FROM event_outbox
          WHERE id = ?
            AND route = ?
-        """, eventId, InventoryEventTopics.STOCK_EVENTS);
+        """, eventId, InventoryChannels.STOCK_EVENTS);
     if (rows.size() != 1) {
       throw new IllegalArgumentException("Inventory Outbox event not found: " + eventId);
     }
@@ -77,7 +77,7 @@ public final class InventoryEventDrain {
     UUID eventId = UUID.fromString(row.get("id").toString());
     String eventType = row.get("type").toString();
     ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        InventoryEventTopics.STOCK_EVENTS,
+        InventoryChannels.STOCK_EVENTS,
         0,
         0,
         row.get("partition_key").toString(),

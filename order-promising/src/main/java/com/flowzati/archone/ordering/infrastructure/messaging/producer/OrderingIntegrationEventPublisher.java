@@ -1,18 +1,18 @@
 package com.flowzati.archone.ordering.infrastructure.messaging.producer;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
+import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.contracts.stock.v1.StockContentionKey;
+import com.flowzati.archone.foundation.domain.event.DomainEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
-import com.flowzati.archone.promising.domain.DomainEvent;
-import com.flowzati.archone.promising.messaging.OutboxAggregateTypes;
-import com.flowzati.archone.promising.messaging.StockContentionKey;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,8 +62,8 @@ public class OrderingIntegrationEventPublisher implements OrderingDomainEventPub
     String partitionKey = partitionKey(event.orderId(), event.ownerId(), event.facilityId());
     eventPublisher.publish(
         integration,
-        new AggregateReference(OutboxAggregateTypes.ORDER, event.orderId().toString()),
-        new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, partitionKey),
+        new AggregateReference(OrderingAggregateTypes.ORDER, event.orderId().toString()),
+        new PublicationTarget(OrderingChannels.ORDER_EVENTS, partitionKey),
         event.receivedAt()
     );
   }
@@ -74,8 +74,8 @@ public class OrderingIntegrationEventPublisher implements OrderingDomainEventPub
     String partitionKey = partitionKey(event.orderId(), event.ownerId(), event.facilityId());
     eventPublisher.publish(
         integration,
-        new AggregateReference(OutboxAggregateTypes.ORDER, event.orderId().toString()),
-        new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, partitionKey),
+        new AggregateReference(OrderingAggregateTypes.ORDER, event.orderId().toString()),
+        new PublicationTarget(OrderingChannels.ORDER_EVENTS, partitionKey),
         event.cancelledAt()
     );
   }

@@ -3,9 +3,9 @@ package com.flowzati.archone.ordering.infrastructure.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.infrastructure.entity.OrderEntity;
 import com.flowzati.archone.ordering.infrastructure.repository.jpa.JpaOrderRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;

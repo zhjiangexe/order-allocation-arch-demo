@@ -1,14 +1,14 @@
 package com.flowzati.archone.wms.outbound.wave.application.usecase;
 
-import com.flowzati.archone.wms.outbound.domain.model.PickTask;
-import com.flowzati.archone.wms.outbound.domain.model.Shipment;
-import com.flowzati.archone.wms.outbound.domain.model.ShipmentLine;
-import com.flowzati.archone.wms.outbound.domain.model.ShipmentStatus;
-import com.flowzati.archone.wms.outbound.domain.model.WarehouseWork;
+import com.flowzati.archone.wms.outbound.domain.entity.PickTask;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
+import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.outbound.domain.entity.WarehouseWork;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.wave.application.command.ReleaseWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.domain.model.Wave;
-import com.flowzati.archone.wms.outbound.wave.domain.model.WaveStatus;
+import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
+import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
 import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 import com.flowzati.archone.wms.shared.application.IdGenerator;

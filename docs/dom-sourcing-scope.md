@@ -245,8 +245,8 @@ B 貨主同 SKU 有貨與此無關。
 | --- | --- |
 | `allocation/domain/service/AllocationRequest.java` | 現為 `stockPoolId, sku, availableToPromise, decisionAt`。候選節點、成本、前置時間、貨主一個都不在，需整個重定義 |
 | `allocation/domain/service/AllocationService.java` | `requireMatchingSku()` 把「一單一 SKU 對一池」寫死在 domain service；`allocate()`、`allocateWaitingBatch()` 兩支簽章須改為對節點集合；另須加 `requireMatchingOwner()` |
-| `allocation/domain/model/StockPool.java` | 加 `facilityId` 與 `ownerId`；`availableToPromise()` 語意由「全網」變為「該貨主在該節點」 |
-| `ordering/domain/model/Order.java` | 加 `shipToZone`；`markAllocated(Instant)` → `markAllocated(facilityId, Instant)` |
+| `stock/inventory/domain/aggregate/StockPool.java` | 加 `facilityId` 與 `ownerId`；`availableToPromise()` 語意由「全網」變為「該貨主在該節點」 |
+| `ordering/domain/aggregate/Order.java` | 加 `shipToZone`；`markAllocated(Instant)` → `markAllocated(facilityId, Instant)` |
 | `allocation/domain/service/selector/AllocationContext.java` | 目前是空介面，成本函數要靠它注入 |
 
 ### 簽章傳染

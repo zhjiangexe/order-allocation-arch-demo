@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.repository;
 
-import com.flowzati.archone.catalog.domain.model.Facility;
+import com.flowzati.archone.catalog.domain.aggregate.Facility;
 import com.flowzati.archone.catalog.domain.repository.FacilityRepository;
 import com.flowzati.archone.catalog.infrastructure.entity.OwnerFacilityEntity;
 import com.flowzati.archone.catalog.infrastructure.mapper.FacilityMapper;

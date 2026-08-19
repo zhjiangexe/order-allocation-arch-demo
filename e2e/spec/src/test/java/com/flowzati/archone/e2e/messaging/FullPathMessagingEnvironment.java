@@ -6,10 +6,10 @@ import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
 import com.flowzati.archone.messaging.observation.MessagingObservationNames;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.stock.application.event.InventoryEventTopics;
-import com.flowzati.archone.stock.application.event.PromisingEventTopics;
+import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.wms.runtime.WmsRuntimeApplication;
 import com.flowzati.archone.wms.runtime.outbound.entrypoint.messaging.WmsEventSubscriptions;
@@ -72,12 +72,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Real infrastructure and low-level probes shared by the full-path correctness scenarios. */
 final class FullPathMessagingEnvironment {
 
-  static final String ORDER_EVENTS = OrderingEventTopics.ORDER_EVENTS;
+  static final String ORDER_EVENTS = OrderingChannels.ORDER_EVENTS;
   static final Duration NORMAL_FLOW_TIMEOUT = Duration.ofSeconds(45);
   static final Duration FAILURE_FLOW_TIMEOUT = Duration.ofSeconds(60);
   static final int OPTIMISTIC_TRANSACTION_ATTEMPTS = 15;
 
-  private static final String ALLOCATION_EVENTS = PromisingEventTopics.ALLOCATION_EVENTS;
+  private static final String ALLOCATION_EVENTS = AllocationChannels.ALLOCATION_EVENTS;
   private static final String CONNECTOR_NAME = "order-promising-correctness-outbox";
   private static final String DEBEZIUM_IMAGE = "quay.io/debezium/connect:3.5.2.Final";
   private static final Network NETWORK = Network.newNetwork();
@@ -265,7 +265,7 @@ final class FullPathMessagingEnvironment {
     List<String> baseTopics = List.of(
         ORDER_EVENTS,
         ALLOCATION_EVENTS,
-        InventoryEventTopics.STOCK_EVENTS,
+        InventoryChannels.STOCK_EVENTS,
         FulfillmentChannels.FULFILLMENT_HANDOFFS);
     List<NewTopic> topics = new ArrayList<>();
     for (String topic : baseTopics) {
@@ -736,7 +736,7 @@ final class FullPathMessagingEnvironment {
       failuresRemaining.set(0);
     }
 
-    @Around("execution(* com.flowzati.archone.stock.application.movement."
+    @Around("execution(* com.flowzati.archone.stock.allocation.application."
         + "AllocationAttemptCoordinator.allocateOne(..))")
     Object failAfterBusinessWrites(ProceedingJoinPoint joinPoint) throws Throwable {
       Object result = joinPoint.proceed();

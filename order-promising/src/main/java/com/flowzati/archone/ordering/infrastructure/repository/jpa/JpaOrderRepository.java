@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.infrastructure.repository.jpa;
 
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+
 import com.flowzati.archone.ordering.infrastructure.entity.OrderEntity;
 import java.util.List;
 import java.util.UUID;

@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.entrypoint.rest;
 
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;

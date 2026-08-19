@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.mapper;
 
-import com.flowzati.archone.catalog.domain.model.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
 import com.flowzati.archone.catalog.infrastructure.entity.ProductEntity;
 
 public final class ProductMapper {

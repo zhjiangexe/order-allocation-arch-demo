@@ -2,6 +2,7 @@ package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
@@ -10,9 +11,8 @@ import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
-import com.flowzati.archone.ordering.application.event.OrderingEventTopics;
-import com.flowzati.archone.promising.messaging.OutboxAggregateTypes;
-import com.flowzati.archone.stock.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
 import java.time.Instant;
 import org.springframework.stereotype.Component;
 
@@ -36,7 +36,7 @@ public class AllocationOrderLifecycleEventDriver {
   ) {
     this.messageMapper = new IntegrationEventMessageMapper(serializer);
     this.transport = transport;
-    this.physicalDestination = channelMapping.transform(OrderingEventTopics.ORDER_EVENTS);
+    this.physicalDestination = channelMapping.transform(OrderingChannels.ORDER_EVENTS);
   }
 
   public void consume(OrderPlacedIntegrationEvent event) {
@@ -54,8 +54,8 @@ public class AllocationOrderLifecycleEventDriver {
   ) {
     IntegrationEventPublication publication = new IntegrationEventPublication(
         event,
-        new AggregateReference(OutboxAggregateTypes.ORDER, orderId),
-        new PublicationTarget(OrderingEventTopics.ORDER_EVENTS, orderId),
+        new AggregateReference(OrderingAggregateTypes.ORDER, orderId),
+        new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId),
         occurredAt);
     transport.emit(
         AllocationEventSubscriptions.ORDER_LIFECYCLE,

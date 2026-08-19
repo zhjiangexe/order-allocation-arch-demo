@@ -1,10 +1,12 @@
 package com.flowzati.archone.catalog.entrypoint.rest;
 
+import com.flowzati.archone.catalog.domain.aggregate.Facility;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.catalog.application.usecase.ListStockLocationsUsecase;
-import com.flowzati.archone.catalog.domain.model.StockLocation;
+import com.flowzati.archone.catalog.domain.aggregate.StockLocation;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;

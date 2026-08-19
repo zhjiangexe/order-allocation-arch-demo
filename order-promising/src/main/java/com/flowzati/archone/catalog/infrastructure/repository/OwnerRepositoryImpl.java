@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.repository;
 
-import com.flowzati.archone.catalog.domain.model.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.catalog.infrastructure.mapper.OwnerMapper;
 import com.flowzati.archone.catalog.infrastructure.repository.jpa.JpaOwnerRepository;

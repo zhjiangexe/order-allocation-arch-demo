@@ -1,37 +1,37 @@
 package com.flowzati.archone.bootstrap;
 
-import com.flowzati.archone.promising.time.AppClock;
-import com.flowzati.archone.stock.domain.model.StockPool;
-import com.flowzati.archone.stock.domain.model.StockMove;
-import com.flowzati.archone.stock.domain.model.StockMoveLine;
-import com.flowzati.archone.stock.domain.model.StockPicking;
-import com.flowzati.archone.stock.domain.model.PickingState;
-import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.stock.domain.repository.StockMoveRepository;
-import com.flowzati.archone.stock.domain.repository.StockPickingRepository;
-import com.flowzati.archone.stock.domain.repository.AllocationDemandRepository;
-import com.flowzati.archone.stock.domain.model.AllocationDemand;
-import com.flowzati.archone.stock.domain.model.AllocationDemandLineRequest;
-import com.flowzati.archone.stock.domain.model.SourceAllocationUnit;
-import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.Product;
-import com.flowzati.archone.catalog.domain.model.Sku;
-import com.flowzati.archone.catalog.domain.model.TemperatureZone;
+import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.stock.inventory.domain.aggregate.StockPool;
+import com.flowzati.archone.stock.movement.domain.aggregate.StockMove;
+import com.flowzati.archone.stock.movement.domain.entity.StockMoveLine;
+import com.flowzati.archone.stock.movement.domain.aggregate.StockPicking;
+import com.flowzati.archone.stock.movement.domain.type.PickingState;
+import com.flowzati.archone.stock.inventory.domain.repository.StockPoolRepository;
+import com.flowzati.archone.stock.movement.domain.repository.StockMoveRepository;
+import com.flowzati.archone.stock.movement.domain.repository.StockPickingRepository;
+import com.flowzati.archone.stock.allocation.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.stock.allocation.domain.aggregate.AllocationDemand;
+import com.flowzati.archone.stock.allocation.domain.valueobject.AllocationDemandLineRequest;
+import com.flowzati.archone.stock.allocation.domain.valueobject.SourceAllocationUnit;
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Sku;
+import com.flowzati.archone.catalog.domain.type.TemperatureZone;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.catalog.domain.repository.ProductRepository;
-import com.flowzati.archone.catalog.domain.model.Facility;
-import com.flowzati.archone.catalog.domain.model.LocationUsage;
-import com.flowzati.archone.catalog.domain.model.PickingDirection;
-import com.flowzati.archone.catalog.domain.model.PickingType;
-import com.flowzati.archone.catalog.domain.model.StockLocation;
+import com.flowzati.archone.catalog.domain.aggregate.Facility;
+import com.flowzati.archone.catalog.domain.type.LocationUsage;
+import com.flowzati.archone.catalog.domain.type.PickingDirection;
+import com.flowzati.archone.catalog.domain.aggregate.PickingType;
+import com.flowzati.archone.catalog.domain.aggregate.StockLocation;
 import com.flowzati.archone.catalog.domain.repository.FacilityRepository;
 import com.flowzati.archone.catalog.domain.repository.PickingTypeRepository;
 import com.flowzati.archone.catalog.domain.repository.StockLocationRepository;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;
-import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
@@ -210,7 +210,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final StockPickingRepository stockPickingRepository;
   private final PickingTypeRepository pickingTypeRepository;
   private final AllocationDemandRepository allocationDemandRepository;
-  private final AppClock appClock;
+  private final BusinessClock appClock;
 
   public DevSeedDataInitializer(
       OwnerRepository ownerRepository,
@@ -224,7 +224,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       StockPickingRepository stockPickingRepository,
       PickingTypeRepository pickingTypeRepository,
       AllocationDemandRepository allocationDemandRepository,
-      AppClock appClock
+      BusinessClock appClock
   ) {
     this.ownerRepository = ownerRepository;
     this.productRepository = productRepository;
@@ -638,7 +638,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     AllocationDemand saved = allocationDemandRepository.save(demand);
     return new SeedDemand(saved.id(), saved.lines().stream().collect(Collectors.toMap(
         line -> UUID.fromString(line.sourceLineId()),
-        com.flowzati.archone.stock.domain.model.AllocationDemandLine::id)));
+        com.flowzati.archone.stock.allocation.domain.entity.AllocationDemandLine::id)));
   }
 
   private record SeedDemand(UUID id, Map<UUID, UUID> lineIds) {

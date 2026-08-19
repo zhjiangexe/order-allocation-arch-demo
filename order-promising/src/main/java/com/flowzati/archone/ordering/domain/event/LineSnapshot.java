@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.domain.event;
 
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
+
 /**
  * 事件裡那一行的內容：行號、SKU 與數量。
  *

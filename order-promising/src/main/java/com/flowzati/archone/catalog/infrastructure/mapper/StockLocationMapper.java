@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.mapper;
 
-import com.flowzati.archone.catalog.domain.model.StockLocation;
+import com.flowzati.archone.catalog.domain.aggregate.StockLocation;
 import com.flowzati.archone.catalog.infrastructure.entity.StockLocationEntity;
 
 public final class StockLocationMapper {

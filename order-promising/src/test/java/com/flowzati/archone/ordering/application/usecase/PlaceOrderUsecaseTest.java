@@ -1,11 +1,11 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.promising.time.AppClock;
+import com.flowzati.archone.bootstrap.time.ConfiguredBusinessClock;
 import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -91,7 +91,7 @@ class PlaceOrderUsecaseTest {
     assertThat(order.getReceivedAt()).isAfter(upstreamPlacedAt);
   }
 
-  private static AppClock fixedClock() {
-    return new AppClock(Clock.fixed(RECEIVED_AT, ZoneOffset.UTC), "Asia/Taipei");
+  private static ConfiguredBusinessClock fixedClock() {
+    return new ConfiguredBusinessClock(Clock.fixed(RECEIVED_AT, ZoneOffset.UTC), "Asia/Taipei");
   }
 }

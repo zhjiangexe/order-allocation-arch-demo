@@ -7,11 +7,11 @@ import com.flowzati.archone.catalog.application.usecase.ListFacilitiesForOwnerUs
 import com.flowzati.archone.catalog.application.usecase.ListOwnersUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListProductsUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListSkusUsecase;
-import com.flowzati.archone.catalog.domain.model.Facility;
-import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.Product;
-import com.flowzati.archone.catalog.domain.model.Sku;
-import com.flowzati.archone.catalog.domain.model.TemperatureZone;
+import com.flowzati.archone.catalog.domain.aggregate.Facility;
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Sku;
+import com.flowzati.archone.catalog.domain.type.TemperatureZone;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;

@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.repository;
 
-import com.flowzati.archone.catalog.domain.model.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
 import com.flowzati.archone.catalog.domain.repository.ProductRepository;
 import com.flowzati.archone.catalog.infrastructure.mapper.ProductMapper;
 import com.flowzati.archone.catalog.infrastructure.repository.jpa.JpaProductRepository;

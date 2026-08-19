@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.mapper;
 
-import com.flowzati.archone.catalog.domain.model.PickingType;
+import com.flowzati.archone.catalog.domain.aggregate.PickingType;
 import com.flowzati.archone.catalog.infrastructure.entity.PickingTypeEntity;
 
 public final class PickingTypeMapper {

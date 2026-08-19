@@ -1,5 +1,9 @@
 package com.flowzati.archone.catalog;
 
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Sku;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;

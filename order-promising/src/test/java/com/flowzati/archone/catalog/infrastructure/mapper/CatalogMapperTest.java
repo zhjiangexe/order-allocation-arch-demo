@@ -2,10 +2,10 @@ package com.flowzati.archone.catalog.infrastructure.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.Product;
-import com.flowzati.archone.catalog.domain.model.Sku;
-import com.flowzati.archone.catalog.domain.model.TemperatureZone;
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Sku;
+import com.flowzati.archone.catalog.domain.type.TemperatureZone;
 import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
 import com.flowzati.archone.catalog.infrastructure.entity.ProductEntity;
 import com.flowzati.archone.catalog.infrastructure.entity.SkuEntity;

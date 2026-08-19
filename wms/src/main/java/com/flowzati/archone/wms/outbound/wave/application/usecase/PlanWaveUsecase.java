@@ -1,12 +1,12 @@
 package com.flowzati.archone.wms.outbound.wave.application.usecase;
 
-import com.flowzati.archone.wms.outbound.domain.model.Shipment;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.wave.application.command.PlanWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.domain.model.Wave;
-import com.flowzati.archone.wms.outbound.wave.domain.model.WaveAssignment;
-import com.flowzati.archone.wms.outbound.wave.domain.model.WaveCandidate;
-import com.flowzati.archone.wms.outbound.wave.domain.model.WavePlanningPolicy;
+import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
+import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveAssignment;
+import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveCandidate;
+import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
 import com.flowzati.archone.wms.outbound.wave.domain.service.WavePlanner;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;

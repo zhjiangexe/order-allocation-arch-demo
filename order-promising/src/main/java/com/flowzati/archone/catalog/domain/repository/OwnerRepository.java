@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.domain.repository;
 
-import com.flowzati.archone.catalog.domain.model.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

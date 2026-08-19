@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.outbound.wave.domain.service;
 
-import com.flowzati.archone.wms.outbound.wave.domain.model.WaveAssignment;
-import com.flowzati.archone.wms.outbound.wave.domain.model.WaveCandidate;
-import com.flowzati.archone.wms.outbound.wave.domain.model.WavePlanningPolicy;
+import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveAssignment;
+import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveCandidate;
+import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

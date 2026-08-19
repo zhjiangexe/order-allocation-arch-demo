@@ -3,10 +3,10 @@ package com.flowzati.archone.catalog.application.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.catalog.domain.model.Owner;
-import com.flowzati.archone.catalog.domain.model.Product;
-import com.flowzati.archone.catalog.domain.model.Sku;
-import com.flowzati.archone.catalog.domain.model.TemperatureZone;
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Sku;
+import com.flowzati.archone.catalog.domain.type.TemperatureZone;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.catalog.domain.repository.ProductRepository;
 import com.flowzati.archone.catalog.domain.repository.SkuRepository;

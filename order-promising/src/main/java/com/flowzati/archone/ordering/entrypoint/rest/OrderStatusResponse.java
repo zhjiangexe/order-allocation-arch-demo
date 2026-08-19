@@ -1,8 +1,8 @@
 package com.flowzati.archone.ordering.entrypoint.rest;
 
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

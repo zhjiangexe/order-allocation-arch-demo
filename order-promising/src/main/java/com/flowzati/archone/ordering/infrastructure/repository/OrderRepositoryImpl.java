@@ -1,7 +1,7 @@
 package com.flowzati.archone.ordering.infrastructure.repository;
 
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.infrastructure.mapper.OrderMapper;
 import com.flowzati.archone.ordering.infrastructure.repository.jpa.JpaOrderRepository;

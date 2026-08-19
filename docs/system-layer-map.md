@@ -311,7 +311,8 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 ### 倉別時區：已識別但未排程
 
 效期以日期（而非瞬間）比對，因此「今天是幾號」必須挑一個時區來切。R3 收成
-`AppClock`，時區由 `archone.business-zone` 設定、全系統一個值（預設 `Asia/Taipei`）。
+`BusinessClock` port；bootstrap 的 `ConfiguredBusinessClock` 依
+`archone.business-zone` 設定時區，目前全系統一個值（預設 `Asia/Taipei`）。
 
 **正確的模型是時區屬於倉庫**——東京倉的貨照東京的日曆過期，該放在
 `facilities.time_zone`，而 `isSellable` 的判準隨批次所在的倉走。本專案的倉全在台灣，
@@ -319,13 +320,13 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 
 會踩到的條件很具體：**同一個貨主的倉跨越多個時區**。屆時全域設定會讓其中一邊每天有數小時
 把已過期的貨判成可售，而且不會有任何錯誤浮現——貨就出去了。改動範圍是 `facilities`
-加一欄、`AppClock` 改為依倉查詢。
+加一欄、`BusinessClock` 改為依倉查詢。
 
 ## Module 結構
 
 | Module | 內容 | 狀態 |
 | --- | --- | --- |
-| `order-promising` | `ordering`、`allocation`、`catalog`、`common`、`demo`、`bootstrap` | 已存在 |
+| `order-promising` | `ordering`、`stock/{allocation,inventory,movement}`、`catalog`、`demo`、`bootstrap` | 已存在 |
 | `fulfillment` | 履約層（最小版：兩本帳與短揀對帳） | **新增** |
 
 ### 為何是獨立 module 而非新 package

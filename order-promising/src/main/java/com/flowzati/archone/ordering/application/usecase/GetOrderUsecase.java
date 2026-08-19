@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.util.NoSuchElementException;
 import java.util.UUID;

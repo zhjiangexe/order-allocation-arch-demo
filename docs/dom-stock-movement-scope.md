@@ -702,8 +702,11 @@ Odoo 19 把它們全放在 `stock.move` 上：`_action_confirm` / `_action_assig
 | ③ 完成 | `_action_done` | `MovementCompleter` | 建 move line、完成 inbound move，並由 line 增加實體庫存 |
 | ④ 取消 | `_action_cancel` | `MovementCanceller` | 找 picking → 濾掉 `DONE` → 還量 → 取消 → 刪明細 |
 
-放在 `stock/application/movement/`。動詞取 `record` / `assign` / `cancel`，與 spec 的用詞
-（*Every movement of goods is **recorded***）及 `MoveState` 的值域對得起來。
+垂直切片後不再把這些 application component 全塞進同一個 package，而是依「誰擁有 use case」放置：
+純粹建立搬運的 `StockOperationRecorder` 在 `stock/movement/application/`；完成收貨並增加庫存的
+`MovementCompleter` 在 `stock/inventory/application/`；釋放配貨與取消 outbound execution 的
+`MovementCanceller` 在 `stock/allocation/application/`。底層的 `StockMove`、`StockPicking` 與 repository
+仍集中在 `stock/movement/domain/`。這樣依賴方向保持為 `allocation → inventory → movement`。
 
 本系統已擁有簡化的一段式 inbound execution。若未來接外部 WMS，應讓 Kafka handler 與
 Temporal Activity 呼叫同一個「完成收貨」transactional use case，或明確切換 source of truth；

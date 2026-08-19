@@ -1,11 +1,11 @@
 package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.promising.time.AppClock;
+import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
@@ -18,12 +18,12 @@ import org.springframework.stereotype.Service;
 public class PlaceOrderUsecase {
 
   private final OrderRepository orderRepository;
-  private final AppClock clock;
+  private final BusinessClock clock;
   private final OrderingDomainEventPublisher eventPublisher;
 
   public PlaceOrderUsecase(
       OrderRepository orderRepository,
-      AppClock clock,
+      BusinessClock clock,
       OrderingDomainEventPublisher eventPublisher) {
     this.orderRepository = orderRepository;
     this.clock = clock;

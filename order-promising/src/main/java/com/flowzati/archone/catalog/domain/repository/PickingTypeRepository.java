@@ -1,7 +1,7 @@
 package com.flowzati.archone.catalog.domain.repository;
 
-import com.flowzati.archone.catalog.domain.model.PickingDirection;
-import com.flowzati.archone.catalog.domain.model.PickingType;
+import com.flowzati.archone.catalog.domain.type.PickingDirection;
+import com.flowzati.archone.catalog.domain.aggregate.PickingType;
 import java.util.Optional;
 import java.util.UUID;
 

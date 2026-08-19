@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.mapper;
 
-import com.flowzati.archone.catalog.domain.model.Owner;
+import com.flowzati.archone.catalog.domain.aggregate.Owner;
 import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
 
 public final class OwnerMapper {

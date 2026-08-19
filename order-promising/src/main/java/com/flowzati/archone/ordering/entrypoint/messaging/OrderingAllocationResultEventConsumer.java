@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
-import com.flowzati.archone.stock.application.event.PromisingEventTopics;
+import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -31,7 +31,7 @@ public class OrderingAllocationResultEventConsumer {
       IntegrationEventDispatcherFactory factory
   ) {
     IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
-        .forDestination(PromisingEventTopics.ALLOCATION_EVENTS)
+        .forDestination(AllocationChannels.ALLOCATION_EVENTS)
         .onEvent(OrderAllocatedIntegrationEvent.class, envelope -> onOrderAllocated(envelope.event()))
         .build();
     return factory.make(OrderingEventSubscriptions.ALLOCATION_RESULTS, handlers);

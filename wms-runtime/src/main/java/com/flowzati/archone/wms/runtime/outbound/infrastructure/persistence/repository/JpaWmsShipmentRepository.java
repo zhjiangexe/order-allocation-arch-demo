@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.runtime.outbound.infrastructure.persistence.repository;
 
-import com.flowzati.archone.wms.outbound.domain.model.ShipmentStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.runtime.outbound.infrastructure.persistence.entity.WmsShipmentEntity;
 import java.util.List;
 import java.util.Optional;

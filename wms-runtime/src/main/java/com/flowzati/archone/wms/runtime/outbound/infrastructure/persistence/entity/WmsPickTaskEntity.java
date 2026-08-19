@@ -1,7 +1,7 @@
 package com.flowzati.archone.wms.runtime.outbound.infrastructure.persistence.entity;
 
-import com.flowzati.archone.wms.outbound.domain.model.PickTask;
-import com.flowzati.archone.wms.outbound.domain.model.PickTaskStatus;
+import com.flowzati.archone.wms.outbound.domain.entity.PickTask;
+import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.outbound.domain.repository;
 
-import com.flowzati.archone.wms.outbound.domain.model.Shipment;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

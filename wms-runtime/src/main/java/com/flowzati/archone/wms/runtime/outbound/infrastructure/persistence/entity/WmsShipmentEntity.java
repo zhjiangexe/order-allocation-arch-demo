@@ -1,10 +1,10 @@
 package com.flowzati.archone.wms.runtime.outbound.infrastructure.persistence.entity;
 
-import com.flowzati.archone.wms.outbound.domain.model.CancellationOutcome;
-import com.flowzati.archone.wms.outbound.domain.model.Shipment;
-import com.flowzati.archone.wms.outbound.domain.model.ShipmentStatus;
-import com.flowzati.archone.wms.outbound.domain.model.WarehouseWork;
-import com.flowzati.archone.wms.outbound.domain.model.WarehouseWorkStatus;
+import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.outbound.domain.entity.WarehouseWork;
+import com.flowzati.archone.wms.outbound.domain.type.WarehouseWorkStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.entrypoint.rest;
 
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

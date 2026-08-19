@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.mapper;
 
-import com.flowzati.archone.catalog.domain.model.Facility;
+import com.flowzati.archone.catalog.domain.aggregate.Facility;
 import com.flowzati.archone.catalog.infrastructure.entity.FacilityEntity;
 
 public final class FacilityMapper {

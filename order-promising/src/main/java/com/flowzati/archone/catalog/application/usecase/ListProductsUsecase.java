@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.application.usecase;
 
-import com.flowzati.archone.catalog.domain.model.Product;
+import com.flowzati.archone.catalog.domain.aggregate.Product;
 import com.flowzati.archone.catalog.domain.repository.ProductRepository;
 import java.util.List;
 import java.util.UUID;

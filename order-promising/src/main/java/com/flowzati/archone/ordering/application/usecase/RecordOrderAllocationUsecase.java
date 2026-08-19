@@ -1,8 +1,8 @@
 package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.util.Optional;
 import org.springframework.stereotype.Service;

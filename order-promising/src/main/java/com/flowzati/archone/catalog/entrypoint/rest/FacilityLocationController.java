@@ -3,6 +3,8 @@ package com.flowzati.archone.catalog.entrypoint.rest;
 import com.flowzati.archone.catalog.application.usecase.ListStockLocationsUsecase;
 import java.util.List;
 import java.util.UUID;
+
+import com.flowzati.archone.catalog.entrypoint.rest.response.StockLocationResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;

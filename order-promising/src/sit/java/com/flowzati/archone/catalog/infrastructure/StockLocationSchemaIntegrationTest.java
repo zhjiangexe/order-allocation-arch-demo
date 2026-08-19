@@ -1,5 +1,7 @@
 package com.flowzati.archone.catalog.infrastructure;
 
+import com.flowzati.archone.catalog.domain.aggregate.Facility;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

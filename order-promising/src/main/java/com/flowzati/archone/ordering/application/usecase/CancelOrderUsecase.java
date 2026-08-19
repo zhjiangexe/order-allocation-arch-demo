@@ -1,7 +1,7 @@
 package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
-import com.flowzati.archone.ordering.domain.model.Order;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import java.time.Instant;

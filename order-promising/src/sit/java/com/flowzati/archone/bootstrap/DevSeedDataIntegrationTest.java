@@ -1,18 +1,18 @@
 package com.flowzati.archone.bootstrap;
 
-import com.flowzati.archone.promising.time.AppClock;
-import com.flowzati.archone.stock.domain.model.StockPool;
+import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.stock.inventory.domain.aggregate.StockPool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.catalog.domain.model.Facility;
+import com.flowzati.archone.catalog.domain.aggregate.Facility;
 import com.flowzati.archone.catalog.domain.repository.FacilityRepository;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.domain.repository.StockPoolRepository;
-import com.flowzati.archone.stock.domain.repository.AllocationDemandRepository;
-import com.flowzati.archone.stock.domain.model.WaitingAllocationScope;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.stock.inventory.domain.repository.StockPoolRepository;
+import com.flowzati.archone.stock.allocation.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.stock.allocation.domain.valueobject.WaitingAllocationScope;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.SitDatabase;
@@ -54,7 +54,7 @@ class DevSeedDataIntegrationTest {
   private JdbcTemplate jdbcTemplate;
 
   @Autowired
-  private AppClock appClock;
+  private BusinessClock appClock;
 
   @Autowired
   private OwnerRepository ownerRepository;

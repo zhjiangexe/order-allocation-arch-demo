@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "com.flowzati.archone.catalog",
     "com.flowzati.archone.demo",
     "com.flowzati.archone.ordering",
-    "com.flowzati.archone.promising",
     "com.flowzati.archone.stock",
     "com.flowzati.archone.platform",
     // Empty in production; SIT fixtures intentionally live outside business packages.

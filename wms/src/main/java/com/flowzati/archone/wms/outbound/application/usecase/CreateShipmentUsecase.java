@@ -2,8 +2,8 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
-import com.flowzati.archone.wms.outbound.domain.model.Shipment;
-import com.flowzati.archone.wms.outbound.domain.model.ShipmentLine;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
+import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 import java.util.List;

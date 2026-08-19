@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.entity;
 
-import com.flowzati.archone.catalog.domain.model.PickingDirection;
+import com.flowzati.archone.catalog.domain.type.PickingDirection;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

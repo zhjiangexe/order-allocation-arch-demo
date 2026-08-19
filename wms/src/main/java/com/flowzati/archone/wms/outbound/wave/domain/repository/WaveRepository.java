@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.outbound.wave.domain.repository;
 
-import com.flowzati.archone.wms.outbound.wave.domain.model.Wave;
+import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
 import java.util.Optional;
 import java.util.UUID;
 

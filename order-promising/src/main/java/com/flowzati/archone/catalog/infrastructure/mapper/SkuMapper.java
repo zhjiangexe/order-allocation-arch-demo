@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.mapper;
 
-import com.flowzati.archone.catalog.domain.model.Sku;
+import com.flowzati.archone.catalog.domain.aggregate.Sku;
 import com.flowzati.archone.catalog.infrastructure.entity.SkuEntity;
 
 public final class SkuMapper {

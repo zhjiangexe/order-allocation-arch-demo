@@ -6,6 +6,11 @@ import com.flowzati.archone.catalog.application.usecase.ListProductsUsecase;
 import com.flowzati.archone.catalog.application.usecase.ListSkusUsecase;
 import java.util.List;
 import java.util.UUID;
+
+import com.flowzati.archone.catalog.entrypoint.rest.response.FacilityResponse;
+import com.flowzati.archone.catalog.entrypoint.rest.response.OwnerResponse;
+import com.flowzati.archone.catalog.entrypoint.rest.response.ProductResponse;
+import com.flowzati.archone.catalog.entrypoint.rest.response.SkuResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;

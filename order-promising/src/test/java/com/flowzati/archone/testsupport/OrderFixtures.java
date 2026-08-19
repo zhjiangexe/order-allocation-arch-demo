@@ -1,10 +1,10 @@
 package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.ordering.domain.model.Order;
-import com.flowzati.archone.ordering.domain.model.DeliveryTerms;
-import com.flowzati.archone.ordering.domain.model.OrderLine;
-import com.flowzati.archone.ordering.domain.model.OrderStatus;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
+import com.flowzati.archone.ordering.domain.entity.OrderLine;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;

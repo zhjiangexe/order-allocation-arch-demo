@@ -1,6 +1,6 @@
 package com.flowzati.archone.catalog.infrastructure.entity;
 
-import com.flowzati.archone.catalog.domain.model.LocationUsage;
+import com.flowzati.archone.catalog.domain.type.LocationUsage;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

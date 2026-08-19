@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.application.command;
 
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
