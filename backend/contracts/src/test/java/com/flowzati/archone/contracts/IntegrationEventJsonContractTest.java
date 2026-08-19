@@ -3,6 +3,8 @@ package com.flowzati.archone.contracts;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
@@ -28,6 +30,7 @@ class IntegrationEventJsonContractTest {
     private static final UUID ALLOCATION_ID = UUID.fromString("00000000-0000-0000-0000-000000000006");
     private static final UUID ORDER_LINE_ID = UUID.fromString("00000000-0000-0000-0000-000000000007");
     private static final UUID MOVE_ID = UUID.fromString("00000000-0000-0000-0000-000000000008");
+    private static final UUID SHIPMENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000009");
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-07T00:00:00Z");
 
     private final ObjectMapper objectMapper = new ObjectMapper()
@@ -82,6 +85,26 @@ class IntegrationEventJsonContractTest {
                                 OCCURRED_AT.plusSeconds(3600),
                                 80,
                                 OCCURRED_AT),
-                        AllocationCommittedForFulfillmentIntegrationEvent.class));
+                        AllocationCommittedForFulfillmentIntegrationEvent.class),
+                Arguments.of(
+                        "shipment-handed-over-for-fulfillment-v1.json",
+                        new ShipmentHandedOverForFulfillmentIntegrationEvent(
+                                EVENT_ID,
+                                SHIPMENT_ID,
+                                ALLOCATION_ID,
+                                ORDER_ID,
+                                java.util.List.of(MOVE_ID),
+                                OCCURRED_AT),
+                        ShipmentHandedOverForFulfillmentIntegrationEvent.class),
+                Arguments.of(
+                        "outbound-movements-completed-for-fulfillment-v1.json",
+                        new OutboundMovementsCompletedForFulfillmentIntegrationEvent(
+                                EVENT_ID,
+                                ALLOCATION_ID,
+                                ORDER_ID,
+                                SHIPMENT_ID,
+                                java.util.List.of(MOVE_ID),
+                                OCCURRED_AT),
+                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.class));
     }
 }

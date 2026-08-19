@@ -400,6 +400,17 @@ class OutboundProcessTest {
         }
 
         @Override
+        public List<UUID> findCreatedAtOrBefore(Instant cutoff, int limit) {
+            return shipments.values().stream()
+                    .filter(shipment -> shipment.status() == ShipmentStatus.CREATED)
+                    .filter(shipment -> !shipment.createdAt().isAfter(cutoff))
+                    .sorted(Comparator.comparing(Shipment::createdAt).thenComparing(Shipment::id))
+                    .map(Shipment::id)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public void save(Shipment shipment) {
             shipments.put(shipment.id(), shipment);
         }

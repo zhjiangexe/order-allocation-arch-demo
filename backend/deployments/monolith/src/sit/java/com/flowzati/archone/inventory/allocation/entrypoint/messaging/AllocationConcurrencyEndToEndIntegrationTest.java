@@ -126,9 +126,9 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         // 恰好一張拿到預留：兩張都拿到代表超賣，都沒拿到代表兩張都白白重試到耗盡。
         assertThat(!heldBy(firstOrderId).isEmpty() ^ !heldBy(secondOrderId).isEmpty())
                 .isTrue();
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, firstEvent.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, firstEvent.getEventId()))
                 .isTrue();
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, secondEvent.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, secondEvent.getEventId()))
                 .isTrue();
         assertThat(jdbcTemplate.queryForList("SELECT type FROM event_outbox", String.class))
                 .contains(OrderAllocatedIntegrationEvent.EVENT_TYPE);
@@ -158,7 +158,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
                 .hasValueSatisfying(
                         pool -> assertThat(pool.getReservedQuantity()).isZero());
         assertThat(heldBy(orderId)).isEmpty();
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, event.getEventId()))
                 .isFalse();
         assertThat(tableCount("event_outbox")).isZero();
         assertThat(exhaustedMetricCount()).isEqualTo(metricBefore + 1.0);

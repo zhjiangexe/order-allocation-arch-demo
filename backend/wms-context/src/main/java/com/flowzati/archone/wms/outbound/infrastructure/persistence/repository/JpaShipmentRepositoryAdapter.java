@@ -4,6 +4,7 @@ import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.infrastructure.persistence.entity.WmsShipmentEntity;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -64,6 +65,18 @@ public class JpaShipmentRepositoryAdapter implements ShipmentRepository {
                 .stream()
                 .map(WmsShipmentEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findCreatedAtOrBefore(Instant cutoff, int limit) {
+        if (cutoff == null) {
+            throw new IllegalArgumentException("Due Shipment cutoff is required");
+        }
+        if (limit <= 0) {
+            throw new IllegalArgumentException("Due Shipment limit must be positive");
+        }
+        return repository.findIdsCreatedAtOrBefore(ShipmentStatus.CREATED, cutoff, PageRequest.of(0, limit));
     }
 
     @Override

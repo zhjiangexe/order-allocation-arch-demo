@@ -22,7 +22,7 @@ class AllocationOptimisticLockRetryObserverTest {
     @Test
     void recordsAllocationRetryAndExhaustionWithBusinessOperationNames() {
         MessageHandlerInvocation invocation =
-                invocation(AllocationEventSubscriptions.ORDER_LIFECYCLE, OrderPlacedIntegrationEvent.EVENT_TYPE);
+                invocation(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, OrderPlacedIntegrationEvent.EVENT_TYPE);
 
         observer.onRetry(invocation, 2);
         observer.onRetry(invocation, 3);

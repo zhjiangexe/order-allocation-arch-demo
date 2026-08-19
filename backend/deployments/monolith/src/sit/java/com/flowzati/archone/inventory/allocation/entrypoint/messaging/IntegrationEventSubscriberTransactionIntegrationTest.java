@@ -107,7 +107,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         assertThat(applicationContext.getBeansOfType(IntegrationEventHandlers.class))
                 .isEmpty();
         assertThat(applicationContext.getBeansOfType(IntegrationEventDispatcher.class))
-                .hasSize(4);
+                .hasSize(7);
     }
 
     @Test
@@ -122,12 +122,12 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         ConsumerRecord<String, String> record =
                 record(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
 
-        emit(AllocationEventSubscriptions.ORDER_LIFECYCLE, record);
-        emit(AllocationEventSubscriptions.ORDER_LIFECYCLE, record);
+        emit(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, record);
+        emit(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, record);
 
-        ResolvedMessageSubscription subscription = subscription(AllocationEventSubscriptions.ORDER_LIFECYCLE);
-        assertThat(subscription.subscriberId()).isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
-        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
+        ResolvedMessageSubscription subscription = subscription(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER);
+        assertThat(subscription.subscriberId()).isEqualTo(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER);
+        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER);
         assertThat(subscription.destinationToLogicalChannel())
                 .containsEntry(OrderingChannels.ORDER_EVENTS, OrderingChannels.ORDER_EVENTS);
         assertThat(inboxCount(eventId)).isOne();
@@ -151,7 +151,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         stockQuantRepository.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         jdbcTemplate.update("DELETE FROM stock_picking_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
         assertThatThrownBy(() -> emit(
-                        AllocationEventSubscriptions.ORDER_LIFECYCLE,
+                        AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER,
                         record(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("has no outbound operation type");
@@ -183,14 +183,14 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
                         KafkaMessageMapper.SERIALIZED_HEADERS,
                         headersCodec.encode(Map.of()).getBytes(StandardCharsets.UTF_8));
 
-        emit(AllocationEventSubscriptions.ORDER_LIFECYCLE, record);
+        emit(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, record);
 
         assertThat(inboxCount(eventId)).isOne();
         assertThat(count("stock_pickings")).isZero();
         assertThat(count("event_outbox")).isZero();
         Timer ignoredTimer = meterRegistry
                 .find(MessagingObservationNames.CONSUMER)
-                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationEventSubscriptions.ORDER_LIFECYCLE)
+                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER)
                 .tag(MessagingObservationTags.OUTCOME, "ignored_unhandled")
                 .timer();
         assertThat(ignoredTimer).isNotNull();
@@ -268,7 +268,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
     }
 
     private int inboxCount(UUID eventId) {
-        return inboxCount(AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId);
+        return inboxCount(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, eventId);
     }
 
     private int inboxCount(String subscriberId, UUID eventId) {

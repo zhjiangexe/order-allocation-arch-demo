@@ -5,7 +5,7 @@ ENV ?= dev
 DEPLOY := ./scripts/deploy.sh
 
 .PHONY: help test check package push pull up deploy restart down logs ps config \
-	dev-up dev-down stage-deploy stage-down prod-deploy prod-down
+	dev-up dev-up-temporal dev-down stage-deploy stage-down prod-deploy prod-down
 
 help:
 	@printf '%s\n' \
@@ -16,7 +16,8 @@ help:
 		'make up ENV=dev|stage|prod        Start an image already available locally' \
 		'make deploy ENV=stage|prod        Pull and start an immutable image' \
 		'make down|logs|ps|config ENV=...  Operate the selected environment' \
-		'make dev-up                       Build and start the complete local stack'
+		'make dev-up                       Build and start the complete local stack' \
+		'make dev-up-temporal              Start dev with Temporal as fulfillment driver'
 
 test:
 	./backend/gradlew -p backend test
@@ -29,6 +30,9 @@ package push pull up deploy restart down logs ps config:
 
 dev-up:
 	$(DEPLOY) dev up
+
+dev-up-temporal:
+	ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE=temporal $(DEPLOY) dev up
 
 dev-down:
 	$(DEPLOY) dev down

@@ -5,6 +5,43 @@
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
         <option name="externalProjectPath" value="$PROJECT_DIR$/backend" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/backend" />
+            <option value="$PROJECT_DIR$/backend/contracts" />
+            <option value="$PROJECT_DIR$/backend/deployments" />
+            <option value="$PROJECT_DIR$/backend/deployments/monolith" />
+            <option value="$PROJECT_DIR$/backend/foundation" />
+            <option value="$PROJECT_DIR$/backend/fulfillment-workflow" />
+            <option value="$PROJECT_DIR$/backend/inventory-context" />
+            <option value="$PROJECT_DIR$/backend/logistics-data-context" />
+            <option value="$PROJECT_DIR$/backend/messaging" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-api" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-consumer-common" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-consumer-jdbc" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-consumer-kafka" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-events" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-jdbc-common" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-producer-common" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-producer-jdbc" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-boot-autoconfigure" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-boot-starter" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-consumer-jdbc" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-consumer-kafka" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-consumer-observability" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-consumer-starter" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-flyway" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-jdbc" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-observability" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-optimistic-locking" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-producer-jdbc" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-producer-observability" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-producer-starter" />
+            <option value="$PROJECT_DIR$/backend/messaging/messaging-test-support" />
+            <option value="$PROJECT_DIR$/backend/ordering-context" />
+            <option value="$PROJECT_DIR$/backend/wms-context" />
+          </set>
+        </option>
       </GradleProjectSettings>
     </option>
   </component>

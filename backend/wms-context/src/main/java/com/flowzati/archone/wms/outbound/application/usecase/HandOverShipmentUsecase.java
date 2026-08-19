@@ -4,6 +4,7 @@ import com.flowzati.archone.wms.outbound.application.command.HandOverShipmentCom
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 完成 WMS 對承運人的 custody handover；運輸離站後續由 TMS 負責。 */
 public class HandOverShipmentUsecase {
@@ -16,6 +17,7 @@ public class HandOverShipmentUsecase {
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public void handle(HandOverShipmentCommand command) {
         Shipment shipment = shipmentRepository
                 .findById(command.shipmentId())

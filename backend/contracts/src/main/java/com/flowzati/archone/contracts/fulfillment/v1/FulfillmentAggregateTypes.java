@@ -4,6 +4,7 @@ package com.flowzati.archone.contracts.fulfillment.v1;
 public final class FulfillmentAggregateTypes {
 
     public static final String STOCK_PICKING = "StockPicking";
+    public static final String WMS_SHIPMENT = "WmsShipment";
 
     private FulfillmentAggregateTypes() {}
 }

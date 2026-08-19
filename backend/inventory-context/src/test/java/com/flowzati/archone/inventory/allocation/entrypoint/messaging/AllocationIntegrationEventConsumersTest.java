@@ -22,14 +22,17 @@ class AllocationIntegrationEventConsumersTest {
     void shouldTranslateOrderLifecycleEventsToAllocationCommands() {
         AllocateOrderUsecase allocateOrderUsecase = mock(AllocateOrderUsecase.class);
         CancelMovementsUsecase cancelMovementsUsecase = mock(CancelMovementsUsecase.class);
-        AllocationOrderLifecycleEventConsumer consumer =
-                new AllocationOrderLifecycleEventConsumer(allocateOrderUsecase, cancelMovementsUsecase);
+        AllocationOrderPlacedEventConsumer placedConsumer =
+                new AllocationOrderPlacedEventConsumer(allocateOrderUsecase);
+        AllocationOrderCancellationEventConsumer cancellationConsumer =
+                new AllocationOrderCancellationEventConsumer(cancelMovementsUsecase);
         UUID orderId = UUID.randomUUID();
         Instant occurredAt = Instant.parse("2026-08-10T02:00:00Z");
 
-        consumer.onOrderPlaced(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, occurredAt));
+        placedConsumer.onOrderPlaced(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, occurredAt));
         UUID cancellationEventId = UUID.randomUUID();
-        consumer.onOrderCancelled(new OrderCancelledIntegrationEvent(cancellationEventId, orderId, occurredAt));
+        cancellationConsumer.onOrderCancelled(
+                new OrderCancelledIntegrationEvent(cancellationEventId, orderId, occurredAt));
 
         verify(allocateOrderUsecase).execute(new AllocateOrderCommand(orderId));
         verify(cancelMovementsUsecase).execute(new CancelMovementsCommand(orderId, cancellationEventId));

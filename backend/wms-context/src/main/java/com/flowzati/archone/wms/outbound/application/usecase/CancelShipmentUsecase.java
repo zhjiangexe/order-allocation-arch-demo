@@ -5,6 +5,7 @@ import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
+import org.springframework.transaction.annotation.Transactional;
 
 public class CancelShipmentUsecase {
 
@@ -16,6 +17,7 @@ public class CancelShipmentUsecase {
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public CancellationOutcome handle(CancelShipmentCommand command) {
         Shipment shipment = shipmentRepository
                 .findById(command.shipmentId())

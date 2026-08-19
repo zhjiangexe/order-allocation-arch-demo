@@ -267,7 +267,12 @@ public class Shipment {
         }
         requireStatus(ShipmentStatus.READY_FOR_DISPATCH, "Only a shipment ready for dispatch can be handed over");
         status = ShipmentStatus.HANDED_OVER_TO_CARRIER;
-        events.add(new ShipmentHandedOverToCarrier(id, orderId, handedOverAt));
+        events.add(new ShipmentHandedOverToCarrier(
+                id,
+                allocationId,
+                orderId,
+                lines.stream().map(ShipmentLine::moveId).toList(),
+                handedOverAt));
     }
 
     public CancellationOutcome cancel(String requestId, Instant requestedAt) {

@@ -21,8 +21,10 @@ public final class AllocationOptimisticLockRetryObserver implements OptimisticLo
     public static final String RETRY_EXHAUSTED_METRIC = "order_allocation_retry_exhausted_total";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AllocationOptimisticLockRetryObserver.class);
-    private static final Set<String> ALLOCATION_SUBSCRIBERS =
-            Set.of(AllocationEventSubscriptions.ORDER_LIFECYCLE, AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
+    private static final Set<String> ALLOCATION_SUBSCRIBERS = Set.of(
+            AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER,
+            AllocationEventSubscriptions.ORDER_CANCELLATIONS,
+            AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
 
     private final MeterRegistry meterRegistry;
 

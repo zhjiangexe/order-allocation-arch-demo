@@ -46,7 +46,13 @@ compose=(
 
 start_environment() {
   if [ "${environment}" = "dev" ]; then
-    "${compose[@]}" up --detach --build --wait postgres kafka kafka-connect monolith
+    local dev_services=(postgres kafka kafka-connect kafka-ui)
+    if [ "${ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE:-events}" = "temporal" ]; then
+      compose+=(--profile temporal)
+      dev_services+=(temporal)
+    fi
+    dev_services+=(monolith)
+    "${compose[@]}" up --detach --build --wait "${dev_services[@]}"
     "${compose[@]}" --profile tools run --rm connector-init
   else
     "${compose[@]}" up --detach --no-build --wait monolith

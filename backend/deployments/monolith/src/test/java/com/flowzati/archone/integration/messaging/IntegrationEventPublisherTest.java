@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentAggregateTypes;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
@@ -16,14 +18,18 @@ import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.domain.event.OrderAllocationCompleted;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.producer.AllocationIntegrationEventPublisher;
+import com.flowzati.archone.inventory.balance.domain.event.OutboundMovementsCompleted;
 import com.flowzati.archone.inventory.balance.domain.event.StockAvailabilityIncreased;
 import com.flowzati.archone.inventory.balance.infrastructure.messaging.producer.InventoryIntegrationEventPublisher;
+import com.flowzati.archone.inventory.balance.infrastructure.messaging.producer.OutboundMovementIntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.ordering.infrastructure.messaging.producer.OrderingIntegrationEventPublisher;
+import com.flowzati.archone.wms.outbound.domain.event.ShipmentHandedOverToCarrier;
+import com.flowzati.archone.wms.outbound.infrastructure.messaging.producer.WmsIntegrationEventPublisher;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -161,6 +167,37 @@ class IntegrationEventPublisherTest {
         assertThat(publication.aggregate().type()).isEqualTo(InventoryAggregateTypes.STOCK_POOL);
         assertThat(publication.target().destination()).isEqualTo(InventoryChannels.STOCK_EVENTS);
         assertThat(publication.target().partitionKey()).isEqualTo(OWNER_ID + "/" + FACILITY_ID);
+    }
+
+    @Test
+    @DisplayName("WMS handover 與 Inventory completion 應形成相同 order-keyed fulfillment 事件鏈")
+    void shouldTranslateOutboundFulfillmentFacts() {
+        RecordingPublisher publisher = new RecordingPublisher();
+        UUID shipmentId = UUID.randomUUID();
+        UUID allocationId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID movementId = UUID.randomUUID();
+
+        new WmsIntegrationEventPublisher(publisher)
+                .publish(new ShipmentHandedOverToCarrier(
+                        shipmentId, allocationId, orderId, List.of(movementId), OCCURRED_AT));
+        new OutboundMovementIntegrationEventPublisher(publisher)
+                .publish(new OutboundMovementsCompleted(
+                        allocationId, orderId, shipmentId, List.of(movementId), OCCURRED_AT));
+
+        assertThat(publisher.publications)
+                .extracting(publication -> publication.event().getClass().getSimpleName())
+                .containsExactly(
+                        ShipmentHandedOverForFulfillmentIntegrationEvent.class.getSimpleName(),
+                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.class.getSimpleName());
+        assertThat(publisher.publications)
+                .extracting(publication -> publication.target().destination())
+                .containsOnly(FulfillmentChannels.FULFILLMENT_HANDOFFS);
+        assertThat(publisher.publications)
+                .extracting(publication -> publication.target().partitionKey())
+                .containsOnly(orderId.toString());
+        assertThat(publisher.publications.get(0).aggregate().type()).isEqualTo(FulfillmentAggregateTypes.WMS_SHIPMENT);
+        assertThat(publisher.publications.get(1).aggregate().type()).isEqualTo(FulfillmentAggregateTypes.STOCK_PICKING);
     }
 
     @Test

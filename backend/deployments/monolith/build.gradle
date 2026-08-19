@@ -40,6 +40,7 @@ dependencies {
     implementation project(':inventory-context')
     implementation project(':logistics-data-context')
     implementation project(':wms-context')
+    implementation project(':fulfillment-workflow')
     implementation project(':foundation')
     implementation project(':contracts')
     implementation project(':messaging:messaging-api')

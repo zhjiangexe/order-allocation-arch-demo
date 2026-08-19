@@ -104,7 +104,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         // 這一步不只是為了讓斷言通過：它同時驗證 ordering 的 consumer 真的消費得了那些事件。
         assertThat(outcomeDrain().drain()).isPositive();
 
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, event.getEventId()))
                 .isTrue();
         assertThat(inboxClaimExists(OrderingEventSubscriptions.ALLOCATION_RESULTS, allocationOutcomeEventId))
                 .isTrue();
@@ -154,7 +154,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
                 new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, Instant.now());
         consumer.consume(event);
 
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, event.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_CANCELLATIONS, event.getEventId()))
                 .isTrue();
         assertThat(stockQuantRepository.findById(stockQuantId))
                 .hasValueSatisfying(

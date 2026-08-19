@@ -1,6 +1,8 @@
 package com.flowzati.archone.bootstrap.messaging.contract;
 
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
@@ -37,6 +39,14 @@ public class BootstrapIntegrationEventContractConfiguration {
                 .map(
                         AllocationCommittedForFulfillmentIntegrationEvent.class,
                         AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .map(
+                        ShipmentHandedOverForFulfillmentIntegrationEvent.class,
+                        ShipmentHandedOverForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .map(
+                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.class,
+                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION)
                 .build();
     }

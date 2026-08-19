@@ -52,10 +52,9 @@ public class AllocationOrderLifecycleEventDriver {
                 new AggregateReference(OrderingAggregateTypes.ORDER, orderId),
                 new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId),
                 occurredAt);
-        transport.emit(
-                AllocationEventSubscriptions.ORDER_LIFECYCLE,
-                physicalDestination,
-                messageMapper.toMessage(publication),
-                1);
+        String subscriberId = event instanceof OrderCancelledIntegrationEvent
+                ? AllocationEventSubscriptions.ORDER_CANCELLATIONS
+                : AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER;
+        transport.emit(subscriberId, physicalDestination, messageMapper.toMessage(publication), 1);
     }
 }

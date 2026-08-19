@@ -2,11 +2,30 @@ services:
   monolith:
     environment:
       SPRING_PROFILES_ACTIVE: dev
+      ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE: ${ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE:-events}
+      ORDER_PROMISING_TEMPORAL_TARGET: ${ORDER_PROMISING_TEMPORAL_TARGET:-temporal:7233}
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      temporal:
+        condition: service_healthy
+        required: false
+
+  temporal:
+    profiles: ["temporal"]
+    image: temporalio/temporal:1.8.0
+    command: ["server", "start-dev", "--ip", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:${ARCHONE_TEMPORAL_PORT:-28294}:7233"
+      - "127.0.0.1:${ARCHONE_TEMPORAL_UI_PORT:-28296}:8233"
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
@@ -77,6 +96,24 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+    restart: unless-stopped
+
+  # 本機觀察工具：查看 topic、partition、message key、consumer group 與 Debezium connector。
+  # 不參與事件處理；stage/prod 不會載入 compose.dev.yml，因此不會對外暴露管理介面。
+  kafka-ui:
+    image: ${ARCHONE_KAFKA_UI_IMAGE:-ghcr.io/kafbat/kafka-ui@sha256:7cda86a33344160309fdb65146332e4da65db81a945614f2fe32e210803f6fd1}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-connect:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: archone-dev
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: archone-dev-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+    ports:
+      - "127.0.0.1:${ARCHONE_KAFKA_UI_PORT:-28297}:8080"
     restart: unless-stopped
 
   connector-init:

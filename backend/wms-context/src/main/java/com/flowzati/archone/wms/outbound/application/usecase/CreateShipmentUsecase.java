@@ -7,6 +7,7 @@ import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 建立尚未 release 的 Shipment demand；PickTask 必須等 Wave Release 才建立。 */
 public class CreateShipmentUsecase {
@@ -23,6 +24,7 @@ public class CreateShipmentUsecase {
      * 建立或依 allocation ID 冪等讀回 Shipment，並只回傳 application-layer result。
      * 呼叫端若需要後續操作 aggregate，應透過對應 use case，而不是持有這裡回傳的 domain object。
      */
+    @Transactional
     public CreateShipmentResult handle(CreateShipmentCommand command) {
         Shipment shipment = shipmentRepository
                 .findByAllocationId(command.allocationId())

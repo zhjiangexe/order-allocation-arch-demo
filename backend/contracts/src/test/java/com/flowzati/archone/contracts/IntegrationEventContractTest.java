@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
@@ -96,7 +98,9 @@ class IntegrationEventContractTest {
                 OrderCancelledIntegrationEvent.EVENT_TYPE,
                 OrderAllocatedIntegrationEvent.EVENT_TYPE,
                 StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
-                AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE);
+                AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                ShipmentHandedOverForFulfillmentIntegrationEvent.EVENT_TYPE,
+                OutboundMovementsCompletedForFulfillmentIntegrationEvent.EVENT_TYPE);
 
         assertThat(eventTypes)
                 .containsExactly(
@@ -104,7 +108,9 @@ class IntegrationEventContractTest {
                         "OrderCancelledIntegrationEvent",
                         "OrderAllocatedIntegrationEvent",
                         "StockAvailabilityIncreasedIntegrationEvent",
-                        "AllocationCommittedForFulfillmentIntegrationEvent");
+                        "AllocationCommittedForFulfillmentIntegrationEvent",
+                        "ShipmentHandedOverForFulfillmentIntegrationEvent",
+                        "OutboundMovementsCompletedForFulfillmentIntegrationEvent");
         assertThat(eventTypes).doesNotHaveDuplicates();
     }
 }

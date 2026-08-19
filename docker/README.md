@@ -5,7 +5,7 @@
 
 | Environment | Compose files | Runtime dependencies |
 | --- | --- | --- |
-| `dev` | `compose.yml` + `compose.dev.yml` | 由 Compose 啟動 PostgreSQL、Kafka、Kafka Connect |
+| `dev` | `compose.yml` + `compose.dev.yml` | 由 Compose 啟動 PostgreSQL、Kafka、Kafka Connect、Kafbat UI |
 | `stage` | `compose.yml` + `compose.stage.yml` | 外部 PostgreSQL、Kafka 與 Debezium；Spring profiles 為 `prod,staging` |
 | `prod` | `compose.yml` + `compose.prod.yml` | 外部 PostgreSQL、Kafka 與 Debezium；Spring profile 為 `prod` |
 
@@ -15,6 +15,7 @@
 
 ```bash
 make dev-up
+make dev-up-temporal
 make package ENV=stage
 make push ENV=stage
 make deploy ENV=stage
@@ -23,7 +24,27 @@ make down ENV=stage
 ```
 
 `make dev-up` 會 build image、等待 application 與基礎設施健康，再冪等建立 Debezium Outbox connector。
-stage／prod 的 `deploy` 則會先 pull 環境檔指定的 image tag，再啟動 monolith。
+Kafbat UI 預設在 [http://localhost:28297](http://localhost:28297)，可查看 topic、partition、message key、
+consumer group 與 Kafka Connect；它只存在於 dev overlay。stage／prod 的 `deploy` 則會先 pull 環境檔
+指定的 image tag，再啟動 monolith。
+
+## Fulfillment orchestration modes
+
+同一份 image 支援兩個互斥的流程 driver，且共用相同的 application use cases：
+
+- `events`（預設）：Kafka consumers 依序推進 allocation、WMS、Inventory 與 Ordering。
+- `temporal`：Order event 啟動 Temporal Workflow；allocation 與 shipment facts 只轉成 Workflow Signal。
+
+本機可用 `make dev-up-temporal` 一併啟動 Temporal CLI development server，gRPC 預設在
+`localhost:28294`、Web UI 在 `http://localhost:28296`。這個 development server 使用記憶體儲存，
+不得用於 stage/prod；非開發環境應以 `ORDER_PROMISING_TEMPORAL_TARGET` 指向平台管理的 Temporal
+frontend。`ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE` 若不是 `events` 或 `temporal`，application
+會在啟動時直接失敗，避免兩個 driver 都未啟用。
+
+這個設定是整個 deployment 的 cutover，不是逐筆訂單或可混跑的 feature flag。所有 replicas
+必須使用同一模式；切換時應先停止舊模式、確認既有 fulfillment 已完成，或另行執行 in-flight
+流程遷移，再啟動新模式。不可用同時存在 `events`／`temporal` pods 的一般 rolling update，否則
+同一組 stable Kafka subscriber 可能把不同 partitions 分給不同 driver。
 
 ## Environment files
 

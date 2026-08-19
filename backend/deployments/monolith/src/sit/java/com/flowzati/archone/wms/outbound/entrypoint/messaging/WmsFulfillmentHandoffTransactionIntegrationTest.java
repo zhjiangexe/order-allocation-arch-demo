@@ -11,7 +11,9 @@ import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.wms.outbound.application.usecase.ProcessDueShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import java.time.Instant;
 import java.util.List;
@@ -42,11 +44,15 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
     private ShipmentRepository shipmentRepository;
 
     @Autowired
+    private ProcessDueShipmentsUsecase processDueShipmentsUsecase;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @AfterEach
     void clearDatabase() {
         jdbcTemplate.update("DELETE FROM event_inbox");
+        jdbcTemplate.update("DELETE FROM event_outbox");
         jdbcTemplate.update("DELETE FROM wms_pick_tasks");
         jdbcTemplate.update("DELETE FROM wms_shipment_lines");
         jdbcTemplate.update("DELETE FROM wms_shipments");
@@ -88,6 +94,30 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         assertThat(inboxCount(secondEventId)).isOne();
         assertThat(count("wms_shipments")).isOne();
         assertThat(shipmentRepository.findByOrderId(orderId)).hasSize(1);
+    }
+
+    @Test
+    void recoversADueShipmentFromPersistenceAndCompletesTheSimulatedWarehouseFlowOnce() {
+        UUID allocationId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        emit(event(UUID.randomUUID(), allocationId, orderId));
+        UUID shipmentId = shipmentRepository
+                .findByAllocationId(allocationId)
+                .orElseThrow()
+                .id();
+
+        processDueShipmentsUsecase.execute();
+        processDueShipmentsUsecase.execute();
+
+        assertThat(shipmentRepository.findById(shipmentId)).hasValueSatisfying(shipment -> {
+            assertThat(shipment.status()).isEqualTo(ShipmentStatus.HANDED_OVER_TO_CARRIER);
+            assertThat(shipment.pickTasks()).isNotEmpty().allMatch(task -> task.status() == PickTaskStatus.PICKED);
+        });
+        assertThat(jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM event_outbox WHERE aggregateid = ?",
+                        Integer.class,
+                        shipmentId.toString()))
+                .isOne();
     }
 
     private void emit(AllocationCommittedForFulfillmentIntegrationEvent event) {

@@ -1,0 +1,104 @@
+@startuml
+title Shipment handover：三個環境共用的 10 秒自動模擬流程（已實作）
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+skinparam defaultFontSize 14
+skinparam ArrowFontName "PingFang TC"
+skinparam ArrowFontSize 12
+skinparam packageStyle rectangle
+skinparam rectangle {
+  RoundCorner 12
+  BorderThickness 1.4
+}
+
+top to bottom direction
+
+package "inventory-context\n配貨階段" as Allocation #EAF4EA {
+  rectangle "Allocation 已 committed\nStockQuant 仍是 reserved／held\n✅ 已存在" as AllocationCommitted #E2F0D9
+  rectangle "AllocationCommittedForFulfillment\n✅ 已存在" as AllocationEvent #E2F0D9
+}
+
+package "wms-context\n倉內出庫階段" as Wms #FFF3CD {
+  rectangle "events 模式\nWmsFulfillmentHandoffEventConsumer\n✅ 已存在" as EventCreateDriver #E2F0D9
+  rectangle "temporal 模式\nCreateShipment Activity\n✅ 已存在" as TemporalCreateDriver #E2F0D9
+  rectangle "CreateShipmentUsecase\nShipment = CREATED\n✅ 已存在" as CreateShipment #E2F0D9
+
+  database "Shipment 持久化狀態\nstatus = CREATED\ncreatedAt = Inventory handoff time\n✅ 已存在" as ShipmentState #E2F0D9
+  rectangle "SimulatedWarehouseOperationsScheduler\n✅ 現階段正式 driver\n定期查詢到期 Shipment" as SimulationScheduler #DCEEFF
+  rectangle "到期條件\nCREATED 且 createdAt <= now - 10s？" as Due #FFF2CC
+  rectangle "ProcessDueShipmentsUsecase\n✅ 找回到期 Shipment，隔離單筆失敗" as DueShipments #DCEEFF
+  rectangle "SimulateWarehouseOperationsUsecase\n✅ 單一 transaction" as SimulationDriver #DCEEFF
+  rectangle "Shipment domain actions\nassignToWave（synthetic waveId）\n→ releaseToWave（WarehouseWork／PickTasks）\n→ confirmPick → pack → stage → handOverToCarrier\n✅ 逐步遵守既有 invariant" as DomainActions #E2F0D9
+  rectangle "Shipment = HANDED_OVER_TO_CARRIER" as Handover #E2F0D9
+
+  rectangle "WmsIntegrationEventPublisher\nTransactional Outbox\n✅ 已存在" as WmsPublisher #E2F0D9
+}
+
+queue "Kafka\nfulfillment-handoffs\n✅ 已存在" as Kafka #E2F0D9
+
+package "handover 之後\nInventory 正式完成出庫" as Downstream #EAF4EA {
+  rectangle "events 模式\nShipmentHandoverEventConsumer\n✅ 已存在" as EventCompletion #E2F0D9
+  rectangle "temporal 模式\nSignal existing Workflow\n✅ 已存在" as TemporalCompletion #E2F0D9
+  rectangle "inventory-context\nCompleteOutboundMovementsUsecase\nMove／Picking 完成，StockQuant 正式扣帳\n✅ 已存在" as CompleteStock #E2F0D9
+  rectangle "ordering-context\nRecordOrderFulfillmentUsecase\nOrder → FULFILLED\n✅ 已存在" as CompleteOrder #E2F0D9
+}
+
+rectangle "未來正式接 WMS 時\n外部 WMS／操作 API 取代模擬 scheduler\nPOST /shipments/{shipmentId}/handover\n本階段不需要實作" as FutureWms #F2F2F2
+
+rectangle "目前三個環境採相同行為\ndev／stage／prod：enabled=true\ndelay=10s、scan interval=1s" as Settings #DCEEFF
+
+AllocationCommitted -[#2E7D32]-> AllocationEvent
+AllocationEvent -[#2E7D32]-> EventCreateDriver : mode = events
+AllocationEvent -[#2E7D32]-> TemporalCreateDriver : mode = temporal\nSignal Workflow 後呼叫 Activity
+EventCreateDriver -[#2E7D32]-> CreateShipment
+TemporalCreateDriver -[#2E7D32]-> CreateShipment
+
+CreateShipment -[#2E7D32]-> ShipmentState : transaction commit
+ShipmentState -[#1565C0,dashed]-> SimulationScheduler : 每秒掃描
+Settings -[#1565C0,dashed]-> SimulationScheduler
+SimulationScheduler -[#1565C0,dashed]-> Due
+Due -[#1565C0,dashed]-> DueShipments : 是：開始模擬
+Due -[#777777,dotted]-> ShipmentState : 否：下次再檢查
+
+DueShipments -[#1565C0,dashed]-> SimulationDriver : 每張 Shipment
+SimulationDriver -[#2E7D32]-> DomainActions
+DomainActions -[#2E7D32]-> Handover
+
+Handover -[#2E7D32]-> WmsPublisher : ShipmentHandedOverToCarrier
+WmsPublisher -[#2E7D32]-> Kafka : ShipmentHandedOverForFulfillment
+Kafka -[#2E7D32]-> EventCompletion : mode = events
+Kafka -[#2E7D32]-> TemporalCompletion : mode = temporal
+EventCompletion -[#2E7D32]-> CompleteStock
+TemporalCompletion -[#2E7D32]-> CompleteStock : Workflow Activity
+CompleteStock -[#2E7D32]-> CompleteOrder : events：完成事件\ntemporal：下一個 Activity
+
+FutureWms -[#777777,dotted]-> Handover : 未來替換模擬入口
+
+note right of SimulationScheduler
+  不把 timer 只放在 JVM 記憶體；服務重新啟動後，
+  仍可由資料庫狀態找回尚未處理的 Shipment。
+end note
+
+note right of Due
+  10 秒代表模擬 Wave／Pick／Pack／Stage 的時間。
+  不使用 Thread.sleep()，也不占住 Kafka consumer
+  或 Temporal Activity thread。等待期間若已取消，
+  status 不再是 CREATED，因此不會執行 handover。
+end note
+
+note right of CompleteStock
+  注意：真正扣減／完成 Inventory 是 carrier handover 之後；
+  建立 Shipment 時庫存仍維持 reserved。
+end note
+
+legend bottom
+  |= 顏色／線條 |= 意義 |
+  |<#E2F0D9> 綠色、綠色實線 | 現有程式與線路 |
+  |<#DCEEFF> 藍色、藍色虛線 | 三個環境共用、已實作的模擬 runtime 線路 |
+  |<#FFF2CC> 黃色 | 以資料庫時間判斷是否已等待 10 秒 |
+  |<#F2F2F2> 灰色、灰色點線 | 未來正式 WMS 替換方案，本次不做 |
+endlegend
+
+@enduml

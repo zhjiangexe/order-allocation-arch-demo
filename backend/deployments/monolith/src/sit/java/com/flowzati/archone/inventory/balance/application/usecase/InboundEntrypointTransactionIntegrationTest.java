@@ -91,7 +91,7 @@ class InboundEntrypointTransactionIntegrationTest {
 
         consumeOrderingEvent(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
 
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, eventId))
                 .isTrue();
         outcomeDrain().drain();
         assertThat(orderRepository.findById(orderId))
@@ -134,7 +134,7 @@ class InboundEntrypointTransactionIntegrationTest {
 
         // 失敗發生在 inbox claim 之後，所以那筆 claim 必須跟著回滾——否則重送會被當成重複而丟棄，
         // 那張單就永遠停在 PENDING 且沒有任何搬運。
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, eventId))
                 .isFalse();
         outcomeDrain().drain();
         assertThat(orderRepository.findById(orderId))
@@ -164,7 +164,7 @@ class InboundEntrypointTransactionIntegrationTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Quantity to release cannot exceed reserved quantity");
 
-        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_LIFECYCLE, eventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, eventId))
                 .isFalse();
         assertThat(stockQuantRepository.findById(stockQuantId))
                 .hasValueSatisfying(

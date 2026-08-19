@@ -169,6 +169,22 @@ AllocationCommittedForFulfillmentIntegrationEvent
 Activity adapter 則使用相同結果回覆 Workflow。兩條入口必須由 profile／driver 設定互斥，不能在
 同一環境同時對同一 allocation 下命令；`allocation_id` unique constraint 只是最後安全網。
 
+### 現階段共用的模擬 WMS runtime
+
+本專案目前不串接真實 WMS，所以 dev、stage、prod 都由 `SimulatedWarehouseOperationsScheduler`
+扮演倉庫操作 actor。它每秒從資料庫找出 `createdAt <= now - 10s` 且仍為 `CREATED` 的 Shipment，
+再由 `SimulateWarehouseOperationsUsecase` 在單一 transaction 內依序執行 synthetic Wave／Work、完整
+Pick、Pack、Stage 與 carrier handover。
+
+這不是 `Thread.sleep(10s)`：等待依據保存在 Shipment 狀態與時間，runtime 重啟後仍能補跑；多個
+instances 掃到同一 Shipment 時，由 transaction 與 optimistic version 保證只有一方提交。等待期間若
+Shipment 已取消，重新載入後不再是 `CREATED`，模擬 use case 會安全略過。
+
+![三個環境共用的 Shipment handover 自動模擬流程](shipment-handover-connection-gaps.png)
+
+未來接真實 WMS 時，外部 WMS／操作 API 取代這個 scheduler；`ShipmentHandedOverToCarrier` 之後的
+Outbox、Kafka、Inventory 出庫完成及 Ordering fulfillment 線路維持不變。
+
 ## 為何 allocation 暫時仍用 Signal
 
 現有 `AllocateOrderUsecase` 在成功提交後重跑，無法從同一個 command 穩定重建完整 allocation

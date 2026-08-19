@@ -132,7 +132,8 @@ class AllocationTransactionalMessageChainIntegrationTest {
                 .withPartitionId("order-1")
                 .build();
         return new MessageHandlerInvocation(
-                message, new MessageContext(AllocationEventSubscriptions.ORDER_LIFECYCLE, "ordering.order-events", 1));
+                message,
+                new MessageContext(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, "ordering.order-events", 1));
     }
 
     private void persistBusinessAndOutbox(UUID ownerId, UUID outboxMessageId) {
