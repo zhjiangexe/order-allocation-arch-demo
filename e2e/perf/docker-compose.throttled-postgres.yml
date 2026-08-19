@@ -1,5 +1,5 @@
 # Probe-only override: throttle Postgres CPU to widen the SELECT-to-COMMIT window on
-# StockPool, to see whether that's enough to make natural k6/HTTP/Kafka timing
+# StockQuant, to see whether that's enough to make natural k6/HTTP/Kafka timing
 # reproduce a real optimistic-lock conflict. Result: still 0 conflicts even at 0.1
 # CPU (avg HTTP latency went from ~ms to ~4s, decision latency p95 ~60s, system still
 # correctly settled at exactly on-hand-quantity ALLOCATED / the rest BACKORDERED — no

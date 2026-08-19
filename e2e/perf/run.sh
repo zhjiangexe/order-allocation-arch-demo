@@ -13,7 +13,7 @@
 #   PARTITION_KEY_STRATEGY=stock SKU=HOT-SKU STOCK=500 VUS=1000 ./e2e/perf/run.sh perf
 #                                                 v3：SKU 分區 single-writer
 #   ./e2e/perf/run.sh down                        拆除基礎設施＋停掉背景 app
-#   ./e2e/perf/run.sh seed <SKU> <QUANTITY>        單獨種／重置一筆 StockPool 庫存
+#   ./e2e/perf/run.sh seed <SKU> <QUANTITY>        單獨種／重置一筆 StockQuant 庫存
 #   ./e2e/perf/run.sh verify <SKU>                 Prometheus／log／DB 三方對照
 #   ./e2e/perf/run.sh check-dlt <TOPIC>             撈 DLT topic 內容核對 orderId
 #
@@ -55,7 +55,7 @@ PERF_OUTBOUND_TYPE_ID="00000000-0000-0000-0000-0000000000f7"
 #
 # 效期刻意放到 2099：壓測 fixture 不該有到期日，過期的批配不到貨，而那個失敗會表現成
 # 「訂單全部掛帳」，看起來像配貨壞了而不是像 fixture 過期。
-PERF_STOCK_POOL_ID="00000000-0000-0000-0000-0000000000f5"
+PERF_STOCK_QUANT_ID="00000000-0000-0000-0000-0000000000f5"
 PERF_IN_DATE="2026-01-01"
 PERF_EXPIRY_DATE="2099-12-31"
 
@@ -168,7 +168,7 @@ cmd_down() {
   docker compose -f "${COMPOSE_FILE}" down -v
 }
 
-# Upsert 一筆 StockPool 庫存。sku 有 UNIQUE 限制，重跑同一個 SKU 會直接把
+# Upsert 一筆 StockQuant 庫存。sku 有 UNIQUE 限制，重跑同一個 SKU 會直接把
 # on_hand/reserved 重置成指定值，不會累積出重複列或髒資料。
 # 把一個 SKU 種成「可下單」：主檔三層 ＋ 倉庫與指派 ＋ 庫存池。
 #
@@ -225,7 +225,7 @@ ON CONFLICT (facility_id, code) DO NOTHING;
 INSERT INTO stock_pools (
     id, owner_id, location_id, sku_code, in_date, expiry_date,
     on_hand_quantity, reserved_quantity, version, updated_at)
-VALUES ('${PERF_STOCK_POOL_ID}', '${PERF_OWNER_ID}', '${PERF_LOCATION_ID}', '${sku}',
+VALUES ('${PERF_STOCK_QUANT_ID}', '${PERF_OWNER_ID}', '${PERF_LOCATION_ID}', '${sku}',
         DATE '${PERF_IN_DATE}', DATE '${PERF_EXPIRY_DATE}', ${quantity}, 0, 0, now())
 ON CONFLICT (id) DO UPDATE
   SET on_hand_quantity = EXCLUDED.on_hand_quantity,

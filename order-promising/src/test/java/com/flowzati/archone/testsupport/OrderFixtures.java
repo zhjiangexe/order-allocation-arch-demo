@@ -165,7 +165,7 @@ public final class OrderFixtures {
   /**
    * 另一個倉。跨倉的佇列範圍要驗，就必須有第二個倉可用。
    *
-   * <p>id 與 code 都刻意避開 {@code StockPoolPersistenceIntegrationTest} 自己建的那個倉
+   * <p>id 與 code 都刻意避開 {@code StockQuantPersistenceIntegrationTest} 自己建的那個倉
    * （{@code ...b2} / {@code WH-TEST-2}）——兩邊同時 seed 會先撞主鍵、再撞 code 的 unique。
    * 共用 fixture 的固定值要在整個 SIT 範圍內唯一，取名帶 {@code FIXTURE} 讓來源一眼可辨。
    */

@@ -4,6 +4,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
@@ -32,37 +33,37 @@ class ContextBoundaryArchitectureTest {
   private static final Path MAIN_ROOT = Path.of("src/main/java/com/flowzati/archone");
   private static final Path CATALOG_ROOT = MAIN_ROOT.resolve("catalog");
   private static final Path ORDERING_ROOT = MAIN_ROOT.resolve("ordering");
-  private static final Path STOCK_ROOT = MAIN_ROOT.resolve("stock");
+  private static final Path INVENTORY_ROOT = MAIN_ROOT.resolve("inventory");
 
   private static final JavaClasses BUSINESS_CONTEXT_CLASSES = new ClassFileImporter()
       .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
       .importPackages(
           "com.flowzati.archone.catalog",
           "com.flowzati.archone.ordering",
-          "com.flowzati.archone.stock");
+          "com.flowzati.archone.inventory");
 
   @Test
-  @DisplayName("Ordering 與 Stock 只能透過 contracts 溝通，不得形成直接 class dependency")
-  void orderingAndStockDoNotDependOnEachOther() {
+  @DisplayName("Ordering 與 Inventory 只能透過 contracts 溝通，不得形成直接 class dependency")
+  void orderingAndInventoryDoNotDependOnEachOther() {
     noClasses()
         .that().resideInAPackage("com.flowzati.archone.ordering..")
-        .should().dependOnClassesThat().resideInAPackage("com.flowzati.archone.stock..")
+        .should().dependOnClassesThat().resideInAPackage("com.flowzati.archone.inventory..")
         .check(BUSINESS_CONTEXT_CLASSES);
 
     noClasses()
-        .that().resideInAPackage("com.flowzati.archone.stock..")
+        .that().resideInAPackage("com.flowzati.archone.inventory..")
         .should().dependOnClassesThat().resideInAPackage("com.flowzati.archone.ordering..")
         .check(BUSINESS_CONTEXT_CLASSES);
   }
 
   @Test
-  @DisplayName("Catalog 是被參照的主資料，不得反向依賴 Ordering 或 Stock")
+  @DisplayName("Catalog 是被參照的主資料，不得反向依賴 Ordering 或 Inventory")
   void catalogDoesNotDependOnTransactionalContexts() {
     noClasses()
         .that().resideInAPackage("com.flowzati.archone.catalog..")
         .should().dependOnClassesThat().resideInAnyPackage(
             "com.flowzati.archone.ordering..",
-            "com.flowzati.archone.stock..")
+            "com.flowzati.archone.inventory..")
         .check(BUSINESS_CONTEXT_CLASSES);
   }
 
@@ -71,33 +72,36 @@ class ContextBoundaryArchitectureTest {
   void sourceImportsRespectContextBoundaries() {
     assertThat(forbiddenImportsUnder(
         ORDERING_ROOT,
-        Pattern.compile("import\\s+com\\.flowzati\\.archone\\.(catalog|stock)\\.")))
-        .as("Ordering 不得 import Catalog 或 Stock；跨 context 資料應使用自己的 snapshot 或 contract")
+        Pattern.compile("import\\s+com\\.flowzati\\.archone\\.(catalog|inventory)\\.")))
+        .as("Ordering 不得 import Catalog 或 Inventory；跨 context 資料應使用自己的 snapshot 或 contract")
         .isEmpty();
     assertThat(forbiddenImportsUnder(
-        STOCK_ROOT,
+        INVENTORY_ROOT,
         Pattern.compile("import\\s+com\\.flowzati\\.archone\\.ordering\\.")))
-        .as("Stock 不得 import Ordering；訂單來源只能經由 contract/read-model adapter")
+        .as("Inventory 不得 import Ordering；訂單來源只能經由 contract/read-model adapter")
         .isEmpty();
     assertThat(forbiddenImportsUnder(
         CATALOG_ROOT,
-        Pattern.compile("import\\s+com\\.flowzati\\.archone\\.(ordering|stock)\\.")))
+        Pattern.compile("import\\s+com\\.flowzati\\.archone\\.(ordering|inventory)\\.")))
         .as("Catalog 不得反向 import transactional contexts")
         .isEmpty();
   }
 
   @Test
-  @DisplayName("舊 promising support package 與 context-owned topic wrappers 不得回來")
+  @DisplayName("舊 promising／stock package 與 context-owned topic wrappers 不得回來")
   void legacySupportPackagesDoNotReturn() {
     assertThat(MAIN_ROOT.resolve("promising")).doesNotExist();
+    assertThat(MAIN_ROOT.resolve("stock")).doesNotExist();
     assertThat(ORDERING_ROOT.resolve("application/event/OrderingEventTopics.java")).doesNotExist();
-    assertThat(STOCK_ROOT.resolve(
-        "allocation/application/event/PromisingEventTopics.java")).doesNotExist();
-    assertThat(STOCK_ROOT.resolve(
-        "inventory/application/event/InventoryEventTopics.java")).doesNotExist();
+    assertThat(INVENTORY_ROOT.resolve(
+        "reservation/application/event/PromisingEventTopics.java")).doesNotExist();
+    assertThat(INVENTORY_ROOT.resolve(
+        "balance/application/event/InventoryEventTopics.java")).doesNotExist();
 
+    Pattern legacyPackage = Pattern.compile(
+        "com\\.flowzati\\.archone\\.(promising|stock\\.(allocation|inventory|movement))\\.");
     List<String> legacyImports = javaSourcesUnder(MAIN_ROOT)
-        .filter(source -> readSource(source).contains("com.flowzati.archone.promising."))
+        .filter(source -> legacyPackage.matcher(readSource(source)).find())
         .map(Path::toString)
         .toList();
     assertThat(legacyImports).isEmpty();
@@ -109,6 +113,7 @@ class ContextBoundaryArchitectureTest {
     assertThat(OrderingChannels.ORDER_EVENTS).isEqualTo("ordering.order-events");
     assertThat(AllocationChannels.ALLOCATION_EVENTS).isEqualTo("promising.allocation-events");
     assertThat(InventoryChannels.STOCK_EVENTS).isEqualTo("inventory.stock-events");
+    assertThat(InventoryAggregateTypes.STOCK_POOL).isEqualTo("StockPool");
     assertThat(FulfillmentChannels.FULFILLMENT_HANDOFFS)
         .isEqualTo("promising.fulfillment-handoffs");
 

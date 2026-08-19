@@ -53,7 +53,7 @@ network，不需要再手動同步 `POSTGRES_CONTAINER`／`NETWORK`。
 
 ```bash
 ./e2e/perf/run.sh verify HOT-SKU              # 衝突率／重試率／DB 最終狀態，Prometheus、log、DB 三方對照
-./e2e/perf/run.sh seed HOT-SKU-2 200          # 單獨種／重置一筆 StockPool 庫存
+./e2e/perf/run.sh seed HOT-SKU-2 200          # 單獨種／重置一筆 StockQuant 庫存
 ./e2e/perf/run.sh check-dlt ordering.order-events-dlt   # 撈 DLT topic 內容核對 orderId
 ./e2e/perf/run.sh down                        # 拆除
 ```
@@ -71,7 +71,7 @@ network，不需要再手動同步 `POSTGRES_CONTAINER`／`NETWORK`。
 上面這組數字是在訂單加上必填倉別、且該欄位帶複合外鍵之後，於空資料庫上重新套用 migration
 再量的。歷次記錄：加倉別前 5.09s 與 4.14s，更早的行模型改造前 4.5s 與 4.77s。**三組互相
 重疊，沒有證據顯示任何一次資料模型改造使延遲退化**。這是預期的——每張單多一次指向
-`owner_facilities` 的複合外鍵檢查是微秒級；配置延遲由 Kafka 傳遞與單一 `StockPool` row 的樂觀鎖
+`owner_facilities` 的複合外鍵檢查是微秒級；配置延遲由 Kafka 傳遞與單一 `StockQuant` row 的樂觀鎖
 競爭主導。要拿延遲數字做跨版本比較，必須在同一次 session、同樣的機器負載下量測。
 
 同一輪的重試計數（`run.sh verify HOT-SKU`）：嘗試 23 次、用盡 6 次，與下方表格的

@@ -3,7 +3,7 @@ package com.flowzati.archone.testsupport;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
-import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;

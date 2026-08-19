@@ -1,6 +1,6 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.stock.movement.domain.aggregate.StockMove;
+import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.catalog.domain.type.LocationUsage;
 import com.flowzati.archone.catalog.domain.type.PickingDirection;
 import com.flowzati.archone.catalog.domain.aggregate.PickingType;
@@ -110,7 +110,7 @@ public final class MovementFixtures {
   // ---------------------------------------------------------------------------------------
 
   /** 這張單目前鎖住的一筆量。取代舊的「一筆有效預留」。 */
-  public record HeldQuantity(UUID stockPoolId, int quantity) {
+  public record HeldQuantity(UUID stockQuantId, int quantity) {
   }
 
   /**
@@ -181,7 +181,7 @@ public final class MovementFixtures {
    * <p>取消與釋放的測試要從這個狀態出發。單行才有意義——多行各自跨批的情形由單元測試蓋。
    */
   public static UUID seedAssignedPicking(
-      JdbcTemplate jdbcTemplate, Order order, UUID stockPoolId, int quantity) {
+      JdbcTemplate jdbcTemplate, Order order, UUID stockQuantId, int quantity) {
     java.util.Map<UUID, UUID> allocationLines = seedAllocationDemand(
         jdbcTemplate, order, OrderFixtures.LOCATION_ID, "ALLOCATED");
     UUID allocationDemandId = jdbcTemplate.queryForObject("""
@@ -208,7 +208,7 @@ public final class MovementFixtures {
     jdbcTemplate.update("""
         INSERT INTO stock_move_lines (id, move_id, stock_pool_id, quantity)
         VALUES (?, ?, ?, ?)
-        """, IdGenerator.nextId(), moveId, stockPoolId, quantity);
+        """, IdGenerator.nextId(), moveId, stockQuantId, quantity);
     return moveId;
   }
 

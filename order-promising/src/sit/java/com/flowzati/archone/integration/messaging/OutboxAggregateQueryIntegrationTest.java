@@ -1,11 +1,11 @@
 package com.flowzati.archone.integration.messaging;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.stock.inventory.domain.aggregate.StockFixtures;
+import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
-import com.flowzati.archone.stock.inventory.application.usecase.ConfirmStockReceiptUsecase;
-import com.flowzati.archone.stock.inventory.domain.repository.StockPoolRepository;
+import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
@@ -69,7 +69,7 @@ class OutboxAggregateQueryIntegrationTest {
   private OrderRepository orderRepository;
 
   @Autowired
-  private StockPoolRepository stockPoolRepository;
+  private StockQuantRepository stockQuantRepository;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -88,7 +88,7 @@ class OutboxAggregateQueryIntegrationTest {
   @Test
   @DisplayName("stock 分區策略下，仍能以 orderId 查回該訂單完整的事件因果鏈")
   void shouldReturnFullEventChainByOrderIdUnderSkuPartitionStrategy() throws Exception {
-    stockPoolRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
+    stockQuantRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
     UUID orderId = placeOrder();
     attemptAllocation(orderId);
@@ -106,7 +106,7 @@ class OutboxAggregateQueryIntegrationTest {
   @Test
   @DisplayName("stock 分區策略下，下單事件的 partition key 是 (貨主, 倉)，配置結果事件是 orderId")
   void shouldKeepDeliveryKeysSeparateFromAggregateIdentity() throws Exception {
-    stockPoolRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
+    stockQuantRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
     UUID orderId = placeOrder();
     attemptAllocation(orderId);
@@ -131,7 +131,7 @@ class OutboxAggregateQueryIntegrationTest {
         OrderFixtures.FACILITY_ID,
         null,
         java.util.List.of(new PlaceOrderCommand.Line(SKU, 3))));
-    // 下單當下 StockPool 的 ATP 是 0，配置決策要等這筆下單事件被 allocation 消費才發生。
+    // 下單當下 StockQuant 的 ATP 是 0，配置決策要等這筆下單事件被 allocation 消費才發生。
     assertThat(placed.getStatus()).isEqualTo(OrderStatus.PENDING);
     return placed.getId();
   }

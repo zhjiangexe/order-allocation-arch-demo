@@ -1,18 +1,18 @@
 package com.flowzati.archone.bootstrap;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.stock.inventory.domain.aggregate.StockPool;
-import com.flowzati.archone.stock.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.stock.movement.domain.entity.StockMoveLine;
-import com.flowzati.archone.stock.movement.domain.aggregate.StockPicking;
-import com.flowzati.archone.stock.movement.domain.type.PickingState;
-import com.flowzati.archone.stock.inventory.domain.repository.StockPoolRepository;
-import com.flowzati.archone.stock.movement.domain.repository.StockMoveRepository;
-import com.flowzati.archone.stock.movement.domain.repository.StockPickingRepository;
-import com.flowzati.archone.stock.allocation.domain.repository.AllocationDemandRepository;
-import com.flowzati.archone.stock.allocation.domain.aggregate.AllocationDemand;
-import com.flowzati.archone.stock.allocation.domain.valueobject.AllocationDemandLineRequest;
-import com.flowzati.archone.stock.allocation.domain.valueobject.SourceAllocationUnit;
+import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
+import com.flowzati.archone.inventory.movement.domain.entity.StockMoveLine;
+import com.flowzati.archone.inventory.movement.domain.aggregate.StockPicking;
+import com.flowzati.archone.inventory.movement.domain.type.PickingState;
+import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
+import com.flowzati.archone.inventory.movement.domain.repository.StockMoveRepository;
+import com.flowzati.archone.inventory.movement.domain.repository.StockPickingRepository;
+import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 import com.flowzati.archone.catalog.domain.aggregate.Owner;
 import com.flowzati.archone.catalog.domain.aggregate.Product;
 import com.flowzati.archone.catalog.domain.aggregate.Sku;
@@ -140,20 +140,20 @@ public class DevSeedDataInitializer implements ApplicationRunner {
    *   <li><b>已過期</b>——「有貨但一件都出不了」與「什麼都沒有」在畫面上必須分得開。
    * </ul>
    */
-  public static final UUID NEAR_EXPIRY_STOCK_POOL_ID =
+  public static final UUID NEAR_EXPIRY_STOCK_QUANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000101");
-  public static final UUID EMPTY_STOCK_POOL_ID =
+  public static final UUID EMPTY_STOCK_QUANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000102");
-  public static final UUID PARTIALLY_RESERVED_STOCK_POOL_ID =
+  public static final UUID PARTIALLY_RESERVED_STOCK_QUANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000103");
-  public static final UUID MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID =
+  public static final UUID MID_EXPIRY_EARLY_ARRIVAL_STOCK_QUANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000104");
-  public static final UUID MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID =
+  public static final UUID MID_EXPIRY_LATE_ARRIVAL_STOCK_QUANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000105");
-  public static final UUID EXPIRED_STOCK_POOL_ID =
+  public static final UUID EXPIRED_STOCK_QUANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000106");
   /** 乙貨主南部倉的 {@link #AVAILABLE_SKU}：**充足**，卻配不出去——見 {@link #BASKET_ORDER_ID}。 */
-  public static final UUID SECOND_OWNER_AVAILABLE_STOCK_POOL_ID =
+  public static final UUID SECOND_OWNER_AVAILABLE_STOCK_QUANT_ID =
       UUID.fromString("00000000-0000-0000-0000-000000000107");
 
   public static final UUID PARTIALLY_RESERVED_ORDER_ID =
@@ -204,7 +204,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private final SkuRepository skuRepository;
   private final FacilityRepository facilityRepository;
   private final StockLocationRepository stockLocationRepository;
-  private final StockPoolRepository stockPoolRepository;
+  private final StockQuantRepository stockQuantRepository;
   private final OrderRepository orderRepository;
   private final StockMoveRepository stockMoveRepository;
   private final StockPickingRepository stockPickingRepository;
@@ -218,7 +218,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
       SkuRepository skuRepository,
       FacilityRepository facilityRepository,
       StockLocationRepository stockLocationRepository,
-      StockPoolRepository stockPoolRepository,
+      StockQuantRepository stockQuantRepository,
       OrderRepository orderRepository,
       StockMoveRepository stockMoveRepository,
       StockPickingRepository stockPickingRepository,
@@ -231,7 +231,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     this.skuRepository = skuRepository;
     this.facilityRepository = facilityRepository;
     this.stockLocationRepository = stockLocationRepository;
-    this.stockPoolRepository = stockPoolRepository;
+    this.stockQuantRepository = stockQuantRepository;
     this.orderRepository = orderRepository;
     this.stockMoveRepository = stockMoveRepository;
     this.stockPickingRepository = stockPickingRepository;
@@ -245,7 +245,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   public void run(ApplicationArguments args) {
     seedCatalog();
     seedFacilities();
-    seedStockPools();
+    seedStockQuants();
     seedOrders();
   }
 
@@ -354,32 +354,32 @@ public class DevSeedDataInitializer implements ApplicationRunner {
             LocationUsage.INVENTORY));
   }
 
-  private void seedStockPools() {
+  private void seedStockQuants() {
     LocalDate today = appClock.today();
 
     // 甲貨主北部倉的 SKU-AVAILABLE 分成四批。近效期那批已被跨批訂單全部吃掉（60/60），
     // 中效期早入庫那批被吃掉 20——因此畫面上同時看得到「配完的批」與「配一半的批」。
-    batch(NEAR_EXPIRY_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
+    batch(NEAR_EXPIRY_STOCK_QUANT_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(2), today.plusMonths(1), 60, 60);
-    batch(MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
+    batch(MID_EXPIRY_EARLY_ARRIVAL_STOCK_QUANT_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(2), today.plusMonths(6), 40, 20);
     // 與上一批同效期、晚一個月入庫。兩者的先後只由入庫日決定，這是 tie-breaker 的唯一證據。
-    batch(MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
+    batch(MID_EXPIRY_LATE_ARRIVAL_STOCK_QUANT_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(1), today.plusMonths(6), 30, 0);
     // 有貨但已過期，配不到。不刪除、不隱藏——倉庫裡真的有這 25 件。
-    batch(EXPIRED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
+    batch(EXPIRED_STOCK_QUANT_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(12), today.minusDays(1), 25, 0);
 
     // 乙貨主南部倉：on-hand 0。補這個 SKU 會喚醒下面那兩張缺貨單。
-    batch(EMPTY_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, EMPTY_SKU,
+    batch(EMPTY_STOCK_QUANT_ID, SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, EMPTY_SKU,
         today.minusMonths(2), today.plusMonths(3), 0, 0);
 
     // 同一個貨主同一個倉的另一個 SKU，**一件都沒被預留**——即使跨 SKU 那張單需要它 5 件。
     // 整張單卡在 SKU-EMPTY，所以這 50 件動都不動。
-    batch(SECOND_OWNER_AVAILABLE_STOCK_POOL_ID, SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
+    batch(SECOND_OWNER_AVAILABLE_STOCK_QUANT_ID, SECOND_OWNER_ID, SOUTH_STOCK_LOCATION_ID, AVAILABLE_SKU,
         today.minusMonths(1), today.plusMonths(8), 50, 0);
 
-    batch(PARTIALLY_RESERVED_STOCK_POOL_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PARTIALLY_RESERVED_SKU,
+    batch(PARTIALLY_RESERVED_STOCK_QUANT_ID, FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PARTIALLY_RESERVED_SKU,
         today.minusMonths(2), today.plusMonths(9), 20, 5);
   }
 
@@ -405,7 +405,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PickingState.ASSIGNED);
     assignedMove(partiallyReservedMove, uuid(401), FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID,
         PARTIALLY_RESERVED_SKU, PARTIALLY_RESERVED_LINE_ID, 5, partiallyReservedDemand);
-    moveLine(uuid(421), partiallyReservedMove, PARTIALLY_RESERVED_STOCK_POOL_ID, 5);
+    moveLine(uuid(421), partiallyReservedMove, PARTIALLY_RESERVED_STOCK_QUANT_ID, 5);
 
     // 甲貨主：一張需求跨兩批的單。80 件 = 近效期 60 + 中效期 20，因此有兩筆預留。
     // 這是「多批取用」與「一條行對多筆預留」在種子裡唯一的證據——少了它，跨批那條路徑
@@ -428,8 +428,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID, PickingState.ASSIGNED);
     assignedMove(spanningMove, uuid(402), FIRST_OWNER_ID, NORTH_STOCK_LOCATION_ID,
         AVAILABLE_SKU, SPANNING_LINE_ID, 80, spanningDemand);
-    moveLine(uuid(422), spanningMove, NEAR_EXPIRY_STOCK_POOL_ID, 60);
-    moveLine(uuid(423), spanningMove, MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, 20);
+    moveLine(uuid(422), spanningMove, NEAR_EXPIRY_STOCK_QUANT_ID, 60);
+    moveLine(uuid(423), spanningMove, MID_EXPIRY_EARLY_ARRIVAL_STOCK_QUANT_ID, 20);
 
     // 乙貨主：一張缺貨排隊中的單。SKU 代碼與甲貨主相同但指的是另一個商品（麥茶 1L）。
     //
@@ -573,10 +573,10 @@ public class DevSeedDataInitializer implements ApplicationRunner {
   private void batch(
       UUID id, UUID ownerId, UUID locationId, String skuCode,
       LocalDate inDate, LocalDate expiryDate, int onHandQuantity, int reservedQuantity) {
-    if (stockPoolRepository.findById(id).isPresent()) {
+    if (stockQuantRepository.findById(id).isPresent()) {
       return;
     }
-    stockPoolRepository.save(new StockPool(
+    stockQuantRepository.save(new StockQuant(
         id, ownerId, locationId, skuCode, inDate, expiryDate, onHandQuantity, reservedQuantity,
         null));
   }
@@ -613,8 +613,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     stockMoveRepository.save(move);
   }
 
-  private void moveLine(UUID id, UUID moveId, UUID stockPoolId, int quantity) {
-    stockMoveRepository.saveLines(List.of(new StockMoveLine(id, moveId, stockPoolId, quantity)));
+  private void moveLine(UUID id, UUID moveId, UUID stockQuantId, int quantity) {
+    stockMoveRepository.saveLines(List.of(new StockMoveLine(id, moveId, stockQuantId, quantity)));
   }
 
   private SeedDemand seedDemand(
@@ -638,7 +638,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     AllocationDemand saved = allocationDemandRepository.save(demand);
     return new SeedDemand(saved.id(), saved.lines().stream().collect(Collectors.toMap(
         line -> UUID.fromString(line.sourceLineId()),
-        com.flowzati.archone.stock.allocation.domain.entity.AllocationDemandLine::id)));
+        com.flowzati.archone.inventory.allocation.domain.entity.AllocationDemandLine::id)));
   }
 
   private record SeedDemand(UUID id, Map<UUID, UUID> lineIds) {

@@ -114,7 +114,7 @@ class PureMessagingModuleArchitectureTest {
     String orderingMessaging = readProductionSources(
         application.resolve("ordering/entrypoint/messaging"));
     String allocationMessaging = readProductionSources(
-        application.resolve("stock/allocation/entrypoint/messaging"));
+        application.resolve("inventory/allocation/entrypoint/messaging"));
     String failurePolicy = readProductionSources(bootstrapMessaging.resolve("consumer"));
 
     assertThat(bootstrapMessaging.resolve(
@@ -174,13 +174,13 @@ class PureMessagingModuleArchitectureTest {
     String orderingConsumers = readProductionSources(
         application.resolve("ordering/entrypoint/messaging"));
     String allocationConsumers = readProductionSources(
-        application.resolve("stock/allocation/entrypoint/messaging"));
+        application.resolve("inventory/allocation/entrypoint/messaging"));
     String orderingProducers = readProductionSources(
         application.resolve("ordering/infrastructure/messaging/producer"));
     String allocationProducers = readProductionSources(
-        application.resolve("stock/allocation/infrastructure/messaging/producer"));
+        application.resolve("inventory/allocation/infrastructure/messaging/producer"));
     String inventoryProducers = readProductionSources(
-        application.resolve("stock/inventory/infrastructure/messaging/producer"));
+        application.resolve("inventory/balance/infrastructure/messaging/producer"));
 
     assertThat(orderingConsumers + allocationConsumers)
         .contains("EventConsumer")
@@ -196,7 +196,7 @@ class PureMessagingModuleArchitectureTest {
         "ordering/application/event/translator/OrderingDomainEventTranslator.java"))
         .doesNotExist();
     assertThat(application.resolve(
-        "stock/allocation/application/event/translator/AllocationDomainEventTranslator.java"))
+        "inventory/allocation/application/event/translator/AllocationDomainEventTranslator.java"))
         .doesNotExist();
   }
 

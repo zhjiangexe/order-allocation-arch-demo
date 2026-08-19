@@ -1,7 +1,7 @@
 package com.flowzati.archone.bootstrap;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.stock.inventory.domain.aggregate.StockPool;
+import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -9,9 +9,9 @@ import com.flowzati.archone.catalog.domain.aggregate.Facility;
 import com.flowzati.archone.catalog.domain.repository.FacilityRepository;
 import com.flowzati.archone.catalog.domain.repository.OwnerRepository;
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.stock.inventory.domain.repository.StockPoolRepository;
-import com.flowzati.archone.stock.allocation.domain.repository.AllocationDemandRepository;
-import com.flowzati.archone.stock.allocation.domain.valueobject.WaitingAllocationScope;
+import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
+import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.testsupport.MovementFixtures;
@@ -42,7 +42,7 @@ class DevSeedDataIntegrationTest {
   private DevSeedDataInitializer initializer;
 
   @Autowired
-  private StockPoolRepository stockPoolRepository;
+  private StockQuantRepository stockQuantRepository;
 
   @Autowired
   private OrderRepository orderRepository;
@@ -82,21 +82,21 @@ class DevSeedDataIntegrationTest {
   @Test
   @DisplayName("dev seed 應建立一致資料且重跑不重複")
   void shouldCreateConsistentDevSeedDataWithoutDuplicatesOnRepeatRun() throws Exception {
-    assertThat(batch(DevSeedDataInitializer.NEAR_EXPIRY_STOCK_POOL_ID)).satisfies(pool -> {
+    assertThat(batch(DevSeedDataInitializer.NEAR_EXPIRY_STOCK_QUANT_ID)).satisfies(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(60);
       // 被跨批訂單全部吃掉：畫面上要有一個「配完的批」。
       assertThat(pool.getReservedQuantity()).isEqualTo(60);
     });
-    assertThat(batch(DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID)).satisfies(pool -> {
+    assertThat(batch(DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_QUANT_ID)).satisfies(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(40);
       // 配一半的批：跨批訂單的第二段。
       assertThat(pool.getReservedQuantity()).isEqualTo(20);
     });
-    assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_POOL_ID)).satisfies(pool -> {
+    assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_QUANT_ID)).satisfies(pool -> {
       assertThat(pool.getOnHandQuantity()).isZero();
       assertThat(pool.getReservedQuantity()).isZero();
     });
-    assertThat(batch(DevSeedDataInitializer.PARTIALLY_RESERVED_STOCK_POOL_ID)).satisfies(pool -> {
+    assertThat(batch(DevSeedDataInitializer.PARTIALLY_RESERVED_STOCK_QUANT_ID)).satisfies(pool -> {
       assertThat(pool.getOnHandQuantity()).isEqualTo(20);
       assertThat(pool.getReservedQuantity()).isEqualTo(5);
     });
@@ -105,8 +105,8 @@ class DevSeedDataIntegrationTest {
     assertThat(heldBy(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
         .singleElement().satisfies(held -> {
           assertThat(held.quantity()).isEqualTo(5);
-          assertThat(held.stockPoolId())
-              .isEqualTo(DevSeedDataInitializer.PARTIALLY_RESERVED_STOCK_POOL_ID);
+          assertThat(held.stockQuantId())
+              .isEqualTo(DevSeedDataInitializer.PARTIALLY_RESERVED_STOCK_QUANT_ID);
         });
     // 明細存在就代表鎖著——沒有狀態要驗，狀態在搬運上。
     assertThat(MovementFixtures.moveStatesOf(
@@ -129,8 +129,8 @@ class DevSeedDataIntegrationTest {
   @Test
   @DisplayName("種子必須有同效期不同入庫日的兩批——少了它，FEFO 的 tie-breaker 完全沒被測到")
   void seedsTwoBatchesSharingAnExpiryDateButDifferingInArrival() {
-    StockPool early = batch(DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID);
-    StockPool late = batch(DevSeedDataInitializer.MID_EXPIRY_LATE_ARRIVAL_STOCK_POOL_ID);
+    StockQuant early = batch(DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_QUANT_ID);
+    StockQuant late = batch(DevSeedDataInitializer.MID_EXPIRY_LATE_ARRIVAL_STOCK_QUANT_ID);
 
     assertThat(early.getExpiryDate()).isEqualTo(late.getExpiryDate());
     assertThat(early.getInDate()).isBefore(late.getInDate());
@@ -139,16 +139,16 @@ class DevSeedDataIntegrationTest {
   @Test
   @DisplayName("種子必須有一批已過期的貨——「有貨但配不到」在畫面上要看得見")
   void seedsAnExpiredBatchThatIsPresentButNotAllocatable() {
-    StockPool expired = batch(DevSeedDataInitializer.EXPIRED_STOCK_POOL_ID);
+    StockQuant expired = batch(DevSeedDataInitializer.EXPIRED_STOCK_QUANT_ID);
 
     // 不刪除、不隱藏：倉庫裡真的有這 25 件，而它與「什麼都沒有」要引導出不同的動作。
     assertThat(expired.getOnHandQuantity()).isEqualTo(25);
     assertThat(expired.isExpired(appClock.today())).isTrue();
-    assertThat(stockPoolRepository.findAllocatableBatchesInFefoOrder(
+    assertThat(stockQuantRepository.findAllocatableBatchesInFefoOrder(
         DevSeedDataInitializer.FIRST_OWNER_ID, DevSeedDataInitializer.NORTH_FACILITY_ID,
         DevSeedDataInitializer.AVAILABLE_SKU, appClock.today()))
-        .extracting(StockPool::getId)
-        .doesNotContain(DevSeedDataInitializer.EXPIRED_STOCK_POOL_ID);
+        .extracting(StockQuant::getId)
+        .doesNotContain(DevSeedDataInitializer.EXPIRED_STOCK_QUANT_ID);
   }
 
   @Test
@@ -181,12 +181,12 @@ class DevSeedDataIntegrationTest {
     // 80 件 = 近效期 60 + 中效期 20，所以是兩條明細，各指向不同的批。
     assertThat(heldBy(DevSeedDataInitializer.SPANNING_ORDER_ID))
         .hasSize(2)
-        .extracting(held -> held.stockPoolId(), held -> held.quantity())
+        .extracting(held -> held.stockQuantId(), held -> held.quantity())
         .containsExactlyInAnyOrder(
             org.assertj.core.groups.Tuple.tuple(
-                DevSeedDataInitializer.NEAR_EXPIRY_STOCK_POOL_ID, 60),
+                DevSeedDataInitializer.NEAR_EXPIRY_STOCK_QUANT_ID, 60),
             org.assertj.core.groups.Tuple.tuple(
-                DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_POOL_ID, 20));
+                DevSeedDataInitializer.MID_EXPIRY_EARLY_ARRIVAL_STOCK_QUANT_ID, 20));
   }
 
   @Test
@@ -217,7 +217,7 @@ class DevSeedDataIntegrationTest {
             DevSeedDataInitializer.BASKET_ORDER_ID);
 
     // 缺貨對象的庫存池必須真的是空的，否則「試過、沒貨」這個狀態自相矛盾
-    assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_POOL_ID).availableToPromise()).isZero();
+    assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_QUANT_ID).availableToPromise()).isZero();
   }
 
   @Test
@@ -232,7 +232,7 @@ class DevSeedDataIntegrationTest {
 
     // 這一條才是重點：充足的那一行**一件都沒被鎖住**。整張配或整張不配，所以卡在 SKU-EMPTY
     // 的這張單不會為自己留下 SKU-AVAILABLE 的 5 件——那 5 件留給後面配得出去的單。
-    assertThat(batch(DevSeedDataInitializer.SECOND_OWNER_AVAILABLE_STOCK_POOL_ID))
+    assertThat(batch(DevSeedDataInitializer.SECOND_OWNER_AVAILABLE_STOCK_QUANT_ID))
         .satisfies(pool -> {
           assertThat(pool.getOnHandQuantity()).isEqualTo(50);
           assertThat(pool.getReservedQuantity()).isZero();
@@ -348,7 +348,7 @@ class DevSeedDataIntegrationTest {
   }
 
   /** 依 id 取那一批。種子的日期相對於今天計算，所以用 id 取比用五維鍵拼出來可靠。 */
-  private StockPool batch(java.util.UUID stockPoolId) {
-    return stockPoolRepository.findById(stockPoolId).orElseThrow();
+  private StockQuant batch(java.util.UUID stockQuantId) {
+    return stockQuantRepository.findById(stockQuantId).orElseThrow();
   }
 }

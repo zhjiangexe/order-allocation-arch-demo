@@ -7,7 +7,7 @@ import com.flowzati.archone.messaging.observation.MessagingObservationNames;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
-import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -736,8 +736,8 @@ final class FullPathMessagingEnvironment {
       failuresRemaining.set(0);
     }
 
-    @Around("execution(* com.flowzati.archone.stock.allocation.application."
-        + "AllocationAttemptCoordinator.allocateOne(..))")
+    @Around("execution(* com.flowzati.archone.inventory.allocation.application."
+        + "PendingDemandAllocator.allocateOne(..))")
     Object failAfterBusinessWrites(ProceedingJoinPoint joinPoint) throws Throwable {
       Object result = joinPoint.proceed();
       invocations.incrementAndGet();

@@ -12,7 +12,7 @@ import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
-import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import java.time.Instant;
 import org.springframework.stereotype.Component;
 

@@ -33,7 +33,7 @@ import java.util.UUID;
 /**
  * 一次由單一 Facility 對客戶執行的出庫交付。
  *
- * <p>它管理 WMS 作業狀態，不修改 StockPool；完成 {@code ShipmentHandedOverToCarrier}
+ * <p>它管理 WMS 作業狀態，不修改 StockQuant；完成 {@code ShipmentHandedOverToCarrier}
  * 後由 integration adapter 通知 inventory／TMS 邊界。
  */
 public class Shipment {

@@ -26,7 +26,7 @@ class OrderingArchitectureTest {
 
   private static final List<Path> PRODUCTION_ROOTS = List.of(
       Path.of("src/main/java/com/flowzati/archone/ordering"),
-      Path.of("src/main/java/com/flowzati/archone/stock"),
+      Path.of("src/main/java/com/flowzati/archone/inventory"),
       Path.of("src/main/java/com/flowzati/archone/demo"),
       Path.of("src/main/java/com/flowzati/archone/bootstrap")
   );

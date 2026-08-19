@@ -23,7 +23,7 @@ class EventSeparationTest {
   private final UUID orderId = UUID.randomUUID();
   private final UUID ownerId = UUID.randomUUID();
   private final UUID orderLineId = UUID.randomUUID();
-  private final UUID stockPoolId = UUID.randomUUID();
+  private final UUID stockQuantId = UUID.randomUUID();
   private final Instant occurredAt = Instant.parse("2026-07-23T00:00:00Z");
 
   @Test

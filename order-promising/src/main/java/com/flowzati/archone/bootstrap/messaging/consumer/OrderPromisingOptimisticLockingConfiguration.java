@@ -4,7 +4,7 @@ import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEven
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingDecoratorConfiguration;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryObserver;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetrySettings;
-import com.flowzati.archone.stock.allocation.infrastructure.messaging.consumer.retry.AllocationOptimisticLockRetryObserver;
+import com.flowzati.archone.inventory.allocation.infrastructure.messaging.consumer.retry.AllocationOptimisticLockRetryObserver;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

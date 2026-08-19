@@ -5,7 +5,7 @@ import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEven
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterHeaders;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterReplayRecordFactory;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
-import com.flowzati.archone.stock.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
