@@ -40,6 +40,6 @@ public class OrderingFulfillmentCompletionEventConsumer {
 
     void onOutboundMovementsCompleted(OutboundMovementsCompletedForFulfillmentIntegrationEvent event) {
         recordOrderFulfillmentUsecase.execute(
-                new RecordOrderFulfillmentCommand(event.getOrderId(), event.getCompletedAt()));
+                new RecordOrderFulfillmentCommand(event.getOrderId(), event.getShipmentId(), event.getCompletedAt()));
     }
 }

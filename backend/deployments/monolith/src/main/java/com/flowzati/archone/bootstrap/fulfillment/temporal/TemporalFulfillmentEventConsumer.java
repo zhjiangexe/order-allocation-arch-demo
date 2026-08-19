@@ -12,7 +12,11 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
-import com.flowzati.archone.orderfulfillment.workflow.OrderFulfillmentProcessWorkflow;
+import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowInput;
+import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowExecutionAlreadyStarted;
@@ -65,16 +69,15 @@ public class TemporalFulfillmentEventConsumer {
     }
 
     void onOrderPlaced(OrderPlacedIntegrationEvent event) {
-        OrderFulfillmentProcessWorkflow workflow = workflowClient.newWorkflowStub(
-                OrderFulfillmentProcessWorkflow.class,
+        OrderFulfillmentWorkflow workflow = workflowClient.newWorkflowStub(
+                OrderFulfillmentWorkflow.class,
                 WorkflowOptions.newBuilder()
-                        .setWorkflowId(OrderFulfillmentProcessWorkflow.workflowId(event.getOrderId()))
-                        .setTaskQueue(OrderFulfillmentProcessWorkflow.TASK_QUEUE)
+                        .setWorkflowId(OrderFulfillmentWorkflow.workflowId(event.getOrderId()))
+                        .setTaskQueue(OrderFulfillmentWorkflow.TASK_QUEUE)
                         .build());
         try {
             WorkflowClient.start(
-                    workflow::execute,
-                    new OrderFulfillmentProcessWorkflow.StartInput(event.getOrderId(), event.getReceivedAt()));
+                    workflow::execute, new OrderFulfillmentWorkflowInput(event.getOrderId(), event.getReceivedAt()));
         } catch (WorkflowExecutionAlreadyStarted ignored) {
             // Kafka redelivery 與 Inbox retry 可能再次嘗試啟動；workflowId 保證同一張 Order 只有一條流程。
         }
@@ -82,13 +85,13 @@ public class TemporalFulfillmentEventConsumer {
 
     void onAllocationCommitted(AllocationCommittedForFulfillmentIntegrationEvent event) {
         workflow(event.getOrderId())
-                .allocationCommitted(new OrderFulfillmentProcessWorkflow.AllocationSnapshot(
+                .allocationCommitted(new AllocationSnapshot(
                         event.getAllocationId(),
                         event.getOrderId(),
                         event.getOwnerId(),
                         event.getFacilityId(),
                         event.getLines().stream()
-                                .map(line -> new OrderFulfillmentProcessWorkflow.AllocationLine(
+                                .map(line -> new AllocationSnapshotLine(
                                         line.orderLineId(),
                                         line.moveId(),
                                         line.skuCode(),
@@ -102,12 +105,12 @@ public class TemporalFulfillmentEventConsumer {
 
     void onShipmentHandedOver(ShipmentHandedOverForFulfillmentIntegrationEvent event) {
         workflow(event.getOrderId())
-                .shipmentHandedOverToCarrier(new OrderFulfillmentProcessWorkflow.ShipmentHandedOverToCarrier(
+                .shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierSignal(
                         event.getOrderId(), event.getShipmentId(), event.getHandedOverAt()));
     }
 
-    private OrderFulfillmentProcessWorkflow workflow(java.util.UUID orderId) {
+    private OrderFulfillmentWorkflow workflow(java.util.UUID orderId) {
         return workflowClient.newWorkflowStub(
-                OrderFulfillmentProcessWorkflow.class, OrderFulfillmentProcessWorkflow.workflowId(orderId));
+                OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId));
     }
 }

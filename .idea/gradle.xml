@@ -8,11 +8,12 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$/backend" />
-            <option value="$PROJECT_DIR$/backend/contracts" />
+            <option value="$PROJECT_DIR$/backend/integration-contracts" />
             <option value="$PROJECT_DIR$/backend/deployments" />
             <option value="$PROJECT_DIR$/backend/deployments/monolith" />
             <option value="$PROJECT_DIR$/backend/foundation" />
-            <option value="$PROJECT_DIR$/backend/fulfillment-workflow" />
+            <option value="$PROJECT_DIR$/backend/fulfillment-workflow-contract" />
+            <option value="$PROJECT_DIR$/backend/fulfillment-workflow-runtime" />
             <option value="$PROJECT_DIR$/backend/inventory-context" />
             <option value="$PROJECT_DIR$/backend/logistics-data-context" />
             <option value="$PROJECT_DIR$/backend/messaging" />

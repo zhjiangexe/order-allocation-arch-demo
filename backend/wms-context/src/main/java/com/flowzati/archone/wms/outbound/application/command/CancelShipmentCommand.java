@@ -6,13 +6,11 @@ import java.util.UUID;
 /**
  * 取消單一 WMS Shipment 的直接 command。
  *
- * <p>TODO(order-promising)：目前 {@code OrderCancelledIntegrationEvent} 只有 {@code orderId}
- * 與時間，無法直接填入 {@code shipmentId}。接通整單取消前，上游 allocation snapshot 必須保留
- * order-to-shipment correlation，或另定義以 {@code orderId} 為輸入、可取消多張 Shipment 的 WMS
- * use case；不要讓 WMS 回查 order-promising repository。
+ * <p>Fulfillment Workflow 已保存 order-to-shipment correlation，取消時會直接提供 Shipment ID 與
+ * 穩定的 request ID。WMS 以 request ID 區分同一請求重播與另一筆衝突請求，不回查 Ordering。
  */
 public record CancelShipmentCommand(
-        /** 消費 integration event 時可使用 event ID，吸收重送。 */
+        /** 由外部命令入口產生並在所有重試中保持不變。 */
         String requestId, UUID shipmentId, Instant requestedAt) {
 
     public CancelShipmentCommand {

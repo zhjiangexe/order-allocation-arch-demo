@@ -66,6 +66,8 @@ class OrderMapperTest {
     void mapsEntityToDomainWithoutProducingDomainEvents() {
         Instant allocatedAt = Instant.parse("2026-07-23T08:02:00Z");
         Instant cancelledAt = Instant.parse("2026-07-23T08:03:00Z");
+        UUID cancellationRequestId = UUID.randomUUID();
+        String cancellationReason = "Customer requested cancellation";
         OrderEntity entity = new OrderEntity(
                 ORDER_ID,
                 OWNER_ID,
@@ -83,6 +85,10 @@ class OrderMapperTest {
                 allocatedAt,
                 null,
                 cancelledAt,
+                cancellationRequestId,
+                cancellationReason,
+                null,
+                null,
                 4L);
 
         Order order = OrderMapper.toDomain(entity);
@@ -105,6 +111,8 @@ class OrderMapperTest {
         assertThat(order.getPlacedAt()).isEqualTo(UPSTREAM_PLACED_AT);
         assertThat(order.getAllocatedAt()).isEqualTo(allocatedAt);
         assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
+        assertThat(order.getCancellationRequestId()).isEqualTo(cancellationRequestId);
+        assertThat(order.getCancellationReason()).isEqualTo(cancellationReason);
         assertThat(order.getVersion()).isEqualTo(4L);
         assertThat(order.releaseDomainEvents()).isEmpty();
     }
@@ -137,10 +145,11 @@ class OrderMapperTest {
     }
 
     @Test
-    @DisplayName("應往返保留 FULFILLED 與 fulfilledAt")
+    @DisplayName("應往返保留 FULFILLED、fulfilledAt 與 Shipment correlation")
     void roundTripsFulfilledOrder() {
         Instant allocatedAt = RECEIVED_AT.plusSeconds(10);
         Instant fulfilledAt = RECEIVED_AT.plusSeconds(20);
+        UUID shipmentId = UUID.randomUUID();
         Order order = Order.rehydrate(
                 ORDER_ID,
                 OWNER_ID,
@@ -153,13 +162,17 @@ class OrderMapperTest {
                 allocatedAt,
                 null,
                 null,
+                null,
+                null,
                 fulfilledAt,
+                shipmentId,
                 2L);
 
         Order restored = OrderMapper.toDomain(OrderMapper.toEntity(order));
 
         assertThat(restored.getStatus()).isEqualTo(OrderStatus.FULFILLED);
         assertThat(restored.getFulfilledAt()).isEqualTo(fulfilledAt);
+        assertThat(restored.getFulfilledByShipmentId()).isEqualTo(shipmentId);
     }
 
     private static OrderLineEntity lineEntity(int lineNo, String skuCode, int quantity) {

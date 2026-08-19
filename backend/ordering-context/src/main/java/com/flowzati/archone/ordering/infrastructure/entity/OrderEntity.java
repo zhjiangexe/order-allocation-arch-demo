@@ -87,8 +87,17 @@ public class OrderEntity {
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
+    @Column(name = "cancellation_request_id")
+    private UUID cancellationRequestId;
+
+    @Column(name = "cancellation_reason", length = 512)
+    private String cancellationReason;
+
     @Column(name = "fulfilled_at")
     private Instant fulfilledAt;
+
+    @Column(name = "fulfilled_by_shipment_id")
+    private UUID fulfilledByShipmentId;
 
     @Version
     @Column(nullable = false)
@@ -132,6 +141,9 @@ public class OrderEntity {
                 ignoredLegacySupplyWaitSince,
                 cancelledAt,
                 null,
+                null,
+                null,
+                null,
                 version);
     }
 
@@ -154,6 +166,52 @@ public class OrderEntity {
             Instant cancelledAt,
             Instant fulfilledAt,
             Long version) {
+        this(
+                id,
+                ownerId,
+                externalOrderNo,
+                shipToZone,
+                shipToAddress,
+                promisedDeliveryDate,
+                dispatchBy,
+                releasePriority,
+                facilityId,
+                lines,
+                status,
+                receivedAt,
+                placedAt,
+                allocatedAt,
+                ignoredLegacySupplyWaitSince,
+                cancelledAt,
+                null,
+                null,
+                fulfilledAt,
+                null,
+                version);
+    }
+
+    public OrderEntity(
+            UUID id,
+            UUID ownerId,
+            String externalOrderNo,
+            String shipToZone,
+            String shipToAddress,
+            LocalDate promisedDeliveryDate,
+            Instant dispatchBy,
+            int releasePriority,
+            UUID facilityId,
+            List<OrderLineEntity> lines,
+            OrderStatus status,
+            Instant receivedAt,
+            Instant placedAt,
+            Instant allocatedAt,
+            Instant ignoredLegacySupplyWaitSince,
+            Instant cancelledAt,
+            UUID cancellationRequestId,
+            String cancellationReason,
+            Instant fulfilledAt,
+            UUID fulfilledByShipmentId,
+            Long version) {
         this.id = id;
         this.ownerId = ownerId;
         this.externalOrderNo = externalOrderNo;
@@ -169,7 +227,10 @@ public class OrderEntity {
         this.placedAt = placedAt;
         this.allocatedAt = allocatedAt;
         this.cancelledAt = cancelledAt;
+        this.cancellationRequestId = cancellationRequestId;
+        this.cancellationReason = cancellationReason;
         this.fulfilledAt = fulfilledAt;
+        this.fulfilledByShipmentId = fulfilledByShipmentId;
         this.version = version;
     }
 
@@ -233,8 +294,20 @@ public class OrderEntity {
         return cancelledAt;
     }
 
+    public UUID getCancellationRequestId() {
+        return cancellationRequestId;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
     public Instant getFulfilledAt() {
         return fulfilledAt;
+    }
+
+    public UUID getFulfilledByShipmentId() {
+        return fulfilledByShipmentId;
     }
 
     public Long getVersion() {

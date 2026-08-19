@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.ordering.application.command.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
@@ -27,18 +28,38 @@ class RecordOrderFulfillmentUsecaseTest {
         Instant allocatedAt = receivedAt.plusSeconds(10);
         Instant fulfilledAt = receivedAt.plusSeconds(20);
         UUID orderId = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
         Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
         order.markAllocated(allocatedAt);
         OrderRepository repository = mock(OrderRepository.class);
         when(repository.findById(orderId)).thenReturn(Optional.of(order));
         RecordOrderFulfillmentUsecase usecase = new RecordOrderFulfillmentUsecase(repository);
 
-        usecase.execute(new RecordOrderFulfillmentCommand(orderId, fulfilledAt));
-        usecase.execute(new RecordOrderFulfillmentCommand(orderId, fulfilledAt.plusSeconds(30)));
+        usecase.execute(new RecordOrderFulfillmentCommand(orderId, shipmentId, fulfilledAt));
+        usecase.execute(new RecordOrderFulfillmentCommand(orderId, shipmentId, fulfilledAt));
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FULFILLED);
         assertThat(order.getFulfilledAt()).isEqualTo(fulfilledAt);
+        assertThat(order.getFulfilledByShipmentId()).isEqualTo(shipmentId);
         verify(repository, times(1)).save(order);
+    }
+
+    @Test
+    @DisplayName("已由另一張 Shipment 履約的訂單應拒絕衝突事實")
+    void rejectsConflictingShipment() {
+        Instant receivedAt = Instant.parse("2026-08-13T00:00:00Z");
+        Instant fulfilledAt = receivedAt.plusSeconds(20);
+        UUID orderId = UUID.randomUUID();
+        Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
+        order.markAllocated(receivedAt.plusSeconds(10));
+        order.markFulfilled(UUID.randomUUID(), fulfilledAt);
+        OrderRepository repository = mock(OrderRepository.class);
+        when(repository.findById(orderId)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> new RecordOrderFulfillmentUsecase(repository)
+                        .execute(new RecordOrderFulfillmentCommand(orderId, UUID.randomUUID(), fulfilledAt)))
+                .isInstanceOf(OrderFulfillmentConflictException.class)
+                .hasMessageContaining("different immutable fact");
     }
 
     @Test
@@ -49,8 +70,8 @@ class RecordOrderFulfillmentUsecaseTest {
         when(repository.findById(orderId)).thenReturn(Optional.empty());
         RecordOrderFulfillmentUsecase usecase = new RecordOrderFulfillmentUsecase(repository);
 
-        assertThatThrownBy(() -> usecase.execute(
-                        new RecordOrderFulfillmentCommand(orderId, Instant.parse("2026-08-13T00:00:00Z"))))
+        assertThatThrownBy(() -> usecase.execute(new RecordOrderFulfillmentCommand(
+                        orderId, UUID.randomUUID(), Instant.parse("2026-08-13T00:00:00Z"))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Order not found");
     }

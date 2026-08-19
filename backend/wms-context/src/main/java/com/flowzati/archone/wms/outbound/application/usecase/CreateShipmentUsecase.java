@@ -3,6 +3,7 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
+import com.flowzati.archone.wms.outbound.domain.exception.ShipmentAllocationSnapshotConflictException;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
@@ -46,7 +47,7 @@ public class CreateShipmentUsecase {
                 && existing.releasePriority() == command.releasePriority()
                 && existing.createdAt().equals(command.createdAt());
         if (!same) {
-            throw new IllegalStateException(
+            throw new ShipmentAllocationSnapshotConflictException(
                     "Allocation was already handed off with a different snapshot: " + command.allocationId());
         }
         return existing;

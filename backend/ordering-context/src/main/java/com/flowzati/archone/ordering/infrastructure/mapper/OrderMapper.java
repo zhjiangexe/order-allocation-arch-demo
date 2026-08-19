@@ -30,7 +30,10 @@ public final class OrderMapper {
                 order.getAllocatedAt(),
                 null,
                 order.getCancelledAt(),
+                order.getCancellationRequestId(),
+                order.getCancellationReason(),
                 order.getFulfilledAt(),
+                order.getFulfilledByShipmentId(),
                 order.getVersion());
     }
 
@@ -53,7 +56,10 @@ public final class OrderMapper {
                 entity.getAllocatedAt(),
                 null,
                 entity.getCancelledAt(),
+                entity.getCancellationRequestId(),
+                entity.getCancellationReason(),
                 entity.getFulfilledAt(),
+                entity.getFulfilledByShipmentId(),
                 entity.getVersion());
     }
 

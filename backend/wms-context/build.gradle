@@ -6,7 +6,8 @@ description = 'wms'
 
 dependencies {
     implementation project(':foundation')
-    implementation project(':contracts')
+    implementation project(':integration-contracts')
+    implementation project(':fulfillment-workflow-contract')
     implementation project(':messaging:messaging-events')
     implementation project(':messaging:messaging-spring-boot-autoconfigure')
     implementation libs.spring.boot.starter.data.jpa

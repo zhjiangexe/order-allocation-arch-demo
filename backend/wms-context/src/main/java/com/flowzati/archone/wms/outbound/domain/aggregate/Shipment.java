@@ -16,6 +16,7 @@ import com.flowzati.archone.wms.outbound.domain.event.ShipmentReadyForDispatch;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentReleased;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentStaged;
 import com.flowzati.archone.wms.outbound.domain.event.ShortPickDetected;
+import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
@@ -133,8 +134,8 @@ public class Shipment {
         if (pickingWork != null && (waveId == null || !pickingWork.belongsTo(waveId, id))) {
             throw new IllegalArgumentException("Persisted WarehouseWork does not belong to Shipment");
         }
-        if (cancellationOutcome == null && cancellationRequestId != null) {
-            throw new IllegalArgumentException("Cancellation request requires a persisted outcome");
+        if ((cancellationOutcome == null) != (cancellationRequestId == null)) {
+            throw new IllegalArgumentException("Cancellation request and outcome must both be present or absent");
         }
         shipment.status = status;
         shipment.waveId = waveId;
@@ -281,6 +282,10 @@ public class Shipment {
         }
         requireTime(requestedAt, "Cancellation request time is required");
         if (cancellationOutcome != null) {
+            if (!requestId.equals(cancellationRequestId)) {
+                throw new ShipmentCancellationRequestConflictException(
+                        "Shipment already has a different cancellation request: " + id);
+            }
             return cancellationOutcome == CancellationOutcome.CANCELLED
                     ? CancellationOutcome.ALREADY_CANCELLED
                     : cancellationOutcome;

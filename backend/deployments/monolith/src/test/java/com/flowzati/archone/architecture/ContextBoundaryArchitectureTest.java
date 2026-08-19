@@ -47,7 +47,7 @@ class ContextBoundaryArchitectureTest {
                     "com.flowzati.archone.inventory");
 
     @Test
-    @DisplayName("Ordering 與 Inventory 只能透過 contracts 溝通，不得形成直接 class dependency")
+    @DisplayName("Ordering 與 Inventory 只能透過 integration contracts 溝通，不得形成直接 class dependency")
     void orderingAndInventoryDoNotDependOnEachOther() {
         noClasses()
                 .that()

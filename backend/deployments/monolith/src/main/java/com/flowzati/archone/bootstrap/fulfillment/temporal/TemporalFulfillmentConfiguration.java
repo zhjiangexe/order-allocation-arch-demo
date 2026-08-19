@@ -2,14 +2,17 @@ package com.flowzati.archone.bootstrap.fulfillment.temporal;
 
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.balance.application.usecase.CompleteOutboundMovementsUsecase;
-import com.flowzati.archone.orderfulfillment.workflow.OrderFulfillmentProcessWorkflow;
-import com.flowzati.archone.orderfulfillment.workflow.OrderFulfillmentProcessWorkflowImpl;
-import com.flowzati.archone.orderfulfillment.workflow.OrderPromisingActivities;
-import com.flowzati.archone.orderfulfillment.workflow.WmsActivities;
+import com.flowzati.archone.inventory.entrypoint.temporal.TemporalInventoryActivitiesAdapter;
+import com.flowzati.archone.orderfulfillment.contract.activity.inventory.InventoryActivities;
+import com.flowzati.archone.orderfulfillment.contract.activity.wms.WmsActivities;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
+import com.flowzati.archone.orderfulfillment.workflow.OrderFulfillmentWorkflowImpl;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
+import com.flowzati.archone.ordering.entrypoint.temporal.TemporalOrderingActivitiesAdapter;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
+import com.flowzati.archone.wms.outbound.entrypoint.temporal.TemporalWmsActivitiesAdapter;
 import com.flowzati.archone.wms.shared.application.IdGenerator;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
@@ -43,38 +46,39 @@ public class TemporalFulfillmentConfiguration {
     }
 
     @Bean
-    OrderPromisingActivitiesImpl orderPromisingActivities(
+    TemporalInventoryActivitiesAdapter inventoryActivities(
             AllocateOrderUsecase allocateOrderUsecase,
-            CompleteOutboundMovementsUsecase completeOutboundMovementsUsecase,
-            RecordOrderFulfillmentUsecase recordOrderFulfillmentUsecase,
-            CancelOrderUsecase cancelOrderUsecase) {
-        return new OrderPromisingActivitiesImpl(
-                allocateOrderUsecase,
-                completeOutboundMovementsUsecase,
-                recordOrderFulfillmentUsecase,
-                cancelOrderUsecase);
+            CompleteOutboundMovementsUsecase completeOutboundMovementsUsecase) {
+        return new TemporalInventoryActivitiesAdapter(allocateOrderUsecase, completeOutboundMovementsUsecase);
     }
 
     @Bean
-    WmsActivitiesImpl wmsActivities(
+    TemporalOrderingActivitiesAdapter orderingActivities(
+            RecordOrderFulfillmentUsecase recordOrderFulfillmentUsecase, CancelOrderUsecase cancelOrderUsecase) {
+        return new TemporalOrderingActivitiesAdapter(recordOrderFulfillmentUsecase, cancelOrderUsecase);
+    }
+
+    @Bean
+    TemporalWmsActivitiesAdapter wmsActivities(
             CreateShipmentUsecase createShipmentUsecase,
             CancelShipmentUsecase cancelShipmentUsecase,
             IdGenerator idGenerator) {
-        return new WmsActivitiesImpl(createShipmentUsecase, cancelShipmentUsecase, idGenerator);
+        return new TemporalWmsActivitiesAdapter(createShipmentUsecase, cancelShipmentUsecase, idGenerator);
     }
 
     @Bean(destroyMethod = "shutdown")
     WorkerFactory temporalWorkerFactory(
             WorkflowClient workflowClient,
-            OrderPromisingActivitiesImpl orderPromisingActivities,
-            WmsActivitiesImpl wmsActivities) {
+            TemporalInventoryActivitiesAdapter inventoryActivities,
+            TemporalOrderingActivitiesAdapter orderingActivities,
+            TemporalWmsActivitiesAdapter wmsActivities) {
         WorkerFactory factory = WorkerFactory.newInstance(workflowClient);
 
-        Worker workflowWorker = factory.newWorker(OrderFulfillmentProcessWorkflow.TASK_QUEUE);
-        workflowWorker.registerWorkflowImplementationTypes(OrderFulfillmentProcessWorkflowImpl.class);
+        Worker workflowWorker = factory.newWorker(OrderFulfillmentWorkflow.TASK_QUEUE);
+        workflowWorker.registerWorkflowImplementationTypes(OrderFulfillmentWorkflowImpl.class);
 
-        Worker orderPromisingWorker = factory.newWorker(OrderPromisingActivities.TASK_QUEUE);
-        orderPromisingWorker.registerActivitiesImplementations(orderPromisingActivities);
+        Worker orderPromisingWorker = factory.newWorker(InventoryActivities.TASK_QUEUE);
+        orderPromisingWorker.registerActivitiesImplementations(inventoryActivities, orderingActivities);
 
         Worker wmsWorker = factory.newWorker(WmsActivities.TASK_QUEUE);
         wmsWorker.registerActivitiesImplementations(wmsActivities);

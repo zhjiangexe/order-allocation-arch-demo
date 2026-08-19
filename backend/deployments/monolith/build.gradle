@@ -40,9 +40,9 @@ dependencies {
     implementation project(':inventory-context')
     implementation project(':logistics-data-context')
     implementation project(':wms-context')
-    implementation project(':fulfillment-workflow')
+    implementation project(':fulfillment-workflow-runtime')
     implementation project(':foundation')
-    implementation project(':contracts')
+    implementation project(':integration-contracts')
     implementation project(':messaging:messaging-api')
     implementation project(':messaging:messaging-events')
     // Optional Tram-style local retry around the complete consumer transaction.

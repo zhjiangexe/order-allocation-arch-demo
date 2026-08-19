@@ -3,15 +3,15 @@ package com.flowzati.archone.ordering.application.usecase;
 import com.flowzati.archone.ordering.application.command.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 在出庫 movements 完成後，將 Ordering aggregate 冪等推進到 FULFILLED。
  *
- * <p>只有重複的 FULFILLED 通知是 no-op。PENDING 或 CANCELLED 收到完成通知代表
- * 跨邊界順序／補償出錯，交由 domain invariant 明確失敗，不能安靜吞掉實體貨物已離倉的事實。
+ * <p>只有 Shipment ID 與完成時間都相同的 FULFILLED 事實是 no-op。另一張 Shipment 或不同 payload
+ * 會被視為衝突；PENDING 或 CANCELLED 收到完成通知則代表跨邊界順序／補償出錯。這些情況都交由
+ * domain invariant 明確失敗，不能安靜吞掉實體貨物已離倉的事實。
  */
 @Service
 public class RecordOrderFulfillmentUsecase {
@@ -28,11 +28,9 @@ public class RecordOrderFulfillmentUsecase {
         Order order = orderRepository
                 .findById(command.orderId())
                 .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
-        if (order.getStatus() == OrderStatus.FULFILLED) {
+        if (!order.markFulfilled(command.shipmentId(), command.fulfilledAt())) {
             return;
         }
-
-        order.markFulfilled(command.fulfilledAt());
         orderRepository.save(order);
     }
 }

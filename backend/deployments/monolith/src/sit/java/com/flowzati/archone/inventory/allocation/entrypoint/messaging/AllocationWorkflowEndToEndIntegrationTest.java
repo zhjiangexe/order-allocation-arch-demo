@@ -228,7 +228,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         // 先取消再一次寫入：訂單只存一次（第二次 save 會撞主鍵，聚合根的 version 不會自己回填）。
         // 最終狀態與「先排隊、後取消」完全相同——搬運存在、訂單已取消、取消事件尚未被消費。
         Order cancelled = backorderedOrder(cancelledOrderId, "SKU-FIFO", 3, earlier);
-        cancelled.cancel(Instant.now().minusSeconds(2));
+        cancelled.cancel(UUID.randomUUID(), Instant.now().minusSeconds(2), "Integration test cancellation");
         MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, cancelled);
         consumer.consume(new OrderCancelledIntegrationEvent(
                 UUID.randomUUID(), cancelledOrderId, Instant.now().minusSeconds(2)));

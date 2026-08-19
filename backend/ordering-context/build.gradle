@@ -6,7 +6,8 @@ description = 'ordering bounded context'
 
 dependencies {
     api project(':foundation')
-    api project(':contracts')
+    api project(':integration-contracts')
+    implementation project(':fulfillment-workflow-contract')
     api project(':messaging:messaging-events')
     implementation project(':messaging:messaging-spring-boot-autoconfigure')
 

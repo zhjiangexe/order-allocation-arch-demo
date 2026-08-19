@@ -44,7 +44,7 @@ class RecordOrderAllocationUsecaseTest {
         UUID orderId = IdGenerator.nextId();
         Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
         order.markAllocated(receivedAt.plusSeconds(10));
-        order.markFulfilled(receivedAt.plusSeconds(20));
+        order.markFulfilled(UUID.randomUUID(), receivedAt.plusSeconds(20));
         OrderRepository repository = mock(OrderRepository.class);
         when(repository.findById(orderId)).thenReturn(Optional.of(order));
         RecordOrderAllocationUsecase usecase = new RecordOrderAllocationUsecase(repository);

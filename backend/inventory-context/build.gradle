@@ -7,7 +7,8 @@ description = 'inventory bounded context'
 
 dependencies {
     api project(':foundation')
-    api project(':contracts')
+    api project(':integration-contracts')
+    implementation project(':fulfillment-workflow-contract')
     api project(':messaging:messaging-events')
     api project(':messaging:messaging-consumer-common')
     api project(':messaging:messaging-spring-optimistic-locking')

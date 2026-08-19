@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'long-running fulfillment workflow runtime'
+
+dependencies {
+    api project(':fulfillment-workflow-contract')
+    implementation libs.temporal.sdk
+
+    testImplementation libs.temporal.testing
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

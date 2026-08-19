@@ -5,6 +5,8 @@ import com.flowzati.archone.ordering.domain.entity.OrderLine;
 import com.flowzati.archone.ordering.domain.event.LineSnapshot;
 import com.flowzati.archone.ordering.domain.event.OrderCancelled;
 import com.flowzati.archone.ordering.domain.event.OrderPlaced;
+import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
+import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import java.time.Instant;
@@ -44,7 +46,10 @@ public class Order {
     private OrderStatus status;
     private Instant allocatedAt;
     private Instant cancelledAt;
+    private UUID cancellationRequestId;
+    private String cancellationReason;
     private Instant fulfilledAt;
+    private UUID fulfilledByShipmentId;
 
     private Order(
             UUID id,
@@ -58,7 +63,10 @@ public class Order {
             Instant allocatedAt,
             Instant ignoredLegacySupplyWaitSince,
             Instant cancelledAt,
+            UUID cancellationRequestId,
+            String cancellationReason,
             Instant fulfilledAt,
+            UUID fulfilledByShipmentId,
             Long version) {
         validateState(
                 id,
@@ -71,7 +79,10 @@ public class Order {
                 placedAt,
                 allocatedAt,
                 cancelledAt,
+                cancellationRequestId,
+                cancellationReason,
                 fulfilledAt,
+                fulfilledByShipmentId,
                 version);
         this.id = id;
         this.ownerId = ownerId;
@@ -83,7 +94,10 @@ public class Order {
         this.placedAt = placedAt;
         this.allocatedAt = allocatedAt;
         this.cancelledAt = cancelledAt;
+        this.cancellationRequestId = cancellationRequestId;
+        this.cancellationReason = cancellationReason;
         this.fulfilledAt = fulfilledAt;
+        this.fulfilledByShipmentId = fulfilledByShipmentId;
         this.version = version;
     }
 
@@ -118,6 +132,9 @@ public class Order {
                 OrderStatus.PENDING,
                 receivedAt,
                 placedAt,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -163,6 +180,9 @@ public class Order {
                 ignoredLegacySupplyWaitSince,
                 cancelledAt,
                 null,
+                null,
+                null,
+                null,
                 version);
     }
 
@@ -193,7 +213,47 @@ public class Order {
                 allocatedAt,
                 ignoredLegacySupplyWaitSince,
                 cancelledAt,
+                null,
+                null,
                 fulfilledAt,
+                null,
+                version);
+    }
+
+    /** 由儲存還原，包含取消請求與履約來源 correlation。 */
+    public static Order rehydrate(
+            UUID id,
+            UUID ownerId,
+            String externalOrderNo,
+            DeliveryTerms deliveryTerms,
+            List<OrderLine> lines,
+            OrderStatus status,
+            Instant receivedAt,
+            Instant placedAt,
+            Instant allocatedAt,
+            Instant ignoredLegacySupplyWaitSince,
+            Instant cancelledAt,
+            UUID cancellationRequestId,
+            String cancellationReason,
+            Instant fulfilledAt,
+            UUID fulfilledByShipmentId,
+            Long version) {
+        return new Order(
+                id,
+                ownerId,
+                externalOrderNo,
+                deliveryTerms,
+                lines,
+                status,
+                receivedAt,
+                placedAt,
+                allocatedAt,
+                ignoredLegacySupplyWaitSince,
+                cancelledAt,
+                cancellationRequestId,
+                cancellationReason,
+                fulfilledAt,
+                fulfilledByShipmentId,
                 version);
     }
 
@@ -238,11 +298,15 @@ public class Order {
     }
 
     /**
-     * 在實際出庫完成後將訂單推進為履約完成。重複通知維持第一次的時間並回 {@code false}；其他
-     * 非 ALLOCATED 狀態代表跨邊界順序或補償 invariant 被破壞，必須明確失敗。
+     * 在實際出庫完成後將訂單推進為履約完成。相同 Shipment 與完成時間的重播回 {@code false}；
+     * 不同 immutable fact 或其他非 ALLOCATED 狀態代表跨邊界 invariant 被破壞，必須明確失敗。
      */
-    public boolean markFulfilled(Instant fulfilledAt) {
+    public boolean markFulfilled(UUID shipmentId, Instant fulfilledAt) {
+        if (shipmentId == null) {
+            throw new IllegalArgumentException("Shipment ID is required");
+        }
         if (status == OrderStatus.FULFILLED) {
+            requireSameFulfillment(shipmentId, fulfilledAt);
             return false;
         }
         if (status != OrderStatus.ALLOCATED) {
@@ -252,15 +316,25 @@ public class Order {
 
         status = OrderStatus.FULFILLED;
         this.fulfilledAt = fulfilledAt;
+        this.fulfilledByShipmentId = shipmentId;
         return true;
+    }
+
+    private void requireSameFulfillment(UUID shipmentId, Instant fulfilledAt) {
+        if (fulfilledByShipmentId == null) {
+            throw new OrderFulfillmentConflictException("Fulfilled order has no Shipment correlation: " + id);
+        }
+        if (!fulfilledByShipmentId.equals(shipmentId) || !this.fulfilledAt.equals(fulfilledAt)) {
+            throw new OrderFulfillmentConflictException(
+                    "Order was already fulfilled by a different immutable fact: " + id);
+        }
     }
 
     /**
      * 取消這張單。已取消時回 {@link CancellationResult#ALREADY_CANCELLED}；已履約時回
      * {@link CancellationResult#REJECTED}，兩者都不產生新的 Domain Event。
      *
-     * <p><b>與 {@link #markAllocated} 刻意不同慣例</b>，狀態不對
-     *時是拋錯。差別在驅動來源：
+     * <p><b>與 {@link #markAllocated} 刻意不同慣例</b>。差別在驅動來源：
      *
      * <ul>
      *   <li>{@code markAllocated} 由系統內部的配貨決策驅動。狀態不對
@@ -269,8 +343,8 @@ public class Order {
      *       取消到達兩次。冪等是正確行為，不是寬容。
      * </ul>
      *
-     * <p>所以看到這個不一致時**不要把它「修」成拋錯**。等取消接上 Kafka 入口之後，冪等會從
-     * 「比較好」變成必要。
+     * <p>Temporal Activity 可能在 Usecase commit 後遺失回應，因此同一 request 必須能安全重播；
+     * 但不同 request 或不同 payload 不能因為終態相同就被吞掉。
      *
      * <p><b>目前允許從 {@code PENDING}、{@code ALLOCATED} 取消。</b>
      * ALLOCATED 後是否還要取消 WMS 作業／回架，是跨 bounded context 的取消協調政策，不由
@@ -279,8 +353,10 @@ public class Order {
      * <p><b>離倉後不得取消。</b>逆物流不在範圍內，因此 {@code FULFILLED} 必須明確拒絕取消；
      * 不能把沒有補償手段的路徑當作一般冪等重送。
      */
-    public CancellationResult cancel(Instant cancelledAt) {
+    public CancellationResult cancel(UUID requestId, Instant cancelledAt, String reason) {
+        requireCancellationRequest(requestId, reason);
         if (status == OrderStatus.CANCELLED) {
+            requireSameCancellation(requestId, cancelledAt, reason);
             return CancellationResult.ALREADY_CANCELLED;
         }
         if (status == OrderStatus.FULFILLED) {
@@ -292,8 +368,34 @@ public class Order {
         }
         status = OrderStatus.CANCELLED;
         this.cancelledAt = cancelledAt;
+        this.cancellationRequestId = requestId;
+        this.cancellationReason = reason;
         events.add(new OrderCancelled(id, ownerId, deliveryTerms.facilityId(), cancelledAt));
         return CancellationResult.CANCELLED;
+    }
+
+    private static void requireCancellationRequest(UUID requestId, String reason) {
+        if (requestId == null) {
+            throw new IllegalArgumentException("Cancellation request ID is required");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Cancellation reason is required");
+        }
+        if (reason.length() > 512) {
+            throw new IllegalArgumentException("Cancellation reason must not exceed 512 characters");
+        }
+    }
+
+    private void requireSameCancellation(UUID requestId, Instant cancelledAt, String reason) {
+        if (cancellationRequestId == null || cancellationReason == null) {
+            throw new OrderCancellationRequestConflictException("Cancelled order has no request correlation: " + id);
+        }
+        if (!cancellationRequestId.equals(requestId)
+                || !this.cancelledAt.equals(cancelledAt)
+                || !cancellationReason.equals(reason)) {
+            throw new OrderCancellationRequestConflictException(
+                    "Order was already cancelled by a different immutable request: " + id);
+        }
     }
 
     public enum CancellationResult {
@@ -325,7 +427,10 @@ public class Order {
             Instant placedAt,
             Instant allocatedAt,
             Instant cancelledAt,
+            UUID cancellationRequestId,
+            String cancellationReason,
             Instant fulfilledAt,
+            UUID fulfilledByShipmentId,
             Long version) {
         if (id == null) {
             throw new IllegalArgumentException("Order ID is required");
@@ -363,6 +468,18 @@ public class Order {
         }
         if (version != null && version < 0) {
             throw new IllegalArgumentException("Version cannot be negative");
+        }
+        if ((cancellationRequestId == null) != (cancellationReason == null)) {
+            throw new IllegalArgumentException("Cancellation request ID and reason must both be present or absent");
+        }
+        if (cancellationReason != null && (cancellationReason.isBlank() || cancellationReason.length() > 512)) {
+            throw new IllegalArgumentException("Cancellation reason must contain 1 to 512 characters");
+        }
+        if (status != OrderStatus.CANCELLED && cancellationRequestId != null) {
+            throw new IllegalArgumentException("Only cancelled orders may contain cancellation correlation");
+        }
+        if (status != OrderStatus.FULFILLED && fulfilledByShipmentId != null) {
+            throw new IllegalArgumentException("Only fulfilled orders may contain Shipment correlation");
         }
         // 以下的時序下界一律是收單時刻，不是上游的下單時刻：後者可空，拿它當下界會在上游沒給時
         // 安靜地失去整組驗證。
@@ -464,8 +581,20 @@ public class Order {
         return cancelledAt;
     }
 
+    public UUID getCancellationRequestId() {
+        return cancellationRequestId;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
     public Instant getFulfilledAt() {
         return fulfilledAt;
+    }
+
+    public UUID getFulfilledByShipmentId() {
+        return fulfilledByShipmentId;
     }
 
     public Long getVersion() {

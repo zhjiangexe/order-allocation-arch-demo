@@ -78,10 +78,12 @@ class OrderTest {
     @DisplayName("訂單取消應只成功一次")
     void shouldCancelOrderOnlyOnce() {
         Instant cancelledAt = receivedAt.plusSeconds(10);
+        UUID requestId = UUID.randomUUID();
+        String reason = "Customer requested cancellation";
         Order order = pendingOrder();
 
-        assertThat(order.cancel(cancelledAt)).isEqualTo(Order.CancellationResult.CANCELLED);
-        assertThat(order.cancel(cancelledAt.plusSeconds(1))).isEqualTo(Order.CancellationResult.ALREADY_CANCELLED);
+        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationResult.CANCELLED);
+        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationResult.ALREADY_CANCELLED);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
@@ -100,7 +102,7 @@ class OrderTest {
         order.markAllocated(receivedAt.plusSeconds(10));
         order.releaseDomainEvents();
 
-        order.cancel(receivedAt.plusSeconds(20));
+        order.cancel(UUID.randomUUID(), receivedAt.plusSeconds(20), "Customer requested cancellation");
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getAllocatedAt()).isEqualTo(receivedAt.plusSeconds(10));
@@ -111,15 +113,17 @@ class OrderTest {
     void shouldFulfillAllocatedOrderOnlyOnceAndRejectCancellation() {
         Instant allocatedAt = receivedAt.plusSeconds(10);
         Instant fulfilledAt = receivedAt.plusSeconds(20);
+        UUID shipmentId = UUID.randomUUID();
         Order order = pendingOrder();
         order.markAllocated(allocatedAt);
 
-        assertThat(order.markFulfilled(fulfilledAt)).isTrue();
-        assertThat(order.markFulfilled(fulfilledAt.plusSeconds(1))).isFalse();
+        assertThat(order.markFulfilled(shipmentId, fulfilledAt)).isTrue();
+        assertThat(order.markFulfilled(shipmentId, fulfilledAt)).isFalse();
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FULFILLED);
         assertThat(order.getFulfilledAt()).isEqualTo(fulfilledAt);
-        assertThat(order.cancel(fulfilledAt.plusSeconds(2))).isEqualTo(Order.CancellationResult.REJECTED);
+        assertThat(order.cancel(UUID.randomUUID(), fulfilledAt.plusSeconds(2), "Too late"))
+                .isEqualTo(Order.CancellationResult.REJECTED);
     }
 
     @Test
@@ -139,7 +143,9 @@ class OrderTest {
 
         assertThatThrownBy(() -> order.markAllocated(receivedAt.minusSeconds(1)))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> order.cancel(receivedAt.minusSeconds(1))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() ->
+                        order.cancel(UUID.randomUUID(), receivedAt.minusSeconds(1), "Customer requested cancellation"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

@@ -100,9 +100,10 @@ class OrderPersistenceIntegrationTest {
         UUID orderId = uuid(5);
         Instant allocatedAt = RECEIVED_AT.plusSeconds(10);
         Instant fulfilledAt = RECEIVED_AT.plusSeconds(20);
+        UUID shipmentId = uuid(6);
         Order order = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, RECEIVED_AT);
         order.markAllocated(allocatedAt);
-        order.markFulfilled(fulfilledAt);
+        order.markFulfilled(shipmentId, fulfilledAt);
 
         repositoryAdapter.save(order);
         jpaRepository.flush();
@@ -113,6 +114,29 @@ class OrderPersistenceIntegrationTest {
         assertThat(restored.getStatus()).isEqualTo(OrderStatus.FULFILLED);
         assertThat(restored.getAllocatedAt()).isEqualTo(allocatedAt);
         assertThat(restored.getFulfilledAt()).isEqualTo(fulfilledAt);
+        assertThat(restored.getFulfilledByShipmentId()).isEqualTo(shipmentId);
+    }
+
+    @Test
+    @DisplayName("應持久化並還原取消 request correlation")
+    void persistsAndRestoresCancellationCorrelation() {
+        UUID orderId = uuid(7);
+        UUID requestId = uuid(8);
+        Instant cancelledAt = RECEIVED_AT.plusSeconds(20);
+        String reason = "Customer requested cancellation";
+        Order order = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, RECEIVED_AT);
+        order.cancel(requestId, cancelledAt, reason);
+
+        repositoryAdapter.save(order);
+        jpaRepository.flush();
+        entityManager.clear();
+
+        Order restored = repositoryAdapter.findById(orderId).orElseThrow();
+
+        assertThat(restored.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(restored.getCancelledAt()).isEqualTo(cancelledAt);
+        assertThat(restored.getCancellationRequestId()).isEqualTo(requestId);
+        assertThat(restored.getCancellationReason()).isEqualTo(reason);
     }
 
     @Test

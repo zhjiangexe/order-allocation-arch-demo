@@ -7,7 +7,10 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
-import com.flowzati.archone.orderfulfillment.workflow.OrderFulfillmentProcessWorkflow;
+import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
+import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
 import io.temporal.client.WorkflowClient;
 import java.time.Instant;
 import java.util.List;
@@ -18,7 +21,7 @@ import org.mockito.ArgumentCaptor;
 class TemporalFulfillmentEventConsumerTest {
 
     private final WorkflowClient workflowClient = mock(WorkflowClient.class);
-    private final OrderFulfillmentProcessWorkflow workflow = mock(OrderFulfillmentProcessWorkflow.class);
+    private final OrderFulfillmentWorkflow workflow = mock(OrderFulfillmentWorkflow.class);
     private final TemporalFulfillmentEventConsumer consumer = new TemporalFulfillmentEventConsumer(workflowClient);
 
     @Test
@@ -28,7 +31,7 @@ class TemporalFulfillmentEventConsumerTest {
         UUID movementId = UUID.randomUUID();
         Instant committedAt = Instant.parse("2026-08-19T10:00:00Z");
         when(workflowClient.newWorkflowStub(
-                        OrderFulfillmentProcessWorkflow.class, OrderFulfillmentProcessWorkflow.workflowId(orderId)))
+                        OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
                 .thenReturn(workflow);
         var event = new AllocationCommittedForFulfillmentIntegrationEvent(
                 UUID.randomUUID(),
@@ -44,12 +47,11 @@ class TemporalFulfillmentEventConsumerTest {
 
         consumer.onAllocationCommitted(event);
 
-        ArgumentCaptor<OrderFulfillmentProcessWorkflow.AllocationSnapshot> signal =
-                ArgumentCaptor.forClass(OrderFulfillmentProcessWorkflow.AllocationSnapshot.class);
+        ArgumentCaptor<AllocationSnapshot> signal = ArgumentCaptor.forClass(AllocationSnapshot.class);
         verify(workflow).allocationCommitted(signal.capture());
         assertThat(signal.getValue().allocationId()).isEqualTo(allocationId);
         assertThat(signal.getValue().lines())
-                .extracting(OrderFulfillmentProcessWorkflow.AllocationLine::moveId)
+                .extracting(AllocationSnapshotLine::moveId)
                 .containsExactly(movementId);
     }
 
@@ -59,7 +61,7 @@ class TemporalFulfillmentEventConsumerTest {
         UUID shipmentId = UUID.randomUUID();
         Instant handedOverAt = Instant.parse("2026-08-19T10:00:00Z");
         when(workflowClient.newWorkflowStub(
-                        OrderFulfillmentProcessWorkflow.class, OrderFulfillmentProcessWorkflow.workflowId(orderId)))
+                        OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
                 .thenReturn(workflow);
         var event = new ShipmentHandedOverForFulfillmentIntegrationEvent(
                 UUID.randomUUID(), shipmentId, UUID.randomUUID(), orderId, List.of(UUID.randomUUID()), handedOverAt);
@@ -67,7 +69,6 @@ class TemporalFulfillmentEventConsumerTest {
         consumer.onShipmentHandedOver(event);
 
         verify(workflow)
-                .shipmentHandedOverToCarrier(new OrderFulfillmentProcessWorkflow.ShipmentHandedOverToCarrier(
-                        orderId, shipmentId, handedOverAt));
+                .shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierSignal(orderId, shipmentId, handedOverAt));
     }
 }

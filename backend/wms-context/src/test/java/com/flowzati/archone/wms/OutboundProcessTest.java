@@ -25,6 +25,7 @@ import com.flowzati.archone.wms.outbound.domain.event.ShipmentCreated;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentHandedOverToCarrier;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentPutbackRequired;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentReadyForDispatch;
+import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
@@ -153,6 +154,22 @@ class OutboundProcessTest {
         completeWave.handle(new CompleteWaveCommand(wave.id(), T0.plusSeconds(11)));
         assertThat(wave.warehouseWorkCount()).isZero();
         assertThat(wave.status()).isEqualTo(WaveStatus.COMPLETED);
+    }
+
+    @Test
+    void acceptsTheSameCancellationRequestButRejectsAnotherRequestId() {
+        Shipment shipment = createTwoLineShipment(70, T0.plusSeconds(3_600));
+        CancelShipmentCommand first = new CancelShipmentCommand("cancel-request-1", shipment.id(), T0.plusSeconds(8));
+
+        assertThat(cancelShipment.handle(first)).isEqualTo(CancellationOutcome.CANCELLED);
+        int eventCountAfterCancellation = events.size();
+        assertThat(cancelShipment.handle(first)).isEqualTo(CancellationOutcome.ALREADY_CANCELLED);
+        assertThat(events).hasSize(eventCountAfterCancellation);
+
+        assertThatThrownBy(() -> cancelShipment.handle(
+                        new CancelShipmentCommand("cancel-request-2", shipment.id(), T0.plusSeconds(8))))
+                .isInstanceOf(ShipmentCancellationRequestConflictException.class)
+                .hasMessageContaining("different cancellation request");
     }
 
     @Test
