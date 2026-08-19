@@ -9,14 +9,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class GetOrderUsecase {
 
-  private final OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
 
-  public GetOrderUsecase(OrderRepository orderRepository) {
-    this.orderRepository = orderRepository;
-  }
+    public GetOrderUsecase(OrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
+    }
 
-  public Order getOrder(UUID orderId) {
-    return orderRepository.findById(orderId)
-        .orElseThrow(() -> new NoSuchElementException("Order not found: " + orderId));
-  }
+    public Order getOrder(UUID orderId) {
+        return orderRepository
+                .findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found: " + orderId));
+    }
 }

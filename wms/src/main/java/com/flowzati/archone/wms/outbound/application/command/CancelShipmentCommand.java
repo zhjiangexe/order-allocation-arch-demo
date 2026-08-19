@@ -12,15 +12,12 @@ import java.util.UUID;
  * use case；不要讓 WMS 回查 order-promising repository。
  */
 public record CancelShipmentCommand(
-    /** 消費 integration event 時可使用 event ID，吸收重送。 */
-    String requestId,
-    UUID shipmentId,
-    Instant requestedAt
-) {
+        /** 消費 integration event 時可使用 event ID，吸收重送。 */
+        String requestId, UUID shipmentId, Instant requestedAt) {
 
-  public CancelShipmentCommand {
-    if (requestId == null || requestId.isBlank() || shipmentId == null || requestedAt == null) {
-      throw new IllegalArgumentException("Cancellation request ID, shipment ID and time are required");
+    public CancelShipmentCommand {
+        if (requestId == null || requestId.isBlank() || shipmentId == null || requestedAt == null) {
+            throw new IllegalArgumentException("Cancellation request ID, shipment ID and time are required");
+        }
     }
-  }
 }

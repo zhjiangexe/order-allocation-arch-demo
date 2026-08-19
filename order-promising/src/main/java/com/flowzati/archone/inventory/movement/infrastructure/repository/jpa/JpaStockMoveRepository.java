@@ -8,10 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaStockMoveRepository extends JpaRepository<StockMoveEntity, UUID> {
 
-  List<StockMoveEntity> findByPickingIdInOrderByOrderLineIdAsc(Collection<UUID> pickingIds);
+    List<StockMoveEntity> findByPickingIdInOrderByOrderLineIdAsc(Collection<UUID> pickingIds);
 
-  List<StockMoveEntity> findByOrderLineIdIn(Collection<UUID> orderLineIds);
+    List<StockMoveEntity> findByOrderLineIdIn(Collection<UUID> orderLineIds);
 
-  List<StockMoveEntity> findByAllocationDemandIdOrderByAllocationDemandLineIdAsc(
-      UUID allocationDemandId);
+    List<StockMoveEntity> findByAllocationDemandIdOrderByAllocationDemandLineIdAsc(UUID allocationDemandId);
 }

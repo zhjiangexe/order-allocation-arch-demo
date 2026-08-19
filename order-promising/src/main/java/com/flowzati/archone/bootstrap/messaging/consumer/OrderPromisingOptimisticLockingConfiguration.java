@@ -1,10 +1,10 @@
 package com.flowzati.archone.bootstrap.messaging.consumer;
 
+import com.flowzati.archone.inventory.allocation.infrastructure.messaging.consumer.retry.AllocationOptimisticLockRetryObserver;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingDecoratorConfiguration;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryObserver;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetrySettings;
-import com.flowzati.archone.inventory.allocation.infrastructure.messaging.consumer.retry.AllocationOptimisticLockRetryObserver;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,15 +21,13 @@ import org.springframework.context.annotation.Import;
 @Import(OptimisticLockingDecoratorConfiguration.class)
 public class OrderPromisingOptimisticLockingConfiguration {
 
-  @Bean
-  OptimisticLockingRetrySettings orderPromisingOptimisticLockingRetrySettings() {
-    return OrderPromisingConsumerFailurePolicy.optimisticLockingRetrySettings();
-  }
+    @Bean
+    OptimisticLockingRetrySettings orderPromisingOptimisticLockingRetrySettings() {
+        return OrderPromisingConsumerFailurePolicy.optimisticLockingRetrySettings();
+    }
 
-  @Bean
-  OptimisticLockingRetryObserver allocationOptimisticLockRetryObserver(
-      MeterRegistry meterRegistry
-  ) {
-    return new AllocationOptimisticLockRetryObserver(meterRegistry);
-  }
+    @Bean
+    OptimisticLockingRetryObserver allocationOptimisticLockRetryObserver(MeterRegistry meterRegistry) {
+        return new AllocationOptimisticLockRetryObserver(meterRegistry);
+    }
 }

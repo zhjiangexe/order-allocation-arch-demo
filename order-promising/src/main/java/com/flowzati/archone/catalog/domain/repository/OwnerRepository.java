@@ -7,10 +7,10 @@ import java.util.UUID;
 
 public interface OwnerRepository {
 
-  void save(Owner owner);
+    void save(Owner owner);
 
-  Optional<Owner> findById(UUID ownerId);
+    Optional<Owner> findById(UUID ownerId);
 
-  /** 以代號遞增排序，讓下拉選單與列表的順序在重複查詢之間保持一致。 */
-  List<Owner> findAll();
+    /** 以代號遞增排序，讓下拉選單與列表的順序在重複查詢之間保持一致。 */
+    List<Owner> findAll();
 }

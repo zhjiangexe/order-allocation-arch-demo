@@ -15,39 +15,32 @@ import org.springframework.context.annotation.ConfigurationCondition.Configurati
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @Conditional(OnIntegrationEventConsumptionCondition.class)
-public @interface ConditionalOnIntegrationEventConsumption {
-}
+public @interface ConditionalOnIntegrationEventConsumption {}
 
 final class OnIntegrationEventConsumptionCondition extends AllNestedConditions {
 
-  OnIntegrationEventConsumptionCondition() {
-    super(ConfigurationPhase.PARSE_CONFIGURATION);
-  }
+    OnIntegrationEventConsumptionCondition() {
+        super(ConfigurationPhase.PARSE_CONFIGURATION);
+    }
 
-  @ConditionalOnProperty(
-      prefix = "archone.messaging.core",
-      name = "enabled",
-      havingValue = "true",
-      matchIfMissing = true
-  )
-  static final class CoreEnabled {
-  }
+    @ConditionalOnProperty(
+            prefix = "archone.messaging.core",
+            name = "enabled",
+            havingValue = "true",
+            matchIfMissing = true)
+    static final class CoreEnabled {}
 
-  @ConditionalOnProperty(
-      prefix = "archone.messaging.consumer.kafka",
-      name = "enabled",
-      havingValue = "true",
-      matchIfMissing = true
-  )
-  static final class KafkaConsumerEnabled {
-  }
+    @ConditionalOnProperty(
+            prefix = "archone.messaging.consumer.kafka",
+            name = "enabled",
+            havingValue = "true",
+            matchIfMissing = true)
+    static final class KafkaConsumerEnabled {}
 
-  @ConditionalOnProperty(
-      prefix = "archone.messaging.events.dispatcher",
-      name = "enabled",
-      havingValue = "true",
-      matchIfMissing = true
-  )
-  static final class IntegrationEventDispatcherEnabled {
-  }
+    @ConditionalOnProperty(
+            prefix = "archone.messaging.events.dispatcher",
+            name = "enabled",
+            havingValue = "true",
+            matchIfMissing = true)
+    static final class IntegrationEventDispatcherEnabled {}
 }

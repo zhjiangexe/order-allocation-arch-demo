@@ -13,43 +13,35 @@ import java.util.Objects;
  * Opens or joins one local transaction, claims Inbox first, and invokes the remaining handler
  * chain only for a new message.
  */
-public final class TransactionalIdempotencyMessageHandlerDecorator
-    implements MessageHandlerDecorator {
+public final class TransactionalIdempotencyMessageHandlerDecorator implements MessageHandlerDecorator {
 
-  private final MessagingTransactionTemplate transactionTemplate;
-  private final DuplicateMessageDetector duplicateMessageDetector;
+    private final MessagingTransactionTemplate transactionTemplate;
+    private final DuplicateMessageDetector duplicateMessageDetector;
 
-  public TransactionalIdempotencyMessageHandlerDecorator(
-      MessagingTransactionTemplate transactionTemplate,
-      DuplicateMessageDetector duplicateMessageDetector
-  ) {
-    this.transactionTemplate = Objects.requireNonNull(
-        transactionTemplate, "Messaging transaction template is required");
-    this.duplicateMessageDetector = Objects.requireNonNull(
-        duplicateMessageDetector, "Duplicate message detector is required");
-  }
+    public TransactionalIdempotencyMessageHandlerDecorator(
+            MessagingTransactionTemplate transactionTemplate, DuplicateMessageDetector duplicateMessageDetector) {
+        this.transactionTemplate =
+                Objects.requireNonNull(transactionTemplate, "Messaging transaction template is required");
+        this.duplicateMessageDetector =
+                Objects.requireNonNull(duplicateMessageDetector, "Duplicate message detector is required");
+    }
 
-  @Override
-  public int order() {
-    return MessageHandlerDecoratorOrders.TRANSACTIONAL_IDEMPOTENCY;
-  }
+    @Override
+    public int order() {
+        return MessageHandlerDecoratorOrders.TRANSACTIONAL_IDEMPOTENCY;
+    }
 
-  @Override
-  public ProcessingOutcome handle(
-      MessageHandlerInvocation invocation,
-      MessageHandlerDecoratorChain chain
-  ) {
-    Objects.requireNonNull(invocation, "Message handler invocation is required");
-    Objects.requireNonNull(chain, "Message handler decorator chain is required");
+    @Override
+    public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+        Objects.requireNonNull(invocation, "Message handler invocation is required");
+        Objects.requireNonNull(chain, "Message handler decorator chain is required");
 
-    return transactionTemplate.execute(() -> {
-      boolean claimed = duplicateMessageDetector.claimIfNew(
-          invocation.context().subscriberId(),
-          invocation.message().id(),
-          invocation.message().type());
-      return claimed
-          ? chain.invokeNext(invocation)
-          : ProcessingOutcome.DUPLICATE;
-    });
-  }
+        return transactionTemplate.execute(() -> {
+            boolean claimed = duplicateMessageDetector.claimIfNew(
+                    invocation.context().subscriberId(),
+                    invocation.message().id(),
+                    invocation.message().type());
+            return claimed ? chain.invokeNext(invocation) : ProcessingOutcome.DUPLICATE;
+        });
+    }
 }

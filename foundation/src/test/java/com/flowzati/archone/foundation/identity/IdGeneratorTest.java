@@ -20,35 +20,37 @@ import org.junit.jupiter.api.Test;
  */
 class IdGeneratorTest {
 
-  @Test
-  @DisplayName("連續產生的識別碼應遞增——佇列的 FIFO 順序靠這個性質成立")
-  void generatesTimeOrderedIdentifiers() {
-    List<UUID> ids = IntStream.range(0, 1_000).mapToObj(i -> IdGenerator.nextId()).toList();
+    @Test
+    @DisplayName("連續產生的識別碼應遞增——佇列的 FIFO 順序靠這個性質成立")
+    void generatesTimeOrderedIdentifiers() {
+        List<UUID> ids =
+                IntStream.range(0, 1_000).mapToObj(i -> IdGenerator.nextId()).toList();
 
-    assertThat(ids).isSorted();
-  }
+        assertThat(ids).isSorted();
+    }
 
-  @Test
-  @DisplayName("同一毫秒內產生的識別碼也應遞增——v7 的單調計數器要真的生效")
-  void keepsOrderWithinTheSameMillisecond() {
-    // 一千個 id 在現代硬體上遠快於 1 毫秒，所以這一批必然大量落在同一個時間戳裡。
-    // v7 靠時間戳之後的計數器區分它們；少了那段，同毫秒的順序會由隨機位元決定。
-    List<UUID> ids = IntStream.range(0, 1_000).mapToObj(i -> IdGenerator.nextId()).toList();
+    @Test
+    @DisplayName("同一毫秒內產生的識別碼也應遞增——v7 的單調計數器要真的生效")
+    void keepsOrderWithinTheSameMillisecond() {
+        // 一千個 id 在現代硬體上遠快於 1 毫秒，所以這一批必然大量落在同一個時間戳裡。
+        // v7 靠時間戳之後的計數器區分它們；少了那段，同毫秒的順序會由隨機位元決定。
+        List<UUID> ids =
+                IntStream.range(0, 1_000).mapToObj(i -> IdGenerator.nextId()).toList();
 
-    long distinctTimestamps = ids.stream()
-        .map(id -> id.getMostSignificantBits() >>> 16)
-        .distinct()
-        .count();
-    assertThat(distinctTimestamps)
-        .withFailMessage("這批 id 分散在 %d 個毫秒上，測不到同毫秒的順序", distinctTimestamps)
-        .isLessThan(ids.size());
+        long distinctTimestamps = ids.stream()
+                .map(id -> id.getMostSignificantBits() >>> 16)
+                .distinct()
+                .count();
+        assertThat(distinctTimestamps)
+                .withFailMessage("這批 id 分散在 %d 個毫秒上，測不到同毫秒的順序", distinctTimestamps)
+                .isLessThan(ids.size());
 
-    assertThat(ids).isSorted();
-  }
+        assertThat(ids).isSorted();
+    }
 
-  @Test
-  @DisplayName("識別碼應為 UUID 版本 7——版本號變了就不再有時間順序")
-  void producesVersionSevenIdentifiers() {
-    assertThat(IdGenerator.nextId().version()).isEqualTo(7);
-  }
+    @Test
+    @DisplayName("識別碼應為 UUID 版本 7——版本號變了就不再有時間順序")
+    void producesVersionSevenIdentifiers() {
+        assertThat(IdGenerator.nextId().version()).isEqualTo(7);
+    }
 }

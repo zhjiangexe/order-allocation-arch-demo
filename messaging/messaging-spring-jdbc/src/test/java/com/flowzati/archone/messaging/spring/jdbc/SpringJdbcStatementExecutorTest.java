@@ -13,18 +13,19 @@ import org.springframework.jdbc.core.JdbcOperations;
 
 class SpringJdbcStatementExecutorTest {
 
-  @Test
-  void delegatesToSpringJdbcOperationsWithPositionalArguments() {
-    JdbcOperations jdbcOperations = mock(JdbcOperations.class);
-    when(jdbcOperations.update(eq("INSERT INTO messages (id) VALUES (?)"), any(Object[].class)))
-        .thenReturn(1);
-    SpringJdbcStatementExecutor executor = new SpringJdbcStatementExecutor(jdbcOperations);
+    @Test
+    void delegatesToSpringJdbcOperationsWithPositionalArguments() {
+        JdbcOperations jdbcOperations = mock(JdbcOperations.class);
+        when(jdbcOperations.update(eq("INSERT INTO messages (id) VALUES (?)"), any(Object[].class)))
+                .thenReturn(1);
+        SpringJdbcStatementExecutor executor = new SpringJdbcStatementExecutor(jdbcOperations);
 
-    int rows = executor.update("INSERT INTO messages (id) VALUES (?)", List.of("message-1"));
+        int rows = executor.update("INSERT INTO messages (id) VALUES (?)", List.of("message-1"));
 
-    assertThat(rows).isOne();
-    verify(jdbcOperations).update(
-        eq("INSERT INTO messages (id) VALUES (?)"),
-        org.mockito.AdditionalMatchers.aryEq(new Object[]{"message-1"}));
-  }
+        assertThat(rows).isOne();
+        verify(jdbcOperations)
+                .update(
+                        eq("INSERT INTO messages (id) VALUES (?)"),
+                        org.mockito.AdditionalMatchers.aryEq(new Object[] {"message-1"}));
+    }
 }

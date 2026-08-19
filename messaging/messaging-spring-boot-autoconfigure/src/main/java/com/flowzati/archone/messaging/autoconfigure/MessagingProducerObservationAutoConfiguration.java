@@ -17,28 +17,18 @@ import org.springframework.core.annotation.Order;
 @AutoConfiguration(after = MessagingObservationAutoConfiguration.class)
 @ConditionalOnClass({ObservationRegistry.class, ProducerObservationInterceptor.class})
 @ConditionalOnBean(ObservationRegistry.class)
-@ConditionalOnProperty(
-    prefix = "archone.messaging.observation",
-    name = "enabled",
-    matchIfMissing = true
-)
-@ConditionalOnProperty(
-    prefix = "archone.messaging.observation.producer",
-    name = "enabled",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "archone.messaging.observation", name = "enabled", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "archone.messaging.observation.producer", name = "enabled", matchIfMissing = true)
 public class MessagingProducerObservationAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  @Order(Ordered.LOWEST_PRECEDENCE)
-  ProducerObservationInterceptor producerObservationInterceptor(
-      ObservationRegistry observationRegistry,
-      ObjectProvider<ProducerMessageObservationConvention> conventions
-  ) {
-    ProducerMessageObservationConvention convention = conventions.getIfAvailable();
-    return convention == null
-        ? new ProducerObservationInterceptor(observationRegistry)
-        : new ProducerObservationInterceptor(observationRegistry, convention);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    @Order(Ordered.LOWEST_PRECEDENCE)
+    ProducerObservationInterceptor producerObservationInterceptor(
+            ObservationRegistry observationRegistry, ObjectProvider<ProducerMessageObservationConvention> conventions) {
+        ProducerMessageObservationConvention convention = conventions.getIfAvailable();
+        return convention == null
+                ? new ProducerObservationInterceptor(observationRegistry)
+                : new ProducerObservationInterceptor(observationRegistry, convention);
+    }
 }

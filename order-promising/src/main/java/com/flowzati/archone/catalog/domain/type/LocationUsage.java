@@ -22,20 +22,20 @@ package com.flowzati.archone.catalog.domain.type;
  */
 public enum LocationUsage {
 
-  /** 倉庫內部的實體位置。只有這種算公司持有的庫存。 */
-  INTERNAL,
+    /** 倉庫內部的實體位置。只有這種算公司持有的庫存。 */
+    INTERNAL,
 
-  /** 供應商。入庫的來源。 */
-  SUPPLIER,
+    /** 供應商。入庫的來源。 */
+    SUPPLIER,
 
-  /** 客戶。出庫的目的。 */
-  CUSTOMER,
+    /** 客戶。出庫的目的。 */
+    CUSTOMER,
 
-  /** 盤點調整。盤盈盤虧的另一端。 */
-  INVENTORY;
+    /** 盤點調整。盤盈盤虧的另一端。 */
+    INVENTORY;
 
-  /** 虛擬位置不屬於任何倉——供應商與客戶不在本系統的倉庫清單裡。 */
-  public boolean isVirtual() {
-    return this != INTERNAL;
-  }
+    /** 虛擬位置不屬於任何倉——供應商與客戶不在本系統的倉庫清單裡。 */
+    public boolean isVirtual() {
+        return this != INTERNAL;
+    }
 }

@@ -9,10 +9,10 @@ package com.flowzati.archone.messaging.api;
 @FunctionalInterface
 public interface OutcomeAwareMessageHandler extends MessageHandler {
 
-  MessageHandlingOutcome handleWithOutcome(Message message, MessageContext context);
+    MessageHandlingOutcome handleWithOutcome(Message message, MessageContext context);
 
-  @Override
-  default void handle(Message message, MessageContext context) {
-    handleWithOutcome(message, context);
-  }
+    @Override
+    default void handle(Message message, MessageContext context) {
+        handleWithOutcome(message, context);
+    }
 }

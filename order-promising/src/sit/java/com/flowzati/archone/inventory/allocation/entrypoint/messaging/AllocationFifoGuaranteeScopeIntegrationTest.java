@@ -1,17 +1,19 @@
 package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
-import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
-import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
+import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
-import com.flowzati.archone.testsupport.SitDatabase;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.SitDatabase;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -23,7 +25,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 釘住 FIFO 保證的<strong>範圍</strong>：相同 owner、location、SKU 已有 waiting picking 時，
@@ -41,121 +42,122 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 的邊界（初次配貨也必須服從既有等待佇列）。
  */
 @SpringBootTest(
-    classes = ArchoneApplication.class,
-    properties = "spring.kafka.listener.auto-startup=false",
-    webEnvironment = SpringBootTest.WebEnvironment.NONE)
+        classes = ArchoneApplication.class,
+        properties = "spring.kafka.listener.auto-startup=false",
+        webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
 @Import(PostgreSQLTestConfiguration.class)
 class AllocationFifoGuaranteeScopeIntegrationTest {
 
-  private static final String SKU = "SCOPE-SKU";
-  private static final int QUEUED_ORDER_QUANTITY = 100;
-  private static final int FIRST_AVAILABILITY_INCREASE = 30;
-  private static final int NEW_ORDER_QUANTITY = 10;
-  private static final int SECOND_AVAILABILITY_INCREASE = 70;
+    private static final String SKU = "SCOPE-SKU";
+    private static final int QUEUED_ORDER_QUANTITY = 100;
+    private static final int FIRST_AVAILABILITY_INCREASE = 30;
+    private static final int NEW_ORDER_QUANTITY = 10;
+    private static final int SECOND_AVAILABILITY_INCREASE = 70;
 
-  @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
 
-  @org.springframework.beans.factory.annotation.Autowired
-  private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
 
-  @Autowired
-  private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
+    @Autowired
+    private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
-  @Autowired
-  private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
+    @Autowired
+    private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-  @Autowired
-  private OrderRepository orderRepository;
+    @Autowired
+    private OrderRepository orderRepository;
 
-  @Autowired
-  private StockQuantRepository stockQuantRepository;
+    @Autowired
+    private StockQuantRepository stockQuantRepository;
 
-  @Autowired
-  private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
-  @AfterEach
-  void clearDatabase() {
-    SitDatabase.clear(jdbcTemplate);
-  }
+    @AfterEach
+    void clearDatabase() {
+        SitDatabase.clear(jdbcTemplate);
+    }
 
-  /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔，寫入訂單前主檔必須先存在。 */
-  @BeforeEach
-  void seedCatalogForOrders() {
-    OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, SKU);
-  }
+    /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔，寫入訂單前主檔必須先存在。 */
+    @BeforeEach
+    void seedCatalogForOrders() {
+        OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, SKU);
+    }
 
-  @Test
-  @DisplayName("availability event 的空窗中，新單不得使用餘量繞過更早的 waiting picking")
-  void shouldKeepANewOrderBehindAnOlderQueuedOrder() throws Exception {
-    // Step 1：一個空的庫存池，與一張已經排隊很久、需求 100 的缺貨訂單。
-    UUID stockQuantId = UUID.randomUUID();
-    stockQuantRepository.save(StockFixtures.unexpiredBatch(stockQuantId, SKU, 0, 0));
-    UUID queuedOrderId = seedQueuedOrder();
+    @Test
+    @DisplayName("availability event 的空窗中，新單不得使用餘量繞過更早的 waiting picking")
+    void shouldKeepANewOrderBehindAnOlderQueuedOrder() throws Exception {
+        // Step 1：一個空的庫存池，與一張已經排隊很久、需求 100 的缺貨訂單。
+        UUID stockQuantId = UUID.randomUUID();
+        stockQuantRepository.save(StockFixtures.unexpiredBatch(stockQuantId, SKU, 0, 0));
+        UUID queuedOrderId = seedQueuedOrder();
 
-    // Step 2：補進 30。佇列的 head 要 100，head-of-line blocking 讓它配不到，
-    // 這 30 個單位原封不動留在池裡。
-    receive(FIRST_AVAILABILITY_INCREASE);
+        // Step 2：補進 30。佇列的 head 要 100，head-of-line blocking 讓它配不到，
+        // 這 30 個單位原封不動留在池裡。
+        receive(FIRST_AVAILABILITY_INCREASE);
 
-    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.PENDING);
-    assertThat(availableToPromise(stockQuantId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
+        assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.PENDING);
+        assertThat(availableToPromise(stockQuantId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
 
-    // Step 3：此時一張全新的訂單到達，需求 10。即使 ATP 足夠，它仍須先看相同
-    // owner/location/SKU 的 waiting head。
-    UUID newOrderId = placeNewOrder();
+        // Step 3：此時一張全新的訂單到達，需求 10。即使 ATP 足夠，它仍須先看相同
+        // owner/location/SKU 的 waiting head。
+        UUID newOrderId = placeNewOrder();
 
-    // Step 4：新單也進 waiting queue，30 件不被後到需求取走。
-    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.PENDING);
-    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.PENDING);
-    assertThat(availableToPromise(stockQuantId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
+        // Step 4：新單也進 waiting queue，30 件不被後到需求取走。
+        assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.PENDING);
+        assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.PENDING);
+        assertThat(availableToPromise(stockQuantId)).isEqualTo(FIRST_AVAILABILITY_INCREASE);
 
-    // Step 5：再補 70，兩次補貨合計正好 100——恰好是舊單的需求量。
-    receive(SECOND_AVAILABILITY_INCREASE);
+        // Step 5：再補 70，兩次補貨合計正好 100——恰好是舊單的需求量。
+        receive(SECOND_AVAILABILITY_INCREASE);
 
-    // Step 6：舊單先取得完整 100 件；新單繼續等待，不會因 arrival gap 插隊。
-    assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.ALLOCATED);
-    assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.PENDING);
-    assertThat(availableToPromise(stockQuantId)).isZero();
-  }
+        // Step 6：舊單先取得完整 100 件；新單繼續等待，不會因 arrival gap 插隊。
+        assertThat(statusOf(queuedOrderId)).isEqualTo(OrderStatus.ALLOCATED);
+        assertThat(statusOf(newOrderId)).isEqualTo(OrderStatus.PENDING);
+        assertThat(availableToPromise(stockQuantId)).isZero();
+    }
 
-  private UUID seedQueuedOrder() {
-    UUID orderId = IdGenerator.nextId();
-    Instant backorderedAt = Instant.now().minusSeconds(3600);
-    MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, OrderFixtures.backorderedOrder(
-        orderId, SKU, QUEUED_ORDER_QUANTITY, backorderedAt.minusSeconds(1), backorderedAt));
-    return orderId;
-  }
+    private UUID seedQueuedOrder() {
+        UUID orderId = IdGenerator.nextId();
+        Instant backorderedAt = Instant.now().minusSeconds(3600);
+        MovementFixtures.saveQueuedOrder(
+                orderRepository,
+                jdbcTemplate,
+                OrderFixtures.backorderedOrder(
+                        orderId, SKU, QUEUED_ORDER_QUANTITY, backorderedAt.minusSeconds(1), backorderedAt));
+        return orderId;
+    }
 
-  private UUID placeNewOrder() throws Exception {
-    UUID orderId = IdGenerator.nextId();
-    Instant receivedAt = Instant.now();
-    orderRepository.save(
-        OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
-    OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
-    consumer.consume(event);
-    return orderId;
-  }
+    private UUID placeNewOrder() throws Exception {
+        UUID orderId = IdGenerator.nextId();
+        Instant receivedAt = Instant.now();
+        orderRepository.save(OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
+        OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
+        consumer.consume(event);
+        return orderId;
+    }
 
-  private void receive(int quantity) {
-    com.flowzati.archone.testsupport.StockReceiptFixture.confirm(
-        confirmStockReceiptUsecase, SKU, quantity);
-    inventoryEventDrainFactory.create().drain();
-  }
+    private void receive(int quantity) {
+        com.flowzati.archone.testsupport.StockReceiptFixture.confirm(confirmStockReceiptUsecase, SKU, quantity);
+        inventoryEventDrainFactory.create().drain();
+    }
 
-  private OrderStatus statusOf(UUID orderId) {
-    // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
-    // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
-    outcomeDrain().drain();
+    private OrderStatus statusOf(UUID orderId) {
+        // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
+        // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
+        outcomeDrain().drain();
 
-    return orderRepository.findById(orderId).orElseThrow().getStatus();
-  }
+        return orderRepository.findById(orderId).orElseThrow().getStatus();
+    }
 
-  private int availableToPromise(UUID stockQuantId) {
-    return stockQuantRepository.findById(stockQuantId).orElseThrow().availableToPromise();
-  }
+    private int availableToPromise(UUID stockQuantId) {
+        return stockQuantRepository.findById(stockQuantId).orElseThrow().availableToPromise();
+    }
 
-  private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
-    return outcomeDrainFactory.create();
-  }
+    private com.flowzati.archone.testsupport.AllocationOutcomeDrain outcomeDrain() {
+        return outcomeDrainFactory.create();
+    }
 }

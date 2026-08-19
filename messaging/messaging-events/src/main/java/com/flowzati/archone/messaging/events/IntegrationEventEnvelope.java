@@ -10,30 +10,21 @@ import java.util.UUID;
  * message headers remain available through {@link #message()}.
  */
 public record IntegrationEventEnvelope<E extends IntegrationEvent>(
-    Message message,
-    String aggregateType,
-    String aggregateId,
-    UUID eventId,
-    E event
-) {
+        Message message, String aggregateType, String aggregateId, UUID eventId, E event) {
 
-  public IntegrationEventEnvelope {
-    if (message == null || isBlank(aggregateType) || isBlank(aggregateId)
-        || eventId == null || event == null) {
-      throw new IntegrationEventContractException(
-          "Integration Event envelope fields are required");
+    public IntegrationEventEnvelope {
+        if (message == null || isBlank(aggregateType) || isBlank(aggregateId) || eventId == null || event == null) {
+            throw new IntegrationEventContractException("Integration Event envelope fields are required");
+        }
+        if (!message.id().equals(eventId)) {
+            throw new IntegrationEventContractException("Integration Event ID does not match message ID");
+        }
+        if (!event.getEventId().equals(eventId)) {
+            throw new IntegrationEventContractException("Integration Event ID does not match payload");
+        }
     }
-    if (!message.id().equals(eventId)) {
-      throw new IntegrationEventContractException(
-          "Integration Event ID does not match message ID");
-    }
-    if (!event.getEventId().equals(eventId)) {
-      throw new IntegrationEventContractException(
-          "Integration Event ID does not match payload");
-    }
-  }
 
-  private static boolean isBlank(String value) {
-    return value == null || value.isBlank();
-  }
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
 }

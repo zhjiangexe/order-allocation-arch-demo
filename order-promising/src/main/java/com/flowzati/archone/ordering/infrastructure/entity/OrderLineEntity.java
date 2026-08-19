@@ -9,65 +9,52 @@ import java.util.UUID;
 
 @Entity
 @Table(
-    name = "order_lines",
-    indexes = @Index(
-        name = "idx_order_lines_backorder_fifo",
-        columnList = "owner_id,sku_code,order_id"
-    )
-)
+        name = "order_lines",
+        indexes = @Index(name = "idx_order_lines_backorder_fifo", columnList = "owner_id,sku_code,order_id"))
 public class OrderLineEntity {
 
-  @Id
-  private UUID id;
+    @Id
+    private UUID id;
 
-  @Column(name = "line_no", nullable = false)
-  private int lineNo;
+    @Column(name = "line_no", nullable = false)
+    private int lineNo;
 
-  @Column(name = "owner_id", nullable = false)
-  private UUID ownerId;
+    @Column(name = "owner_id", nullable = false)
+    private UUID ownerId;
 
-  @Column(name = "sku_code", nullable = false)
-  private String skuCode;
+    @Column(name = "sku_code", nullable = false)
+    private String skuCode;
 
-  @Column(nullable = false)
-  private int quantity;
+    @Column(nullable = false)
+    private int quantity;
 
+    protected OrderLineEntity() {}
 
-  protected OrderLineEntity() {
-  }
+    public OrderLineEntity(UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
+        this.id = id;
+        this.lineNo = lineNo;
+        this.ownerId = ownerId;
+        this.skuCode = skuCode;
+        this.quantity = quantity;
+    }
 
-  public OrderLineEntity(
-      UUID id,
-      int lineNo,
-      UUID ownerId,
-      String skuCode,
-      int quantity
-  ) {
-    this.id = id;
-    this.lineNo = lineNo;
-    this.ownerId = ownerId;
-    this.skuCode = skuCode;
-    this.quantity = quantity;
-  }
+    public UUID getId() {
+        return id;
+    }
 
-  public UUID getId() {
-    return id;
-  }
+    public int getLineNo() {
+        return lineNo;
+    }
 
-  public int getLineNo() {
-    return lineNo;
-  }
+    public UUID getOwnerId() {
+        return ownerId;
+    }
 
-  public UUID getOwnerId() {
-    return ownerId;
-  }
+    public String getSkuCode() {
+        return skuCode;
+    }
 
-  public String getSkuCode() {
-    return skuCode;
-  }
-
-  public int getQuantity() {
-    return quantity;
-  }
-
+    public int getQuantity() {
+        return quantity;
+    }
 }

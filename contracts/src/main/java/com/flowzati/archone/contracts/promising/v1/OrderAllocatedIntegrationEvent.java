@@ -23,39 +23,38 @@ import java.util.UUID;
  */
 public final class OrderAllocatedIntegrationEvent extends IntegrationEvent {
 
-  /** Kept equal to the existing wire value so this change is backward compatible. */
-  public static final String EVENT_TYPE = "OrderAllocatedIntegrationEvent";
+    /** Kept equal to the existing wire value so this change is backward compatible. */
+    public static final String EVENT_TYPE = "OrderAllocatedIntegrationEvent";
 
-  private final UUID orderId;
-  private final Instant allocatedAt;
+    private final UUID orderId;
+    private final Instant allocatedAt;
 
-  @JsonCreator
-  public OrderAllocatedIntegrationEvent(
-      @JsonProperty("eventId") UUID eventId,
-      @JsonProperty("orderId") UUID orderId,
-      @JsonProperty("allocatedAt") Instant allocatedAt
-  ) {
-    super(eventId);
-    if (orderId == null) {
-      throw new IllegalArgumentException("Order ID is required");
+    @JsonCreator
+    public OrderAllocatedIntegrationEvent(
+            @JsonProperty("eventId") UUID eventId,
+            @JsonProperty("orderId") UUID orderId,
+            @JsonProperty("allocatedAt") Instant allocatedAt) {
+        super(eventId);
+        if (orderId == null) {
+            throw new IllegalArgumentException("Order ID is required");
+        }
+        if (allocatedAt == null) {
+            throw new IllegalArgumentException("Allocated time is required");
+        }
+        this.orderId = orderId;
+        this.allocatedAt = allocatedAt;
     }
-    if (allocatedAt == null) {
-      throw new IllegalArgumentException("Allocated time is required");
+
+    public UUID getOrderId() {
+        return orderId;
     }
-    this.orderId = orderId;
-    this.allocatedAt = allocatedAt;
-  }
 
-  public UUID getOrderId() {
-    return orderId;
-  }
+    public Instant getAllocatedAt() {
+        return allocatedAt;
+    }
 
-  public Instant getAllocatedAt() {
-    return allocatedAt;
-  }
-
-  @Override
-  public String eventType() {
-    return EVENT_TYPE;
-  }
+    @Override
+    public String eventType() {
+        return EVENT_TYPE;
+    }
 }

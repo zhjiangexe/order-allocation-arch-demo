@@ -8,12 +8,12 @@ package com.flowzati.archone.catalog.domain.type;
  */
 public enum PickingDirection {
 
-  /** 從公司外面進來：供應商 → 內部位置。 */
-  INBOUND,
+    /** 從公司外面進來：供應商 → 內部位置。 */
+    INBOUND,
 
-  /** 往公司外面出去：內部位置 → 客戶。 */
-  OUTBOUND,
+    /** 往公司外面出去：內部位置 → 客戶。 */
+    OUTBOUND,
 
-  /** 公司內部之間。此階段沒有產生者，但方向的值域一次定完比較省事。 */
-  INTERNAL
+    /** 公司內部之間。此階段沒有產生者，但方向的值域一次定完比較省事。 */
+    INTERNAL
 }

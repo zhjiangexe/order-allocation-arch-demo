@@ -5,16 +5,12 @@ import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import java.util.List;
 
 /** 冪等登記來源 demand 與 outbound execution 的結果。 */
-public record AllocationDemandRegistrationResult(
-    AllocationDemand demand,
-    List<StockMove> moves,
-    boolean created
-) {
+public record AllocationDemandRegistrationResult(AllocationDemand demand, List<StockMove> moves, boolean created) {
 
-  public AllocationDemandRegistrationResult {
-    if (demand == null || moves == null || moves.isEmpty()) {
-      throw new IllegalArgumentException("Registered allocation demand requires execution movements");
+    public AllocationDemandRegistrationResult {
+        if (demand == null || moves == null || moves.isEmpty()) {
+            throw new IllegalArgumentException("Registered allocation demand requires execution movements");
+        }
+        moves = List.copyOf(moves);
     }
-    moves = List.copyOf(moves);
-  }
 }

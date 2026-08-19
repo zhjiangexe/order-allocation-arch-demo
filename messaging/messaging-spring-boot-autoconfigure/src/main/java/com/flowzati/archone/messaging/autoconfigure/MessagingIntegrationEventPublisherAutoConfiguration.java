@@ -15,19 +15,13 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration(after = MessagingProducerJdbcAutoConfiguration.class)
 @ConditionalOnClass(DefaultIntegrationEventPublisher.class)
 @ConditionalOnBean({MessageProducer.class, IntegrationEventSerializer.class})
-@ConditionalOnProperty(
-    prefix = "archone.messaging.events.publisher",
-    name = "enabled",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "archone.messaging.events.publisher", name = "enabled", matchIfMissing = true)
 public class MessagingIntegrationEventPublisherAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  IntegrationEventPublisher integrationEventPublisher(
-      MessageProducer messageProducer,
-      IntegrationEventSerializer serializer
-  ) {
-    return new DefaultIntegrationEventPublisher(messageProducer, serializer);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    IntegrationEventPublisher integrationEventPublisher(
+            MessageProducer messageProducer, IntegrationEventSerializer serializer) {
+        return new DefaultIntegrationEventPublisher(messageProducer, serializer);
+    }
 }

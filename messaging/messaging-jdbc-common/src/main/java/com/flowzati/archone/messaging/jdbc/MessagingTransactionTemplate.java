@@ -9,9 +9,9 @@ package com.flowzati.archone.messaging.jdbc;
  */
 public interface MessagingTransactionTemplate {
 
-  <T> T execute(MessagingTransactionCallback<T> callback);
+    <T> T execute(MessagingTransactionCallback<T> callback);
 
-  void requireActive();
+    void requireActive();
 
-  boolean isActive();
+    boolean isActive();
 }

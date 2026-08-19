@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public interface AllocationCancellationOperationRepository {
 
-  AllocationCancellationOperation save(AllocationCancellationOperation operation);
+    AllocationCancellationOperation save(AllocationCancellationOperation operation);
 
-  Optional<AllocationCancellationOperation> find(UUID allocationDemandId, UUID operationId);
+    Optional<AllocationCancellationOperation> find(UUID allocationDemandId, UUID operationId);
 }

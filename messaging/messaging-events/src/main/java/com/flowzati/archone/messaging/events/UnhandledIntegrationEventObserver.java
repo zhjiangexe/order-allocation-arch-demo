@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.events;
 @FunctionalInterface
 public interface UnhandledIntegrationEventObserver {
 
-  void onUnhandled(UnhandledIntegrationEvent event);
+    void onUnhandled(UnhandledIntegrationEvent event);
 }

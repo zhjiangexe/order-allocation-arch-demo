@@ -6,6 +6,8 @@ dependencyManagement = "1.1.7"
 java = "25"
 uuid-creator = "6.1.1"
 temporal = "1.35.0"
+spotless = "8.9.0"
+palantirJavaFormat = "2.96.0"
 
 [libraries]
 # Spring Boot Starters
@@ -68,6 +70,7 @@ junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
 dependency-management = { id = "io.spring.dependency-management", version.ref = "dependencyManagement" }
 java = { id = "java" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 
 [bundles]
 spring-modulith = [

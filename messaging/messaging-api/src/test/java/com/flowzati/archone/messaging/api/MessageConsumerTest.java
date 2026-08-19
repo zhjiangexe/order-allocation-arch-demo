@@ -9,25 +9,20 @@ import org.junit.jupiter.api.Test;
 
 class MessageConsumerTest {
 
-  @Test
-  void exposesTheTramShapedBasicSubscribeMethod() throws NoSuchMethodException {
-    Method subscribe = MessageConsumer.class.getMethod(
-        "subscribe", String.class, Set.class, MessageHandler.class);
+    @Test
+    void exposesTheTramShapedBasicSubscribeMethod() throws NoSuchMethodException {
+        Method subscribe = MessageConsumer.class.getMethod("subscribe", String.class, Set.class, MessageHandler.class);
 
-    assertThat(subscribe.getReturnType()).isEqualTo(MessageSubscription.class);
-    assertThat(Modifier.isAbstract(subscribe.getModifiers())).isTrue();
-  }
+        assertThat(subscribe.getReturnType()).isEqualTo(MessageSubscription.class);
+        assertThat(Modifier.isAbstract(subscribe.getModifiers())).isTrue();
+    }
 
-  @Test
-  void exposesTheAdditiveSubscriptionOptionsOverload() throws NoSuchMethodException {
-    Method subscribe = MessageConsumer.class.getMethod(
-        "subscribe",
-        String.class,
-        Set.class,
-        MessageHandler.class,
-        MessageSubscriptionOptions.class);
+    @Test
+    void exposesTheAdditiveSubscriptionOptionsOverload() throws NoSuchMethodException {
+        Method subscribe = MessageConsumer.class.getMethod(
+                "subscribe", String.class, Set.class, MessageHandler.class, MessageSubscriptionOptions.class);
 
-    assertThat(subscribe.getReturnType()).isEqualTo(MessageSubscription.class);
-    assertThat(Modifier.isAbstract(subscribe.getModifiers())).isTrue();
-  }
+        assertThat(subscribe.getReturnType()).isEqualTo(MessageSubscription.class);
+        assertThat(Modifier.isAbstract(subscribe.getModifiers())).isTrue();
+    }
 }

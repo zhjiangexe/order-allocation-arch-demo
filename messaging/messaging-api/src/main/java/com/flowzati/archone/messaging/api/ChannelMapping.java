@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.api;
 @FunctionalInterface
 public interface ChannelMapping {
 
-  String transform(String logicalChannel);
+    String transform(String logicalChannel);
 }

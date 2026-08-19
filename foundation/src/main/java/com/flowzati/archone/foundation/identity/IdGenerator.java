@@ -10,11 +10,10 @@ import java.util.UUID;
  */
 public final class IdGenerator {
 
-  private IdGenerator() {
-  }
+    private IdGenerator() {}
 
-  /** 生成時間有序的 UUID (v7)，有利於數據庫索引性能。 */
-  public static UUID nextId() {
-    return UuidCreator.getTimeOrderedEpoch();
-  }
+    /** 生成時間有序的 UUID (v7)，有利於數據庫索引性能。 */
+    public static UUID nextId() {
+        return UuidCreator.getTimeOrderedEpoch();
+    }
 }

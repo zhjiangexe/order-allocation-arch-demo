@@ -8,8 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaStockMoveLineRepository extends JpaRepository<StockMoveLineEntity, UUID> {
 
-  List<StockMoveLineEntity> findByMoveIdIn(Collection<UUID> moveIds);
+    List<StockMoveLineEntity> findByMoveIdIn(Collection<UUID> moveIds);
 
-  /** 釋放是刪除，不是標記——一條被釋放的明細不表達任何事實。 */
-  void deleteByMoveIdIn(Collection<UUID> moveIds);
+    /** 釋放是刪除，不是標記——一條被釋放的明細不表達任何事實。 */
+    void deleteByMoveIdIn(Collection<UUID> moveIds);
 }

@@ -12,31 +12,31 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class StockPickingRepositoryImpl implements StockPickingRepository {
 
-  private final JpaStockPickingRepository repository;
+    private final JpaStockPickingRepository repository;
 
-  public StockPickingRepositoryImpl(JpaStockPickingRepository repository) {
-    this.repository = repository;
-  }
-
-  @Override
-  public void save(StockPicking picking) {
-    repository.save(StockPickingMapper.toEntity(picking));
-  }
-
-  @Override
-  public List<StockPicking> findByOrderId(UUID orderId) {
-    return repository.findByOrderId(orderId).stream()
-        .map(StockPickingMapper::toDomain)
-        .toList();
-  }
-
-  @Override
-  public List<StockPicking> findByIds(Collection<UUID> pickingIds) {
-    if (pickingIds.isEmpty()) {
-      return List.of();
+    public StockPickingRepositoryImpl(JpaStockPickingRepository repository) {
+        this.repository = repository;
     }
-    return repository.findByIdIn(pickingIds).stream()
-        .map(StockPickingMapper::toDomain)
-        .toList();
-  }
+
+    @Override
+    public void save(StockPicking picking) {
+        repository.save(StockPickingMapper.toEntity(picking));
+    }
+
+    @Override
+    public List<StockPicking> findByOrderId(UUID orderId) {
+        return repository.findByOrderId(orderId).stream()
+                .map(StockPickingMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<StockPicking> findByIds(Collection<UUID> pickingIds) {
+        if (pickingIds.isEmpty()) {
+            return List.of();
+        }
+        return repository.findByIdIn(pickingIds).stream()
+                .map(StockPickingMapper::toDomain)
+                .toList();
+    }
 }

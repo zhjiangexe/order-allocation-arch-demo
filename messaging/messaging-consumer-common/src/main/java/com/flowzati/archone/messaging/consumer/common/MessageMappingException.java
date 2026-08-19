@@ -8,7 +8,7 @@ package com.flowzati.archone.messaging.consumer.common;
  */
 public final class MessageMappingException extends IllegalArgumentException {
 
-  public MessageMappingException(String message, Throwable cause) {
-    super(message, cause);
-  }
+    public MessageMappingException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

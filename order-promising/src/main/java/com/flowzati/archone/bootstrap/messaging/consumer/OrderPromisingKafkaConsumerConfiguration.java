@@ -14,9 +14,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class OrderPromisingKafkaConsumerConfiguration {
 
-  @Bean
-  public KafkaConsumerFailurePolicyResolver orderPromisingKafkaConsumerFailurePolicyResolver() {
-    return KafkaConsumerFailurePolicyResolver.fixed(
-        OrderPromisingConsumerFailurePolicy.kafkaConsumerFailurePolicy());
-  }
+    @Bean
+    public KafkaConsumerFailurePolicyResolver orderPromisingKafkaConsumerFailurePolicyResolver() {
+        return KafkaConsumerFailurePolicyResolver.fixed(
+                OrderPromisingConsumerFailurePolicy.kafkaConsumerFailurePolicy());
+    }
 }

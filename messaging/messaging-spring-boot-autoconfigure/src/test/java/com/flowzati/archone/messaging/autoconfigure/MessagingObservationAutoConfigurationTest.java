@@ -14,76 +14,76 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class MessagingObservationAutoConfigurationTest {
 
-  private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-      .withConfiguration(AutoConfigurations.of(
-          MessagingObservationAutoConfiguration.class,
-          MessagingProducerObservationAutoConfiguration.class,
-          MessagingConsumerObservationAutoConfiguration.class));
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(
+                    MessagingObservationAutoConfiguration.class,
+                    MessagingProducerObservationAutoConfiguration.class,
+                    MessagingConsumerObservationAutoConfiguration.class));
 
-  @Test
-  void createsNarrowAdaptersOnlyWhenAnObservationRegistryExists() {
-    contextRunner.run(context -> {
-      assertThat(context).doesNotHaveBean(ProducerObservationInterceptor.class);
-      assertThat(context).doesNotHaveBean(ConsumerObservationDecorator.class);
-    });
-
-    contextRunner.withBean(ObservationRegistry.class, ObservationRegistry::create)
-        .run(context -> {
-          assertThat(context).hasSingleBean(ProducerMessageObservationConvention.class);
-          assertThat(context).hasSingleBean(ConsumerMessageObservationConvention.class);
-          assertThat(context).hasSingleBean(ProducerObservationInterceptor.class);
-          assertThat(context).hasSingleBean(ConsumerObservationDecorator.class);
-        });
-  }
-
-  @Test
-  void supportsGlobalAndPerDirectionOptOut() {
-    contextRunner
-        .withBean(ObservationRegistry.class, ObservationRegistry::create)
-        .withPropertyValues("archone.messaging.observation.enabled=false")
-        .run(context -> {
-          assertThat(context).doesNotHaveBean(ProducerObservationInterceptor.class);
-          assertThat(context).doesNotHaveBean(ConsumerObservationDecorator.class);
+    @Test
+    void createsNarrowAdaptersOnlyWhenAnObservationRegistryExists() {
+        contextRunner.run(context -> {
+            assertThat(context).doesNotHaveBean(ProducerObservationInterceptor.class);
+            assertThat(context).doesNotHaveBean(ConsumerObservationDecorator.class);
         });
 
-    contextRunner
-        .withBean(ObservationRegistry.class, ObservationRegistry::create)
-        .withPropertyValues("archone.messaging.observation.producer.enabled=false")
-        .run(context -> {
-          assertThat(context).doesNotHaveBean(ProducerObservationInterceptor.class);
-          assertThat(context).hasSingleBean(ConsumerObservationDecorator.class);
-        });
-  }
+        contextRunner
+                .withBean(ObservationRegistry.class, ObservationRegistry::create)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(ProducerMessageObservationConvention.class);
+                    assertThat(context).hasSingleBean(ConsumerMessageObservationConvention.class);
+                    assertThat(context).hasSingleBean(ProducerObservationInterceptor.class);
+                    assertThat(context).hasSingleBean(ConsumerObservationDecorator.class);
+                });
+    }
 
-  @Test
-  void backsOffForApplicationAdapters() {
-    ObservationRegistry registry = ObservationRegistry.create();
-    ProducerObservationInterceptor customProducer = new ProducerObservationInterceptor(registry);
-    ConsumerObservationDecorator customConsumer = new ConsumerObservationDecorator(registry);
-    contextRunner
-        .withBean(ObservationRegistry.class, () -> registry)
-        .withBean(ProducerObservationInterceptor.class, () -> customProducer)
-        .withBean(ConsumerObservationDecorator.class, () -> customConsumer)
-        .run(context -> {
-          assertThat(context.getBean(ProducerObservationInterceptor.class))
-              .isSameAs(customProducer);
-          assertThat(context.getBean(ConsumerObservationDecorator.class))
-              .isSameAs(customConsumer);
-          assertThat(context).doesNotHaveBean("meterRegistry");
-        });
-  }
+    @Test
+    void supportsGlobalAndPerDirectionOptOut() {
+        contextRunner
+                .withBean(ObservationRegistry.class, ObservationRegistry::create)
+                .withPropertyValues("archone.messaging.observation.enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(ProducerObservationInterceptor.class);
+                    assertThat(context).doesNotHaveBean(ConsumerObservationDecorator.class);
+                });
 
-  @Test
-  void keepsAutoConfiguredProducerObservationAfterApplicationInterceptors() {
-    MessageInterceptor applicationInterceptor = new MessageInterceptor() { };
+        contextRunner
+                .withBean(ObservationRegistry.class, ObservationRegistry::create)
+                .withPropertyValues("archone.messaging.observation.producer.enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(ProducerObservationInterceptor.class);
+                    assertThat(context).hasSingleBean(ConsumerObservationDecorator.class);
+                });
+    }
 
-    contextRunner
-        .withBean(ObservationRegistry.class, ObservationRegistry::create)
-        .withBean(MessageInterceptor.class, () -> applicationInterceptor)
-        .run(context -> assertThat(context.getBeanProvider(MessageInterceptor.class)
-            .orderedStream())
-            .containsExactly(
-                applicationInterceptor,
-                context.getBean(ProducerObservationInterceptor.class)));
-  }
+    @Test
+    void backsOffForApplicationAdapters() {
+        ObservationRegistry registry = ObservationRegistry.create();
+        ProducerObservationInterceptor customProducer = new ProducerObservationInterceptor(registry);
+        ConsumerObservationDecorator customConsumer = new ConsumerObservationDecorator(registry);
+        contextRunner
+                .withBean(ObservationRegistry.class, () -> registry)
+                .withBean(ProducerObservationInterceptor.class, () -> customProducer)
+                .withBean(ConsumerObservationDecorator.class, () -> customConsumer)
+                .run(context -> {
+                    assertThat(context.getBean(ProducerObservationInterceptor.class))
+                            .isSameAs(customProducer);
+                    assertThat(context.getBean(ConsumerObservationDecorator.class))
+                            .isSameAs(customConsumer);
+                    assertThat(context).doesNotHaveBean("meterRegistry");
+                });
+    }
+
+    @Test
+    void keepsAutoConfiguredProducerObservationAfterApplicationInterceptors() {
+        MessageInterceptor applicationInterceptor = new MessageInterceptor() {};
+
+        contextRunner
+                .withBean(ObservationRegistry.class, ObservationRegistry::create)
+                .withBean(MessageInterceptor.class, () -> applicationInterceptor)
+                .run(context -> assertThat(context.getBeanProvider(MessageInterceptor.class)
+                                .orderedStream())
+                        .containsExactly(
+                                applicationInterceptor, context.getBean(ProducerObservationInterceptor.class)));
+    }
 }

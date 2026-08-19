@@ -14,42 +14,40 @@ import org.junit.jupiter.api.Test;
 
 class StockReceiptApplicationFacadeTest {
 
-  private final StockReceiptRequestRepository requestRepository =
-      mock(StockReceiptRequestRepository.class);
-  private final ConfirmStockReceiptUsecase usecase = mock(ConfirmStockReceiptUsecase.class);
-  private final StockReceiptApplicationFacade facade =
-      new StockReceiptApplicationFacade(requestRepository, usecase);
+    private final StockReceiptRequestRepository requestRepository = mock(StockReceiptRequestRepository.class);
+    private final ConfirmStockReceiptUsecase usecase = mock(ConfirmStockReceiptUsecase.class);
+    private final StockReceiptApplicationFacade facade = new StockReceiptApplicationFacade(requestRepository, usecase);
 
-  @Test
-  void executesTheReceiptOnlyForANewRequest() {
-    StockReceiptRequest request = request();
-    when(requestRepository.claimIfNew(request)).thenReturn(true);
+    @Test
+    void executesTheReceiptOnlyForANewRequest() {
+        StockReceiptRequest request = request();
+        when(requestRepository.claimIfNew(request)).thenReturn(true);
 
-    facade.confirm(request);
+        facade.confirm(request);
 
-    verify(usecase).execute(request.command());
-  }
+        verify(usecase).execute(request.command());
+    }
 
-  @Test
-  void exactReplayDoesNotExecuteTheReceiptAgain() {
-    StockReceiptRequest request = request();
-    when(requestRepository.claimIfNew(request)).thenReturn(false);
+    @Test
+    void exactReplayDoesNotExecuteTheReceiptAgain() {
+        StockReceiptRequest request = request();
+        when(requestRepository.claimIfNew(request)).thenReturn(false);
 
-    facade.confirm(request);
+        facade.confirm(request);
 
-    verify(usecase, never()).execute(request.command());
-  }
+        verify(usecase, never()).execute(request.command());
+    }
 
-  private StockReceiptRequest request() {
-    return new StockReceiptRequest(
-        UUID.randomUUID(),
-        new ConfirmStockReceiptCommand(
-            OrderFixtures.OWNER_ID,
-            OrderFixtures.FACILITY_ID,
-            OrderFixtures.LOCATION_ID,
-            "SKU-1",
-            StockFixtures.ARRIVED_ON,
-            StockFixtures.EXPIRES_ON,
-            3));
-  }
+    private StockReceiptRequest request() {
+        return new StockReceiptRequest(
+                UUID.randomUUID(),
+                new ConfirmStockReceiptCommand(
+                        OrderFixtures.OWNER_ID,
+                        OrderFixtures.FACILITY_ID,
+                        OrderFixtures.LOCATION_ID,
+                        "SKU-1",
+                        StockFixtures.ARRIVED_ON,
+                        StockFixtures.EXPIRES_ON,
+                        3));
+    }
 }

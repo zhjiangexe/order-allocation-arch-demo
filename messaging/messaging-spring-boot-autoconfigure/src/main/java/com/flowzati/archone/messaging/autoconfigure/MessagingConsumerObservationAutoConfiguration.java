@@ -15,27 +15,17 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration(after = MessagingObservationAutoConfiguration.class)
 @ConditionalOnClass({ObservationRegistry.class, ConsumerObservationDecorator.class})
 @ConditionalOnBean(ObservationRegistry.class)
-@ConditionalOnProperty(
-    prefix = "archone.messaging.observation",
-    name = "enabled",
-    matchIfMissing = true
-)
-@ConditionalOnProperty(
-    prefix = "archone.messaging.observation.consumer",
-    name = "enabled",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "archone.messaging.observation", name = "enabled", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "archone.messaging.observation.consumer", name = "enabled", matchIfMissing = true)
 public class MessagingConsumerObservationAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  ConsumerObservationDecorator consumerObservationDecorator(
-      ObservationRegistry observationRegistry,
-      ObjectProvider<ConsumerMessageObservationConvention> conventions
-  ) {
-    ConsumerMessageObservationConvention convention = conventions.getIfAvailable();
-    return convention == null
-        ? new ConsumerObservationDecorator(observationRegistry)
-        : new ConsumerObservationDecorator(observationRegistry, convention);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    ConsumerObservationDecorator consumerObservationDecorator(
+            ObservationRegistry observationRegistry, ObjectProvider<ConsumerMessageObservationConvention> conventions) {
+        ConsumerMessageObservationConvention convention = conventions.getIfAvailable();
+        return convention == null
+                ? new ConsumerObservationDecorator(observationRegistry)
+                : new ConsumerObservationDecorator(observationRegistry, convention);
+    }
 }

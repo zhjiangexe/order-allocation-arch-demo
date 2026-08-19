@@ -13,15 +13,13 @@ import org.springframework.transaction.PlatformTransactionManager;
  */
 public class SpringMessagingJdbcConfiguration {
 
-  @Bean
-  public JdbcStatementExecutor messagingJdbcStatementExecutor(JdbcOperations jdbcOperations) {
-    return new SpringJdbcStatementExecutor(jdbcOperations);
-  }
+    @Bean
+    public JdbcStatementExecutor messagingJdbcStatementExecutor(JdbcOperations jdbcOperations) {
+        return new SpringJdbcStatementExecutor(jdbcOperations);
+    }
 
-  @Bean
-  public MessagingTransactionTemplate messagingTransactionTemplate(
-      PlatformTransactionManager transactionManager
-  ) {
-    return new SpringMessagingTransactionTemplate(transactionManager);
-  }
+    @Bean
+    public MessagingTransactionTemplate messagingTransactionTemplate(PlatformTransactionManager transactionManager) {
+        return new SpringMessagingTransactionTemplate(transactionManager);
+    }
 }

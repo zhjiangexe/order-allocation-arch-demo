@@ -1,7 +1,7 @@
 package com.flowzati.archone.bootstrap.messaging.contract;
 
-import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
@@ -15,29 +15,29 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class OrderPromisingIntegrationEventContractConfiguration {
 
-  @Bean
-  IntegrationEventNameMapping orderPromisingIntegrationEventNameMapping() {
-    return MapBasedIntegrationEventNameMapping.builder()
-        .map(
-            OrderAllocatedIntegrationEvent.class,
-            OrderAllocatedIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-        .map(
-            OrderPlacedIntegrationEvent.class,
-            OrderPlacedIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-        .map(
-            OrderCancelledIntegrationEvent.class,
-            OrderCancelledIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-        .map(
-            StockAvailabilityIncreasedIntegrationEvent.class,
-            StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-        .map(
-            AllocationCommittedForFulfillmentIntegrationEvent.class,
-            AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-        .build();
-  }
+    @Bean
+    IntegrationEventNameMapping orderPromisingIntegrationEventNameMapping() {
+        return MapBasedIntegrationEventNameMapping.builder()
+                .map(
+                        OrderAllocatedIntegrationEvent.class,
+                        OrderAllocatedIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .map(
+                        OrderPlacedIntegrationEvent.class,
+                        OrderPlacedIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .map(
+                        OrderCancelledIntegrationEvent.class,
+                        OrderCancelledIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .map(
+                        StockAvailabilityIncreasedIntegrationEvent.class,
+                        StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .map(
+                        AllocationCommittedForFulfillmentIntegrationEvent.class,
+                        AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .build();
+    }
 }

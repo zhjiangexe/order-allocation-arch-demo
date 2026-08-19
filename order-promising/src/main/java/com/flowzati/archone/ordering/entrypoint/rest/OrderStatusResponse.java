@@ -34,56 +34,56 @@ import java.util.UUID;
  * timestamp, not the polling interval, is what should drive the latency chart.
  */
 public record OrderStatusResponse(
-    UUID orderId,
-    UUID ownerId,
-    String externalOrderNo,
-    UUID facilityId,
-    String shipToZone,
-    String shipToAddress,
-    LocalDate promisedDeliveryDate,
-    Instant dispatchBy,
-    int releasePriority,
-    List<Line> lines,
-    String status,
-    Instant receivedAt,
-    Instant placedAt,
-    Instant allocatedAt,
-    Instant cancelledAt,
-    Instant fulfilledAt
-) {
+        UUID orderId,
+        UUID ownerId,
+        String externalOrderNo,
+        UUID facilityId,
+        String shipToZone,
+        String shipToAddress,
+        LocalDate promisedDeliveryDate,
+        Instant dispatchBy,
+        int releasePriority,
+        List<Line> lines,
+        String status,
+        Instant receivedAt,
+        Instant placedAt,
+        Instant allocatedAt,
+        Instant cancelledAt,
+        Instant fulfilledAt) {
 
-  /** {@code status} 隨 header 走（ship-complete），保留是為了讓多行時的畫面不必改契約。 */
-  public record Line(int lineNo, String skuCode, int quantity, String status) {
-  }
+    /** {@code status} 隨 header 走（ship-complete），保留是為了讓多行時的畫面不必改契約。 */
+    public record Line(int lineNo, String skuCode, int quantity, String status) {}
 
-  static OrderStatusResponse from(Order order) {
-    return new OrderStatusResponse(
-        order.getId(),
-        order.getOwnerId(),
-        order.getExternalOrderNo(),
-        order.getDeliveryTerms().facilityId(),
-        order.getDeliveryTerms().shipToZone(),
-        order.getDeliveryTerms().shipToAddress(),
-        order.getDeliveryTerms().promisedDeliveryDate(),
-        order.getDeliveryTerms().dispatchBy(),
-        order.getDeliveryTerms().releasePriority(),
-        order.getLines().stream().map(line -> toLine(line, order.getStatus())).toList(),
-        order.getStatus().name(),
-        order.getReceivedAt(),
-        order.getPlacedAt(),
-        order.getAllocatedAt(),
-        order.getCancelledAt(),
-        order.getFulfilledAt());
-  }
+    static OrderStatusResponse from(Order order) {
+        return new OrderStatusResponse(
+                order.getId(),
+                order.getOwnerId(),
+                order.getExternalOrderNo(),
+                order.getDeliveryTerms().facilityId(),
+                order.getDeliveryTerms().shipToZone(),
+                order.getDeliveryTerms().shipToAddress(),
+                order.getDeliveryTerms().promisedDeliveryDate(),
+                order.getDeliveryTerms().dispatchBy(),
+                order.getDeliveryTerms().releasePriority(),
+                order.getLines().stream()
+                        .map(line -> toLine(line, order.getStatus()))
+                        .toList(),
+                order.getStatus().name(),
+                order.getReceivedAt(),
+                order.getPlacedAt(),
+                order.getAllocatedAt(),
+                order.getCancelledAt(),
+                order.getFulfilledAt());
+    }
 
-  /**
-   * 逐行的狀態**由 header 導出**，不是行自己存的。
-   *
-   * <p>ship-complete 之下一張單的所有行同進同出，所以那個值恆等於 header——存在行上是同一份
-   * 資料存兩次。契約保留這個欄位（值一個字沒變，前端因此不動），但它現在只有一個可能出錯的
-   * 地方，而不是兩個。
-   */
-  private static Line toLine(OrderLine line, OrderStatus orderStatus) {
-    return new Line(line.getLineNo(), line.getSkuCode(), line.getQuantity(), orderStatus.name());
-  }
+    /**
+     * 逐行的狀態**由 header 導出**，不是行自己存的。
+     *
+     * <p>ship-complete 之下一張單的所有行同進同出，所以那個值恆等於 header——存在行上是同一份
+     * 資料存兩次。契約保留這個欄位（值一個字沒變，前端因此不動），但它現在只有一個可能出錯的
+     * 地方，而不是兩個。
+     */
+    private static Line toLine(OrderLine line, OrderStatus orderStatus) {
+        return new Line(line.getLineNo(), line.getSkuCode(), line.getQuantity(), orderStatus.name());
+    }
 }

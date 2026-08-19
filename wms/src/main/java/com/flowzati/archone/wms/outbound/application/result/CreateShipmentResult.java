@@ -12,7 +12,7 @@ import java.util.UUID;
  */
 public record CreateShipmentResult(UUID shipmentId) {
 
-  public CreateShipmentResult {
-    Objects.requireNonNull(shipmentId, "Shipment ID is required");
-  }
+    public CreateShipmentResult {
+        Objects.requireNonNull(shipmentId, "Shipment ID is required");
+    }
 }

@@ -22,69 +22,60 @@ import org.springframework.dao.OptimisticLockingFailureException;
  */
 public final class OptimisticLockingDecorator implements MessageHandlerDecorator {
 
-  private final RetryOperations retryOperations;
-  private final List<OptimisticLockingRetryObserver> observers;
+    private final RetryOperations retryOperations;
+    private final List<OptimisticLockingRetryObserver> observers;
 
-  public OptimisticLockingDecorator(
-      RetryOperations retryOperations,
-      Collection<OptimisticLockingRetryObserver> observers
-  ) {
-    this.retryOperations = Objects.requireNonNull(
-        retryOperations, "Optimistic-lock retry operations are required");
-    if (observers == null || observers.stream().anyMatch(Objects::isNull)) {
-      throw new IllegalArgumentException("Optimistic-lock retry observers are required");
-    }
-    this.observers = List.copyOf(observers);
-  }
-
-  @Override
-  public int order() {
-    return MessageHandlerDecoratorOrders.APPLICATION_ATTEMPT_MIN;
-  }
-
-  @Override
-  public ProcessingOutcome handle(
-      MessageHandlerInvocation invocation,
-      MessageHandlerDecoratorChain chain
-  ) {
-    AtomicInteger attempts = new AtomicInteger();
-    try {
-      return retryOperations.execute(new Retryable<>() {
-        @Override
-        public ProcessingOutcome execute() {
-          int attempt = attempts.incrementAndGet();
-          if (attempt > 1) {
-            observers.forEach(observer -> observer.onRetry(invocation, attempt));
-          }
-          return chain.invokeNext(invocation);
+    public OptimisticLockingDecorator(
+            RetryOperations retryOperations, Collection<OptimisticLockingRetryObserver> observers) {
+        this.retryOperations = Objects.requireNonNull(retryOperations, "Optimistic-lock retry operations are required");
+        if (observers == null || observers.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("Optimistic-lock retry observers are required");
         }
+        this.observers = List.copyOf(observers);
+    }
 
-        @Override
-        public String getName() {
-          return invocation.context().subscriberId();
+    @Override
+    public int order() {
+        return MessageHandlerDecoratorOrders.APPLICATION_ATTEMPT_MIN;
+    }
+
+    @Override
+    public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+        AtomicInteger attempts = new AtomicInteger();
+        try {
+            return retryOperations.execute(new Retryable<>() {
+                @Override
+                public ProcessingOutcome execute() {
+                    int attempt = attempts.incrementAndGet();
+                    if (attempt > 1) {
+                        observers.forEach(observer -> observer.onRetry(invocation, attempt));
+                    }
+                    return chain.invokeNext(invocation);
+                }
+
+                @Override
+                public String getName() {
+                    return invocation.context().subscriberId();
+                }
+            });
+        } catch (RetryException exception) {
+            if (!(exception.getCause() instanceof OptimisticLockingFailureException optimisticLockFailure)) {
+                throw rethrowOriginalCause(exception);
+            }
+            int executionCount = Math.max(attempts.get(), exception.getRetryCount() + 1);
+            observers.forEach(observer -> observer.onExhausted(invocation, executionCount, optimisticLockFailure));
+            throw new OptimisticLockingRetryExhaustedException(
+                    invocation.context().subscriberId(),
+                    invocation.message().id(),
+                    executionCount,
+                    optimisticLockFailure);
         }
-      });
-    } catch (RetryException exception) {
-      if (!(exception.getCause()
-          instanceof OptimisticLockingFailureException optimisticLockFailure)) {
-        throw rethrowOriginalCause(exception);
-      }
-      int executionCount = Math.max(attempts.get(), exception.getRetryCount() + 1);
-      observers.forEach(observer -> observer.onExhausted(
-          invocation, executionCount, optimisticLockFailure));
-      throw new OptimisticLockingRetryExhaustedException(
-          invocation.context().subscriberId(),
-          invocation.message().id(),
-          executionCount,
-          optimisticLockFailure);
     }
-  }
 
-  private RuntimeException rethrowOriginalCause(RetryException exception) {
-    if (exception.getCause() instanceof RuntimeException runtimeException) {
-      return runtimeException;
+    private RuntimeException rethrowOriginalCause(RetryException exception) {
+        if (exception.getCause() instanceof RuntimeException runtimeException) {
+            return runtimeException;
+        }
+        return new IllegalStateException("Optimistic-lock retry operation failed unexpectedly", exception);
     }
-    return new IllegalStateException(
-        "Optimistic-lock retry operation failed unexpectedly", exception);
-  }
 }

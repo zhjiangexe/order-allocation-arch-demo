@@ -1,9 +1,8 @@
 package com.flowzati.archone.ordering.domain.valueobject;
 
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-
-import java.time.LocalDate;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -31,32 +30,31 @@ import java.util.UUID;
  * 且刻意接受的取捨。
  */
 public record DeliveryTerms(
-    UUID facilityId,
-    String shipToZone,
-    String shipToAddress,
-    LocalDate promisedDeliveryDate,
-    Instant dispatchBy,
-    int releasePriority
-) {
+        UUID facilityId,
+        String shipToZone,
+        String shipToAddress,
+        LocalDate promisedDeliveryDate,
+        Instant dispatchBy,
+        int releasePriority) {
 
-  public DeliveryTerms {
-    if (facilityId == null) {
-      throw new IllegalArgumentException("Facility is required");
+    public DeliveryTerms {
+        if (facilityId == null) {
+            throw new IllegalArgumentException("Facility is required");
+        }
+        if (shipToZone == null || shipToZone.isBlank()) {
+            throw new IllegalArgumentException("Ship-to zone is required");
+        }
+        if (shipToAddress == null || shipToAddress.isBlank()) {
+            throw new IllegalArgumentException("Ship-to address is required");
+        }
+        if (promisedDeliveryDate == null) {
+            throw new IllegalArgumentException("Promised delivery date is required");
+        }
+        if (dispatchBy == null) {
+            throw new IllegalArgumentException("Dispatch deadline is required");
+        }
+        if (releasePriority < 0 || releasePriority > 100) {
+            throw new IllegalArgumentException("Release priority must be between 0 and 100");
+        }
     }
-    if (shipToZone == null || shipToZone.isBlank()) {
-      throw new IllegalArgumentException("Ship-to zone is required");
-    }
-    if (shipToAddress == null || shipToAddress.isBlank()) {
-      throw new IllegalArgumentException("Ship-to address is required");
-    }
-    if (promisedDeliveryDate == null) {
-      throw new IllegalArgumentException("Promised delivery date is required");
-    }
-    if (dispatchBy == null) {
-      throw new IllegalArgumentException("Dispatch deadline is required");
-    }
-    if (releasePriority < 0 || releasePriority > 100) {
-      throw new IllegalArgumentException("Release priority must be between 0 and 100");
-    }
-  }
 }

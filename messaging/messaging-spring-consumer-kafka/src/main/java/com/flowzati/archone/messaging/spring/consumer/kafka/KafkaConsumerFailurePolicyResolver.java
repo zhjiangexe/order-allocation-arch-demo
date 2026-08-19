@@ -7,13 +7,13 @@ import java.util.Objects;
 @FunctionalInterface
 public interface KafkaConsumerFailurePolicyResolver {
 
-  KafkaConsumerFailurePolicy resolve(ResolvedMessageSubscription subscription);
+    KafkaConsumerFailurePolicy resolve(ResolvedMessageSubscription subscription);
 
-  static KafkaConsumerFailurePolicyResolver fixed(KafkaConsumerFailurePolicy policy) {
-    Objects.requireNonNull(policy, "Kafka consumer failure policy is required");
-    return subscription -> {
-      Objects.requireNonNull(subscription, "Resolved message subscription is required");
-      return policy;
-    };
-  }
+    static KafkaConsumerFailurePolicyResolver fixed(KafkaConsumerFailurePolicy policy) {
+        Objects.requireNonNull(policy, "Kafka consumer failure policy is required");
+        return subscription -> {
+            Objects.requireNonNull(subscription, "Resolved message subscription is required");
+            return policy;
+        };
+    }
 }

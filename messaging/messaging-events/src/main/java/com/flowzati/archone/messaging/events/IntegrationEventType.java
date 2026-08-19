@@ -3,9 +3,9 @@ package com.flowzati.archone.messaging.events;
 /** Stable external Integration Event identity; it never derives from a Java class name. */
 public record IntegrationEventType(String eventType, int contractVersion) {
 
-  public IntegrationEventType {
-    if (eventType == null || eventType.isBlank() || contractVersion < 1) {
-      throw new IllegalArgumentException("Integration Event type fields are required");
+    public IntegrationEventType {
+        if (eventType == null || eventType.isBlank() || contractVersion < 1) {
+            throw new IllegalArgumentException("Integration Event type fields are required");
+        }
     }
-  }
 }

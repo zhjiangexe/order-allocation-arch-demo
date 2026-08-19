@@ -22,59 +22,57 @@ import java.util.UUID;
 @Table(name = "owner_facilities")
 public class OwnerFacilityEntity {
 
-  @EmbeddedId
-  private OwnerFacilityId id;
+    @EmbeddedId
+    private OwnerFacilityId id;
 
-  protected OwnerFacilityEntity() {
-  }
+    protected OwnerFacilityEntity() {}
 
-  public OwnerFacilityEntity(UUID ownerId, UUID facilityId) {
-    this.id = new OwnerFacilityId(ownerId, facilityId);
-  }
-
-  public OwnerFacilityId getId() {
-    return id;
-  }
-
-  @Embeddable
-  public static class OwnerFacilityId implements Serializable {
-
-    @Column(name = "owner_id", nullable = false)
-    private UUID ownerId;
-
-    @Column(name = "facility_id", nullable = false)
-    private UUID facilityId;
-
-    protected OwnerFacilityId() {
+    public OwnerFacilityEntity(UUID ownerId, UUID facilityId) {
+        this.id = new OwnerFacilityId(ownerId, facilityId);
     }
 
-    public OwnerFacilityId(UUID ownerId, UUID facilityId) {
-      this.ownerId = ownerId;
-      this.facilityId = facilityId;
+    public OwnerFacilityId getId() {
+        return id;
     }
 
-    public UUID getOwnerId() {
-      return ownerId;
-    }
+    @Embeddable
+    public static class OwnerFacilityId implements Serializable {
 
-    public UUID getFacilityId() {
-      return facilityId;
-    }
+        @Column(name = "owner_id", nullable = false)
+        private UUID ownerId;
 
-    @Override
-    public boolean equals(Object other) {
-      if (this == other) {
-        return true;
-      }
-      if (!(other instanceof OwnerFacilityId that)) {
-        return false;
-      }
-      return Objects.equals(ownerId, that.ownerId) && Objects.equals(facilityId, that.facilityId);
-    }
+        @Column(name = "facility_id", nullable = false)
+        private UUID facilityId;
 
-    @Override
-    public int hashCode() {
-      return Objects.hash(ownerId, facilityId);
+        protected OwnerFacilityId() {}
+
+        public OwnerFacilityId(UUID ownerId, UUID facilityId) {
+            this.ownerId = ownerId;
+            this.facilityId = facilityId;
+        }
+
+        public UUID getOwnerId() {
+            return ownerId;
+        }
+
+        public UUID getFacilityId() {
+            return facilityId;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof OwnerFacilityId that)) {
+                return false;
+            }
+            return Objects.equals(ownerId, that.ownerId) && Objects.equals(facilityId, that.facilityId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ownerId, facilityId);
+        }
     }
-  }
 }

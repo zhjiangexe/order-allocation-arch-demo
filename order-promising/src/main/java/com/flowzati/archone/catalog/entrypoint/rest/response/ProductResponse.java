@@ -9,19 +9,14 @@ import java.util.UUID;
  * 呼叫端要用它組出後續請求時，必須同時知道它屬於誰。
  */
 public record ProductResponse(
-    UUID productId,
-    UUID ownerId,
-    String productCode,
-    String name,
-    TemperatureZone temperatureZone
-) {
+        UUID productId, UUID ownerId, String productCode, String name, TemperatureZone temperatureZone) {
 
-  public static ProductResponse from(Product product) {
-    return new ProductResponse(
-        product.getId(),
-        product.getOwnerId(),
-        product.getProductCode(),
-        product.getName(),
-        product.getTemperatureZone());
-  }
+    public static ProductResponse from(Product product) {
+        return new ProductResponse(
+                product.getId(),
+                product.getOwnerId(),
+                product.getProductCode(),
+                product.getName(),
+                product.getTemperatureZone());
+    }
 }

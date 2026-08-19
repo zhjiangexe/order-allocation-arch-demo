@@ -6,5 +6,5 @@ import java.util.UUID;
 @FunctionalInterface
 public interface MessageIdGenerator {
 
-  UUID generate();
+    UUID generate();
 }

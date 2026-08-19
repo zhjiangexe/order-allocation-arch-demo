@@ -4,5 +4,4 @@ import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
 import java.util.UUID;
 
-public record ShipmentPicked(UUID shipmentId, Instant occurredAt) implements WmsDomainEvent {
-}
+public record ShipmentPicked(UUID shipmentId, Instant occurredAt) implements WmsDomainEvent {}

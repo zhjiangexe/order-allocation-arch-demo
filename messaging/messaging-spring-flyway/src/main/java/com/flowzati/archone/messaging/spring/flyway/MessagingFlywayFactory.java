@@ -9,18 +9,11 @@ import org.flywaydb.core.Flyway;
 @FunctionalInterface
 public interface MessagingFlywayFactory {
 
-  String DEFAULT_SCHEMA = "archone_messaging";
+    String DEFAULT_SCHEMA = "archone_messaging";
 
-  Flyway create(
-      DataSource dataSource,
-      MessagingSchema schema,
-      MessagingTableNames tableNames
-  );
+    Flyway create(DataSource dataSource, MessagingSchema schema, MessagingTableNames tableNames);
 
-  default Flyway create(DataSource dataSource) {
-    return create(
-        dataSource,
-        MessagingSchema.named(DEFAULT_SCHEMA),
-        MessagingTableNames.defaults());
-  }
+    default Flyway create(DataSource dataSource) {
+        return create(dataSource, MessagingSchema.named(DEFAULT_SCHEMA), MessagingTableNames.defaults());
+    }
 }

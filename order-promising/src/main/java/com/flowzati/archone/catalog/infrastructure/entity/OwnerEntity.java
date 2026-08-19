@@ -10,39 +10,32 @@ import java.util.UUID;
 @Table(name = "owners")
 public class OwnerEntity {
 
-  @Id
-  private UUID id;
+    @Id
+    private UUID id;
 
-  @Column(nullable = false)
-  private String code;
+    @Column(nullable = false)
+    private String code;
 
-  @Column(nullable = false)
-  private String name;
+    @Column(nullable = false)
+    private String name;
 
+    protected OwnerEntity() {}
 
-  protected OwnerEntity() {
-  }
+    public OwnerEntity(UUID id, String code, String name) {
+        this.id = id;
+        this.code = code;
+        this.name = name;
+    }
 
-  public OwnerEntity(
-      UUID id,
-      String code,
-      String name
-  ) {
-    this.id = id;
-    this.code = code;
-    this.name = name;
-  }
+    public UUID getId() {
+        return id;
+    }
 
-  public UUID getId() {
-    return id;
-  }
+    public String getCode() {
+        return code;
+    }
 
-  public String getCode() {
-    return code;
-  }
-
-  public String getName() {
-    return name;
-  }
-
+    public String getName() {
+        return name;
+    }
 }

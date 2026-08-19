@@ -8,14 +8,10 @@ import java.util.UUID;
 
 /** adapter 可將每筆結果映射成既有 ConfirmStockReceipt command／availability fact。 */
 public record PutawayCompleted(
-    UUID inboundOperationId,
-    UUID ownerId,
-    UUID facilityId,
-    List<PutawayLine> lines,
-    Instant occurredAt
-) implements WmsDomainEvent {
+        UUID inboundOperationId, UUID ownerId, UUID facilityId, List<PutawayLine> lines, Instant occurredAt)
+        implements WmsDomainEvent {
 
-  public PutawayCompleted {
-    lines = List.copyOf(lines);
-  }
+    public PutawayCompleted {
+        lines = List.copyOf(lines);
+    }
 }

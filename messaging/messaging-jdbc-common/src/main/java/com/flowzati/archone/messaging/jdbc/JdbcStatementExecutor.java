@@ -6,5 +6,5 @@ import java.util.List;
 @FunctionalInterface
 public interface JdbcStatementExecutor {
 
-  int update(String sql, List<?> arguments);
+    int update(String sql, List<?> arguments);
 }

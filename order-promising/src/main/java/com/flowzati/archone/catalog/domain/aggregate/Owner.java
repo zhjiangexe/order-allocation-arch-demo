@@ -9,39 +9,34 @@ import java.util.UUID;
  */
 public class Owner {
 
-  private final UUID id;
-  private final String code;
-  private final String name;
+    private final UUID id;
+    private final String code;
+    private final String name;
 
-  public Owner(
-      UUID id,
-      String code,
-      String name
-  ) {
-    if (id == null) {
-      throw new IllegalArgumentException("Owner ID is required");
+    public Owner(UUID id, String code, String name) {
+        if (id == null) {
+            throw new IllegalArgumentException("Owner ID is required");
+        }
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("Owner code is required");
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Owner name is required");
+        }
+        this.id = id;
+        this.code = code;
+        this.name = name;
     }
-    if (code == null || code.isBlank()) {
-      throw new IllegalArgumentException("Owner code is required");
+
+    public UUID getId() {
+        return id;
     }
-    if (name == null || name.isBlank()) {
-      throw new IllegalArgumentException("Owner name is required");
+
+    public String getCode() {
+        return code;
     }
-    this.id = id;
-    this.code = code;
-    this.name = name;
-  }
 
-  public UUID getId() {
-    return id;
-  }
-
-  public String getCode() {
-    return code;
-  }
-
-  public String getName() {
-    return name;
-  }
-
+    public String getName() {
+        return name;
+    }
 }

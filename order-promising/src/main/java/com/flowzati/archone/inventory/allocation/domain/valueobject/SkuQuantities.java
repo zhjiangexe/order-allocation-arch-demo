@@ -19,98 +19,95 @@ import java.util.Set;
  */
 public final class SkuQuantities {
 
-  private final Map<String, Integer> quantities;
+    private final Map<String, Integer> quantities;
 
-  private SkuQuantities(Map<String, Integer> quantities) {
-    this.quantities = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(quantities));
-  }
+    private SkuQuantities(Map<String, Integer> quantities) {
+        this.quantities = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(quantities));
+    }
 
-  public static SkuQuantities of(Map<String, Integer> quantities) {
-    quantities.forEach((skuCode, quantity) -> {
-      if (skuCode == null || skuCode.isBlank()) {
-        throw new IllegalArgumentException("SKU code is required");
-      }
-      if (quantity == null || quantity < 0) {
-        throw new IllegalArgumentException(
-            "Quantity cannot be negative: " + skuCode + " = " + quantity);
-      }
-    });
-    return new SkuQuantities(quantities);
-  }
+    public static SkuQuantities of(Map<String, Integer> quantities) {
+        quantities.forEach((skuCode, quantity) -> {
+            if (skuCode == null || skuCode.isBlank()) {
+                throw new IllegalArgumentException("SKU code is required");
+            }
+            if (quantity == null || quantity < 0) {
+                throw new IllegalArgumentException("Quantity cannot be negative: " + skuCode + " = " + quantity);
+            }
+        });
+        return new SkuQuantities(quantities);
+    }
 
-  public static SkuQuantities empty() {
-    return new SkuQuantities(Map.of());
-  }
+    public static SkuQuantities empty() {
+        return new SkuQuantities(Map.of());
+    }
 
-  /**
-   * 這份額度是否**每一個** SKU 都蓋得住 {@code demand}。
-   *
-   * <p>缺少的鍵視為 0——「沒有這個 SKU 的額度」與「額度是 0」對可滿足性而言是同一件事。
-   */
-  public boolean covers(SkuQuantities demand) {
-    return demand.quantities.entrySet().stream()
-        .allMatch(entry -> quantityOf(entry.getKey()) >= entry.getValue());
-  }
+    /**
+     * 這份額度是否**每一個** SKU 都蓋得住 {@code demand}。
+     *
+     * <p>缺少的鍵視為 0——「沒有這個 SKU 的額度」與「額度是 0」對可滿足性而言是同一件事。
+     */
+    public boolean covers(SkuQuantities demand) {
+        return demand.quantities.entrySet().stream().allMatch(entry -> quantityOf(entry.getKey()) >= entry.getValue());
+    }
 
-  /**
-   * 扣掉 {@code demand} 之後剩下的額度。
-   *
-   * <p>任何一個 SKU 扣成負的即拋錯——那代表呼叫端沒有先 {@link #covers} 就扣，而那個順序正是
-   * 「規劃與套用分開」的內容。
-   */
-  public SkuQuantities minus(SkuQuantities demand) {
-    Map<String, Integer> remaining = new LinkedHashMap<>(quantities);
-    demand.quantities.forEach((skuCode, quantity) -> {
-      int left = quantityOf(skuCode) - quantity;
-      if (left < 0) {
-        throw new IllegalArgumentException(
-            "Cannot subtract more than available for " + skuCode);
-      }
-      remaining.put(skuCode, left);
-    });
-    return new SkuQuantities(remaining);
-  }
+    /**
+     * 扣掉 {@code demand} 之後剩下的額度。
+     *
+     * <p>任何一個 SKU 扣成負的即拋錯——那代表呼叫端沒有先 {@link #covers} 就扣，而那個順序正是
+     * 「規劃與套用分開」的內容。
+     */
+    public SkuQuantities minus(SkuQuantities demand) {
+        Map<String, Integer> remaining = new LinkedHashMap<>(quantities);
+        demand.quantities.forEach((skuCode, quantity) -> {
+            int left = quantityOf(skuCode) - quantity;
+            if (left < 0) {
+                throw new IllegalArgumentException("Cannot subtract more than available for " + skuCode);
+            }
+            remaining.put(skuCode, left);
+        });
+        return new SkuQuantities(remaining);
+    }
 
-  /** 這份需求裡，每一個 SKU 還缺多少 {@code available} 才能滿足。全部足夠時為空。 */
-  public SkuQuantities missingFrom(SkuQuantities available) {
-    Map<String, Integer> missing = new LinkedHashMap<>();
-    quantities.forEach((skuCode, required) -> {
-      int gap = required - available.quantityOf(skuCode);
-      if (gap > 0) {
-        missing.put(skuCode, gap);
-      }
-    });
-    return new SkuQuantities(missing);
-  }
+    /** 這份需求裡，每一個 SKU 還缺多少 {@code available} 才能滿足。全部足夠時為空。 */
+    public SkuQuantities missingFrom(SkuQuantities available) {
+        Map<String, Integer> missing = new LinkedHashMap<>();
+        quantities.forEach((skuCode, required) -> {
+            int gap = required - available.quantityOf(skuCode);
+            if (gap > 0) {
+                missing.put(skuCode, gap);
+            }
+        });
+        return new SkuQuantities(missing);
+    }
 
-  public int quantityOf(String skuCode) {
-    return quantities.getOrDefault(skuCode, 0);
-  }
+    public int quantityOf(String skuCode) {
+        return quantities.getOrDefault(skuCode, 0);
+    }
 
-  public Set<String> skuCodes() {
-    return quantities.keySet();
-  }
+    public Set<String> skuCodes() {
+        return quantities.keySet();
+    }
 
-  public boolean isEmpty() {
-    return quantities.isEmpty();
-  }
+    public boolean isEmpty() {
+        return quantities.isEmpty();
+    }
 
-  public Map<String, Integer> asMap() {
-    return quantities;
-  }
+    public Map<String, Integer> asMap() {
+        return quantities;
+    }
 
-  @Override
-  public boolean equals(Object other) {
-    return other instanceof SkuQuantities that && quantities.equals(that.quantities);
-  }
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof SkuQuantities that && quantities.equals(that.quantities);
+    }
 
-  @Override
-  public int hashCode() {
-    return quantities.hashCode();
-  }
+    @Override
+    public int hashCode() {
+        return quantities.hashCode();
+    }
 
-  @Override
-  public String toString() {
-    return quantities.toString();
-  }
+    @Override
+    public String toString() {
+        return quantities.toString();
+    }
 }

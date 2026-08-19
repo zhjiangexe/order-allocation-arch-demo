@@ -7,9 +7,9 @@ import java.util.UUID;
  */
 public record AllocateOrderCommand(UUID orderId) {
 
-  public AllocateOrderCommand {
-    if (orderId == null) {
-      throw new IllegalArgumentException("Order ID is required");
+    public AllocateOrderCommand {
+        if (orderId == null) {
+            throw new IllegalArgumentException("Order ID is required");
+        }
     }
-  }
 }

@@ -38,73 +38,61 @@ import tools.jackson.databind.ObjectMapper;
     ObjectMapper.class
 })
 @ConditionalOnBean({JdbcStatementExecutor.class, MessagingTransactionTemplate.class})
-@ConditionalOnProperty(
-    prefix = "archone.messaging.producer.jdbc",
-    name = "enabled",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "archone.messaging.producer.jdbc", name = "enabled", matchIfMissing = true)
 public class MessagingProducerJdbcAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessageHeadersCodec messageHeadersCodec(ObjectProvider<ObjectMapper> objectMappers) {
-    ObjectMapper objectMapper = objectMappers.getIfUnique(ObjectMapper::new);
-    return new JacksonMessageHeadersCodec(
-        objectMapper,
-        OutboxPhysicalHeaders.ALL,
-        JacksonMessageHeadersCodec.DEFAULT_MAX_HEADER_COUNT,
-        JacksonMessageHeadersCodec.DEFAULT_MAX_ENCODED_BYTES);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessageHeadersCodec messageHeadersCodec(ObjectProvider<ObjectMapper> objectMappers) {
+        ObjectMapper objectMapper = objectMappers.getIfUnique(ObjectMapper::new);
+        return new JacksonMessageHeadersCodec(
+                objectMapper,
+                OutboxPhysicalHeaders.ALL,
+                JacksonMessageHeadersCodec.DEFAULT_MAX_HEADER_COUNT,
+                JacksonMessageHeadersCodec.DEFAULT_MAX_ENCODED_BYTES);
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  OutboxMessageMapper outboxMessageMapper() {
-    return HeaderMappedOutboxMessageMapper.withAggregateHeaders(
-        EventMessageHeaders.EVENT_AGGREGATE_TYPE,
-        EventMessageHeaders.EVENT_AGGREGATE_ID);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    OutboxMessageMapper outboxMessageMapper() {
+        return HeaderMappedOutboxMessageMapper.withAggregateHeaders(
+                EventMessageHeaders.EVENT_AGGREGATE_TYPE, EventMessageHeaders.EVENT_AGGREGATE_ID);
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessageIdGenerator messageIdGenerator() {
-    return new RandomUuidMessageIdGenerator();
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessageIdGenerator messageIdGenerator() {
+        return new RandomUuidMessageIdGenerator();
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  JdbcOutboxMessageProducerImplementation jdbcOutboxMessageProducerImplementation(
-      JdbcStatementExecutor statementExecutor,
-      MessagingSqlDialect dialect,
-      MessagingSchema schema,
-      MessagingTableNames tableNames,
-      OutboxMessageMapper messageMapper,
-      MessageHeadersCodec headersCodec
-  ) {
-    return new JdbcOutboxMessageProducerImplementation(
-        statementExecutor, dialect, schema, tableNames, messageMapper, headersCodec);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    JdbcOutboxMessageProducerImplementation jdbcOutboxMessageProducerImplementation(
+            JdbcStatementExecutor statementExecutor,
+            MessagingSqlDialect dialect,
+            MessagingSchema schema,
+            MessagingTableNames tableNames,
+            OutboxMessageMapper messageMapper,
+            MessageHeadersCodec headersCodec) {
+        return new JdbcOutboxMessageProducerImplementation(
+                statementExecutor, dialect, schema, tableNames, messageMapper, headersCodec);
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  CallerTransactionRequiredMessageProducerImplementation
-      callerTransactionRequiredMessageProducerImplementation(
-          MessagingTransactionTemplate transactionTemplate,
-          JdbcOutboxMessageProducerImplementation delegate
-      ) {
-    return new CallerTransactionRequiredMessageProducerImplementation(
-        transactionTemplate, delegate);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    CallerTransactionRequiredMessageProducerImplementation callerTransactionRequiredMessageProducerImplementation(
+            MessagingTransactionTemplate transactionTemplate, JdbcOutboxMessageProducerImplementation delegate) {
+        return new CallerTransactionRequiredMessageProducerImplementation(transactionTemplate, delegate);
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessageProducer messageProducer(
-      CallerTransactionRequiredMessageProducerImplementation implementation,
-      ChannelMapping channelMapping,
-      List<MessageInterceptor> interceptors,
-      MessageIdGenerator messageIdGenerator,
-      Clock clock
-  ) {
-    return new MessageProducerImpl(
-        implementation, channelMapping, interceptors, messageIdGenerator, clock);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessageProducer messageProducer(
+            CallerTransactionRequiredMessageProducerImplementation implementation,
+            ChannelMapping channelMapping,
+            List<MessageInterceptor> interceptors,
+            MessageIdGenerator messageIdGenerator,
+            Clock clock) {
+        return new MessageProducerImpl(implementation, channelMapping, interceptors, messageIdGenerator, clock);
+    }
 }

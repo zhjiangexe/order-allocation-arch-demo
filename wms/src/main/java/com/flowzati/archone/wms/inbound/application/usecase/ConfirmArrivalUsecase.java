@@ -7,23 +7,24 @@ import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 
 public class ConfirmArrivalUsecase {
 
-  private final InboundOperationRepository repository;
-  private final DomainEventPublisher eventPublisher;
+    private final InboundOperationRepository repository;
+    private final DomainEventPublisher eventPublisher;
 
-  public ConfirmArrivalUsecase(InboundOperationRepository repository, DomainEventPublisher eventPublisher) {
-    this.repository = repository;
-    this.eventPublisher = eventPublisher;
-  }
+    public ConfirmArrivalUsecase(InboundOperationRepository repository, DomainEventPublisher eventPublisher) {
+        this.repository = repository;
+        this.eventPublisher = eventPublisher;
+    }
 
-  public void handle(ConfirmArrivalCommand command) {
-    InboundOperation operation = required(command.inboundOperationId());
-    operation.confirmArrival(command.arrivedAt());
-    repository.save(operation);
-    operation.releaseEvents().forEach(eventPublisher::publish);
-  }
+    public void handle(ConfirmArrivalCommand command) {
+        InboundOperation operation = required(command.inboundOperationId());
+        operation.confirmArrival(command.arrivedAt());
+        repository.save(operation);
+        operation.releaseEvents().forEach(eventPublisher::publish);
+    }
 
-  private InboundOperation required(java.util.UUID operationId) {
-    return repository.findById(operationId)
-        .orElseThrow(() -> new IllegalStateException("Inbound operation not found: " + operationId));
-  }
+    private InboundOperation required(java.util.UUID operationId) {
+        return repository
+                .findById(operationId)
+                .orElseThrow(() -> new IllegalStateException("Inbound operation not found: " + operationId));
+    }
 }

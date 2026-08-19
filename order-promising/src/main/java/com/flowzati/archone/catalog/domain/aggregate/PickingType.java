@@ -1,7 +1,6 @@
 package com.flowzati.archone.catalog.domain.aggregate;
 
 import com.flowzati.archone.catalog.domain.type.PickingDirection;
-
 import java.util.UUID;
 
 /**
@@ -17,24 +16,23 @@ import java.util.UUID;
  * <p>與位置同一類：參考資料、沒有寫入介面、由 seed 建立，因此住在 catalog。
  */
 public record PickingType(
-    UUID id,
-    UUID facilityId,
-    PickingDirection code,
-    String name,
-    UUID defaultFromLocationId,
-    UUID defaultToLocationId
-) {
+        UUID id,
+        UUID facilityId,
+        PickingDirection code,
+        String name,
+        UUID defaultFromLocationId,
+        UUID defaultToLocationId) {
 
-  public PickingType {
-    if (id == null || facilityId == null || code == null) {
-      throw new IllegalArgumentException("Picking type requires an id, a facility and a code");
+    public PickingType {
+        if (id == null || facilityId == null || code == null) {
+            throw new IllegalArgumentException("Picking type requires an id, a facility and a code");
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Picking type name is required");
+        }
+        // 預設起訖兩端都要有，與 move 的判準相同：一段作業必須說得出從哪到哪。
+        if (defaultFromLocationId == null || defaultToLocationId == null) {
+            throw new IllegalArgumentException("A picking type must say where its work runs between");
+        }
     }
-    if (name == null || name.isBlank()) {
-      throw new IllegalArgumentException("Picking type name is required");
-    }
-    // 預設起訖兩端都要有，與 move 的判準相同：一段作業必須說得出從哪到哪。
-    if (defaultFromLocationId == null || defaultToLocationId == null) {
-      throw new IllegalArgumentException("A picking type must say where its work runs between");
-    }
-  }
 }

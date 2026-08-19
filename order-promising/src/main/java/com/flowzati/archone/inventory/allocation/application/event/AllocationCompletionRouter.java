@@ -15,22 +15,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class AllocationCompletionRouter {
 
-  private final OrderAllocationCompletionAdapter orderAdapter;
-  private final AllocationEventPublisher publisher;
+    private final OrderAllocationCompletionAdapter orderAdapter;
+    private final AllocationEventPublisher publisher;
 
-  public AllocationCompletionRouter(
-      OrderAllocationCompletionAdapter orderAdapter,
-      AllocationEventPublisher publisher) {
-    this.orderAdapter = orderAdapter;
-    this.publisher = publisher;
-  }
-
-  public void publish(AllocationCommitted fact) {
-    if (fact.source().sourceType() == AllocationSourceType.ORDER) {
-      OrderAllocationCompleted translate = orderAdapter.translate(fact);
-      publisher.publish(translate);
-      return;
+    public AllocationCompletionRouter(
+            OrderAllocationCompletionAdapter orderAdapter, AllocationEventPublisher publisher) {
+        this.orderAdapter = orderAdapter;
+        this.publisher = publisher;
     }
-    throw new IllegalStateException("No production completion adapter is enabled for " + fact.source().sourceType());
-  }
+
+    public void publish(AllocationCommitted fact) {
+        if (fact.source().sourceType() == AllocationSourceType.ORDER) {
+            OrderAllocationCompleted translate = orderAdapter.translate(fact);
+            publisher.publish(translate);
+            return;
+        }
+        throw new IllegalStateException("No production completion adapter is enabled for "
+                + fact.source().sourceType());
+    }
 }

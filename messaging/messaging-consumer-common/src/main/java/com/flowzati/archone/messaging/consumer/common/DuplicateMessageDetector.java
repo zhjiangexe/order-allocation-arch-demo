@@ -11,5 +11,5 @@ import java.util.UUID;
 @FunctionalInterface
 public interface DuplicateMessageDetector {
 
-  boolean claimIfNew(String subscriberId, UUID messageId, String messageType);
+    boolean claimIfNew(String subscriberId, UUID messageId, String messageType);
 }

@@ -24,221 +24,200 @@ import org.junit.jupiter.api.Test;
 
 class MessageConsumerImplTest {
 
-  @Test
-  void mapsLogicalChannelsAndKeepsSubscriberAndGroupSeparate() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(
-        implementation,
-        new MapBasedChannelMapping(Map.of("order-events", "prod.order-events")),
-        List.of());
-    AtomicReference<MessageContext> handledContext = new AtomicReference<>();
+    @Test
+    void mapsLogicalChannelsAndKeepsSubscriberAndGroupSeparate() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        MessageConsumerImpl consumer = new MessageConsumerImpl(
+                implementation, new MapBasedChannelMapping(Map.of("order-events", "prod.order-events")), List.of());
+        AtomicReference<MessageContext> handledContext = new AtomicReference<>();
 
-    MessageSubscription handle = consumer.subscribe(
-        "allocation-inbox-scope",
-        Set.of("order-events"),
-        (message, context) -> handledContext.set(context),
-        MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"));
+        MessageSubscription handle = consumer.subscribe(
+                "allocation-inbox-scope",
+                Set.of("order-events"),
+                (message, context) -> handledContext.set(context),
+                MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"));
 
-    assertThat(implementation.subscription.subscriberId()).isEqualTo("allocation-inbox-scope");
-    assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation-kafka-group");
-    assertThat(implementation.subscription.destinationToLogicalChannel())
-        .containsExactlyEntriesOf(Map.of("prod.order-events", "order-events"));
-    assertThat(handle.isRunning()).isTrue();
+        assertThat(implementation.subscription.subscriberId()).isEqualTo("allocation-inbox-scope");
+        assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation-kafka-group");
+        assertThat(implementation.subscription.destinationToLogicalChannel())
+                .containsExactlyEntriesOf(Map.of("prod.order-events", "order-events"));
+        assertThat(handle.isRunning()).isTrue();
 
-    implementation.emit("prod.order-events", message(), 2);
+        implementation.emit("prod.order-events", message(), 2);
 
-    assertThat(handledContext.get()).isEqualTo(
-        new MessageContext("allocation-inbox-scope", "order-events", 2));
-    handle.stop();
-    handle.stop();
-    assertThat(handle.isRunning()).isFalse();
-  }
-
-  @Test
-  void defaultsTheConsumerGroupToTheSubscriberInTheTramShapedOverload() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
-
-    consumer.subscribe(
-        "allocation",
-        Set.of("order-events"),
-        (message, context) -> { });
-
-    assertThat(implementation.subscription.subscriberId()).isEqualTo("allocation");
-    assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation");
-  }
-
-  @Test
-  void appliesConfiguredGroupMappingUnlessTheSubscriptionOverridesIt() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(
-        implementation,
-        logicalChannel -> logicalChannel,
-        new MapBasedConsumerGroupMapping(Map.of("allocation", "allocation-v2")),
-        List.of());
-
-    consumer.subscribe("allocation", Set.of("order-events"), (message, context) -> { });
-    assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation-v2");
-
-    consumer.subscribe(
-        "allocation",
-        Set.of("order-events"),
-        (message, context) -> { },
-        MessageSubscriptionOptions.withConsumerGroupId("replay-group"));
-    assertThat(implementation.subscription.consumerGroupId()).isEqualTo("replay-group");
-  }
-
-  @Test
-  void appliesTheDecoratorChainBeforeTheApplicationHandler() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    List<String> calls = new ArrayList<>();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(
-        implementation,
-        logicalChannel -> logicalChannel,
-        List.of(decorator(200, "inner", calls), decorator(100, "outer", calls)));
-
-    subscribe(consumer, (message, context) -> calls.add("handler"));
-    implementation.emit("order-events", message(), 1);
-
-    assertThat(calls).containsExactly(
-        "outer.before", "inner.before", "handler", "inner.after.PROCESSED",
-        "outer.after.PROCESSED");
-  }
-
-  @Test
-  void preservesAnOutcomeAwareHandlersIgnoredResultThroughTheDecoratorChain() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    List<String> calls = new ArrayList<>();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(
-        implementation,
-        logicalChannel -> logicalChannel,
-        List.of(decorator(100, "observation", calls)));
-    OutcomeAwareMessageHandler handler = (message, context) -> {
-      calls.add("handler.ignored");
-      return MessageHandlingOutcome.IGNORED_UNHANDLED;
-    };
-
-    subscribe(consumer, handler);
-    implementation.emit("order-events", message(), 1);
-
-    assertThat(calls).containsExactly(
-        "observation.before",
-        "handler.ignored",
-        "observation.after.IGNORED_UNHANDLED");
-  }
-
-  @Test
-  void rejectsAnAmbiguousMappingBeforeStartingTheRuntime() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(
-        implementation,
-        logicalChannel -> "shared-topic",
-        List.of());
-    assertThatThrownBy(() -> consumer.subscribe(
-        "subscriber", Set.of("orders", "stock"), (message, context) -> { }))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Multiple logical channels map to the same destination: shared-topic");
-    assertThat(implementation.subscription).isNull();
-  }
-
-  @Test
-  void rejectsInvalidSubscriptionIdentityBeforeStartingTheRuntime() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
-
-    assertThatThrownBy(() -> consumer.subscribe(
-        " ", Set.of("orders"), (message, context) -> { }))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Message subscription fields are required");
-    assertThatThrownBy(() -> consumer.subscribe(
-        "allocation", Set.of(), (message, context) -> { }))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Message subscription fields are required");
-    assertThat(implementation.subscription).isNull();
-  }
-
-  @Test
-  void rejectsAContextThatDoesNotBelongToTheLocalSubscription() {
-    CapturingImplementation implementation = new CapturingImplementation();
-    MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
-    subscribe(consumer, (message, context) -> { });
-
-    assertThatThrownBy(() -> implementation.handler.handle(
-        message(), new MessageContext("another-subscriber", "order-events", 1)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Message context subscriber does not match subscription");
-  }
-
-  private MessageHandlerDecorator decorator(int order, String name, List<String> calls) {
-    return new MessageHandlerDecorator() {
-      @Override
-      public int order() {
-        return order;
-      }
-
-      @Override
-      public ProcessingOutcome handle(
-          MessageHandlerInvocation invocation,
-          MessageHandlerDecoratorChain chain
-      ) {
-        calls.add(name + ".before");
-        ProcessingOutcome outcome = chain.invokeNext(invocation);
-        calls.add(name + ".after." + outcome);
-        return outcome;
-      }
-    };
-  }
-
-  private void subscribe(MessageConsumerImpl consumer, MessageHandler handler) {
-    consumer.subscribe(
-        "allocation-inbox-scope",
-        Set.of("order-events"),
-        handler,
-        MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"));
-  }
-
-  private Message message() {
-    return MessageBuilder.withPayload("{}")
-        .withId(UUID.randomUUID())
-        .withType("example.v1")
-        .withPartitionId("order-1")
-        .build();
-  }
-
-  private static final class CapturingImplementation implements MessageConsumerImplementation {
-    private ResolvedMessageSubscription subscription;
-    private MessageHandler handler;
-    private final TestSubscription handle = new TestSubscription();
-
-    @Override
-    public MessageSubscription subscribe(
-        ResolvedMessageSubscription subscription,
-        MessageHandler handler
-    ) {
-      this.subscription = subscription;
-      this.handler = handler;
-      return handle;
+        assertThat(handledContext.get()).isEqualTo(new MessageContext("allocation-inbox-scope", "order-events", 2));
+        handle.stop();
+        handle.stop();
+        assertThat(handle.isRunning()).isFalse();
     }
 
-    void emit(String destination, Message message, int attempt) {
-      handler.handle(message, new MessageContext(
-          subscription.subscriberId(),
-          subscription.logicalChannelFor(destination),
-          attempt));
-    }
-  }
+    @Test
+    void defaultsTheConsumerGroupToTheSubscriberInTheTramShapedOverload() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
 
-  private static final class TestSubscription implements MessageSubscription {
-    private final AtomicBoolean running = new AtomicBoolean(true);
+        consumer.subscribe("allocation", Set.of("order-events"), (message, context) -> {});
 
-    @Override
-    public boolean isRunning() {
-      return running.get();
+        assertThat(implementation.subscription.subscriberId()).isEqualTo("allocation");
+        assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation");
     }
 
-    @Override
-    public void stop() {
-      running.set(false);
+    @Test
+    void appliesConfiguredGroupMappingUnlessTheSubscriptionOverridesIt() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        MessageConsumerImpl consumer = new MessageConsumerImpl(
+                implementation,
+                logicalChannel -> logicalChannel,
+                new MapBasedConsumerGroupMapping(Map.of("allocation", "allocation-v2")),
+                List.of());
+
+        consumer.subscribe("allocation", Set.of("order-events"), (message, context) -> {});
+        assertThat(implementation.subscription.consumerGroupId()).isEqualTo("allocation-v2");
+
+        consumer.subscribe(
+                "allocation",
+                Set.of("order-events"),
+                (message, context) -> {},
+                MessageSubscriptionOptions.withConsumerGroupId("replay-group"));
+        assertThat(implementation.subscription.consumerGroupId()).isEqualTo("replay-group");
     }
-  }
+
+    @Test
+    void appliesTheDecoratorChainBeforeTheApplicationHandler() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        List<String> calls = new ArrayList<>();
+        MessageConsumerImpl consumer = new MessageConsumerImpl(
+                implementation,
+                logicalChannel -> logicalChannel,
+                List.of(decorator(200, "inner", calls), decorator(100, "outer", calls)));
+
+        subscribe(consumer, (message, context) -> calls.add("handler"));
+        implementation.emit("order-events", message(), 1);
+
+        assertThat(calls)
+                .containsExactly(
+                        "outer.before", "inner.before", "handler", "inner.after.PROCESSED", "outer.after.PROCESSED");
+    }
+
+    @Test
+    void preservesAnOutcomeAwareHandlersIgnoredResultThroughTheDecoratorChain() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        List<String> calls = new ArrayList<>();
+        MessageConsumerImpl consumer = new MessageConsumerImpl(
+                implementation, logicalChannel -> logicalChannel, List.of(decorator(100, "observation", calls)));
+        OutcomeAwareMessageHandler handler = (message, context) -> {
+            calls.add("handler.ignored");
+            return MessageHandlingOutcome.IGNORED_UNHANDLED;
+        };
+
+        subscribe(consumer, handler);
+        implementation.emit("order-events", message(), 1);
+
+        assertThat(calls)
+                .containsExactly("observation.before", "handler.ignored", "observation.after.IGNORED_UNHANDLED");
+    }
+
+    @Test
+    void rejectsAnAmbiguousMappingBeforeStartingTheRuntime() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        MessageConsumerImpl consumer =
+                new MessageConsumerImpl(implementation, logicalChannel -> "shared-topic", List.of());
+        assertThatThrownBy(() -> consumer.subscribe("subscriber", Set.of("orders", "stock"), (message, context) -> {}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Multiple logical channels map to the same destination: shared-topic");
+        assertThat(implementation.subscription).isNull();
+    }
+
+    @Test
+    void rejectsInvalidSubscriptionIdentityBeforeStartingTheRuntime() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
+
+        assertThatThrownBy(() -> consumer.subscribe(" ", Set.of("orders"), (message, context) -> {}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Message subscription fields are required");
+        assertThatThrownBy(() -> consumer.subscribe("allocation", Set.of(), (message, context) -> {}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Message subscription fields are required");
+        assertThat(implementation.subscription).isNull();
+    }
+
+    @Test
+    void rejectsAContextThatDoesNotBelongToTheLocalSubscription() {
+        CapturingImplementation implementation = new CapturingImplementation();
+        MessageConsumerImpl consumer = new MessageConsumerImpl(implementation);
+        subscribe(consumer, (message, context) -> {});
+
+        assertThatThrownBy(() -> implementation.handler.handle(
+                        message(), new MessageContext("another-subscriber", "order-events", 1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Message context subscriber does not match subscription");
+    }
+
+    private MessageHandlerDecorator decorator(int order, String name, List<String> calls) {
+        return new MessageHandlerDecorator() {
+            @Override
+            public int order() {
+                return order;
+            }
+
+            @Override
+            public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+                calls.add(name + ".before");
+                ProcessingOutcome outcome = chain.invokeNext(invocation);
+                calls.add(name + ".after." + outcome);
+                return outcome;
+            }
+        };
+    }
+
+    private void subscribe(MessageConsumerImpl consumer, MessageHandler handler) {
+        consumer.subscribe(
+                "allocation-inbox-scope",
+                Set.of("order-events"),
+                handler,
+                MessageSubscriptionOptions.withConsumerGroupId("allocation-kafka-group"));
+    }
+
+    private Message message() {
+        return MessageBuilder.withPayload("{}")
+                .withId(UUID.randomUUID())
+                .withType("example.v1")
+                .withPartitionId("order-1")
+                .build();
+    }
+
+    private static final class CapturingImplementation implements MessageConsumerImplementation {
+        private ResolvedMessageSubscription subscription;
+        private MessageHandler handler;
+        private final TestSubscription handle = new TestSubscription();
+
+        @Override
+        public MessageSubscription subscribe(ResolvedMessageSubscription subscription, MessageHandler handler) {
+            this.subscription = subscription;
+            this.handler = handler;
+            return handle;
+        }
+
+        void emit(String destination, Message message, int attempt) {
+            handler.handle(
+                    message,
+                    new MessageContext(
+                            subscription.subscriberId(), subscription.logicalChannelFor(destination), attempt));
+        }
+    }
+
+    private static final class TestSubscription implements MessageSubscription {
+        private final AtomicBoolean running = new AtomicBoolean(true);
+
+        @Override
+        public boolean isRunning() {
+            return running.get();
+        }
+
+        @Override
+        public void stop() {
+            running.set(false);
+        }
+    }
 }

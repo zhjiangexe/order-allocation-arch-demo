@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.consumer.common;
 @FunctionalInterface
 public interface MessageFailureClassifier {
 
-  MessageFailureClassification classify(Throwable failure);
+    MessageFailureClassification classify(Throwable failure);
 }

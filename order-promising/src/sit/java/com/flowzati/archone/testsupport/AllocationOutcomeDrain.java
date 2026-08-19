@@ -1,10 +1,8 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.ordering.domain.aggregate.Order;
-
+import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
-import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
@@ -29,69 +27,56 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 public final class AllocationOutcomeDrain {
 
-  private final JdbcTemplate jdbcTemplate;
-  private final KafkaMessageMapper messageMapper;
-  private final BiConsumer<String, Message> emitter;
-  private final Set<UUID> consumed = new HashSet<>();
+    private final JdbcTemplate jdbcTemplate;
+    private final KafkaMessageMapper messageMapper;
+    private final BiConsumer<String, Message> emitter;
+    private final Set<UUID> consumed = new HashSet<>();
 
-  AllocationOutcomeDrain(
-      JdbcTemplate jdbcTemplate,
-      KafkaMessageMapper messageMapper,
-      BiConsumer<String, Message> emitter
-  ) {
-    this.jdbcTemplate = jdbcTemplate;
-    this.messageMapper = messageMapper;
-    this.emitter = emitter;
-  }
+    AllocationOutcomeDrain(
+            JdbcTemplate jdbcTemplate, KafkaMessageMapper messageMapper, BiConsumer<String, Message> emitter) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.messageMapper = messageMapper;
+        this.emitter = emitter;
+    }
 
-  /**
-   * 把目前 outbox 裡尚未餵過的配貨結果事件全部送進 ordering，回傳送了幾則。
-   *
-   * <p>依 {@code timestamp} 排序：ordering 對同一張單可能同時收到缺貨與配到，順序錯了狀態
-   * 就會停在錯的地方。production 裡靠 partition key（同一個 orderId）保證這個順序。
-   */
-  public int drain() {
-    List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+    /**
+     * 把目前 outbox 裡尚未餵過的配貨結果事件全部送進 ordering，回傳送了幾則。
+     *
+     * <p>依 {@code timestamp} 排序：ordering 對同一張單可能同時收到缺貨與配到，順序錯了狀態
+     * 就會停在錯的地方。production 裡靠 partition key（同一個 orderId）保證這個順序。
+     */
+    public int drain() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
         SELECT id, type, partition_key, payload, headers FROM event_outbox
          WHERE route = ?
          ORDER BY timestamp, id
         """, AllocationChannels.ALLOCATION_EVENTS);
 
-    int delivered = 0;
-    for (Map<String, Object> row : rows) {
-      UUID eventId = UUID.fromString(row.get("id").toString());
-      if (!consumed.add(eventId)) {
-        continue;
-      }
-      dispatch(
-          eventId,
-          row.get("type").toString(),
-          row.get("partition_key").toString(),
-          row.get("payload").toString(),
-          row.get("headers").toString());
-      delivered++;
+        int delivered = 0;
+        for (Map<String, Object> row : rows) {
+            UUID eventId = UUID.fromString(row.get("id").toString());
+            if (!consumed.add(eventId)) {
+                continue;
+            }
+            dispatch(
+                    eventId,
+                    row.get("type").toString(),
+                    row.get("partition_key").toString(),
+                    row.get("payload").toString(),
+                    row.get("headers").toString());
+            delivered++;
+        }
+        return delivered;
     }
-    return delivered;
-  }
 
-  private void dispatch(
-      UUID eventId,
-      String eventType,
-      String partitionKey,
-      String payload,
-      String serializedHeaders
-  ) {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-        AllocationChannels.ALLOCATION_EVENTS, 0, 0, partitionKey, payload);
-    record.headers().add(
-        KafkaMessageMapper.LEGACY_ID_HEADER,
-        eventId.toString().getBytes(StandardCharsets.UTF_8));
-    record.headers().add(
-        KafkaMessageMapper.LEGACY_EVENT_TYPE_HEADER,
-        eventType.getBytes(StandardCharsets.UTF_8));
-    record.headers().add(
-        KafkaMessageMapper.SERIALIZED_HEADERS,
-        serializedHeaders.getBytes(StandardCharsets.UTF_8));
-    emitter.accept(record.topic(), messageMapper.map(record));
-  }
+    private void dispatch(
+            UUID eventId, String eventType, String partitionKey, String payload, String serializedHeaders) {
+        ConsumerRecord<String, String> record =
+                new ConsumerRecord<>(AllocationChannels.ALLOCATION_EVENTS, 0, 0, partitionKey, payload);
+        record.headers()
+                .add(KafkaMessageMapper.LEGACY_ID_HEADER, eventId.toString().getBytes(StandardCharsets.UTF_8));
+        record.headers().add(KafkaMessageMapper.LEGACY_EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));
+        record.headers().add(KafkaMessageMapper.SERIALIZED_HEADERS, serializedHeaders.getBytes(StandardCharsets.UTF_8));
+        emitter.accept(record.topic(), messageMapper.map(record));
+    }
 }

@@ -17,27 +17,27 @@ import org.junit.jupiter.api.Test;
 
 class GetOrderUsecaseTest {
 
-  private final OrderRepository repository = mock(OrderRepository.class);
-  private final GetOrderUsecase usecase = new GetOrderUsecase(repository);
+    private final OrderRepository repository = mock(OrderRepository.class);
+    private final GetOrderUsecase usecase = new GetOrderUsecase(repository);
 
-  @Test
-  @DisplayName("查詢存在的訂單時應回傳該訂單")
-  void shouldReturnOrderWhenFound() {
-    UUID orderId = UUID.randomUUID();
-    Order order = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now());
-    when(repository.findById(orderId)).thenReturn(Optional.of(order));
+    @Test
+    @DisplayName("查詢存在的訂單時應回傳該訂單")
+    void shouldReturnOrderWhenFound() {
+        UUID orderId = UUID.randomUUID();
+        Order order = OrderFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now());
+        when(repository.findById(orderId)).thenReturn(Optional.of(order));
 
-    assertThat(usecase.getOrder(orderId)).isEqualTo(order);
-  }
+        assertThat(usecase.getOrder(orderId)).isEqualTo(order);
+    }
 
-  @Test
-  @DisplayName("查詢不存在的訂單時應丟出 NoSuchElementException")
-  void shouldThrowWhenOrderMissing() {
-    UUID orderId = UUID.randomUUID();
-    when(repository.findById(orderId)).thenReturn(Optional.empty());
+    @Test
+    @DisplayName("查詢不存在的訂單時應丟出 NoSuchElementException")
+    void shouldThrowWhenOrderMissing() {
+        UUID orderId = UUID.randomUUID();
+        when(repository.findById(orderId)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> usecase.getOrder(orderId))
-        .isInstanceOf(NoSuchElementException.class)
-        .hasMessageContaining(orderId.toString());
-  }
+        assertThatThrownBy(() -> usecase.getOrder(orderId))
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessageContaining(orderId.toString());
+    }
 }

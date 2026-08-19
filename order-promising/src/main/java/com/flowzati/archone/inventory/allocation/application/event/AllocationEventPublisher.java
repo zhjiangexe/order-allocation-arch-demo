@@ -6,5 +6,5 @@ import com.flowzati.archone.inventory.allocation.domain.event.OrderAllocationCom
 @FunctionalInterface
 public interface AllocationEventPublisher {
 
-  void publish(OrderAllocationCompleted event);
+    void publish(OrderAllocationCompleted event);
 }

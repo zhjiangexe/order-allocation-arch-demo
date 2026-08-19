@@ -21,26 +21,20 @@ import org.springframework.context.annotation.Import;
 @Import(SpringMessagingJdbcConfiguration.class)
 public class SpringJdbcMessageConsumerConfiguration {
 
-  @Bean
-  @Fallback
-  public SqlTableBasedDuplicateMessageDetector sqlTableBasedDuplicateMessageDetector(
-      JdbcStatementExecutor statementExecutor,
-      MessagingSqlDialect dialect,
-      MessagingSchema schema,
-      MessagingTableNames tableNames,
-      Clock clock
-  ) {
-    return new SqlTableBasedDuplicateMessageDetector(
-        statementExecutor, dialect, schema, tableNames, clock);
-  }
+    @Bean
+    @Fallback
+    public SqlTableBasedDuplicateMessageDetector sqlTableBasedDuplicateMessageDetector(
+            JdbcStatementExecutor statementExecutor,
+            MessagingSqlDialect dialect,
+            MessagingSchema schema,
+            MessagingTableNames tableNames,
+            Clock clock) {
+        return new SqlTableBasedDuplicateMessageDetector(statementExecutor, dialect, schema, tableNames, clock);
+    }
 
-  @Bean
-  public TransactionalIdempotencyMessageHandlerDecorator
-      transactionalIdempotencyMessageHandlerDecorator(
-          MessagingTransactionTemplate transactionTemplate,
-          DuplicateMessageDetector duplicateMessageDetector
-      ) {
-    return new TransactionalIdempotencyMessageHandlerDecorator(
-        transactionTemplate, duplicateMessageDetector);
-  }
+    @Bean
+    public TransactionalIdempotencyMessageHandlerDecorator transactionalIdempotencyMessageHandlerDecorator(
+            MessagingTransactionTemplate transactionTemplate, DuplicateMessageDetector duplicateMessageDetector) {
+        return new TransactionalIdempotencyMessageHandlerDecorator(transactionTemplate, duplicateMessageDetector);
+    }
 }

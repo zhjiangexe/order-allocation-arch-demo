@@ -6,8 +6,8 @@ import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRe
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRequestConflictException;
 import java.time.LocalDate;
 import java.util.UUID;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,63 +24,58 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/stock-receipts")
 public class StockReceiptController {
 
-  private final StockReceiptApplicationFacade stockReceiptApplicationFacade;
+    private final StockReceiptApplicationFacade stockReceiptApplicationFacade;
 
-  public StockReceiptController(StockReceiptApplicationFacade stockReceiptApplicationFacade) {
-    this.stockReceiptApplicationFacade = stockReceiptApplicationFacade;
-  }
-
-  @PostMapping
-  public StockReceiptConfirmedResponse confirm(@RequestBody ConfirmStockReceiptRequest request) {
-    if (request.receiptId() == null) {
-      throw new IllegalArgumentException("Receipt ID is required");
+    public StockReceiptController(StockReceiptApplicationFacade stockReceiptApplicationFacade) {
+        this.stockReceiptApplicationFacade = stockReceiptApplicationFacade;
     }
-    if (request.quantity() == null) {
-      throw new IllegalArgumentException("Received quantity is required");
+
+    @PostMapping
+    public StockReceiptConfirmedResponse confirm(@RequestBody ConfirmStockReceiptRequest request) {
+        if (request.receiptId() == null) {
+            throw new IllegalArgumentException("Receipt ID is required");
+        }
+        if (request.quantity() == null) {
+            throw new IllegalArgumentException("Received quantity is required");
+        }
+        if (request.facilityId() == null) {
+            throw new IllegalArgumentException("Facility ID is required");
+        }
+        if (request.locationId() == null) {
+            throw new IllegalArgumentException("Location ID is required");
+        }
+        ConfirmStockReceiptCommand command = new ConfirmStockReceiptCommand(
+                request.ownerId(),
+                request.facilityId(),
+                request.locationId(),
+                request.sku(),
+                request.inDate(),
+                request.expiryDate(),
+                request.quantity());
+        stockReceiptApplicationFacade.confirm(new StockReceiptRequest(request.receiptId(), command));
+        return new StockReceiptConfirmedResponse(request.receiptId(), request.sku(), request.quantity());
     }
-    if (request.facilityId() == null) {
-      throw new IllegalArgumentException("Facility ID is required");
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleInvalidRequest(IllegalArgumentException exception) {
+        return ResponseEntity.badRequest().body(exception.getMessage());
     }
-    if (request.locationId() == null) {
-      throw new IllegalArgumentException("Location ID is required");
+
+    @ExceptionHandler(StockReceiptRequestConflictException.class)
+    public ResponseEntity<String> handleIdempotencyConflict(StockReceiptRequestConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
     }
-    ConfirmStockReceiptCommand command = new ConfirmStockReceiptCommand(
-        request.ownerId(), request.facilityId(), request.locationId(), request.sku(),
-        request.inDate(), request.expiryDate(), request.quantity());
-    stockReceiptApplicationFacade.confirm(new StockReceiptRequest(request.receiptId(), command));
-    return new StockReceiptConfirmedResponse(
-        request.receiptId(), request.sku(), request.quantity());
-  }
 
-  @ExceptionHandler(IllegalArgumentException.class)
-  public ResponseEntity<String> handleInvalidRequest(IllegalArgumentException exception) {
-    return ResponseEntity.badRequest().body(exception.getMessage());
-  }
+    /** receiptId 是呼叫方產生的冪等鍵；HTTP retry 必須重用同一個值。 */
+    public record ConfirmStockReceiptRequest(
+            UUID receiptId,
+            UUID ownerId,
+            UUID facilityId,
+            UUID locationId,
+            String sku,
+            LocalDate inDate,
+            LocalDate expiryDate,
+            Integer quantity) {}
 
-  @ExceptionHandler(StockReceiptRequestConflictException.class)
-  public ResponseEntity<String> handleIdempotencyConflict(
-      StockReceiptRequestConflictException exception
-  ) {
-    return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
-  }
-
-  /** receiptId 是呼叫方產生的冪等鍵；HTTP retry 必須重用同一個值。 */
-  public record ConfirmStockReceiptRequest(
-      UUID receiptId,
-      UUID ownerId,
-      UUID facilityId,
-      UUID locationId,
-      String sku,
-      LocalDate inDate,
-      LocalDate expiryDate,
-      Integer quantity
-  ) {
-  }
-
-  public record StockReceiptConfirmedResponse(
-      UUID receiptId,
-      String sku,
-      int quantity
-  ) {
-  }
+    public record StockReceiptConfirmedResponse(UUID receiptId, String sku, int quantity) {}
 }

@@ -16,12 +16,12 @@ import java.util.UUID;
  */
 public record StockMoveLine(UUID id, UUID moveId, UUID stockQuantId, int quantity) {
 
-  public StockMoveLine {
-    if (id == null || moveId == null || stockQuantId == null) {
-      throw new IllegalArgumentException("Move line requires an id, a move and a stock quant");
+    public StockMoveLine {
+        if (id == null || moveId == null || stockQuantId == null) {
+            throw new IllegalArgumentException("Move line requires an id, a move and a stock quant");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Move line quantity must be positive");
+        }
     }
-    if (quantity <= 0) {
-      throw new IllegalArgumentException("Move line quantity must be positive");
-    }
-  }
 }

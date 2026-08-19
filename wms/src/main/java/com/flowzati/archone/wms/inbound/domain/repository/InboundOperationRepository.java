@@ -6,9 +6,9 @@ import java.util.UUID;
 
 public interface InboundOperationRepository {
 
-  Optional<InboundOperation> findById(UUID inboundOperationId);
+    Optional<InboundOperation> findById(UUID inboundOperationId);
 
-  Optional<InboundOperation> findByExternalReference(String externalReference);
+    Optional<InboundOperation> findByExternalReference(String externalReference);
 
-  void save(InboundOperation operation);
+    void save(InboundOperation operation);
 }

@@ -7,8 +7,5 @@ import com.flowzati.archone.messaging.api.MessageSubscription;
 @FunctionalInterface
 public interface MessageConsumerImplementation {
 
-  MessageSubscription subscribe(
-      ResolvedMessageSubscription subscription,
-      MessageHandler handler
-  );
+    MessageSubscription subscribe(ResolvedMessageSubscription subscription, MessageHandler handler);
 }

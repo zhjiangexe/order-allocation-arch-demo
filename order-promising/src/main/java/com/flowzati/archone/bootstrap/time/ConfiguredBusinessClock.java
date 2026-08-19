@@ -26,22 +26,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class ConfiguredBusinessClock implements BusinessClock {
 
-  private final Clock clock;
+    private final Clock clock;
 
-  public ConfiguredBusinessClock(
-      Clock clock,
-      @Value("${archone.business-zone:Asia/Taipei}") String businessZone
-  ) {
-    this.clock = clock.withZone(ZoneId.of(businessZone));
-  }
+    public ConfiguredBusinessClock(Clock clock, @Value("${archone.business-zone:Asia/Taipei}") String businessZone) {
+        this.clock = clock.withZone(ZoneId.of(businessZone));
+    }
 
-  @Override
-  public LocalDate today() {
-    return LocalDate.now(clock);
-  }
+    @Override
+    public LocalDate today() {
+        return LocalDate.now(clock);
+    }
 
-  @Override
-  public Instant instant() {
-    return clock.instant();
-  }
+    @Override
+    public Instant instant() {
+        return clock.instant();
+    }
 }

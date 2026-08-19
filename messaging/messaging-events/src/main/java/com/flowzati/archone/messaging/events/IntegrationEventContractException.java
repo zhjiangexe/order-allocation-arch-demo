@@ -9,11 +9,11 @@ package com.flowzati.archone.messaging.events;
  */
 public final class IntegrationEventContractException extends IllegalArgumentException {
 
-  public IntegrationEventContractException(String message) {
-    super(message);
-  }
+    public IntegrationEventContractException(String message) {
+        super(message);
+    }
 
-  public IntegrationEventContractException(String message, Throwable cause) {
-    super(message, cause);
-  }
+    public IntegrationEventContractException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

@@ -19,64 +19,64 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 class SpringJdbcMessageConsumerConfigurationTest {
 
-  @Test
-  void composesPureDetectorAndDecoratorFromSpringJdbcPorts() {
-    try (var context = new AnnotationConfigApplicationContext()) {
-      context.register(Infrastructure.class, SpringJdbcMessageConsumerConfiguration.class);
-      context.refresh();
+    @Test
+    void composesPureDetectorAndDecoratorFromSpringJdbcPorts() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            context.register(Infrastructure.class, SpringJdbcMessageConsumerConfiguration.class);
+            context.refresh();
 
-      assertThat(context.getBeansOfType(SqlTableBasedDuplicateMessageDetector.class)).hasSize(1);
-      assertThat(context.getBeansOfType(
-          TransactionalIdempotencyMessageHandlerDecorator.class)).hasSize(1);
-    }
-  }
-
-  @Test
-  void letsAnApplicationDetectorReplaceTheFallbackWithoutReplacingTheDecoratorWiring() {
-    try (var context = new AnnotationConfigApplicationContext()) {
-      DuplicateMessageDetector custom = (subscriberId, messageId, messageType) -> true;
-      context.registerBean("customDuplicateMessageDetector", DuplicateMessageDetector.class,
-          () -> custom);
-      context.register(Infrastructure.class, SpringJdbcMessageConsumerConfiguration.class);
-      context.refresh();
-
-      assertThat(context.getBeansOfType(DuplicateMessageDetector.class)).hasSize(2);
-      assertThat(context.getBean(DuplicateMessageDetector.class)).isSameAs(custom);
-      assertThat(context.getBeansOfType(
-          TransactionalIdempotencyMessageHandlerDecorator.class)).hasSize(1);
-    }
-  }
-
-  static class Infrastructure {
-
-    @Bean
-    JdbcOperations jdbcOperations() {
-      return mock(JdbcOperations.class);
+            assertThat(context.getBeansOfType(SqlTableBasedDuplicateMessageDetector.class))
+                    .hasSize(1);
+            assertThat(context.getBeansOfType(TransactionalIdempotencyMessageHandlerDecorator.class))
+                    .hasSize(1);
+        }
     }
 
-    @Bean
-    PlatformTransactionManager transactionManager() {
-      return mock(PlatformTransactionManager.class);
+    @Test
+    void letsAnApplicationDetectorReplaceTheFallbackWithoutReplacingTheDecoratorWiring() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            DuplicateMessageDetector custom = (subscriberId, messageId, messageType) -> true;
+            context.registerBean("customDuplicateMessageDetector", DuplicateMessageDetector.class, () -> custom);
+            context.register(Infrastructure.class, SpringJdbcMessageConsumerConfiguration.class);
+            context.refresh();
+
+            assertThat(context.getBeansOfType(DuplicateMessageDetector.class)).hasSize(2);
+            assertThat(context.getBean(DuplicateMessageDetector.class)).isSameAs(custom);
+            assertThat(context.getBeansOfType(TransactionalIdempotencyMessageHandlerDecorator.class))
+                    .hasSize(1);
+        }
     }
 
-    @Bean
-    MessagingSqlDialect messagingSqlDialect() {
-      return new PostgresMessagingSqlDialect();
-    }
+    static class Infrastructure {
 
-    @Bean
-    MessagingSchema messagingSchema() {
-      return MessagingSchema.defaultSchema();
-    }
+        @Bean
+        JdbcOperations jdbcOperations() {
+            return mock(JdbcOperations.class);
+        }
 
-    @Bean
-    MessagingTableNames messagingTableNames() {
-      return MessagingTableNames.defaults();
-    }
+        @Bean
+        PlatformTransactionManager transactionManager() {
+            return mock(PlatformTransactionManager.class);
+        }
 
-    @Bean
-    Clock clock() {
-      return Clock.systemUTC();
+        @Bean
+        MessagingSqlDialect messagingSqlDialect() {
+            return new PostgresMessagingSqlDialect();
+        }
+
+        @Bean
+        MessagingSchema messagingSchema() {
+            return MessagingSchema.defaultSchema();
+        }
+
+        @Bean
+        MessagingTableNames messagingTableNames() {
+            return MessagingTableNames.defaults();
+        }
+
+        @Bean
+        Clock clock() {
+            return Clock.systemUTC();
+        }
     }
-  }
 }

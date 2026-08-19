@@ -4,13 +4,9 @@ import java.util.Set;
 
 /** Immutable identity reserved before a Kafka container starts. */
 record KafkaSubscriptionRegistration(
-    String subscriberId,
-    String consumerGroupId,
-    Set<String> destinations,
-    String containerId
-) {
+        String subscriberId, String consumerGroupId, Set<String> destinations, String containerId) {
 
-  KafkaSubscriptionRegistration {
-    destinations = Set.copyOf(destinations);
-  }
+    KafkaSubscriptionRegistration {
+        destinations = Set.copyOf(destinations);
+    }
 }

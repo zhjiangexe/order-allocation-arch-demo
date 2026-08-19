@@ -8,22 +8,20 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StockReceiptApplicationFacade {
 
-  private final StockReceiptRequestRepository requestRepository;
-  private final ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
+    private final StockReceiptRequestRepository requestRepository;
+    private final ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-  public StockReceiptApplicationFacade(
-      StockReceiptRequestRepository requestRepository,
-      ConfirmStockReceiptUsecase confirmStockReceiptUsecase
-  ) {
-    this.requestRepository = requestRepository;
-    this.confirmStockReceiptUsecase = confirmStockReceiptUsecase;
-  }
-
-  @Transactional
-  public void confirm(StockReceiptRequest request) {
-    if (!requestRepository.claimIfNew(request)) {
-      return;
+    public StockReceiptApplicationFacade(
+            StockReceiptRequestRepository requestRepository, ConfirmStockReceiptUsecase confirmStockReceiptUsecase) {
+        this.requestRepository = requestRepository;
+        this.confirmStockReceiptUsecase = confirmStockReceiptUsecase;
     }
-    confirmStockReceiptUsecase.execute(request.command());
-  }
+
+    @Transactional
+    public void confirm(StockReceiptRequest request) {
+        if (!requestRepository.claimIfNew(request)) {
+            return;
+        }
+        confirmStockReceiptUsecase.execute(request.command());
+    }
 }

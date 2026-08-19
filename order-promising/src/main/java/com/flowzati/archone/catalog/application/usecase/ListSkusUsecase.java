@@ -9,14 +9,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class ListSkusUsecase {
 
-  private final SkuRepository skuRepository;
+    private final SkuRepository skuRepository;
 
-  public ListSkusUsecase(SkuRepository skuRepository) {
-    this.skuRepository = skuRepository;
-  }
+    public ListSkusUsecase(SkuRepository skuRepository) {
+        this.skuRepository = skuRepository;
+    }
 
-  /** 款號只在其貨主之下有意義，因此兩個參數缺一不可。 */
-  public List<Sku> listByProduct(UUID ownerId, String productCode) {
-    return skuRepository.findByProduct(ownerId, productCode);
-  }
+    /** 款號只在其貨主之下有意義，因此兩個參數缺一不可。 */
+    public List<Sku> listByProduct(UUID ownerId, String productCode) {
+        return skuRepository.findByProduct(ownerId, productCode);
+    }
 }

@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.api;
 @FunctionalInterface
 public interface ConsumerGroupMapping {
 
-  String transform(String subscriberId);
+    String transform(String subscriberId);
 }

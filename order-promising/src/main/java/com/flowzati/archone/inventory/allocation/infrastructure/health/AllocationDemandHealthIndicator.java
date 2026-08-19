@@ -13,27 +13,26 @@ import org.springframework.stereotype.Component;
 @Component("allocationDemand")
 public class AllocationDemandHealthIndicator implements HealthIndicator {
 
-  private static final int SAMPLE_LIMIT = 20;
-  private final AllocationDemandRepository demands;
-  private final AtomicInteger anomalyCount = new AtomicInteger();
+    private static final int SAMPLE_LIMIT = 20;
+    private final AllocationDemandRepository demands;
+    private final AtomicInteger anomalyCount = new AtomicInteger();
 
-  public AllocationDemandHealthIndicator(
-      AllocationDemandRepository demands, MeterRegistry meters) {
-    this.demands = demands;
-    meters.gauge("allocation_anomaly_isolated", anomalyCount);
-  }
-
-  @Override
-  public Health health() {
-    List<UUID> anomalies = demands.findPendingExecutionAnomalyIds(SAMPLE_LIMIT);
-    anomalyCount.set(anomalies.size());
-    if (anomalies.isEmpty()) {
-      return Health.up().build();
+    public AllocationDemandHealthIndicator(AllocationDemandRepository demands, MeterRegistry meters) {
+        this.demands = demands;
+        meters.gauge("allocation_anomaly_isolated", anomalyCount);
     }
-    return Health.down()
-        .withDetail("sampleAllocationDemandIds", anomalies)
-        .withDetail("sampleLimit", SAMPLE_LIMIT)
-        .withDetail("repairPolicy", "manual-only")
-        .build();
-  }
+
+    @Override
+    public Health health() {
+        List<UUID> anomalies = demands.findPendingExecutionAnomalyIds(SAMPLE_LIMIT);
+        anomalyCount.set(anomalies.size());
+        if (anomalies.isEmpty()) {
+            return Health.up().build();
+        }
+        return Health.down()
+                .withDetail("sampleAllocationDemandIds", anomalies)
+                .withDetail("sampleLimit", SAMPLE_LIMIT)
+                .withDetail("repairPolicy", "manual-only")
+                .build();
+    }
 }

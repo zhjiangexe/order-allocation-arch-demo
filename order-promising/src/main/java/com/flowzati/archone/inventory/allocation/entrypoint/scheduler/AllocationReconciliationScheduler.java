@@ -16,21 +16,21 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConditionalOnProperty(
-    name = "archone.allocation.reconciliation-scheduler-enabled",
-    havingValue = "true",
-    matchIfMissing = true)
+        name = "archone.allocation.reconciliation-scheduler-enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 public class AllocationReconciliationScheduler {
 
-  private final ReconcileWaitingDemandUsecase reconcileWaitingDemandUsecase;
+    private final ReconcileWaitingDemandUsecase reconcileWaitingDemandUsecase;
 
-  public AllocationReconciliationScheduler(ReconcileWaitingDemandUsecase reconcileWaitingDemandUsecase) {
-    this.reconcileWaitingDemandUsecase = reconcileWaitingDemandUsecase;
-  }
+    public AllocationReconciliationScheduler(ReconcileWaitingDemandUsecase reconcileWaitingDemandUsecase) {
+        this.reconcileWaitingDemandUsecase = reconcileWaitingDemandUsecase;
+    }
 
-  @Scheduled(
-      initialDelayString = "${archone.allocation.reconciliation-scheduler-initial-delay-ms:30000}",
-      fixedDelayString = "${archone.allocation.reconciliation-scheduler-delay-ms:30000}")
-  public void reconcileAllocatableWaitingDemand() {
-    reconcileWaitingDemandUsecase.execute();
-  }
+    @Scheduled(
+            initialDelayString = "${archone.allocation.reconciliation-scheduler-initial-delay-ms:30000}",
+            fixedDelayString = "${archone.allocation.reconciliation-scheduler-delay-ms:30000}")
+    public void reconcileAllocatableWaitingDemand() {
+        reconcileWaitingDemandUsecase.execute();
+    }
 }

@@ -9,5 +9,5 @@ package com.flowzati.archone.messaging.api;
 @FunctionalInterface
 public interface MessageProducer {
 
-  void send(String destination, Message message);
+    void send(String destination, Message message);
 }

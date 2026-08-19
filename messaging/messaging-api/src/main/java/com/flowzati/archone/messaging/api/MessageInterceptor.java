@@ -11,50 +11,41 @@ package com.flowzati.archone.messaging.api;
  */
 public interface MessageInterceptor {
 
-  default Message preSend(Message message) {
-    return message;
-  }
+    default Message preSend(Message message) {
+        return message;
+    }
 
-  default Message preSend(Message message, MessagePublicationContext context) {
-    return preSend(message);
-  }
+    default Message preSend(Message message, MessagePublicationContext context) {
+        return preSend(message);
+    }
 
-  default void postSend(Message message, Throwable failure) {
-  }
+    default void postSend(Message message, Throwable failure) {}
 
-  default void postSend(
-      Message message,
-      MessagePublicationContext context,
-      Throwable failure
-  ) {
-    postSend(message, failure);
-  }
+    default void postSend(Message message, MessagePublicationContext context, Throwable failure) {
+        postSend(message, failure);
+    }
 
-  default void preReceive(Message message) {
-  }
+    default void preReceive(Message message) {}
 
-  default void preReceive(Message message, MessageContext context) {
-    preReceive(message);
-  }
+    default void preReceive(Message message, MessageContext context) {
+        preReceive(message);
+    }
 
-  default void preHandle(Message message) {
-  }
+    default void preHandle(Message message) {}
 
-  default void preHandle(Message message, MessageContext context) {
-    preHandle(message);
-  }
+    default void preHandle(Message message, MessageContext context) {
+        preHandle(message);
+    }
 
-  default void postHandle(Message message, Throwable failure) {
-  }
+    default void postHandle(Message message, Throwable failure) {}
 
-  default void postHandle(Message message, MessageContext context, Throwable failure) {
-    postHandle(message, failure);
-  }
+    default void postHandle(Message message, MessageContext context, Throwable failure) {
+        postHandle(message, failure);
+    }
 
-  default void postReceive(Message message, Throwable failure) {
-  }
+    default void postReceive(Message message, Throwable failure) {}
 
-  default void postReceive(Message message, MessageContext context, Throwable failure) {
-    postReceive(message, failure);
-  }
+    default void postReceive(Message message, MessageContext context, Throwable failure) {
+        postReceive(message, failure);
+    }
 }

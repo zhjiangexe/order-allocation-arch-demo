@@ -11,21 +11,21 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class SkuRepositoryImpl implements SkuRepository {
 
-  private final JpaSkuRepository repository;
+    private final JpaSkuRepository repository;
 
-  public SkuRepositoryImpl(JpaSkuRepository repository) {
-    this.repository = repository;
-  }
+    public SkuRepositoryImpl(JpaSkuRepository repository) {
+        this.repository = repository;
+    }
 
-  @Override
-  public void save(Sku sku) {
-    repository.save(SkuMapper.toEntity(sku));
-  }
+    @Override
+    public void save(Sku sku) {
+        repository.save(SkuMapper.toEntity(sku));
+    }
 
-  @Override
-  public List<Sku> findByProduct(UUID ownerId, String productCode) {
-    return repository.findByOwnerIdAndProductCodeOrderBySkuCodeAsc(ownerId, productCode).stream()
-        .map(SkuMapper::toDomain)
-        .toList();
-  }
+    @Override
+    public List<Sku> findByProduct(UUID ownerId, String productCode) {
+        return repository.findByOwnerIdAndProductCodeOrderBySkuCodeAsc(ownerId, productCode).stream()
+                .map(SkuMapper::toDomain)
+                .toList();
+    }
 }

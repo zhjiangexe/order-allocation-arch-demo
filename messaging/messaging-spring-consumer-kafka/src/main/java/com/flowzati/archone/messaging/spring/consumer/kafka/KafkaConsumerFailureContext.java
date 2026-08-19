@@ -6,18 +6,17 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 /** Immutable classified processing failure passed to Kafka retry and DLT observers. */
 public record KafkaConsumerFailureContext(
-    ConsumerRecord<?, ?> record,
-    Exception failure,
-    MessageFailureClassification classification,
-    int deliveryAttempt
-) {
+        ConsumerRecord<?, ?> record,
+        Exception failure,
+        MessageFailureClassification classification,
+        int deliveryAttempt) {
 
-  public KafkaConsumerFailureContext {
-    Objects.requireNonNull(record, "Kafka consumer record is required");
-    Objects.requireNonNull(failure, "Kafka consumer failure is required");
-    Objects.requireNonNull(classification, "Kafka failure classification is required");
-    if (deliveryAttempt < 1) {
-      throw new IllegalArgumentException("Kafka delivery attempt must be positive");
+    public KafkaConsumerFailureContext {
+        Objects.requireNonNull(record, "Kafka consumer record is required");
+        Objects.requireNonNull(failure, "Kafka consumer failure is required");
+        Objects.requireNonNull(classification, "Kafka failure classification is required");
+        if (deliveryAttempt < 1) {
+            throw new IllegalArgumentException("Kafka delivery attempt must be positive");
+        }
     }
-  }
 }

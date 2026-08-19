@@ -5,5 +5,4 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record ShipmentCreated(UUID shipmentId, UUID orderId, UUID allocationId, Instant occurredAt)
-    implements WmsDomainEvent {
-}
+        implements WmsDomainEvent {}

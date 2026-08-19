@@ -10,27 +10,24 @@ import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class AllocationCancellationOperationRepositoryImpl
-    implements AllocationCancellationOperationRepository {
+public class AllocationCancellationOperationRepositoryImpl implements AllocationCancellationOperationRepository {
 
-  private final JpaAllocationCancellationOperationRepository repository;
+    private final JpaAllocationCancellationOperationRepository repository;
 
-  public AllocationCancellationOperationRepositoryImpl(
-      JpaAllocationCancellationOperationRepository repository) {
-    this.repository = repository;
-  }
+    public AllocationCancellationOperationRepositoryImpl(JpaAllocationCancellationOperationRepository repository) {
+        this.repository = repository;
+    }
 
-  @Override
-  public AllocationCancellationOperation save(AllocationCancellationOperation operation) {
-    return AllocationCancellationOperationMapper.toDomain(
-        repository.save(AllocationCancellationOperationMapper.toEntity(operation)));
-  }
+    @Override
+    public AllocationCancellationOperation save(AllocationCancellationOperation operation) {
+        return AllocationCancellationOperationMapper.toDomain(
+                repository.save(AllocationCancellationOperationMapper.toEntity(operation)));
+    }
 
-  @Override
-  public Optional<AllocationCancellationOperation> find(
-      UUID allocationDemandId, UUID operationId) {
-    return repository.findById(new AllocationCancellationOperationKey(
-            allocationDemandId, operationId))
-        .map(AllocationCancellationOperationMapper::toDomain);
-  }
+    @Override
+    public Optional<AllocationCancellationOperation> find(UUID allocationDemandId, UUID operationId) {
+        return repository
+                .findById(new AllocationCancellationOperationKey(allocationDemandId, operationId))
+                .map(AllocationCancellationOperationMapper::toDomain);
+    }
 }

@@ -1,9 +1,5 @@
 package com.flowzati.archone.catalog;
 
-import com.flowzati.archone.catalog.domain.aggregate.Owner;
-import com.flowzati.archone.catalog.domain.aggregate.Product;
-import com.flowzati.archone.catalog.domain.aggregate.Sku;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -30,82 +26,79 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Catalog module boundary")
 class CatalogModuleBoundaryTest {
 
-  private static final Path CATALOG_SOURCE_ROOT =
-      Path.of("src/main/java/com/flowzati/archone/catalog");
+    private static final Path CATALOG_SOURCE_ROOT = Path.of("src/main/java/com/flowzati/archone/catalog");
 
-  private static final List<String> FORBIDDEN_IMPORTS = List.of(
-      "import com.flowzati.archone.ordering",
-      "import com.flowzati.archone.inventory"
-  );
+    private static final List<String> FORBIDDEN_IMPORTS =
+            List.of("import com.flowzati.archone.ordering", "import com.flowzati.archone.inventory");
 
-  /**
-   * 主檔只提供查詢：`Owner`／`Product`／`Sku` 由 seed 建立，維護介面是另一件事，有自己的
-   * 授權與稽核需求。提供半套版本會招來對它的依賴。
-   *
-   * <p>repository 的 {@code save} 不在此列——seed 需要它，而它不是對外表面。
-   */
-  private static final List<String> WRITE_VERBS =
-      List.of("Create", "Update", "Delete", "Register", "Amend", "Remove");
+    /**
+     * 主檔只提供查詢：`Owner`／`Product`／`Sku` 由 seed 建立，維護介面是另一件事，有自己的
+     * 授權與稽核需求。提供半套版本會招來對它的依賴。
+     *
+     * <p>repository 的 {@code save} 不在此列——seed 需要它，而它不是對外表面。
+     */
+    private static final List<String> WRITE_VERBS =
+            List.of("Create", "Update", "Delete", "Register", "Amend", "Remove");
 
-  private static final List<String> WRITE_MAPPINGS =
-      List.of("@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping");
+    private static final List<String> WRITE_MAPPINGS =
+            List.of("@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping");
 
-  @Test
-  @DisplayName("catalog 不應 import ordering 或 inventory")
-  void doesNotDependOnOrderingOrInventory() {
-    List<String> violations = javaSources()
-        .flatMap(source -> FORBIDDEN_IMPORTS.stream()
-            .filter(forbidden -> readSource(source).contains(forbidden))
-            .map(forbidden -> "%s → %s".formatted(source, forbidden)))
-        .toList();
+    @Test
+    @DisplayName("catalog 不應 import ordering 或 inventory")
+    void doesNotDependOnOrderingOrInventory() {
+        List<String> violations = javaSources()
+                .flatMap(source -> FORBIDDEN_IMPORTS.stream()
+                        .filter(forbidden -> readSource(source).contains(forbidden))
+                        .map(forbidden -> "%s → %s".formatted(source, forbidden)))
+                .toList();
 
-    assertThat(violations).isEmpty();
-  }
-
-  @Test
-  @DisplayName("掃描應真的看到檔案——路徑寫錯時這支測試不能無聲通過")
-  void actuallyScansSomething() {
-    assertThat(javaSources()).isNotEmpty();
-  }
-
-  @Test
-  @DisplayName("catalog 不應有寫入型的 usecase——主檔由 seed 建立")
-  void exposesNoWriteUsecase() {
-    List<String> writeUsecases = javaSources()
-        .filter(path -> path.toString().contains("/application/usecase/"))
-        .map(path -> path.getFileName().toString())
-        .filter(name -> WRITE_VERBS.stream().anyMatch(name::startsWith))
-        .toList();
-
-    assertThat(writeUsecases).isEmpty();
-  }
-
-  @Test
-  @DisplayName("catalog 的 REST 表面不應有寫入型 mapping")
-  void exposesNoWriteEndpoint() {
-    List<String> violations = javaSources()
-        .filter(path -> path.toString().contains("/entrypoint/rest/"))
-        .flatMap(source -> WRITE_MAPPINGS.stream()
-            .filter(mapping -> readSource(source).contains(mapping))
-            .map(mapping -> "%s → %s".formatted(source, mapping)))
-        .toList();
-
-    assertThat(violations).isEmpty();
-  }
-
-  private static Stream<Path> javaSources() {
-    try (Stream<Path> paths = Files.walk(CATALOG_SOURCE_ROOT)) {
-      return paths.filter(path -> path.toString().endsWith(".java")).toList().stream();
-    } catch (IOException exception) {
-      throw new UncheckedIOException(exception);
+        assertThat(violations).isEmpty();
     }
-  }
 
-  private static String readSource(Path path) {
-    try {
-      return Files.readString(path);
-    } catch (IOException exception) {
-      throw new UncheckedIOException(exception);
+    @Test
+    @DisplayName("掃描應真的看到檔案——路徑寫錯時這支測試不能無聲通過")
+    void actuallyScansSomething() {
+        assertThat(javaSources()).isNotEmpty();
     }
-  }
+
+    @Test
+    @DisplayName("catalog 不應有寫入型的 usecase——主檔由 seed 建立")
+    void exposesNoWriteUsecase() {
+        List<String> writeUsecases = javaSources()
+                .filter(path -> path.toString().contains("/application/usecase/"))
+                .map(path -> path.getFileName().toString())
+                .filter(name -> WRITE_VERBS.stream().anyMatch(name::startsWith))
+                .toList();
+
+        assertThat(writeUsecases).isEmpty();
+    }
+
+    @Test
+    @DisplayName("catalog 的 REST 表面不應有寫入型 mapping")
+    void exposesNoWriteEndpoint() {
+        List<String> violations = javaSources()
+                .filter(path -> path.toString().contains("/entrypoint/rest/"))
+                .flatMap(source -> WRITE_MAPPINGS.stream()
+                        .filter(mapping -> readSource(source).contains(mapping))
+                        .map(mapping -> "%s → %s".formatted(source, mapping)))
+                .toList();
+
+        assertThat(violations).isEmpty();
+    }
+
+    private static Stream<Path> javaSources() {
+        try (Stream<Path> paths = Files.walk(CATALOG_SOURCE_ROOT)) {
+            return paths.filter(path -> path.toString().endsWith(".java")).toList().stream();
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
+    private static String readSource(Path path) {
+        try {
+            return Files.readString(path);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
 }

@@ -22,112 +22,119 @@ import java.util.UUID;
 @Table(name = "stock_pickings")
 public class StockPickingEntity {
 
-  @Id
-  private UUID id;
+    @Id
+    private UUID id;
 
-  @Column(name = "picking_type_id", nullable = false)
-  private UUID pickingTypeId;
+    @Column(name = "picking_type_id", nullable = false)
+    private UUID pickingTypeId;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "direction")
-  private PickingDirection direction;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "direction")
+    private PickingDirection direction;
 
-  @Column(name = "owner_id", nullable = false)
-  private UUID ownerId;
+    @Column(name = "owner_id", nullable = false)
+    private UUID ownerId;
 
-  /**
-   * 這張單據為哪一張訂單而做。入庫時為空。
-   *
-   * <p>不是捷徑：本系統不跨單合併，一張出庫單就是一張 picking。而它是必要的——配貨要發帶
-   * {@code orderId} 的結果事件，而 move 只有 {@code orderLineId}。
-   *
-   * <p><b>ship-complete 的分組不用它，用 {@code pickingId}</b>。待配佇列只用
-   * {@code orderId} 判斷這是否為訂單工作，以排除 inbound picking。
-   */
-  @Column(name = "order_id")
-  private UUID orderId;
+    /**
+     * 這張單據為哪一張訂單而做。入庫時為空。
+     *
+     * <p>不是捷徑：本系統不跨單合併，一張出庫單就是一張 picking。而它是必要的——配貨要發帶
+     * {@code orderId} 的結果事件，而 move 只有 {@code orderLineId}。
+     *
+     * <p><b>ship-complete 的分組不用它，用 {@code pickingId}</b>。待配佇列只用
+     * {@code orderId} 判斷這是否為訂單工作，以排除 inbound picking。
+     */
+    @Column(name = "order_id")
+    private UUID orderId;
 
-  @Column(name = "from_location_id", nullable = false)
-  private UUID fromLocationId;
+    @Column(name = "from_location_id", nullable = false)
+    private UUID fromLocationId;
 
-  @Column(name = "to_location_id", nullable = false)
-  private UUID toLocationId;
+    @Column(name = "to_location_id", nullable = false)
+    private UUID toLocationId;
 
-  @Column(name = "dispatch_by")
-  private Instant dispatchBy;
+    @Column(name = "dispatch_by")
+    private Instant dispatchBy;
 
-  @Column(name = "release_priority")
-  private Integer releasePriority;
+    @Column(name = "release_priority")
+    private Integer releasePriority;
 
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
-  private PickingState state;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PickingState state;
 
-  @Version
-  @Column(nullable = false)
-  private Long version;
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
-  protected StockPickingEntity() {
-  }
+    protected StockPickingEntity() {}
 
-  public StockPickingEntity(
-      UUID id, UUID pickingTypeId, PickingDirection direction, UUID ownerId, UUID orderId,
-      UUID fromLocationId, UUID toLocationId, Instant dispatchBy, Integer releasePriority,
-      PickingState state, Long version) {
-    this.id = id;
-    this.pickingTypeId = pickingTypeId;
-    this.direction = direction;
-    this.ownerId = ownerId;
-    this.orderId = orderId;
-    this.fromLocationId = fromLocationId;
-    this.toLocationId = toLocationId;
-    this.dispatchBy = dispatchBy;
-    this.releasePriority = releasePriority;
-    this.state = state;
-    this.version = version;
-  }
+    public StockPickingEntity(
+            UUID id,
+            UUID pickingTypeId,
+            PickingDirection direction,
+            UUID ownerId,
+            UUID orderId,
+            UUID fromLocationId,
+            UUID toLocationId,
+            Instant dispatchBy,
+            Integer releasePriority,
+            PickingState state,
+            Long version) {
+        this.id = id;
+        this.pickingTypeId = pickingTypeId;
+        this.direction = direction;
+        this.ownerId = ownerId;
+        this.orderId = orderId;
+        this.fromLocationId = fromLocationId;
+        this.toLocationId = toLocationId;
+        this.dispatchBy = dispatchBy;
+        this.releasePriority = releasePriority;
+        this.state = state;
+        this.version = version;
+    }
 
-  public UUID getId() {
-    return id;
-  }
+    public UUID getId() {
+        return id;
+    }
 
-  public UUID getPickingTypeId() {
-    return pickingTypeId;
-  }
+    public UUID getPickingTypeId() {
+        return pickingTypeId;
+    }
 
-  public PickingDirection getDirection() {
-    return direction;
-  }
+    public PickingDirection getDirection() {
+        return direction;
+    }
 
-  public UUID getOwnerId() {
-    return ownerId;
-  }
+    public UUID getOwnerId() {
+        return ownerId;
+    }
 
-  public UUID getOrderId() {
-    return orderId;
-  }
+    public UUID getOrderId() {
+        return orderId;
+    }
 
-  public UUID getFromLocationId() {
-    return fromLocationId;
-  }
+    public UUID getFromLocationId() {
+        return fromLocationId;
+    }
 
-  public UUID getToLocationId() {
-    return toLocationId;
-  }
+    public UUID getToLocationId() {
+        return toLocationId;
+    }
 
-  public Instant getDispatchBy() {
-    return dispatchBy;
-  }
+    public Instant getDispatchBy() {
+        return dispatchBy;
+    }
 
-  public Integer getReleasePriority() {
-    return releasePriority;
-  }
+    public Integer getReleasePriority() {
+        return releasePriority;
+    }
 
-  public PickingState getState() {
-    return state;
-  }
+    public PickingState getState() {
+        return state;
+    }
 
-  public Long getVersion() {
-    return version;
-  }
+    public Long getVersion() {
+        return version;
+    }
 }

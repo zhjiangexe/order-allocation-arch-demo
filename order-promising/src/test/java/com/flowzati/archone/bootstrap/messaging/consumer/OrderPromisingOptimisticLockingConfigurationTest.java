@@ -13,27 +13,25 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class OrderPromisingOptimisticLockingConfigurationTest {
 
-  private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-      .withUserConfiguration(OrderPromisingOptimisticLockingConfiguration.class)
-      .withBean(MeterRegistry.class, SimpleMeterRegistry::new);
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withUserConfiguration(OrderPromisingOptimisticLockingConfiguration.class)
+            .withBean(MeterRegistry.class, SimpleMeterRegistry::new);
 
-  @Test
-  void optsIntoTheGenericDecoratorWithApplicationOwnedPolicyAndObserver() {
-    contextRunner.run(context -> {
-      assertThat(context).hasSingleBean(OptimisticLockingDecorator.class);
-      assertThat(context).hasSingleBean(OptimisticLockingRetryObserver.class);
-      assertThat(context.getBean(OptimisticLockingRetrySettings.class))
-          .isEqualTo(new OptimisticLockingRetrySettings(2, Duration.ofMillis(100)));
-    });
-  }
-
-  @Test
-  void remainsInactiveWhenIntegrationEventConsumptionIsDisabled() {
-    contextRunner
-        .withPropertyValues("archone.messaging.core.enabled=false")
-        .run(context -> {
-          assertThat(context).doesNotHaveBean(OptimisticLockingDecorator.class);
-          assertThat(context).doesNotHaveBean(OptimisticLockingRetryObserver.class);
+    @Test
+    void optsIntoTheGenericDecoratorWithApplicationOwnedPolicyAndObserver() {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(OptimisticLockingDecorator.class);
+            assertThat(context).hasSingleBean(OptimisticLockingRetryObserver.class);
+            assertThat(context.getBean(OptimisticLockingRetrySettings.class))
+                    .isEqualTo(new OptimisticLockingRetrySettings(2, Duration.ofMillis(100)));
         });
-  }
+    }
+
+    @Test
+    void remainsInactiveWhenIntegrationEventConsumptionIsDisabled() {
+        contextRunner.withPropertyValues("archone.messaging.core.enabled=false").run(context -> {
+            assertThat(context).doesNotHaveBean(OptimisticLockingDecorator.class);
+            assertThat(context).doesNotHaveBean(OptimisticLockingRetryObserver.class);
+        });
+    }
 }

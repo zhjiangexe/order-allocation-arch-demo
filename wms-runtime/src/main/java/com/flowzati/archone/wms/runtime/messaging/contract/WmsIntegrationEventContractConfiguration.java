@@ -11,13 +11,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class WmsIntegrationEventContractConfiguration {
 
-  @Bean
-  IntegrationEventNameMapping wmsIntegrationEventNameMapping() {
-    return MapBasedIntegrationEventNameMapping.builder()
-        .map(
-            AllocationCommittedForFulfillmentIntegrationEvent.class,
-            AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
-            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-        .build();
-  }
+    @Bean
+    IntegrationEventNameMapping wmsIntegrationEventNameMapping() {
+        return MapBasedIntegrationEventNameMapping.builder()
+                .map(
+                        AllocationCommittedForFulfillmentIntegrationEvent.class,
+                        AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                .build();
+    }
 }

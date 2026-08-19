@@ -8,13 +8,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class ListOwnersUsecase {
 
-  private final OwnerRepository ownerRepository;
+    private final OwnerRepository ownerRepository;
 
-  public ListOwnersUsecase(OwnerRepository ownerRepository) {
-    this.ownerRepository = ownerRepository;
-  }
+    public ListOwnersUsecase(OwnerRepository ownerRepository) {
+        this.ownerRepository = ownerRepository;
+    }
 
-  public List<Owner> listAll() {
-    return ownerRepository.findAll();
-  }
+    public List<Owner> listAll() {
+        return ownerRepository.findAll();
+    }
 }

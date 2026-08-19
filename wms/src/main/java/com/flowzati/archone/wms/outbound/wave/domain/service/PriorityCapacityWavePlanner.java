@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.outbound.wave.domain.service;
 
+import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveAssignment;
 import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveCandidate;
-import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -16,38 +16,35 @@ import java.util.List;
  */
 public final class PriorityCapacityWavePlanner implements WavePlanner {
 
-  private static final Comparator<WaveCandidate> RELEASE_ORDER =
-      Comparator.<WaveCandidate>comparingInt(WaveCandidate::releasePriority)
-          .reversed()
-          .thenComparing(WaveCandidate::dispatchBy)
-          .thenComparing(WaveCandidate::createdAt)
-          .thenComparing(WaveCandidate::shipmentId);
+    private static final Comparator<WaveCandidate> RELEASE_ORDER = Comparator.<WaveCandidate>comparingInt(
+                    WaveCandidate::releasePriority)
+            .reversed()
+            .thenComparing(WaveCandidate::dispatchBy)
+            .thenComparing(WaveCandidate::createdAt)
+            .thenComparing(WaveCandidate::shipmentId);
 
-  @Override
-  public List<WaveAssignment> plan(
-      List<WaveCandidate> candidates,
-      WavePlanningPolicy policy
-  ) {
-    if (candidates == null || policy == null) {
-      throw new IllegalArgumentException("Wave candidates and policy are required");
+    @Override
+    public List<WaveAssignment> plan(List<WaveCandidate> candidates, WavePlanningPolicy policy) {
+        if (candidates == null || policy == null) {
+            throw new IllegalArgumentException("Wave candidates and policy are required");
+        }
+
+        List<WaveCandidate> eligible = candidates.stream()
+                .filter(policy::accepts)
+                .sorted(RELEASE_ORDER)
+                .toList();
+
+        List<WaveAssignment> selected = new ArrayList<>();
+        int selectedLines = 0;
+        int selectedUnits = 0;
+        for (WaveCandidate candidate : eligible) {
+            if (!policy.canAdd(candidate, selected.size(), selectedLines, selectedUnits)) {
+                continue;
+            }
+            selected.add(WaveAssignment.from(candidate));
+            selectedLines = Math.addExact(selectedLines, candidate.lineCount());
+            selectedUnits = Math.addExact(selectedUnits, candidate.unitCount());
+        }
+        return List.copyOf(selected);
     }
-
-    List<WaveCandidate> eligible = candidates.stream()
-        .filter(policy::accepts)
-        .sorted(RELEASE_ORDER)
-        .toList();
-
-    List<WaveAssignment> selected = new ArrayList<>();
-    int selectedLines = 0;
-    int selectedUnits = 0;
-    for (WaveCandidate candidate : eligible) {
-      if (!policy.canAdd(candidate, selected.size(), selectedLines, selectedUnits)) {
-        continue;
-      }
-      selected.add(WaveAssignment.from(candidate));
-      selectedLines = Math.addExact(selectedLines, candidate.lineCount());
-      selectedUnits = Math.addExact(selectedUnits, candidate.unitCount());
-    }
-    return List.copyOf(selected);
-  }
 }

@@ -20,34 +20,24 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration(after = {MessagingCoreAutoConfiguration.class, MessagingJdbcAutoConfiguration.class})
 @ConditionalOnClass(SqlTableBasedDuplicateMessageDetector.class)
 @ConditionalOnBean({JdbcStatementExecutor.class, MessagingTransactionTemplate.class})
-@ConditionalOnProperty(
-    prefix = "archone.messaging.consumer.jdbc",
-    name = "enabled",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "archone.messaging.consumer.jdbc", name = "enabled", matchIfMissing = true)
 public class MessagingConsumerJdbcAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  DuplicateMessageDetector duplicateMessageDetector(
-      JdbcStatementExecutor statementExecutor,
-      MessagingSqlDialect dialect,
-      MessagingSchema schema,
-      MessagingTableNames tableNames,
-      Clock clock
-  ) {
-    return new SqlTableBasedDuplicateMessageDetector(
-        statementExecutor, dialect, schema, tableNames, clock);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    DuplicateMessageDetector duplicateMessageDetector(
+            JdbcStatementExecutor statementExecutor,
+            MessagingSqlDialect dialect,
+            MessagingSchema schema,
+            MessagingTableNames tableNames,
+            Clock clock) {
+        return new SqlTableBasedDuplicateMessageDetector(statementExecutor, dialect, schema, tableNames, clock);
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  TransactionalIdempotencyMessageHandlerDecorator
-      transactionalIdempotencyMessageHandlerDecorator(
-          MessagingTransactionTemplate transactionTemplate,
-          DuplicateMessageDetector duplicateMessageDetector
-      ) {
-    return new TransactionalIdempotencyMessageHandlerDecorator(
-        transactionTemplate, duplicateMessageDetector);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    TransactionalIdempotencyMessageHandlerDecorator transactionalIdempotencyMessageHandlerDecorator(
+            MessagingTransactionTemplate transactionTemplate, DuplicateMessageDetector duplicateMessageDetector) {
+        return new TransactionalIdempotencyMessageHandlerDecorator(transactionTemplate, duplicateMessageDetector);
+    }
 }

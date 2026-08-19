@@ -10,14 +10,14 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Import(InProcessMessagingTestConfiguration.class)
 public class PostgreSQLTestConfiguration {
 
-  private static final String POSTGRES_IMAGE = "postgres:16-alpine";
+    private static final String POSTGRES_IMAGE = "postgres:16-alpine";
 
-  @Bean
-  @ServiceConnection
-  PostgreSQLContainer postgresContainer() {
-    return new PostgreSQLContainer(POSTGRES_IMAGE)
-        .withDatabaseName("order_promising_test")
-        .withUsername("order_promising")
-        .withPassword("order_promising");
-  }
+    @Bean
+    @ServiceConnection
+    PostgreSQLContainer postgresContainer() {
+        return new PostgreSQLContainer(POSTGRES_IMAGE)
+                .withDatabaseName("order_promising_test")
+                .withUsername("order_promising")
+                .withPassword("order_promising");
+    }
 }

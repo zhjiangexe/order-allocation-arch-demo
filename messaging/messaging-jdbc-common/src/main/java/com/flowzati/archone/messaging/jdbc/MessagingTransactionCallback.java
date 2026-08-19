@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.jdbc;
 @FunctionalInterface
 public interface MessagingTransactionCallback<T> {
 
-  T execute();
+    T execute();
 }

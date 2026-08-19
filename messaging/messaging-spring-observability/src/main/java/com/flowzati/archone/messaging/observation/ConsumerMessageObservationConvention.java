@@ -4,5 +4,4 @@ import io.micrometer.observation.ObservationConvention;
 
 /** Customization point for consumer observation naming and tags. */
 public interface ConsumerMessageObservationConvention
-    extends ObservationConvention<ConsumerMessageObservationContext> {
-}
+        extends ObservationConvention<ConsumerMessageObservationContext> {}

@@ -23,12 +23,11 @@ import java.util.UUID;
  * 的消費端重讀訂單就拿得到，而且它可能根本不存在（上游沒有義務送）。
  */
 public record OrderPlaced(
-    UUID orderId,
-    UUID ownerId,
-    UUID facilityId,
-    String shipToZone,
-    LocalDate promisedDeliveryDate,
-    List<LineSnapshot> lines,
-    Instant receivedAt
-) implements DomainEvent {
-}
+        UUID orderId,
+        UUID ownerId,
+        UUID facilityId,
+        String shipToZone,
+        LocalDate promisedDeliveryDate,
+        List<LineSnapshot> lines,
+        Instant receivedAt)
+        implements DomainEvent {}

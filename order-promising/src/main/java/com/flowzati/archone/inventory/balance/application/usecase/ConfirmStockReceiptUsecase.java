@@ -1,11 +1,11 @@
 package com.flowzati.archone.inventory.balance.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.balance.application.InboundReceiptCompleter;
 import com.flowzati.archone.inventory.balance.application.command.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.event.InventoryEventPublisher;
-import com.flowzati.archone.inventory.balance.application.InboundReceiptCompleter;
-import com.flowzati.archone.inventory.movement.application.InboundReceiptRegistrar;
 import com.flowzati.archone.inventory.balance.domain.event.StockAvailabilityIncreased;
+import com.flowzati.archone.inventory.movement.application.InboundReceiptRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
@@ -25,44 +25,38 @@ import org.springframework.stereotype.Service;
 @Service
 public class ConfirmStockReceiptUsecase {
 
-  private final BusinessClock appClock;
-  private final InboundReceiptRegistrar inboundReceiptRegistrar;
-  private final InboundReceiptCompleter inboundReceiptCompleter;
-  private final InventoryEventPublisher eventPublisher;
+    private final BusinessClock appClock;
+    private final InboundReceiptRegistrar inboundReceiptRegistrar;
+    private final InboundReceiptCompleter inboundReceiptCompleter;
+    private final InventoryEventPublisher eventPublisher;
 
-  public ConfirmStockReceiptUsecase(
-      BusinessClock appClock,
-      InboundReceiptRegistrar inboundReceiptRegistrar,
-      InboundReceiptCompleter inboundReceiptCompleter,
-      InventoryEventPublisher eventPublisher
-  ) {
-    this.appClock = appClock;
-    this.inboundReceiptRegistrar = inboundReceiptRegistrar;
-    this.inboundReceiptCompleter = inboundReceiptCompleter;
-    this.eventPublisher = eventPublisher;
-  }
+    public ConfirmStockReceiptUsecase(
+            BusinessClock appClock,
+            InboundReceiptRegistrar inboundReceiptRegistrar,
+            InboundReceiptCompleter inboundReceiptCompleter,
+            InventoryEventPublisher eventPublisher) {
+        this.appClock = appClock;
+        this.inboundReceiptRegistrar = inboundReceiptRegistrar;
+        this.inboundReceiptCompleter = inboundReceiptCompleter;
+        this.eventPublisher = eventPublisher;
+    }
 
-  /** Transport-neutral application entrypoint; request idempotency belongs to the caller boundary. */
-  @Transactional
-  public void execute(ConfirmStockReceiptCommand command) {
-    receive(command);
-  }
+    /** Transport-neutral application entrypoint; request idempotency belongs to the caller boundary. */
+    @Transactional
+    public void execute(ConfirmStockReceiptCommand command) {
+        receive(command);
+    }
 
-  private void receive(ConfirmStockReceiptCommand command) {
-    Instant now = appClock.instant();
+    private void receive(ConfirmStockReceiptCommand command) {
+        Instant now = appClock.instant();
 
-    List<StockMove> incoming = inboundReceiptRegistrar.register(
-        command.facilityId(), command.ownerId(), command.locationId(), command.sku(), command.quantity(), now);
+        List<StockMove> incoming = inboundReceiptRegistrar.register(
+                command.facilityId(), command.ownerId(), command.locationId(), command.sku(), command.quantity(), now);
 
-    inboundReceiptCompleter.complete(
-        incoming, new InboundReceiptCompleter.BatchIdentity(command.inDate(), command.expiryDate()), now);
+        inboundReceiptCompleter.complete(
+                incoming, new InboundReceiptCompleter.BatchIdentity(command.inDate(), command.expiryDate()), now);
 
-    eventPublisher.publish(new StockAvailabilityIncreased(
-        command.ownerId(),
-        command.facilityId(),
-        command.locationId(),
-        command.sku(),
-        command.quantity(),
-        now));
-  }
+        eventPublisher.publish(new StockAvailabilityIncreased(
+                command.ownerId(), command.facilityId(), command.locationId(), command.sku(), command.quantity(), now));
+    }
 }

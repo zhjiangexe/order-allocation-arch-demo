@@ -6,5 +6,5 @@ import com.flowzati.archone.messaging.api.Message;
 @FunctionalInterface
 public interface OutboxMessageMapper {
 
-  OutboxMessage map(String destination, Message message);
+    OutboxMessage map(String destination, Message message);
 }

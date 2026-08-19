@@ -7,14 +7,14 @@ import java.util.UUID;
  */
 public record CancelMovementsCommand(UUID orderId, UUID cancellationOperationId) {
 
-  public CancelMovementsCommand {
-    if (orderId == null || cancellationOperationId == null) {
-      throw new IllegalArgumentException("Order ID and cancellation operation ID are required");
+    public CancelMovementsCommand {
+        if (orderId == null || cancellationOperationId == null) {
+            throw new IllegalArgumentException("Order ID and cancellation operation ID are required");
+        }
     }
-  }
 
-  /** Compatibility path; production order events use their event id as the stable operation id. */
-  public CancelMovementsCommand(UUID orderId) {
-    this(orderId, orderId);
-  }
+    /** Compatibility path; production order events use their event id as the stable operation id. */
+    public CancelMovementsCommand(UUID orderId) {
+        this(orderId, orderId);
+    }
 }

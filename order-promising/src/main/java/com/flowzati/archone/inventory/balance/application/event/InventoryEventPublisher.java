@@ -6,5 +6,5 @@ import com.flowzati.archone.inventory.balance.domain.event.StockAvailabilityIncr
 @FunctionalInterface
 public interface InventoryEventPublisher {
 
-  void publish(StockAvailabilityIncreased event);
+    void publish(StockAvailabilityIncreased event);
 }

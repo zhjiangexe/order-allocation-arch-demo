@@ -2,8 +2,8 @@ package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,32 +18,32 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RecordOrderAllocationUsecase {
 
-  private final OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
 
-  public RecordOrderAllocationUsecase(OrderRepository orderRepository) {
-    this.orderRepository = orderRepository;
-  }
-
-  /** Transport-neutral application entrypoint; inbound idempotency belongs to the caller boundary. */
-  @Transactional
-  public void execute(RecordOrderAllocationCommand command) {
-    record(command);
-  }
-
-  private void record(RecordOrderAllocationCommand command) {
-    Optional<Order> orderOpt = orderRepository.findById(command.orderId());
-    if (orderOpt.isEmpty()) {
-      return;
+    public RecordOrderAllocationUsecase(OrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
     }
 
-    Order order = orderOpt.get();
-    if (order.getStatus() == OrderStatus.CANCELLED
-        || order.getStatus() == OrderStatus.ALLOCATED
-        || order.getStatus() == OrderStatus.FULFILLED) {
-      return;
+    /** Transport-neutral application entrypoint; inbound idempotency belongs to the caller boundary. */
+    @Transactional
+    public void execute(RecordOrderAllocationCommand command) {
+        record(command);
     }
 
-    order.markAllocated(command.allocatedAt());
-    orderRepository.save(order);
-  }
+    private void record(RecordOrderAllocationCommand command) {
+        Optional<Order> orderOpt = orderRepository.findById(command.orderId());
+        if (orderOpt.isEmpty()) {
+            return;
+        }
+
+        Order order = orderOpt.get();
+        if (order.getStatus() == OrderStatus.CANCELLED
+                || order.getStatus() == OrderStatus.ALLOCATED
+                || order.getStatus() == OrderStatus.FULFILLED) {
+            return;
+        }
+
+        order.markAllocated(command.allocatedAt());
+        orderRepository.save(order);
+    }
 }

@@ -20,54 +20,43 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 /** Shared JDBC and transaction-port wiring used by producer and consumer persistence. */
 @AutoConfiguration(
-    after = JdbcTemplateAutoConfiguration.class,
-    afterName = {
-        "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
-        "org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration"
-    }
-)
-@ConditionalOnClass({
-    JdbcOperations.class,
-    JdbcStatementExecutor.class,
-    SpringJdbcStatementExecutor.class
-})
+        after = JdbcTemplateAutoConfiguration.class,
+        afterName = {
+            "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
+            "org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration"
+        })
+@ConditionalOnClass({JdbcOperations.class, JdbcStatementExecutor.class, SpringJdbcStatementExecutor.class})
 @ConditionalOnBean({JdbcOperations.class, PlatformTransactionManager.class})
-@ConditionalOnProperty(
-    prefix = "archone.messaging.jdbc",
-    name = "enabled",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "archone.messaging.jdbc", name = "enabled", matchIfMissing = true)
 public class MessagingJdbcAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  JdbcStatementExecutor messagingJdbcStatementExecutor(JdbcOperations jdbcOperations) {
-    return new SpringJdbcStatementExecutor(jdbcOperations);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    JdbcStatementExecutor messagingJdbcStatementExecutor(JdbcOperations jdbcOperations) {
+        return new SpringJdbcStatementExecutor(jdbcOperations);
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessagingTransactionTemplate messagingTransactionTemplate(
-      PlatformTransactionManager transactionManager
-  ) {
-    return new SpringMessagingTransactionTemplate(transactionManager);
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessagingTransactionTemplate messagingTransactionTemplate(PlatformTransactionManager transactionManager) {
+        return new SpringMessagingTransactionTemplate(transactionManager);
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessagingSqlDialect messagingSqlDialect() {
-    return new PostgresMessagingSqlDialect();
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessagingSqlDialect messagingSqlDialect() {
+        return new PostgresMessagingSqlDialect();
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessagingSchema messagingSchema() {
-    return MessagingSchema.defaultSchema();
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessagingSchema messagingSchema() {
+        return MessagingSchema.defaultSchema();
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessagingTableNames messagingTableNames() {
-    return MessagingTableNames.defaults();
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessagingTableNames messagingTableNames() {
+        return MessagingTableNames.defaults();
+    }
 }

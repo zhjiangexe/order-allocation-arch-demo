@@ -1,7 +1,6 @@
 package com.flowzati.archone.ordering.domain.entity;
 
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-
 import java.util.UUID;
 
 /**
@@ -33,69 +32,63 @@ import java.util.UUID;
  */
 public class OrderLine {
 
-  private final UUID id;
-  private final int lineNo;
-  private final UUID ownerId;
-  private final String skuCode;
-  private final int quantity;
+    private final UUID id;
+    private final int lineNo;
+    private final UUID ownerId;
+    private final String skuCode;
+    private final int quantity;
 
-  private OrderLine(
-      UUID id,
-      int lineNo,
-      UUID ownerId,
-      String skuCode,
-      int quantity
-  ) {
-    if (id == null) {
-      throw new IllegalArgumentException("Order line ID is required");
+    private OrderLine(UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
+        if (id == null) {
+            throw new IllegalArgumentException("Order line ID is required");
+        }
+        if (lineNo <= 0) {
+            throw new IllegalArgumentException("Line number must be positive");
+        }
+        if (ownerId == null) {
+            throw new IllegalArgumentException("Owner ID is required");
+        }
+        if (skuCode == null || skuCode.isBlank()) {
+            throw new IllegalArgumentException("SKU code is required");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Order line quantity must be positive");
+        }
+        this.id = id;
+        this.lineNo = lineNo;
+        this.ownerId = ownerId;
+        this.skuCode = skuCode;
+        this.quantity = quantity;
     }
-    if (lineNo <= 0) {
-      throw new IllegalArgumentException("Line number must be positive");
+
+    /**
+     * 新的一行。
+     *
+     * <p><b>沒有 {@code rehydrate} 的必要了</b>——行沒有狀態，新建與還原造出來的東西完全相同。
+     * 曾經兩個工廠並存，是為了讓新建強制初始狀態、還原接受儲存裡的任何狀態；狀態消失之後那個
+     * 分工也跟著消失。
+     */
+    public static OrderLine create(UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
+        return new OrderLine(id, lineNo, ownerId, skuCode, quantity);
     }
-    if (ownerId == null) {
-      throw new IllegalArgumentException("Owner ID is required");
+
+    public UUID getId() {
+        return id;
     }
-    if (skuCode == null || skuCode.isBlank()) {
-      throw new IllegalArgumentException("SKU code is required");
+
+    public int getLineNo() {
+        return lineNo;
     }
-    if (quantity <= 0) {
-      throw new IllegalArgumentException("Order line quantity must be positive");
+
+    public UUID getOwnerId() {
+        return ownerId;
     }
-    this.id = id;
-    this.lineNo = lineNo;
-    this.ownerId = ownerId;
-    this.skuCode = skuCode;
-    this.quantity = quantity;
-  }
 
-  /**
-   * 新的一行。
-   *
-   * <p><b>沒有 {@code rehydrate} 的必要了</b>——行沒有狀態，新建與還原造出來的東西完全相同。
-   * 曾經兩個工廠並存，是為了讓新建強制初始狀態、還原接受儲存裡的任何狀態；狀態消失之後那個
-   * 分工也跟著消失。
-   */
-  public static OrderLine create(UUID id, int lineNo, UUID ownerId, String skuCode, int quantity) {
-    return new OrderLine(id, lineNo, ownerId, skuCode, quantity);
-  }
+    public String getSkuCode() {
+        return skuCode;
+    }
 
-  public UUID getId() {
-    return id;
-  }
-
-  public int getLineNo() {
-    return lineNo;
-  }
-
-  public UUID getOwnerId() {
-    return ownerId;
-  }
-
-  public String getSkuCode() {
-    return skuCode;
-  }
-
-  public int getQuantity() {
-    return quantity;
-  }
+    public int getQuantity() {
+        return quantity;
+    }
 }

@@ -8,13 +8,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AllocationConfiguration {
 
-  @Bean
-  AllocationDemandPlanner allocationDemandPlanner() {
-    return new AllocationDemandPlanner();
-  }
+    @Bean
+    AllocationDemandPlanner allocationDemandPlanner() {
+        return new AllocationDemandPlanner();
+    }
 
-  @Bean
-  AllocationFifoSelector allocationFifoSelector() {
-    return new AllocationFifoSelector();
-  }
+    @Bean
+    AllocationFifoSelector allocationFifoSelector() {
+        return new AllocationFifoSelector();
+    }
 }

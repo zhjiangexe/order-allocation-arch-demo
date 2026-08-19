@@ -10,17 +10,17 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @TestConfiguration(proxyBeanMethods = false)
 public class WmsPostgreSQLTestConfiguration {
 
-  @Bean
-  @ServiceConnection
-  PostgreSQLContainer postgresContainer() {
-    return new PostgreSQLContainer("postgres:16-alpine")
-        .withDatabaseName("wms_test")
-        .withUsername("wms")
-        .withPassword("wms");
-  }
+    @Bean
+    @ServiceConnection
+    PostgreSQLContainer postgresContainer() {
+        return new PostgreSQLContainer("postgres:16-alpine")
+                .withDatabaseName("wms_test")
+                .withUsername("wms")
+                .withPassword("wms");
+    }
 
-  @Bean
-  ControllableMessageConsumerImplementation controllableMessageConsumerImplementation() {
-    return new ControllableMessageConsumerImplementation();
-  }
+    @Bean
+    ControllableMessageConsumerImplementation controllableMessageConsumerImplementation() {
+        return new ControllableMessageConsumerImplementation();
+    }
 }

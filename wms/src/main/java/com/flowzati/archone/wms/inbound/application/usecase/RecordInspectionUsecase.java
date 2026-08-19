@@ -7,23 +7,24 @@ import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 
 public class RecordInspectionUsecase {
 
-  private final InboundOperationRepository repository;
-  private final DomainEventPublisher eventPublisher;
+    private final InboundOperationRepository repository;
+    private final DomainEventPublisher eventPublisher;
 
-  public RecordInspectionUsecase(InboundOperationRepository repository, DomainEventPublisher eventPublisher) {
-    this.repository = repository;
-    this.eventPublisher = eventPublisher;
-  }
+    public RecordInspectionUsecase(InboundOperationRepository repository, DomainEventPublisher eventPublisher) {
+        this.repository = repository;
+        this.eventPublisher = eventPublisher;
+    }
 
-  public void handle(RecordInspectionCommand command) {
-    InboundOperation operation = required(command.inboundOperationId());
-    operation.recordInspection(command.accepted(), command.reason(), command.inspectedAt());
-    repository.save(operation);
-    operation.releaseEvents().forEach(eventPublisher::publish);
-  }
+    public void handle(RecordInspectionCommand command) {
+        InboundOperation operation = required(command.inboundOperationId());
+        operation.recordInspection(command.accepted(), command.reason(), command.inspectedAt());
+        repository.save(operation);
+        operation.releaseEvents().forEach(eventPublisher::publish);
+    }
 
-  private InboundOperation required(java.util.UUID operationId) {
-    return repository.findById(operationId)
-        .orElseThrow(() -> new IllegalStateException("Inbound operation not found: " + operationId));
-  }
+    private InboundOperation required(java.util.UUID operationId) {
+        return repository
+                .findById(operationId)
+                .orElseThrow(() -> new IllegalStateException("Inbound operation not found: " + operationId));
+    }
 }

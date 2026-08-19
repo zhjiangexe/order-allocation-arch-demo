@@ -9,8 +9,8 @@ import org.springframework.context.annotation.Bean;
  */
 public class SpringMessagingFlywayConfiguration {
 
-  @Bean
-  public MessagingFlywayFactory messagingFlywayFactory() {
-    return new DefaultMessagingFlywayFactory();
-  }
+    @Bean
+    public MessagingFlywayFactory messagingFlywayFactory() {
+        return new DefaultMessagingFlywayFactory();
+    }
 }

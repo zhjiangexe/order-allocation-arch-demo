@@ -23,53 +23,53 @@ import java.util.UUID;
  */
 public record StockQuantResponse(List<SkuStockResponse> skus) {
 
-  static StockQuantResponse from(Map<String, List<StockQuant>> batchesBySku, LocalDate today) {
-    return new StockQuantResponse(
-        batchesBySku.entrySet().stream()
-            .map(entry -> SkuStockResponse.from(entry.getKey(), entry.getValue(), today))
-            .toList());
-  }
-
-  /** 一個規格在這個倉的全部批，依效期、入庫日、id 排序——配貨會取用它們的順序。 */
-  public record SkuStockResponse(String sku, List<StockBatchResponse> batches) {
-
-    static SkuStockResponse from(String sku, List<StockQuant> batches, LocalDate today) {
-      return new SkuStockResponse(
-          sku,
-          batches.stream().map(batch -> StockBatchResponse.from(batch, today)).toList());
+    static StockQuantResponse from(Map<String, List<StockQuant>> batchesBySku, LocalDate today) {
+        return new StockQuantResponse(batchesBySku.entrySet().stream()
+                .map(entry -> SkuStockResponse.from(entry.getKey(), entry.getValue(), today))
+                .toList());
     }
-  }
 
-  /**
-   * 一批貨在畫面上的樣子。
-   *
-   * <p><b>沒有「為什麼不能配」的欄位。</b>曾經有一個 {@code unsellableReason}，但它永遠只會
-   * 是 {@code null} 或 {@code "EXPIRED"}——為想像中的待驗、封鎖、破損預留，而那三者在動工前
-   * 就已明確不做。要說的兩件事 {@code expired} 與 {@code availableToPromise} 各講一件，讀的
-   * 人合起來就知道是「過期了」「還是被預留光了」，不需要第三個欄位轉述。
-   *
-   * <p><b>沒有 {@code facilityId}。</b>整份回應已經鎖在一個倉裡，每一批再帶一次只是把查詢參數
-   * 抄回來。改動前它是必要的——那時一次回答跨所有倉。
-  */
-  public record StockBatchResponse(
-      @JsonProperty("stockPoolId") UUID stockQuantId,
-      LocalDate inDate,
-      LocalDate expiryDate,
-      int onHandQuantity,
-      int reservedQuantity,
-      int availableToPromise,
-      boolean expired
-  ) {
+    /** 一個規格在這個倉的全部批，依效期、入庫日、id 排序——配貨會取用它們的順序。 */
+    public record SkuStockResponse(String sku, List<StockBatchResponse> batches) {
 
-    static StockBatchResponse from(StockQuant batch, LocalDate today) {
-      return new StockBatchResponse(
-          batch.getId(),
-          batch.getInDate(),
-          batch.getExpiryDate(),
-          batch.getOnHandQuantity(),
-          batch.getReservedQuantity(),
-          batch.availableToPromise(),
-          batch.isExpired(today));
+        static SkuStockResponse from(String sku, List<StockQuant> batches, LocalDate today) {
+            return new SkuStockResponse(
+                    sku,
+                    batches.stream()
+                            .map(batch -> StockBatchResponse.from(batch, today))
+                            .toList());
+        }
     }
-  }
+
+    /**
+     * 一批貨在畫面上的樣子。
+     *
+     * <p><b>沒有「為什麼不能配」的欄位。</b>曾經有一個 {@code unsellableReason}，但它永遠只會
+     * 是 {@code null} 或 {@code "EXPIRED"}——為想像中的待驗、封鎖、破損預留，而那三者在動工前
+     * 就已明確不做。要說的兩件事 {@code expired} 與 {@code availableToPromise} 各講一件，讀的
+     * 人合起來就知道是「過期了」「還是被預留光了」，不需要第三個欄位轉述。
+     *
+     * <p><b>沒有 {@code facilityId}。</b>整份回應已經鎖在一個倉裡，每一批再帶一次只是把查詢參數
+     * 抄回來。改動前它是必要的——那時一次回答跨所有倉。
+     */
+    public record StockBatchResponse(
+            @JsonProperty("stockPoolId") UUID stockQuantId,
+            LocalDate inDate,
+            LocalDate expiryDate,
+            int onHandQuantity,
+            int reservedQuantity,
+            int availableToPromise,
+            boolean expired) {
+
+        static StockBatchResponse from(StockQuant batch, LocalDate today) {
+            return new StockBatchResponse(
+                    batch.getId(),
+                    batch.getInDate(),
+                    batch.getExpiryDate(),
+                    batch.getOnHandQuantity(),
+                    batch.getReservedQuantity(),
+                    batch.availableToPromise(),
+                    batch.isExpired(today));
+        }
+    }
 }

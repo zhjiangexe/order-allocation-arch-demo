@@ -16,35 +16,34 @@ import java.util.UUID;
  * 擴張成一張多行收貨單。
  */
 public record ConfirmStockReceiptCommand(
-    UUID ownerId,
-    UUID facilityId,
-    UUID locationId,
-    String sku,
-    LocalDate inDate,
-    LocalDate expiryDate,
-    int quantity
-) {
-  public ConfirmStockReceiptCommand {
-    if (ownerId == null) {
-      throw new IllegalArgumentException("Owner ID is required");
+        UUID ownerId,
+        UUID facilityId,
+        UUID locationId,
+        String sku,
+        LocalDate inDate,
+        LocalDate expiryDate,
+        int quantity) {
+    public ConfirmStockReceiptCommand {
+        if (ownerId == null) {
+            throw new IllegalArgumentException("Owner ID is required");
+        }
+        if (facilityId == null) {
+            throw new IllegalArgumentException("Facility ID is required");
+        }
+        if (locationId == null) {
+            throw new IllegalArgumentException("Location ID is required");
+        }
+        if (sku == null || sku.isBlank()) {
+            throw new IllegalArgumentException("SKU is required");
+        }
+        if (inDate == null) {
+            throw new IllegalArgumentException("In-date is required");
+        }
+        if (expiryDate == null) {
+            throw new IllegalArgumentException("Expiry date is required");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Received quantity must be positive");
+        }
     }
-    if (facilityId == null) {
-      throw new IllegalArgumentException("Facility ID is required");
-    }
-    if (locationId == null) {
-      throw new IllegalArgumentException("Location ID is required");
-    }
-    if (sku == null || sku.isBlank()) {
-      throw new IllegalArgumentException("SKU is required");
-    }
-    if (inDate == null) {
-      throw new IllegalArgumentException("In-date is required");
-    }
-    if (expiryDate == null) {
-      throw new IllegalArgumentException("Expiry date is required");
-    }
-    if (quantity <= 0) {
-      throw new IllegalArgumentException("Received quantity must be positive");
-    }
-  }
 }

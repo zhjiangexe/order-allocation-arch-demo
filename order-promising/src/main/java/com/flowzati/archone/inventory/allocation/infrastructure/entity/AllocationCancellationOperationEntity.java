@@ -17,68 +17,66 @@ import java.util.UUID;
 @Table(name = "allocation_cancellation_operations")
 public class AllocationCancellationOperationEntity {
 
-  @Id
-  @Column(name = "allocation_demand_id")
-  private UUID allocationDemandId;
+    @Id
+    @Column(name = "allocation_demand_id")
+    private UUID allocationDemandId;
 
-  @Id
-  @Column(name = "operation_id")
-  private UUID operationId;
+    @Id
+    @Column(name = "operation_id")
+    private UUID operationId;
 
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
-  private AllocationCancellationState state;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AllocationCancellationState state;
 
-  @Column(name = "started_at", nullable = false)
-  private Instant startedAt;
+    @Column(name = "started_at", nullable = false)
+    private Instant startedAt;
 
-  @Column(name = "updated_at", nullable = false)
-  private Instant updatedAt;
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
-  @Version
-  @Column(nullable = false)
-  private Long version;
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
-  protected AllocationCancellationOperationEntity() {
-  }
+    protected AllocationCancellationOperationEntity() {}
 
-  public AllocationCancellationOperationEntity(
-      UUID allocationDemandId,
-      UUID operationId,
-      AllocationCancellationState state,
-      Instant startedAt,
-      Instant updatedAt,
-      Long version
-  ) {
-    this.allocationDemandId = allocationDemandId;
-    this.operationId = operationId;
-    this.state = state;
-    this.startedAt = startedAt;
-    this.updatedAt = updatedAt;
-    this.version = version;
-  }
+    public AllocationCancellationOperationEntity(
+            UUID allocationDemandId,
+            UUID operationId,
+            AllocationCancellationState state,
+            Instant startedAt,
+            Instant updatedAt,
+            Long version) {
+        this.allocationDemandId = allocationDemandId;
+        this.operationId = operationId;
+        this.state = state;
+        this.startedAt = startedAt;
+        this.updatedAt = updatedAt;
+        this.version = version;
+    }
 
-  public UUID getAllocationDemandId() {
-    return allocationDemandId;
-  }
+    public UUID getAllocationDemandId() {
+        return allocationDemandId;
+    }
 
-  public UUID getOperationId() {
-    return operationId;
-  }
+    public UUID getOperationId() {
+        return operationId;
+    }
 
-  public AllocationCancellationState getState() {
-    return state;
-  }
+    public AllocationCancellationState getState() {
+        return state;
+    }
 
-  public Instant getStartedAt() {
-    return startedAt;
-  }
+    public Instant getStartedAt() {
+        return startedAt;
+    }
 
-  public Instant getUpdatedAt() {
-    return updatedAt;
-  }
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
 
-  public Long getVersion() {
-    return version;
-  }
+    public Long getVersion() {
+        return version;
+    }
 }

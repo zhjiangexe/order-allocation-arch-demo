@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.events;
 @FunctionalInterface
 public interface IntegrationEventDeserializer {
 
-  <E extends IntegrationEvent> E deserialize(String payload, Class<E> eventClass);
+    <E extends IntegrationEvent> E deserialize(String payload, Class<E> eventClass);
 }

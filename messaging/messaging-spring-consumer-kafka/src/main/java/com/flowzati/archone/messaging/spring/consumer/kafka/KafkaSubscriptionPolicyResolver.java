@@ -7,10 +7,10 @@ import java.util.Objects;
 @FunctionalInterface
 public interface KafkaSubscriptionPolicyResolver {
 
-  KafkaSubscriptionPolicy resolve(ResolvedMessageSubscription subscription);
+    KafkaSubscriptionPolicy resolve(ResolvedMessageSubscription subscription);
 
-  static KafkaSubscriptionPolicyResolver fixed(KafkaSubscriptionPolicy policy) {
-    Objects.requireNonNull(policy, "Kafka subscription policy is required");
-    return subscription -> policy;
-  }
+    static KafkaSubscriptionPolicyResolver fixed(KafkaSubscriptionPolicy policy) {
+        Objects.requireNonNull(policy, "Kafka subscription policy is required");
+        return subscription -> policy;
+    }
 }

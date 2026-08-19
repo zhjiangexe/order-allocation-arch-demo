@@ -8,12 +8,10 @@ import org.springframework.stereotype.Component;
 
 /** Safe capability gate until a production non-order source supplies its own coordinator. */
 @Component
-public class RejectingExecutionCancellationAdapter
-    implements AllocationExecutionCancellationCoordinator {
+public class RejectingExecutionCancellationAdapter implements AllocationExecutionCancellationCoordinator {
 
-  @Override
-  public ExternalCancellationDecision cancelExecution(
-      AllocationDemand demand, UUID cancellationOperationId) {
-    return ExternalCancellationDecision.REJECTED;
-  }
+    @Override
+    public ExternalCancellationDecision cancelExecution(AllocationDemand demand, UUID cancellationOperationId) {
+        return ExternalCancellationDecision.REJECTED;
+    }
 }

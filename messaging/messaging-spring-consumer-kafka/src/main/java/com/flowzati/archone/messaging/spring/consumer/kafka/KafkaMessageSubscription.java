@@ -6,11 +6,11 @@ import java.util.Set;
 /** Read-only operational identity for one programmatic Kafka subscription. */
 public interface KafkaMessageSubscription extends MessageSubscription {
 
-  String containerId();
+    String containerId();
 
-  String subscriberId();
+    String subscriberId();
 
-  String consumerGroupId();
+    String consumerGroupId();
 
-  Set<String> destinations();
+    Set<String> destinations();
 }

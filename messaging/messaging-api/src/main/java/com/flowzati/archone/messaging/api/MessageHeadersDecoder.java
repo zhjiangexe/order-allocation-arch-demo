@@ -6,5 +6,5 @@ import java.util.Map;
 @FunctionalInterface
 public interface MessageHeadersDecoder {
 
-  Map<String, String> decode(String encodedHeaders);
+    Map<String, String> decode(String encodedHeaders);
 }

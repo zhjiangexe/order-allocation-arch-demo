@@ -12,69 +12,71 @@ import java.util.UUID;
 
 @Entity
 @Table(
-    name = "stock_picking_types",
-    uniqueConstraints = @UniqueConstraint(
-        name = "uq_stock_picking_types_facility_code",
-        columnNames = {"facility_id", "code"}
-    )
-)
+        name = "stock_picking_types",
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uq_stock_picking_types_facility_code",
+                        columnNames = {"facility_id", "code"}))
 public class PickingTypeEntity {
 
-  @Id
-  private UUID id;
+    @Id
+    private UUID id;
 
-  @Column(name = "facility_id", nullable = false)
-  private UUID facilityId;
+    @Column(name = "facility_id", nullable = false)
+    private UUID facilityId;
 
-  /** 以名稱而非序數存，理由與 {@code StockLocationEntity.usage} 相同。 */
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false, length = 32)
-  private PickingDirection code;
+    /** 以名稱而非序數存，理由與 {@code StockLocationEntity.usage} 相同。 */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private PickingDirection code;
 
-  @Column(nullable = false)
-  private String name;
+    @Column(nullable = false)
+    private String name;
 
-  @Column(name = "default_from_location_id", nullable = false)
-  private UUID defaultFromLocationId;
+    @Column(name = "default_from_location_id", nullable = false)
+    private UUID defaultFromLocationId;
 
-  @Column(name = "default_to_location_id", nullable = false)
-  private UUID defaultToLocationId;
+    @Column(name = "default_to_location_id", nullable = false)
+    private UUID defaultToLocationId;
 
-  protected PickingTypeEntity() {
-  }
+    protected PickingTypeEntity() {}
 
-  public PickingTypeEntity(
-      UUID id, UUID facilityId, PickingDirection code, String name,
-      UUID defaultFromLocationId, UUID defaultToLocationId) {
-    this.id = id;
-    this.facilityId = facilityId;
-    this.code = code;
-    this.name = name;
-    this.defaultFromLocationId = defaultFromLocationId;
-    this.defaultToLocationId = defaultToLocationId;
-  }
+    public PickingTypeEntity(
+            UUID id,
+            UUID facilityId,
+            PickingDirection code,
+            String name,
+            UUID defaultFromLocationId,
+            UUID defaultToLocationId) {
+        this.id = id;
+        this.facilityId = facilityId;
+        this.code = code;
+        this.name = name;
+        this.defaultFromLocationId = defaultFromLocationId;
+        this.defaultToLocationId = defaultToLocationId;
+    }
 
-  public UUID getId() {
-    return id;
-  }
+    public UUID getId() {
+        return id;
+    }
 
-  public UUID getFacilityId() {
-    return facilityId;
-  }
+    public UUID getFacilityId() {
+        return facilityId;
+    }
 
-  public PickingDirection getCode() {
-    return code;
-  }
+    public PickingDirection getCode() {
+        return code;
+    }
 
-  public String getName() {
-    return name;
-  }
+    public String getName() {
+        return name;
+    }
 
-  public UUID getDefaultFromLocationId() {
-    return defaultFromLocationId;
-  }
+    public UUID getDefaultFromLocationId() {
+        return defaultFromLocationId;
+    }
 
-  public UUID getDefaultToLocationId() {
-    return defaultToLocationId;
-  }
+    public UUID getDefaultToLocationId() {
+        return defaultToLocationId;
+    }
 }

@@ -14,68 +14,61 @@ import java.util.UUID;
  */
 public class Sku {
 
-  private final UUID id;
-  private final UUID ownerId;
-  private final String skuCode;
-  private final String productCode;
-  private final String specName;
-  private final int weightGram;
+    private final UUID id;
+    private final UUID ownerId;
+    private final String skuCode;
+    private final String productCode;
+    private final String specName;
+    private final int weightGram;
 
-  public Sku(
-      UUID id,
-      UUID ownerId,
-      String skuCode,
-      String productCode,
-      String specName,
-      int weightGram
-  ) {
-    if (id == null) {
-      throw new IllegalArgumentException("SKU ID is required");
+    public Sku(UUID id, UUID ownerId, String skuCode, String productCode, String specName, int weightGram) {
+        if (id == null) {
+            throw new IllegalArgumentException("SKU ID is required");
+        }
+        if (ownerId == null) {
+            throw new IllegalArgumentException("Owner ID is required");
+        }
+        if (skuCode == null || skuCode.isBlank()) {
+            throw new IllegalArgumentException("SKU code is required");
+        }
+        if (productCode == null || productCode.isBlank()) {
+            throw new IllegalArgumentException("Product code is required");
+        }
+        if (specName == null || specName.isBlank()) {
+            throw new IllegalArgumentException("Specification name is required");
+        }
+        if (weightGram <= 0) {
+            throw new IllegalArgumentException("Weight in grams must be positive");
+        }
+        this.id = id;
+        this.ownerId = ownerId;
+        this.skuCode = skuCode;
+        this.productCode = productCode;
+        this.specName = specName;
+        this.weightGram = weightGram;
     }
-    if (ownerId == null) {
-      throw new IllegalArgumentException("Owner ID is required");
+
+    public UUID getId() {
+        return id;
     }
-    if (skuCode == null || skuCode.isBlank()) {
-      throw new IllegalArgumentException("SKU code is required");
+
+    public UUID getOwnerId() {
+        return ownerId;
     }
-    if (productCode == null || productCode.isBlank()) {
-      throw new IllegalArgumentException("Product code is required");
+
+    public String getSkuCode() {
+        return skuCode;
     }
-    if (specName == null || specName.isBlank()) {
-      throw new IllegalArgumentException("Specification name is required");
+
+    public String getProductCode() {
+        return productCode;
     }
-    if (weightGram <= 0) {
-      throw new IllegalArgumentException("Weight in grams must be positive");
+
+    public String getSpecName() {
+        return specName;
     }
-    this.id = id;
-    this.ownerId = ownerId;
-    this.skuCode = skuCode;
-    this.productCode = productCode;
-    this.specName = specName;
-    this.weightGram = weightGram;
-  }
 
-  public UUID getId() {
-    return id;
-  }
-
-  public UUID getOwnerId() {
-    return ownerId;
-  }
-
-  public String getSkuCode() {
-    return skuCode;
-  }
-
-  public String getProductCode() {
-    return productCode;
-  }
-
-  public String getSpecName() {
-    return specName;
-  }
-
-  public int getWeightGram() {
-    return weightGram;
-  }
+    public int getWeightGram() {
+        return weightGram;
+    }
 }

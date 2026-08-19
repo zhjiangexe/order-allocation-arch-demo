@@ -8,9 +8,9 @@ import org.springframework.kafka.listener.CommonErrorHandler;
 @FunctionalInterface
 public interface KafkaSubscriptionErrorHandlerFactory {
 
-  Optional<CommonErrorHandler> create(ResolvedMessageSubscription subscription);
+    Optional<CommonErrorHandler> create(ResolvedMessageSubscription subscription);
 
-  static KafkaSubscriptionErrorHandlerFactory none() {
-    return subscription -> Optional.empty();
-  }
+    static KafkaSubscriptionErrorHandlerFactory none() {
+        return subscription -> Optional.empty();
+    }
 }

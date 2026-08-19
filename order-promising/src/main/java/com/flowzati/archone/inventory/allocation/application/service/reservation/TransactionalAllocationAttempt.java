@@ -11,30 +11,33 @@ import org.springframework.stereotype.Component;
 @Component
 public class TransactionalAllocationAttempt {
 
-  private final PendingDemandAllocator pendingDemandAllocator;
-  private final BusinessClock appClock;
-  private final int candidateLimit;
+    private final PendingDemandAllocator pendingDemandAllocator;
+    private final BusinessClock appClock;
+    private final int candidateLimit;
 
-  public TransactionalAllocationAttempt(
-      PendingDemandAllocator pendingDemandAllocator,
-      BusinessClock appClock,
-      @Value("${archone.allocation.waiting-demand-batch-limit:200}") int candidateLimit) {
-    if (candidateLimit <= 0) {
-      throw new IllegalArgumentException("Waiting-demand allocation limit must be positive");
+    public TransactionalAllocationAttempt(
+            PendingDemandAllocator pendingDemandAllocator,
+            BusinessClock appClock,
+            @Value("${archone.allocation.waiting-demand-batch-limit:200}") int candidateLimit) {
+        if (candidateLimit <= 0) {
+            throw new IllegalArgumentException("Waiting-demand allocation limit must be positive");
+        }
+        this.pendingDemandAllocator = pendingDemandAllocator;
+        this.appClock = appClock;
+        this.candidateLimit = candidateLimit;
     }
-    this.pendingDemandAllocator = pendingDemandAllocator;
-    this.appClock = appClock;
-    this.candidateLimit = candidateLimit;
-  }
 
-  /** 最多 commit 一筆 demand；若 queue 還有 successor，由外層 trigger 再發動下一次 bounded attempt。 */
-  @Transactional
-  public boolean attempt(AllocateWaitingDemandCommand command) {
-    return pendingDemandAllocator.allocateOne(
-        new WaitingAllocationScope(command.ownerId(), command.facilityId(), command.locationId(), command.sku()),
-        command.sku(),
-        candidateLimit,
-        appClock.today(),
-        appClock.instant()).isPresent();
-  }
+    /** 最多 commit 一筆 demand；若 queue 還有 successor，由外層 trigger 再發動下一次 bounded attempt。 */
+    @Transactional
+    public boolean attempt(AllocateWaitingDemandCommand command) {
+        return pendingDemandAllocator
+                .allocateOne(
+                        new WaitingAllocationScope(
+                                command.ownerId(), command.facilityId(), command.locationId(), command.sku()),
+                        command.sku(),
+                        candidateLimit,
+                        appClock.today(),
+                        appClock.instant())
+                .isPresent();
+    }
 }

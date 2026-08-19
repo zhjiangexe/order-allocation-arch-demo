@@ -10,13 +10,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class ListStockLocationsUsecase {
 
-  private final StockLocationRepository stockLocationRepository;
+    private final StockLocationRepository stockLocationRepository;
 
-  public ListStockLocationsUsecase(StockLocationRepository stockLocationRepository) {
-    this.stockLocationRepository = stockLocationRepository;
-  }
+    public ListStockLocationsUsecase(StockLocationRepository stockLocationRepository) {
+        this.stockLocationRepository = stockLocationRepository;
+    }
 
-  public List<StockLocation> listInternalByFacility(UUID facilityId) {
-    return stockLocationRepository.findInternalByFacilityId(facilityId);
-  }
+    public List<StockLocation> listInternalByFacility(UUID facilityId) {
+        return stockLocationRepository.findInternalByFacilityId(facilityId);
+    }
 }

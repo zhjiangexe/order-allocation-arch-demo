@@ -12,16 +12,14 @@ import org.junit.jupiter.api.Test;
 
 class OrderingAllocationResultEventConsumerTest {
 
-  @Test
-  void shouldTranslateAllocationResultsToOrderingCommands() {
-    RecordOrderAllocationUsecase allocationUsecase = mock(RecordOrderAllocationUsecase.class);
-    OrderingAllocationResultEventConsumer consumer = new OrderingAllocationResultEventConsumer(
-        allocationUsecase);
-    UUID orderId = UUID.randomUUID();
-    Instant occurredAt = Instant.parse("2026-08-10T02:00:00Z");
+    @Test
+    void shouldTranslateAllocationResultsToOrderingCommands() {
+        RecordOrderAllocationUsecase allocationUsecase = mock(RecordOrderAllocationUsecase.class);
+        OrderingAllocationResultEventConsumer consumer = new OrderingAllocationResultEventConsumer(allocationUsecase);
+        UUID orderId = UUID.randomUUID();
+        Instant occurredAt = Instant.parse("2026-08-10T02:00:00Z");
 
-    consumer.onOrderAllocated(new OrderAllocatedIntegrationEvent(
-        UUID.randomUUID(), orderId, occurredAt));
-    verify(allocationUsecase).execute(new RecordOrderAllocationCommand(orderId, occurredAt));
-  }
+        consumer.onOrderAllocated(new OrderAllocatedIntegrationEvent(UUID.randomUUID(), orderId, occurredAt));
+        verify(allocationUsecase).execute(new RecordOrderAllocationCommand(orderId, occurredAt));
+    }
 }

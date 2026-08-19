@@ -8,5 +8,5 @@ import java.util.UUID;
 @FunctionalInterface
 public interface OrderAllocationDemandSource {
 
-  Optional<AcceptAllocationDemandCommand> find(UUID sourceId);
+    Optional<AcceptAllocationDemandCommand> find(UUID sourceId);
 }

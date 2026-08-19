@@ -12,26 +12,26 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class OwnerRepositoryImpl implements OwnerRepository {
 
-  private final JpaOwnerRepository repository;
+    private final JpaOwnerRepository repository;
 
-  public OwnerRepositoryImpl(JpaOwnerRepository repository) {
-    this.repository = repository;
-  }
+    public OwnerRepositoryImpl(JpaOwnerRepository repository) {
+        this.repository = repository;
+    }
 
-  @Override
-  public void save(Owner owner) {
-    repository.save(OwnerMapper.toEntity(owner));
-  }
+    @Override
+    public void save(Owner owner) {
+        repository.save(OwnerMapper.toEntity(owner));
+    }
 
-  @Override
-  public Optional<Owner> findById(UUID ownerId) {
-    return repository.findById(ownerId).map(OwnerMapper::toDomain);
-  }
+    @Override
+    public Optional<Owner> findById(UUID ownerId) {
+        return repository.findById(ownerId).map(OwnerMapper::toDomain);
+    }
 
-  @Override
-  public List<Owner> findAll() {
-    return repository.findAllByOrderByCodeAsc().stream()
-        .map(OwnerMapper::toDomain)
-        .toList();
-  }
+    @Override
+    public List<Owner> findAll() {
+        return repository.findAllByOrderByCodeAsc().stream()
+                .map(OwnerMapper::toDomain)
+                .toList();
+    }
 }

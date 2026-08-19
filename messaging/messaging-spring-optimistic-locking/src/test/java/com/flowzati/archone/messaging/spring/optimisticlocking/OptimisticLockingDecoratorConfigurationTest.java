@@ -11,42 +11,37 @@ import org.springframework.context.annotation.Import;
 
 class OptimisticLockingDecoratorConfigurationTest {
 
-  private final ApplicationContextRunner contextRunner = new ApplicationContextRunner();
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner();
 
-  @Test
-  void importsTheOptionalDecoratorWithFallbackSettings() {
-    contextRunner
-        .withUserConfiguration(DefaultConfiguration.class)
-        .run(context -> {
-          assertThat(context).hasSingleBean(OptimisticLockingDecorator.class);
-          assertThat(context.getBean(OptimisticLockingRetrySettings.class))
-              .isEqualTo(OptimisticLockingRetrySettings.defaults());
+    @Test
+    void importsTheOptionalDecoratorWithFallbackSettings() {
+        contextRunner.withUserConfiguration(DefaultConfiguration.class).run(context -> {
+            assertThat(context).hasSingleBean(OptimisticLockingDecorator.class);
+            assertThat(context.getBean(OptimisticLockingRetrySettings.class))
+                    .isEqualTo(OptimisticLockingRetrySettings.defaults());
         });
-  }
-
-  @Test
-  void letsTheApplicationOwnRetrySettings() {
-    contextRunner
-        .withUserConfiguration(OverriddenConfiguration.class)
-        .run(context -> {
-          assertThat(context).hasSingleBean(OptimisticLockingDecorator.class);
-          assertThat(context.getBean(OptimisticLockingRetrySettings.class))
-              .isEqualTo(new OptimisticLockingRetrySettings(4, Duration.ofMillis(25)));
-        });
-  }
-
-  @Configuration(proxyBeanMethods = false)
-  @Import(OptimisticLockingDecoratorConfiguration.class)
-  static class DefaultConfiguration {
-  }
-
-  @Configuration(proxyBeanMethods = false)
-  @Import(OptimisticLockingDecoratorConfiguration.class)
-  static class OverriddenConfiguration {
-
-    @Bean
-    OptimisticLockingRetrySettings applicationRetrySettings() {
-      return new OptimisticLockingRetrySettings(4, Duration.ofMillis(25));
     }
-  }
+
+    @Test
+    void letsTheApplicationOwnRetrySettings() {
+        contextRunner.withUserConfiguration(OverriddenConfiguration.class).run(context -> {
+            assertThat(context).hasSingleBean(OptimisticLockingDecorator.class);
+            assertThat(context.getBean(OptimisticLockingRetrySettings.class))
+                    .isEqualTo(new OptimisticLockingRetrySettings(4, Duration.ofMillis(25)));
+        });
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @Import(OptimisticLockingDecoratorConfiguration.class)
+    static class DefaultConfiguration {}
+
+    @Configuration(proxyBeanMethods = false)
+    @Import(OptimisticLockingDecoratorConfiguration.class)
+    static class OverriddenConfiguration {
+
+        @Bean
+        OptimisticLockingRetrySettings applicationRetrySettings() {
+            return new OptimisticLockingRetrySettings(4, Duration.ofMillis(25));
+        }
+    }
 }

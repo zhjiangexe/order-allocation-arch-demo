@@ -13,21 +13,17 @@ import java.util.Collection;
 @FunctionalInterface
 public interface IntegrationEventPublisher {
 
-  void publish(IntegrationEventPublication publication);
+    void publish(IntegrationEventPublication publication);
 
-  default void publish(
-      IntegrationEvent event,
-      AggregateReference aggregate,
-      PublicationTarget target,
-      Instant occurredAt
-  ) {
-    publish(new IntegrationEventPublication(event, aggregate, target, occurredAt));
-  }
-
-  default void publishAll(Collection<IntegrationEventPublication> publications) {
-    if (publications == null) {
-      throw new IllegalArgumentException("Integration Event publications are required");
+    default void publish(
+            IntegrationEvent event, AggregateReference aggregate, PublicationTarget target, Instant occurredAt) {
+        publish(new IntegrationEventPublication(event, aggregate, target, occurredAt));
     }
-    publications.forEach(this::publish);
-  }
+
+    default void publishAll(Collection<IntegrationEventPublication> publications) {
+        if (publications == null) {
+            throw new IllegalArgumentException("Integration Event publications are required");
+        }
+        publications.forEach(this::publish);
+    }
 }

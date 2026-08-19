@@ -18,39 +18,35 @@ import org.junit.jupiter.api.Test;
 
 class AllocationIntegrationEventConsumersTest {
 
-  @Test
-  void shouldTranslateOrderLifecycleEventsToAllocationCommands() {
-    AllocateOrderUsecase allocateOrderUsecase = mock(AllocateOrderUsecase.class);
-    CancelMovementsUsecase cancelMovementsUsecase = mock(CancelMovementsUsecase.class);
-    AllocationOrderLifecycleEventConsumer consumer = new AllocationOrderLifecycleEventConsumer(
-        allocateOrderUsecase, cancelMovementsUsecase);
-    UUID orderId = UUID.randomUUID();
-    Instant occurredAt = Instant.parse("2026-08-10T02:00:00Z");
+    @Test
+    void shouldTranslateOrderLifecycleEventsToAllocationCommands() {
+        AllocateOrderUsecase allocateOrderUsecase = mock(AllocateOrderUsecase.class);
+        CancelMovementsUsecase cancelMovementsUsecase = mock(CancelMovementsUsecase.class);
+        AllocationOrderLifecycleEventConsumer consumer =
+                new AllocationOrderLifecycleEventConsumer(allocateOrderUsecase, cancelMovementsUsecase);
+        UUID orderId = UUID.randomUUID();
+        Instant occurredAt = Instant.parse("2026-08-10T02:00:00Z");
 
-    consumer.onOrderPlaced(new OrderPlacedIntegrationEvent(
-        UUID.randomUUID(), orderId, occurredAt));
-    UUID cancellationEventId = UUID.randomUUID();
-    consumer.onOrderCancelled(new OrderCancelledIntegrationEvent(
-        cancellationEventId, orderId, occurredAt));
+        consumer.onOrderPlaced(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, occurredAt));
+        UUID cancellationEventId = UUID.randomUUID();
+        consumer.onOrderCancelled(new OrderCancelledIntegrationEvent(cancellationEventId, orderId, occurredAt));
 
-    verify(allocateOrderUsecase).execute(new AllocateOrderCommand(orderId));
-    verify(cancelMovementsUsecase).execute(
-        new CancelMovementsCommand(orderId, cancellationEventId));
-  }
+        verify(allocateOrderUsecase).execute(new AllocateOrderCommand(orderId));
+        verify(cancelMovementsUsecase).execute(new CancelMovementsCommand(orderId, cancellationEventId));
+    }
 
-  @Test
-  void shouldTranslateAvailabilityEventToOneBoundedWaitingDemandCommand() {
-    TransactionalAllocationAttempt allocationAttempt = mock(TransactionalAllocationAttempt.class);
-    AllocationInventoryAvailabilityEventConsumer consumer =
-        new AllocationInventoryAvailabilityEventConsumer(allocationAttempt);
-    UUID ownerId = UUID.randomUUID();
-    UUID facilityId = UUID.randomUUID();
-    UUID locationId = UUID.randomUUID();
+    @Test
+    void shouldTranslateAvailabilityEventToOneBoundedWaitingDemandCommand() {
+        TransactionalAllocationAttempt allocationAttempt = mock(TransactionalAllocationAttempt.class);
+        AllocationInventoryAvailabilityEventConsumer consumer =
+                new AllocationInventoryAvailabilityEventConsumer(allocationAttempt);
+        UUID ownerId = UUID.randomUUID();
+        UUID facilityId = UUID.randomUUID();
+        UUID locationId = UUID.randomUUID();
 
-    consumer.onStockAvailabilityIncreased(new StockAvailabilityIncreasedIntegrationEvent(
-        UUID.randomUUID(), ownerId, facilityId, locationId, "SKU-1", 5));
+        consumer.onStockAvailabilityIncreased(new StockAvailabilityIncreasedIntegrationEvent(
+                UUID.randomUUID(), ownerId, facilityId, locationId, "SKU-1", 5));
 
-    verify(allocationAttempt).attempt(new AllocateWaitingDemandCommand(
-        ownerId, facilityId, locationId, "SKU-1"));
-  }
+        verify(allocationAttempt).attempt(new AllocateWaitingDemandCommand(ownerId, facilityId, locationId, "SKU-1"));
+    }
 }

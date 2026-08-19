@@ -6,5 +6,5 @@ import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 @FunctionalInterface
 public interface DomainEventPublisher {
 
-  void publish(WmsDomainEvent event);
+    void publish(WmsDomainEvent event);
 }

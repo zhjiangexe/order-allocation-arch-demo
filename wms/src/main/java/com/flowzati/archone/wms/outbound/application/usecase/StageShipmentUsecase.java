@@ -7,23 +7,24 @@ import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 
 public class StageShipmentUsecase {
 
-  private final ShipmentRepository shipmentRepository;
-  private final DomainEventPublisher eventPublisher;
+    private final ShipmentRepository shipmentRepository;
+    private final DomainEventPublisher eventPublisher;
 
-  public StageShipmentUsecase(ShipmentRepository shipmentRepository, DomainEventPublisher eventPublisher) {
-    this.shipmentRepository = shipmentRepository;
-    this.eventPublisher = eventPublisher;
-  }
+    public StageShipmentUsecase(ShipmentRepository shipmentRepository, DomainEventPublisher eventPublisher) {
+        this.shipmentRepository = shipmentRepository;
+        this.eventPublisher = eventPublisher;
+    }
 
-  public void handle(StageShipmentCommand command) {
-    Shipment shipment = required(command.shipmentId());
-    shipment.stage(command.stagedAt());
-    shipmentRepository.save(shipment);
-    shipment.releaseEvents().forEach(eventPublisher::publish);
-  }
+    public void handle(StageShipmentCommand command) {
+        Shipment shipment = required(command.shipmentId());
+        shipment.stage(command.stagedAt());
+        shipmentRepository.save(shipment);
+        shipment.releaseEvents().forEach(eventPublisher::publish);
+    }
 
-  private Shipment required(java.util.UUID shipmentId) {
-    return shipmentRepository.findById(shipmentId)
-        .orElseThrow(() -> new IllegalStateException("Shipment not found: " + shipmentId));
-  }
+    private Shipment required(java.util.UUID shipmentId) {
+        return shipmentRepository
+                .findById(shipmentId)
+                .orElseThrow(() -> new IllegalStateException("Shipment not found: " + shipmentId));
+    }
 }

@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.api;
 @FunctionalInterface
 public interface MessageHandler {
 
-  void handle(Message message, MessageContext context);
+    void handle(Message message, MessageContext context);
 }

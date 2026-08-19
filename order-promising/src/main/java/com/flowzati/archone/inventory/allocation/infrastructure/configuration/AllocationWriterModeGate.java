@@ -10,20 +10,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class AllocationWriterModeGate {
 
-  public static final String DEMAND_MODE = "demand";
-  private final String mode;
+    public static final String DEMAND_MODE = "demand";
+    private final String mode;
 
-  public AllocationWriterModeGate(
-      @Value("${archone.allocation.writer-mode:demand}") String configuredMode) {
-    this.mode = configuredMode == null ? "" : configuredMode.trim().toLowerCase();
-    if (!DEMAND_MODE.equals(mode)) {
-      throw new IllegalStateException(
-          "This release only supports archone.allocation.writer-mode=demand; "
-              + "pause and drain allocation consumers before changing writer releases");
+    public AllocationWriterModeGate(@Value("${archone.allocation.writer-mode:demand}") String configuredMode) {
+        this.mode = configuredMode == null ? "" : configuredMode.trim().toLowerCase();
+        if (!DEMAND_MODE.equals(mode)) {
+            throw new IllegalStateException("This release only supports archone.allocation.writer-mode=demand; "
+                    + "pause and drain allocation consumers before changing writer releases");
+        }
     }
-  }
 
-  public String mode() {
-    return mode;
-  }
+    public String mode() {
+        return mode;
+    }
 }

@@ -15,13 +15,12 @@ import java.util.UUID;
  */
 public final class StockContentionKey {
 
-  private StockContentionKey() {
-  }
+    private StockContentionKey() {}
 
-  public static String of(UUID ownerId, UUID facilityId) {
-    if (ownerId == null || facilityId == null) {
-      throw new IllegalArgumentException("Owner ID and facility ID are required");
+    public static String of(UUID ownerId, UUID facilityId) {
+        if (ownerId == null || facilityId == null) {
+            throw new IllegalArgumentException("Owner ID and facility ID are required");
+        }
+        return ownerId + "/" + facilityId;
     }
-    return ownerId + "/" + facilityId;
-  }
 }

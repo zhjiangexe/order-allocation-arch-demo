@@ -8,13 +8,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties("archone.messaging.consumer")
 public class MessagingConsumerProperties {
 
-  private Map<String, String> groups = new LinkedHashMap<>();
+    private Map<String, String> groups = new LinkedHashMap<>();
 
-  public Map<String, String> getGroups() {
-    return groups;
-  }
+    public Map<String, String> getGroups() {
+        return groups;
+    }
 
-  public void setGroups(Map<String, String> groups) {
-    this.groups = groups == null ? new LinkedHashMap<>() : new LinkedHashMap<>(groups);
-  }
+    public void setGroups(Map<String, String> groups) {
+        this.groups = groups == null ? new LinkedHashMap<>() : new LinkedHashMap<>(groups);
+    }
 }

@@ -11,5 +11,5 @@ import com.flowzati.archone.messaging.api.Message;
 @FunctionalInterface
 public interface MessageProducerImplementation {
 
-  void send(String destination, Message message);
+    void send(String destination, Message message);
 }

@@ -6,8 +6,8 @@ import java.util.UUID;
 /** Default framework-neutral UUID message identity generator. */
 public final class RandomUuidMessageIdGenerator implements MessageIdGenerator {
 
-  @Override
-  public UUID generate() {
-    return UUID.randomUUID();
-  }
+    @Override
+    public UUID generate() {
+        return UUID.randomUUID();
+    }
 }

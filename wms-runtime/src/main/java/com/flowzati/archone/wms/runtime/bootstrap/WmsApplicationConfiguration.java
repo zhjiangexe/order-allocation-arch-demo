@@ -11,24 +11,22 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class WmsApplicationConfiguration {
 
-  @Bean
-  CreateShipmentUsecase createShipmentUsecase(
-      ShipmentRepository shipmentRepository,
-      DomainEventPublisher wmsDomainEventPublisher
-  ) {
-    return new CreateShipmentUsecase(shipmentRepository, wmsDomainEventPublisher);
-  }
+    @Bean
+    CreateShipmentUsecase createShipmentUsecase(
+            ShipmentRepository shipmentRepository, DomainEventPublisher wmsDomainEventPublisher) {
+        return new CreateShipmentUsecase(shipmentRepository, wmsDomainEventPublisher);
+    }
 
-  @Bean
-  com.flowzati.archone.wms.shared.application.IdGenerator wmsIdGenerator() {
-    return IdGenerator::nextId;
-  }
+    @Bean
+    com.flowzati.archone.wms.shared.application.IdGenerator wmsIdGenerator() {
+        return IdGenerator::nextId;
+    }
 
-  /** ShipmentCreated currently has no cross-boundary reader; keep that policy explicit. */
-  @Bean
-  DomainEventPublisher wmsDomainEventPublisher() {
-    return event -> {
-      // Internal WMS events gain handlers here when a concrete use case appears.
-    };
-  }
+    /** ShipmentCreated currently has no cross-boundary reader; keep that policy explicit. */
+    @Bean
+    DomainEventPublisher wmsDomainEventPublisher() {
+        return event -> {
+            // Internal WMS events gain handlers here when a concrete use case appears.
+        };
+    }
 }

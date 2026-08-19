@@ -18,46 +18,45 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnIntegrationEventConsumption
 public class WmsFulfillmentHandoffEventConsumer {
 
-  private final CreateShipmentUsecase createShipmentUsecase;
-  private final IdGenerator idGenerator;
+    private final CreateShipmentUsecase createShipmentUsecase;
+    private final IdGenerator idGenerator;
 
-  public WmsFulfillmentHandoffEventConsumer(
-      CreateShipmentUsecase createShipmentUsecase,
-      IdGenerator idGenerator
-  ) {
-    this.createShipmentUsecase = createShipmentUsecase;
-    this.idGenerator = idGenerator;
-  }
+    public WmsFulfillmentHandoffEventConsumer(CreateShipmentUsecase createShipmentUsecase, IdGenerator idGenerator) {
+        this.createShipmentUsecase = createShipmentUsecase;
+        this.idGenerator = idGenerator;
+    }
 
-  @Bean
-  IntegrationEventDispatcher wmsFulfillmentHandoffIntegrationEventDispatcher(
-      IntegrationEventDispatcherFactory factory
-  ) {
-    IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
-        .forDestination(FulfillmentChannels.FULFILLMENT_HANDOFFS)
-        .onEvent(
-            AllocationCommittedForFulfillmentIntegrationEvent.class,
-            envelope -> onAllocationCommitted(envelope.event()))
-        .build();
-    return factory.make(WmsEventSubscriptions.FULFILLMENT_HANDOFF, handlers);
-  }
+    @Bean
+    IntegrationEventDispatcher wmsFulfillmentHandoffIntegrationEventDispatcher(
+            IntegrationEventDispatcherFactory factory) {
+        IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
+                        FulfillmentChannels.FULFILLMENT_HANDOFFS)
+                .onEvent(
+                        AllocationCommittedForFulfillmentIntegrationEvent.class,
+                        envelope -> onAllocationCommitted(envelope.event()))
+                .build();
+        return factory.make(WmsEventSubscriptions.FULFILLMENT_HANDOFF, handlers);
+    }
 
-  void onAllocationCommitted(AllocationCommittedForFulfillmentIntegrationEvent event) {
-    // Event-driven driver 不需要同步回覆；CreateShipmentResult 仍確保相同 application use case
-    // 也能被 Temporal Activity adapter 使用，而不必回傳 domain Shipment aggregate。
-    createShipmentUsecase.handle(new CreateShipmentCommand(
-        idGenerator.nextId(),
-        event.getAllocationId(),
-        event.getOrderId(),
-        event.getOwnerId(),
-        event.getFacilityId(),
-        event.getLines().stream()
-            .map(line -> new CreateShipmentCommand.AllocationLine(
-                line.orderLineId(), line.moveId(), line.skuCode(),
-                line.sourceLocationId(), line.quantity()))
-            .toList(),
-        event.getDispatchBy(),
-        event.getReleasePriority(),
-        event.getCommittedAt()));
-  }
+    void onAllocationCommitted(AllocationCommittedForFulfillmentIntegrationEvent event) {
+        // Event-driven driver 不需要同步回覆；CreateShipmentResult 仍確保相同 application use case
+        // 也能被 Temporal Activity adapter 使用，而不必回傳 domain Shipment aggregate。
+        createShipmentUsecase.handle(new CreateShipmentCommand(
+                idGenerator.nextId(),
+                event.getAllocationId(),
+                event.getOrderId(),
+                event.getOwnerId(),
+                event.getFacilityId(),
+                event.getLines().stream()
+                        .map(line -> new CreateShipmentCommand.AllocationLine(
+                                line.orderLineId(),
+                                line.moveId(),
+                                line.skuCode(),
+                                line.sourceLocationId(),
+                                line.quantity()))
+                        .toList(),
+                event.getDispatchBy(),
+                event.getReleasePriority(),
+                event.getCommittedAt()));
+    }
 }

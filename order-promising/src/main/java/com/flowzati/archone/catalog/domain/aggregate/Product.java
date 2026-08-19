@@ -1,7 +1,6 @@
 package com.flowzati.archone.catalog.domain.aggregate;
 
 import com.flowzati.archone.catalog.domain.type.TemperatureZone;
-
 import java.util.UUID;
 
 /**
@@ -16,58 +15,52 @@ import java.util.UUID;
  */
 public class Product {
 
-  private final UUID id;
-  private final UUID ownerId;
-  private final String productCode;
-  private final String name;
-  private final TemperatureZone temperatureZone;
+    private final UUID id;
+    private final UUID ownerId;
+    private final String productCode;
+    private final String name;
+    private final TemperatureZone temperatureZone;
 
-  public Product(
-      UUID id,
-      UUID ownerId,
-      String productCode,
-      String name,
-      TemperatureZone temperatureZone
-  ) {
-    if (id == null) {
-      throw new IllegalArgumentException("Product ID is required");
+    public Product(UUID id, UUID ownerId, String productCode, String name, TemperatureZone temperatureZone) {
+        if (id == null) {
+            throw new IllegalArgumentException("Product ID is required");
+        }
+        if (ownerId == null) {
+            throw new IllegalArgumentException("Owner ID is required");
+        }
+        if (productCode == null || productCode.isBlank()) {
+            throw new IllegalArgumentException("Product code is required");
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Product name is required");
+        }
+        if (temperatureZone == null) {
+            throw new IllegalArgumentException("Temperature zone is required");
+        }
+        this.id = id;
+        this.ownerId = ownerId;
+        this.productCode = productCode;
+        this.name = name;
+        this.temperatureZone = temperatureZone;
     }
-    if (ownerId == null) {
-      throw new IllegalArgumentException("Owner ID is required");
+
+    public UUID getId() {
+        return id;
     }
-    if (productCode == null || productCode.isBlank()) {
-      throw new IllegalArgumentException("Product code is required");
+
+    public UUID getOwnerId() {
+        return ownerId;
     }
-    if (name == null || name.isBlank()) {
-      throw new IllegalArgumentException("Product name is required");
+
+    public String getProductCode() {
+        return productCode;
     }
-    if (temperatureZone == null) {
-      throw new IllegalArgumentException("Temperature zone is required");
+
+    public String getName() {
+        return name;
     }
-    this.id = id;
-    this.ownerId = ownerId;
-    this.productCode = productCode;
-    this.name = name;
-    this.temperatureZone = temperatureZone;
-  }
 
-  public UUID getId() {
-    return id;
-  }
-
-  public UUID getOwnerId() {
-    return ownerId;
-  }
-
-  public String getProductCode() {
-    return productCode;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public TemperatureZone getTemperatureZone() {
-    return temperatureZone;
-  }
+    public TemperatureZone getTemperatureZone() {
+        return temperatureZone;
+    }
 }

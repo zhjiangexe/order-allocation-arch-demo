@@ -13,17 +13,14 @@ import java.time.Instant;
  *
  * <p>單 SKU 時 {@code availableBySku} 只有一筆，行為與改動前完全相同。
  */
-public record AllocationRequest(
-    SkuQuantities availableBySku,
-    Instant decisionAt
-) {
+public record AllocationRequest(SkuQuantities availableBySku, Instant decisionAt) {
 
-  public AllocationRequest {
-    if (availableBySku == null) {
-      throw new IllegalArgumentException("Available quantities are required");
+    public AllocationRequest {
+        if (availableBySku == null) {
+            throw new IllegalArgumentException("Available quantities are required");
+        }
+        if (decisionAt == null) {
+            throw new IllegalArgumentException("Decision time is required");
+        }
     }
-    if (decisionAt == null) {
-      throw new IllegalArgumentException("Decision time is required");
-    }
-  }
 }

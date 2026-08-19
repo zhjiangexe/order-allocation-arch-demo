@@ -27,39 +27,38 @@ import java.util.UUID;
  */
 public final class OrderPlacedIntegrationEvent extends IntegrationEvent {
 
-  /** Kept equal to the existing wire value so this change is backward compatible. */
-  public static final String EVENT_TYPE = "OrderPlacedIntegrationEvent";
+    /** Kept equal to the existing wire value so this change is backward compatible. */
+    public static final String EVENT_TYPE = "OrderPlacedIntegrationEvent";
 
-  private final UUID orderId;
-  private final Instant receivedAt;
+    private final UUID orderId;
+    private final Instant receivedAt;
 
-  @JsonCreator
-  public OrderPlacedIntegrationEvent(
-      @JsonProperty("eventId") UUID eventId,
-      @JsonProperty("orderId") UUID orderId,
-      @JsonProperty("receivedAt") Instant receivedAt
-  ) {
-    super(eventId);
-    if (orderId == null) {
-      throw new IllegalArgumentException("Order ID is required");
+    @JsonCreator
+    public OrderPlacedIntegrationEvent(
+            @JsonProperty("eventId") UUID eventId,
+            @JsonProperty("orderId") UUID orderId,
+            @JsonProperty("receivedAt") Instant receivedAt) {
+        super(eventId);
+        if (orderId == null) {
+            throw new IllegalArgumentException("Order ID is required");
+        }
+        if (receivedAt == null) {
+            throw new IllegalArgumentException("Received time is required");
+        }
+        this.orderId = orderId;
+        this.receivedAt = receivedAt;
     }
-    if (receivedAt == null) {
-      throw new IllegalArgumentException("Received time is required");
+
+    public UUID getOrderId() {
+        return orderId;
     }
-    this.orderId = orderId;
-    this.receivedAt = receivedAt;
-  }
 
-  public UUID getOrderId() {
-    return orderId;
-  }
+    public Instant getReceivedAt() {
+        return receivedAt;
+    }
 
-  public Instant getReceivedAt() {
-    return receivedAt;
-  }
-
-  @Override
-  public String eventType() {
-    return EVENT_TYPE;
-  }
+    @Override
+    public String eventType() {
+        return EVENT_TYPE;
+    }
 }

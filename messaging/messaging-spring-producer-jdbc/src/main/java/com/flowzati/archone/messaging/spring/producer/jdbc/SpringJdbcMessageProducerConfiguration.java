@@ -27,43 +27,33 @@ import org.springframework.context.annotation.Import;
 @Import(SpringMessagingJdbcConfiguration.class)
 public class SpringJdbcMessageProducerConfiguration {
 
-  @Bean
-  public JdbcOutboxMessageProducerImplementation jdbcOutboxMessageProducerImplementation(
-      JdbcStatementExecutor statementExecutor,
-      MessagingSqlDialect dialect,
-      MessagingSchema schema,
-      MessagingTableNames tableNames,
-      OutboxMessageMapper messageMapper,
-      MessageHeadersCodec headersCodec
-  ) {
-    return new JdbcOutboxMessageProducerImplementation(
-        statementExecutor,
-        dialect,
-        schema,
-        tableNames,
-        messageMapper,
-        headersCodec);
-  }
+    @Bean
+    public JdbcOutboxMessageProducerImplementation jdbcOutboxMessageProducerImplementation(
+            JdbcStatementExecutor statementExecutor,
+            MessagingSqlDialect dialect,
+            MessagingSchema schema,
+            MessagingTableNames tableNames,
+            OutboxMessageMapper messageMapper,
+            MessageHeadersCodec headersCodec) {
+        return new JdbcOutboxMessageProducerImplementation(
+                statementExecutor, dialect, schema, tableNames, messageMapper, headersCodec);
+    }
 
-  @Bean
-  public CallerTransactionRequiredMessageProducerImplementation
-      callerTransactionRequiredMessageProducerImplementation(
-          MessagingTransactionTemplate transactionTemplate,
-          JdbcOutboxMessageProducerImplementation delegate
-      ) {
-    return new CallerTransactionRequiredMessageProducerImplementation(
-        transactionTemplate, delegate);
-  }
+    @Bean
+    public CallerTransactionRequiredMessageProducerImplementation
+            callerTransactionRequiredMessageProducerImplementation(
+                    MessagingTransactionTemplate transactionTemplate,
+                    JdbcOutboxMessageProducerImplementation delegate) {
+        return new CallerTransactionRequiredMessageProducerImplementation(transactionTemplate, delegate);
+    }
 
-  @Bean
-  public MessageProducer messageProducer(
-      CallerTransactionRequiredMessageProducerImplementation implementation,
-      ChannelMapping channelMapping,
-      List<MessageInterceptor> interceptors,
-      MessageIdGenerator messageIdGenerator,
-      Clock clock
-  ) {
-    return new MessageProducerImpl(
-        implementation, channelMapping, interceptors, messageIdGenerator, clock);
-  }
+    @Bean
+    public MessageProducer messageProducer(
+            CallerTransactionRequiredMessageProducerImplementation implementation,
+            ChannelMapping channelMapping,
+            List<MessageInterceptor> interceptors,
+            MessageIdGenerator messageIdGenerator,
+            Clock clock) {
+        return new MessageProducerImpl(implementation, channelMapping, interceptors, messageIdGenerator, clock);
+    }
 }

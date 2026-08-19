@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaProductRepository extends JpaRepository<ProductEntity, UUID> {
 
-  List<ProductEntity> findByOwnerIdOrderByProductCodeAsc(UUID ownerId);
+    List<ProductEntity> findByOwnerIdOrderByProductCodeAsc(UUID ownerId);
 }

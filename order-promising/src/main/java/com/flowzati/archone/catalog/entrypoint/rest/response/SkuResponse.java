@@ -8,21 +8,15 @@ import java.util.UUID;
  * 重新變成可表達的東西，而資料模型正是為了排除它才拆成兩層。
  */
 public record SkuResponse(
-    UUID skuId,
-    UUID ownerId,
-    String skuCode,
-    String productCode,
-    String specName,
-    int weightGram
-) {
+        UUID skuId, UUID ownerId, String skuCode, String productCode, String specName, int weightGram) {
 
-  public static SkuResponse from(Sku sku) {
-    return new SkuResponse(
-        sku.getId(),
-        sku.getOwnerId(),
-        sku.getSkuCode(),
-        sku.getProductCode(),
-        sku.getSpecName(),
-        sku.getWeightGram());
-  }
+    public static SkuResponse from(Sku sku) {
+        return new SkuResponse(
+                sku.getId(),
+                sku.getOwnerId(),
+                sku.getSkuCode(),
+                sku.getProductCode(),
+                sku.getSpecName(),
+                sku.getWeightGram());
+    }
 }

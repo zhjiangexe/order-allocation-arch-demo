@@ -4,10 +4,5 @@ import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
 import java.util.UUID;
 
-public record InboundOperationRegistered(
-    UUID inboundOperationId,
-    UUID ownerId,
-    UUID facilityId,
-    Instant occurredAt
-) implements WmsDomainEvent {
-}
+public record InboundOperationRegistered(UUID inboundOperationId, UUID ownerId, UUID facilityId, Instant occurredAt)
+        implements WmsDomainEvent {}

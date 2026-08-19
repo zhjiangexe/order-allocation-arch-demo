@@ -5,10 +5,4 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record ShipmentCancellationRejected(
-    UUID shipmentId,
-    UUID orderId,
-    String requestId,
-    String reason,
-    Instant occurredAt
-) implements WmsDomainEvent {
-}
+        UUID shipmentId, UUID orderId, String requestId, String reason, Instant occurredAt) implements WmsDomainEvent {}

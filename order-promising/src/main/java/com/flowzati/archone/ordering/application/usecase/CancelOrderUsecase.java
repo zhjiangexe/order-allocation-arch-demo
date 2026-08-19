@@ -27,27 +27,26 @@ import org.springframework.stereotype.Service;
 @Service
 public class CancelOrderUsecase {
 
-  private final OrderRepository orderRepository;
-  private final OrderingDomainEventPublisher eventPublisher;
+    private final OrderRepository orderRepository;
+    private final OrderingDomainEventPublisher eventPublisher;
 
-  public CancelOrderUsecase(
-      OrderRepository orderRepository,
-      OrderingDomainEventPublisher eventPublisher) {
-    this.orderRepository = orderRepository;
-    this.eventPublisher = eventPublisher;
-  }
-
-  @Transactional
-  public Order.CancellationResult cancel(UUID orderId, Instant cancelledAt) {
-    Order order = orderRepository.findById(orderId)
-        .orElseThrow(() -> new IllegalStateException("Order not found: " + orderId));
-    Order.CancellationResult result = order.cancel(cancelledAt);
-    if (result != Order.CancellationResult.CANCELLED) {
-      return result;
+    public CancelOrderUsecase(OrderRepository orderRepository, OrderingDomainEventPublisher eventPublisher) {
+        this.orderRepository = orderRepository;
+        this.eventPublisher = eventPublisher;
     }
 
-    orderRepository.save(order);
-    eventPublisher.publishAll(order.releaseDomainEvents());
-    return result;
-  }
+    @Transactional
+    public Order.CancellationResult cancel(UUID orderId, Instant cancelledAt) {
+        Order order = orderRepository
+                .findById(orderId)
+                .orElseThrow(() -> new IllegalStateException("Order not found: " + orderId));
+        Order.CancellationResult result = order.cancel(cancelledAt);
+        if (result != Order.CancellationResult.CANCELLED) {
+            return result;
+        }
+
+        orderRepository.save(order);
+        eventPublisher.publishAll(order.releaseDomainEvents());
+        return result;
+    }
 }

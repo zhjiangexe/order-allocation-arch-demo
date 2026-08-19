@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.allocation.domain.service;
 
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationBatchPick;
 import com.flowzati.archone.inventory.allocation.domain.entity.AllocationDemandLine;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationBatchPick;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -19,70 +19,63 @@ import java.util.List;
  */
 final class FefoBatchQueue {
 
-  private final Deque<RemainingBatch> remainingBatches;
+    private final Deque<RemainingBatch> remainingBatches;
 
-  FefoBatchQueue(List<StockQuant> fefoBatches) {
-    remainingBatches = new ArrayDeque<>(fefoBatches.size());
-    for (StockQuant batch : fefoBatches) {
-      int availableQuantity = batch.availableToPromise();
-      if (availableQuantity > 0) {
-        remainingBatches.addLast(new RemainingBatch(batch, availableQuantity));
-      }
-    }
-  }
-
-  /** 規劃一條 demand line 要從哪些 FEFO batches 各取多少。 */
-  List<AllocationBatchPick> planPicksFor(AllocationDemandLine line) {
-    List<AllocationBatchPick> picks = new ArrayList<>();
-    int quantityStillNeeded = line.quantity();
-
-    // 一條 line 可能跨多個 batches；直到需要量全部分配完才結束。
-    while (quantityStillNeeded > 0) {
-      RemainingBatch batch = firstBatchOrThrow(line);
-
-      // 這次最多只能取「本行還需要的量」與「隊首批次剩餘量」兩者中較小者。
-      int quantityToPick = Math.min(quantityStillNeeded, batch.remainingQuantity());
-      picks.add(toPick(line, batch.stockQuant(), quantityToPick));
-
-      quantityStillNeeded -= quantityToPick;
-      consumeFromFirstBatch(batch, quantityToPick);
+    FefoBatchQueue(List<StockQuant> fefoBatches) {
+        remainingBatches = new ArrayDeque<>(fefoBatches.size());
+        for (StockQuant batch : fefoBatches) {
+            int availableQuantity = batch.availableToPromise();
+            if (availableQuantity > 0) {
+                remainingBatches.addLast(new RemainingBatch(batch, availableQuantity));
+            }
+        }
     }
 
-    return List.copyOf(picks);
-  }
+    /** 規劃一條 demand line 要從哪些 FEFO batches 各取多少。 */
+    List<AllocationBatchPick> planPicksFor(AllocationDemandLine line) {
+        List<AllocationBatchPick> picks = new ArrayList<>();
+        int quantityStillNeeded = line.quantity();
 
-  /** 建立純試算 pick；此時不會改動 StockQuant。 */
-  private static AllocationBatchPick toPick(
-      AllocationDemandLine line, StockQuant batch, int quantity) {
-    return new AllocationBatchPick(
-        line.allocationDemandId(),
-        line.id(),
-        batch.getId(),
-        quantity);
-  }
+        // 一條 line 可能跨多個 batches；直到需要量全部分配完才結束。
+        while (quantityStillNeeded > 0) {
+            RemainingBatch batch = firstBatchOrThrow(line);
 
-  /**
-   * 先移除已使用的隊首；若批次還有剩餘量，再以新的不可變狀態放回隊首供下一輪使用。
-   */
-  private void consumeFromFirstBatch(RemainingBatch batch, int consumedQuantity) {
-    remainingBatches.removeFirst();
-    int quantityLeft = batch.remainingQuantity() - consumedQuantity;
-    if (quantityLeft > 0) {
-      remainingBatches.addFirst(new RemainingBatch(batch.stockQuant(), quantityLeft));
+            // 這次最多只能取「本行還需要的量」與「隊首批次剩餘量」兩者中較小者。
+            int quantityToPick = Math.min(quantityStillNeeded, batch.remainingQuantity());
+            picks.add(toPick(line, batch.stockQuant(), quantityToPick));
+
+            quantityStillNeeded -= quantityToPick;
+            consumeFromFirstBatch(batch, quantityToPick);
+        }
+
+        return List.copyOf(picks);
     }
-  }
 
-  private RemainingBatch firstBatchOrThrow(AllocationDemandLine line) {
-    RemainingBatch batch = remainingBatches.peekFirst();
-    if (batch == null) {
-      // Planner 的 aggregate preflight 已判定供給足夠；走到這裡表示兩段演算法不一致。
-      throw new IllegalStateException(
-          "Preflight supply could not satisfy allocation demand line " + line.id());
+    /** 建立純試算 pick；此時不會改動 StockQuant。 */
+    private static AllocationBatchPick toPick(AllocationDemandLine line, StockQuant batch, int quantity) {
+        return new AllocationBatchPick(line.allocationDemandId(), line.id(), batch.getId(), quantity);
     }
-    return batch;
-  }
 
-  /** Queue 自己擁有的試算狀態；不把剩餘量寫回 StockQuant。 */
-  private record RemainingBatch(StockQuant stockQuant, int remainingQuantity) {
-  }
+    /**
+     * 先移除已使用的隊首；若批次還有剩餘量，再以新的不可變狀態放回隊首供下一輪使用。
+     */
+    private void consumeFromFirstBatch(RemainingBatch batch, int consumedQuantity) {
+        remainingBatches.removeFirst();
+        int quantityLeft = batch.remainingQuantity() - consumedQuantity;
+        if (quantityLeft > 0) {
+            remainingBatches.addFirst(new RemainingBatch(batch.stockQuant(), quantityLeft));
+        }
+    }
+
+    private RemainingBatch firstBatchOrThrow(AllocationDemandLine line) {
+        RemainingBatch batch = remainingBatches.peekFirst();
+        if (batch == null) {
+            // Planner 的 aggregate preflight 已判定供給足夠；走到這裡表示兩段演算法不一致。
+            throw new IllegalStateException("Preflight supply could not satisfy allocation demand line " + line.id());
+        }
+        return batch;
+    }
+
+    /** Queue 自己擁有的試算狀態；不把剩餘量寫回 StockQuant。 */
+    private record RemainingBatch(StockQuant stockQuant, int remainingQuantity) {}
 }

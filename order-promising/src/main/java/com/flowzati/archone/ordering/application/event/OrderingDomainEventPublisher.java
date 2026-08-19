@@ -12,12 +12,12 @@ import java.util.Collection;
 @FunctionalInterface
 public interface OrderingDomainEventPublisher {
 
-  void publish(DomainEvent event);
+    void publish(DomainEvent event);
 
-  default void publishAll(Collection<? extends DomainEvent> events) {
-    if (events == null) {
-      throw new IllegalArgumentException("Ordering domain events are required");
+    default void publishAll(Collection<? extends DomainEvent> events) {
+        if (events == null) {
+            throw new IllegalArgumentException("Ordering domain events are required");
+        }
+        events.forEach(this::publish);
     }
-    events.forEach(this::publish);
-  }
 }

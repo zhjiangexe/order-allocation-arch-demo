@@ -8,6 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaStockLocationRepository extends JpaRepository<StockLocationEntity, UUID> {
 
-  List<StockLocationEntity> findAllByFacilityIdAndUsageOrderByCode(
-      UUID facilityId, LocationUsage usage);
+    List<StockLocationEntity> findAllByFacilityIdAndUsageOrderByCode(UUID facilityId, LocationUsage usage);
 }

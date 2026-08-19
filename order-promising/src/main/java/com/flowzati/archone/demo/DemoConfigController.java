@@ -18,19 +18,17 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile("dev")
 public class DemoConfigController {
 
-  private final String partitionKeyStrategy;
+    private final String partitionKeyStrategy;
 
-  public DemoConfigController(
-      @Value("${archone.allocation.partition-key-strategy:order-id}") String partitionKeyStrategy
-  ) {
-    this.partitionKeyStrategy = partitionKeyStrategy;
-  }
+    public DemoConfigController(
+            @Value("${archone.allocation.partition-key-strategy:order-id}") String partitionKeyStrategy) {
+        this.partitionKeyStrategy = partitionKeyStrategy;
+    }
 
-  @GetMapping("/config")
-  public DemoConfigResponse getConfig() {
-    return new DemoConfigResponse(partitionKeyStrategy);
-  }
+    @GetMapping("/config")
+    public DemoConfigResponse getConfig() {
+        return new DemoConfigResponse(partitionKeyStrategy);
+    }
 
-  public record DemoConfigResponse(String partitionKeyStrategy) {
-  }
+    public record DemoConfigResponse(String partitionKeyStrategy) {}
 }

@@ -8,17 +8,17 @@ import org.springframework.jdbc.core.JdbcOperations;
 /** Executes pure-module SQL through Spring's transaction-aware {@link JdbcOperations}. */
 public final class SpringJdbcStatementExecutor implements JdbcStatementExecutor {
 
-  private final JdbcOperations jdbcOperations;
+    private final JdbcOperations jdbcOperations;
 
-  public SpringJdbcStatementExecutor(JdbcOperations jdbcOperations) {
-    this.jdbcOperations = Objects.requireNonNull(jdbcOperations, "JdbcOperations is required");
-  }
-
-  @Override
-  public int update(String sql, List<?> arguments) {
-    if (sql == null || sql.isBlank() || arguments == null) {
-      throw new IllegalArgumentException("SQL and JDBC arguments are required");
+    public SpringJdbcStatementExecutor(JdbcOperations jdbcOperations) {
+        this.jdbcOperations = Objects.requireNonNull(jdbcOperations, "JdbcOperations is required");
     }
-    return jdbcOperations.update(sql, arguments.toArray());
-  }
+
+    @Override
+    public int update(String sql, List<?> arguments) {
+        if (sql == null || sql.isBlank() || arguments == null) {
+            throw new IllegalArgumentException("SQL and JDBC arguments are required");
+        }
+        return jdbcOperations.update(sql, arguments.toArray());
+    }
 }

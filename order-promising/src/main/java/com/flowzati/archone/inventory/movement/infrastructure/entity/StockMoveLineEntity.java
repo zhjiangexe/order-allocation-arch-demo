@@ -14,49 +14,47 @@ import java.util.UUID;
  */
 @Entity
 @Table(
-    name = "stock_move_lines",
-    uniqueConstraints = @UniqueConstraint(
-        name = "uq_stock_move_lines_move_pool",
-        columnNames = {"move_id", "stock_pool_id"}
-    )
-)
+        name = "stock_move_lines",
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uq_stock_move_lines_move_pool",
+                        columnNames = {"move_id", "stock_pool_id"}))
 public class StockMoveLineEntity {
 
-  @Id
-  private UUID id;
+    @Id
+    private UUID id;
 
-  @Column(name = "move_id", nullable = false)
-  private UUID moveId;
+    @Column(name = "move_id", nullable = false)
+    private UUID moveId;
 
-  @Column(name = "stock_pool_id", nullable = false)
-  private UUID stockQuantId;
+    @Column(name = "stock_pool_id", nullable = false)
+    private UUID stockQuantId;
 
-  @Column(nullable = false)
-  private int quantity;
+    @Column(nullable = false)
+    private int quantity;
 
-  protected StockMoveLineEntity() {
-  }
+    protected StockMoveLineEntity() {}
 
-  public StockMoveLineEntity(UUID id, UUID moveId, UUID stockQuantId, int quantity) {
-    this.id = id;
-    this.moveId = moveId;
-    this.stockQuantId = stockQuantId;
-    this.quantity = quantity;
-  }
+    public StockMoveLineEntity(UUID id, UUID moveId, UUID stockQuantId, int quantity) {
+        this.id = id;
+        this.moveId = moveId;
+        this.stockQuantId = stockQuantId;
+        this.quantity = quantity;
+    }
 
-  public UUID getId() {
-    return id;
-  }
+    public UUID getId() {
+        return id;
+    }
 
-  public UUID getMoveId() {
-    return moveId;
-  }
+    public UUID getMoveId() {
+        return moveId;
+    }
 
-  public UUID getStockQuantId() {
-    return stockQuantId;
-  }
+    public UUID getStockQuantId() {
+        return stockQuantId;
+    }
 
-  public int getQuantity() {
-    return quantity;
-  }
+    public int getQuantity() {
+        return quantity;
+    }
 }

@@ -23,39 +23,38 @@ import java.util.UUID;
  */
 public final class OrderCancelledIntegrationEvent extends IntegrationEvent {
 
-  /** Kept equal to the existing wire value so this change is backward compatible. */
-  public static final String EVENT_TYPE = "OrderCancelledIntegrationEvent";
+    /** Kept equal to the existing wire value so this change is backward compatible. */
+    public static final String EVENT_TYPE = "OrderCancelledIntegrationEvent";
 
-  private final UUID orderId;
-  private final Instant cancelledAt;
+    private final UUID orderId;
+    private final Instant cancelledAt;
 
-  @JsonCreator
-  public OrderCancelledIntegrationEvent(
-      @JsonProperty("eventId") UUID eventId,
-      @JsonProperty("orderId") UUID orderId,
-      @JsonProperty("cancelledAt") Instant cancelledAt
-  ) {
-    super(eventId);
-    if (orderId == null) {
-      throw new IllegalArgumentException("Order ID is required");
+    @JsonCreator
+    public OrderCancelledIntegrationEvent(
+            @JsonProperty("eventId") UUID eventId,
+            @JsonProperty("orderId") UUID orderId,
+            @JsonProperty("cancelledAt") Instant cancelledAt) {
+        super(eventId);
+        if (orderId == null) {
+            throw new IllegalArgumentException("Order ID is required");
+        }
+        if (cancelledAt == null) {
+            throw new IllegalArgumentException("Cancelled time is required");
+        }
+        this.orderId = orderId;
+        this.cancelledAt = cancelledAt;
     }
-    if (cancelledAt == null) {
-      throw new IllegalArgumentException("Cancelled time is required");
+
+    public UUID getOrderId() {
+        return orderId;
     }
-    this.orderId = orderId;
-    this.cancelledAt = cancelledAt;
-  }
 
-  public UUID getOrderId() {
-    return orderId;
-  }
+    public Instant getCancelledAt() {
+        return cancelledAt;
+    }
 
-  public Instant getCancelledAt() {
-    return cancelledAt;
-  }
-
-  @Override
-  public String eventType() {
-    return EVENT_TYPE;
-  }
+    @Override
+    public String eventType() {
+        return EVENT_TYPE;
+    }
 }

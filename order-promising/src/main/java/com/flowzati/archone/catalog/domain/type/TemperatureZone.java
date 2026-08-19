@@ -6,7 +6,7 @@ package com.flowzati.archone.catalog.domain.type;
  * <p>R6 以它作為節點的硬約束：節點的 capabilities 不含此溫層則該節點被排除。
  */
 public enum TemperatureZone {
-  AMBIENT,
-  CHILLED,
-  FROZEN
+    AMBIENT,
+    CHILLED,
+    FROZEN
 }

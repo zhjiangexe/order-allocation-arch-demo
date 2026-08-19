@@ -12,16 +12,15 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 @ConditionalOnClass(MessagingFlywayFactory.class)
 @ConditionalOnProperty(
-    prefix = "archone.messaging.flyway",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = false
-)
+        prefix = "archone.messaging.flyway",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 public class MessagingFlywayAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  MessagingFlywayFactory messagingFlywayFactory() {
-    return new DefaultMessagingFlywayFactory();
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    MessagingFlywayFactory messagingFlywayFactory() {
+        return new DefaultMessagingFlywayFactory();
+    }
 }

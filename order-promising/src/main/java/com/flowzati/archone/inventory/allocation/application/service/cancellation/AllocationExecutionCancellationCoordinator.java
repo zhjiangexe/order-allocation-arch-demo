@@ -9,6 +9,5 @@ import java.util.UUID;
  */
 public interface AllocationExecutionCancellationCoordinator {
 
-  ExternalCancellationDecision cancelExecution(
-      AllocationDemand demand, UUID cancellationOperationId);
+    ExternalCancellationDecision cancelExecution(AllocationDemand demand, UUID cancellationOperationId);
 }

@@ -2,32 +2,31 @@ package com.flowzati.archone.inventory.allocation.infrastructure.repository.jpa;
 
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationSourceType;
 import com.flowzati.archone.inventory.allocation.infrastructure.entity.AllocationDemandEntity;
-import java.util.Optional;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface JpaAllocationDemandRepository
-    extends JpaRepository<AllocationDemandEntity, UUID> {
+public interface JpaAllocationDemandRepository extends JpaRepository<AllocationDemandEntity, UUID> {
 
-  interface PendingAllocationScopeView {
-    UUID getOwnerId();
+    interface PendingAllocationScopeView {
+        UUID getOwnerId();
 
-    UUID getFacilityId();
+        UUID getFacilityId();
 
-    UUID getLocationId();
+        UUID getLocationId();
 
-    String getSkuCode();
-  }
+        String getSkuCode();
+    }
 
-  Optional<AllocationDemandEntity> findBySourceTypeAndSourceIdAndAllocationUnitKey(
-      AllocationSourceType sourceType, String sourceId, String allocationUnitKey);
+    Optional<AllocationDemandEntity> findBySourceTypeAndSourceIdAndAllocationUnitKey(
+            AllocationSourceType sourceType, String sourceId, String allocationUnitKey);
 
-  @Query(value = """
+    @Query(value = """
       SELECT d.id
         FROM allocation_demands d
        WHERE d.status = 'PENDING'
@@ -70,14 +69,14 @@ public interface JpaAllocationDemandRepository
        ORDER BY d.enqueued_at, d.id
        LIMIT :candidateLimit
       """, nativeQuery = true)
-  List<UUID> findTriggeredCandidateIds(
-      @Param("ownerId") UUID ownerId,
-      @Param("facilityId") UUID facilityId,
-      @Param("locationId") UUID locationId,
-      @Param("triggeringSku") String triggeringSku,
-      @Param("candidateLimit") int candidateLimit);
+    List<UUID> findTriggeredCandidateIds(
+            @Param("ownerId") UUID ownerId,
+            @Param("facilityId") UUID facilityId,
+            @Param("locationId") UUID locationId,
+            @Param("triggeringSku") String triggeringSku,
+            @Param("candidateLimit") int candidateLimit);
 
-  @Query(value = """
+    @Query(value = """
       SELECT DISTINCT predecessor.id
         FROM allocation_demands predecessor
         JOIN allocation_demand_lines predecessor_line
@@ -95,16 +94,16 @@ public interface JpaAllocationDemandRepository
              <= (candidate.enqueued_at, candidate.id)
        ORDER BY predecessor.id
       """, nativeQuery = true)
-  List<UUID> findFifoContextIds(
-      @Param("ownerId") UUID ownerId,
-      @Param("facilityId") UUID facilityId,
-      @Param("locationId") UUID locationId,
-      @Param("candidateIds") Collection<UUID> candidateIds);
+    List<UUID> findFifoContextIds(
+            @Param("ownerId") UUID ownerId,
+            @Param("facilityId") UUID facilityId,
+            @Param("locationId") UUID locationId,
+            @Param("candidateIds") Collection<UUID> candidateIds);
 
-  @EntityGraph(attributePaths = "lines")
-  List<AllocationDemandEntity> findByIdIn(Collection<UUID> ids);
+    @EntityGraph(attributePaths = "lines")
+    List<AllocationDemandEntity> findByIdIn(Collection<UUID> ids);
 
-  @Query(value = """
+    @Query(value = """
       SELECT d.owner_id AS ownerId,
              d.facility_id AS facilityId,
              d.location_id AS locationId,
@@ -152,12 +151,11 @@ public interface JpaAllocationDemandRepository
        ORDER BY MIN(d.enqueued_at), MIN(d.id::text), line.sku_code
        LIMIT :scopeLimit
       """, nativeQuery = true)
-  List<PendingAllocationScopeView> findAllocatablePendingScopes(
-      @Param("today") java.time.LocalDate today,
-      @Param("scopeLimit") int scopeLimit);
+    List<PendingAllocationScopeView> findAllocatablePendingScopes(
+            @Param("today") java.time.LocalDate today, @Param("scopeLimit") int scopeLimit);
 
-  /** Pending demands excluded from allocation because execution references are unsafe. */
-  @Query(value = """
+    /** Pending demands excluded from allocation because execution references are unsafe. */
+    @Query(value = """
       SELECT d.id
         FROM allocation_demands d
        WHERE d.status = 'PENDING'
@@ -193,5 +191,5 @@ public interface JpaAllocationDemandRepository
        ORDER BY d.enqueued_at, d.id
        LIMIT :limit
       """, nativeQuery = true)
-  List<UUID> findPendingExecutionAnomalyIds(@Param("limit") int limit);
+    List<UUID> findPendingExecutionAnomalyIds(@Param("limit") int limit);
 }

@@ -13,26 +13,24 @@ import org.springframework.dao.OptimisticLockingFailureException;
 @Configuration(proxyBeanMethods = false)
 public class OptimisticLockingDecoratorConfiguration {
 
-  @Bean
-  @Fallback
-  public OptimisticLockingRetrySettings optimisticLockingRetrySettings() {
-    return OptimisticLockingRetrySettings.defaults();
-  }
+    @Bean
+    @Fallback
+    public OptimisticLockingRetrySettings optimisticLockingRetrySettings() {
+        return OptimisticLockingRetrySettings.defaults();
+    }
 
-  @Bean
-  public OptimisticLockingDecorator optimisticLockingDecorator(
-      OptimisticLockingRetrySettings settings,
-      List<OptimisticLockingRetryObserver> observers
-  ) {
-    return new OptimisticLockingDecorator(retryOperations(settings), observers);
-  }
+    @Bean
+    public OptimisticLockingDecorator optimisticLockingDecorator(
+            OptimisticLockingRetrySettings settings, List<OptimisticLockingRetryObserver> observers) {
+        return new OptimisticLockingDecorator(retryOperations(settings), observers);
+    }
 
-  private RetryOperations retryOperations(OptimisticLockingRetrySettings settings) {
-    RetryPolicy retryPolicy = RetryPolicy.builder()
-        .includes(OptimisticLockingFailureException.class)
-        .maxRetries(settings.maxRetries())
-        .delay(settings.delay())
-        .build();
-    return new RetryTemplate(retryPolicy);
-  }
+    private RetryOperations retryOperations(OptimisticLockingRetrySettings settings) {
+        RetryPolicy retryPolicy = RetryPolicy.builder()
+                .includes(OptimisticLockingFailureException.class)
+                .maxRetries(settings.maxRetries())
+                .delay(settings.delay())
+                .build();
+        return new RetryTemplate(retryPolicy);
+    }
 }

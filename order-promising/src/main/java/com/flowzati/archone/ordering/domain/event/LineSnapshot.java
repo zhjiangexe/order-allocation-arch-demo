@@ -1,7 +1,5 @@
 package com.flowzati.archone.ordering.domain.event;
 
-import com.flowzati.archone.ordering.domain.entity.OrderLine;
-
 /**
  * 事件裡那一行的內容：行號、SKU 與數量。
  *
@@ -12,5 +10,4 @@ import com.flowzati.archone.ordering.domain.entity.OrderLine;
  * record：那樣會讓取消事件裡出現「下單事件的行」這種說謊的名字，也會讓其中一個事件加欄位
  * 時另外兩個被迫跟著長出不需要的欄位。
  */
-public record LineSnapshot(int lineNo, String skuCode, int quantity) {
-}
+public record LineSnapshot(int lineNo, String skuCode, int quantity) {}

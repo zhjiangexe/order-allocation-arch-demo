@@ -14,37 +14,36 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 public final class SitDatabase {
 
-  private SitDatabase() {
-  }
+    private SitDatabase() {}
 
-  public static void clear(JdbcTemplate jdbcTemplate) {
-    for (String table : new String[]{
-        "event_outbox",
-        "event_inbox",
-        "stock_receipt_requests",
-        // 執行層：明細指向搬運與庫存列，搬運指向單據、訂單行、SKU 與位置。
-        "stock_move_lines",
-        "stock_moves",
-        "allocation_cancellation_operations",
-        "allocation_demand_lines",
-        "allocation_demands",
-        "stock_pickings",
-        "stock_picking_types",
-        // 需求層
-        "order_lines",
-        "orders",
-        // 庫存：在搬運與明細之後，因為兩者都指向它
-        "stock_pools",
-        // 主檔
-        "skus",
-        "products",
-        "owner_facilities",
-        "owners",
-        // 位置在最後，倉再最後：作業類型、單據、搬運、庫存全都指向位置。
-        "stock_locations",
-        "facilities"
-    }) {
-      jdbcTemplate.execute("DELETE FROM " + table);
+    public static void clear(JdbcTemplate jdbcTemplate) {
+        for (String table : new String[] {
+            "event_outbox",
+            "event_inbox",
+            "stock_receipt_requests",
+            // 執行層：明細指向搬運與庫存列，搬運指向單據、訂單行、SKU 與位置。
+            "stock_move_lines",
+            "stock_moves",
+            "allocation_cancellation_operations",
+            "allocation_demand_lines",
+            "allocation_demands",
+            "stock_pickings",
+            "stock_picking_types",
+            // 需求層
+            "order_lines",
+            "orders",
+            // 庫存：在搬運與明細之後，因為兩者都指向它
+            "stock_pools",
+            // 主檔
+            "skus",
+            "products",
+            "owner_facilities",
+            "owners",
+            // 位置在最後，倉再最後：作業類型、單據、搬運、庫存全都指向位置。
+            "stock_locations",
+            "facilities"
+        }) {
+            jdbcTemplate.execute("DELETE FROM " + table);
+        }
     }
-  }
 }

@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaSkuRepository extends JpaRepository<SkuEntity, UUID> {
 
-  List<SkuEntity> findByOwnerIdAndProductCodeOrderBySkuCodeAsc(UUID ownerId, String productCode);
+    List<SkuEntity> findByOwnerIdAndProductCodeOrderBySkuCodeAsc(UUID ownerId, String productCode);
 }

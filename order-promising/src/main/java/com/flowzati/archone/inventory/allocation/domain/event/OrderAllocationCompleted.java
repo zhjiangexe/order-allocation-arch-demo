@@ -18,53 +18,45 @@ import java.util.UUID;
  * transaction 寫入 Outbox。
  */
 public record OrderAllocationCompleted(
-    UUID allocationId,
-    UUID orderId,
-    UUID ownerId,
-    UUID facilityId,
-    List<AllocationLine> lines,
-    Instant dispatchBy,
-    int releasePriority,
-    Instant allocatedAt
-)
-    implements DomainEvent {
+        UUID allocationId,
+        UUID orderId,
+        UUID ownerId,
+        UUID facilityId,
+        List<AllocationLine> lines,
+        Instant dispatchBy,
+        int releasePriority,
+        Instant allocatedAt)
+        implements DomainEvent {
 
-  public OrderAllocationCompleted {
-    if (allocationId == null || orderId == null || ownerId == null || facilityId == null) {
-      throw new IllegalArgumentException("Completed allocation requires all business IDs");
+    public OrderAllocationCompleted {
+        if (allocationId == null || orderId == null || ownerId == null || facilityId == null) {
+            throw new IllegalArgumentException("Completed allocation requires all business IDs");
+        }
+        if (lines == null || lines.isEmpty()) {
+            throw new IllegalArgumentException("Completed allocation requires lines");
+        }
+        lines = List.copyOf(lines);
+        Set<UUID> moveIds = new HashSet<>();
+        if (lines.stream().anyMatch(line -> line == null || !moveIds.add(line.moveId()))) {
+            throw new IllegalArgumentException("Completed allocation requires unique non-null moves");
+        }
+        if (dispatchBy == null || allocatedAt == null) {
+            throw new IllegalArgumentException("Dispatch deadline and allocated time are required");
+        }
+        if (releasePriority < 0 || releasePriority > 100) {
+            throw new IllegalArgumentException("Release priority must be between 0 and 100");
+        }
     }
-    if (lines == null || lines.isEmpty()) {
-      throw new IllegalArgumentException("Completed allocation requires lines");
-    }
-    lines = List.copyOf(lines);
-    Set<UUID> moveIds = new HashSet<>();
-    if (lines.stream().anyMatch(line -> line == null || !moveIds.add(line.moveId()))) {
-      throw new IllegalArgumentException("Completed allocation requires unique non-null moves");
-    }
-    if (dispatchBy == null || allocatedAt == null) {
-      throw new IllegalArgumentException("Dispatch deadline and allocated time are required");
-    }
-    if (releasePriority < 0 || releasePriority > 100) {
-      throw new IllegalArgumentException("Release priority must be between 0 and 100");
-    }
-  }
 
-  public record AllocationLine(
-      UUID orderLineId,
-      UUID moveId,
-      String skuCode,
-      UUID sourceLocationId,
-      int quantity
-  ) {
+    public record AllocationLine(UUID orderLineId, UUID moveId, String skuCode, UUID sourceLocationId, int quantity) {
 
-    public AllocationLine {
-      if (orderLineId == null || moveId == null || sourceLocationId == null) {
-        throw new IllegalArgumentException("Completed allocation line requires business IDs");
-      }
-      if (skuCode == null || skuCode.isBlank() || quantity <= 0) {
-        throw new IllegalArgumentException(
-            "Completed allocation line requires SKU and positive quantity");
-      }
+        public AllocationLine {
+            if (orderLineId == null || moveId == null || sourceLocationId == null) {
+                throw new IllegalArgumentException("Completed allocation line requires business IDs");
+            }
+            if (skuCode == null || skuCode.isBlank() || quantity <= 0) {
+                throw new IllegalArgumentException("Completed allocation line requires SKU and positive quantity");
+            }
+        }
     }
-  }
 }

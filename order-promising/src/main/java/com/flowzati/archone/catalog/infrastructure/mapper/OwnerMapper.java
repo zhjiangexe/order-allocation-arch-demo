@@ -5,22 +5,13 @@ import com.flowzati.archone.catalog.infrastructure.entity.OwnerEntity;
 
 public final class OwnerMapper {
 
-  private OwnerMapper() {
-  }
+    private OwnerMapper() {}
 
-  public static OwnerEntity toEntity(Owner owner) {
-    return new OwnerEntity(
-        owner.getId(),
-        owner.getCode(),
-        owner.getName()
-    );
-  }
+    public static OwnerEntity toEntity(Owner owner) {
+        return new OwnerEntity(owner.getId(), owner.getCode(), owner.getName());
+    }
 
-  public static Owner toDomain(OwnerEntity entity) {
-    return new Owner(
-        entity.getId(),
-        entity.getCode(),
-        entity.getName()
-    );
-  }
+    public static Owner toDomain(OwnerEntity entity) {
+        return new Owner(entity.getId(), entity.getCode(), entity.getName());
+    }
 }

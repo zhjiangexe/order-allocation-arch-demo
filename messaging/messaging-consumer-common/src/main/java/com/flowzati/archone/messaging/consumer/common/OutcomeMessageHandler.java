@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.consumer.common;
 @FunctionalInterface
 public interface OutcomeMessageHandler {
 
-  ProcessingOutcome handle(MessageHandlerInvocation invocation);
+    ProcessingOutcome handle(MessageHandlerInvocation invocation);
 }

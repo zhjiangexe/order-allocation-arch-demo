@@ -15,10 +15,4 @@ import java.util.UUID;
  * 收單時鎖下的那些批，兩者的 key 必須算得出同一個值。少了倉別，取消事件會落在別的 partition，
  * 釋放與配貨就不再由同一個 writer 序列化。
  */
-public record OrderCancelled(
-    UUID orderId,
-    UUID ownerId,
-    UUID facilityId,
-    Instant cancelledAt
-) implements DomainEvent {
-}
+public record OrderCancelled(UUID orderId, UUID ownerId, UUID facilityId, Instant cancelledAt) implements DomainEvent {}

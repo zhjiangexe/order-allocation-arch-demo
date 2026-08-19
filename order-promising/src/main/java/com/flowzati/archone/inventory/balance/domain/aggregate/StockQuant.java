@@ -25,187 +25,186 @@ import java.util.UUID;
  */
 public class StockQuant {
 
-  private final UUID id;
-  private final UUID ownerId;
-  private final UUID locationId;
-  private final String skuCode;
-  private final LocalDate inDate;
-  private final LocalDate expiryDate;
-  private int onHandQuantity;
-  private int reservedQuantity;
-  private final Long version;
+    private final UUID id;
+    private final UUID ownerId;
+    private final UUID locationId;
+    private final String skuCode;
+    private final LocalDate inDate;
+    private final LocalDate expiryDate;
+    private int onHandQuantity;
+    private int reservedQuantity;
+    private final Long version;
 
-  public StockQuant(
-      UUID id,
-      UUID ownerId,
-      UUID locationId,
-      String skuCode,
-      LocalDate inDate,
-      LocalDate expiryDate,
-      int onHandQuantity,
-      int reservedQuantity,
-      Long version
-  ) {
-    if (ownerId == null) {
-      throw new IllegalArgumentException("Owner ID is required");
+    public StockQuant(
+            UUID id,
+            UUID ownerId,
+            UUID locationId,
+            String skuCode,
+            LocalDate inDate,
+            LocalDate expiryDate,
+            int onHandQuantity,
+            int reservedQuantity,
+            Long version) {
+        if (ownerId == null) {
+            throw new IllegalArgumentException("Owner ID is required");
+        }
+        if (locationId == null) {
+            throw new IllegalArgumentException("Location ID is required");
+        }
+        if (skuCode == null || skuCode.isBlank()) {
+            throw new IllegalArgumentException("SKU code is required");
+        }
+        if (inDate == null) {
+            throw new IllegalArgumentException("In-date is required");
+        }
+        if (expiryDate == null) {
+            throw new IllegalArgumentException("Expiry date is required");
+        }
+        validateQuantities(onHandQuantity, reservedQuantity);
+        this.id = id;
+        this.ownerId = ownerId;
+        this.locationId = locationId;
+        this.skuCode = skuCode;
+        this.inDate = inDate;
+        this.expiryDate = expiryDate;
+        this.onHandQuantity = onHandQuantity;
+        this.reservedQuantity = reservedQuantity;
+        this.version = version;
     }
-    if (locationId == null) {
-      throw new IllegalArgumentException("Location ID is required");
+
+    /**
+     * 這批貨過期了沒有。
+     *
+     * <p>**只講一個事實，不講後果。**「能不能配」是配貨的判準（見
+     * {@code findAllocatableBatchesInFefoOrder}），它由過期與否**加上**還有沒有量共同決定；
+     * 這個方法只回答前半。混在一起會讓「有 100 件但一件都出不了」與「什麼都沒有」在畫面上
+     * 長得一樣，而那兩件事要不同的處置——前者報廢、後者進貨。
+     *
+     * <p>不叫 {@code isSellable}：3PL 不賣貨，貨主才賣。倉庫要回答的是這批貨出不出得了，
+     * 不是賣不賣得掉。
+     *
+     * <p>效期當天仍未過期，過了那天才算。
+     */
+    public boolean isExpired(LocalDate today) {
+        if (today == null) {
+            throw new IllegalArgumentException("Today is required");
+        }
+        return expiryDate.isBefore(today);
     }
-    if (skuCode == null || skuCode.isBlank()) {
-      throw new IllegalArgumentException("SKU code is required");
+
+    public int availableToPromise() {
+        return onHandQuantity - reservedQuantity;
     }
-    if (inDate == null) {
-      throw new IllegalArgumentException("In-date is required");
+
+    public boolean canReserve(int quantity) {
+        requirePositive(quantity, "Quantity to reserve must be positive");
+        return availableToPromise() >= quantity;
     }
-    if (expiryDate == null) {
-      throw new IllegalArgumentException("Expiry date is required");
+
+    public void reserve(int quantity) {
+        if (!canReserve(quantity)) {
+            throw new IllegalStateException("Insufficient ATP");
+        }
+        reservedQuantity += quantity;
     }
-    validateQuantities(onHandQuantity, reservedQuantity);
-    this.id = id;
-    this.ownerId = ownerId;
-    this.locationId = locationId;
-    this.skuCode = skuCode;
-    this.inDate = inDate;
-    this.expiryDate = expiryDate;
-    this.onHandQuantity = onHandQuantity;
-    this.reservedQuantity = reservedQuantity;
-    this.version = version;
-  }
 
-  /**
-   * 這批貨過期了沒有。
-   *
-   * <p>**只講一個事實，不講後果。**「能不能配」是配貨的判準（見
-   * {@code findAllocatableBatchesInFefoOrder}），它由過期與否**加上**還有沒有量共同決定；
-   * 這個方法只回答前半。混在一起會讓「有 100 件但一件都出不了」與「什麼都沒有」在畫面上
-   * 長得一樣，而那兩件事要不同的處置——前者報廢、後者進貨。
-   *
-   * <p>不叫 {@code isSellable}：3PL 不賣貨，貨主才賣。倉庫要回答的是這批貨出不出得了，
-   * 不是賣不賣得掉。
-   *
-   * <p>效期當天仍未過期，過了那天才算。
-   */
-  public boolean isExpired(LocalDate today) {
-    if (today == null) {
-      throw new IllegalArgumentException("Today is required");
+    public void release(int quantity) {
+        requirePositive(quantity, "Quantity to release must be positive");
+        if (quantity > reservedQuantity) {
+            throw new IllegalArgumentException("Quantity to release cannot exceed reserved quantity");
+        }
+        reservedQuantity -= quantity;
     }
-    return expiryDate.isBefore(today);
-  }
 
-  public int availableToPromise() {
-    return onHandQuantity - reservedQuantity;
-  }
-
-  public boolean canReserve(int quantity) {
-    requirePositive(quantity, "Quantity to reserve must be positive");
-    return availableToPromise() >= quantity;
-  }
-
-  public void reserve(int quantity) {
-    if (!canReserve(quantity)) {
-      throw new IllegalStateException("Insufficient ATP");
+    /**
+     * 出貨時真正扣掉在手量。
+     *
+     * <p>與 {@link #reserve} 的差別是本質的：預留只鎖住額度、貨還在倉裡，消耗則是貨離開了。
+     * 兩者分開，庫存才能同時回答「還能承諾多少」與「實際還有多少」。
+     *
+     * <p><b>至今沒有任何生產者</b>——出貨屬 R7。它沒有跟著 {@link #receive} 改成收明細，是因為
+     * 它的憑證應該是**出貨**的明細，而那一半還沒有呼叫端。
+     */
+    public void consume(int quantity) {
+        requirePositive(quantity, "Quantity to consume must be positive");
+        if (quantity > reservedQuantity) {
+            throw new IllegalArgumentException("Quantity to consume cannot exceed reserved quantity");
+        }
+        reservedQuantity -= quantity;
+        onHandQuantity -= quantity;
     }
-    reservedQuantity += quantity;
-  }
 
-  public void release(int quantity) {
-    requirePositive(quantity, "Quantity to release must be positive");
-    if (quantity > reservedQuantity) {
-      throw new IllegalArgumentException("Quantity to release cannot exceed reserved quantity");
+    /**
+     * 由已完成 inbound movement 的明細增加實體在手量。
+     *
+     * <p>不接受裸數字，讓每次實體增加都能回溯到 move line、move 與 picking。明細是否真的屬於
+     * incoming move 由完成搬運的 application component 驗證；aggregate 負責數量安全。
+     */
+    public void receive(StockMoveLine line) {
+        if (line == null) {
+            throw new IllegalArgumentException("Stock move line is required");
+        }
+        if (!id.equals(line.stockQuantId())) {
+            throw new IllegalArgumentException("Move line belongs to another stock quant");
+        }
+        try {
+            onHandQuantity = Math.addExact(onHandQuantity, line.quantity());
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("On-hand quantity exceeds supported range", exception);
+        }
     }
-    reservedQuantity -= quantity;
-  }
 
-  /**
-   * 出貨時真正扣掉在手量。
-   *
-   * <p>與 {@link #reserve} 的差別是本質的：預留只鎖住額度、貨還在倉裡，消耗則是貨離開了。
-   * 兩者分開，庫存才能同時回答「還能承諾多少」與「實際還有多少」。
-   *
-   * <p><b>至今沒有任何生產者</b>——出貨屬 R7。它沒有跟著 {@link #receive} 改成收明細，是因為
-   * 它的憑證應該是**出貨**的明細，而那一半還沒有呼叫端。
-   */
-  public void consume(int quantity) {
-    requirePositive(quantity, "Quantity to consume must be positive");
-    if (quantity > reservedQuantity) {
-      throw new IllegalArgumentException("Quantity to consume cannot exceed reserved quantity");
+    public UUID getId() {
+        return id;
     }
-    reservedQuantity -= quantity;
-    onHandQuantity -= quantity;
-  }
 
-  /**
-   * 由已完成 inbound movement 的明細增加實體在手量。
-   *
-   * <p>不接受裸數字，讓每次實體增加都能回溯到 move line、move 與 picking。明細是否真的屬於
-   * incoming move 由完成搬運的 application component 驗證；aggregate 負責數量安全。
-   */
-  public void receive(StockMoveLine line) {
-    if (line == null) {
-      throw new IllegalArgumentException("Stock move line is required");
+    public UUID getOwnerId() {
+        return ownerId;
     }
-    if (!id.equals(line.stockQuantId())) {
-      throw new IllegalArgumentException("Move line belongs to another stock quant");
+
+    public UUID getLocationId() {
+        return locationId;
     }
-    try {
-      onHandQuantity = Math.addExact(onHandQuantity, line.quantity());
-    } catch (ArithmeticException exception) {
-      throw new IllegalArgumentException("On-hand quantity exceeds supported range", exception);
+
+    public String getSkuCode() {
+        return skuCode;
     }
-  }
 
-  public UUID getId() {
-    return id;
-  }
-
-  public UUID getOwnerId() {
-    return ownerId;
-  }
-
-  public UUID getLocationId() {
-    return locationId;
-  }
-
-  public String getSkuCode() {
-    return skuCode;
-  }
-
-  public LocalDate getInDate() {
-    return inDate;
-  }
-
-  public LocalDate getExpiryDate() {
-    return expiryDate;
-  }
-
-  public Long getVersion() {
-    return version;
-  }
-
-  public int getOnHandQuantity() {
-    return onHandQuantity;
-  }
-
-  public int getReservedQuantity() {
-    return reservedQuantity;
-  }
-
-  private static void validateQuantities(int onHandQuantity, int reservedQuantity) {
-    if (onHandQuantity < 0) {
-      throw new IllegalArgumentException("On-hand quantity cannot be negative");
+    public LocalDate getInDate() {
+        return inDate;
     }
-    if (reservedQuantity < 0) {
-      throw new IllegalArgumentException("Reserved quantity cannot be negative");
-    }
-    if (reservedQuantity > onHandQuantity) {
-      throw new IllegalArgumentException("Reserved quantity cannot exceed on-hand quantity");
-    }
-  }
 
-  private static void requirePositive(int quantity, String message) {
-    if (quantity <= 0) {
-      throw new IllegalArgumentException(message);
+    public LocalDate getExpiryDate() {
+        return expiryDate;
     }
-  }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public int getOnHandQuantity() {
+        return onHandQuantity;
+    }
+
+    public int getReservedQuantity() {
+        return reservedQuantity;
+    }
+
+    private static void validateQuantities(int onHandQuantity, int reservedQuantity) {
+        if (onHandQuantity < 0) {
+            throw new IllegalArgumentException("On-hand quantity cannot be negative");
+        }
+        if (reservedQuantity < 0) {
+            throw new IllegalArgumentException("Reserved quantity cannot be negative");
+        }
+        if (reservedQuantity > onHandQuantity) {
+            throw new IllegalArgumentException("Reserved quantity cannot exceed on-hand quantity");
+        }
+    }
+
+    private static void requirePositive(int quantity, String message) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException(message);
+        }
+    }
 }

@@ -2,8 +2,8 @@ package com.flowzati.archone.ordering.application.usecase;
 
 import com.flowzati.archone.ordering.application.command.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,22 +16,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RecordOrderFulfillmentUsecase {
 
-  private final OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
 
-  public RecordOrderFulfillmentUsecase(OrderRepository orderRepository) {
-    this.orderRepository = orderRepository;
-  }
-
-  /** Transport-neutral entrypoint，可由 Kafka consumer 或 Temporal Activity adapter 共用。 */
-  @Transactional
-  public void execute(RecordOrderFulfillmentCommand command) {
-    Order order = orderRepository.findById(command.orderId())
-        .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
-    if (order.getStatus() == OrderStatus.FULFILLED) {
-      return;
+    public RecordOrderFulfillmentUsecase(OrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
     }
 
-    order.markFulfilled(command.fulfilledAt());
-    orderRepository.save(order);
-  }
+    /** Transport-neutral entrypoint，可由 Kafka consumer 或 Temporal Activity adapter 共用。 */
+    @Transactional
+    public void execute(RecordOrderFulfillmentCommand command) {
+        Order order = orderRepository
+                .findById(command.orderId())
+                .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
+        if (order.getStatus() == OrderStatus.FULFILLED) {
+            return;
+        }
+
+        order.markFulfilled(command.fulfilledAt());
+        orderRepository.save(order);
+    }
 }

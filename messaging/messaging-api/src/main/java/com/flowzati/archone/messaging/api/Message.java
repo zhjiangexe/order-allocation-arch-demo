@@ -18,71 +18,71 @@ import java.util.UUID;
  */
 public record Message(String payload, Map<String, String> headers) {
 
-  public Message {
-    if (payload == null || payload.isBlank()) {
-      throw new IllegalArgumentException("Message payload is required");
+    public Message {
+        if (payload == null || payload.isBlank()) {
+            throw new IllegalArgumentException("Message payload is required");
+        }
+        if (headers == null) {
+            throw new IllegalArgumentException("Message headers are required");
+        }
+
+        LinkedHashMap<String, String> normalized = new LinkedHashMap<>();
+        headers.forEach((name, value) -> {
+            MessageHeaders.validate(name, value);
+            normalized.put(name, value);
+        });
+        normalized.putIfAbsent(MessageHeaders.CONTENT_TYPE, MessageHeaders.APPLICATION_JSON);
+        if (!MessageHeaders.APPLICATION_JSON.equals(normalized.get(MessageHeaders.CONTENT_TYPE))) {
+            throw new IllegalArgumentException(
+                    "Unsupported message content type: " + normalized.get(MessageHeaders.CONTENT_TYPE));
+        }
+        headers = Collections.unmodifiableMap(normalized);
     }
-    if (headers == null) {
-      throw new IllegalArgumentException("Message headers are required");
+
+    /** Returns the canonical UUID stored only in the required {@code message-id} header. */
+    public UUID id() {
+        String value = requiredHeader(MessageHeaders.MESSAGE_ID);
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Invalid message-id header: " + value, exception);
+        }
     }
 
-    LinkedHashMap<String, String> normalized = new LinkedHashMap<>();
-    headers.forEach((name, value) -> {
-      MessageHeaders.validate(name, value);
-      normalized.put(name, value);
-    });
-    normalized.putIfAbsent(MessageHeaders.CONTENT_TYPE, MessageHeaders.APPLICATION_JSON);
-    if (!MessageHeaders.APPLICATION_JSON.equals(normalized.get(MessageHeaders.CONTENT_TYPE))) {
-      throw new IllegalArgumentException(
-          "Unsupported message content type: " + normalized.get(MessageHeaders.CONTENT_TYPE));
+    public String type() {
+        return requiredHeader(MessageHeaders.MESSAGE_TYPE);
     }
-    headers = Collections.unmodifiableMap(normalized);
-  }
 
-  /** Returns the canonical UUID stored only in the required {@code message-id} header. */
-  public UUID id() {
-    String value = requiredHeader(MessageHeaders.MESSAGE_ID);
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException exception) {
-      throw new IllegalArgumentException("Invalid message-id header: " + value, exception);
+    public String partitionId() {
+        return requiredHeader(MessageHeaders.PARTITION_ID);
     }
-  }
 
-  public String type() {
-    return requiredHeader(MessageHeaders.MESSAGE_TYPE);
-  }
-
-  public String partitionId() {
-    return requiredHeader(MessageHeaders.PARTITION_ID);
-  }
-
-  public Instant messageDate() {
-    String value = requiredHeader(MessageHeaders.MESSAGE_DATE);
-    try {
-      return Instant.parse(value);
-    } catch (DateTimeParseException exception) {
-      throw new IllegalArgumentException("Invalid message-date header: " + value, exception);
+    public Instant messageDate() {
+        String value = requiredHeader(MessageHeaders.MESSAGE_DATE);
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException exception) {
+            throw new IllegalArgumentException("Invalid message-date header: " + value, exception);
+        }
     }
-  }
 
-  public Optional<String> header(String name) {
-    MessageHeaders.validateName(name);
-    return Optional.ofNullable(headers.get(name));
-  }
+    public Optional<String> header(String name) {
+        MessageHeaders.validateName(name);
+        return Optional.ofNullable(headers.get(name));
+    }
 
-  public String requiredHeader(String name) {
-    return header(name)
-        .filter(value -> !value.isBlank())
-        .orElseThrow(() -> new IllegalArgumentException("Missing message header: " + name));
-  }
+    public String requiredHeader(String name) {
+        return header(name)
+                .filter(value -> !value.isBlank())
+                .orElseThrow(() -> new IllegalArgumentException("Missing message header: " + name));
+    }
 
-  /** Returns a new envelope; this instance and its header map remain unchanged. */
-  public Message withHeader(String name, String value) {
-    return MessageBuilder.from(this).withHeader(name, value).build();
-  }
+    /** Returns a new envelope; this instance and its header map remain unchanged. */
+    public Message withHeader(String name, String value) {
+        return MessageBuilder.from(this).withHeader(name, value).build();
+    }
 
-  public static MessageBuilder builder(String payload) {
-    return MessageBuilder.withPayload(payload);
-  }
+    public static MessageBuilder builder(String payload) {
+        return MessageBuilder.withPayload(payload);
+    }
 }

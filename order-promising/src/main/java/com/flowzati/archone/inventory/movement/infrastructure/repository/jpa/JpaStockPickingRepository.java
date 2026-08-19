@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaStockPickingRepository extends JpaRepository<StockPickingEntity, UUID> {
 
-  List<StockPickingEntity> findByOrderId(UUID orderId);
+    List<StockPickingEntity> findByOrderId(UUID orderId);
 
-  List<StockPickingEntity> findByIdIn(Collection<UUID> ids);
+    List<StockPickingEntity> findByIdIn(Collection<UUID> ids);
 }

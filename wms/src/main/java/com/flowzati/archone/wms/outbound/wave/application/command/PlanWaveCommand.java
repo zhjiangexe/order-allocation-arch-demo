@@ -11,28 +11,26 @@ import java.util.UUID;
  * snapshot 提供，見 {@code CreateShipmentCommand} 上的欄位註解。
  */
 public record PlanWaveCommand(
-    UUID waveId,
-    UUID facilityId,
-    String templateCode,
-    Instant dispatchByCutoff,
-    int candidateScanLimit,
-    int maxShipments,
-    int maxLines,
-    int maxUnits,
-    Instant plannedAt
-) {
+        UUID waveId,
+        UUID facilityId,
+        String templateCode,
+        Instant dispatchByCutoff,
+        int candidateScanLimit,
+        int maxShipments,
+        int maxLines,
+        int maxUnits,
+        Instant plannedAt) {
 
-  public PlanWaveCommand {
-    if (waveId == null || facilityId == null || dispatchByCutoff == null || plannedAt == null) {
-      throw new IllegalArgumentException("Plan Wave requires IDs and time fields");
+    public PlanWaveCommand {
+        if (waveId == null || facilityId == null || dispatchByCutoff == null || plannedAt == null) {
+            throw new IllegalArgumentException("Plan Wave requires IDs and time fields");
+        }
+        if (templateCode == null || templateCode.isBlank()) {
+            throw new IllegalArgumentException("Plan Wave requires template code");
+        }
+        if (candidateScanLimit < maxShipments || maxShipments <= 0 || maxLines <= 0 || maxUnits <= 0) {
+            throw new IllegalArgumentException(
+                    "Plan Wave capacities must be positive and scan limit must cover max Shipments");
+        }
     }
-    if (templateCode == null || templateCode.isBlank()) {
-      throw new IllegalArgumentException("Plan Wave requires template code");
-    }
-    if (candidateScanLimit < maxShipments
-        || maxShipments <= 0 || maxLines <= 0 || maxUnits <= 0) {
-      throw new IllegalArgumentException(
-          "Plan Wave capacities must be positive and scan limit must cover max Shipments");
-    }
-  }
 }

@@ -12,59 +12,54 @@ import java.util.Optional;
  */
 public final class HeaderMappedOutboxMessageMapper implements OutboxMessageMapper {
 
-  private final Optional<AggregateHeaderNames> aggregateHeaders;
+    private final Optional<AggregateHeaderNames> aggregateHeaders;
 
-  private HeaderMappedOutboxMessageMapper(Optional<AggregateHeaderNames> aggregateHeaders) {
-    this.aggregateHeaders = aggregateHeaders;
-  }
-
-  public static HeaderMappedOutboxMessageMapper withoutAggregateHeaders() {
-    return new HeaderMappedOutboxMessageMapper(Optional.empty());
-  }
-
-  public static HeaderMappedOutboxMessageMapper withAggregateHeaders(
-      String aggregateTypeHeader,
-      String aggregateIdHeader
-  ) {
-    MessageHeaders.validateName(aggregateTypeHeader);
-    MessageHeaders.validateName(aggregateIdHeader);
-    if (aggregateTypeHeader.equals(aggregateIdHeader)) {
-      throw new IllegalArgumentException("Aggregate header names must be different");
-    }
-    return new HeaderMappedOutboxMessageMapper(
-        Optional.of(new AggregateHeaderNames(aggregateTypeHeader, aggregateIdHeader)));
-  }
-
-  @Override
-  public OutboxMessage map(String destination, Message message) {
-    if (destination == null || destination.isBlank() || message == null) {
-      throw new IllegalArgumentException("Outbox destination and message are required");
-    }
-    String normalizedDestination = message.requiredHeader(MessageHeaders.DESTINATION);
-    if (!destination.equals(normalizedDestination)) {
-      throw new IllegalArgumentException("Outbox destination does not match message header");
+    private HeaderMappedOutboxMessageMapper(Optional<AggregateHeaderNames> aggregateHeaders) {
+        this.aggregateHeaders = aggregateHeaders;
     }
 
-    Optional<String> aggregateType = aggregateHeaders
-        .map(names -> message.requiredHeader(names.type()));
-    Optional<String> aggregateId = aggregateHeaders
-        .map(names -> message.requiredHeader(names.id()));
+    public static HeaderMappedOutboxMessageMapper withoutAggregateHeaders() {
+        return new HeaderMappedOutboxMessageMapper(Optional.empty());
+    }
 
-    Map<String, String> persistedHeaders = new LinkedHashMap<>(message.headers());
-    OutboxPhysicalHeaders.ALL.forEach(persistedHeaders::remove);
+    public static HeaderMappedOutboxMessageMapper withAggregateHeaders(
+            String aggregateTypeHeader, String aggregateIdHeader) {
+        MessageHeaders.validateName(aggregateTypeHeader);
+        MessageHeaders.validateName(aggregateIdHeader);
+        if (aggregateTypeHeader.equals(aggregateIdHeader)) {
+            throw new IllegalArgumentException("Aggregate header names must be different");
+        }
+        return new HeaderMappedOutboxMessageMapper(
+                Optional.of(new AggregateHeaderNames(aggregateTypeHeader, aggregateIdHeader)));
+    }
 
-    return new OutboxMessage(
-        message.id(),
-        aggregateType,
-        aggregateId,
-        message.type(),
-        destination,
-        message.partitionId(),
-        message.payload(),
-        message.messageDate(),
-        persistedHeaders);
-  }
+    @Override
+    public OutboxMessage map(String destination, Message message) {
+        if (destination == null || destination.isBlank() || message == null) {
+            throw new IllegalArgumentException("Outbox destination and message are required");
+        }
+        String normalizedDestination = message.requiredHeader(MessageHeaders.DESTINATION);
+        if (!destination.equals(normalizedDestination)) {
+            throw new IllegalArgumentException("Outbox destination does not match message header");
+        }
 
-  private record AggregateHeaderNames(String type, String id) {
-  }
+        Optional<String> aggregateType = aggregateHeaders.map(names -> message.requiredHeader(names.type()));
+        Optional<String> aggregateId = aggregateHeaders.map(names -> message.requiredHeader(names.id()));
+
+        Map<String, String> persistedHeaders = new LinkedHashMap<>(message.headers());
+        OutboxPhysicalHeaders.ALL.forEach(persistedHeaders::remove);
+
+        return new OutboxMessage(
+                message.id(),
+                aggregateType,
+                aggregateId,
+                message.type(),
+                destination,
+                message.partitionId(),
+                message.payload(),
+                message.messageDate(),
+                persistedHeaders);
+    }
+
+    private record AggregateHeaderNames(String type, String id) {}
 }

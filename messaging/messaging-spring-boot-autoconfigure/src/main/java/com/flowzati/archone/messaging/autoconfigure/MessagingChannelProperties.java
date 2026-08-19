@@ -8,13 +8,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties("archone.messaging.channels")
 public class MessagingChannelProperties {
 
-  private Map<String, String> mappings = new LinkedHashMap<>();
+    private Map<String, String> mappings = new LinkedHashMap<>();
 
-  public Map<String, String> getMappings() {
-    return mappings;
-  }
+    public Map<String, String> getMappings() {
+        return mappings;
+    }
 
-  public void setMappings(Map<String, String> mappings) {
-    this.mappings = mappings == null ? new LinkedHashMap<>() : new LinkedHashMap<>(mappings);
-  }
+    public void setMappings(Map<String, String> mappings) {
+        this.mappings = mappings == null ? new LinkedHashMap<>() : new LinkedHashMap<>(mappings);
+    }
 }

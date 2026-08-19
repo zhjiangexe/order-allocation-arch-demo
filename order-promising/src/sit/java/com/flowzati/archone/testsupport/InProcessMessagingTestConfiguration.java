@@ -8,8 +8,8 @@ import org.springframework.context.annotation.Bean;
 @TestConfiguration(proxyBeanMethods = false)
 public class InProcessMessagingTestConfiguration {
 
-  @Bean
-  ControllableMessageConsumerImplementation controllableMessageConsumerImplementation() {
-    return new ControllableMessageConsumerImplementation();
-  }
+    @Bean
+    ControllableMessageConsumerImplementation controllableMessageConsumerImplementation() {
+        return new ControllableMessageConsumerImplementation();
+    }
 }

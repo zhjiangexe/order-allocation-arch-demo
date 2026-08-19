@@ -6,14 +6,10 @@ import java.util.List;
 import java.util.UUID;
 
 public record PickingWorkCreated(
-    UUID shipmentId,
-    UUID waveId,
-    UUID warehouseWorkId,
-    List<UUID> pickTaskIds,
-    Instant occurredAt
-) implements WmsDomainEvent {
+        UUID shipmentId, UUID waveId, UUID warehouseWorkId, List<UUID> pickTaskIds, Instant occurredAt)
+        implements WmsDomainEvent {
 
-  public PickingWorkCreated {
-    pickTaskIds = List.copyOf(pickTaskIds);
-  }
+    public PickingWorkCreated {
+        pickTaskIds = List.copyOf(pickTaskIds);
+    }
 }

@@ -6,8 +6,8 @@ import java.util.Map;
 /** Encodes logical message headers into the single Outbox CDC headers column. */
 public interface MessageHeadersCodec extends MessageHeadersDecoder {
 
-  String encode(Map<String, String> headers);
+    String encode(Map<String, String> headers);
 
-  @Override
-  Map<String, String> decode(String encodedHeaders);
+    @Override
+    Map<String, String> decode(String encodedHeaders);
 }

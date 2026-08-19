@@ -1,7 +1,6 @@
 package com.flowzati.archone.inventory.balance.domain.service;
 
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-
 import java.util.Comparator;
 
 /**
@@ -23,13 +22,10 @@ import java.util.Comparator;
  */
 public final class StockWriteOrder {
 
-  public static final Comparator<StockQuant> BY_GLOBAL_ORDER =
-      Comparator.comparing(StockQuant::getSkuCode)
-          .thenComparing(StockQuant::getExpiryDate)
-          .thenComparing(StockQuant::getInDate)
-          .thenComparing(StockQuant::getId);
+    public static final Comparator<StockQuant> BY_GLOBAL_ORDER = Comparator.comparing(StockQuant::getSkuCode)
+            .thenComparing(StockQuant::getExpiryDate)
+            .thenComparing(StockQuant::getInDate)
+            .thenComparing(StockQuant::getId);
 
-  private StockWriteOrder() {
-  }
-
+    private StockWriteOrder() {}
 }

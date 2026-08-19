@@ -12,64 +12,56 @@ import java.util.UUID;
 
 @Entity
 @Table(
-    name = "products",
-    uniqueConstraints = @UniqueConstraint(
-        name = "uq_products_owner_code",
-        columnNames = {"owner_id", "product_code"}
-    )
-)
+        name = "products",
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uq_products_owner_code",
+                        columnNames = {"owner_id", "product_code"}))
 public class ProductEntity {
 
-  @Id
-  private UUID id;
+    @Id
+    private UUID id;
 
-  @Column(name = "owner_id", nullable = false)
-  private UUID ownerId;
+    @Column(name = "owner_id", nullable = false)
+    private UUID ownerId;
 
-  @Column(name = "product_code", nullable = false)
-  private String productCode;
+    @Column(name = "product_code", nullable = false)
+    private String productCode;
 
-  @Column(nullable = false)
-  private String name;
+    @Column(nullable = false)
+    private String name;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "temperature_zone", nullable = false)
-  private TemperatureZone temperatureZone;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "temperature_zone", nullable = false)
+    private TemperatureZone temperatureZone;
 
-  protected ProductEntity() {
-  }
+    protected ProductEntity() {}
 
-  public ProductEntity(
-      UUID id,
-      UUID ownerId,
-      String productCode,
-      String name,
-      TemperatureZone temperatureZone
-  ) {
-    this.id = id;
-    this.ownerId = ownerId;
-    this.productCode = productCode;
-    this.name = name;
-    this.temperatureZone = temperatureZone;
-  }
+    public ProductEntity(UUID id, UUID ownerId, String productCode, String name, TemperatureZone temperatureZone) {
+        this.id = id;
+        this.ownerId = ownerId;
+        this.productCode = productCode;
+        this.name = name;
+        this.temperatureZone = temperatureZone;
+    }
 
-  public UUID getId() {
-    return id;
-  }
+    public UUID getId() {
+        return id;
+    }
 
-  public UUID getOwnerId() {
-    return ownerId;
-  }
+    public UUID getOwnerId() {
+        return ownerId;
+    }
 
-  public String getProductCode() {
-    return productCode;
-  }
+    public String getProductCode() {
+        return productCode;
+    }
 
-  public String getName() {
-    return name;
-  }
+    public String getName() {
+        return name;
+    }
 
-  public TemperatureZone getTemperatureZone() {
-    return temperatureZone;
-  }
+    public TemperatureZone getTemperatureZone() {
+        return temperatureZone;
+    }
 }

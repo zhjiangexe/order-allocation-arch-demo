@@ -8,15 +8,15 @@ package com.flowzati.archone.inventory.movement.domain.type;
  */
 public enum PickingState {
 
-  /** 作業已確認，但至少一個搬運仍在等待庫存。 */
-  CONFIRMED,
+    /** 作業已確認，但至少一個搬運仍在等待庫存。 */
+    CONFIRMED,
 
-  /** 所有需要的庫存都已鎖定，可以交給現場執行。 */
-  ASSIGNED,
+    /** 所有需要的庫存都已鎖定，可以交給現場執行。 */
+    ASSIGNED,
 
-  /** 作業底下的搬運均已實際完成。 */
-  DONE,
+    /** 作業底下的搬運均已實際完成。 */
+    DONE,
 
-  /** 作業已取消，不再執行。 */
-  CANCELLED
+    /** 作業已取消，不再執行。 */
+    CANCELLED
 }

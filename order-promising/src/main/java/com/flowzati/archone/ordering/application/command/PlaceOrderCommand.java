@@ -1,7 +1,6 @@
 package com.flowzati.archone.ordering.application.command;
 
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
-
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -21,29 +20,22 @@ import java.util.UUID;
  * 讓外部決定我們何時收到一張單,而排序訂單先後靠的正是那個值。
  */
 public record PlaceOrderCommand(
-    UUID ownerId,
-    String externalOrderNo,
-    String shipToZone,
-    String shipToAddress,
-    LocalDate promisedDeliveryDate,
-    Instant dispatchBy,
-    int releasePriority,
-    UUID facilityId,
-    /** 上游說客戶下單的時刻。可為 {@code null}——上游沒有義務送這個值。 */
-    Instant placedAt,
-    List<Line> lines
-) {
+        UUID ownerId,
+        String externalOrderNo,
+        String shipToZone,
+        String shipToAddress,
+        LocalDate promisedDeliveryDate,
+        Instant dispatchBy,
+        int releasePriority,
+        UUID facilityId,
+        /** 上游說客戶下單的時刻。可為 {@code null}——上游沒有義務送這個值。 */
+        Instant placedAt,
+        List<Line> lines) {
 
-  public record Line(String skuCode, int quantity) {
-  }
+    public record Line(String skuCode, int quantity) {}
 
-  public DeliveryTerms toDeliveryTerms() {
-    return new DeliveryTerms(
-        facilityId,
-        shipToZone,
-        shipToAddress,
-        promisedDeliveryDate,
-        dispatchBy,
-        releasePriority);
-  }
+    public DeliveryTerms toDeliveryTerms() {
+        return new DeliveryTerms(
+                facilityId, shipToZone, shipToAddress, promisedDeliveryDate, dispatchBy, releasePriority);
+    }
 }

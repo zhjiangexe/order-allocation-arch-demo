@@ -10,5 +10,5 @@ import java.time.Instant;
  */
 public interface AllocationAttemptObserver {
 
-  void recordBlocked(AllocationCandidateBatch batch, Instant observedAt);
+    void recordBlocked(AllocationCandidateBatch batch, Instant observedAt);
 }

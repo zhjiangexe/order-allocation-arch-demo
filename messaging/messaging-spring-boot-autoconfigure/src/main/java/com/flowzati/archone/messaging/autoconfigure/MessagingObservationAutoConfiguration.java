@@ -14,27 +14,21 @@ import org.springframework.context.annotation.Bean;
 
 /** Shared observation conventions; exporter selection remains application-owned. */
 @AutoConfiguration(
-    afterName =
-        "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration"
-)
+        afterName = "org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration")
 @ConditionalOnClass(ObservationRegistry.class)
 @ConditionalOnBean(ObservationRegistry.class)
-@ConditionalOnProperty(
-    prefix = "archone.messaging.observation",
-    name = "enabled",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "archone.messaging.observation", name = "enabled", matchIfMissing = true)
 public class MessagingObservationAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  ProducerMessageObservationConvention producerMessageObservationConvention() {
-    return new DefaultProducerMessageObservationConvention();
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    ProducerMessageObservationConvention producerMessageObservationConvention() {
+        return new DefaultProducerMessageObservationConvention();
+    }
 
-  @Bean
-  @ConditionalOnMissingBean
-  ConsumerMessageObservationConvention consumerMessageObservationConvention() {
-    return new DefaultConsumerMessageObservationConvention();
-  }
+    @Bean
+    @ConditionalOnMissingBean
+    ConsumerMessageObservationConvention consumerMessageObservationConvention() {
+        return new DefaultConsumerMessageObservationConvention();
+    }
 }

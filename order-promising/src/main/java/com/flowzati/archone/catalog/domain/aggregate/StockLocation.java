@@ -1,7 +1,6 @@
 package com.flowzati.archone.catalog.domain.aggregate;
 
 import com.flowzati.archone.catalog.domain.type.LocationUsage;
-
 import java.util.UUID;
 
 /**
@@ -20,71 +19,72 @@ import java.util.UUID;
  */
 public class StockLocation {
 
-  private final UUID id;
-  /** 虛擬位置為 {@code null}——它們不屬於任何設施。 */
-  private final UUID facilityId;
-  private final String code;
-  private final String name;
-  private final LocationUsage usage;
+    private final UUID id;
+    /** 虛擬位置為 {@code null}——它們不屬於任何設施。 */
+    private final UUID facilityId;
 
-  public StockLocation(UUID id, UUID facilityId, String code, String name, LocationUsage usage) {
-    if (id == null) {
-      throw new IllegalArgumentException("Stock location ID is required");
+    private final String code;
+    private final String name;
+    private final LocationUsage usage;
+
+    public StockLocation(UUID id, UUID facilityId, String code, String name, LocationUsage usage) {
+        if (id == null) {
+            throw new IllegalArgumentException("Stock location ID is required");
+        }
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("Stock location code is required");
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Stock location name is required");
+        }
+        if (usage == null) {
+            throw new IllegalArgumentException("Stock location usage is required");
+        }
+        // 兩個方向都擋。這與資料庫的 CHECK 重複是刻意的——那條約束擋的是任何寫入路徑，這裡擋的
+        // 是「這個型別不存在無效的實例」，讓讀取端不必處理「有倉的客戶位置」這種狀態。
+        if (usage == LocationUsage.INTERNAL && facilityId == null) {
+            throw new IllegalArgumentException("An internal location must belong to a facility");
+        }
+        if (usage.isVirtual() && facilityId != null) {
+            throw new IllegalArgumentException("A virtual location must not belong to a facility");
+        }
+        this.id = id;
+        this.facilityId = facilityId;
+        this.code = code;
+        this.name = name;
+        this.usage = usage;
     }
-    if (code == null || code.isBlank()) {
-      throw new IllegalArgumentException("Stock location code is required");
+
+    /** 建一個屬於某個設施的內部位置。 */
+    public static StockLocation internal(UUID id, UUID facilityId, String code, String name) {
+        return new StockLocation(id, facilityId, code, name, LocationUsage.INTERNAL);
     }
-    if (name == null || name.isBlank()) {
-      throw new IllegalArgumentException("Stock location name is required");
+
+    /** 建一個不屬於任何設施的虛擬位置。 */
+    public static StockLocation virtual(UUID id, String code, String name, LocationUsage usage) {
+        if (usage != null && !usage.isVirtual()) {
+            throw new IllegalArgumentException("Usage " + usage + " is not a virtual usage");
+        }
+        return new StockLocation(id, null, code, name, usage);
     }
-    if (usage == null) {
-      throw new IllegalArgumentException("Stock location usage is required");
+
+    public UUID getId() {
+        return id;
     }
-    // 兩個方向都擋。這與資料庫的 CHECK 重複是刻意的——那條約束擋的是任何寫入路徑，這裡擋的
-    // 是「這個型別不存在無效的實例」，讓讀取端不必處理「有倉的客戶位置」這種狀態。
-    if (usage == LocationUsage.INTERNAL && facilityId == null) {
-      throw new IllegalArgumentException("An internal location must belong to a facility");
+
+    public UUID getFacilityId() {
+        return facilityId;
     }
-    if (usage.isVirtual() && facilityId != null) {
-      throw new IllegalArgumentException("A virtual location must not belong to a facility");
+
+    public String getCode() {
+        return code;
     }
-    this.id = id;
-    this.facilityId = facilityId;
-    this.code = code;
-    this.name = name;
-    this.usage = usage;
-  }
 
-  /** 建一個屬於某個設施的內部位置。 */
-  public static StockLocation internal(UUID id, UUID facilityId, String code, String name) {
-    return new StockLocation(id, facilityId, code, name, LocationUsage.INTERNAL);
-  }
-
-  /** 建一個不屬於任何設施的虛擬位置。 */
-  public static StockLocation virtual(UUID id, String code, String name, LocationUsage usage) {
-    if (usage != null && !usage.isVirtual()) {
-      throw new IllegalArgumentException("Usage " + usage + " is not a virtual usage");
+    public String getName() {
+        return name;
     }
-    return new StockLocation(id, null, code, name, usage);
-  }
 
-  public UUID getId() {
-    return id;
-  }
-
-  public UUID getFacilityId() {
-    return facilityId;
-  }
-
-  public String getCode() {
-    return code;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public LocationUsage getUsage() {
-    return usage;
-  }
+    public LocationUsage getUsage() {
+        return usage;
+    }
 }

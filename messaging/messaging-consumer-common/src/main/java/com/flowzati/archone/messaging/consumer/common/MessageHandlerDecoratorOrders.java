@@ -9,15 +9,14 @@ package com.flowzati.archone.messaging.consumer.common;
  */
 public final class MessageHandlerDecoratorOrders {
 
-  public static final int OBSERVATION = 1_000;
-  public static final int INTERCEPTOR_LIFECYCLE = 1_100;
-  public static final int APPLICATION_ATTEMPT_MIN = 1_200;
-  public static final int APPLICATION_ATTEMPT_MAX = 1_999;
-  public static final int TRANSACTIONAL_IDEMPOTENCY = 2_000;
-  public static final int PROTOCOL_DISPATCH = 3_000;
-  public static final int APPLICATION_CUSTOM_MIN = 4_000;
-  public static final int APPLICATION_CUSTOM_MAX = 4_999;
+    public static final int OBSERVATION = 1_000;
+    public static final int INTERCEPTOR_LIFECYCLE = 1_100;
+    public static final int APPLICATION_ATTEMPT_MIN = 1_200;
+    public static final int APPLICATION_ATTEMPT_MAX = 1_999;
+    public static final int TRANSACTIONAL_IDEMPOTENCY = 2_000;
+    public static final int PROTOCOL_DISPATCH = 3_000;
+    public static final int APPLICATION_CUSTOM_MIN = 4_000;
+    public static final int APPLICATION_CUSTOM_MAX = 4_999;
 
-  private MessageHandlerDecoratorOrders() {
-  }
+    private MessageHandlerDecoratorOrders() {}
 }

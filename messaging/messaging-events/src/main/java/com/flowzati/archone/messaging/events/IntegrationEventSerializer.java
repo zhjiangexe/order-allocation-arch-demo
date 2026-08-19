@@ -4,5 +4,5 @@ package com.flowzati.archone.messaging.events;
 @FunctionalInterface
 public interface IntegrationEventSerializer {
 
-  String serialize(IntegrationEvent event);
+    String serialize(IntegrationEvent event);
 }
