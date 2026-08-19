@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.allocation.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.command.AllocateWaitingDemandCommand;
-import com.flowzati.archone.inventory.allocation.application.TransactionalAllocationAttempt;
+import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
 import java.util.ArrayDeque;

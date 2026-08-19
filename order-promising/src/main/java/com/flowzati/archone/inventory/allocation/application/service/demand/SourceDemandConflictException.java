@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application.demand;
+package com.flowzati.archone.inventory.allocation.application.service.demand;
 
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 

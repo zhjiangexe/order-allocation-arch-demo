@@ -27,7 +27,7 @@ import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResu
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
-import com.flowzati.archone.inventory.allocation.application.TransactionalAllocationAttempt;
+import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.application.usecase.CancelMovementsUsecase;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;

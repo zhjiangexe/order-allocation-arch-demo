@@ -207,7 +207,8 @@ class InventoryBoundaryArchitectureTest {
         ALLOCATION_APPLICATION_ROOT.resolve("command/AllocateWaitingDemandCommand.java"),
         ALLOCATION_APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
         BALANCE_APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
-        ALLOCATION_APPLICATION_ROOT.resolve("TransactionalAllocationAttempt.java"))
+        ALLOCATION_APPLICATION_ROOT.resolve(
+            "service/reservation/TransactionalAllocationAttempt.java"))
         .toList();
 
     List<String> violations = boundaries.stream()
@@ -228,7 +229,8 @@ class InventoryBoundaryArchitectureTest {
   void inboundApplicationUsecasesDoNotOwnMessagingIdempotency() {
     List<Path> consumerUsecases = List.of(
         ALLOCATION_APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
-        ALLOCATION_APPLICATION_ROOT.resolve("TransactionalAllocationAttempt.java"),
+        ALLOCATION_APPLICATION_ROOT.resolve(
+            "service/reservation/TransactionalAllocationAttempt.java"),
         ALLOCATION_APPLICATION_ROOT.resolve("usecase/CancelMovementsUsecase.java"),
         BALANCE_APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
         ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderAllocationUsecase.java"));

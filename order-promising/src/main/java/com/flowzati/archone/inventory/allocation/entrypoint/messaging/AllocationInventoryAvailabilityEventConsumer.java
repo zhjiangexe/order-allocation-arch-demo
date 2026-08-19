@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.inventory.allocation.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.inventory.allocation.application.TransactionalAllocationAttempt;
+import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

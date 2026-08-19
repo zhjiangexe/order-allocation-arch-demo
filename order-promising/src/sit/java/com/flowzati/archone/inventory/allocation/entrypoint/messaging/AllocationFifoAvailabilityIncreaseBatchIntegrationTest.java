@@ -9,7 +9,7 @@ import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.TransactionalAllocationAttempt;
+import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileWaitingDemandUsecase;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;

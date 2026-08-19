@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application.demand;
+package com.flowzati.archone.inventory.allocation.application.service.demand;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.command.AcceptAllocationDemandCommand;
@@ -31,7 +31,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>這個 application component 的完成只代表「allocation 已登記需求」，不代表已配到庫存。新
  * demand 仍是 {@code PENDING}，outbound moves 仍是 {@code CONFIRMED}；reserve/assign 由
- * {@link com.flowzati.archone.inventory.allocation.application.AllocationCommitter} 負責。
+ * {@link com.flowzati.archone.inventory.allocation.application.service.reservation.AllocationCommitter}
+ * 負責。
  */
 @Component
 public class AllocationDemandRegistrar {
@@ -62,7 +63,7 @@ public class AllocationDemandRegistrar {
 
   /** Transactional inbox wrapper 會在同一個本地 transaction 內呼叫此方法。 */
   @Transactional
-  public AllocationDemandRegistration register(AcceptAllocationDemandCommand command) {
+  public AllocationDemandRegistrationResult register(AcceptAllocationDemandCommand command) {
     // SourceAllocationUnit 是冪等鍵。相同來源重送時不可建立第二份 demand。
     Optional<AllocationDemand> prior = demandRepository.findBySource(command.source());
     if (prior.isPresent()) {
@@ -109,17 +110,17 @@ public class AllocationDemandRegistrar {
               savedDemand.enqueuedAt());
         })
         .toList();
-    return new AllocationDemandRegistration(savedDemand, moveRepository.saveAll(moves), true);
+    return new AllocationDemandRegistrationResult(savedDemand, moveRepository.saveAll(moves), true);
   }
 
-  private AllocationDemandRegistration replay(
+  private AllocationDemandRegistrationResult replay(
       AcceptAllocationDemandCommand command, AllocationDemand accepted) {
     List<StockMove> moves = moveRepository.findByAllocationDemandId(accepted.id());
     // Retry 可以發生在 execution 已經 ASSIGNED 之後，所以只比較 acceptance 時凍結的 immutable 內容。
     if (!sameAcceptedContent(command, accepted, moves)) {
       throw new SourceDemandConflictException(command.source());
     }
-    return new AllocationDemandRegistration(accepted, moves, false);
+    return new AllocationDemandRegistrationResult(accepted, moves, false);
   }
 
   private UUID createPicking(AcceptAllocationDemandCommand command, AllocationDemand demand) {

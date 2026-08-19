@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.allocation.application.usecase;
 
 import com.flowzati.archone.inventory.allocation.application.command.CancelMovementsCommand;
-import com.flowzati.archone.inventory.allocation.application.AllocationReservationCanceller;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationReservationCanceller;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationCancellationOperation;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationCancellationState;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;

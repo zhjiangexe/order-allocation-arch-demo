@@ -9,8 +9,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.inventory.allocation.application.command.CancelAllocationDemandCommand;
-import com.flowzati.archone.inventory.allocation.application.AllocationExecutionCancellationCoordinator;
-import com.flowzati.archone.inventory.allocation.application.ExternalCancellationDecision;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationStepResult;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationResult;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationTransactions;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationExecutionCancellationCoordinator;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.ExternalCancellationDecision;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationCancellationState;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
@@ -46,11 +49,11 @@ class CancelAllocationDemandUsecaseTest {
     AllocationDemand demand = demand();
     CancelAllocationDemandCommand command = command(demand.id());
     when(transactions.begin(demand.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             demand, AllocationCancellationState.STARTED));
     when(transactions.completePendingOrRefresh(
         demand.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             demand, AllocationCancellationState.COMPLETED));
 
     assertThat(usecase.execute(command)).isEqualTo(AllocationCancellationResult.COMPLETED);
@@ -67,18 +70,18 @@ class CancelAllocationDemandUsecaseTest {
     allocated.markAllocated();
     CancelAllocationDemandCommand command = command(pending.id());
     when(transactions.begin(pending.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             pending, AllocationCancellationState.STARTED));
     when(transactions.completePendingOrRefresh(
         pending.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.STARTED));
     when(coordinator.cancelExecution(allocated, command.cancellationOperationId()))
         .thenReturn(ExternalCancellationDecision.CONFIRMED);
     when(transactions.recordExternalDecision(
         allocated.id(), command.cancellationOperationId(),
         ExternalCancellationDecision.CONFIRMED, NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.EXTERNAL_CONFIRMED));
     when(transactions.complete(allocated.id(), command.cancellationOperationId(), NOW))
         .thenReturn(AllocationCancellationResult.COMPLETED);
@@ -95,7 +98,7 @@ class CancelAllocationDemandUsecaseTest {
     allocated.markAllocated();
     CancelAllocationDemandCommand command = command(allocated.id());
     when(transactions.begin(allocated.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.EXTERNAL_REJECTED));
 
     assertThat(usecase.execute(command)).isEqualTo(AllocationCancellationResult.NOT_CANCELLABLE);
@@ -114,7 +117,7 @@ class CancelAllocationDemandUsecaseTest {
     allocated.markAllocated();
     CancelAllocationDemandCommand command = command(allocated.id());
     when(transactions.begin(allocated.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.EXTERNAL_CONFIRMED));
     when(transactions.complete(allocated.id(), command.cancellationOperationId(), NOW))
         .thenReturn(AllocationCancellationResult.COMPLETED);
@@ -133,14 +136,14 @@ class CancelAllocationDemandUsecaseTest {
     allocated.markAllocated();
     CancelAllocationDemandCommand command = command(allocated.id());
     when(transactions.begin(allocated.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.STARTED));
     when(coordinator.cancelExecution(allocated, command.cancellationOperationId()))
         .thenReturn(ExternalCancellationDecision.CONFIRMED);
     when(transactions.recordExternalDecision(
         allocated.id(), command.cancellationOperationId(),
         ExternalCancellationDecision.CONFIRMED, NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.EXTERNAL_CONFIRMED));
     when(transactions.complete(allocated.id(), command.cancellationOperationId(), NOW))
         .thenReturn(AllocationCancellationResult.COMPLETED);
@@ -161,14 +164,14 @@ class CancelAllocationDemandUsecaseTest {
     allocated.markAllocated();
     CancelAllocationDemandCommand command = command(allocated.id());
     when(transactions.begin(allocated.id(), command.cancellationOperationId(), NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.STARTED));
     when(coordinator.cancelExecution(allocated, command.cancellationOperationId()))
         .thenReturn(ExternalCancellationDecision.REJECTED);
     when(transactions.recordExternalDecision(
         allocated.id(), command.cancellationOperationId(),
         ExternalCancellationDecision.REJECTED, NOW))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.EXTERNAL_REJECTED));
 
     assertThat(usecase.execute(command)).isEqualTo(AllocationCancellationResult.NOT_CANCELLABLE);
@@ -186,15 +189,15 @@ class CancelAllocationDemandUsecaseTest {
     CancelAllocationDemandCommand command = command(allocated.id());
     when(transactions.begin(allocated.id(), command.cancellationOperationId(), NOW))
         .thenReturn(
-            new AllocationCancellationCheckpoint(allocated, AllocationCancellationState.STARTED),
-            new AllocationCancellationCheckpoint(allocated, AllocationCancellationState.STARTED));
+            new AllocationCancellationStepResult(allocated, AllocationCancellationState.STARTED),
+            new AllocationCancellationStepResult(allocated, AllocationCancellationState.STARTED));
     when(coordinator.cancelExecution(allocated, command.cancellationOperationId()))
         .thenReturn(ExternalCancellationDecision.CONFIRMED);
     when(transactions.recordExternalDecision(
         allocated.id(), command.cancellationOperationId(),
         ExternalCancellationDecision.CONFIRMED, NOW))
         .thenThrow(new IllegalStateException("simulated crash"))
-        .thenReturn(new AllocationCancellationCheckpoint(
+        .thenReturn(new AllocationCancellationStepResult(
             allocated, AllocationCancellationState.EXTERNAL_CONFIRMED));
     when(transactions.complete(allocated.id(), command.cancellationOperationId(), NOW))
         .thenReturn(AllocationCancellationResult.COMPLETED);

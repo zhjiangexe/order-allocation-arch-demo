@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application.demand;
+package com.flowzati.archone.inventory.allocation.application.service.demand;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -68,7 +68,7 @@ class AllocationDemandRegistrarTest {
         new SourceDemandLine("line-a", "SKU-A", 2, null)));
     when(demandRepository.findBySource(command.source())).thenReturn(Optional.empty());
 
-    AllocationDemandRegistration result = registrar.register(command);
+    AllocationDemandRegistrationResult result = registrar.register(command);
 
     assertThat(result.created()).isTrue();
     assertThat(result.demand().requiredBy())
@@ -105,7 +105,7 @@ class AllocationDemandRegistrarTest {
     when(moveRepository.findByAllocationDemandId(accepted.id())).thenReturn(List.of(move));
     when(pickingRepository.findByIds(java.util.Set.of(uuid(301)))).thenReturn(List.of(picking));
 
-    AllocationDemandRegistration replay = registrar.register(command);
+    AllocationDemandRegistrationResult replay = registrar.register(command);
 
     assertThat(replay.created()).isFalse();
     assertThat(replay.demand()).isSameAs(accepted);
@@ -157,7 +157,7 @@ class AllocationDemandRegistrarTest {
     when(pickingRepository.findByIds(java.util.Set.of(uuid(501))))
         .thenReturn(List.of(picking));
 
-    AllocationDemandRegistration replay = registrar.register(original);
+    AllocationDemandRegistrationResult replay = registrar.register(original);
 
     assertThat(replay.created()).isFalse();
     assertThat(replay.demand().status())
@@ -176,8 +176,8 @@ class AllocationDemandRegistrarTest {
     when(demandRepository.findBySource(original.source())).thenReturn(Optional.empty());
     when(demandRepository.findBySource(replacement.source())).thenReturn(Optional.empty());
 
-    AllocationDemandRegistration first = registrar.register(original);
-    AllocationDemandRegistration second = registrar.register(replacement);
+    AllocationDemandRegistrationResult first = registrar.register(original);
+    AllocationDemandRegistrationResult second = registrar.register(replacement);
 
     assertThat(first.demand().source()).isNotEqualTo(second.demand().source());
     assertThat(first.demand().source().allocationUnitKey())

@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application;
+package com.flowzati.archone.inventory.allocation.application.service.reservation;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.command.AllocateWaitingDemandCommand;

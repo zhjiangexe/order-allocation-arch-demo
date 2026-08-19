@@ -1,8 +1,11 @@
 package com.flowzati.archone.inventory.allocation.application.usecase;
 
 import com.flowzati.archone.inventory.allocation.application.command.CancelAllocationDemandCommand;
-import com.flowzati.archone.inventory.allocation.application.AllocationExecutionCancellationCoordinator;
-import com.flowzati.archone.inventory.allocation.application.ExternalCancellationDecision;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationStepResult;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationResult;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationTransactions;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationExecutionCancellationCoordinator;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.ExternalCancellationDecision;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationCancellationState;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus;
 import java.time.Clock;
@@ -29,7 +32,7 @@ public class CancelAllocationDemandUsecase {
   }
 
   public AllocationCancellationResult execute(CancelAllocationDemandCommand command) {
-    AllocationCancellationCheckpoint checkpoint = transactions.begin(
+    AllocationCancellationStepResult checkpoint = transactions.begin(
         command.allocationDemandId(), command.cancellationOperationId(), clock.instant());
     if (checkpoint.state() == AllocationCancellationState.COMPLETED) {
       return AllocationCancellationResult.COMPLETED;

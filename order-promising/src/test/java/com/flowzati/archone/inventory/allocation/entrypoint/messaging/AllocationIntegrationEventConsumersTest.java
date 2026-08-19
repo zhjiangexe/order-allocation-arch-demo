@@ -9,7 +9,7 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.command.AllocateWaitingDemandCommand;
 import com.flowzati.archone.inventory.allocation.application.command.CancelMovementsCommand;
-import com.flowzati.archone.inventory.allocation.application.TransactionalAllocationAttempt;
+import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.application.usecase.CancelMovementsUsecase;
 import java.time.Instant;

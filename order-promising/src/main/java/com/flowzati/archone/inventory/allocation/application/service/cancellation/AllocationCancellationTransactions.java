@@ -1,7 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application.usecase;
-
-import com.flowzati.archone.inventory.allocation.application.ExternalCancellationDecision;
-import com.flowzati.archone.inventory.allocation.application.AllocationReservationCanceller;
+package com.flowzati.archone.inventory.allocation.application.service.cancellation;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationCancellationOperation;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationCancellationState;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
@@ -31,7 +28,7 @@ public class AllocationCancellationTransactions {
   }
 
   @Transactional
-  public AllocationCancellationCheckpoint begin(
+  public AllocationCancellationStepResult begin(
       UUID demandId, UUID operationId, Instant now) {
     AllocationDemand demand = demandRepository.findById(demandId)
         .orElseThrow(() -> new IllegalStateException(
@@ -39,11 +36,11 @@ public class AllocationCancellationTransactions {
     AllocationCancellationOperation operation = operationRepository.find(demandId, operationId)
         .orElseGet(() -> operationRepository.save(
             AllocationCancellationOperation.start(demandId, operationId, now)));
-    return new AllocationCancellationCheckpoint(demand, operation.state());
+    return new AllocationCancellationStepResult(demand, operation.state());
   }
 
   @Transactional
-  public AllocationCancellationCheckpoint recordExternalDecision(
+  public AllocationCancellationStepResult recordExternalDecision(
       UUID demandId,
       UUID operationId,
       ExternalCancellationDecision decision,
@@ -61,7 +58,7 @@ public class AllocationCancellationTransactions {
       }
       operation = operationRepository.save(operation);
     }
-    return new AllocationCancellationCheckpoint(demand, operation.state());
+    return new AllocationCancellationStepResult(demand, operation.state());
   }
 
   /**
@@ -69,7 +66,7 @@ public class AllocationCancellationTransactions {
    * allocation won the race and external execution coordination has become mandatory.
    */
   @Transactional
-  public AllocationCancellationCheckpoint completePendingOrRefresh(
+  public AllocationCancellationStepResult completePendingOrRefresh(
       UUID demandId, UUID operationId, Instant now) {
     AllocationCancellationOperation operation = operationRepository.find(demandId, operationId)
         .orElseThrow(() -> new IllegalStateException("Cancellation operation was not started"));
@@ -77,10 +74,10 @@ public class AllocationCancellationTransactions {
         .orElseThrow(() -> new IllegalStateException(
             "Allocation demand no longer exists: " + demandId));
     if (operation.state() != AllocationCancellationState.STARTED) {
-      return new AllocationCancellationCheckpoint(demand, operation.state());
+      return new AllocationCancellationStepResult(demand, operation.state());
     }
     if (demand.status() == AllocationDemandStatus.ALLOCATED) {
-      return new AllocationCancellationCheckpoint(demand, operation.state());
+      return new AllocationCancellationStepResult(demand, operation.state());
     }
 
     if (demand.status() == AllocationDemandStatus.PENDING) {
@@ -93,7 +90,7 @@ public class AllocationCancellationTransactions {
     operation.confirmExternally(now);
     operation.completeLocally(now);
     operationRepository.save(operation);
-    return new AllocationCancellationCheckpoint(demand, operation.state());
+    return new AllocationCancellationStepResult(demand, operation.state());
   }
 
   @Transactional

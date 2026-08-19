@@ -1,5 +1,6 @@
-package com.flowzati.archone.inventory.allocation.application;
+package com.flowzati.archone.inventory.allocation.infrastructure.observability;
 
+import com.flowzati.archone.inventory.allocation.application.service.reservation.AllocationAttemptObserver;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -10,21 +11,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/** Low-cardinality metrics plus structured evidence for strict-FIFO head-of-line blocking. */
+/** 用 Micrometer 與 structured log 記錄 strict-FIFO head-of-line blocking。 */
 @Component
-public class AllocationObservability {
+public class MicrometerAllocationAttemptObserver implements AllocationAttemptObserver {
 
-  private static final Logger log = LoggerFactory.getLogger(AllocationObservability.class);
+  private static final Logger log = LoggerFactory.getLogger(MicrometerAllocationAttemptObserver.class);
   private static final Comparator<AllocationDemand> PRECEDENCE = Comparator
       .comparing(AllocationDemand::enqueuedAt)
       .thenComparing(AllocationDemand::id);
 
   private final MeterRegistry meters;
 
-  public AllocationObservability(MeterRegistry meters) {
+  public MicrometerAllocationAttemptObserver(MeterRegistry meters) {
     this.meters = meters;
   }
 
+  @Override
   public void recordBlocked(AllocationCandidateBatch batch, Instant observedAt) {
     batch.candidates().stream().min(PRECEDENCE).ifPresent(candidate ->
         candidate.totalsBySku().keySet().forEach(sku ->

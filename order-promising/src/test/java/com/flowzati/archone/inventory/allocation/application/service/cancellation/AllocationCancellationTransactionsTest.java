@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application.usecase;
+package com.flowzati.archone.inventory.allocation.application.service.cancellation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -6,7 +6,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.allocation.application.AllocationReservationCanceller;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationCancellationOperation;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationCancellationState;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
@@ -49,7 +48,7 @@ class AllocationCancellationTransactionsTest {
     AllocationCancellationOperation operation = operation(demand.id());
     given(demand, operation);
 
-    AllocationCancellationCheckpoint result = transactions.completePendingOrRefresh(
+    AllocationCancellationStepResult result = transactions.completePendingOrRefresh(
         demand.id(), operation.operationId(), NOW);
 
     assertThat(result.state()).isEqualTo(AllocationCancellationState.COMPLETED);
@@ -67,7 +66,7 @@ class AllocationCancellationTransactionsTest {
     AllocationCancellationOperation operation = operation(demand.id());
     given(demand, operation);
 
-    AllocationCancellationCheckpoint result = transactions.completePendingOrRefresh(
+    AllocationCancellationStepResult result = transactions.completePendingOrRefresh(
         demand.id(), operation.operationId(), NOW);
 
     assertThat(result.state()).isEqualTo(AllocationCancellationState.STARTED);

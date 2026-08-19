@@ -1,17 +1,17 @@
-package com.flowzati.archone.inventory.allocation.application.demand;
+package com.flowzati.archone.inventory.allocation.application.service.demand;
 
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import java.util.List;
 
 /** 冪等登記來源 demand 與 outbound execution 的結果。 */
-public record AllocationDemandRegistration(
+public record AllocationDemandRegistrationResult(
     AllocationDemand demand,
     List<StockMove> moves,
     boolean created
 ) {
 
-  public AllocationDemandRegistration {
+  public AllocationDemandRegistrationResult {
     if (demand == null || moves == null || moves.isEmpty()) {
       throw new IllegalArgumentException("Registered allocation demand requires execution movements");
     }

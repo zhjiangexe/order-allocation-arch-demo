@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application;
+package com.flowzati.archone.inventory.allocation.application.service.reservation;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.domain.event.AllocationCommitted;

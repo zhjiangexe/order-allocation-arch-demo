@@ -720,9 +720,10 @@ Odoo 19 把它們全放在 `stock.move` 上：`_action_confirm` / `_action_assig
 
 垂直切片後不再把這些 application component 全塞進同一個 package，而是依「誰擁有 use case」放置：
 建立 inbound execution 的 `InboundReceiptRegistrar` 在 `inventory/movement/application/`；建立 outbound
-demand/execution 的 `AllocationDemandRegistrar` 在 `inventory/allocation/application/`；完成收貨並增加庫存的
+demand/execution 的 `AllocationDemandRegistrar` 在 `inventory/allocation/application/service/demand/`；完成收貨並增加庫存的
 `InboundReceiptCompleter` 在 `inventory/balance/application/`；釋放配貨與取消 outbound execution 的
-`AllocationReservationCanceller` 在 `inventory/allocation/application/`。底層的 `StockMove`、`StockPicking` 與 repository
+`AllocationReservationCanceller` 在 `inventory/allocation/application/service/cancellation/`。供需規劃與庫存保留的
+`PendingDemandAllocator`、`AllocationCommitter` 則集中在 `application/service/reservation/`。底層的 `StockMove`、`StockPicking` 與 repository
 仍集中在 `inventory/movement/domain/`。這樣依賴方向保持為 `allocation → balance → movement`。
 
 本系統已擁有簡化的一段式 inbound execution。若未來接外部 WMS，應讓 Kafka handler 與

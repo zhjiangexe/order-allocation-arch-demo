@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application;
+package com.flowzati.archone.inventory.allocation.application.service.reservation;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;

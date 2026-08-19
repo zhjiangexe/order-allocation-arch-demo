@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application.configuration;
+package com.flowzati.archone.inventory.allocation.infrastructure.configuration;
 
 import com.flowzati.archone.inventory.allocation.domain.service.AllocationDemandPlanner;
 import com.flowzati.archone.inventory.allocation.domain.service.AllocationFifoSelector;

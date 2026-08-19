@@ -12,9 +12,9 @@ import com.flowzati.archone.inventory.allocation.application.command.AcceptAlloc
 import com.flowzati.archone.inventory.allocation.application.command.AcceptAllocationDemandCommand.SourceDemandLine;
 import com.flowzati.archone.inventory.allocation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.command.AllocationExecutionIntent;
-import com.flowzati.archone.inventory.allocation.application.demand.AllocationDemandRegistration;
-import com.flowzati.archone.inventory.allocation.application.demand.AllocationDemandRegistrar;
-import com.flowzati.archone.inventory.allocation.application.PendingDemandAllocator;
+import com.flowzati.archone.inventory.allocation.application.service.demand.AllocationDemandRegistrationResult;
+import com.flowzati.archone.inventory.allocation.application.service.demand.AllocationDemandRegistrar;
+import com.flowzati.archone.inventory.allocation.application.service.reservation.PendingDemandAllocator;
 import com.flowzati.archone.inventory.allocation.application.source.order.OrderAllocationDemandSource;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
@@ -75,7 +75,7 @@ class AllocateOrderUsecaseTest {
     AllocationDemand demand = acceptedDemand(command);
     when(adapter.find(ORDER_ID)).thenReturn(Optional.of(command));
     when(registrar.register(command))
-        .thenReturn(new AllocationDemandRegistration(demand, List.of(move(demand)), true));
+        .thenReturn(new AllocationDemandRegistrationResult(demand, List.of(move(demand)), true));
 
     usecase.execute(new AllocateOrderCommand(ORDER_ID));
 

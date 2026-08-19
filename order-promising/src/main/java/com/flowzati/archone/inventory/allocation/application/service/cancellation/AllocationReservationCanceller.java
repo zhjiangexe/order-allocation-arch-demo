@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application;
+package com.flowzati.archone.inventory.allocation.application.service.cancellation;
 
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.entity.StockMoveLine;

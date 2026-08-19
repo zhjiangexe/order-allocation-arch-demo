@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.application;
+package com.flowzati.archone.inventory.allocation.application.service.reservation;
 
 import com.flowzati.archone.inventory.allocation.application.event.AllocationCompletionRouter;
 import com.flowzati.archone.inventory.allocation.domain.event.AllocationCommitted;
@@ -31,7 +31,7 @@ public class PendingDemandAllocator {
   private final AllocationDemandPlanner demandPlanner;
   private final AllocationCommitter planCommitter;
   private final AllocationCompletionRouter completionRouter;
-  private final AllocationObservability fifoObservability;
+  private final AllocationAttemptObserver attemptObserver;
 
   public PendingDemandAllocator(
       AllocationDemandRepository demandRepository,
@@ -40,14 +40,14 @@ public class PendingDemandAllocator {
       AllocationDemandPlanner demandPlanner,
       AllocationCommitter planCommitter,
       AllocationCompletionRouter completionRouter,
-      AllocationObservability fifoObservability) {
+      AllocationAttemptObserver attemptObserver) {
     this.demandRepository = demandRepository;
     this.stockQuantRepository = stockQuantRepository;
     this.demandSelector = demandSelector;
     this.demandPlanner = demandPlanner;
     this.planCommitter = planCommitter;
     this.completionRouter = completionRouter;
-    this.fifoObservability = fifoObservability;
+    this.attemptObserver = attemptObserver;
   }
 
   /** 最多 commit 一筆 demand；successor 交給下一次 bounded invocation 重新評估。 */
@@ -66,7 +66,7 @@ public class PendingDemandAllocator {
     // 純演算法：candidate 必須在每個 required SKU queue 都是最早的一筆。
     Optional<AllocationDemand> selected = demandSelector.selectFirstEligible(batch);
     if (selected.isEmpty()) {
-      fifoObservability.recordBlocked(batch, now);
+      attemptObserver.recordBlocked(batch, now);
       return Optional.empty();
     }
 

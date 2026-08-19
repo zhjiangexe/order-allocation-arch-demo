@@ -348,7 +348,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     //
     // **切點是字串，指錯不會編譯失敗，只會靜默匹配不到任何東西**——那時每一條斷言都仍然
     // 執行，只是重試次數變成 0。元件改名或搬家時，這一行必須跟著改。
-    @Around("execution(* com.flowzati.archone.inventory.allocation.application."
+    @Around("execution(* com.flowzati.archone.inventory.allocation.application.service.reservation."
         + "AllocationCommitter.commit(..))")
     public Object synchronizeFirstWave(ProceedingJoinPoint joinPoint) throws Throwable {
       int invocation = invocations.incrementAndGet();
