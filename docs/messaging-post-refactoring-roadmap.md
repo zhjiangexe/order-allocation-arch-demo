@@ -3,7 +3,7 @@
 > 狀態：Gate P0-A／P0-B／P0-C 已完成；Gate P1-D handoff vertical slice 已完成，
 > 下一步為 D4 order cancellation correlation／亂序保護
 > 更新日期：2026-08-11
-> 適用範圍：`messaging/*`、`contracts`、使用 messaging 的 bounded-context runtime，
+> 適用範圍：`backend/messaging/*`、`backend/contracts`、使用 messaging 的 bounded-context runtime，
 > 以及 PostgreSQL／Debezium／Kafka 的端到端驗證
 
 ## 1. 目的與邊界
@@ -78,7 +78,7 @@ P0-C 可以在 P0-A／P0-B 的 characterization tests 建立後開始準備，�
 - [x] A3. 保留 application／subscriber 的必要 override，但以 optional override 或 resolver
   明確表達，不建立第二套全域設定。
 - [x] A4. 明確定義 concurrency、ack mode、missing-topics-fatal、observation、shutdown timeout
-  與 auto-startup 的 precedence，並寫入 `messaging/README.md`。
+  與 auto-startup 的 precedence，並寫入 `backend/messaging/README.md`。
 - [x] A5. 補 property binding／container tests，涵蓋 Boot baseline、subscriber override、未設定
   與非法值 fail-fast。
 - [x] A6. 更新 `e2e/perf`，以 consumer-group/runtime metrics 或 container state 證明實際
@@ -172,8 +172,8 @@ attempt；若 failure 發生在 transaction begin，該次嘗試甚至不會建�
   `IntegrationEventSubscriberTransactionIntegrationTest` 另覆蓋 production dispatcher path 的同一邊界。
 - deterministic tests 覆蓋 exception matrix、cause-chain SQL failure、1/2/4/8 秒 backoff、15／5
   attempt caps、mapping／handler exception boundary、retry exhausted／direct DLT 與 observation tags。
-- `./gradlew test :bootstrap:sit --no-daemon --rerun-tasks` 已完整通過（108 tasks）；最後的
-  attempt-budget 命名調整後亦再次通過 `:bootstrap:test` 與 `:bootstrap:sit`。
+- `./gradlew test :deployments:monolith:sit --no-daemon --rerun-tasks` 已完整通過（108 tasks）；最後的
+  attempt-budget 命名調整後亦再次通過 `:deployments:monolith:test` 與 `:deployments:monolith:sit`。
 
 ## 6. Gate P0-C — Full-path correctness E2E
 
@@ -211,9 +211,9 @@ attempt；若 failure 發生在 transaction begin，該次嘗試甚至不會建�
 - DLT assertions 固定原 message ID、key、payload、event type、generic headers、原
   topic／partition／offset 與 subscriber metadata；解除故障並由
   `KafkaDeadLetterReplayRecordFactory` replay 後成功收斂。
-- `./gradlew :bootstrap:correctnessE2e --no-daemon --rerun-tasks` 已通過：4 tests、0 failed；
+- `./gradlew :deployments:monolith:correctnessE2e --no-daemon --rerun-tasks` 已通過：4 tests、0 failed；
   四個情境實際執行約 56 秒，完整 Gradle task 約 68 秒。
-- `./gradlew :bootstrap:test :bootstrap:sit --no-daemon --rerun-tasks` 回歸亦通過
+- `./gradlew :deployments:monolith:test :deployments:monolith:sit --no-daemon --rerun-tasks` 回歸亦通過
   （54 Gradle tasks），新增的 repository-level source set 未改變既有 unit／SIT lifecycle。
 
 ## 7. Gate P1-D — WMS messaging vertical slice
@@ -262,17 +262,18 @@ order-promising transaction
 - `dispatchBy` 與 `releasePriority` 在 order input 明確提供，經 `DeliveryTerms`、Demand、outbound
   `StockPicking` 與 domain completion fact 傳到 Outbox；WMS 不從承諾日期猜離倉 deadline，也不在
   收到逾期單時拒絕建單。
-- 新增 `wms-runtime` deployable；只依賴 WMS core、contracts、foundation 與 consumer-only starter。
-  `wms` 本身仍是 pure Java，沒有 Spring、JPA、Kafka 依賴。
-- WMS JPA adapter 擁有 `wms_shipments`、lines、pick tasks 與 `event_inbox`。Flyway 使用專屬
-  `classpath:db/wms/migration`，避免多 deployable 同 classpath 時 migration version 衝突。
+- 這個 slice 最初以 `wms-runtime` 驗證獨立 deployable；2026-08-19 改採 monolith-first，將 WMS
+  JPA、Kafka consumer 與 Spring configuration 收回 `wms` bounded-context module，並由
+  `deployments:monolith` 統一組裝。確定獨立部署時才建立薄 deployment module。
+- WMS JPA adapter 擁有 `wms_shipments`、lines 與 pick tasks；目前與其他 context 共用單體的
+  `event_inbox` transaction，資料表由 `deployments:monolith` Flyway migration 管理。
 - consumer 以 Tram-style `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 註冊；
   共用 Inbox transaction 包住 contract mapping、`CreateShipmentUsecase` 與 Shipment persistence。
 - message ID duplicate 由 Inbox 擋住；同一 allocation 以新 event ID 重發則由 `allocationId` business
   key 收斂。相同 snapshot 回傳既有 Shipment，不同 snapshot 明確失敗。
-- correctness E2E 同 JVM 啟動兩個獨立 Spring context、兩個 DB schema／Inbox，共用真實
-  Debezium Connect／Kafka；驗證 order-promising Outbox → CDC → Kafka → WMS Inbox → Shipment，
-  且 application restart／record replay 後不會多建 Shipment。
+- correctness E2E 啟動單一 `deployments:monolith` Spring context，共用真實 Debezium Connect／Kafka；驗證
+  Outbox → CDC → Kafka → WMS Inbox → Shipment，且 application restart／record replay 後不會多建
+  Shipment。
 - D4b 刻意不和 handoff 偷綁在一起：只做 `findByOrderId` 不足以處理跨 topic 亂序；下一步須以
   WMS 自有 cancellation intent／tombstone 建模後再接 consumer。
 

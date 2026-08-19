@@ -1,0 +1,12 @@
+rootProject.name = 'archone'
+
+include('deployments:monolith')
+include('ordering-context')
+include('inventory-context')
+include('logistics-data-context')
+include('fulfillment-workflow')
+include('wms-context')
+include('foundation')
+include('contracts')
+
+apply from: file('messaging/messaging.settings.gradle')

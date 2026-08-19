@@ -1,0 +1,68 @@
+plugins {
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.dependency.management) apply false
+    alias(libs.plugins.spotless)
+}
+
+spotless {
+    java {
+        target '../e2e/spec/src/test/java/**/*.java'
+        palantirJavaFormat(libs.versions.palantirJavaFormat.get())
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+tasks.named('spotlessApply') {
+    dependsOn subprojects.collect { "${it.path}:spotlessApply" }
+}
+
+tasks.named('spotlessCheck') {
+    dependsOn subprojects.collect { "${it.path}:spotlessCheck" }
+}
+
+allprojects {
+    group = 'com.flowzati'
+    version = '0.0.1-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'com.diffplug.spotless'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(libs.versions.java.get())
+        }
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}"
+            mavenBom "org.springframework.modulith:spring-modulith-bom:${libs.versions.springModulith.get()}"
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:${libs.versions.springCloud.get()}"
+        }
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+
+    spotless {
+        java {
+            target 'src/**/*.java'
+            palantirJavaFormat(libs.versions.palantirJavaFormat.get())
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+
+    tasks.named('check') {
+        dependsOn tasks.named('spotlessCheck')
+    }
+}

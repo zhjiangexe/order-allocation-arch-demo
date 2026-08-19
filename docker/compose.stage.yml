@@ -1,0 +1,10 @@
+services:
+  monolith:
+    environment:
+      # staging 繼承 prod 的安全設定，再套用 application-staging.properties。
+      SPRING_PROFILES_ACTIVE: prod,staging
+    deploy:
+      resources:
+        limits:
+          cpus: "${ARCHONE_CPU_LIMIT:-1.0}"
+          memory: ${ARCHONE_MEMORY_LIMIT:-1G}

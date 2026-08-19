@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'long-running fulfillment coordination contracts and workflows'
+
+dependencies {
+    api libs.temporal.sdk
+
+    testImplementation libs.temporal.testing
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

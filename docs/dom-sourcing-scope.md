@@ -266,7 +266,7 @@ B 貨主同 SKU 有貨與此無關。
 | Migration | `stock_pools` 的 unique key 由 `sku` 改為 `(owner_id, facility_id, sku)`；`orders` 加 `ship_to_zone`；新增 `facilities`、`facility_coverage`。**V2／V3 已進版本，須開新 migration 而非改原檔** |
 | Kafka | `AllocationKafkaIntegrationEventConsumer` 及各 handler |
 | REST | `StockQuantController`、`StockQuantResponse`、`OrderController`、`PlaceOrderRequest`、`OrderStatusResponse` |
-| 其他 | `bootstrap/DevSeedDataInitializer`、`e2e/perf/k6/*`、`frontend/` |
+| 其他 | `backend/deployments/monolith/DevSeedDataInitializer`、`e2e/perf/k6/*`、`frontend/` |
 
 規模：main 約 40 檔、測試約 20 檔、migration 新增 2 至 4 支。
 

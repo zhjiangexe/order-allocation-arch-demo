@@ -24,13 +24,14 @@ port 皆由 Testcontainers 隔離，不依賴 `../perf` 的長駐 Compose projec
 images。
 
 ```bash
-./gradlew :bootstrap:correctnessE2e --no-daemon
+cd backend
+./gradlew :deployments:monolith:correctnessE2e --no-daemon
 ```
 
 測試報告位於：
 
 ```text
-order-promising/build/reports/tests/correctnessE2e/index.html
+backend/deployments/monolith/build/reports/tests/correctnessE2e/index.html
 ```
 
 `correctnessE2e` 是獨立的重型 CI layer，刻意不掛在一般 `check`。一般 pull request 可以先跑

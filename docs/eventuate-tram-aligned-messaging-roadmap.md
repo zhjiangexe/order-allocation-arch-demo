@@ -6,7 +6,7 @@
 > [`messaging-post-refactoring-roadmap.md`](messaging-post-refactoring-roadmap.md)。
 > Gate A 證據：[eventuate-tram-aligned-messaging-gate-a-baseline.md](eventuate-tram-aligned-messaging-gate-a-baseline.md)
 > 更新日期：2026-08-10
-> 適用範圍：`messaging/*` 與使用這些模組的 application entrypoint／use case
+> 適用範圍：`backend/messaging/*` 與使用這些模組的 application entrypoint／use case
 
 ## 1. 目的
 
@@ -1217,7 +1217,7 @@ ES0 驗證證據（2026-08-09）：
 
 - `AllocationConcurrencyEndToEndIntegrationTest` 的 retry-exhausted path 從實際 `AllocationKafkaIntegrationEventConsumer` 進入，驗證三次 `MovementAssigner` invocation 位於三筆不同 PostgreSQL transaction，且最終 Inbox、StockQuant reservation、picking／moves／move lines 與 Outbox 均無失敗殘留。
 - `AllocationRetryTransactionIntegrationTest` 當時另固定三次 attempt／三筆 transaction contract，以及耗盡時每次 Inbox probe write 都 rollback；後續由完整 chain SIT 接手。
-- targeted `./gradlew :bootstrap:sit --tests com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationConcurrencyEndToEndIntegrationTest` 通過。
+- targeted `./gradlew :deployments:monolith:sit --tests com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationConcurrencyEndToEndIntegrationTest` 通過。
 
 #### ES1 — 準備純 application API，尚不切換 production path（完成）
 
@@ -1542,7 +1542,7 @@ FS3 subscriber／group rename 與 replay runbook：
 - OpenTelemetry W3C integration test 驗證 `traceparent` 與 `tracestate` 經 producer carrier 寫入 Outbox envelope、consumer 延續同一 trace；缺少 headers 時 receiver handler 會建立新 trace。
 - observation auto-configuration 只在 `ObservationRegistry` bean 存在且 property 開啟時建立 adapters，producer／consumer 可分別停用，application 可提供 convention 或完整 adapter；starter 未加入任何 exporter dependency。
 - auto-config 將 producer observation interceptor 排在其他 `preSend` hooks 之後，避免把 application interceptor failure 誤標成 `outbox.failed`；reverse post lifecycle 仍能精確保留 append 成功結果。
-- `:bootstrap:test` 已在既有 Actuator、OpenTelemetry、OTLP、Prometheus dependency 組合下通過，application 不需改 exporter 設定。
+- `:deployments:monolith:test` 已在既有 Actuator、OpenTelemetry、OTLP、Prometheus dependency 組合下通過，application 不需改 exporter 設定。
 
 建議觀測分層：
 
@@ -1786,7 +1786,7 @@ type/version 的 payload decode failure，以及 handler exception 都仍交由 
   temporary `KafkaIntegrationEventDispatcher` 及 global bean-list auto-wiring；另移除已無 caller 的
   Gate B `MessageSubscriptionConfiguration` overload，public consumer API 只保留 Tram-shaped subscribe
   與 additive options overload。
-- 新增 `messaging/README.md` 與 `messaging-operations-runbook.md`，固定 artifact direction、starter
+- 新增 `backend/messaging/README.md` 與 `messaging-operations-runbook.md`，固定 artifact direction、starter
   selection、transaction owner、headers rolling deployment、subscriber/group rename、DLT replay、
   connector rollback、decode failure、retention SQL／thresholds與既有 ObservationRegistry 接線。
 - `eventuate-tram-gap-analysis.md` 與 `current-system-development-status.html` 已同步 production
@@ -2141,8 +2141,8 @@ use case 是否保留 `@Transactional` 必須依 caller 分析，不能照 Tram 
 ./gradlew :messaging:messaging-spring-flyway:test
 ./gradlew :messaging:messaging-spring-boot-autoconfigure:test
 ./gradlew :messaging:messaging-test-support:test
-./gradlew :bootstrap:test
-./gradlew :bootstrap:sit
+./gradlew :deployments:monolith:test
+./gradlew :deployments:monolith:sit
 ./gradlew check
 ```
 

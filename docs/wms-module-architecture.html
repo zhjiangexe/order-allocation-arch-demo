@@ -129,11 +129,11 @@
     <div>
       <div class="eyebrow">WMS bounded context · current source</div>
       <h1>WMS-only 模組架構與主要流程</h1>
-      <p>本頁以 <code>wms</code> pure business module 為主，並標示第一個 <code>wms-runtime</code> fulfillment handoff adapter。Spring、Kafka、JPA 與 Inbox 留在 runtime；WMS core 仍不依賴它們或任何 workflow engine。</p>
+      <p>本頁以 <code>wms-context</code> bounded-context module 為主。Domain／application 保持 framework-neutral；Spring、Kafka 與 JPA adapters 也由本模組提供，並由 <code>deployments:monolith</code> 組裝成目前的模組化單體。</p>
     </div>
     <aside class="snapshot" aria-label="模組快照">
       <dl>
-        <dt>Gradle modules</dt><dd>2</dd>
+        <dt>Gradle modules</dt><dd>1</dd>
         <dt>Shared technical modules</dt><dd>10</dd>
         <dt>Bounded areas</dt><dd>Inbound / Outbound</dd>
         <dt>Use cases</dt><dd>13</dd>
@@ -158,7 +158,7 @@
   <section id="boundary" aria-labelledby="boundary-title">
     <div class="section-head">
       <h2 id="boundary-title">一、模組與責任邊界</h2>
-      <p>WMS core 穩定 commands、aggregate rules 與 committed events；runtime adapter 只接跨邊界 transport 與 persistence。</p>
+      <p>WMS core 穩定 commands、aggregate rules 與 committed events；同一 bounded-context module 提供跨邊界 transport 與 persistence adapters。</p>
     </div>
     <div class="cards">
       <article class="card">
@@ -172,13 +172,13 @@
         <ul><li>Aggregate：<code>InboundOperation</code></li><li>Repository port：<code>InboundOperationRepository</code></li><li>4 個 command use cases</li></ul>
       </article>
       <article class="card">
-        <h3><code>wms-runtime</code></h3>
-        <p>已用 consumer-only starter 接收 fulfillment handoff，並以 WMS 自有 Inbox transaction 與 JPA <code>ShipmentRepository</code> 落地。尚未出現 reader 的 WMS domain events 不發布 Kafka；Inbound、Wave 與 Inventory/TMS adapters 仍待真實 use case 再補。</p>
+        <h3><code>deployments:monolith → wms-context</code></h3>
+        <p>目前由單體共用的 messaging starter 接收 fulfillment handoff，並以 Inbox transaction 與 JPA <code>ShipmentRepository</code> 落地。尚未出現 reader 的 WMS domain events 不發布 Kafka；Inbound、Wave 與 Inventory/TMS adapters 仍待真實 use case 再補。</p>
       </article>
     </div>
     <div class="callout" style="margin-top: 16px">
       <strong>依賴方向</strong>
-      <p><code>wms-runtime → contracts／messaging consumer starter／wms application API → aggregate → ports</code>；<code>wms</code> 不反向依賴 runtime。order-promising 只發布不可變 handoff snapshot，不引用 WMS class，也不讓 WMS 跨庫查資料。</p>
+      <p><code>deployments:monolith → wms-context → application API → aggregate → ports</code>；WMS adapters 只向內實作 ports。其他 context 只發布不可變 handoff snapshot，不引用 WMS class，也不跨 boundary 讀取 WMS tables。</p>
     </div>
   </section>
 
@@ -296,7 +296,7 @@
     <table>
       <thead><tr><th>缺口</th><th>目前狀態</th><th>建議</th></tr></thead>
       <tbody>
-        <tr><td>Repository／Outbox implementations</td><td><span class="tag">Outbound handoff 已建立</span></td><td><code>wms-runtime</code> 已提供 Shipment JPA adapter、WMS schema、Inbox consumer 與 runtime composition。WMS producer／Outbox 暫不建立，因目前沒有具體跨邊界 reader；Wave 與 Inbound repository adapter 仍待補。</td></tr>
+        <tr><td>Repository／Outbox implementations</td><td><span class="tag">Outbound handoff 已建立</span></td><td><code>wms-context</code> 已提供 Shipment JPA adapter 與 Inbox consumer，WMS tables 由 <code>deployments:monolith</code> migration 管理。WMS producer／Outbox 暫不建立，因目前沒有具體跨邊界 reader；Wave 與 Inbound repository adapter 仍待補。</td></tr>
         <tr><td>Order Promising → WMS input</td><td><span class="tag">Handoff 已接通</span></td><td><code>AllocationCommittedForFulfillmentIntegrationEvent</code> 獨立攜帶 allocation／StockPicking ID、owner、Facility、committed lines、source locations、quantity、<code>dispatchBy</code> 與 <code>releasePriority</code>；既有最小 <code>OrderAllocatedIntegrationEvent</code> 不被膨脹。整單取消 consumer 與跨 topic 亂序保護仍待下一步。</td></tr>
         <tr><td>Inventory adapter</td><td><span class="tag missing">未建立</span></td><td>以 committed receipt／putaway／handover facts 接庫存帳，不讓 WMS aggregate 直接依賴 order-promising model。</td></tr>
         <tr><td>Short-pick resolution／Putback</td><td><span class="tag missing">僅有事件</span></td><td>先建 WMS commands、business keys 與 terminal outcomes。</td></tr>
@@ -308,7 +308,7 @@
   </section>
 
   <footer>
-    <span>程式基準：<code>wms/src/main</code>、<code>wms-runtime/src/main</code>，狀態日期 2026-08-11。</span>
+    <span>程式基準：<code>backend/wms-context/src/main</code>、<code>backend/deployments/monolith/src/main</code>，狀態日期 2026-08-19。</span>
     <span><a href="temporal-adoption-decision.md">Temporal 採用決策</a> · <a href="wms-business-process-decomposition.md">WMS process 切分</a> · <a href="wms-wes-wcs-tms-workflow-boundary-review.md">WMS／WES／WCS／TMS 邊界</a></span>
   </footer>
 </main>

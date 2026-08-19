@@ -76,7 +76,7 @@ cmd_up() {
     echo "app 已經在跑，略過啟動"
   else
     echo "啟動 app（partition-key-strategy=${partition_key_strategy}，Kafka concurrency=${kafka_concurrency}），log 寫到 ${APP_LOG}"
-    (cd "${REPO_ROOT}" && nohup ./gradlew :bootstrap:bootRun \
+    (cd "${REPO_ROOT}/backend" && nohup ./gradlew :deployments:monolith:bootRun \
       --args="--spring.profiles.active=dev --spring.kafka.listener.concurrency=${kafka_concurrency} --management.endpoints.web.exposure.include=prometheus,health --archone.allocation.partition-key-strategy=${partition_key_strategy}" \
       > "${APP_LOG}" 2>&1 &)
     app_started=true

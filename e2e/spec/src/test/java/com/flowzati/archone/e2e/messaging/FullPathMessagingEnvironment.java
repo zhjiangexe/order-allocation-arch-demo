@@ -13,8 +13,7 @@ import com.flowzati.archone.messaging.observation.MessagingObservationNames;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.testsupport.OrderFixtures;
-import com.flowzati.archone.wms.runtime.WmsRuntimeApplication;
-import com.flowzati.archone.wms.runtime.outbound.entrypoint.messaging.WmsEventSubscriptions;
+import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -98,7 +97,6 @@ final class FullPathMessagingEnvironment {
     private static final GenericContainer<?> DEBEZIUM = debeziumConnectContainer();
 
     private static ConfigurableApplicationContext application;
-    private static ConfigurableApplicationContext wmsApplication;
     private static int applicationPort;
     private static boolean kafkaPaused;
 
@@ -109,14 +107,12 @@ final class FullPathMessagingEnvironment {
         KAFKA.start();
         createTopics();
         startApplication();
-        startWmsApplication();
         DEBEZIUM.start();
         registerConnector();
         awaitConnectorRunning();
     }
 
     static void stopFullPath() {
-        closeWmsApplication();
         closeApplication();
         unpauseKafkaIfNecessary();
         if (DEBEZIUM.isRunning()) {
@@ -181,50 +177,10 @@ final class FullPathMessagingEnvironment {
         startApplication();
     }
 
-    private static void startWmsApplication() {
-        jdbc().execute("CREATE SCHEMA IF NOT EXISTS wms");
-        String wmsJdbcUrl =
-                POSTGRES.getJdbcUrl() + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=wms";
-        Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("spring.application.name", "wms-correctness");
-        properties.put("spring.main.web-application-type", "none");
-        properties.put("spring.datasource.url", wmsJdbcUrl);
-        properties.put("spring.datasource.username", POSTGRES.getUsername());
-        properties.put("spring.datasource.password", POSTGRES.getPassword());
-        properties.put("spring.flyway.enabled", "true");
-        properties.put("spring.flyway.locations", "classpath:db/wms/migration");
-        properties.put("spring.flyway.schemas", "wms");
-        properties.put("spring.flyway.default-schema", "wms");
-        properties.put("spring.jpa.properties.hibernate.default_schema", "wms");
-        properties.put("spring.jpa.hibernate.ddl-auto", "none");
-        properties.put("spring.jpa.open-in-view", "false");
-        properties.put("spring.kafka.bootstrap-servers", KAFKA.getBootstrapServers());
-        properties.put("spring.kafka.consumer.auto-offset-reset", "earliest");
-        properties.put("spring.kafka.listener.concurrency", "1");
-        properties.put("spring.kafka.listener.missing-topics-fatal", "false");
-        properties.put("management.otlp.metrics.export.enabled", "false");
-        properties.put("spring.main.banner-mode", "off");
-
-        String[] arguments = properties.entrySet().stream()
-                .map(entry -> "--" + entry.getKey() + "=" + entry.getValue())
-                .toArray(String[]::new);
-        wmsApplication = new SpringApplicationBuilder(WmsRuntimeApplication.class)
-                .web(WebApplicationType.NONE)
-                .run(arguments);
-        awaitWmsConsumerReady();
-    }
-
     private static void closeApplication() {
         if (application != null) {
             application.close();
             application = null;
-        }
-    }
-
-    private static void closeWmsApplication() {
-        if (wmsApplication != null) {
-            wmsApplication.close();
-            wmsApplication = null;
         }
     }
 
@@ -234,23 +190,12 @@ final class FullPathMessagingEnvironment {
                 Map<String, org.apache.kafka.clients.admin.ConsumerGroupDescription> descriptions =
                         admin.describeConsumerGroups(List.of(
                                         AllocationEventSubscriptions.ORDER_LIFECYCLE,
-                                        OrderingEventSubscriptions.ALLOCATION_RESULTS))
+                                        OrderingEventSubscriptions.ALLOCATION_RESULTS,
+                                        WmsEventSubscriptions.FULFILLMENT_HANDOFF))
                                 .all()
                                 .get(5, TimeUnit.SECONDS);
                 return descriptions.values().stream()
                         .allMatch(description -> !description.members().isEmpty());
-            }
-        });
-    }
-
-    private static void awaitWmsConsumerReady() {
-        awaitCondition("WMS fulfillment consumer to join its group", NORMAL_FLOW_TIMEOUT, () -> {
-            try (Admin admin = admin()) {
-                var description = admin.describeConsumerGroups(List.of(WmsEventSubscriptions.FULFILLMENT_HANDOFF))
-                        .all()
-                        .get(5, TimeUnit.SECONDS)
-                        .get(WmsEventSubscriptions.FULFILLMENT_HANDOFF);
-                return description != null && !description.members().isEmpty();
             }
         });
     }
@@ -506,21 +451,21 @@ final class FullPathMessagingEnvironment {
 
     static int wmsInboxClaimCount(UUID eventId) {
         return jdbc().queryForObject("""
-        SELECT COUNT(*) FROM wms.event_inbox
+        SELECT COUNT(*) FROM event_inbox
          WHERE subscriber_id = ? AND event_id = ?
         """, Integer.class, WmsEventSubscriptions.FULFILLMENT_HANDOFF, eventId);
     }
 
     static int wmsShipmentCount(UUID orderId) {
         return jdbc().queryForObject(
-                        "SELECT COUNT(*) FROM wms.wms_shipments WHERE order_id = ?", Integer.class, orderId);
+                        "SELECT COUNT(*) FROM wms_shipments WHERE order_id = ?", Integer.class, orderId);
     }
 
     static int wmsShipmentLineQuantity(UUID orderId) {
         return jdbc().queryForObject("""
         SELECT COALESCE(SUM(line.quantity), 0)
-          FROM wms.wms_shipment_lines line
-          JOIN wms.wms_shipments shipment ON shipment.id = line.shipment_id
+          FROM wms_shipment_lines line
+          JOIN wms_shipments shipment ON shipment.id = line.shipment_id
          WHERE shipment.order_id = ?
         """, Integer.class, orderId);
     }
@@ -731,7 +676,7 @@ final class FullPathMessagingEnvironment {
             failuresRemaining.set(0);
         }
 
-        @Around("execution(* com.flowzati.archone.inventory.allocation.application."
+        @Around("execution(* com.flowzati.archone.inventory.allocation.application.service.reservation."
                 + "PendingDemandAllocator.allocateOne(..))")
         Object failAfterBusinessWrites(ProceedingJoinPoint joinPoint) throws Throwable {
             Object result = joinPoint.proceed();

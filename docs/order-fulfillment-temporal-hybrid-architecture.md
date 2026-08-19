@@ -147,7 +147,7 @@ Workflow handler 建立通用 early-message buffer。
 | Contract | Owner / worker | Task queue | 工作 |
 | --- | --- | --- | --- |
 | `OrderPromisingActivities` | order-promising deployable | `order-promising-activities` | 要求配貨、完成 outbound movements、將 Order 記為 fulfilled／cancelled |
-| `WmsActivities` | wms-runtime deployable | `wms-activities` | 冪等建立 Shipment；回傳立即取消決策，必要時由 WMS 內部繼續停止／putback |
+| `WmsActivities` | `deployments:monolith`；未來拆分時由 `deployments:wms` 接手 | `wms-activities` | 冪等建立 Shipment；回傳立即取消決策，必要時由 WMS 內部繼續停止／putback |
 
 目前 Ordering 與 Stock 雖是不同 package/bounded context，但部署在同一個
 `order-promising` process，因此共用一個 task queue。未來若拆成不同服務，再拆 Activity
@@ -312,7 +312,7 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 
 - [ ] 新增正式、outbound-only 的 `CompleteOutboundMovementsUsecase`；不可重用目前只接受 inbound 的 `InboundReceiptCompleter`。
 - [ ] `order-promising` Activity adapter 委派 allocation、outbound stock、ordering use cases。
-- [ ] `wms-runtime` Activity adapter 委派 `CreateShipmentUsecase` 並回傳既有或新建 Shipment ID。
+- [ ] WMS Activity adapter 委派 `CreateShipmentUsecase` 並回傳既有或新建 Shipment ID；目前由 `deployments:monolith` 組裝，獨立部署時再移交薄 `deployments:wms`。
 - [ ] `CreateWmsShipment` adapter 以 transaction 包住 repository、domain event／Outbox，並在 Activity
       boundary 強制 non-null receipt；資料庫對 `allocation_id` 建立 unique constraint。
 - [ ] 接通逾期／人工取消 entrypoint；只呼叫 existing Workflow Update，找不到 execution 時 retry／告警，不直接 cancel Temporal execution。
@@ -338,8 +338,8 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 
 ## 本階段驗證
 
-- `./gradlew :order-fulfillment-workflow:check`
-- `./gradlew :bootstrap:test`
-- `./gradlew :bootstrap:sit`（包含 PostgreSQL／Flyway／JPA）
-- `./gradlew test`
+- `cd backend && ./gradlew :fulfillment-workflow:check`
+- `cd backend && ./gradlew :deployments:monolith:test`
+- `cd backend && ./gradlew :deployments:monolith:sit`（包含 PostgreSQL／Flyway／JPA）
+- `cd backend && ./gradlew test`
 - `npm run typecheck` 與 `npm test -- --run`（`frontend`）

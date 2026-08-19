@@ -1,0 +1,9 @@
+services:
+  monolith:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    deploy:
+      resources:
+        limits:
+          cpus: "${ARCHONE_CPU_LIMIT:-2.0}"
+          memory: ${ARCHONE_MEMORY_LIMIT:-2G}

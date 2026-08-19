@@ -5,7 +5,7 @@
 > 範圍：WMS 與未來跨系統 fulfillment orchestration
 
 現行決策見 [`order-fulfillment-temporal-hybrid-architecture.md`](order-fulfillment-temporal-hybrid-architecture.md)：
-專案保留 Kafka-only profile，同時以 `order-fulfillment-workflow` 比較一條粗粒度、跨
+專案保留 Kafka-only profile，同時以 `fulfillment-workflow` 內的 order-level workflow 比較一條粗粒度、跨
 Order Promising／WMS／Stock 的 Temporal orchestration。Temporal 不接管 Pick／Pack／Stage
 等 WMS 內部流程，而且同一環境只能啟用一個 command driver。
 

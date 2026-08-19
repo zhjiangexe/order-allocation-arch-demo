@@ -1,7 +1,7 @@
 HELP.md
 .gradle
 build/
-!gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
 
@@ -18,7 +18,8 @@ bin/
 !**/src/test/**/bin/
 
 ### IntelliJ IDEA ###
-.idea
+.idea/*
+!.idea/gradle.xml
 *.iws
 *.iml
 *.ipr
@@ -40,6 +41,10 @@ openspec/.vector-search.db*
 
 ### macOS ###
 .DS_Store
+
+### Deployment environment secrets ###
+/docker/env/stage.env
+/docker/env/prod.env
 
 ### Python ###
 __pycache__/

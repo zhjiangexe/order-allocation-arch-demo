@@ -8,5 +8,5 @@
 ## Java formatting
 
 - Java formatting is defined by Palantir Java Format with a 120-column width.
-- After modifying Java files, run `./gradlew spotlessApply`.
-- Before committing Java changes, run `./gradlew spotlessCheck`.
+- After modifying Java files, run `cd backend && ./gradlew spotlessApply`.
+- Before committing Java changes, run `cd backend && ./gradlew spotlessCheck`.

@@ -652,15 +652,15 @@ log／trace high-cardinality fields，不進 metric tags。
 |---|---|
 | Local infra baseline | `e2e/perf/docker-compose.yml` |
 | Debezium connector registration | `e2e/perf/kafka-connect/register-outbox-connector.sh` |
-| Application Kafka defaults | `bootstrap/src/main/resources/application.properties` |
-| Inbox／Outbox schema | `bootstrap/src/main/resources/db/migration/V5__create_event_inbox_and_outbox.sql` |
-| Subscriber-aware Inbox | `bootstrap/src/main/resources/db/migration/V7__make_event_inbox_subscriber_aware.sql` |
-| Generic headers migration | `bootstrap/src/main/resources/db/migration/V8__add_generic_headers_to_event_outbox.sql` |
-| JDBC Outbox writer | `messaging/messaging-producer-jdbc` |
-| Transactional Inbox | `messaging/messaging-consumer-jdbc` |
-| Spring transaction adapters | `messaging/messaging-spring-jdbc`、`messaging/messaging-spring-consumer-jdbc` |
-| Kafka retry／DLT | `messaging/messaging-spring-consumer-kafka` |
-| Messaging observability | `messaging/messaging-spring-observability` 與 producer／consumer observation modules |
+| Application Kafka defaults | `backend/deployments/monolith/src/main/resources/application.properties` |
+| Inbox／Outbox schema | `backend/deployments/monolith/src/main/resources/db/migration/V5__create_event_inbox_and_outbox.sql` |
+| Subscriber-aware Inbox | `backend/deployments/monolith/src/main/resources/db/migration/V7__make_event_inbox_subscriber_aware.sql` |
+| Generic headers migration | `backend/deployments/monolith/src/main/resources/db/migration/V8__add_generic_headers_to_event_outbox.sql` |
+| JDBC Outbox writer | `backend/messaging/messaging-producer-jdbc` |
+| Transactional Inbox | `backend/messaging/messaging-consumer-jdbc` |
+| Spring transaction adapters | `backend/messaging/messaging-spring-jdbc`、`backend/messaging/messaging-spring-consumer-jdbc` |
+| Kafka retry／DLT | `backend/messaging/messaging-spring-consumer-kafka` |
+| Messaging observability | `backend/messaging/messaging-spring-observability` 與 producer／consumer observation modules |
 | Operational procedures | `docs/messaging-operations-runbook.md` |
 
 ## 13. 官方參考
