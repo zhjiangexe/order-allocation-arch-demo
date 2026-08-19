@@ -529,7 +529,7 @@
       <p>
         本頁依操作與事件發生順序，串起主檔查詢、入庫、接單、初次配置、缺貨重配、訂單投影、查詢與取消。
         <code>order-promising</code> 中的 16 個 application use case 均以完整類名出現在流程與盤點表中；目前的 13 個 WMS use cases 另見
-        <a href="wms-module-architecture.html">WMS-only 模組架構</a>。跨應用技術已分成 <code>foundation</code>、<code>contracts</code>、pure JDBC／Kafka messaging core、Spring adapters 與 Spring Boot auto-configuration／starters；系統時間與營運日曆則由 <code>bootstrap</code> 組裝。舊 JPA Inbox／Outbox facade 已移除，physical tables 仍維持 <code>event_inbox</code>／<code>event_outbox</code>。系統具備可運作的 order promising 與基礎 WMS domain contract，但還不是完整 WMS／3PL execution system。
+        <a href="wms-module-architecture.html">WMS-only 模組架構</a>。跨應用技術已分成 <code>foundation</code>、<code>integration-contracts</code>、pure JDBC／Kafka messaging core、Spring adapters 與 Spring Boot auto-configuration／starters；系統時間與營運日曆則由 <code>bootstrap</code> 組裝。舊 JPA Inbox／Outbox facade 已移除，physical tables 仍維持 <code>event_inbox</code>／<code>event_outbox</code>。系統具備可運作的 order promising 與基礎 WMS domain contract，但還不是完整 WMS／3PL execution system。
       </p>
     </div>
     <aside class="snapshot" aria-label="目前開發快照">

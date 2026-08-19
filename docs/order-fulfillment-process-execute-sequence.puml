@@ -1,5 +1,5 @@
 @startuml
-title OrderFulfillmentProcessWorkflow.execute 循序圖
+title OrderFulfillmentWorkflow.execute 循序圖
 
 skinparam defaultFontName "Heiti TC"
 skinparam dpi 150
@@ -18,28 +18,29 @@ skinparam NoteBackgroundColor #FFF7D6
 actor "OrderPlaced\nstarter" as Starter
 actor "取消入口" as CancelClient
 participant "OrderFulfillment\nWorkflow" as WF
-participant "OrderPromising\nActivities" as OP
+participant "Inventory\nActivities" as INV
+participant "Ordering\nActivities" as ORD
 participant "WMS\nActivities" as WMS
+participant "10 秒模擬 WMS\nScheduler" as SimWms
 participant "Integration Event\nAdapter" as EventAdapter
 
-Starter -> WF: start execute(StartInput)
+Starter -> WF: start execute(OrderFulfillmentWorkflowInput)
 activate WF
 note right of WF
-  execute 開頭的極早取消 guard
-  與配貨等待中的取消共用同一結果，
-  不視為第三種業務取消流程。
+  Workflow 先送出 RequestAllocation，
+  Shipment 建立前的取消在 allocation wait checkpoint 處理。
 end note
 
 group Shipment 建立前：配貨
-  WF -> OP: requestAllocation(RequestAllocation)
-  OP --> WF: command committed
+  WF -> INV: requestAllocation(RequestAllocationActivityInput)
+  INV --> WF: command committed
   note over WF: await AllocationCommitted\n或 CancellationRequest
 
   alt Shipment 建立前收到取消
     CancelClient -> WF: requestCancellation(Update)
     WF --> CancelClient: ACCEPTED
-    WF -> OP: cancelOrder(CancelOrder)
-    OP --> WF: completed
+    WF -> ORD: cancelOrder(CancelOrder)
+    ORD --> WF: completed
     break Workflow 以 ORDER_CANCELLED 結束
       WF --> Starter: ORDER_CANCELLED
     end
@@ -49,52 +50,45 @@ group Shipment 建立前：配貨
 end
 
 group 建立 WMS Shipment
-  WF -> WMS: createShipment(CreateShipment)
-  WMS --> WF: ShipmentCreationReceipt(shipmentId)
+  WF -> WMS: createShipment(CreateShipmentActivityInput)
+  WMS --> WF: CreateShipmentActivityResult(shipmentId)
 end
 
 group Shipment 已建立：等待 handover，可被取消中斷
   note over WF: await ShipmentHandedOverToCarrier\n或 CancellationRequest
 
   alt WMS 正常完成倉內作業
+    SimWms -> SimWms: Wave -> Release -> Pick -> Pack -> Stage
+    SimWms ->> EventAdapter: ShipmentHandedOver Outbox -> Kafka
     EventAdapter ->> WF: shipmentHandedOverToCarrier(Signal)
   else Shipment 存在後收到取消
     CancelClient -> WF: requestCancellation(Update)
     WF --> CancelClient: ACCEPTED
-    WF -> WMS: cancelShipment(CancelShipment)
+    WF -> WMS: cancelShipment(CancelShipmentActivityInput)
     WMS --> WF: ShipmentCancellationDecision
 
     alt decision = CANCELLED
-      WF -> OP: cancelOrder(CancelOrder)
-      OP --> WF: completed
+      WF -> ORD: cancelOrder(CancelOrder)
+      ORD --> WF: completed
       break Workflow 以 ORDER_CANCELLED 結束
         WF --> Starter: ORDER_CANCELLED
       end
-    else decision = REJECTED_AFTER_HANDOVER
-      note over WF: 取消太晚，等待同一 Shipment 的 handover fact
+    else decision = REJECTED
+      note over WF
+        PUTBACK_REQUIRED 或 REJECTED_AFTER_HANDOVER
+        目前都映射為 REJECTED，等待同一 Shipment handover
+      end note
+      SimWms ->> EventAdapter: ShipmentHandedOver Outbox -> Kafka
       EventAdapter ->> WF: shipmentHandedOverToCarrier(Signal)
-    else decision = PENDING
-      note over WF: 只有 PENDING 才 durable wait
-      EventAdapter ->> WF: shipmentCancellationResolved(Signal)
-      alt final result = CANCELLED
-        WF -> OP: cancelOrder(CancelOrder)
-        OP --> WF: completed
-        break Workflow 以 ORDER_CANCELLED 結束
-          WF --> Starter: ORDER_CANCELLED
-        end
-      else final result = REJECTED_AFTER_HANDOVER
-        note over WF: 取消太晚，等待同一 Shipment 的 handover fact
-        EventAdapter ->> WF: shipmentHandedOverToCarrier(Signal)
-      end
     end
   end
 end
 
 group 完成出庫與 Order
-  WF -> OP: completeOutboundMovements(...)
-  OP --> WF: completed
-  WF -> OP: recordOrderFulfillment(...)
-  OP --> WF: completed
+  WF -> INV: completeOutboundMovements(...)
+  INV --> WF: completed
+  WF -> ORD: recordOrderFulfillment(...)
+  ORD --> WF: completed
   WF --> Starter: FULFILLMENT_COMPLETED
 end
 

@@ -1,7 +1,7 @@
 @startuml
-title OrderFulfillmentProcessWorkflow 取消協調完整流程
+title OrderFulfillmentWorkflow 取消協調活動圖（目前實作）
 
-skinparam defaultFontName "Heiti TC"
+skinparam defaultFontName "PingFang TC"
 skinparam dpi 150
 skinparam shadowing false
 skinparam backgroundColor white
@@ -20,23 +20,25 @@ start
 partition "A. Update 受理" {
   :validateCancellationRequest();
   if (request 為 null 或屬於其他 Order？) then (是)
-    :IllegalArgumentException\n拒絕本次 Update；不寫入 History; <<#FFF7D6>>
+    :IllegalArgumentException
+    拒絕本次 Update；不改變 Workflow state; <<#FFF7D6>>
     stop
   endif
 
   :requestCancellation();
-  if (CancellationState = ORDER_CANCELLED？) then (是)
+  if (Order 取消已提交？) then (是)
     :ACK ALREADY_CANCELLED;
     stop
   elseif (已觀察到 handover 或先前已拒絕？) then (是)
-    :ACK REJECTED_AFTER_HANDOVER;
+    :ACK REJECTED;
     stop
-  elseif (CancellationState != NONE？) then (是)
+  elseif (已有取消請求？) then (是)
     :ACK ALREADY_REQUESTED;
     stop
   else (首次請求)
-    :保存 CancellationRequest; <<#FDECEC>>
-    :CancellationState = REQUESTED; <<#FDECEC>>
+    :保存 immutable CancellationRequest
+    requestId + orderId + requestedAt + reason; <<#FDECEC>>
+    :OrderFulfillmentWorkflowCancellationState = REQUESTED; <<#FDECEC>>
     :ACK ACCEPTED;
   endif
 }
@@ -44,90 +46,67 @@ partition "A. Update 受理" {
 note right
   ACCEPTED 只表示請求已 durable 進入 Workflow，
   不表示 Shipment 或 Order 已取消。
+
+  目前尚未實作對外 REST／人工取消 entrypoint。
 end note
 
-partition "B. execute 在安全 checkpoint 接手" {
+partition "B. execute 在 checkpoint 處理" {
   if (Shipment 尚未建立？) then (是)
-    :cancelOrderBeforeShipmentCreation(); <<#FDECEC>>
     :enterPhase(CANCELLATION); <<#FDECEC>>
-    :cancelOrder(); <<#FDECEC>>
-    :CancelOrder Activity; <<#FDECEC>>
-    :CancellationState = ORDER_CANCELLED; <<#FDECEC>>
+    :cancelOrderInOrdering(); <<#FDECEC>>
+    :CancelOrder Activity
+    使用同一個 requestId; <<#FDECEC>>
+    :Order + OrderCancelled Outbox
+    同一 transaction; <<#FDECEC>>
+    :OrderFulfillmentWorkflowCancellationState = ORDER_CANCELLED; <<#FDECEC>>
     :finishCancellation(ORDER_CANCELLED); <<#FDECEC>>
     stop
   else (已建立)
-    :coordinateShipmentCancellation(); <<#FDECEC>>
-    :requireCancellationRequest();
-    :CancellationState = CANCELLING_SHIPMENT; <<#FDECEC>>
-    :CancelShipment Activity; <<#FDECEC>>
-    :requireCancellationDecision(); <<#FFF7D6>>
+    :cancelShipmentInWms(); <<#FDECEC>>
+    :CancelShipment Activity
+    帶 requestId/orderId/shipmentId; <<#FDECEC>>
   endif
 }
 
-partition "C. WMS immediate decision" {
-  if (decision 為 null 或 correlation 錯誤？) then (是)
-    :non-retryable ApplicationFailure\nWMS_CANCELLATION_DECISION_INVALID; <<#FFF0F0>>
-    stop
-  endif
-
-  if (decision = CANCELLED？) then (是)
-    :requireCancellationConsistentWithHandover(); <<#FFF7D6>>
+partition "C. WMS 同步決策" {
+  :CancelShipmentUsecase 核對 requestId
+  並儲存 cancellation outcome; <<#E2F0D9>>
+  if (WMS domain outcome？) then (CANCELLED /\nALREADY_CANCELLED)
+    :Activity 回傳 CANCELLED; <<#FDECEC>>
     if (同 Shipment 的 handover 已觀察？) then (是)
-      :non-retryable ApplicationFailure\nWMS_SHIPMENT_FACT_CONFLICT; <<#FFF0F0>>
+      :non-retryable ApplicationFailure
+      WMS_SHIPMENT_FACT_CONFLICT; <<#FFF0F0>>
       stop
-    else (否)
-      :status = CANCELLED; <<#FDECEC>>
     endif
-  elseif (decision = REJECTED_AFTER_HANDOVER？) then (是)
-    :rejectShipmentCancellation(); <<#FDECEC>>
-    :CancellationState = REJECTED_AFTER_HANDOVER; <<#FDECEC>>
-    :status = REJECTED_AFTER_HANDOVER;
-  else (PENDING)
-    :awaitFinalShipmentCancellationResolution(); <<#FFF7D6>>
-    :Workflow.await(ShipmentCancellationResolved); <<#FFF7D6>>
-  endif
-}
-
-partition "D. PENDING 的 final fact" {
-  if (immediate decision 原本為 PENDING？) then (是)
-    :shipmentCancellationResolved(Signal);
-    :acceptsShipmentCancellationResolution(); <<#FFF7D6>>
-    if (requestId/orderId/shipmentId/state 不相符？) then (是)
-      :安全忽略無關或重複 Signal;
-      :繼續等待正確 final fact; <<#FFF7D6>>
-      -> acceptsShipmentCancellationResolution();
-    else (相符)
-      :保存 final resolution;
-      :requireCancellationConsistentWithHandover(); <<#FFF7D6>>
-      if (final result = CANCELLED？) then (是)
-        :status = CANCELLED; <<#FDECEC>>
-      else (REJECTED_AFTER_HANDOVER)
-        :rejectShipmentCancellation(); <<#FDECEC>>
-        :status = REJECTED_AFTER_HANDOVER;
-      endif
-    endif
-  endif
-}
-
-partition "E. 回到 execute" {
-  if (status = CANCELLED？) then (是)
-    :cancelOrder(); <<#FDECEC>>
-    :CancelOrder Activity; <<#FDECEC>>
-    :CancellationState = ORDER_CANCELLED; <<#FDECEC>>
-    :finishCancellation(ORDER_CANCELLED); <<#FDECEC>>
+  else (PUTBACK_REQUIRED /\nREJECTED_AFTER_HANDOVER)
+    :Activity 目前統一回傳 REJECTED; <<#FFF7D6>>
+    :OrderFulfillmentWorkflowCancellationState = REJECTED; <<#FFF7D6>>
+    :不取消 Order; <<#FFF7D6>>
+    :等待同一 Shipment handover
+    後繼續履約主線; <<#FFF7D6>>
     stop
-  else (REJECTED_AFTER_HANDOVER)
-    :不取消 Order;
-    :Workflow.await(hasMatchingCarrierHandover()); <<#FFF7D6>>
-    :回到履約主線\nCompleteOutboundMovements -> RecordOrderFulfillment;
   endif
+}
+
+partition "D. WMS 已安全取消，再取消 Order" {
+  :cancelOrderInOrdering(); <<#FDECEC>>
+  :CancelOrder Activity 核對同一
+  requestId/orderId/requestedAt/reason; <<#FDECEC>>
+  if (Ordering 回傳其他 Order 或 REJECTED？) then (是)
+    :non-retryable ApplicationFailure
+    ORDER_CANCELLATION_REJECTED; <<#FFF0F0>>
+    stop
+  endif
+  :OrderFulfillmentWorkflowCancellationState = ORDER_CANCELLED; <<#FDECEC>>
+  :finishCancellation(ORDER_CANCELLED); <<#FDECEC>>
 }
 
 stop
 
 legend bottom
   |<#FDECEC>| 取消 command／狀態推進 |
-  |<#FFF7D6>| Durable wait／correlation guard |
+  |<#E2F0D9>| Usecase／Domain／DB 已實作 |
+  |<#FFF7D6>| 業務決策／目前限制 |
   |<#FFF0F0>| 明確失敗 Workflow Execution 的 contract conflict |
 endlegend
 @enduml

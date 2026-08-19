@@ -1725,7 +1725,7 @@ type/version 的 payload decode failure，以及 handler exception 都仍交由 
   `MessageConsumerImpl` decorators、typed handler group、Inbox transaction 再進 Ordering target。
   代表性 SIT 已驗證 successful handling 與同 event ID redelivery 只 claim 一次；既有 generic decorator
   contract／transaction suites 持續驗證 handler failure rollback。
-- 完整 `./gradlew check` 已通過，包含全部 `order-promising` Testcontainers SIT、WMS、contracts、
+- 完整 `./gradlew check` 已通過，包含全部 `order-promising` Testcontainers SIT、WMS、integration-contracts、
   foundation 與所有 messaging module suites。
 
 2026-08-10 Gate I-C 實作證據：
@@ -1749,7 +1749,7 @@ type/version 的 payload decode failure，以及 handler exception 都仍交由 
   dispatcher／decorator chain；Kafka physical record 與 serialized-header 還原責任集中在專用
   equivalence SIT，避免每支 use-case 測試各自手刻不完整的 Debezium envelope。
 - repository-wide `./gradlew check` 已通過（111 actionable tasks），包含完整
-  `order-promising` Testcontainers SIT、WMS、contracts、foundation 與所有 messaging module suites。
+  `order-promising` Testcontainers SIT、WMS、integration-contracts、foundation 與所有 messaging module suites。
 
 2026-08-10 Gate I-D 實作證據：
 
@@ -1771,7 +1771,7 @@ type/version 的 payload decode failure，以及 handler exception 都仍交由 
   `ignored_unhandled` measurement，不建立 business／Outbox 資料；error policy tests 同時鎖定
   concurrency 1、BATCH ack、retry classification 與 inventory DLT subscriber／group headers。
 - repository-wide `./gradlew check` 已通過（111 actionable tasks），包含完整
-  `order-promising` Testcontainers SIT、WMS、contracts、foundation 與所有 messaging module suites。
+  `order-promising` Testcontainers SIT、WMS、integration-contracts、foundation 與所有 messaging module suites。
 
 2026-08-10 Gate I-E cleanup 與驗證證據：
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1420" viewBox="0 0 1800 1420" role="img" aria-labelledby="title desc">
-  <title id="title">OrderFulfillmentProcessWorkflow 訂單履約協調流程</title>
+  <title id="title">OrderFulfillmentWorkflow 訂單履約協調流程</title>
   <desc id="desc">顯示從配貨、WMS 建立 Shipment、揀貨包裝集貨、交付承運商、完成出庫到訂單履約完成的主線，以及安全 checkpoint 上的取消分支。</desc>
 
   <defs>
@@ -32,7 +32,7 @@
   <rect width="1800" height="1420" fill="#F5F7FB"/>
 
   <text x="70" y="62" class="title">訂單履約協調流程</text>
-  <text x="70" y="98" class="subtitle">OrderFulfillmentProcessWorkflow（Temporal）</text>
+  <text x="70" y="98" class="subtitle">OrderFulfillmentWorkflow（Temporal）</text>
   <text x="1730" y="72" class="subtitle" text-anchor="end">跨 bounded context checkpoint；不鏡像 WMS 內部每個狀態</text>
 
   <!-- Main flow panel -->

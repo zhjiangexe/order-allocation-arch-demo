@@ -134,7 +134,7 @@ event contract、handlers、subscriber identity 與 exception policy，runtime �
   `messaging-spring-boot-starter` 只聚合兩者。
 - `messaging:messaging-test-support`：generic recording producer／controllable consumer、contract probes，
   以及 transport-free typed handler envelope fixture。
-- `contracts`：只保留具體 Integration Event payload，依賴 `messaging-events`。
+- `integration-contracts`：只保留具體 Integration Event payload，依賴 `messaging-events`。
 - `bootstrap`：組裝 UTC `Clock`、營運日曆、stable event allow-list mapping、三份 bounded-context-owned handler +
   dispatcher configurations、subscriber identities、bounded-context exception classification 與 business
   use cases；對外 application identity 仍是 `order-promising`，不建立 `CommonErrorHandler` 或 Micrometer failure observer。
@@ -363,7 +363,7 @@ starter估為 `94.75 / 100`。這仍是架構盤點，不是產品成熟度 SLA�
 ### P0：先固定 API 與 wire contract
 
 - [x] 建立 framework-neutral `messaging-api`（generic `Message`／`MessageProducer`）。
-- [x] 將 `IntegrationEvent` 移到 `messaging-events`，不要放進 `contracts` 或 Spring Boot module。
+- [x] 將 `IntegrationEvent` 移到 `messaging-events`，不要放進 `integration-contracts` 或 Spring Boot module。
 - [x] `IntegrationEvent` 提供穩定 `eventType()`，不再使用 class simple name。
 - [x] 定義 `IntegrationEventPublisher`、`AggregateReference`、`IntegrationEventPublication` 與
   `PublicationTarget`。
@@ -425,7 +425,7 @@ starter估為 `94.75 / 100`。這仍是架構盤點，不是產品成熟度 SLA�
 
 ```text
 messaging:messaging-events → messaging:messaging-api
-contracts → messaging:messaging-events
+integration-contracts → messaging:messaging-events
 messaging:messaging-producer-common → messaging:messaging-api
 messaging:messaging-consumer-common → messaging:messaging-api
 messaging:messaging-jdbc-common → framework-neutral JDBC／transaction ports
@@ -453,7 +453,7 @@ messaging:messaging-spring-boot-starter
   → messaging:messaging-spring-consumer-starter
 
 bootstrap
-  → contracts
+  → integration-contracts
   → messaging:messaging-api
   → messaging:messaging-events
   → messaging:messaging-spring-boot-starter
@@ -461,7 +461,7 @@ bootstrap
 
 wms-runtime（未來）
   → wms
-  → contracts
+  → integration-contracts
   → messaging:messaging-spring-boot-starter
 
 wms → foundation

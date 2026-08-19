@@ -1,0 +1,168 @@
+@startuml
+title Order Fulfillment 端到端活動圖（目前已實作範圍）
+
+skinparam defaultFontName "PingFang TC"
+skinparam dpi 150
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam ArrowColor #475569
+skinparam ActivityBorderColor #475569
+skinparam ActivityBackgroundColor #F8FAFC
+skinparam ActivityDiamondBackgroundColor #FFF7D6
+skinparam ActivityDiamondBorderColor #B7791F
+skinparam ActivityStartColor #2563EB
+skinparam ActivityEndColor #2563EB
+skinparam NoteBorderColor #B7791F
+skinparam NoteBackgroundColor #FFF7D6
+
+start
+
+partition "Ordering：收單" {
+  :PlaceOrderUsecase 接受訂單; <<#E2F0D9>>
+  :同一 transaction 寫入
+  Order(PENDING) + OrderPlaced Outbox; <<#E2F0D9>>
+}
+
+partition "可靠訊息與 orchestration driver" {
+  :Debezium -> Kafka
+  OrderPlacedIntegrationEvent; <<#EDE9FE>>
+  if (orchestration mode？) then (Temporal)
+    :以 order-fulfillment/{orderId}
+    啟動唯一 Workflow; <<#E8F1FF>>
+    :RequestOrderAllocation Activity; <<#E8F1FF>>
+  else (events)
+    :AllocationOrderPlacedEventConsumer; <<#E8F1FF>>
+  endif
+}
+
+partition "Inventory：Demand / Reservation" {
+  :AllocateOrderUsecase; <<#E2F0D9>>
+  :Acceptance 建立或重播
+  immutable AllocationDemand; <<#E2F0D9>>
+
+  while (整張 demand 的所有 SKU\n都有足夠 supply？) is (否)
+    :Demand 保持 WAITING
+    不建立部分 reservation; <<#FFF7D6>>
+    :入庫／可用量增加
+    喚醒 ReconcileWaitingDemandUsecase; <<#E8F1FF>>
+    :依 FIFO 重選 demand；
+    Planner 重新比較 supply/demand; <<#E2F0D9>>
+  endwhile (是)
+
+  :Planner 依 canonical line + FEFO
+  建立 allocation plan; <<#E2F0D9>>
+  :Committer 以 optimistic lock 驗證並提交
+  StockQuant reservation + Move + Picking; <<#E2F0D9>>
+  :Demand = ALLOCATED；
+  AllocationCommitted Outbox; <<#E2F0D9>>
+}
+
+partition "可靠訊息與 WMS handoff" {
+  :Kafka AllocationCommitted; <<#EDE9FE>>
+  if (orchestration mode？) then (Temporal)
+    :allocationCommitted Signal
+    喚醒既有 Workflow; <<#E8F1FF>>
+
+    if (Shipment 建立前收到 cancellation Update？) then (是)
+      :CancelOrder Activity
+      帶穩定 requestId/reason; <<#FDECEC>>
+      :Order cancellation + Outbox
+      同一 transaction; <<#FDECEC>>
+      :Workflow = ORDER_CANCELLED
+      不等待 Inventory cleanup; <<#FDECEC>>
+      :Inventory 消費 OrderCancelled
+      釋放 reservation／取消 Move; <<#FDECEC>>
+      stop
+    endif
+
+    :CreateShipment Activity; <<#E8F1FF>>
+  else (events)
+    :WmsFulfillmentHandoffEventConsumer; <<#E8F1FF>>
+  endif
+}
+
+partition "WMS：Shipment 與倉內作業" {
+  :CreateShipmentUsecase
+  以 allocationId 冪等建立 Shipment; <<#E2F0D9>>
+  :Shipment = CREATED; <<#E2F0D9>>
+
+  if (Temporal 且 handover 前收到 cancellation？) then (是)
+    :CancelShipment Activity／Usecase
+    核對 cancellation requestId; <<#FDECEC>>
+    if (WMS cancellation decision？) then (CANCELLED)
+      :取消 Shipment／Work; <<#FDECEC>>
+      :CancelOrder Activity
+      核對同一 immutable request; <<#FDECEC>>
+      :Workflow = ORDER_CANCELLED
+      不等待 Inventory cleanup; <<#FDECEC>>
+      :OrderCancelled Outbox
+      -> Inventory 釋放 reservation; <<#FDECEC>>
+      stop
+    else (REJECTED)
+      :PUTBACK_REQUIRED 或已進入不可取消階段
+      目前都不取消 Order; <<#FFF7D6>>
+      :繼續等待同一 Shipment handover; <<#FFF7D6>>
+    endif
+  endif
+
+  :DB 時間到期（createdAt + 10 秒）; <<#FFF7D6>>
+  :SimulatedWarehouseOperationsUsecase
+  Wave -> Release -> Pick -> Pack -> Stage; <<#DCEEFF>>
+  :handOverToCarrier
+  Shipment = HANDED_OVER_TO_CARRIER; <<#E2F0D9>>
+  :ShipmentHandedOver Outbox; <<#E2F0D9>>
+}
+
+note right
+  目前沒有串真實 WMS／設備入口。
+  10 秒 scheduler 是 dev、stage、prod 共用的暫行 actor；
+  未來只替換這一段，handover 後的線路不變。
+
+  PUTBACK_REQUIRED 尚無 recovery completion，
+  所以目前映射為 REJECTED 並繼續履約。
+end note
+
+partition "可靠訊息與 completion driver" {
+  :Debezium -> Kafka
+  ShipmentHandedOverForFulfillment; <<#EDE9FE>>
+  if (orchestration mode？) then (Temporal)
+    :shipmentHandedOverToCarrier Signal; <<#E8F1FF>>
+    :CompleteOutboundMovements Activity; <<#E8F1FF>>
+  else (events)
+    :ShipmentHandoverEventConsumer; <<#E8F1FF>>
+  endif
+}
+
+partition "Inventory：正式出庫扣帳" {
+  :CompleteOutboundMovementsUsecase; <<#E2F0D9>>
+  :依既有 MoveLine 扣 reserved + on-hand；
+  Move／Picking = DONE; <<#E2F0D9>>
+  :OutboundMovementsCompleted Outbox; <<#E2F0D9>>
+}
+
+partition "Ordering：履約終態" {
+  if (orchestration mode？) then (Temporal)
+    :RecordOrderFulfillment Activity; <<#E8F1FF>>
+  else (events)
+    :Kafka completion event
+    -> OrderingFulfillmentCompletionEventConsumer; <<#EDE9FE>>
+  endif
+
+  :RecordOrderFulfillmentUsecase
+  核對 orderId + shipmentId + fulfilledAt; <<#E2F0D9>>
+  :Order = FULFILLED
+  fulfilledAt = handoverAt; <<#E2F0D9>>
+}
+
+stop
+
+legend bottom
+  |<#E2F0D9>| Usecase／Domain／DB 已實作 |
+  |<#E8F1FF>| Entry point／Temporal Activity／Signal |
+  |<#EDE9FE>| Outbox／Debezium／Kafka |
+  |<#DCEEFF>| 暫行 WMS 10 秒模擬 runtime |
+  |<#FFF7D6>| Durable wait／供需或決策 checkpoint |
+  |<#FDECEC>| Temporal cancellation 安全分支 |
+endlegend
+
+@enduml

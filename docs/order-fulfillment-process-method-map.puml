@@ -1,5 +1,5 @@
 @startwbs
-title OrderFulfillmentProcessWorkflowImpl 方法責任分層圖
+title OrderFulfillmentWorkflowImpl 方法責任分層圖
 
 skinparam defaultFontName "Heiti TC"
 skinparam dpi 150
@@ -32,15 +32,14 @@ wbsDiagram {
 }
 </style>
 
-* OrderFulfillmentProcessWorkflowImpl
+* OrderFulfillmentWorkflowImpl
 ** Temporal boundary methods <<boundary>>
-*** @WorkflowInit constructor(StartInput)
-*** @WorkflowMethod execute(StartInput)
+*** @WorkflowInit constructor(OrderFulfillmentWorkflowInput)
+*** @WorkflowMethod execute(OrderFulfillmentWorkflowInput)
 *** @SignalMethod allocationCommitted()
 *** @SignalMethod shipmentHandedOverToCarrier()
 *** @UpdateValidatorMethod validateCancellationRequest()
 *** @UpdateMethod requestCancellation()
-*** @SignalMethod shipmentCancellationResolved()
 *** @QueryMethod state()
 ** execute 主線 helpers
 *** Allocation checkpoint
@@ -50,23 +49,17 @@ wbsDiagram {
 **** allocationId() / requireWaiting()
 *** Mainline checkpoints
 **** cancellationRequested()
-**** cancelOrderBeforeShipmentCreation() <<cancellation>>
 **** enterPhase()
-**** hasMatchingCarrierHandover()
-**** matchingCarrierHandover()
-**** requireMatchingCarrierHandover() <<guard>>
+**** hasCorrelatedCarrierHandover()
+**** correlatedCarrierHandover()
 **** finish()
 ** 取消協調 helpers <<cancellation>>
-*** coordinateShipmentCancellation()
-**** requireCancellationRequest() <<guard>>
-**** requireCancellationDecision() <<guard>>
-**** requireCancellationConsistentWithHandover() <<guard>>
-**** awaitFinalShipmentCancellationResolution()
-***** rejectShipmentCancellation()
-*** cancelOrder()
+*** cancelShipmentInWms()
+**** ensureCancellationNotAfterHandover() <<guard>>
+**** rejectShipmentCancellation()
+*** cancelOrderInOrdering()
+*** requireCancellationRequest() <<guard>>
 *** finishCancellation()
-*** Signal correlation
-**** acceptsShipmentCancellationResolution() <<guard>>
 ** Query／progress／failure helpers <<projection>>
 *** updateProgress()
 *** cancellationRequestIdOrNull()
@@ -74,7 +67,6 @@ wbsDiagram {
 *** workflowNow()
 *** activityOptions()
 *** workflowInvariantViolation() <<guard>>
-*** invalidWmsCancellationDecision() <<guard>>
 
 legend bottom
   |<#E8F1FF>| Temporal boundary |

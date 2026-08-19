@@ -3,7 +3,7 @@
 > 狀態：Gate P0-A／P0-B／P0-C 已完成；Gate P1-D handoff vertical slice 已完成，
 > 下一步為 D4 order cancellation correlation／亂序保護
 > 更新日期：2026-08-11
-> 適用範圍：`backend/messaging/*`、`backend/contracts`、使用 messaging 的 bounded-context runtime，
+> 適用範圍：`backend/messaging/*`、`backend/integration-contracts`、使用 messaging 的 bounded-context runtime，
 > 以及 PostgreSQL／Debezium／Kafka 的端到端驗證
 
 ## 1. 目的與邊界
@@ -250,7 +250,7 @@ order-promising transaction
 
 ### Exit criteria
 
-- WMS adapter 只依賴 contracts、messaging starter 與 WMS application API。
+- WMS adapter 只依賴 `integration-contracts`、messaging starter 與 WMS application API。
 - 相同 event 重送不會建立第二張 Shipment 或重複執行 work。
 - WMS 不需要讀取 order-promising database 才能處理 handoff。
 

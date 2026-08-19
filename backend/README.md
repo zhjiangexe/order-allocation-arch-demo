@@ -10,8 +10,9 @@ bounded contexts, shared contracts and messaging infrastructure.
 | `inventory-context` | Inventory, allocation, movement and warehouse capabilities |
 | `logistics-data-context` | Owner, product, SKU and facility reference data |
 | `wms-context` | WMS bounded context，包含 application、domain 與 deployment 可組裝的 adapters |
-| `fulfillment-workflow` | Long-running fulfillment coordination；目前包含 order-level process |
-| `contracts` / `foundation` | Cross-boundary contracts and framework-neutral foundation |
+| `fulfillment-workflow-contract` | Temporal Workflow／Activity interfaces 與 transport DTOs |
+| `fulfillment-workflow-runtime` | Long-running fulfillment Workflow runtime implementation |
+| `integration-contracts` / `foundation` | Cross-boundary integration contracts and framework-neutral foundation |
 | `messaging` | Transactional messaging modules |
 
 Common commands:

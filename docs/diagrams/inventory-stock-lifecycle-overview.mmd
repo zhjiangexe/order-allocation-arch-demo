@@ -57,8 +57,8 @@ flowchart TB
 
     subgraph OUTBOUND_DONE["D｜正式出庫扣帳：Workflow 已預留，inventory implementation 尚缺"]
       direction LR
-      WORKFLOW["<b>OrderFulfillmentProcessWorkflowImpl</b><br/>收到 carrier handover"]
-      ACTIVITY["OrderPromisingActivities<br/><b>completeOutboundMovements()</b>"]
+      WORKFLOW["<b>OrderFulfillmentWorkflowImpl</b><br/>收到 carrier handover"]
+      ACTIVITY["InventoryActivities<br/><b>completeOutboundMovements()</b>"]
       MISSING["<b>尚缺 production use case</b><br/>CompleteOutboundMovementsUsecase<br/>／OutboundIssueCompleter"]
       CONSUME["<b>StockQuant.consume()</b><br/>onHand -= quantity<br/>reserved -= quantity"]
       OUT_DONE["Move／Picking = <b>DONE</b><br/>之後才完成 Order fulfillment"]
