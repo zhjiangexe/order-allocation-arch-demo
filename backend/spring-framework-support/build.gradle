@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'shared Spring Framework infrastructure'
+
+dependencies {
+    api libs.spring.boot.starter.validation
+    api libs.spring.boot.starter.webmvc
+
+    annotationProcessor libs.spring.boot.configuration.processor
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}
