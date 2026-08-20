@@ -74,11 +74,16 @@ class OrderCancellationControllerTest {
     @Test
     @DisplayName("requestId、requestedAt 與 reason 缺少任何一項都不應進入協調流程")
     void shouldRejectAnIncompleteImmutableRequest() {
-        assertThat(mvc.post()
-                        .uri("/orders/{orderId}/cancellation-requests", ORDER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"requestId\":\"" + REQUEST_ID + "\",\"reason\":\"Customer changed mind\"}"))
-                .hasStatus(400);
+        MvcTestResultAssert response = assertThat(mvc.post()
+                .uri("/orders/{orderId}/cancellation-requests", ORDER_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"requestId\":\"" + REQUEST_ID + "\",\"reason\":\"Customer changed mind\"}"));
+
+        response.hasStatus(400);
+        response.bodyJson().extractingPath("$.type").isEqualTo("urn:archone:problem:request-validation");
+        response.bodyJson().extractingPath("$.errors[0].field").isEqualTo("requestedAt");
+        response.bodyJson().extractingPath("$.errors[0].code").isEqualTo("NotNull");
+        response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("Cancellation request time is required");
 
         verifyNoInteractions(coordinator);
     }

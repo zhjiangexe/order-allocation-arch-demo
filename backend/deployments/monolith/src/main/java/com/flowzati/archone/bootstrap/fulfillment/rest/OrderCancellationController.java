@@ -8,6 +8,7 @@ import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancel
 import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationUnavailableException;
 import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
+import jakarta.validation.Valid;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -32,7 +33,7 @@ public class OrderCancellationController {
 
     @PostMapping("/{orderId}/cancellation-requests")
     public ResponseEntity<OrderCancellationResponse> requestCancellation(
-            @PathVariable(name = "orderId") UUID orderId, @RequestBody OrderCancellationRequestBody body) {
+            @PathVariable(name = "orderId") UUID orderId, @Valid @RequestBody OrderCancellationRequest body) {
         FulfillmentCancellationResult result = cancellationCoordinator.request(
                 new FulfillmentCancellationRequest(body.requestId(), orderId, body.requestedAt(), body.reason()));
         OrderCancellationResponse response = OrderCancellationResponse.from(result);

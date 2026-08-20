@@ -4,6 +4,7 @@ import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -40,7 +41,7 @@ public class OrderController {
     }
 
     @PostMapping
-    public OrderStatusResponse placeOrder(@RequestBody PlaceOrderRequest request) {
+    public OrderStatusResponse placeOrder(@Valid @RequestBody PlaceOrderRequest request) {
         return OrderStatusResponse.from(placeOrderUsecase.placeOrder(toCommand(request)));
     }
 

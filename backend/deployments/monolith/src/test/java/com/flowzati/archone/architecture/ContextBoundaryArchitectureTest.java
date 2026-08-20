@@ -11,15 +11,23 @@ import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import jakarta.validation.Valid;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * monolith deployable 與它組裝的 bounded context 之間的編譯期邊界。
@@ -67,6 +75,18 @@ class ContextBoundaryArchitectureTest {
     }
 
     @Test
+    @DisplayName("Domain 與 Application layer 不得依賴 Spring Framework support")
+    void businessLayersDoNotDependOnSpringFrameworkSupport() {
+        noClasses()
+                .that()
+                .resideInAnyPackage("..domain..", "..application..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAPackage("com.flowzati.archone.support.spring..")
+                .check(BUSINESS_CONTEXT_CLASSES);
+    }
+
+    @Test
     @DisplayName("Logistics Data 與 Inventory 不共享 domain model，也不得依賴 Ordering")
     void logisticsDataAndInventoryDoNotShareDomainClasses() {
         noClasses()
@@ -104,6 +124,28 @@ class ContextBoundaryArchitectureTest {
                         Pattern.compile("import\\s+com\\.flowzati\\.archone\\.(ordering|inventory)\\.")))
                 .as("Logistics Data 不得反向 import transactional contexts")
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("所有 Controller request body 都以 @Valid 啟用 Bean Validation")
+    void controllerRequestBodiesUseBeanValidation() throws ClassNotFoundException {
+        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(RestController.class));
+
+        List<String> missingValid = new ArrayList<>();
+        for (var candidate : scanner.findCandidateComponents("com.flowzati.archone")) {
+            Class<?> controller = Class.forName(candidate.getBeanClassName());
+            for (Method method : controller.getDeclaredMethods()) {
+                for (Parameter parameter : method.getParameters()) {
+                    if (parameter.isAnnotationPresent(RequestBody.class)
+                            && !parameter.isAnnotationPresent(Valid.class)) {
+                        missingValid.add(controller.getName() + "#" + method.getName());
+                    }
+                }
+            }
+        }
+
+        assertThat(missingValid).as("每個 @RequestBody 參數都必須同時標記 @Valid").isEmpty();
     }
 
     @Test
@@ -166,6 +208,7 @@ class ContextBoundaryArchitectureTest {
                 .doesNotContain("project(':deployments:monolith')");
         assertThat(readSource(Path.of("../../settings.gradle")))
                 .contains("include('deployments:monolith')")
+                .contains("include('spring-framework-support')")
                 .contains("include('ordering-context')")
                 .contains("include('inventory-context')")
                 .contains("include('logistics-data-context')")
