@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -25,6 +26,20 @@ public interface JpaAllocationDemandRepository extends JpaRepository<AllocationD
 
     Optional<AllocationDemandEntity> findBySourceTypeAndSourceIdAndAllocationUnitKey(
             AllocationSourceType sourceType, String sourceId, String allocationUnitKey);
+
+    @EntityGraph(attributePaths = "lines")
+    List<AllocationDemandEntity> findByStatusOrderByEnqueuedAtAscIdAsc(
+            com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus status, Pageable pageable);
+
+    @Query(value = """
+      SELECT d.id
+        FROM allocation_demands d
+       WHERE d.status = 'PENDING'
+         AND (d.enqueued_at, d.id) <= (:enqueuedAt, :allocationDemandId)
+       ORDER BY d.enqueued_at, d.id
+      """, nativeQuery = true)
+    List<UUID> findPendingIdsThrough(
+            @Param("enqueuedAt") java.time.Instant enqueuedAt, @Param("allocationDemandId") UUID allocationDemandId);
 
     @Query(value = """
       SELECT d.id

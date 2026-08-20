@@ -2,6 +2,7 @@ package com.flowzati.archone.inventory.allocation.infrastructure.repository;
 
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
@@ -14,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -41,6 +43,33 @@ public class AllocationDemandRepositoryImpl implements AllocationDemandRepositor
                 .findBySourceTypeAndSourceIdAndAllocationUnitKey(
                         source.sourceType(), source.sourceId(), source.allocationUnitKey())
                 .map(AllocationDemandMapper::toDomain);
+    }
+
+    @Override
+    public List<AllocationDemand> findPending(int limit) {
+        if (limit <= 0) {
+            throw new IllegalArgumentException("Pending allocation demand limit must be positive");
+        }
+        return repository
+                .findByStatusOrderByEnqueuedAtAscIdAsc(AllocationDemandStatus.PENDING, PageRequest.of(0, limit))
+                .stream()
+                .map(AllocationDemandMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<AllocationDemand> findPendingThrough(java.time.Instant enqueuedAt, UUID allocationDemandId) {
+        if (enqueuedAt == null || allocationDemandId == null) {
+            throw new IllegalArgumentException("Pending allocation demand precedence is required");
+        }
+        List<UUID> ids = repository.findPendingIdsThrough(enqueuedAt, allocationDemandId);
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, AllocationDemand> byId = repository.findByIdIn(ids).stream()
+                .map(AllocationDemandMapper::toDomain)
+                .collect(Collectors.toMap(AllocationDemand::id, Function.identity()));
+        return ids.stream().map(byId::get).toList();
     }
 
     @Override
