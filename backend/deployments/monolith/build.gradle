@@ -42,6 +42,7 @@ dependencies {
     implementation project(':wms-context')
     implementation project(':fulfillment-workflow-runtime')
     implementation project(':foundation')
+    implementation project(':spring-framework-support')
     implementation project(':integration-contracts')
     implementation project(':messaging:messaging-api')
     implementation project(':messaging:messaging-events')

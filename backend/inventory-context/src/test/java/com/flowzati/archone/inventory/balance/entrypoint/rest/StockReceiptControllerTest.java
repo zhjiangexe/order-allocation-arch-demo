@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRequestConflictException;
+import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -16,11 +17,19 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 @WebMvcTest(StockReceiptController.class)
+@Import(GlobalRestExceptionHandler.class)
+@TestPropertySource(
+        properties = "archone.web.validation.message-basenames="
+                + "classpath:i18n/validation/constraints_template,"
+                + "classpath:i18n/validation/problem_detail,"
+                + "classpath:i18n/inventory/request_field")
 class StockReceiptControllerTest {
 
     private static final UUID RECEIPT_ID = UUID.fromString("00000000-0000-0000-0000-0000000000f1");
@@ -109,7 +118,16 @@ class StockReceiptControllerTest {
                 .content(BODY.replace("\"receiptId\": \"00000000-0000-0000-0000-0000000000f1\",", "")));
 
         response.hasStatus(400);
-        response.bodyText().isEqualTo("Receipt ID is required");
+        response.bodyJson().extractingPath("$.type").isEqualTo("urn:archone:problem:request-validation");
+        response.bodyJson().extractingPath("$.title").isEqualTo("Request validation failed");
+        response.bodyJson().extractingPath("$.status").isEqualTo(400);
+        response.bodyJson().extractingPath("$.detail").isEqualTo("One or more request fields are invalid");
+        response.bodyJson().extractingPath("$.instance").isEqualTo("/stock-receipts");
+        response.bodyJson().extractingPath("$.errors.length()").isEqualTo(1);
+        response.bodyJson().extractingPath("$.errors[0].field").isEqualTo("receiptId");
+        response.bodyJson().extractingPath("$.errors[0].code").isEqualTo("NotNull");
+        response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("Receipt ID is required");
+        response.bodyJson().doesNotHavePath("$.errors[0].rejectedValue");
 
         verify(facade, never()).confirm(any());
     }
@@ -124,7 +142,9 @@ class StockReceiptControllerTest {
                 .content(BODY.replace("\"receiptId\": \"00000000-0000-0000-0000-0000000000f1\",", "")));
 
         response.hasStatus(400);
-        response.bodyText().isEqualTo("收貨識別碼為必填");
+        response.bodyJson().extractingPath("$.title").isEqualTo("請求驗證失敗");
+        response.bodyJson().extractingPath("$.detail").isEqualTo("一個或多個請求欄位不合法");
+        response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("收貨識別碼為必填");
 
         verify(facade, never()).confirm(any());
     }
@@ -139,7 +159,25 @@ class StockReceiptControllerTest {
                 .content(BODY.replace("\"quantity\": 500", "\"quantity\": null")));
 
         response.hasStatus(400);
-        response.bodyText().isEqualTo("Received quantity is required");
+        response.bodyJson().extractingPath("$.errors[0].field").isEqualTo("quantity");
+        response.bodyJson().extractingPath("$.errors[0].code").isEqualTo("NotNull");
+        response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("Received quantity is required");
+
+        verify(facade, never()).confirm(any());
+    }
+
+    @Test
+    @DisplayName("同一個 request 的所有欄位錯誤都會包進 ProblemDetail")
+    void shouldReturnEveryRequestValidationError() {
+        var response = assertThat(mvc.post()
+                .uri("/stock-receipts")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(BODY.replace("\"receiptId\": \"00000000-0000-0000-0000-0000000000f1\",", "")
+                        .replace("\"quantity\": 500", "\"quantity\": null")));
+
+        response.hasStatus(400);
+        response.bodyJson().extractingPath("$.errors.length()").isEqualTo(2);
 
         verify(facade, never()).confirm(any());
     }
