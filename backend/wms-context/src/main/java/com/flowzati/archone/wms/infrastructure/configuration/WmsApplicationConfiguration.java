@@ -4,6 +4,7 @@ import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.HandOverShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ProcessDueShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.SimulateWarehouseOperationsUsecase;
@@ -34,6 +35,11 @@ public class WmsApplicationConfiguration {
     HandOverShipmentUsecase handOverShipmentUsecase(
             ShipmentRepository shipmentRepository, DomainEventPublisher wmsDomainEventPublisher) {
         return new HandOverShipmentUsecase(shipmentRepository, wmsDomainEventPublisher);
+    }
+
+    @Bean
+    GetOrderShipmentsUsecase getOrderShipmentsUsecase(ShipmentRepository shipmentRepository) {
+        return new GetOrderShipmentsUsecase(shipmentRepository);
     }
 
     @Bean
