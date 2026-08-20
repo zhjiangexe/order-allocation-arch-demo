@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRequestConflictException;
+import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -101,11 +102,44 @@ class StockReceiptControllerTest {
     @Test
     @DisplayName("缺少 receiptId 時回 400，避免 retry 重複入庫")
     void shouldRequireAnIdempotencyKey() {
-        assertThat(mvc.post()
-                        .uri("/stock-receipts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY.replace("\"receiptId\": \"00000000-0000-0000-0000-0000000000f1\",", "")))
-                .hasStatus(400);
+        var response = assertThat(mvc.post()
+                .uri("/stock-receipts")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(BODY.replace("\"receiptId\": \"00000000-0000-0000-0000-0000000000f1\",", "")));
+
+        response.hasStatus(400);
+        response.bodyText().isEqualTo("Receipt ID is required");
+
+        verify(facade, never()).confirm(any());
+    }
+
+    @Test
+    @DisplayName("request 驗證訊息依請求語系回傳繁體中文")
+    void shouldLocalizeRequestValidationMessage() {
+        var response = assertThat(mvc.post()
+                .uri("/stock-receipts")
+                .locale(Locale.TAIWAN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(BODY.replace("\"receiptId\": \"00000000-0000-0000-0000-0000000000f1\",", "")));
+
+        response.hasStatus(400);
+        response.bodyText().isEqualTo("收貨識別碼為必填");
+
+        verify(facade, never()).confirm(any());
+    }
+
+    @Test
+    @DisplayName("共用 NotNull 模板會套用對應的 request 欄位名稱")
+    void shouldCombineConstraintMessageWithRequestFieldName() {
+        var response = assertThat(mvc.post()
+                .uri("/stock-receipts")
+                .locale(Locale.ENGLISH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(BODY.replace("\"quantity\": 500", "\"quantity\": null")));
+
+        response.hasStatus(400);
+        response.bodyText().isEqualTo("Received quantity is required");
 
         verify(facade, never()).confirm(any());
     }

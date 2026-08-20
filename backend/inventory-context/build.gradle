@@ -18,6 +18,7 @@ dependencies {
     api libs.spring.boot.starter.webmvc
     implementation libs.spring.boot.starter.actuator
     implementation libs.spring.boot.starter.jdbc
+    implementation libs.spring.boot.starter.validation
     implementation libs.micrometer.core
 
     testImplementation libs.spring.boot.starter.test

@@ -4,6 +4,8 @@ import com.flowzati.archone.inventory.balance.application.command.ConfirmStockRe
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.receipt.StockReceiptRequestConflictException;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -31,19 +33,7 @@ public class StockReceiptController {
     }
 
     @PostMapping
-    public StockReceiptConfirmedResponse confirm(@RequestBody ConfirmStockReceiptRequest request) {
-        if (request.receiptId() == null) {
-            throw new IllegalArgumentException("Receipt ID is required");
-        }
-        if (request.quantity() == null) {
-            throw new IllegalArgumentException("Received quantity is required");
-        }
-        if (request.facilityId() == null) {
-            throw new IllegalArgumentException("Facility ID is required");
-        }
-        if (request.locationId() == null) {
-            throw new IllegalArgumentException("Location ID is required");
-        }
+    public StockReceiptConfirmedResponse confirm(@Valid @RequestBody ConfirmStockReceiptRequest request) {
         ConfirmStockReceiptCommand command = new ConfirmStockReceiptCommand(
                 request.ownerId(),
                 request.facilityId(),
@@ -68,14 +58,19 @@ public class StockReceiptController {
 
     /** receiptId 是呼叫方產生的冪等鍵；HTTP retry 必須重用同一個值。 */
     public record ConfirmStockReceiptRequest(
-            UUID receiptId,
-            UUID ownerId,
-            UUID facilityId,
-            UUID locationId,
-            String sku,
+            @NotNull UUID receiptId,
+
+            @NotNull UUID ownerId,
+
+            @NotNull UUID facilityId,
+
+            @NotNull UUID locationId,
+
+            @NotNull String sku,
             LocalDate inDate,
             LocalDate expiryDate,
-            Integer quantity) {}
+
+            @NotNull Integer quantity) {}
 
     public record StockReceiptConfirmedResponse(UUID receiptId, String sku, int quantity) {}
 }
