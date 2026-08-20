@@ -45,3 +45,13 @@ prod 對應 `docker/env/prod.env.example` 與 `make prod-deploy`。完整變數�
 
 使用 IntelliJ IDEA 開啟 repository root 時，專案設定會自動將 Gradle project 連結至 `backend/`；
 首次開啟或更新後請執行 Reload All Gradle Projects。
+
+## DEMO 履約查詢與取消
+
+Monolith 提供三支用來解說跨 Context 流程的 API：
+
+- `GET /allocation-demands?status=PENDING`：列出等待中的 demand、FIFO blocker、當下 ATP 與缺口。
+- `GET /demo/orders/{orderId}/fulfillment`：組合 Order、Allocation reservation／StockQuant 批次、WMS Shipment，Temporal 模式另帶 Workflow state。
+- `POST /orders/{orderId}/cancellation-requests`：把 immutable cancellation request 送進目前生效的 Events 或 Temporal 協調流程。
+
+取消請求的 `requestId`、`requestedAt` 與 `reason` 是冪等內容；重試同一次請求時必須原樣重送。
