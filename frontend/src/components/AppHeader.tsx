@@ -26,8 +26,15 @@ export function AppHeader({ config }: AppHeaderProps) {
     <header className={styles.header}>
       <h1 className={styles.title}>order-promising 操作台</h1>
       <nav className={styles.nav}>
-        <NavLink to="/orders" className={linkClass}>訂單</NavLink>
-        <NavLink to="/stock" className={linkClass}>庫存</NavLink>
+        <NavLink to="/orders" className={linkClass}>
+          訂單
+        </NavLink>
+        <NavLink to="/stock" className={linkClass}>
+          庫存
+        </NavLink>
+        <NavLink to="/catalog" className={linkClass}>
+          主檔瀏覽
+        </NavLink>
       </nav>
       <p className={styles.strategy}>{describe(config)}</p>
     </header>

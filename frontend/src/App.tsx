@@ -4,12 +4,12 @@ import { Navigate, Route, Routes } from 'react-router';
 import { getDemoConfig } from './api/client';
 import { AppHeader } from './components/AppHeader';
 import { useAsyncAction } from './hooks/useAsyncAction';
+import { CatalogPage } from './pages/CatalogPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { StockPage } from './pages/StockPage';
 
 /**
- * 兩頁。訂單詳細不設第三個路由也不做 modal——訂單表示只有八個欄位，列表那一列就顯示
- * 得下，第二層視圖會是同一份資料的第二次呈現。
+ * 三頁。訂單目前直接在列表呈現，庫存頁處理批次收貨與查詢，Catalog 則只提供唯讀主檔瀏覽。
  */
 export function App() {
   const config = useAsyncAction(getDemoConfig);
@@ -29,6 +29,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/orders" replace />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/stock" element={<StockPage />} />
+          <Route path="/catalog" element={<CatalogPage />} />
           <Route path="*" element={<Navigate to="/orders" replace />} />
         </Routes>
       </main>
