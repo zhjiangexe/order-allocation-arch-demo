@@ -8,6 +8,7 @@ include('fulfillment-workflow-contract')
 include('fulfillment-workflow-runtime')
 include('wms-context')
 include('foundation')
+include('domain-contract')
 include('spring-framework-support')
 include('integration-contracts')
 

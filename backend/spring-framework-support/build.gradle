@@ -5,6 +5,8 @@ plugins {
 description = 'shared Spring Framework infrastructure'
 
 dependencies {
+    api project(':domain-contract')
+
     api libs.spring.boot.starter.validation
     api libs.spring.boot.starter.webmvc
 

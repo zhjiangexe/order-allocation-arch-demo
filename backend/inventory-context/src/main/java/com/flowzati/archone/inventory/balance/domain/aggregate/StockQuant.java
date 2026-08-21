@@ -1,5 +1,8 @@
 package com.flowzati.archone.inventory.balance.domain.aggregate;
 
+import static com.flowzati.archone.contract.Contract.ensure;
+import static com.flowzati.archone.contract.Contract.invariant;
+
 import com.flowzati.archone.inventory.movement.domain.entity.StockMoveLine;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -105,7 +108,15 @@ public class StockQuant {
         if (!canReserve(quantity)) {
             throw new IllegalStateException("Insufficient ATP");
         }
+        int oldOnHandQuantity = onHandQuantity;
+        int oldReservedQuantity = reservedQuantity;
         reservedQuantity += quantity;
+
+        ensure(
+                () -> reservedQuantity == oldReservedQuantity + quantity,
+                "Reserving stock must increase reserved quantity by the requested amount");
+        ensure(() -> onHandQuantity == oldOnHandQuantity, "Reserving stock must not change on-hand quantity");
+        ensureQuantityInvariant();
     }
 
     public void release(int quantity) {
@@ -206,5 +217,12 @@ public class StockQuant {
         if (quantity <= 0) {
             throw new IllegalArgumentException(message);
         }
+    }
+
+    private void ensureQuantityInvariant() {
+        invariant(() -> onHandQuantity >= 0, "On-hand quantity must not be negative");
+        invariant(
+                () -> reservedQuantity >= 0 && reservedQuantity <= onHandQuantity,
+                "Reserved quantity must stay between zero and on-hand quantity");
     }
 }
