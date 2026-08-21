@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageHandler;
-import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
+import com.flowzati.archone.messaging.api.MessageHandlingStatus;
 import com.flowzati.archone.messaging.api.MessageSubscription;
 import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
 import com.flowzati.archone.messaging.api.OutcomeAwareMessageHandler;
@@ -107,7 +107,7 @@ class MessageConsumerImplTest {
                 implementation, logicalChannel -> logicalChannel, List.of(decorator(100, "observation", calls)));
         OutcomeAwareMessageHandler handler = (message, context) -> {
             calls.add("handler.ignored");
-            return MessageHandlingOutcome.IGNORED_UNHANDLED;
+            return MessageHandlingStatus.IGNORED_UNHANDLED;
         };
 
         subscribe(consumer, handler);
@@ -162,9 +162,10 @@ class MessageConsumerImplTest {
             }
 
             @Override
-            public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+            public MessageProcessingStatus handle(
+                    MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
                 calls.add(name + ".before");
-                ProcessingOutcome outcome = chain.invokeNext(invocation);
+                MessageProcessingStatus outcome = chain.invokeNext(invocation);
                 calls.add(name + ".after." + outcome);
                 return outcome;
             }

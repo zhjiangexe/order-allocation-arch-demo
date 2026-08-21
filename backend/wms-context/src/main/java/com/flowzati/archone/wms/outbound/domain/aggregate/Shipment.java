@@ -17,8 +17,8 @@ import com.flowzati.archone.wms.outbound.domain.event.ShipmentReleased;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentStaged;
 import com.flowzati.archone.wms.outbound.domain.event.ShortPickDetected;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
-import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
@@ -51,7 +51,7 @@ public class Shipment {
     private ShipmentStatus status;
     private UUID waveId;
     private WarehouseWork pickingWork;
-    private CancellationOutcome cancellationOutcome;
+    private ShipmentCancellationStatus cancellationOutcome;
     private String cancellationRequestId;
 
     private Shipment(
@@ -124,7 +124,7 @@ public class Shipment {
             ShipmentStatus status,
             UUID waveId,
             WarehouseWork pickingWork,
-            CancellationOutcome cancellationOutcome,
+            ShipmentCancellationStatus cancellationOutcome,
             String cancellationRequestId) {
         Shipment shipment = new Shipment(
                 id, allocationId, orderId, ownerId, facilityId, lines, createdAt, dispatchBy, releasePriority);
@@ -276,7 +276,7 @@ public class Shipment {
                 handedOverAt));
     }
 
-    public CancellationOutcome cancel(String requestId, Instant requestedAt) {
+    public ShipmentCancellationStatus cancel(String requestId, Instant requestedAt) {
         if (requestId == null || requestId.isBlank()) {
             throw new IllegalArgumentException("Cancellation request ID is required");
         }
@@ -286,15 +286,15 @@ public class Shipment {
                 throw new ShipmentCancellationRequestConflictException(
                         "Shipment already has a different cancellation request: " + id);
             }
-            return cancellationOutcome == CancellationOutcome.CANCELLED
-                    ? CancellationOutcome.ALREADY_CANCELLED
+            return cancellationOutcome == ShipmentCancellationStatus.CANCELLED
+                    ? ShipmentCancellationStatus.ALREADY_CANCELLED
                     : cancellationOutcome;
         }
         cancellationRequestId = requestId;
         if (status == ShipmentStatus.HANDED_OVER_TO_CARRIER) {
             events.add(new ShipmentCancellationRejected(
                     id, orderId, requestId, "Shipment already handed over to carrier", requestedAt));
-            cancellationOutcome = CancellationOutcome.REJECTED_AFTER_HANDOVER;
+            cancellationOutcome = ShipmentCancellationStatus.REJECTED_AFTER_HANDOVER;
             return cancellationOutcome;
         }
         if (status != ShipmentStatus.CREATED
@@ -302,7 +302,7 @@ public class Shipment {
                 && status != ShipmentStatus.RELEASED) {
             status = ShipmentStatus.CANCELLING;
             events.add(new ShipmentPutbackRequired(id, orderId, requestId, requestedAt));
-            cancellationOutcome = CancellationOutcome.PUTBACK_REQUIRED;
+            cancellationOutcome = ShipmentCancellationStatus.PUTBACK_REQUIRED;
             return cancellationOutcome;
         }
 
@@ -311,7 +311,7 @@ public class Shipment {
         }
         status = ShipmentStatus.CANCELLED;
         events.add(new ShipmentCancelled(id, orderId, requestId, requestedAt));
-        cancellationOutcome = CancellationOutcome.CANCELLED;
+        cancellationOutcome = ShipmentCancellationStatus.CANCELLED;
         return cancellationOutcome;
     }
 
@@ -411,7 +411,7 @@ public class Shipment {
         return cancellationRequestId;
     }
 
-    public Optional<CancellationOutcome> cancellationOutcomeValue() {
+    public Optional<ShipmentCancellationStatus> cancellationOutcomeValue() {
         return Optional.ofNullable(cancellationOutcome);
     }
 }

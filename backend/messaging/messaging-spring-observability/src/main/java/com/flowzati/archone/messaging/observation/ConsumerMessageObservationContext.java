@@ -9,7 +9,7 @@ import java.util.Objects;
 public final class ConsumerMessageObservationContext extends ReceiverContext<Message> {
 
     private final MessageContext messageContext;
-    private MessagingObservationOutcome outcome = MessagingObservationOutcome.UNKNOWN;
+    private MessagingObservationStatus outcome = MessagingObservationStatus.UNKNOWN;
 
     public ConsumerMessageObservationContext(Message message, MessageContext messageContext) {
         super((carrier, key) -> carrier == null
@@ -27,11 +27,11 @@ public final class ConsumerMessageObservationContext extends ReceiverContext<Mes
         return Objects.requireNonNull(getCarrier(), "Message carrier is required");
     }
 
-    public MessagingObservationOutcome outcome() {
+    public MessagingObservationStatus outcome() {
         return outcome;
     }
 
-    public void recordOutcome(MessagingObservationOutcome outcome) {
+    public void recordOutcome(MessagingObservationStatus outcome) {
         this.outcome = Objects.requireNonNull(outcome, "Messaging observation outcome is required");
     }
 }

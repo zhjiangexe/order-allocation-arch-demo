@@ -8,7 +8,7 @@ package com.flowzati.archone.inventory.allocation.domain.type;
  * 它會隨著補貨與報廢每天變，而訂單進入等待供應後不再把理由固定寫死。庫存頁每次請求重算，答的是「現在為什麼出不了」，那才
  * 是要行動的人需要的。
  */
-public enum AllocationOutcome {
+public enum AllocationAttemptStatus {
     ALLOCATED,
 
     /** 有可配的批，但加總起來仍不足以整單滿足（ship-complete，不做部分配貨）。 */

@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.consumer.common.MessageConsumerImpl;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.producer.common.MessageProducerImpl;
 import java.time.Clock;
 import java.time.ZoneOffset;
@@ -69,7 +69,7 @@ class MessagingCommonContractTest {
         MessageHandlerDecorator inner = decorator(200, calls);
         MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(List.of(inner, outer), invocation -> {
             calls.add(999);
-            return ProcessingOutcome.PROCESSED;
+            return MessageProcessingStatus.PROCESSED;
         });
 
         chain.invokeNext(
@@ -86,9 +86,10 @@ class MessagingCommonContractTest {
             }
 
             @Override
-            public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+            public MessageProcessingStatus handle(
+                    MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
                 calls.add(order);
-                ProcessingOutcome outcome = chain.invokeNext(invocation);
+                MessageProcessingStatus outcome = chain.invokeNext(invocation);
                 calls.add(-order);
                 return outcome;
             }

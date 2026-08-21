@@ -4,7 +4,7 @@ import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageInterceptor;
 import com.flowzati.archone.messaging.api.MessagePublicationContext;
 import com.flowzati.archone.messaging.observation.DefaultProducerMessageObservationConvention;
-import com.flowzati.archone.messaging.observation.MessagingObservationOutcome;
+import com.flowzati.archone.messaging.observation.MessagingObservationStatus;
 import com.flowzati.archone.messaging.observation.ProducerMessageObservationContext;
 import com.flowzati.archone.messaging.observation.ProducerMessageObservationConvention;
 import io.micrometer.observation.Observation;
@@ -70,9 +70,9 @@ public final class ProducerObservationInterceptor implements MessageInterceptor 
         }
 
         if (failure == null) {
-            attempt.context().recordOutcome(MessagingObservationOutcome.APPENDED);
+            attempt.context().recordOutcome(MessagingObservationStatus.APPENDED);
         } else {
-            attempt.context().recordOutcome(MessagingObservationOutcome.FAILED);
+            attempt.context().recordOutcome(MessagingObservationStatus.FAILED);
             attempt.observation().error(failure);
         }
 

@@ -3,7 +3,7 @@ package com.flowzati.archone.logisticsdata.domain.aggregate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.UUID;
@@ -43,14 +43,14 @@ class SkuTest {
     @Test
     @DisplayName("同一款的兩個規格重量可不同，而溫層一律取自其款")
     void twoSpecificationsOfOneProductShareItsTemperatureZone() {
-        Product product = new Product(UUID.randomUUID(), OWNER_ID, "P-1", "冷凍水餃", TemperatureZone.FROZEN);
+        Product product = new Product(UUID.randomUUID(), OWNER_ID, "P-1", "冷凍水餃", TemperatureZoneType.FROZEN);
         Sku small = new Sku(UUID.randomUUID(), OWNER_ID, "SKU-A", "P-1", "500g", 500);
         Sku large = new Sku(UUID.randomUUID(), OWNER_ID, "SKU-B", "P-1", "1kg", 1000);
 
         assertThat(List.of(small, large)).allMatch(sku -> sku.getProductCode().equals(product.getProductCode()));
         assertThat(small.getWeightGram()).isNotEqualTo(large.getWeightGram());
         // 溫層只有一個來源，兩個規格不可能報出不同的值
-        assertThat(product.getTemperatureZone()).isEqualTo(TemperatureZone.FROZEN);
+        assertThat(product.getTemperatureZone()).isEqualTo(TemperatureZoneType.FROZEN);
     }
 
     @ParameterizedTest(name = "[{index}] weightGram={0}")

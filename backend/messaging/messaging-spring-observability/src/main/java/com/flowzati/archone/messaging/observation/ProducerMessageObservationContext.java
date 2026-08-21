@@ -9,7 +9,7 @@ import java.util.Objects;
 public final class ProducerMessageObservationContext extends SenderContext<MutableMessageCarrier> {
 
     private final MessagePublicationContext publicationContext;
-    private MessagingObservationOutcome outcome = MessagingObservationOutcome.UNKNOWN;
+    private MessagingObservationStatus outcome = MessagingObservationStatus.UNKNOWN;
 
     public ProducerMessageObservationContext(Message message, MessagePublicationContext publicationContext) {
         super((carrier, key, value) -> {
@@ -30,11 +30,11 @@ public final class ProducerMessageObservationContext extends SenderContext<Mutab
                 .message();
     }
 
-    public MessagingObservationOutcome outcome() {
+    public MessagingObservationStatus outcome() {
         return outcome;
     }
 
-    public void recordOutcome(MessagingObservationOutcome outcome) {
+    public void recordOutcome(MessagingObservationStatus outcome) {
         this.outcome = Objects.requireNonNull(outcome, "Messaging observation outcome is required");
     }
 }

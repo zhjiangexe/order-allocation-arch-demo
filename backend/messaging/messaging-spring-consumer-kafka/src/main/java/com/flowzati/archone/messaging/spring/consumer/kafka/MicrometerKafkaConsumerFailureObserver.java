@@ -2,7 +2,7 @@ package com.flowzati.archone.messaging.spring.consumer.kafka;
 
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.observation.MessagingObservationNames;
-import com.flowzati.archone.messaging.observation.MessagingObservationOutcome;
+import com.flowzati.archone.messaging.observation.MessagingObservationStatus;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
@@ -33,7 +33,7 @@ public final class MicrometerKafkaConsumerFailureObserver implements KafkaConsum
                         "retry",
                         context,
                         context.failure(),
-                        MessagingObservationOutcome.RETRY_SCHEDULED)
+                        MessagingObservationStatus.RETRY_SCHEDULED)
                 .highCardinalityKeyValue(
                         MessagingObservationTags.RETRY_ATTEMPT, Integer.toString(context.deliveryAttempt()))
                 .highCardinalityKeyValue(
@@ -48,7 +48,7 @@ public final class MicrometerKafkaConsumerFailureObserver implements KafkaConsum
                         "dlt",
                         context,
                         context.failure(),
-                        MessagingObservationOutcome.PUBLISHED)
+                        MessagingObservationStatus.PUBLISHED)
                 .lowCardinalityKeyValue(MessagingObservationTags.DLT_DISPOSITION, dltDisposition(context))
                 .highCardinalityKeyValue(
                         MessagingObservationTags.RETRY_ATTEMPT, Integer.toString(context.deliveryAttempt()))
@@ -63,7 +63,7 @@ public final class MicrometerKafkaConsumerFailureObserver implements KafkaConsum
                         "dlt",
                         context,
                         publicationFailure,
-                        MessagingObservationOutcome.FAILED)
+                        MessagingObservationStatus.FAILED)
                 .lowCardinalityKeyValue(MessagingObservationTags.DLT_DISPOSITION, dltDisposition(context))
                 .highCardinalityKeyValue(
                         MessagingObservationTags.RETRY_ATTEMPT, Integer.toString(context.deliveryAttempt()));
@@ -77,7 +77,7 @@ public final class MicrometerKafkaConsumerFailureObserver implements KafkaConsum
             String operation,
             KafkaConsumerFailureContext context,
             Exception observedFailure,
-            MessagingObservationOutcome outcome) {
+            MessagingObservationStatus outcome) {
         ConsumerRecord<?, ?> record = context.record();
         Objects.requireNonNull(record, "Kafka consumer record is required");
         KafkaConsumerObservationMetadata metadata = metadataResolver.resolve(record);

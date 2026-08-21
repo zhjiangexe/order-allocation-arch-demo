@@ -38,16 +38,16 @@ public final class MessageHandlerDecoratorChain {
         return new MessageHandlerDecoratorChain(ordered, terminalHandler, 0);
     }
 
-    public ProcessingOutcome invokeNext(MessageHandlerInvocation invocation) {
+    public MessageProcessingStatus invokeNext(MessageHandlerInvocation invocation) {
         Objects.requireNonNull(invocation, "Message handler invocation is required");
         if (index == decorators.size()) {
-            ProcessingOutcome outcome = terminalHandler.handle(invocation);
+            MessageProcessingStatus outcome = terminalHandler.handle(invocation);
             return Objects.requireNonNull(outcome, "Terminal message handler returned null");
         }
         MessageHandlerDecorator decorator = decorators.get(index);
         MessageHandlerDecoratorChain remainder =
                 new MessageHandlerDecoratorChain(decorators, terminalHandler, index + 1);
-        ProcessingOutcome outcome = decorator.handle(invocation, remainder);
+        MessageProcessingStatus outcome = decorator.handle(invocation, remainder);
         return Objects.requireNonNull(
                 outcome,
                 () -> "Message handler decorator returned null: "

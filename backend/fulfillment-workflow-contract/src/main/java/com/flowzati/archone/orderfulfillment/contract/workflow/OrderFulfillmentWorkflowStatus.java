@@ -1,7 +1,7 @@
 package com.flowzati.archone.orderfulfillment.contract.workflow;
 
-/** 只有 Workflow 結束時才存在的結果；進行中的 {@link OrderFulfillmentWorkflowState#outcome()} 為 {@code null}。 */
-public enum OrderFulfillmentWorkflowOutcome {
+/** 只有 Workflow 結束時才存在的結果；進行中的 {@link OrderFulfillmentWorkflowSnapshot#outcome()} 為 {@code null}。 */
+public enum OrderFulfillmentWorkflowStatus {
     /** Shipment 已交付承運商，outbound movements 與 Order 終態皆已完成。 */
     FULFILLMENT_COMPLETED,
 

@@ -19,33 +19,33 @@ public final class AllocationShadowComparator {
     public Comparison compare(LegacySnapshot legacy, DemandSnapshot demand) {
         Objects.requireNonNull(legacy, "Legacy allocation snapshot is required");
         Objects.requireNonNull(demand, "Allocation-demand snapshot is required");
-        EnumSet<Divergence> differences = EnumSet.noneOf(Divergence.class);
+        EnumSet<DivergenceCategory> differences = EnumSet.noneOf(DivergenceCategory.class);
 
         if (!legacy.source().equals(demand.source())
                 || !legacy.ownerId().equals(demand.ownerId())
                 || !legacy.facilityId().equals(demand.facilityId())
                 || !legacy.lines().equals(demand.lines())) {
-            differences.add(Divergence.BLOCKING_DEMAND_CONTENT);
+            differences.add(DivergenceCategory.BLOCKING_DEMAND_CONTENT);
         }
         if (!legacy.normalizedLocationId().equals(demand.locationId())) {
-            differences.add(Divergence.BLOCKING_SOURCE_LOCATION);
+            differences.add(DivergenceCategory.BLOCKING_SOURCE_LOCATION);
         }
         if (!legacy.expandedLocationId().equals(legacy.normalizedLocationId())) {
-            differences.add(Divergence.KNOWN_LEGACY_LOCATION_EXPANSION);
+            differences.add(DivergenceCategory.KNOWN_LEGACY_LOCATION_EXPANSION);
         }
         if (legacy.allocationEligible() != demand.allocationEligible()) {
             if (legacy.allocationEligible()
                     && !demand.allocationEligible()
                     && demand.rejectedOnlyByCrossSkuPredecessor()) {
-                differences.add(Divergence.KNOWN_CROSS_SKU_FIFO_CORRECTION);
+                differences.add(DivergenceCategory.KNOWN_CROSS_SKU_FIFO_CORRECTION);
             } else {
-                differences.add(Divergence.BLOCKING_ALLOCATION_OUTCOME);
+                differences.add(DivergenceCategory.BLOCKING_ALLOCATION_OUTCOME);
             }
         }
         return new Comparison(differences);
     }
 
-    public enum Divergence {
+    public enum DivergenceCategory {
         KNOWN_LEGACY_LOCATION_EXPANSION(false),
         KNOWN_CROSS_SKU_FIFO_CORRECTION(false),
         BLOCKING_DEMAND_CONTENT(true),
@@ -54,7 +54,7 @@ public final class AllocationShadowComparator {
 
         private final boolean blocksCutover;
 
-        Divergence(boolean blocksCutover) {
+        DivergenceCategory(boolean blocksCutover) {
             this.blocksCutover = blocksCutover;
         }
 
@@ -63,14 +63,14 @@ public final class AllocationShadowComparator {
         }
     }
 
-    public record Comparison(Set<Divergence> divergences) {
+    public record Comparison(Set<DivergenceCategory> divergences) {
 
         public Comparison {
             divergences = Set.copyOf(divergences);
         }
 
         public boolean blocksCutover() {
-            return divergences.stream().anyMatch(Divergence::blocksCutover);
+            return divergences.stream().anyMatch(DivergenceCategory::blocksCutover);
         }
     }
 

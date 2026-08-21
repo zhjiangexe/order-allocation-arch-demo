@@ -2,7 +2,7 @@ package com.flowzati.archone.demo.fulfillment;
 
 import com.flowzati.archone.bootstrap.fulfillment.FulfillmentOrchestrationMode;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
-import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowState;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
 import java.util.Optional;
@@ -23,7 +23,7 @@ public class FulfillmentWorkflowStateReader {
         this.workflowClient = workflowClient;
     }
 
-    public Optional<OrderFulfillmentWorkflowState> find(UUID orderId) {
+    public Optional<OrderFulfillmentWorkflowSnapshot> find(UUID orderId) {
         if (mode != FulfillmentOrchestrationMode.TEMPORAL) {
             return Optional.empty();
         }

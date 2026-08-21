@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.observation.ConsumerMessageObservationContext;
 import com.flowzati.archone.messaging.observation.MessagingObservationNames;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
@@ -35,7 +35,7 @@ class ConsumerObservationDecoratorTest {
 
     @Test
     void observesEveryStableOutcomeWithoutAddingASecondHandlerPipeline() {
-        for (ProcessingOutcome outcome : ProcessingOutcome.values()) {
+        for (MessageProcessingStatus outcome : MessageProcessingStatus.values()) {
             RecordingHandler handler = new RecordingHandler();
             ObservationRegistry registry = registry(handler);
             AtomicInteger handlerCalls = new AtomicInteger();
@@ -96,7 +96,7 @@ class ConsumerObservationDecoratorTest {
                 .observationHandler(traceReader)
                 .observationHandler(new DefaultMeterObservationHandler(meterRegistry));
         MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
-                List.of(new ConsumerObservationDecorator(registry)), ignored -> ProcessingOutcome.PROCESSED);
+                List.of(new ConsumerObservationDecorator(registry)), ignored -> MessageProcessingStatus.PROCESSED);
 
         chain.invokeNext(invocation());
 
@@ -126,7 +126,7 @@ class ConsumerObservationDecoratorTest {
         return new MessageHandlerInvocation(message, new MessageContext("ordering", "order-events", 1));
     }
 
-    private String expectedTag(ProcessingOutcome outcome) {
+    private String expectedTag(MessageProcessingStatus outcome) {
         return switch (outcome) {
             case PROCESSED -> "processed";
             case DUPLICATE -> "duplicate";

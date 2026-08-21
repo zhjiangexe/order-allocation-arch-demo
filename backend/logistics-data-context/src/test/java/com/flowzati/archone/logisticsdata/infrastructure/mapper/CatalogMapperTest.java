@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import com.flowzati.archone.logisticsdata.infrastructure.entity.OwnerEntity;
 import com.flowzati.archone.logisticsdata.infrastructure.entity.ProductEntity;
 import com.flowzati.archone.logisticsdata.infrastructure.entity.SkuEntity;
@@ -49,7 +49,7 @@ class CatalogMapperTest {
         @DisplayName("應雙向映射識別、自然鍵與溫層")
         void mapsBothWays() {
             UUID productId = UUID.randomUUID();
-            Product product = new Product(productId, OWNER_ID, "P-1", "冷凍水餃", TemperatureZone.FROZEN);
+            Product product = new Product(productId, OWNER_ID, "P-1", "冷凍水餃", TemperatureZoneType.FROZEN);
 
             ProductEntity entity = ProductMapper.toEntity(product);
             Product restored = ProductMapper.toDomain(entity);
@@ -59,12 +59,12 @@ class CatalogMapperTest {
             assertThat(entity.getOwnerId()).isEqualTo(OWNER_ID);
             assertThat(entity.getProductCode()).isEqualTo("P-1");
             assertThat(entity.getName()).isEqualTo("冷凍水餃");
-            assertThat(entity.getTemperatureZone()).isEqualTo(TemperatureZone.FROZEN);
+            assertThat(entity.getTemperatureZone()).isEqualTo(TemperatureZoneType.FROZEN);
 
             assertThat(restored.getOwnerId()).isEqualTo(OWNER_ID);
             assertThat(restored.getProductCode()).isEqualTo("P-1");
             assertThat(restored.getName()).isEqualTo("冷凍水餃");
-            assertThat(restored.getTemperatureZone()).isEqualTo(TemperatureZone.FROZEN);
+            assertThat(restored.getTemperatureZone()).isEqualTo(TemperatureZoneType.FROZEN);
         }
     }
 

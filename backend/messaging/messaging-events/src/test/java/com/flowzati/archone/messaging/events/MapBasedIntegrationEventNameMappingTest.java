@@ -15,7 +15,7 @@ class MapBasedIntegrationEventNameMappingTest {
                 .build();
 
         assertThat(mapping.externalTypeFor(TestEvent.class))
-                .isEqualTo(new IntegrationEventType("public-order-placed", 3));
+                .isEqualTo(new IntegrationEventDescriptor("public-order-placed", 3));
         assertThat(mapping.eventClassFor("public-order-placed", 3)).contains(TestEvent.class);
         assertThat(mapping.eventClassFor("public-order-placed", 2)).isEmpty();
     }

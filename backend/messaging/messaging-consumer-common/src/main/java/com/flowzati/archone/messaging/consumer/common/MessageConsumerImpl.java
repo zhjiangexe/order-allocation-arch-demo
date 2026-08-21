@@ -6,7 +6,7 @@ import com.flowzati.archone.messaging.api.IdentityChannelMapping;
 import com.flowzati.archone.messaging.api.IdentityConsumerGroupMapping;
 import com.flowzati.archone.messaging.api.MessageConsumer;
 import com.flowzati.archone.messaging.api.MessageHandler;
-import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
+import com.flowzati.archone.messaging.api.MessageHandlingStatus;
 import com.flowzati.archone.messaging.api.MessageSubscription;
 import com.flowzati.archone.messaging.api.MessageSubscriptionOptions;
 import com.flowzati.archone.messaging.api.OutcomeAwareMessageHandler;
@@ -82,18 +82,18 @@ public final class MessageConsumerImpl implements MessageConsumer {
         return Objects.requireNonNull(subscription, "Message consumer implementation returned null");
     }
 
-    private ProcessingOutcome invokeTerminal(MessageHandler handler, MessageHandlerInvocation invocation) {
+    private MessageProcessingStatus invokeTerminal(MessageHandler handler, MessageHandlerInvocation invocation) {
         if (handler instanceof OutcomeAwareMessageHandler outcomeAwareHandler) {
-            MessageHandlingOutcome outcome = Objects.requireNonNull(
+            MessageHandlingStatus outcome = Objects.requireNonNull(
                     outcomeAwareHandler.handleWithOutcome(invocation.message(), invocation.context()),
                     "Outcome-aware message handler returned null");
             return switch (outcome) {
-                case PROCESSED -> ProcessingOutcome.PROCESSED;
-                case IGNORED_UNHANDLED -> ProcessingOutcome.IGNORED_UNHANDLED;
+                case PROCESSED -> MessageProcessingStatus.PROCESSED;
+                case IGNORED_UNHANDLED -> MessageProcessingStatus.IGNORED_UNHANDLED;
             };
         }
         handler.handle(invocation.message(), invocation.context());
-        return ProcessingOutcome.PROCESSED;
+        return MessageProcessingStatus.PROCESSED;
     }
 
     private String resolveConsumerGroupId(String subscriberId) {

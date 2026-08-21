@@ -93,15 +93,15 @@ public class AllocationCancellationTransactions {
     }
 
     @Transactional
-    public AllocationCancellationResult complete(UUID demandId, UUID operationId, Instant now) {
+    public AllocationCancellationStatus complete(UUID demandId, UUID operationId, Instant now) {
         AllocationCancellationOperation operation = operationRepository
                 .find(demandId, operationId)
                 .orElseThrow(() -> new IllegalStateException("Cancellation operation was not started"));
         if (operation.state() == AllocationCancellationState.COMPLETED) {
-            return AllocationCancellationResult.COMPLETED;
+            return AllocationCancellationStatus.COMPLETED;
         }
         if (operation.state() == AllocationCancellationState.EXTERNAL_REJECTED) {
-            return AllocationCancellationResult.NOT_CANCELLABLE;
+            return AllocationCancellationStatus.NOT_CANCELLABLE;
         }
         if (operation.state() != AllocationCancellationState.EXTERNAL_CONFIRMED) {
             throw new IllegalStateException("Local cancellation requires durable external confirmation");
@@ -121,6 +121,6 @@ public class AllocationCancellationTransactions {
         }
         operation.completeLocally(now);
         operationRepository.save(operation);
-        return AllocationCancellationResult.COMPLETED;
+        return AllocationCancellationStatus.COMPLETED;
     }
 }

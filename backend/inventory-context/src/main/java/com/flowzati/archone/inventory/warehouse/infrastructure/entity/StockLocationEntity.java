@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.warehouse.infrastructure.entity;
 
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsage;
+import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,11 +40,11 @@ public class StockLocationEntity {
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private LocationUsage usage;
+    private LocationUsageType usage;
 
     protected StockLocationEntity() {}
 
-    public StockLocationEntity(UUID id, UUID facilityId, String code, String name, LocationUsage usage) {
+    public StockLocationEntity(UUID id, UUID facilityId, String code, String name, LocationUsageType usage) {
         this.id = id;
         this.facilityId = facilityId;
         this.code = code;
@@ -68,7 +68,7 @@ public class StockLocationEntity {
         return name;
     }
 
-    public LocationUsage getUsage() {
+    public LocationUsageType getUsage() {
         return usage;
     }
 }

@@ -149,14 +149,15 @@ class ContextBoundaryArchitectureTest {
     }
 
     @Test
-    @DisplayName("StockLocation 與 PickingType 由 Inventory warehouse capability 擁有")
+    @DisplayName("StockLocation 與 PickingDefinition 由 Inventory warehouse capability 擁有")
     void warehouseOperationConfigurationBelongsToInventory() {
         assertThat(WAREHOUSE_ROOT.resolve("domain/aggregate/StockLocation.java"))
                 .isRegularFile();
-        assertThat(WAREHOUSE_ROOT.resolve("domain/aggregate/PickingType.java")).isRegularFile();
+        assertThat(WAREHOUSE_ROOT.resolve("domain/aggregate/PickingDefinition.java"))
+                .isRegularFile();
         assertThat(LOGISTICS_DATA_ROOT.resolve("domain/aggregate/StockLocation.java"))
                 .doesNotExist();
-        assertThat(LOGISTICS_DATA_ROOT.resolve("domain/aggregate/PickingType.java"))
+        assertThat(LOGISTICS_DATA_ROOT.resolve("domain/aggregate/PickingDefinition.java"))
                 .doesNotExist();
     }
 

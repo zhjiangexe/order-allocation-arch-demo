@@ -25,12 +25,12 @@ public final class MessageInterceptorDecorator implements MessageHandlerDecorato
     }
 
     @Override
-    public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+    public MessageProcessingStatus handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
         Message message = invocation.message();
         MessageContext context = invocation.context();
         List<MessageInterceptor> received = new ArrayList<>(interceptors.size());
         List<MessageInterceptor> handling = new ArrayList<>(interceptors.size());
-        ProcessingOutcome outcome = null;
+        MessageProcessingStatus outcome = null;
         Throwable failure = null;
 
         try {

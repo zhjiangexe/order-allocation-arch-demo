@@ -3,9 +3,9 @@ package com.flowzati.archone.inventory.testsupport;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingType;
+import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
 import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsage;
+import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
 import java.time.Clock;
 import java.time.Instant;
@@ -47,25 +47,25 @@ public final class InventoryFixtures {
     }
 
     /** 測試倉的出庫類型：庫存位置 → 客戶。 */
-    public static PickingType outboundType() {
-        return new PickingType(
+    public static PickingDefinition outboundType() {
+        return new PickingDefinition(
                 OUTBOUND_TYPE_ID, FACILITY_ID, PickingDirection.OUTBOUND, "出貨", LOCATION_ID, CUSTOMERS_LOCATION_ID);
     }
 
     /** 測試倉的入庫類型：供應商 → 庫存位置。 */
-    public static PickingType inboundType() {
-        return new PickingType(
+    public static PickingDefinition inboundType() {
+        return new PickingDefinition(
                 INBOUND_TYPE_ID, FACILITY_ID, PickingDirection.INBOUND, "收貨", SUPPLIERS_LOCATION_ID, LOCATION_ID);
     }
 
     public static StockLocation suppliersLocation() {
         return StockLocation.virtual(
-                SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "Inventory fixture 的供應商", LocationUsage.SUPPLIER);
+                SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "Inventory fixture 的供應商", LocationUsageType.SUPPLIER);
     }
 
     public static StockLocation customersLocation() {
         return StockLocation.virtual(
-                CUSTOMERS_LOCATION_ID, "FIXTURE/Customers", "Inventory fixture 的客戶", LocationUsage.CUSTOMER);
+                CUSTOMERS_LOCATION_ID, "FIXTURE/Customers", "Inventory fixture 的客戶", LocationUsageType.CUSTOMER);
     }
 
     public static StockLocation internalLocation() {

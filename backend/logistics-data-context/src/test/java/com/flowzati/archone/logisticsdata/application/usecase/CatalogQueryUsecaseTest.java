@@ -9,7 +9,7 @@ import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
 import com.flowzati.archone.logisticsdata.domain.repository.OwnerRepository;
 import com.flowzati.archone.logisticsdata.domain.repository.ProductRepository;
 import com.flowzati.archone.logisticsdata.domain.repository.SkuRepository;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +59,7 @@ class CatalogQueryUsecaseTest {
         @Test
         @DisplayName("應以呼叫端指定的貨主查詢，不會漏掉貨主而查到全部")
         void queriesWithTheGivenOwner() {
-            Product product = new Product(UUID.randomUUID(), OWNER_B, "P-1", "冷凍水餃", TemperatureZone.FROZEN);
+            Product product = new Product(UUID.randomUUID(), OWNER_B, "P-1", "冷凍水餃", TemperatureZoneType.FROZEN);
             when(productRepository.findByOwner(OWNER_B)).thenReturn(List.of(product));
 
             List<Product> products = new ListProductsUsecase(productRepository).listByOwner(OWNER_B);

@@ -11,7 +11,7 @@ import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -94,7 +94,8 @@ class CatalogControllerTest {
     @DisplayName("應在貨主路徑之下列出款，並回報溫層")
     void listsProductsWithinTheirOwner() {
         when(listProductsUsecase.listByOwner(OWNER_A))
-                .thenReturn(List.of(new Product(UUID.randomUUID(), OWNER_A, "P-1", "冷凍水餃", TemperatureZone.FROZEN)));
+                .thenReturn(
+                        List.of(new Product(UUID.randomUUID(), OWNER_A, "P-1", "冷凍水餃", TemperatureZoneType.FROZEN)));
 
         MvcTestResultAssert response = assertThat(mvc.get().uri("/owners/{ownerId}/products", OWNER_A));
 

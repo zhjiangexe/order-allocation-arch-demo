@@ -5,5 +5,5 @@ public interface MessageHandlerDecorator {
 
     int order();
 
-    ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain);
+    MessageProcessingStatus handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain);
 }

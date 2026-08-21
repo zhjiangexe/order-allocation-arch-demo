@@ -1,7 +1,7 @@
 package com.flowzati.archone.demo.fulfillment;
 
 import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandView;
-import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowState;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
 import java.util.List;
 
@@ -11,7 +11,7 @@ public record OrderFulfillmentView(
         FulfillmentOrderView order,
         AllocationDemandView allocation,
         List<ShipmentView> shipments,
-        OrderFulfillmentWorkflowState workflow) {
+        OrderFulfillmentWorkflowSnapshot workflow) {
 
     public OrderFulfillmentView {
         shipments = List.copyOf(shipments);

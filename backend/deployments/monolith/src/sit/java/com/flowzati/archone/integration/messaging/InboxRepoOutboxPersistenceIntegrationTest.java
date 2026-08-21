@@ -20,7 +20,7 @@ import com.flowzati.archone.messaging.autoconfigure.MessagingProducerJdbcAutoCon
 import com.flowzati.archone.messaging.consumer.common.DuplicateMessageDetector;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMessageHandlerDecorator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -174,10 +174,10 @@ class JdbcMessagingPersistenceIntegrationTest {
         AtomicInteger handlerCalls = new AtomicInteger();
         var successfulChain = MessageHandlerDecoratorChain.create(List.of(idempotencyDecorator), ignored -> {
             handlerCalls.incrementAndGet();
-            return ProcessingOutcome.PROCESSED;
+            return MessageProcessingStatus.PROCESSED;
         });
-        assertThat(successfulChain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.PROCESSED);
-        assertThat(successfulChain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.DUPLICATE);
+        assertThat(successfulChain.invokeNext(invocation)).isEqualTo(MessageProcessingStatus.PROCESSED);
+        assertThat(successfulChain.invokeNext(invocation)).isEqualTo(MessageProcessingStatus.DUPLICATE);
         assertThat(handlerCalls).hasValue(1);
         assertThat(countById("event_inbox", "event_id", eventId)).isOne();
 

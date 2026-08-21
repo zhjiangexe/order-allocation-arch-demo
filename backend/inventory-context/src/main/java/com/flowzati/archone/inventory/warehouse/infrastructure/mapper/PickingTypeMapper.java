@@ -1,13 +1,13 @@
 package com.flowzati.archone.inventory.warehouse.infrastructure.mapper;
 
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingType;
+import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
 import com.flowzati.archone.inventory.warehouse.infrastructure.entity.PickingTypeEntity;
 
 public final class PickingTypeMapper {
 
     private PickingTypeMapper() {}
 
-    public static PickingTypeEntity toEntity(PickingType type) {
+    public static PickingTypeEntity toEntity(PickingDefinition type) {
         return new PickingTypeEntity(
                 type.id(),
                 type.facilityId(),
@@ -17,8 +17,8 @@ public final class PickingTypeMapper {
                 type.defaultToLocationId());
     }
 
-    public static PickingType toDomain(PickingTypeEntity entity) {
-        return new PickingType(
+    public static PickingDefinition toDomain(PickingTypeEntity entity) {
+        return new PickingDefinition(
                 entity.getId(),
                 entity.getFacilityId(),
                 entity.getCode(),

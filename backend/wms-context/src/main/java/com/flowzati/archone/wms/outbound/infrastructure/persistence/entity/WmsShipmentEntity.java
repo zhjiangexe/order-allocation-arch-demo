@@ -2,7 +2,7 @@ package com.flowzati.archone.wms.outbound.infrastructure.persistence.entity;
 
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.entity.WarehouseWork;
-import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.type.WarehouseWorkStatus;
 import jakarta.persistence.CascadeType;
@@ -70,7 +70,7 @@ public class WmsShipmentEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "cancellation_outcome")
-    private CancellationOutcome cancellationOutcome;
+    private ShipmentCancellationStatus cancellationOutcome;
 
     @Column(name = "cancellation_request_id")
     private String cancellationRequestId;

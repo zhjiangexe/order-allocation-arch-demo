@@ -1,6 +1,6 @@
 package com.flowzati.archone.logisticsdata.domain.aggregate;
 
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import java.util.UUID;
 
 /**
@@ -19,9 +19,9 @@ public class Product {
     private final UUID ownerId;
     private final String productCode;
     private final String name;
-    private final TemperatureZone temperatureZone;
+    private final TemperatureZoneType temperatureZone;
 
-    public Product(UUID id, UUID ownerId, String productCode, String name, TemperatureZone temperatureZone) {
+    public Product(UUID id, UUID ownerId, String productCode, String name, TemperatureZoneType temperatureZone) {
         if (id == null) {
             throw new IllegalArgumentException("Product ID is required");
         }
@@ -60,7 +60,7 @@ public class Product {
         return name;
     }
 
-    public TemperatureZone getTemperatureZone() {
+    public TemperatureZoneType getTemperatureZone() {
         return temperatureZone;
     }
 }

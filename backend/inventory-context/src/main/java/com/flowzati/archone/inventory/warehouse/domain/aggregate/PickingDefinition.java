@@ -16,7 +16,7 @@ import java.util.UUID;
  * <p>與位置同一類：它是 Inventory 執行搬運所需的倉儲設定。沒有寫入介面，目前由 seed 建立，
  * 但模型與 repository 仍由 Inventory 擁有。
  */
-public record PickingType(
+public record PickingDefinition(
         UUID id,
         UUID facilityId,
         PickingDirection code,
@@ -24,7 +24,7 @@ public record PickingType(
         UUID defaultFromLocationId,
         UUID defaultToLocationId) {
 
-    public PickingType {
+    public PickingDefinition {
         if (id == null || facilityId == null || code == null) {
             throw new IllegalArgumentException("Picking type requires an id, a facility and a code");
         }

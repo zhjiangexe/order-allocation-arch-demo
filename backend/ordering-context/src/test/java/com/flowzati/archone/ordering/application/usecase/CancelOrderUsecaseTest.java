@@ -39,7 +39,7 @@ class CancelOrderUsecaseTest {
 
         assertThat(new CancelOrderUsecase(repository, publisher)
                         .cancel(new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason)))
-                .isEqualTo(Order.CancellationResult.CANCELLED);
+                .isEqualTo(Order.CancellationStatus.CANCELLED);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancellationRequestId()).isEqualTo(requestId);
@@ -63,7 +63,7 @@ class CancelOrderUsecaseTest {
 
         assertThat(new CancelOrderUsecase(repository, publisher)
                         .cancel(new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason)))
-                .isEqualTo(Order.CancellationResult.ALREADY_CANCELLED);
+                .isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
 
         verifyNoInteractions(publisher);
         verify(repository).findById(order.getId());

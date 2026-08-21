@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 import com.flowzati.archone.inventory.allocation.infrastructure.migration.AllocationShadowComparator.DemandSnapshot;
-import com.flowzati.archone.inventory.allocation.infrastructure.migration.AllocationShadowComparator.Divergence;
+import com.flowzati.archone.inventory.allocation.infrastructure.migration.AllocationShadowComparator.DivergenceCategory;
 import com.flowzati.archone.inventory.allocation.infrastructure.migration.AllocationShadowComparator.LegacySnapshot;
 import com.flowzati.archone.inventory.allocation.infrastructure.migration.AllocationShadowComparator.ShadowLine;
 import java.util.List;
@@ -24,7 +24,7 @@ class AllocationShadowComparatorTest {
         var comparison = comparator.compare(
                 legacy(uuid(99), executionLocation, true), demand(executionLocation, true, false, lines()));
 
-        assertThat(comparison.divergences()).containsExactly(Divergence.KNOWN_LEGACY_LOCATION_EXPANSION);
+        assertThat(comparison.divergences()).containsExactly(DivergenceCategory.KNOWN_LEGACY_LOCATION_EXPANSION);
         assertThat(comparison.blocksCutover()).isFalse();
     }
 
@@ -45,7 +45,7 @@ class AllocationShadowComparatorTest {
         UUID location = uuid(3);
         var comparison = comparator.compare(legacy(location, null, true), demand(location, false, true, lines()));
 
-        assertThat(comparison.divergences()).containsExactly(Divergence.KNOWN_CROSS_SKU_FIFO_CORRECTION);
+        assertThat(comparison.divergences()).containsExactly(DivergenceCategory.KNOWN_CROSS_SKU_FIFO_CORRECTION);
         assertThat(comparison.blocksCutover()).isFalse();
     }
 
@@ -58,7 +58,8 @@ class AllocationShadowComparatorTest {
                 demand(location, false, false, List.of(new ShadowLine("line-a", "SKU-A", 2))));
 
         assertThat(comparison.divergences())
-                .containsExactlyInAnyOrder(Divergence.BLOCKING_DEMAND_CONTENT, Divergence.BLOCKING_ALLOCATION_OUTCOME);
+                .containsExactlyInAnyOrder(
+                        DivergenceCategory.BLOCKING_DEMAND_CONTENT, DivergenceCategory.BLOCKING_ALLOCATION_OUTCOME);
         assertThat(comparison.blocksCutover()).isTrue();
     }
 

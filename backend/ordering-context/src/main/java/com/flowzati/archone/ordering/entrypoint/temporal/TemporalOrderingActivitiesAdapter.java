@@ -38,7 +38,7 @@ public final class TemporalOrderingActivitiesAdapter implements OrderingActiviti
 
     @Override
     public CancelOrderActivityResult cancelOrder(CancelOrderActivityInput input) {
-        Order.CancellationResult result;
+        Order.CancellationStatus result;
         try {
             result = cancelOrderUsecase.cancel(
                     new CancelOrderCommand(input.requestId(), input.orderId(), input.requestedAt(), input.reason()));

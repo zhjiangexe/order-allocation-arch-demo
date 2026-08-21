@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaOwnerRepository;
 import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaSkuRepository;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -88,8 +88,8 @@ class CatalogPersistenceIntegrationTest {
     @Test
     @DisplayName("兩個貨主應可各自定義同一個 sku_code，且互不覆蓋、互不可見")
     void keepsCollidingSkuCodesApartPerOwner() {
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "烏龍茶", TemperatureZone.AMBIENT));
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_B, "P-1", "冷凍水餃", TemperatureZone.FROZEN));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "烏龍茶", TemperatureZoneType.AMBIENT));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_B, "P-1", "冷凍水餃", TemperatureZoneType.FROZEN));
         skuRepository.save(new Sku(UUID.randomUUID(), OWNER_A, "SKU-A", "P-1", "500ml", 520));
         skuRepository.save(new Sku(UUID.randomUUID(), OWNER_B, "SKU-A", "P-1", "1kg", 1000));
         entityManager.flush();
@@ -113,9 +113,9 @@ class CatalogPersistenceIntegrationTest {
     @Test
     @DisplayName("應只列出指定貨主的款，並以款號穩定排序")
     void listsProductsOfOneOwnerOnly() {
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-2", "紅茶", TemperatureZone.AMBIENT));
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "烏龍茶", TemperatureZone.AMBIENT));
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_B, "P-3", "冷凍水餃", TemperatureZone.FROZEN));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-2", "紅茶", TemperatureZoneType.AMBIENT));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "烏龍茶", TemperatureZoneType.AMBIENT));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_B, "P-3", "冷凍水餃", TemperatureZoneType.FROZEN));
         entityManager.flush();
         entityManager.clear();
 
@@ -127,8 +127,8 @@ class CatalogPersistenceIntegrationTest {
     @Test
     @DisplayName("應只列出指定款的規格，並以規格編碼穩定排序")
     void listsSkusOfOneProductOnly() {
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "冷凍水餃", TemperatureZone.FROZEN));
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-2", "烏龍茶", TemperatureZone.AMBIENT));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "冷凍水餃", TemperatureZoneType.FROZEN));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-2", "烏龍茶", TemperatureZoneType.AMBIENT));
         skuRepository.save(new Sku(UUID.randomUUID(), OWNER_A, "SKU-B", "P-1", "1kg", 1000));
         skuRepository.save(new Sku(UUID.randomUUID(), OWNER_A, "SKU-A", "P-1", "500g", 500));
         skuRepository.save(new Sku(UUID.randomUUID(), OWNER_A, "SKU-C", "P-2", "500ml", 520));
@@ -143,7 +143,7 @@ class CatalogPersistenceIntegrationTest {
     @Test
     @DisplayName("規格應無法指向他貨主的款——複合外鍵擋住跨貨主的參照")
     void rejectsSkuPointingAtAnotherOwnersProduct() {
-        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "烏龍茶", TemperatureZone.AMBIENT));
+        productRepository.save(new Product(UUID.randomUUID(), OWNER_A, "P-1", "烏龍茶", TemperatureZoneType.AMBIENT));
         entityManager.flush();
 
         // 只有 OWNER_A 有 P-1；OWNER_B 的規格指向同一個款號應被複合外鍵擋下。

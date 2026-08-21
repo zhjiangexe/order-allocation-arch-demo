@@ -14,7 +14,7 @@ import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
-import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -56,8 +56,8 @@ class EventDrivenFulfillmentCancellationCoordinatorTest {
         ShipmentView shipment = mock(ShipmentView.class);
         when(shipment.shipmentId()).thenReturn(SHIPMENT_ID);
         when(getOrderShipmentsUsecase.query(ORDER_ID)).thenReturn(List.of(shipment));
-        when(cancelShipmentUsecase.handle(any())).thenReturn(CancellationOutcome.CANCELLED);
-        when(cancelOrderUsecase.cancel(any())).thenReturn(Order.CancellationResult.CANCELLED);
+        when(cancelShipmentUsecase.handle(any())).thenReturn(ShipmentCancellationStatus.CANCELLED);
+        when(cancelOrderUsecase.cancel(any())).thenReturn(Order.CancellationStatus.CANCELLED);
 
         FulfillmentCancellationResult result = coordinator.request(request());
 
@@ -73,7 +73,7 @@ class EventDrivenFulfillmentCancellationCoordinatorTest {
         ShipmentView shipment = mock(ShipmentView.class);
         when(shipment.shipmentId()).thenReturn(SHIPMENT_ID);
         when(getOrderShipmentsUsecase.query(ORDER_ID)).thenReturn(List.of(shipment));
-        when(cancelShipmentUsecase.handle(any())).thenReturn(CancellationOutcome.PUTBACK_REQUIRED);
+        when(cancelShipmentUsecase.handle(any())).thenReturn(ShipmentCancellationStatus.PUTBACK_REQUIRED);
 
         FulfillmentCancellationResult result = coordinator.request(request());
 

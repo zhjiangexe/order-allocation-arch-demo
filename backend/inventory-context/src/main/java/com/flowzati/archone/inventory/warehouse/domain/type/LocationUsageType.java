@@ -20,7 +20,7 @@ package com.flowzati.archone.inventory.warehouse.domain.type;
  * 的 CHECK 表達，而不是一張可維護的分類表——可設定的值域會讓「新增第五種用途」看起來像
  * 資料維護，實際上每個分支都要跟著改。
  */
-public enum LocationUsage {
+public enum LocationUsageType {
 
     /** 倉庫內部的實體位置。只有這種算公司持有的庫存。 */
     INTERNAL,

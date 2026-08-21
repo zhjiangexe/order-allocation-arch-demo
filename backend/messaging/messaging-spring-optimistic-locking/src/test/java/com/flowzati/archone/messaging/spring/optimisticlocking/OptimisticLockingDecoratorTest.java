@@ -8,7 +8,7 @@ import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorOrders;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -29,12 +29,12 @@ class OptimisticLockingDecoratorTest {
             if (attempts.incrementAndGet() < 3) {
                 throw new OptimisticLockingFailureException("forced conflict");
             }
-            return ProcessingOutcome.PROCESSED;
+            return MessageProcessingStatus.PROCESSED;
         });
 
-        ProcessingOutcome outcome = chain.invokeNext(invocation("any-subscriber"));
+        MessageProcessingStatus outcome = chain.invokeNext(invocation("any-subscriber"));
 
-        assertThat(outcome).isEqualTo(ProcessingOutcome.PROCESSED);
+        assertThat(outcome).isEqualTo(MessageProcessingStatus.PROCESSED);
         assertThat(attempts).hasValue(3);
         assertThat(observer.retries).hasValue(2);
         assertThat(decorator.order())

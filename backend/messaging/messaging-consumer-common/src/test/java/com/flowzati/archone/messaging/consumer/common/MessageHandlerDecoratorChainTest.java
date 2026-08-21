@@ -22,25 +22,26 @@ class MessageHandlerDecoratorChainTest {
             }
 
             @Override
-            public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
-                return ProcessingOutcome.DUPLICATE;
+            public MessageProcessingStatus handle(
+                    MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+                return MessageProcessingStatus.DUPLICATE;
             }
         };
         MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(List.of(duplicate), invocation -> {
             terminalCalled.set(true);
-            return ProcessingOutcome.PROCESSED;
+            return MessageProcessingStatus.PROCESSED;
         });
 
-        assertThat(chain.invokeNext(invocation())).isEqualTo(ProcessingOutcome.DUPLICATE);
+        assertThat(chain.invokeNext(invocation())).isEqualTo(MessageProcessingStatus.DUPLICATE);
         assertThat(terminalCalled).isFalse();
     }
 
     @Test
     void preservesIgnoredUnhandledAsADistinctSuccessfulOutcome() {
         MessageHandlerDecoratorChain chain =
-                MessageHandlerDecoratorChain.create(List.of(), invocation -> ProcessingOutcome.IGNORED_UNHANDLED);
+                MessageHandlerDecoratorChain.create(List.of(), invocation -> MessageProcessingStatus.IGNORED_UNHANDLED);
 
-        assertThat(chain.invokeNext(invocation())).isEqualTo(ProcessingOutcome.IGNORED_UNHANDLED);
+        assertThat(chain.invokeNext(invocation())).isEqualTo(MessageProcessingStatus.IGNORED_UNHANDLED);
     }
 
     @Test
@@ -49,7 +50,7 @@ class MessageHandlerDecoratorChainTest {
         MessageHandlerDecorator second = passThrough(100);
 
         assertThatThrownBy(() -> MessageHandlerDecoratorChain.create(
-                        List.of(first, second), invocation -> ProcessingOutcome.PROCESSED))
+                        List.of(first, second), invocation -> MessageProcessingStatus.PROCESSED))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Duplicate message handler decorator order: 100");
     }
@@ -62,7 +63,8 @@ class MessageHandlerDecoratorChainTest {
             }
 
             @Override
-            public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+            public MessageProcessingStatus handle(
+                    MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
                 return chain.invokeNext(invocation);
             }
         };

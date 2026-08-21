@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.allocation.application.usecase;
 
 import com.flowzati.archone.inventory.allocation.application.command.CancelAllocationDemandCommand;
-import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationResult;
+import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationStatus;
 import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationStepResult;
 import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationCancellationTransactions;
 import com.flowzati.archone.inventory.allocation.application.service.cancellation.AllocationExecutionCancellationCoordinator;
@@ -31,14 +31,14 @@ public class CancelAllocationDemandUsecase {
         this.clock = clock;
     }
 
-    public AllocationCancellationResult execute(CancelAllocationDemandCommand command) {
+    public AllocationCancellationStatus execute(CancelAllocationDemandCommand command) {
         AllocationCancellationStepResult checkpoint =
                 transactions.begin(command.allocationDemandId(), command.cancellationOperationId(), clock.instant());
         if (checkpoint.state() == AllocationCancellationState.COMPLETED) {
-            return AllocationCancellationResult.COMPLETED;
+            return AllocationCancellationStatus.COMPLETED;
         }
         if (checkpoint.state() == AllocationCancellationState.EXTERNAL_REJECTED) {
-            return AllocationCancellationResult.NOT_CANCELLABLE;
+            return AllocationCancellationStatus.NOT_CANCELLABLE;
         }
 
         if (checkpoint.state() == AllocationCancellationState.STARTED) {
@@ -46,7 +46,7 @@ public class CancelAllocationDemandUsecase {
                 checkpoint = transactions.completePendingOrRefresh(
                         command.allocationDemandId(), command.cancellationOperationId(), clock.instant());
                 if (checkpoint.state() == AllocationCancellationState.COMPLETED) {
-                    return AllocationCancellationResult.COMPLETED;
+                    return AllocationCancellationStatus.COMPLETED;
                 }
             }
             if (checkpoint.state() == AllocationCancellationState.STARTED) {
@@ -57,7 +57,7 @@ public class CancelAllocationDemandUsecase {
             }
         }
         if (checkpoint.state() == AllocationCancellationState.EXTERNAL_REJECTED) {
-            return AllocationCancellationResult.NOT_CANCELLABLE;
+            return AllocationCancellationStatus.NOT_CANCELLABLE;
         }
         return transactions.complete(command.allocationDemandId(), command.cancellationOperationId(), clock.instant());
     }

@@ -1,6 +1,6 @@
 package com.flowzati.archone.logisticsdata.infrastructure.entity;
 
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -33,11 +33,11 @@ public class ProductEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "temperature_zone", nullable = false)
-    private TemperatureZone temperatureZone;
+    private TemperatureZoneType temperatureZone;
 
     protected ProductEntity() {}
 
-    public ProductEntity(UUID id, UUID ownerId, String productCode, String name, TemperatureZone temperatureZone) {
+    public ProductEntity(UUID id, UUID ownerId, String productCode, String name, TemperatureZoneType temperatureZone) {
         this.id = id;
         this.ownerId = ownerId;
         this.productCode = productCode;
@@ -61,7 +61,7 @@ public class ProductEntity {
         return name;
     }
 
-    public TemperatureZone getTemperatureZone() {
+    public TemperatureZoneType getTemperatureZone() {
         return temperatureZone;
     }
 }

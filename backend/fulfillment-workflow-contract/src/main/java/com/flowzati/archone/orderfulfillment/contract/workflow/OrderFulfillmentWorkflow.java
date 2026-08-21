@@ -54,5 +54,5 @@ public interface OrderFulfillmentWorkflow {
 
     /** 提供 API／維運工具查詢，不取代各 bounded context 的 aggregate/read model。 */
     @QueryMethod(name = "state")
-    OrderFulfillmentWorkflowState state();
+    OrderFulfillmentWorkflowSnapshot state();
 }

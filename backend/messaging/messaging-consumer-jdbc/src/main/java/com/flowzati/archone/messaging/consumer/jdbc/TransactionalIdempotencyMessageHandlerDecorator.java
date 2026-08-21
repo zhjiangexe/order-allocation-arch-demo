@@ -5,7 +5,7 @@ import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorOrders;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.jdbc.MessagingTransactionTemplate;
 import java.util.Objects;
 
@@ -32,7 +32,7 @@ public final class TransactionalIdempotencyMessageHandlerDecorator implements Me
     }
 
     @Override
-    public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+    public MessageProcessingStatus handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
         Objects.requireNonNull(invocation, "Message handler invocation is required");
         Objects.requireNonNull(chain, "Message handler decorator chain is required");
 
@@ -41,7 +41,7 @@ public final class TransactionalIdempotencyMessageHandlerDecorator implements Me
                     invocation.context().subscriberId(),
                     invocation.message().id(),
                     invocation.message().type());
-            return claimed ? chain.invokeNext(invocation) : ProcessingOutcome.DUPLICATE;
+            return claimed ? chain.invokeNext(invocation) : MessageProcessingStatus.DUPLICATE;
         });
     }
 }

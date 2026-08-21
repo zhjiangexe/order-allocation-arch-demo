@@ -2,7 +2,7 @@ package com.flowzati.archone.messaging.events;
 
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageContext;
-import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
+import com.flowzati.archone.messaging.api.MessageHandlingStatus;
 import com.flowzati.archone.messaging.api.OutcomeAwareMessageHandler;
 import java.util.Objects;
 
@@ -38,7 +38,7 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
     }
 
     @Override
-    public MessageHandlingOutcome handleWithOutcome(Message message, MessageContext context) {
+    public MessageHandlingStatus handleWithOutcome(Message message, MessageContext context) {
         Objects.requireNonNull(context, "Message context is required");
         return dispatchWithOutcome(message, context.logicalChannel());
     }
@@ -49,19 +49,19 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
     }
 
     /** Returns ignored only after the global observer has accepted an unhandled event. */
-    public MessageHandlingOutcome dispatchWithOutcome(Message message, String expectedDestination) {
+    public MessageHandlingStatus dispatchWithOutcome(Message message, String expectedDestination) {
         if (message == null || isBlank(expectedDestination)) {
             throw new IllegalArgumentException("Integration Event dispatch fields are required");
         }
         String eventType = EventMessageHeaders.eventType(message);
         int contractVersion = EventMessageHeaders.contractVersion(message);
-        IntegrationEventType externalType = new IntegrationEventType(eventType, contractVersion);
+        IntegrationEventDescriptor externalType = new IntegrationEventDescriptor(eventType, contractVersion);
         Class<? extends IntegrationEvent> eventClass =
                 nameMapping.eventClassFor(externalType).orElse(null);
         if (eventClass == null) {
             handleUnhandled(
                     message, expectedDestination, externalType, UnhandledIntegrationEventReason.UNKNOWN_TYPE_VERSION);
-            return MessageHandlingOutcome.IGNORED_UNHANDLED;
+            return MessageHandlingStatus.IGNORED_UNHANDLED;
         }
         IntegrationEventHandlerRegistration<?> handler =
                 handlers.find(expectedDestination, eventClass).orElse(null);
@@ -71,7 +71,7 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
                     expectedDestination,
                     externalType,
                     UnhandledIntegrationEventReason.NO_HANDLER_FOR_DESTINATION);
-            return MessageHandlingOutcome.IGNORED_UNHANDLED;
+            return MessageHandlingStatus.IGNORED_UNHANDLED;
         }
         if (!externalType.equals(nameMapping.externalTypeFor(eventClass))) {
             throw new IllegalStateException(
@@ -83,7 +83,7 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
         IntegrationEvent event = deserialize(message, eventClass);
         requireMatchingContract(message, externalType, event);
         handler.invoke(new IntegrationEventEnvelope<>(message, aggregateType, aggregateId, message.id(), event));
-        return MessageHandlingOutcome.PROCESSED;
+        return MessageHandlingStatus.PROCESSED;
     }
 
     private String requiredContractHeader(Message message, String name) {
@@ -107,13 +107,14 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
     private void handleUnhandled(
             Message message,
             String destination,
-            IntegrationEventType externalType,
+            IntegrationEventDescriptor externalType,
             UnhandledIntegrationEventReason reason) {
         unhandledEventObserver.onUnhandled(new UnhandledIntegrationEvent(
                 message, destination, externalType.eventType(), externalType.contractVersion(), reason));
     }
 
-    private void requireMatchingContract(Message message, IntegrationEventType externalType, IntegrationEvent event) {
+    private void requireMatchingContract(
+            Message message, IntegrationEventDescriptor externalType, IntegrationEvent event) {
         if (!event.getEventId().equals(message.id())) {
             throw new IntegrationEventContractException("Integration Event ID header does not match payload");
         }
@@ -125,7 +126,7 @@ public final class IntegrationEventDispatcher implements OutcomeAwareMessageHand
 
     private void validateNameMappings() {
         handlers.eventClasses().forEach(eventClass -> {
-            IntegrationEventType externalType = Objects.requireNonNull(
+            IntegrationEventDescriptor externalType = Objects.requireNonNull(
                     nameMapping.externalTypeFor(eventClass),
                     "Integration Event name mapping returned no external type");
             Class<? extends IntegrationEvent> reverseMapped = Objects.requireNonNull(

@@ -36,7 +36,7 @@ class TemporalOrderingActivitiesAdapterTest {
         UUID requestId = UUID.randomUUID();
         Instant occurredAt = Instant.parse("2026-08-19T10:00:00Z");
         CancelOrderCommand cancelCommand = new CancelOrderCommand(requestId, orderId, occurredAt, "customer request");
-        when(cancelOrderUsecase.cancel(cancelCommand)).thenReturn(Order.CancellationResult.CANCELLED);
+        when(cancelOrderUsecase.cancel(cancelCommand)).thenReturn(Order.CancellationStatus.CANCELLED);
 
         activities.recordOrderFulfillment(
                 new RecordOrderFulfillmentActivityInput("process-1", orderId, shipmentId, occurredAt));

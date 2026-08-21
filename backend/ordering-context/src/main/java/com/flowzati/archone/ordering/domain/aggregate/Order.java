@@ -331,8 +331,8 @@ public class Order {
     }
 
     /**
-     * 取消這張單。已取消時回 {@link CancellationResult#ALREADY_CANCELLED}；已履約時回
-     * {@link CancellationResult#REJECTED}，兩者都不產生新的 Domain Event。
+     * 取消這張單。已取消時回 {@link CancellationStatus#ALREADY_CANCELLED}；已履約時回
+     * {@link CancellationStatus#REJECTED}，兩者都不產生新的 Domain Event。
      *
      * <p><b>與 {@link #markAllocated} 刻意不同慣例</b>。差別在驅動來源：
      *
@@ -353,14 +353,14 @@ public class Order {
      * <p><b>離倉後不得取消。</b>逆物流不在範圍內，因此 {@code FULFILLED} 必須明確拒絕取消；
      * 不能把沒有補償手段的路徑當作一般冪等重送。
      */
-    public CancellationResult cancel(UUID requestId, Instant cancelledAt, String reason) {
+    public CancellationStatus cancel(UUID requestId, Instant cancelledAt, String reason) {
         requireCancellationRequest(requestId, reason);
         if (status == OrderStatus.CANCELLED) {
             requireSameCancellation(requestId, cancelledAt, reason);
-            return CancellationResult.ALREADY_CANCELLED;
+            return CancellationStatus.ALREADY_CANCELLED;
         }
         if (status == OrderStatus.FULFILLED) {
-            return CancellationResult.REJECTED;
+            return CancellationStatus.REJECTED;
         }
         requireNotBefore(cancelledAt, receivedAt, "Cancelled time cannot be before received time");
         if (allocatedAt != null) {
@@ -371,7 +371,7 @@ public class Order {
         this.cancellationRequestId = requestId;
         this.cancellationReason = reason;
         events.add(new OrderCancelled(id, ownerId, deliveryTerms.facilityId(), cancelledAt));
-        return CancellationResult.CANCELLED;
+        return CancellationStatus.CANCELLED;
     }
 
     private static void requireCancellationRequest(UUID requestId, String reason) {
@@ -398,7 +398,7 @@ public class Order {
         }
     }
 
-    public enum CancellationResult {
+    public enum CancellationStatus {
         CANCELLED,
         ALREADY_CANCELLED,
         REJECTED

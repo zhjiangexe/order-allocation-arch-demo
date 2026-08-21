@@ -27,8 +27,8 @@ import com.flowzati.archone.wms.outbound.domain.event.ShipmentPutbackRequired;
 import com.flowzati.archone.wms.outbound.domain.event.ShipmentReadyForDispatch;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
-import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.wave.application.command.CompleteWaveCommand;
 import com.flowzati.archone.wms.outbound.wave.application.command.PlanWaveCommand;
@@ -142,10 +142,10 @@ class OutboundProcessTest {
         Shipment shipment = createTwoLineShipment(70, T0.plusSeconds(3_600));
         Wave wave = planSingleWave(T0.plusSeconds(7_200));
 
-        CancellationOutcome outcome =
+        ShipmentCancellationStatus outcome =
                 cancelShipment.handle(new CancelShipmentCommand("cancel-planned", shipment.id(), T0.plusSeconds(8)));
 
-        assertThat(outcome).isEqualTo(CancellationOutcome.CANCELLED);
+        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.CANCELLED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
         assertThat(shipment.pickTasks()).isEmpty();
         assertThat(events.getLast()).isInstanceOf(ShipmentCancelled.class);
@@ -161,9 +161,9 @@ class OutboundProcessTest {
         Shipment shipment = createTwoLineShipment(70, T0.plusSeconds(3_600));
         CancelShipmentCommand first = new CancelShipmentCommand("cancel-request-1", shipment.id(), T0.plusSeconds(8));
 
-        assertThat(cancelShipment.handle(first)).isEqualTo(CancellationOutcome.CANCELLED);
+        assertThat(cancelShipment.handle(first)).isEqualTo(ShipmentCancellationStatus.CANCELLED);
         int eventCountAfterCancellation = events.size();
-        assertThat(cancelShipment.handle(first)).isEqualTo(CancellationOutcome.ALREADY_CANCELLED);
+        assertThat(cancelShipment.handle(first)).isEqualTo(ShipmentCancellationStatus.ALREADY_CANCELLED);
         assertThat(events).hasSize(eventCountAfterCancellation);
 
         assertThatThrownBy(() -> cancelShipment.handle(
@@ -239,10 +239,10 @@ class OutboundProcessTest {
         Wave wave = planSingleWave(T0.plusSeconds(7_200));
         releaseWave.handle(new ReleaseWaveCommand(wave.id(), T0.plusSeconds(10)));
 
-        CancellationOutcome outcome =
+        ShipmentCancellationStatus outcome =
                 cancelShipment.handle(new CancelShipmentCommand("cancel-released", shipment.id(), T0.plusSeconds(20)));
 
-        assertThat(outcome).isEqualTo(CancellationOutcome.CANCELLED);
+        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.CANCELLED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
         assertThat(shipment.pickTasks()).allMatch(task -> task.status() == PickTaskStatus.CANCELLED);
         assertThat(events.getLast()).isInstanceOf(ShipmentCancelled.class);
@@ -259,10 +259,10 @@ class OutboundProcessTest {
         var firstTask = shipment.pickTasks().getFirst();
         confirmPick.handle(new ConfirmPickCommand(firstTask.id(), firstTask.requestedQuantity(), T0.plusSeconds(20)));
 
-        CancellationOutcome outcome =
+        ShipmentCancellationStatus outcome =
                 cancelShipment.handle(new CancelShipmentCommand("cancel-picked", shipment.id(), T0.plusSeconds(30)));
 
-        assertThat(outcome).isEqualTo(CancellationOutcome.PUTBACK_REQUIRED);
+        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.PUTBACK_REQUIRED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLING);
         assertThat(shipmentRepository.findById(shipment.id())).contains(shipment);
         assertThat(events.getLast()).isInstanceOf(ShipmentPutbackRequired.class);
@@ -322,10 +322,10 @@ class OutboundProcessTest {
         stageShipment.handle(new StageShipmentCommand(shipment.id(), T0.plusSeconds(50)));
         handOverShipment.handle(new HandOverShipmentCommand(shipment.id(), T0.plusSeconds(60)));
 
-        CancellationOutcome outcome = cancelShipment.handle(
+        ShipmentCancellationStatus outcome = cancelShipment.handle(
                 new CancelShipmentCommand("cancel-after-handover", shipment.id(), T0.plusSeconds(70)));
 
-        assertThat(outcome).isEqualTo(CancellationOutcome.REJECTED_AFTER_HANDOVER);
+        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.REJECTED_AFTER_HANDOVER);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.HANDED_OVER_TO_CARRIER);
         assertThat(events.getLast()).isInstanceOf(ShipmentCancellationRejected.class);
     }

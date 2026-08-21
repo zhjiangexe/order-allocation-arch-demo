@@ -21,10 +21,10 @@ import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationReque
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowCancellationState;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowInput;
-import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowOutcome;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowPhase;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowResult;
-import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowState;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowStatus;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
@@ -150,7 +150,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                 new RecordOrderFulfillmentActivityInput(processId, input.orderId(), shipmentId, fulfilledAt));
 
         return finish(
-                OrderFulfillmentWorkflowOutcome.FULFILLMENT_COMPLETED,
+                OrderFulfillmentWorkflowStatus.FULFILLMENT_COMPLETED,
                 "Shipment handed over; outbound movements and order fulfillment completed");
     }
 
@@ -220,8 +220,8 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
     }
 
     @Override
-    public OrderFulfillmentWorkflowState state() {
-        return new OrderFulfillmentWorkflowState(
+    public OrderFulfillmentWorkflowSnapshot state() {
+        return new OrderFulfillmentWorkflowSnapshot(
                 input.orderId(),
                 progress.phase(),
                 allocationCheckpoint.state(),
@@ -313,10 +313,10 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                 || cancellation.cancelledAt() == null) {
             throw WorkflowFailures.invariantViolation("Cannot finish cancellation before Order is cancelled");
         }
-        return finish(OrderFulfillmentWorkflowOutcome.ORDER_CANCELLED, detail);
+        return finish(OrderFulfillmentWorkflowStatus.ORDER_CANCELLED, detail);
     }
 
-    private OrderFulfillmentWorkflowResult finish(OrderFulfillmentWorkflowOutcome outcome, String detail) {
+    private OrderFulfillmentWorkflowResult finish(OrderFulfillmentWorkflowStatus outcome, String detail) {
         progress = new WorkflowProgress(OrderFulfillmentWorkflowPhase.FINISHED, outcome, workflowNow(), detail);
         return new OrderFulfillmentWorkflowResult(
                 input.orderId(),

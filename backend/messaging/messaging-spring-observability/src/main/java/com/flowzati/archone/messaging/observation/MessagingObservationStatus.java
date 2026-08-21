@@ -1,7 +1,7 @@
 package com.flowzati.archone.messaging.observation;
 
 /** Bounded lifecycle outcomes; values are safe for low-cardinality metric tags. */
-public enum MessagingObservationOutcome {
+public enum MessagingObservationStatus {
     UNKNOWN("unknown"),
     APPENDED("appended"),
     PROCESSED("processed"),
@@ -13,7 +13,7 @@ public enum MessagingObservationOutcome {
 
     private final String tagValue;
 
-    MessagingObservationOutcome(String tagValue) {
+    MessagingObservationStatus(String tagValue) {
         this.tagValue = tagValue;
     }
 

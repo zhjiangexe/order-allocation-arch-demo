@@ -1,9 +1,9 @@
 package com.flowzati.archone.orderfulfillment.workflow;
 
-import static com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowOutcome.FULFILLMENT_COMPLETED;
-import static com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowOutcome.ORDER_CANCELLED;
 import static com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowPhase.ALLOCATION;
 import static com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowPhase.SHIPMENT_HANDOVER;
+import static com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowStatus.FULFILLMENT_COMPLETED;
+import static com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowStatus.ORDER_CANCELLED;
 import static io.temporal.api.enums.v1.WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING;
 import static io.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,12 +57,12 @@ class OrderFulfillmentWorkflowTest {
     private static final String WORKFLOW_TASK_QUEUE = "order-fulfillment-test";
 
     private TestWorkflowEnvironment environment;
-    private RecordingState recording;
+    private WorkflowRecording recording;
 
     @BeforeEach
     void setUp() {
         environment = TestWorkflowEnvironment.newInstance();
-        recording = new RecordingState();
+        recording = new WorkflowRecording();
 
         Worker workflowWorker = environment.newWorker(WORKFLOW_TASK_QUEUE);
         workflowWorker.registerWorkflowImplementationTypes(OrderFulfillmentWorkflowImpl.class);
@@ -420,7 +420,7 @@ class OrderFulfillmentWorkflowTest {
                 committedAt);
     }
 
-    private static final class RecordingState {
+    private static final class WorkflowRecording {
         private volatile UUID shipmentId = UUID.randomUUID();
         private volatile CountDownLatch shipmentCreationGate = new CountDownLatch(0);
         private volatile CancelShipmentActivityStatus shipmentCancellationDecision =
@@ -443,7 +443,7 @@ class OrderFulfillmentWorkflowTest {
         private volatile CancelOrderActivityStatus orderCancellationStatus = CancelOrderActivityStatus.CANCELLED;
     }
 
-    private record RecordingInventoryActivities(RecordingState recording) implements InventoryActivities {
+    private record RecordingInventoryActivities(WorkflowRecording recording) implements InventoryActivities {
 
         @Override
         public void requestAllocation(RequestAllocationActivityInput input) {
@@ -459,7 +459,7 @@ class OrderFulfillmentWorkflowTest {
         }
     }
 
-    private record RecordingOrderingActivities(RecordingState recording) implements OrderingActivities {
+    private record RecordingOrderingActivities(WorkflowRecording recording) implements OrderingActivities {
 
         @Override
         public void recordOrderFulfillment(RecordOrderFulfillmentActivityInput input) {
@@ -482,7 +482,7 @@ class OrderFulfillmentWorkflowTest {
         }
     }
 
-    private record RecordingWmsActivities(RecordingState recording) implements WmsActivities {
+    private record RecordingWmsActivities(WorkflowRecording recording) implements WmsActivities {
 
         @Override
         public CreateShipmentActivityResult createShipment(CreateShipmentActivityInput input) {

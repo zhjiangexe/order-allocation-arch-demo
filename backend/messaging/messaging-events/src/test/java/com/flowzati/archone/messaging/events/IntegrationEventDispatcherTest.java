@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
-import com.flowzati.archone.messaging.api.MessageHandlingOutcome;
+import com.flowzati.archone.messaging.api.MessageHandlingStatus;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -60,10 +60,10 @@ class IntegrationEventDispatcherTest {
                 trackingDeserializer(deserialized), handlers(new AtomicReference<>()), mapping(), unhandled::set);
         Message message = message(UUID.randomUUID(), TestEvent.EVENT_TYPE, 2);
 
-        MessageHandlingOutcome outcome = dispatcher.dispatchWithOutcome(message, "order-events");
+        MessageHandlingStatus outcome = dispatcher.dispatchWithOutcome(message, "order-events");
 
         assertThat(deserialized).isFalse();
-        assertThat(outcome).isEqualTo(MessageHandlingOutcome.IGNORED_UNHANDLED);
+        assertThat(outcome).isEqualTo(MessageHandlingStatus.IGNORED_UNHANDLED);
         assertThat(unhandled.get())
                 .isEqualTo(new UnhandledIntegrationEvent(
                         message,
@@ -85,10 +85,10 @@ class IntegrationEventDispatcherTest {
                 trackingDeserializer(deserialized), handlers(new AtomicReference<>()), mapping, unhandled::set);
         Message message = message(UUID.randomUUID(), OtherEvent.EVENT_TYPE, 1);
 
-        MessageHandlingOutcome outcome = dispatcher.dispatchWithOutcome(message, "order-events");
+        MessageHandlingStatus outcome = dispatcher.dispatchWithOutcome(message, "order-events");
 
         assertThat(deserialized).isFalse();
-        assertThat(outcome).isEqualTo(MessageHandlingOutcome.IGNORED_UNHANDLED);
+        assertThat(outcome).isEqualTo(MessageHandlingStatus.IGNORED_UNHANDLED);
         assertThat(unhandled.get().reason()).isEqualTo(UnhandledIntegrationEventReason.NO_HANDLER_FOR_DESTINATION);
     }
 

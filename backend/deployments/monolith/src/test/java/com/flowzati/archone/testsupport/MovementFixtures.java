@@ -2,9 +2,9 @@ package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingType;
+import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
 import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsage;
+import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -42,17 +42,18 @@ public final class MovementFixtures {
     private MovementFixtures() {}
 
     /** 測試倉的出庫類型：庫存位置 → 客戶。 */
-    public static PickingType outboundType() {
+    public static PickingDefinition outboundType() {
         return outboundTypeAt(OUTBOUND_TYPE_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID);
     }
 
-    public static PickingType outboundTypeAt(UUID id, UUID facilityId, UUID stockLocationId) {
-        return new PickingType(id, facilityId, PickingDirection.OUTBOUND, "出貨", stockLocationId, CUSTOMERS_LOCATION_ID);
+    public static PickingDefinition outboundTypeAt(UUID id, UUID facilityId, UUID stockLocationId) {
+        return new PickingDefinition(
+                id, facilityId, PickingDirection.OUTBOUND, "出貨", stockLocationId, CUSTOMERS_LOCATION_ID);
     }
 
     /** 測試倉的入庫類型：供應商 → 庫存位置。方向與出庫相反。 */
-    public static PickingType inboundType() {
-        return new PickingType(
+    public static PickingDefinition inboundType() {
+        return new PickingDefinition(
                 INBOUND_TYPE_ID,
                 OrderFixtures.FACILITY_ID,
                 PickingDirection.INBOUND,
@@ -64,13 +65,13 @@ public final class MovementFixtures {
     /** 供應商位置。入庫的起點，不屬於任何倉。 */
     public static StockLocation suppliersLocation() {
         return StockLocation.virtual(
-                SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "共用 fixture 的供應商", LocationUsage.SUPPLIER);
+                SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "共用 fixture 的供應商", LocationUsageType.SUPPLIER);
     }
 
     /** 客戶位置。出庫的終點，不屬於任何倉。 */
     public static StockLocation customersLocation() {
         return StockLocation.virtual(
-                CUSTOMERS_LOCATION_ID, "FIXTURE/Customers", "共用 fixture 的客戶", LocationUsage.CUSTOMER);
+                CUSTOMERS_LOCATION_ID, "FIXTURE/Customers", "共用 fixture 的客戶", LocationUsageType.CUSTOMER);
     }
 
     /** 測試倉的內部位置。usecase 要靠它從位置反查倉。 */

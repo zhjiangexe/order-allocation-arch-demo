@@ -13,11 +13,11 @@ import com.flowzati.archone.inventory.movement.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.movement.domain.repository.StockMoveRepository;
 import com.flowzati.archone.inventory.movement.domain.repository.StockPickingRepository;
 import com.flowzati.archone.inventory.movement.domain.type.PickingState;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingType;
+import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
 import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
 import com.flowzati.archone.inventory.warehouse.domain.repository.PickingTypeRepository;
 import com.flowzati.archone.inventory.warehouse.domain.repository.StockLocationRepository;
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsage;
+import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
@@ -27,7 +27,7 @@ import com.flowzati.archone.logisticsdata.domain.repository.FacilityRepository;
 import com.flowzati.archone.logisticsdata.domain.repository.OwnerRepository;
 import com.flowzati.archone.logisticsdata.domain.repository.ProductRepository;
 import com.flowzati.archone.logisticsdata.domain.repository.SkuRepository;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -238,14 +238,14 @@ public class DevSeedDataInitializer implements ApplicationRunner {
         ownerRepository.save(new Owner(SECOND_OWNER_ID, "OWNER-B", "乙貨主"));
 
         // 甲貨主：常溫一款帶兩個規格（重量不同），冷凍一款
-        product(FIRST_OWNER_ID, 11, AMBIENT_PRODUCT_CODE, "烏龍茶", TemperatureZone.AMBIENT);
-        product(FIRST_OWNER_ID, 12, FROZEN_PRODUCT_CODE, "冷凍水餃", TemperatureZone.FROZEN);
+        product(FIRST_OWNER_ID, 11, AMBIENT_PRODUCT_CODE, "烏龍茶", TemperatureZoneType.AMBIENT);
+        product(FIRST_OWNER_ID, 12, FROZEN_PRODUCT_CODE, "冷凍水餃", TemperatureZoneType.FROZEN);
         sku(FIRST_OWNER_ID, 21, AVAILABLE_SKU, AMBIENT_PRODUCT_CODE, "500ml", 520);
         sku(FIRST_OWNER_ID, 22, EMPTY_SKU, AMBIENT_PRODUCT_CODE, "1L", 1000);
         sku(FIRST_OWNER_ID, 23, PARTIALLY_RESERVED_SKU, FROZEN_PRODUCT_CODE, "500g", 500);
 
         // 乙貨主：刻意使用與甲貨主相同的款號與 SKU 代碼，且是完全不同的商品
-        product(SECOND_OWNER_ID, 13, AMBIENT_PRODUCT_CODE, "麥茶", TemperatureZone.AMBIENT);
+        product(SECOND_OWNER_ID, 13, AMBIENT_PRODUCT_CODE, "麥茶", TemperatureZoneType.AMBIENT);
         sku(SECOND_OWNER_ID, 24, AVAILABLE_SKU, AMBIENT_PRODUCT_CODE, "600ml", 610);
         sku(SECOND_OWNER_ID, 25, EMPTY_SKU, AMBIENT_PRODUCT_CODE, "1L", 1050);
     }
@@ -289,14 +289,14 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     }
 
     private void outboundType(UUID id, UUID facilityId, UUID stockLocationId, String name) {
-        pickingTypeRepository.save(new PickingType(
+        pickingTypeRepository.save(new PickingDefinition(
                 id, facilityId, PickingDirection.OUTBOUND, name, stockLocationId, CUSTOMERS_LOCATION_ID));
     }
 
     /** 入庫的方向與出庫相反：供應商 → 該倉的庫存位置。 */
     private void inboundType(UUID id, UUID facilityId, UUID stockLocationId, String name) {
-        pickingTypeRepository.save(
-                new PickingType(id, facilityId, PickingDirection.INBOUND, name, VENDORS_LOCATION_ID, stockLocationId));
+        pickingTypeRepository.save(new PickingDefinition(
+                id, facilityId, PickingDirection.INBOUND, name, VENDORS_LOCATION_ID, stockLocationId));
     }
 
     /**
@@ -319,11 +319,11 @@ public class DevSeedDataInitializer implements ApplicationRunner {
                 StockLocation.internal(SOUTH_STOCK_LOCATION_ID, SOUTH_FACILITY_ID, "WH-SOUTH/Stock", "南部倉／庫存"));
 
         stockLocationRepository.save(
-                StockLocation.virtual(VENDORS_LOCATION_ID, "Vendors", "供應商", LocationUsage.SUPPLIER));
+                StockLocation.virtual(VENDORS_LOCATION_ID, "Vendors", "供應商", LocationUsageType.SUPPLIER));
         stockLocationRepository.save(
-                StockLocation.virtual(CUSTOMERS_LOCATION_ID, "Customers", "客戶", LocationUsage.CUSTOMER));
+                StockLocation.virtual(CUSTOMERS_LOCATION_ID, "Customers", "客戶", LocationUsageType.CUSTOMER));
         stockLocationRepository.save(StockLocation.virtual(
-                INVENTORY_ADJUSTMENT_LOCATION_ID, "Inventory adjustment", "盤點調整", LocationUsage.INVENTORY));
+                INVENTORY_ADJUSTMENT_LOCATION_ID, "Inventory adjustment", "盤點調整", LocationUsageType.INVENTORY));
     }
 
     private void seedStockQuants() {
@@ -662,7 +662,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
                 null);
     }
 
-    private void product(UUID ownerId, int idSuffix, String productCode, String name, TemperatureZone zone) {
+    private void product(UUID ownerId, int idSuffix, String productCode, String name, TemperatureZoneType zone) {
         productRepository.save(new Product(uuid(idSuffix), ownerId, productCode, name, zone));
     }
 

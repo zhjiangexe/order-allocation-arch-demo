@@ -146,7 +146,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         // Step 3：對帳第一階段——前 500 張應該已配置，blocker 與其後 499 張仍應卡在 BACKORDERED。
         assertReconciledState(
                 stockQuantId,
-                new ExpectedState(
+                new ExpectedSnapshot(
                         /* allocated */ FITTING_ORDERS_BEFORE_BLOCKER,
                         /* backordered */ TOTAL_ORDERS - FITTING_ORDERS_BEFORE_BLOCKER,
                         /* reservationCount */ FITTING_ORDERS_BEFORE_BLOCKER,
@@ -169,7 +169,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         int totalAvailableIncrease = FIRST_AVAILABILITY_INCREASE + SECOND_AVAILABILITY_INCREASE;
         assertReconciledState(
                 stockQuantId,
-                new ExpectedState(
+                new ExpectedSnapshot(
                         /* allocated */ TOTAL_ORDERS,
                         /* backordered */ 0,
                         /* reservationCount */ TOTAL_ORDERS,
@@ -290,7 +290,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         return orderRepository.findById(orderId).orElseThrow().getStatus();
     }
 
-    private void assertReconciledState(UUID stockQuantId, ExpectedState expected) {
+    private void assertReconciledState(UUID stockQuantId, ExpectedSnapshot expected) {
         // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
         // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
         outcomeDrain().drain();
@@ -406,7 +406,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     private record BackorderQueue(UUID firstOrderId, UUID blockerOrderId, UUID lastOrderId) {}
 
     /** 某一階段補貨後，預期的持久化狀態快照。 */
-    private record ExpectedState(
+    private record ExpectedSnapshot(
             int allocated,
             int backordered,
             int reservationCount,

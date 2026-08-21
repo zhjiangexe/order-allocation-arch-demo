@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.warehouse.infrastructure.repository;
 
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingType;
+import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
 import com.flowzati.archone.inventory.warehouse.domain.repository.PickingTypeRepository;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
 import com.flowzati.archone.inventory.warehouse.infrastructure.mapper.PickingTypeMapper;
@@ -19,12 +19,12 @@ public class PickingTypeRepositoryImpl implements PickingTypeRepository {
     }
 
     @Override
-    public void save(PickingType pickingType) {
+    public void save(PickingDefinition pickingType) {
         repository.save(PickingTypeMapper.toEntity(pickingType));
     }
 
     @Override
-    public Optional<PickingType> find(UUID facilityId, PickingDirection code) {
+    public Optional<PickingDefinition> find(UUID facilityId, PickingDirection code) {
         if (facilityId == null || code == null) {
             return Optional.empty();
         }

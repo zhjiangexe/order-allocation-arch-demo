@@ -14,8 +14,8 @@ import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageProducer;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.consumer.common.OutcomeMessageHandler;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
 import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMessageHandlerDecorator;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingDecorator;
@@ -78,20 +78,20 @@ class AllocationTransactionalMessageChainIntegrationTest {
             if (attempts.incrementAndGet() <= 2) {
                 throw new OptimisticLockingFailureException("forced conflict");
             }
-            return ProcessingOutcome.PROCESSED;
+            return MessageProcessingStatus.PROCESSED;
         });
         MessageHandlerInvocation invocation = invocation(inboundMessageId);
 
-        ProcessingOutcome outcome = chain.invokeNext(invocation);
+        MessageProcessingStatus outcome = chain.invokeNext(invocation);
 
-        assertThat(outcome).isEqualTo(ProcessingOutcome.PROCESSED);
+        assertThat(outcome).isEqualTo(MessageProcessingStatus.PROCESSED);
         assertThat(attempts).hasValue(3);
         assertThat(transactionIds).hasSize(3).doesNotHaveDuplicates();
         assertThat(count("event_inbox", "event_id", inboundMessageId)).isOne();
         assertThat(count("owners", "id", ownerId)).isOne();
         assertThat(count("event_outbox", "id", outboxMessageId)).isOne();
 
-        assertThat(chain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.DUPLICATE);
+        assertThat(chain.invokeNext(invocation)).isEqualTo(MessageProcessingStatus.DUPLICATE);
         assertThat(attempts).hasValue(3);
     }
 

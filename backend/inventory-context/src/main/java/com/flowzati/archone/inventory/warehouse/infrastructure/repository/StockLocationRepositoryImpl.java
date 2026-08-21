@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.warehouse.infrastructure.repository;
 
 import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
 import com.flowzati.archone.inventory.warehouse.domain.repository.StockLocationRepository;
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsage;
+import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
 import com.flowzati.archone.inventory.warehouse.infrastructure.mapper.StockLocationMapper;
 import com.flowzati.archone.inventory.warehouse.infrastructure.repository.jpa.JpaStockLocationRepository;
 import java.util.List;
@@ -37,7 +37,7 @@ public class StockLocationRepositoryImpl implements StockLocationRepository {
         if (facilityId == null) {
             return List.of();
         }
-        return repository.findAllByFacilityIdAndUsageOrderByCode(facilityId, LocationUsage.INTERNAL).stream()
+        return repository.findAllByFacilityIdAndUsageOrderByCode(facilityId, LocationUsageType.INTERNAL).stream()
                 .map(StockLocationMapper::toDomain)
                 .toList();
     }

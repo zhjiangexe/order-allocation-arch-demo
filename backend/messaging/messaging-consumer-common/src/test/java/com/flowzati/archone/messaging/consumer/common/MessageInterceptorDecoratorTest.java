@@ -21,10 +21,10 @@ class MessageInterceptorDecoratorTest {
                 new MessageInterceptorDecorator(List.of(interceptor("first", calls), interceptor("second", calls)));
         MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(List.of(decorator), invocation -> {
             calls.add("handler");
-            return ProcessingOutcome.PROCESSED;
+            return MessageProcessingStatus.PROCESSED;
         });
 
-        assertThat(chain.invokeNext(invocation())).isEqualTo(ProcessingOutcome.PROCESSED);
+        assertThat(chain.invokeNext(invocation())).isEqualTo(MessageProcessingStatus.PROCESSED);
         assertThat(calls)
                 .containsExactly(
                         "first.preReceive",
@@ -80,9 +80,10 @@ class MessageInterceptorDecoratorTest {
         };
         MessageHandlerInvocation invocation = invocation();
         MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
-                List.of(new MessageInterceptorDecorator(List.of(contextual))), ignored -> ProcessingOutcome.DUPLICATE);
+                List.of(new MessageInterceptorDecorator(List.of(contextual))),
+                ignored -> MessageProcessingStatus.DUPLICATE);
 
-        assertThat(chain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.DUPLICATE);
+        assertThat(chain.invokeNext(invocation)).isEqualTo(MessageProcessingStatus.DUPLICATE);
         assertThat(contexts)
                 .containsExactly(
                         invocation.context(), invocation.context(), invocation.context(), invocation.context());

@@ -4,7 +4,7 @@ import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecorator;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorOrders;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -40,12 +40,12 @@ public final class OptimisticLockingDecorator implements MessageHandlerDecorator
     }
 
     @Override
-    public ProcessingOutcome handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
+    public MessageProcessingStatus handle(MessageHandlerInvocation invocation, MessageHandlerDecoratorChain chain) {
         AtomicInteger attempts = new AtomicInteger();
         try {
             return retryOperations.execute(new Retryable<>() {
                 @Override
-                public ProcessingOutcome execute() {
+                public MessageProcessingStatus execute() {
                     int attempt = attempts.incrementAndGet();
                     if (attempt > 1) {
                         observers.forEach(observer -> observer.onRetry(invocation, attempt));

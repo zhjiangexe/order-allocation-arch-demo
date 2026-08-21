@@ -9,7 +9,7 @@ import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.api.MessagePublicationContext;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.consumer.observation.ConsumerObservationDecorator;
 import com.flowzati.archone.messaging.producer.observation.ProducerObservationInterceptor;
 import io.micrometer.observation.ObservationHandler;
@@ -125,7 +125,7 @@ class MessagingTracePropagationTest {
             MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
                     List.of(new ConsumerObservationDecorator(registry)), invocation -> {
                         traceId.set(tracer.currentSpan().context().traceId());
-                        return ProcessingOutcome.PROCESSED;
+                        return MessageProcessingStatus.PROCESSED;
                     });
             chain.invokeNext(new MessageHandlerInvocation(message, new MessageContext("ordering", "order-events", 1)));
             return traceId.get();

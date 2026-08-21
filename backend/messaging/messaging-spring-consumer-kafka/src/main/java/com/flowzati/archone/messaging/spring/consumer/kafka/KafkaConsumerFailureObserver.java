@@ -13,8 +13,11 @@ public interface KafkaConsumerFailureObserver {
         return NoOpKafkaConsumerFailureObserver.INSTANCE;
     }
 
-    enum NoOpKafkaConsumerFailureObserver implements KafkaConsumerFailureObserver {
-        INSTANCE;
+    final class NoOpKafkaConsumerFailureObserver implements KafkaConsumerFailureObserver {
+
+        private static final NoOpKafkaConsumerFailureObserver INSTANCE = new NoOpKafkaConsumerFailureObserver();
+
+        private NoOpKafkaConsumerFailureObserver() {}
 
         @Override
         public void retryScheduled(KafkaConsumerFailureContext context, long nextBackOffMillis) {}

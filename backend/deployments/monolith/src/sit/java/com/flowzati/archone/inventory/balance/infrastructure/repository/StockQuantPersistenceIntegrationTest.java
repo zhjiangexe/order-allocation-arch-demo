@@ -240,9 +240,9 @@ class StockQuantPersistenceIntegrationTest {
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
-    @EnumSource(QuantityMutation.class)
+    @EnumSource(QuantityMutationType.class)
     @DisplayName("reserve、release、receive 與 consume 儲存時都應更新 timestamp 與 version")
-    void updatesTimestampAndVersionForEveryQuantityMutation(QuantityMutation mutation) {
+    void updatesTimestampAndVersionForEveryQuantityMutation(QuantityMutationType mutation) {
         StockQuantEntity initial = persistBatch(STOCK_QUANT_ID, StockFixtures.EXPIRES_ON, 10, 2);
         Long initialVersion = initial.getVersion();
         setOldUpdatedAt(STOCK_QUANT_ID);
@@ -481,7 +481,7 @@ class StockQuantPersistenceIntegrationTest {
         return UUID.fromString("00000000-0000-0000-0000-%012d".formatted(suffix));
     }
 
-    enum QuantityMutation {
+    enum QuantityMutationType {
         RESERVE(10, 3) {
             @Override
             void apply(StockQuant stockQuant) {
@@ -511,7 +511,7 @@ class StockQuantPersistenceIntegrationTest {
         private final int expectedOnHandQuantity;
         private final int expectedReservedQuantity;
 
-        QuantityMutation(int expectedOnHandQuantity, int expectedReservedQuantity) {
+        QuantityMutationType(int expectedOnHandQuantity, int expectedReservedQuantity) {
             this.expectedOnHandQuantity = expectedOnHandQuantity;
             this.expectedReservedQuantity = expectedReservedQuantity;
         }

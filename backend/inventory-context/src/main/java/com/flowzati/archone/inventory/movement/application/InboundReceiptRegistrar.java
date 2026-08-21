@@ -5,7 +5,7 @@ import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockPicking;
 import com.flowzati.archone.inventory.movement.domain.repository.StockMoveRepository;
 import com.flowzati.archone.inventory.movement.domain.repository.StockPickingRepository;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingType;
+import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
 import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
 import com.flowzati.archone.inventory.warehouse.domain.repository.PickingTypeRepository;
 import com.flowzati.archone.inventory.warehouse.domain.repository.StockLocationRepository;
@@ -50,12 +50,12 @@ public class InboundReceiptRegistrar {
      *
      * <p>picking 不帶 order、move 不帶 order line，因為這是 stock context 的收貨作業，不是
      * outbound order demand。作業類型提供預設來源；目的地使用 {@code locationId}，不可被
-     * {@link PickingType#defaultToLocationId()} 覆蓋。這一步只記錄待完成的 warehouse execution，
+     * {@link PickingDefinition#defaultToLocationId()} 覆蓋。這一步只記錄待完成的 warehouse execution，
      * 不直接改庫存。
      */
     public List<StockMove> register(
             UUID facilityId, UUID ownerId, UUID locationId, String skuCode, int quantity, Instant now) {
-        PickingType type = operationTypeFor(facilityId, locationId, PickingDirection.INBOUND);
+        PickingDefinition type = operationTypeFor(facilityId, locationId, PickingDirection.INBOUND);
 
         UUID pickingId = IdGenerator.nextId();
         stockPickingRepository.save(
@@ -80,7 +80,7 @@ public class InboundReceiptRegistrar {
      * Facility，再以 Facility 與方向解析作業類型。這避免需求的位置與作業類型來自
      * 不同 Facility，卻仍建出一張起點錯誤的搬運。
      */
-    private PickingType operationTypeFor(UUID facilityId, UUID locationId, PickingDirection direction) {
+    private PickingDefinition operationTypeFor(UUID facilityId, UUID locationId, PickingDirection direction) {
         StockLocation location = stockLocationRepository
                 .findById(locationId)
                 .orElseThrow(() -> new IllegalStateException("Stock location " + locationId + " no longer exists"));

@@ -8,7 +8,7 @@ import com.flowzati.archone.messaging.consumer.common.DuplicateMessageDetector;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorChain;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerDecoratorOrders;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
-import com.flowzati.archone.messaging.consumer.common.ProcessingOutcome;
+import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMessageHandlerDecorator;
 import com.flowzati.archone.messaging.jdbc.MessagingTransactionCallback;
 import com.flowzati.archone.messaging.jdbc.MessagingTransactionTemplate;
@@ -30,10 +30,10 @@ class TransactionalIdempotencyDecoratorContractTest {
         MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(List.of(decorator), handled -> {
             assertThat(transaction.isActive()).isTrue();
             calls.add("handler");
-            return ProcessingOutcome.PROCESSED;
+            return MessageProcessingStatus.PROCESSED;
         });
 
-        assertThat(chain.invokeNext(invocation)).isEqualTo(ProcessingOutcome.PROCESSED);
+        assertThat(chain.invokeNext(invocation)).isEqualTo(MessageProcessingStatus.PROCESSED);
         assertThat(decorator.order()).isEqualTo(MessageHandlerDecoratorOrders.TRANSACTIONAL_IDEMPOTENCY);
         assertThat(calls).containsExactly("transaction-begin", "claim", "handler", "transaction-commit");
         assertThat(detector.subscriberId).isEqualTo("stock-allocation");
@@ -50,10 +50,10 @@ class TransactionalIdempotencyDecoratorContractTest {
         MessageHandlerDecoratorChain chain = MessageHandlerDecoratorChain.create(
                 List.of(new TransactionalIdempotencyMessageHandlerDecorator(transaction, detector)), handled -> {
                     handlerCalled.set(true);
-                    return ProcessingOutcome.PROCESSED;
+                    return MessageProcessingStatus.PROCESSED;
                 });
 
-        assertThat(chain.invokeNext(invocation())).isEqualTo(ProcessingOutcome.DUPLICATE);
+        assertThat(chain.invokeNext(invocation())).isEqualTo(MessageProcessingStatus.DUPLICATE);
         assertThat(handlerCalled).isFalse();
         assertThat(calls).containsExactly("transaction-begin", "claim", "transaction-commit");
     }

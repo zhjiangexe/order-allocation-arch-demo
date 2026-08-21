@@ -12,7 +12,7 @@ import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUseca
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentAllocationSnapshotConflictException;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
-import com.flowzati.archone.wms.outbound.domain.type.CancellationOutcome;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
 import com.flowzati.archone.wms.shared.application.IdGenerator;
 import io.temporal.failure.ApplicationFailure;
 
@@ -62,7 +62,7 @@ public final class TemporalWmsActivitiesAdapter implements WmsActivities {
 
     @Override
     public CancelShipmentActivityStatus cancelShipment(CancelShipmentActivityInput input) {
-        CancellationOutcome outcome;
+        ShipmentCancellationStatus outcome;
         try {
             outcome = cancelShipmentUsecase.handle(
                     new CancelShipmentCommand(input.requestId().toString(), input.shipmentId(), input.requestedAt()));

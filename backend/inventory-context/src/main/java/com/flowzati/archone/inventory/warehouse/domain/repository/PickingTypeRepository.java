@@ -1,13 +1,13 @@
 package com.flowzati.archone.inventory.warehouse.domain.repository;
 
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingType;
+import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface PickingTypeRepository {
 
-    void save(PickingType pickingType);
+    void save(PickingDefinition pickingType);
 
     /**
      * 某個物流設施的某個方向的作業類型。
@@ -18,5 +18,5 @@ public interface PickingTypeRepository {
      * <p>查無回空而不拋錯，與位置的解析同一個判準：呼叫端要的處置不同——建立出庫單需要一個
      * 明確的失敗，而診斷查詢只要看得到「這個設施沒有設出庫類型」。
      */
-    Optional<PickingType> find(UUID facilityId, PickingDirection code);
+    Optional<PickingDefinition> find(UUID facilityId, PickingDirection code);
 }

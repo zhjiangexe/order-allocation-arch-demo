@@ -34,12 +34,12 @@ public class CancelOrderUsecase {
     }
 
     @Transactional
-    public Order.CancellationResult cancel(CancelOrderCommand command) {
+    public Order.CancellationStatus cancel(CancelOrderCommand command) {
         Order order = orderRepository
                 .findById(command.orderId())
                 .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
-        Order.CancellationResult result = order.cancel(command.requestId(), command.requestedAt(), command.reason());
-        if (result != Order.CancellationResult.CANCELLED) {
+        Order.CancellationStatus result = order.cancel(command.requestId(), command.requestedAt(), command.reason());
+        if (result != Order.CancellationStatus.CANCELLED) {
             return result;
         }
 

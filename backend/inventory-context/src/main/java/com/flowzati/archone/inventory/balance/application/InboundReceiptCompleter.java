@@ -11,7 +11,7 @@ import com.flowzati.archone.inventory.movement.domain.repository.StockMoveReposi
 import com.flowzati.archone.inventory.movement.domain.repository.StockPickingRepository;
 import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
 import com.flowzati.archone.inventory.warehouse.domain.repository.StockLocationRepository;
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsage;
+import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ public class InboundReceiptCompleter {
             throw new IllegalArgumentException("At least one stock move is required");
         }
 
-        Map<UUID, LocationUsage> locationUsages = loadRequiredLocationUsages(moves);
+        Map<UUID, LocationUsageType> locationUsages = loadRequiredLocationUsages(moves);
         moves.forEach(move -> requireIncoming(move, locationUsages));
         List<StockPicking> pickings = loadRequiredPickings(moves);
         Map<ReceivingBatchKey, StockQuant> receivingQuants = resolveReceivingQuants(moves, batchIdentity);
@@ -65,25 +65,25 @@ public class InboundReceiptCompleter {
         persistCompletion(receivingQuants.values(), moves, lines, pickings);
     }
 
-    private Map<UUID, LocationUsage> loadRequiredLocationUsages(List<StockMove> moves) {
+    private Map<UUID, LocationUsageType> loadRequiredLocationUsages(List<StockMove> moves) {
         Set<UUID> locationIds = new LinkedHashSet<>();
         for (StockMove move : moves) {
             locationIds.add(move.getFromLocationId());
             locationIds.add(move.getToLocationId());
         }
 
-        Map<UUID, LocationUsage> usagesById = new LinkedHashMap<>();
+        Map<UUID, LocationUsageType> usagesById = new LinkedHashMap<>();
         for (UUID locationId : locationIds) {
             usagesById.put(locationId, usageOf(locationId));
         }
         return usagesById;
     }
 
-    private void requireIncoming(StockMove move, Map<UUID, LocationUsage> locationUsages) {
-        if (locationUsages.get(move.getFromLocationId()) == LocationUsage.INTERNAL) {
+    private void requireIncoming(StockMove move, Map<UUID, LocationUsageType> locationUsages) {
+        if (locationUsages.get(move.getFromLocationId()) == LocationUsageType.INTERNAL) {
             throw new IllegalStateException("Completing an outgoing movement is not implemented until shipping exists");
         }
-        if (locationUsages.get(move.getToLocationId()) != LocationUsage.INTERNAL) {
+        if (locationUsages.get(move.getToLocationId()) != LocationUsageType.INTERNAL) {
             throw new IllegalStateException(
                     "A completed inbound movement must end in an internal location, was " + move.getToLocationId());
         }
@@ -169,7 +169,7 @@ public class InboundReceiptCompleter {
         pickings.forEach(stockPickingRepository::save);
     }
 
-    private LocationUsage usageOf(UUID locationId) {
+    private LocationUsageType usageOf(UUID locationId) {
         return stockLocationRepository
                 .findById(locationId)
                 .map(StockLocation::getUsage)

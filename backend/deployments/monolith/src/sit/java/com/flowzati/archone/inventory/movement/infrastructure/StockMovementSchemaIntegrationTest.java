@@ -128,7 +128,7 @@ class StockMovementSchemaIntegrationTest {
 
     @Nested
     @DisplayName("狀態的值域")
-    class MoveState {
+    class MoveStateConstraints {
 
         @Test
         @DisplayName("四個狀態都寫得進去，含還沒有產生者的 DONE")
@@ -172,7 +172,7 @@ class StockMovementSchemaIntegrationTest {
 
     @Nested
     @DisplayName("作業單狀態的值域")
-    class PickingState {
+    class PickingStateConstraints {
 
         @Test
         @DisplayName("目前可達的四個狀態都寫得進去")

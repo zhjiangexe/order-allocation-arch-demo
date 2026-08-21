@@ -82,8 +82,8 @@ class OrderTest {
         String reason = "Customer requested cancellation";
         Order order = pendingOrder();
 
-        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationResult.CANCELLED);
-        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationResult.ALREADY_CANCELLED);
+        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationStatus.CANCELLED);
+        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
@@ -123,7 +123,7 @@ class OrderTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FULFILLED);
         assertThat(order.getFulfilledAt()).isEqualTo(fulfilledAt);
         assertThat(order.cancel(UUID.randomUUID(), fulfilledAt.plusSeconds(2), "Too late"))
-                .isEqualTo(Order.CancellationResult.REJECTED);
+                .isEqualTo(Order.CancellationStatus.REJECTED);
     }
 
     @Test

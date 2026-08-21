@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.entrypoint.rest.response;
 
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZone;
+import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import java.util.UUID;
 
 /**
@@ -9,7 +9,7 @@ import java.util.UUID;
  * 呼叫端要用它組出後續請求時，必須同時知道它屬於誰。
  */
 public record ProductResponse(
-        UUID productId, UUID ownerId, String productCode, String name, TemperatureZone temperatureZone) {
+        UUID productId, UUID ownerId, String productCode, String name, TemperatureZoneType temperatureZone) {
 
     public static ProductResponse from(Product product) {
         return new ProductResponse(
