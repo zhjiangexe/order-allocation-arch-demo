@@ -4,18 +4,21 @@ import com.flowzati.archone.wms.inbound.application.command.ConfirmPutawayComman
 import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
 import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.inbound.domain.valueobject.PutawayLine;
-import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 public class ConfirmPutawayUsecase {
 
-    private final InboundOperationRepository repository;
-    private final DomainEventPublisher eventPublisher;
+    private static final Logger log = LoggerFactory.getLogger(ConfirmPutawayUsecase.class);
 
-    public ConfirmPutawayUsecase(InboundOperationRepository repository, DomainEventPublisher eventPublisher) {
+    private final InboundOperationRepository repository;
+
+    public ConfirmPutawayUsecase(InboundOperationRepository repository) {
         this.repository = repository;
-        this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public void handle(ConfirmPutawayCommand command) {
         InboundOperation operation = repository
                 .findById(command.inboundOperationId())
@@ -28,6 +31,10 @@ public class ConfirmPutawayUsecase {
                         .toList(),
                 command.completedAt());
         repository.save(operation);
-        operation.releaseEvents().forEach(eventPublisher::publish);
+        log.info(
+                "WMS inbound putaway confirmed: inboundOperationId={}, lineCount={}, status={}",
+                operation.id(),
+                command.lines().size(),
+                operation.status());
     }
 }

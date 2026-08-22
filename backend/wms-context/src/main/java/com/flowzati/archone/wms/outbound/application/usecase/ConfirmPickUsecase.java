@@ -3,18 +3,21 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 import com.flowzati.archone.wms.outbound.application.command.ConfirmPickCommand;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
-import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 public class ConfirmPickUsecase {
 
-    private final ShipmentRepository shipmentRepository;
-    private final DomainEventPublisher eventPublisher;
+    private static final Logger log = LoggerFactory.getLogger(ConfirmPickUsecase.class);
 
-    public ConfirmPickUsecase(ShipmentRepository shipmentRepository, DomainEventPublisher eventPublisher) {
+    private final ShipmentRepository shipmentRepository;
+
+    public ConfirmPickUsecase(ShipmentRepository shipmentRepository) {
         this.shipmentRepository = shipmentRepository;
-        this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public void handle(ConfirmPickCommand command) {
         Shipment shipment = shipmentRepository
                 .findByPickTaskId(command.pickTaskId())
@@ -22,6 +25,11 @@ public class ConfirmPickUsecase {
                         () -> new IllegalStateException("Shipment for pick task not found: " + command.pickTaskId()));
         shipment.confirmPick(command.pickTaskId(), command.actualQuantity(), command.confirmedAt());
         shipmentRepository.save(shipment);
-        shipment.releaseEvents().forEach(eventPublisher::publish);
+        log.info(
+                "WMS pick confirmed: shipmentId={}, pickTaskId={}, actualQuantity={}, status={}",
+                shipment.id(),
+                command.pickTaskId(),
+                command.actualQuantity(),
+                shipment.status());
     }
 }

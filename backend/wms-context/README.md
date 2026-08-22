@@ -10,7 +10,7 @@ promising.fulfillment-handoffs
   → wms_shipments / wms_shipment_lines
   → 每秒掃描已等待滿 10 秒的 CREATED Shipment
   → SimulateWarehouseOperationsUsecase
-  → ShipmentHandedOverForFulfillment
+  → ShipmentHandedOver
 ```
 
 目前沒有串接真實 WMS，因此 dev、stage、prod 都使用同一條模擬倉內作業線路。Scheduler 不在 JVM

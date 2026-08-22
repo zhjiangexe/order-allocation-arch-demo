@@ -9,8 +9,8 @@ import java.util.UUID;
 /**
  * 由已提交的 allocation snapshot 映射而來，不要求 WMS 直接讀 Promising repository。
  *
- * <p>order-promising 以獨立的 {@code AllocationCommittedForFulfillmentIntegrationEvent} 提供完整
- * handoff snapshot；刻意不膨脹只供 Ordering lifecycle 使用的 {@code OrderAllocatedIntegrationEvent}。
+ * <p>order-promising 以 canonical {@code OrderAllocationCommittedIntegrationEvent} 提供完整配置快照；
+ * Event-driven WMS 與 Temporal workflow 共用相同的已提交事實。
  * WMS adapter 只做 contract → command 映射，不跨 bounded context 查詢 repository。
  *
  * <p>TODO(order-promising)：未來若 Wave 確實要依 service level、配送區或承諾時窗分組，上游還要

@@ -6,7 +6,6 @@ import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentAllocationSnapshotConflictException;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
-import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class CreateShipmentUsecase {
 
     private final ShipmentRepository shipmentRepository;
-    private final DomainEventPublisher eventPublisher;
 
-    public CreateShipmentUsecase(ShipmentRepository shipmentRepository, DomainEventPublisher eventPublisher) {
+    public CreateShipmentUsecase(ShipmentRepository shipmentRepository) {
         this.shipmentRepository = shipmentRepository;
-        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -70,7 +67,6 @@ public class CreateShipmentUsecase {
                 command.releasePriority(),
                 command.createdAt());
         shipmentRepository.save(shipment);
-        shipment.releaseEvents().forEach(eventPublisher::publish);
         return shipment;
     }
 }

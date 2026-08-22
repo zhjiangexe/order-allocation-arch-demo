@@ -1,6 +1,8 @@
 package com.flowzati.archone.wms.outbound.wave.application.command;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,7 +21,31 @@ public record PlanWaveCommand(
         int maxShipments,
         int maxLines,
         int maxUnits,
-        Instant plannedAt) {
+        Instant plannedAt,
+        List<UUID> shipmentIds) {
+
+    public PlanWaveCommand(
+            UUID waveId,
+            UUID facilityId,
+            String templateCode,
+            Instant dispatchByCutoff,
+            int candidateScanLimit,
+            int maxShipments,
+            int maxLines,
+            int maxUnits,
+            Instant plannedAt) {
+        this(
+                waveId,
+                facilityId,
+                templateCode,
+                dispatchByCutoff,
+                candidateScanLimit,
+                maxShipments,
+                maxLines,
+                maxUnits,
+                plannedAt,
+                List.of());
+    }
 
     public PlanWaveCommand {
         if (waveId == null || facilityId == null || dispatchByCutoff == null || plannedAt == null) {
@@ -31,6 +57,11 @@ public record PlanWaveCommand(
         if (candidateScanLimit < maxShipments || maxShipments <= 0 || maxLines <= 0 || maxUnits <= 0) {
             throw new IllegalArgumentException(
                     "Plan Wave capacities must be positive and scan limit must cover max Shipments");
+        }
+        shipmentIds = shipmentIds == null ? List.of() : List.copyOf(shipmentIds);
+        if (shipmentIds.stream().anyMatch(java.util.Objects::isNull)
+                || new HashSet<>(shipmentIds).size() != shipmentIds.size()) {
+            throw new IllegalArgumentException("Plan Wave Shipment filter requires unique non-null IDs");
         }
     }
 }

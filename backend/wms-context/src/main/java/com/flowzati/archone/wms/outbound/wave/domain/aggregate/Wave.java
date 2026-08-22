@@ -1,14 +1,9 @@
 package com.flowzati.archone.wms.outbound.wave.domain.aggregate;
 
-import com.flowzati.archone.wms.outbound.wave.domain.event.WaveCompleted;
-import com.flowzati.archone.wms.outbound.wave.domain.event.WavePlanned;
-import com.flowzati.archone.wms.outbound.wave.domain.event.WaveReleased;
 import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
 import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveAssignment;
-import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -22,7 +17,6 @@ import java.util.UUID;
  */
 public class Wave {
 
-    private final List<WmsDomainEvent> events = new ArrayList<>();
     private final UUID id;
     private final UUID facilityId;
     private final String templateCode;
@@ -76,15 +70,27 @@ public class Wave {
             WavePlanningPolicy policy,
             List<WaveAssignment> assignments,
             Instant plannedAt) {
+        return new Wave(id, facilityId, templateCode, policy, assignments, plannedAt);
+    }
+
+    /** 由 persistence adapter 還原 aggregate，不重播 Wave commands。 */
+    public static Wave rehydrate(
+            UUID id,
+            UUID facilityId,
+            String templateCode,
+            WavePlanningPolicy policy,
+            List<WaveAssignment> assignments,
+            Instant plannedAt,
+            WaveStatus status,
+            int warehouseWorkCount,
+            int pickTaskCount) {
         Wave wave = new Wave(id, facilityId, templateCode, policy, assignments, plannedAt);
-        wave.events.add(new WavePlanned(
-                id,
-                facilityId,
-                templateCode,
-                assignments.stream().map(WaveAssignment::shipmentId).toList(),
-                assignments.stream().map(WaveAssignment::lineCount).reduce(0, Math::addExact),
-                assignments.stream().map(WaveAssignment::unitCount).reduce(0, Math::addExact),
-                plannedAt));
+        if (status == null || warehouseWorkCount < 0 || pickTaskCount < 0) {
+            throw new IllegalArgumentException("Persisted Wave state is invalid");
+        }
+        wave.status = status;
+        wave.warehouseWorkCount = warehouseWorkCount;
+        wave.pickTaskCount = pickTaskCount;
         return wave;
     }
 
@@ -103,7 +109,6 @@ public class Wave {
         this.warehouseWorkCount = warehouseWorkCount;
         this.pickTaskCount = pickTaskCount;
         this.status = WaveStatus.RELEASED;
-        events.add(new WaveReleased(id, facilityId, assignments.size(), warehouseWorkCount, pickTaskCount, releasedAt));
     }
 
     public void complete(Instant completedAt) {
@@ -115,13 +120,6 @@ public class Wave {
             throw new IllegalStateException("Only a released Wave can complete, was " + status);
         }
         status = WaveStatus.COMPLETED;
-        events.add(new WaveCompleted(id, facilityId, completedAt));
-    }
-
-    public List<WmsDomainEvent> releaseEvents() {
-        List<WmsDomainEvent> released = List.copyOf(events);
-        events.clear();
-        return released;
     }
 
     private static void requireUniqueShipments(List<WaveAssignment> assignments) {

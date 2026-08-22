@@ -2,16 +2,22 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.outbound.application.command.SimulateWarehouseOperationsCommand;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentAssignedToWave;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentHandedOverToCarrier;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
-import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
+import com.flowzati.archone.wms.outbound.wave.application.usecase.CompleteWaveUsecase;
+import com.flowzati.archone.wms.outbound.wave.application.usecase.PlanWaveUsecase;
+import com.flowzati.archone.wms.outbound.wave.application.usecase.ReleaseWaveUsecase;
+import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
+import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
+import com.flowzati.archone.wms.outbound.wave.domain.service.PriorityCapacityWavePlanner;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +33,28 @@ class SimulateWarehouseOperationsUsecaseTest {
 
     private final AtomicLong sequence = new AtomicLong(100);
     private final InMemoryShipmentRepository shipmentRepository = new InMemoryShipmentRepository();
-    private final List<WmsDomainEvent> publishedEvents = new java.util.ArrayList<>();
-    private final SimulateWarehouseOperationsUsecase usecase =
-            new SimulateWarehouseOperationsUsecase(shipmentRepository, this::nextId, publishedEvents::add);
+    private final InMemoryWaveRepository waveRepository = new InMemoryWaveRepository();
+    private final List<IntegrationEventPublication> publications = new java.util.ArrayList<>();
+    private final PlanWaveUsecase planWaveUsecase =
+            new PlanWaveUsecase(waveRepository, shipmentRepository, new PriorityCapacityWavePlanner());
+    private final ReleaseWaveUsecase releaseWaveUsecase =
+            new ReleaseWaveUsecase(waveRepository, shipmentRepository, this::nextId);
+    private final ConfirmPickUsecase confirmPickUsecase = new ConfirmPickUsecase(shipmentRepository);
+    private final CompleteWaveUsecase completeWaveUsecase = new CompleteWaveUsecase(waveRepository, shipmentRepository);
+    private final PackShipmentUsecase packShipmentUsecase = new PackShipmentUsecase(shipmentRepository);
+    private final StageShipmentUsecase stageShipmentUsecase = new StageShipmentUsecase(shipmentRepository);
+    private final HandOverShipmentUsecase handOverShipmentUsecase =
+            new HandOverShipmentUsecase(shipmentRepository, publications::add);
+    private final SimulateWarehouseOperationsUsecase usecase = new SimulateWarehouseOperationsUsecase(
+            shipmentRepository,
+            this::nextId,
+            planWaveUsecase,
+            releaseWaveUsecase,
+            confirmPickUsecase,
+            completeWaveUsecase,
+            packShipmentUsecase,
+            stageShipmentUsecase,
+            handOverShipmentUsecase);
 
     @Test
     void advancesACreatedShipmentThroughEveryDomainCheckpoint() {
@@ -43,8 +68,10 @@ class SimulateWarehouseOperationsUsecaseTest {
         assertThat(shipment.waveId()).isNotNull();
         assertThat(shipment.pickingWork()).isPresent();
         assertThat(shipment.pickTasks()).hasSize(2).allMatch(task -> task.status() == PickTaskStatus.PICKED);
-        assertThat(publishedEvents).anyMatch(ShipmentAssignedToWave.class::isInstance);
-        assertThat(publishedEvents.getLast()).isInstanceOf(ShipmentHandedOverToCarrier.class);
+        assertThat(publications)
+                .singleElement()
+                .satisfies(publication ->
+                        assertThat(publication.event()).isInstanceOf(ShipmentHandedOverIntegrationEvent.class));
     }
 
     @Test
@@ -53,21 +80,20 @@ class SimulateWarehouseOperationsUsecaseTest {
         shipmentRepository.save(completed);
         assertThat(usecase.handle(new SimulateWarehouseOperationsCommand(completed.id(), PROCESSED_AT)))
                 .isTrue();
-        int eventsAfterCompletion = publishedEvents.size();
+        int eventsAfterCompletion = publications.size();
 
         assertThat(usecase.handle(new SimulateWarehouseOperationsCommand(completed.id(), PROCESSED_AT)))
                 .isFalse();
-        assertThat(publishedEvents).hasSize(eventsAfterCompletion);
+        assertThat(publications).hasSize(eventsAfterCompletion);
 
         Shipment cancelled = createdShipment();
         cancelled.cancel("cancel-before-simulation", CREATED_AT.plusSeconds(5));
-        cancelled.releaseEvents();
         shipmentRepository.save(cancelled);
 
         assertThat(usecase.handle(new SimulateWarehouseOperationsCommand(cancelled.id(), PROCESSED_AT)))
                 .isFalse();
         assertThat(cancelled.status()).isEqualTo(ShipmentStatus.CANCELLED);
-        assertThat(publishedEvents).hasSize(eventsAfterCompletion);
+        assertThat(publications).hasSize(eventsAfterCompletion);
     }
 
     private Shipment createdShipment() {
@@ -83,7 +109,6 @@ class SimulateWarehouseOperationsUsecaseTest {
                 CREATED_AT.plusSeconds(3_600),
                 80,
                 CREATED_AT);
-        shipment.releaseEvents();
         return shipment;
     }
 
@@ -124,7 +149,16 @@ class SimulateWarehouseOperationsUsecaseTest {
 
         @Override
         public List<Shipment> findWaveCandidates(UUID facilityId, int limit) {
-            return List.of();
+            return shipments.values().stream()
+                    .filter(shipment -> shipment.facilityId().equals(facilityId))
+                    .filter(Shipment::isWaveCandidate)
+                    .sorted(Comparator.comparingInt(Shipment::releasePriority)
+                            .reversed()
+                            .thenComparing(Shipment::dispatchBy)
+                            .thenComparing(Shipment::createdAt)
+                            .thenComparing(Shipment::id))
+                    .limit(limit)
+                    .toList();
         }
 
         @Override
@@ -140,6 +174,21 @@ class SimulateWarehouseOperationsUsecaseTest {
         @Override
         public void save(Shipment shipment) {
             shipments.put(shipment.id(), shipment);
+        }
+    }
+
+    private static final class InMemoryWaveRepository implements WaveRepository {
+
+        private final Map<UUID, Wave> waves = new LinkedHashMap<>();
+
+        @Override
+        public Optional<Wave> findById(UUID waveId) {
+            return Optional.ofNullable(waves.get(waveId));
+        }
+
+        @Override
+        public void save(Wave wave) {
+            waves.put(wave.id(), wave);
         }
     }
 }

@@ -1,16 +1,9 @@
 package com.flowzati.archone.wms.inbound.domain.aggregate;
 
-import com.flowzati.archone.wms.inbound.domain.event.GoodsArrived;
-import com.flowzati.archone.wms.inbound.domain.event.InboundOperationRegistered;
-import com.flowzati.archone.wms.inbound.domain.event.InspectionPassed;
-import com.flowzati.archone.wms.inbound.domain.event.PutawayCompleted;
-import com.flowzati.archone.wms.inbound.domain.event.StockQuarantined;
 import com.flowzati.archone.wms.inbound.domain.type.InboundStatus;
 import com.flowzati.archone.wms.inbound.domain.valueobject.InboundLine;
 import com.flowzati.archone.wms.inbound.domain.valueobject.PutawayLine;
-import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +12,6 @@ import java.util.UUID;
 /** 收貨作業聚合；先用明確 checkpoint 表達流程，不加入複雜 putaway 演算法。 */
 public class InboundOperation {
 
-    private final List<WmsDomainEvent> events = new ArrayList<>();
     private final UUID id;
     private final UUID ownerId;
     private final UUID facilityId;
@@ -54,8 +46,22 @@ public class InboundOperation {
             List<InboundLine> expectedLines,
             Instant registeredAt) {
         requireTime(registeredAt, "Inbound registration time is required");
+        return new InboundOperation(id, ownerId, facilityId, externalReference, expectedLines);
+    }
+
+    /** 由 persistence adapter 還原 aggregate，不重播 application command。 */
+    public static InboundOperation rehydrate(
+            UUID id,
+            UUID ownerId,
+            UUID facilityId,
+            String externalReference,
+            List<InboundLine> expectedLines,
+            InboundStatus status) {
         InboundOperation operation = new InboundOperation(id, ownerId, facilityId, externalReference, expectedLines);
-        operation.events.add(new InboundOperationRegistered(id, ownerId, facilityId, registeredAt));
+        if (status == null) {
+            throw new IllegalArgumentException("Persisted inbound status is required");
+        }
+        operation.status = status;
         return operation;
     }
 
@@ -66,7 +72,6 @@ public class InboundOperation {
         }
         requireStatus(InboundStatus.REGISTERED, "Only a registered inbound operation can arrive");
         status = InboundStatus.ARRIVED;
-        events.add(new GoodsArrived(id, arrivedAt));
     }
 
     public void recordInspection(boolean accepted, String reason, Instant inspectedAt) {
@@ -77,14 +82,12 @@ public class InboundOperation {
         requireStatus(InboundStatus.ARRIVED, "Only arrived goods can be inspected");
         if (accepted) {
             status = InboundStatus.READY_FOR_PUTAWAY;
-            events.add(new InspectionPassed(id, inspectedAt));
             return;
         }
         if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("Quarantine reason is required when inspection fails");
         }
         status = InboundStatus.QUARANTINED;
-        events.add(new StockQuarantined(id, reason, inspectedAt));
     }
 
     public void completePutaway(List<PutawayLine> actualLines, Instant completedAt) {
@@ -98,7 +101,6 @@ public class InboundOperation {
         }
         requireExpectedQuantities(actualLines);
         status = InboundStatus.COMPLETED;
-        events.add(new PutawayCompleted(id, ownerId, facilityId, actualLines, completedAt));
     }
 
     private void requireExpectedQuantities(List<PutawayLine> actualLines) {
@@ -118,12 +120,6 @@ public class InboundOperation {
         Map<String, Integer> quantities = new LinkedHashMap<>();
         lines.forEach(line -> quantities.merge(line.getKey(), line.getValue(), Math::addExact));
         return Map.copyOf(quantities);
-    }
-
-    public List<WmsDomainEvent> releaseEvents() {
-        List<WmsDomainEvent> released = List.copyOf(events);
-        events.clear();
-        return released;
     }
 
     private void requireStatus(InboundStatus expected, String message) {

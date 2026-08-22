@@ -11,14 +11,10 @@ import com.flowzati.archone.wms.inbound.application.usecase.ConfirmPutawayUsecas
 import com.flowzati.archone.wms.inbound.application.usecase.RecordInspectionUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.RegisterInboundOperationUsecase;
 import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
-import com.flowzati.archone.wms.inbound.domain.event.PutawayCompleted;
-import com.flowzati.archone.wms.inbound.domain.event.StockQuarantined;
 import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.inbound.domain.type.InboundStatus;
-import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +28,6 @@ class InboundProcessTest {
     private static final Instant T0 = Instant.parse("2026-08-06T02:00:00Z");
 
     private final InMemoryInboundRepository repository = new InMemoryInboundRepository();
-    private final List<WmsDomainEvent> events = new ArrayList<>();
     private RegisterInboundOperationUsecase register;
     private ConfirmArrivalUsecase confirmArrival;
     private RecordInspectionUsecase inspect;
@@ -40,10 +35,10 @@ class InboundProcessTest {
 
     @BeforeEach
     void setUp() {
-        register = new RegisterInboundOperationUsecase(repository, events::add);
-        confirmArrival = new ConfirmArrivalUsecase(repository, events::add);
-        inspect = new RecordInspectionUsecase(repository, events::add);
-        confirmPutaway = new ConfirmPutawayUsecase(repository, events::add);
+        register = new RegisterInboundOperationUsecase(repository);
+        confirmArrival = new ConfirmArrivalUsecase(repository);
+        inspect = new RecordInspectionUsecase(repository);
+        confirmPutaway = new ConfirmPutawayUsecase(repository);
     }
 
     @Test
@@ -66,7 +61,6 @@ class InboundProcessTest {
                 T0.plusSeconds(30)));
 
         assertThat(operation.status()).isEqualTo(InboundStatus.COMPLETED);
-        assertThat(events.getLast()).isInstanceOf(PutawayCompleted.class);
     }
 
     @Test
@@ -84,7 +78,6 @@ class InboundProcessTest {
         inspect.handle(new RecordInspectionCommand(operationId, false, "Damaged packaging", T0.plusSeconds(20)));
 
         assertThat(operation.status()).isEqualTo(InboundStatus.QUARANTINED);
-        assertThat(events.getLast()).isInstanceOf(StockQuarantined.class);
     }
 
     @Test
@@ -100,15 +93,16 @@ class InboundProcessTest {
 
         ConfirmArrivalCommand arrival = new ConfirmArrivalCommand(operationId, T0.plusSeconds(10));
         confirmArrival.handle(arrival);
-        int afterArrival = events.size();
         confirmArrival.handle(arrival);
-        assertThat(events).hasSize(afterArrival);
+        assertThat(repository.findById(operationId))
+                .hasValueSatisfying(operation -> assertThat(operation.status()).isEqualTo(InboundStatus.ARRIVED));
 
         RecordInspectionCommand inspection = new RecordInspectionCommand(operationId, true, null, T0.plusSeconds(20));
         inspect.handle(inspection);
-        int afterInspection = events.size();
         inspect.handle(inspection);
-        assertThat(events).hasSize(afterInspection);
+        assertThat(repository.findById(operationId))
+                .hasValueSatisfying(
+                        operation -> assertThat(operation.status()).isEqualTo(InboundStatus.READY_FOR_PUTAWAY));
 
         ConfirmPutawayCommand putaway = new ConfirmPutawayCommand(
                 operationId,
@@ -116,9 +110,9 @@ class InboundProcessTest {
                         "SKU-C", UUID.randomUUID(), LocalDate.of(2026, 8, 6), LocalDate.of(2027, 8, 6), 3)),
                 T0.plusSeconds(30));
         confirmPutaway.handle(putaway);
-        int afterPutaway = events.size();
         confirmPutaway.handle(putaway);
-        assertThat(events).hasSize(afterPutaway);
+        assertThat(repository.findById(operationId))
+                .hasValueSatisfying(operation -> assertThat(operation.status()).isEqualTo(InboundStatus.COMPLETED));
     }
 
     private static final class InMemoryInboundRepository implements InboundOperationRepository {

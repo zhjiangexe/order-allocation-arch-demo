@@ -3,8 +3,8 @@ package com.flowzati.archone.wms.outbound.entrypoint.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
@@ -55,6 +55,8 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         jdbcTemplate.update("DELETE FROM event_outbox");
         jdbcTemplate.update("DELETE FROM wms_pick_tasks");
         jdbcTemplate.update("DELETE FROM wms_shipment_lines");
+        jdbcTemplate.update("DELETE FROM wms_wave_assignments");
+        jdbcTemplate.update("DELETE FROM wms_waves");
         jdbcTemplate.update("DELETE FROM wms_shipments");
     }
 
@@ -120,43 +122,43 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                 .isOne();
     }
 
-    private void emit(AllocationCommittedForFulfillmentIntegrationEvent event) {
+    private void emit(OrderAllocationCommittedIntegrationEvent event) {
         transport.emit(
-                WmsEventSubscriptions.FULFILLMENT_HANDOFF, FulfillmentChannels.FULFILLMENT_HANDOFFS, message(event), 1);
+                WmsEventSubscriptions.FULFILLMENT_HANDOFF, AllocationChannels.ALLOCATION_EVENTS, message(event), 1);
     }
 
-    private Message message(AllocationCommittedForFulfillmentIntegrationEvent event) {
+    private Message message(OrderAllocationCommittedIntegrationEvent event) {
         return MessageBuilder.withPayload(serializer.serialize(event))
                 .withId(event.getEventId())
                 .withType(event.eventType())
                 .withPartitionId(event.getOrderId().toString())
                 .withMessageDate(event.getCommittedAt())
                 .withHeader(EventMessageHeaders.EVENT_TYPE, event.eventType())
-                .withHeader(EventMessageHeaders.EVENT_AGGREGATE_TYPE, "StockPicking")
+                .withHeader(EventMessageHeaders.EVENT_AGGREGATE_TYPE, "Order")
                 .withHeader(
                         EventMessageHeaders.EVENT_AGGREGATE_ID,
-                        event.getAllocationId().toString())
+                        event.getOrderId().toString())
                 .withHeader(EventMessageHeaders.EVENT_CONTRACT_VERSION, "1")
                 .build();
     }
 
-    private AllocationCommittedForFulfillmentIntegrationEvent event(UUID eventId, UUID allocationId, UUID orderId) {
-        return new AllocationCommittedForFulfillmentIntegrationEvent(
+    private OrderAllocationCommittedIntegrationEvent event(UUID eventId, UUID allocationId, UUID orderId) {
+        return new OrderAllocationCommittedIntegrationEvent(
                 eventId,
                 allocationId,
                 orderId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                List.of(new AllocationCommittedForFulfillmentIntegrationEvent.AllocationLine(
+                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
                         UUID.randomUUID(), UUID.randomUUID(), "SKU-1", UUID.randomUUID(), 3)),
                 Instant.parse("2026-08-12T08:00:00Z"),
                 80,
                 Instant.parse("2026-08-11T01:00:00Z"));
     }
 
-    private AllocationCommittedForFulfillmentIntegrationEvent copyWithEventId(
-            AllocationCommittedForFulfillmentIntegrationEvent event, UUID eventId) {
-        return new AllocationCommittedForFulfillmentIntegrationEvent(
+    private OrderAllocationCommittedIntegrationEvent copyWithEventId(
+            OrderAllocationCommittedIntegrationEvent event, UUID eventId) {
+        return new OrderAllocationCommittedIntegrationEvent(
                 eventId,
                 event.getAllocationId(),
                 event.getOrderId(),

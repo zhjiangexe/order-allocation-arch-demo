@@ -3,6 +3,8 @@ package com.flowzati.archone.wms;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.command.ConfirmPickCommand;
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
@@ -17,14 +19,6 @@ import com.flowzati.archone.wms.outbound.application.usecase.HandOverShipmentUse
 import com.flowzati.archone.wms.outbound.application.usecase.PackShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecase;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.outbound.domain.event.PickingWorkCreated;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentAssignedToWave;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentCancellationRejected;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentCancelled;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentCreated;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentHandedOverToCarrier;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentPutbackRequired;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentReadyForDispatch;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
@@ -37,13 +31,9 @@ import com.flowzati.archone.wms.outbound.wave.application.usecase.CompleteWaveUs
 import com.flowzati.archone.wms.outbound.wave.application.usecase.PlanWaveUsecase;
 import com.flowzati.archone.wms.outbound.wave.application.usecase.ReleaseWaveUsecase;
 import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
-import com.flowzati.archone.wms.outbound.wave.domain.event.WaveCompleted;
-import com.flowzati.archone.wms.outbound.wave.domain.event.WavePlanned;
-import com.flowzati.archone.wms.outbound.wave.domain.event.WaveReleased;
 import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
 import com.flowzati.archone.wms.outbound.wave.domain.service.PriorityCapacityWavePlanner;
 import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
-import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -65,7 +55,7 @@ class OutboundProcessTest {
     private final AtomicLong sequence = new AtomicLong(100);
     private final InMemoryShipmentRepository shipmentRepository = new InMemoryShipmentRepository();
     private final InMemoryWaveRepository waveRepository = new InMemoryWaveRepository();
-    private final List<WmsDomainEvent> events = new ArrayList<>();
+    private final List<IntegrationEventPublication> publications = new ArrayList<>();
 
     private CreateShipmentUsecase createShipment;
     private PlanWaveUsecase planWave;
@@ -79,16 +69,15 @@ class OutboundProcessTest {
 
     @BeforeEach
     void setUp() {
-        createShipment = new CreateShipmentUsecase(shipmentRepository, events::add);
-        planWave =
-                new PlanWaveUsecase(waveRepository, shipmentRepository, new PriorityCapacityWavePlanner(), events::add);
-        releaseWave = new ReleaseWaveUsecase(waveRepository, shipmentRepository, this::nextId, events::add);
-        completeWave = new CompleteWaveUsecase(waveRepository, shipmentRepository, events::add);
-        confirmPick = new ConfirmPickUsecase(shipmentRepository, events::add);
-        packShipment = new PackShipmentUsecase(shipmentRepository, events::add);
-        stageShipment = new StageShipmentUsecase(shipmentRepository, events::add);
-        handOverShipment = new HandOverShipmentUsecase(shipmentRepository, events::add);
-        cancelShipment = new CancelShipmentUsecase(shipmentRepository, events::add);
+        createShipment = new CreateShipmentUsecase(shipmentRepository);
+        planWave = new PlanWaveUsecase(waveRepository, shipmentRepository, new PriorityCapacityWavePlanner());
+        releaseWave = new ReleaseWaveUsecase(waveRepository, shipmentRepository, this::nextId);
+        completeWave = new CompleteWaveUsecase(waveRepository, shipmentRepository);
+        confirmPick = new ConfirmPickUsecase(shipmentRepository);
+        packShipment = new PackShipmentUsecase(shipmentRepository);
+        stageShipment = new StageShipmentUsecase(shipmentRepository);
+        handOverShipment = new HandOverShipmentUsecase(shipmentRepository, publications::add);
+        cancelShipment = new CancelShipmentUsecase(shipmentRepository);
     }
 
     @Test
@@ -102,7 +91,6 @@ class OutboundProcessTest {
         assertThat(wave.status()).isEqualTo(WaveStatus.PLANNED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.WAVE_PLANNED);
         assertThat(shipment.pickTasks()).isEmpty();
-        assertThat(events).anyMatch(ShipmentAssignedToWave.class::isInstance);
 
         releaseWave.handle(new ReleaseWaveCommand(wave.id(), T0.plusSeconds(10)));
 
@@ -110,9 +98,6 @@ class OutboundProcessTest {
         assertThat(shipment.waveId()).isEqualTo(wave.id());
         assertThat(shipment.pickingWork()).isPresent();
         assertThat(shipment.pickTasks()).hasSize(2);
-        assertThat(events).anyMatch(WavePlanned.class::isInstance);
-        assertThat(events).anyMatch(PickingWorkCreated.class::isInstance);
-        assertThat(events).anyMatch(WaveReleased.class::isInstance);
     }
 
     @Test
@@ -148,7 +133,6 @@ class OutboundProcessTest {
         assertThat(outcome).isEqualTo(ShipmentCancellationStatus.CANCELLED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
         assertThat(shipment.pickTasks()).isEmpty();
-        assertThat(events.getLast()).isInstanceOf(ShipmentCancelled.class);
 
         releaseWave.handle(new ReleaseWaveCommand(wave.id(), T0.plusSeconds(10)));
         completeWave.handle(new CompleteWaveCommand(wave.id(), T0.plusSeconds(11)));
@@ -162,9 +146,7 @@ class OutboundProcessTest {
         CancelShipmentCommand first = new CancelShipmentCommand("cancel-request-1", shipment.id(), T0.plusSeconds(8));
 
         assertThat(cancelShipment.handle(first)).isEqualTo(ShipmentCancellationStatus.CANCELLED);
-        int eventCountAfterCancellation = events.size();
         assertThat(cancelShipment.handle(first)).isEqualTo(ShipmentCancellationStatus.ALREADY_CANCELLED);
-        assertThat(events).hasSize(eventCountAfterCancellation);
 
         assertThatThrownBy(() -> cancelShipment.handle(
                         new CancelShipmentCommand("cancel-request-2", shipment.id(), T0.plusSeconds(8))))
@@ -200,15 +182,15 @@ class OutboundProcessTest {
         packShipment.handle(new PackShipmentCommand(shipment.id(), T0.plusSeconds(40)));
         stageShipment.handle(new StageShipmentCommand(shipment.id(), T0.plusSeconds(50)));
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.READY_FOR_DISPATCH);
-        assertThat(events).anyMatch(ShipmentReadyForDispatch.class::isInstance);
         handOverShipment.handle(new HandOverShipmentCommand(shipment.id(), T0.plusSeconds(60)));
 
         assertThat(wave.status()).isEqualTo(WaveStatus.COMPLETED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.HANDED_OVER_TO_CARRIER);
         assertThat(shipment.pickTasks()).allMatch(task -> task.status() == PickTaskStatus.PICKED);
-        assertThat(events).anyMatch(ShipmentCreated.class::isInstance);
-        assertThat(events).anyMatch(WaveCompleted.class::isInstance);
-        assertThat(events.getLast()).isInstanceOf(ShipmentHandedOverToCarrier.class);
+        assertThat(publications)
+                .singleElement()
+                .satisfies(publication ->
+                        assertThat(publication.event()).isInstanceOf(ShipmentHandedOverIntegrationEvent.class));
     }
 
     @Test
@@ -245,7 +227,6 @@ class OutboundProcessTest {
         assertThat(outcome).isEqualTo(ShipmentCancellationStatus.CANCELLED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
         assertThat(shipment.pickTasks()).allMatch(task -> task.status() == PickTaskStatus.CANCELLED);
-        assertThat(events.getLast()).isInstanceOf(ShipmentCancelled.class);
 
         completeWave.handle(new CompleteWaveCommand(wave.id(), T0.plusSeconds(30)));
         assertThat(wave.status()).isEqualTo(WaveStatus.COMPLETED);
@@ -265,7 +246,6 @@ class OutboundProcessTest {
         assertThat(outcome).isEqualTo(ShipmentCancellationStatus.PUTBACK_REQUIRED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLING);
         assertThat(shipmentRepository.findById(shipment.id())).contains(shipment);
-        assertThat(events.getLast()).isInstanceOf(ShipmentPutbackRequired.class);
     }
 
     @Test
@@ -273,43 +253,33 @@ class OutboundProcessTest {
         Shipment shipment = createTwoLineShipment(70, T0.plusSeconds(3_600));
         PlanWaveCommand plan = planCommand(nextId(), T0.plusSeconds(7_200));
         Wave wave = planWave.handle(plan);
-        int afterPlan = events.size();
         assertThat(planWave.handle(plan)).isSameAs(wave);
-        assertThat(events).hasSize(afterPlan);
 
         ReleaseWaveCommand release = new ReleaseWaveCommand(wave.id(), T0.plusSeconds(10));
         releaseWave.handle(release);
-        int afterRelease = events.size();
         releaseWave.handle(release);
-        assertThat(events).hasSize(afterRelease);
 
         for (int index = 0; index < shipment.pickTasks().size(); index++) {
             var task = shipment.pickTasks().get(index);
             ConfirmPickCommand pick =
                     new ConfirmPickCommand(task.id(), task.requestedQuantity(), T0.plusSeconds(20 + index));
             confirmPick.handle(pick);
-            int afterPick = events.size();
             confirmPick.handle(pick);
-            assertThat(events).hasSize(afterPick);
         }
 
         PackShipmentCommand pack = new PackShipmentCommand(shipment.id(), T0.plusSeconds(40));
         packShipment.handle(pack);
-        int afterPack = events.size();
         packShipment.handle(pack);
-        assertThat(events).hasSize(afterPack);
 
         StageShipmentCommand stage = new StageShipmentCommand(shipment.id(), T0.plusSeconds(50));
         stageShipment.handle(stage);
-        int afterStage = events.size();
         stageShipment.handle(stage);
-        assertThat(events).hasSize(afterStage);
 
         HandOverShipmentCommand handover = new HandOverShipmentCommand(shipment.id(), T0.plusSeconds(60));
         handOverShipment.handle(handover);
-        int afterHandover = events.size();
+        int afterHandover = publications.size();
         handOverShipment.handle(handover);
-        assertThat(events).hasSize(afterHandover);
+        assertThat(publications).hasSize(afterHandover);
     }
 
     @Test
@@ -327,7 +297,6 @@ class OutboundProcessTest {
 
         assertThat(outcome).isEqualTo(ShipmentCancellationStatus.REJECTED_AFTER_HANDOVER);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.HANDED_OVER_TO_CARRIER);
-        assertThat(events.getLast()).isInstanceOf(ShipmentCancellationRejected.class);
     }
 
     private Wave planSingleWave(Instant cutoff) {

@@ -10,44 +10,41 @@ import com.flowzati.archone.wms.outbound.wave.application.command.ReleaseWaveCom
 import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
 import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
 import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
-import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
 import com.flowzati.archone.wms.shared.application.IdGenerator;
-import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
-import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 將已規劃 Wave 凍結並產生現場 picking work。
  *
- * <p>Composition layer 必須把本 use case 包在同一資料庫交易與 Outbox 邊界內，確保 Wave、Shipments、
- * WarehouseWork 與 events 一起提交。第一版每張尚未取消的 Shipment 建一個 WarehouseWork；Wave 規劃後、
- * release 前取消的 Shipment 會保留 assignment audit trail，但不再建立現場工作。
+ * <p>Composition layer 必須把本 use case 包在同一資料庫交易內，確保 Wave、Shipments 與 WarehouseWork
+ * 一起提交。第一版每張尚未取消的 Shipment 建一個 WarehouseWork；Wave 規劃後、release 前取消的
+ * Shipment 會保留 assignment audit trail，但不再建立現場工作。
  */
 public class ReleaseWaveUsecase {
+
+    private static final Logger log = LoggerFactory.getLogger(ReleaseWaveUsecase.class);
 
     private final WaveRepository waveRepository;
     private final ShipmentRepository shipmentRepository;
     private final IdGenerator idGenerator;
-    private final DomainEventPublisher eventPublisher;
 
     public ReleaseWaveUsecase(
-            WaveRepository waveRepository,
-            ShipmentRepository shipmentRepository,
-            IdGenerator idGenerator,
-            DomainEventPublisher eventPublisher) {
+            WaveRepository waveRepository, ShipmentRepository shipmentRepository, IdGenerator idGenerator) {
         this.waveRepository = waveRepository;
         this.shipmentRepository = shipmentRepository;
         this.idGenerator = idGenerator;
-        this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public Wave handle(ReleaseWaveCommand command) {
         Wave wave = requiredWave(command);
         if (wave.status() != WaveStatus.PLANNED) {
             return wave;
         }
 
-        List<WmsDomainEvent> events = new ArrayList<>();
         int warehouseWorkCount = 0;
         int pickTaskCount = 0;
         for (var assignment : wave.assignments()) {
@@ -60,13 +57,15 @@ public class ReleaseWaveUsecase {
             pickTaskCount = Math.addExact(pickTaskCount, work.pickTasks().size());
             shipment.releaseToWave(wave.id(), work, command.releasedAt());
             shipmentRepository.save(shipment);
-            events.addAll(shipment.releaseEvents());
         }
 
         wave.release(warehouseWorkCount, pickTaskCount, command.releasedAt());
         waveRepository.save(wave);
-        events.addAll(wave.releaseEvents());
-        events.forEach(eventPublisher::publish);
+        log.info(
+                "WMS wave released: waveId={}, warehouseWorkCount={}, pickTaskCount={}",
+                wave.id(),
+                warehouseWorkCount,
+                pickTaskCount);
         return wave;
     }
 

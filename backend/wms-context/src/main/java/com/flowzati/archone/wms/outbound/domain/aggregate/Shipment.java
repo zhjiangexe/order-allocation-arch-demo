@@ -2,28 +2,12 @@ package com.flowzati.archone.wms.outbound.domain.aggregate;
 
 import com.flowzati.archone.wms.outbound.domain.entity.PickTask;
 import com.flowzati.archone.wms.outbound.domain.entity.WarehouseWork;
-import com.flowzati.archone.wms.outbound.domain.event.PickConfirmed;
-import com.flowzati.archone.wms.outbound.domain.event.PickingWorkCreated;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentAssignedToWave;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentCancellationRejected;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentCancelled;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentCreated;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentHandedOverToCarrier;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentPacked;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentPicked;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentPutbackRequired;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentReadyForDispatch;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentReleased;
-import com.flowzati.archone.wms.outbound.domain.event.ShipmentStaged;
-import com.flowzati.archone.wms.outbound.domain.event.ShortPickDetected;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
-import com.flowzati.archone.wms.shared.domain.WmsDomainEvent;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -33,12 +17,11 @@ import java.util.UUID;
 /**
  * 一次由單一 Facility 對客戶執行的出庫交付。
  *
- * <p>它管理 WMS 作業狀態，不修改 StockQuant；完成 {@code ShipmentHandedOverToCarrier}
- * 後由 integration adapter 通知 inventory／TMS 邊界。
+ * <p>它管理 WMS 作業狀態，不修改 StockQuant；完成承運人交接後，由 application use case 明確發布
+ * Integration Event 通知 inventory／TMS 邊界。
  */
 public class Shipment {
 
-    private final List<WmsDomainEvent> events = new ArrayList<>();
     private final UUID id;
     private final UUID allocationId;
     private final UUID orderId;
@@ -102,15 +85,11 @@ public class Shipment {
             Instant dispatchBy,
             int releasePriority,
             Instant createdAt) {
-        Shipment shipment = new Shipment(
+        return new Shipment(
                 id, allocationId, orderId, ownerId, facilityId, lines, createdAt, dispatchBy, releasePriority);
-        shipment.events.add(new ShipmentCreated(id, orderId, allocationId, createdAt));
-        return shipment;
     }
 
-    /**
-     * 由 persistence adapter 還原完整 aggregate；不重播 command，也不重新產生 domain events。
-     */
+    /** 由 persistence adapter 還原完整 aggregate，不重播 command。 */
     public static Shipment rehydrate(
             UUID id,
             UUID allocationId,
@@ -159,7 +138,6 @@ public class Shipment {
         requireStatus(ShipmentStatus.CREATED, "Only a created Shipment can enter a Wave");
         this.waveId = waveId;
         status = ShipmentStatus.WAVE_PLANNED;
-        events.add(new ShipmentAssignedToWave(id, waveId, plannedAt));
     }
 
     public void releaseToWave(UUID waveId, WarehouseWork pickingWork, Instant releasedAt) {
@@ -184,13 +162,6 @@ public class Shipment {
         this.waveId = waveId;
         this.pickingWork = pickingWork;
         status = ShipmentStatus.RELEASED;
-        events.add(new ShipmentReleased(id, releasedAt));
-        events.add(new PickingWorkCreated(
-                id,
-                waveId,
-                pickingWork.id(),
-                pickingWork.pickTasks().stream().map(PickTask::id).toList(),
-                releasedAt));
     }
 
     /** Command 可能重送；已越過 release checkpoint 就視為冪等成功。 */
@@ -221,22 +192,11 @@ public class Shipment {
         status = ShipmentStatus.PICKING;
         task = pickingWork.confirmPick(pickTaskId, actualQuantity, confirmedAt);
         if (task.status() == PickTaskStatus.SHORT_PICKED) {
-            events.add(new ShortPickDetected(
-                    id,
-                    task.id(),
-                    task.moveId(),
-                    task.skuCode(),
-                    task.sourceLocationId(),
-                    task.requestedQuantity(),
-                    task.pickedQuantity(),
-                    confirmedAt));
             return;
         }
 
-        events.add(new PickConfirmed(id, task.id(), task.moveId(), task.pickedQuantity(), confirmedAt));
         if (pickingWork.isCompleted()) {
             status = ShipmentStatus.PICKED;
-            events.add(new ShipmentPicked(id, confirmedAt));
         }
     }
 
@@ -247,7 +207,6 @@ public class Shipment {
         }
         requireStatus(ShipmentStatus.PICKED, "Only a picked shipment can be packed");
         status = ShipmentStatus.PACKED;
-        events.add(new ShipmentPacked(id, packedAt));
     }
 
     public void stage(Instant stagedAt) {
@@ -257,23 +216,16 @@ public class Shipment {
         }
         requireStatus(ShipmentStatus.PACKED, "Only a packed shipment can be staged");
         status = ShipmentStatus.READY_FOR_DISPATCH;
-        events.add(new ShipmentStaged(id, stagedAt));
-        events.add(new ShipmentReadyForDispatch(id, orderId, stagedAt));
     }
 
-    public void handOverToCarrier(Instant handedOverAt) {
+    public boolean handOverToCarrier(Instant handedOverAt) {
         requireTime(handedOverAt, "Handover time is required");
         if (status == ShipmentStatus.HANDED_OVER_TO_CARRIER) {
-            return;
+            return false;
         }
         requireStatus(ShipmentStatus.READY_FOR_DISPATCH, "Only a shipment ready for dispatch can be handed over");
         status = ShipmentStatus.HANDED_OVER_TO_CARRIER;
-        events.add(new ShipmentHandedOverToCarrier(
-                id,
-                allocationId,
-                orderId,
-                lines.stream().map(ShipmentLine::moveId).toList(),
-                handedOverAt));
+        return true;
     }
 
     public ShipmentCancellationStatus cancel(String requestId, Instant requestedAt) {
@@ -292,8 +244,6 @@ public class Shipment {
         }
         cancellationRequestId = requestId;
         if (status == ShipmentStatus.HANDED_OVER_TO_CARRIER) {
-            events.add(new ShipmentCancellationRejected(
-                    id, orderId, requestId, "Shipment already handed over to carrier", requestedAt));
             cancellationOutcome = ShipmentCancellationStatus.REJECTED_AFTER_HANDOVER;
             return cancellationOutcome;
         }
@@ -301,7 +251,6 @@ public class Shipment {
                 && status != ShipmentStatus.WAVE_PLANNED
                 && status != ShipmentStatus.RELEASED) {
             status = ShipmentStatus.CANCELLING;
-            events.add(new ShipmentPutbackRequired(id, orderId, requestId, requestedAt));
             cancellationOutcome = ShipmentCancellationStatus.PUTBACK_REQUIRED;
             return cancellationOutcome;
         }
@@ -310,15 +259,8 @@ public class Shipment {
             pickingWork.cancel();
         }
         status = ShipmentStatus.CANCELLED;
-        events.add(new ShipmentCancelled(id, orderId, requestId, requestedAt));
         cancellationOutcome = ShipmentCancellationStatus.CANCELLED;
         return cancellationOutcome;
-    }
-
-    public List<WmsDomainEvent> releaseEvents() {
-        List<WmsDomainEvent> released = List.copyOf(events);
-        events.clear();
-        return released;
     }
 
     private void requireStatus(ShipmentStatus expected, String message) {

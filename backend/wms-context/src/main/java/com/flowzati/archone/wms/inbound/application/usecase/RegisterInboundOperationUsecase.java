@@ -4,18 +4,21 @@ import com.flowzati.archone.wms.inbound.application.command.RegisterInboundOpera
 import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
 import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.inbound.domain.valueobject.InboundLine;
-import com.flowzati.archone.wms.shared.application.DomainEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 public class RegisterInboundOperationUsecase {
 
-    private final InboundOperationRepository repository;
-    private final DomainEventPublisher eventPublisher;
+    private static final Logger log = LoggerFactory.getLogger(RegisterInboundOperationUsecase.class);
 
-    public RegisterInboundOperationUsecase(InboundOperationRepository repository, DomainEventPublisher eventPublisher) {
+    private final InboundOperationRepository repository;
+
+    public RegisterInboundOperationUsecase(InboundOperationRepository repository) {
         this.repository = repository;
-        this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public InboundOperation handle(RegisterInboundOperationCommand command) {
         return repository.findByExternalReference(command.externalReference()).orElseGet(() -> register(command));
     }
@@ -31,7 +34,12 @@ public class RegisterInboundOperationUsecase {
                         .toList(),
                 command.registeredAt());
         repository.save(operation);
-        operation.releaseEvents().forEach(eventPublisher::publish);
+        log.info(
+                "WMS inbound operation registered: inboundOperationId={}, externalReference={}, lineCount={}, status={}",
+                operation.id(),
+                operation.externalReference(),
+                operation.expectedLines().size(),
+                operation.status());
         return operation;
     }
 }
