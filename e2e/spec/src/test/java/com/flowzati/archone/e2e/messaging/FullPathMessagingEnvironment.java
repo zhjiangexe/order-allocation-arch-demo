@@ -3,12 +3,12 @@ package com.flowzati.archone.e2e.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.balance.entrypoint.messaging.OutboundFulfillmentEventSubscriptions;
 import com.flowzati.archone.messaging.observation.MessagingObservationNames;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
@@ -95,10 +95,17 @@ final class FullPathMessagingEnvironment {
             .withNetwork(NETWORK)
             .withNetworkAliases("kafka");
     private static final GenericContainer<?> DEBEZIUM = debeziumConnectContainer();
+    private static final GenericContainer<?> TEMPORAL = new GenericContainer<>("temporalio/temporal:1.8.0")
+            .withCommand("server", "start-dev", "--ip", "0.0.0.0")
+            .withExposedPorts(7233)
+            .waitingFor(Wait.forListeningPort())
+            .withStartupTimeout(Duration.ofSeconds(90));
 
     private static ConfigurableApplicationContext application;
     private static int applicationPort;
     private static boolean kafkaPaused;
+    private static String orchestrationMode = "events";
+    private static boolean simulationEnabled;
 
     private FullPathMessagingEnvironment() {}
 
@@ -123,6 +130,9 @@ final class FullPathMessagingEnvironment {
         }
         if (POSTGRES.isRunning()) {
             POSTGRES.stop();
+        }
+        if (TEMPORAL.isRunning()) {
+            TEMPORAL.stop();
         }
         NETWORK.close();
     }
@@ -156,6 +166,14 @@ final class FullPathMessagingEnvironment {
         properties.put("spring.kafka.listener.missing-topics-fatal", "false");
         properties.put("spring.kafka.listener.observation-enabled", "true");
         properties.put("archone.allocation.reconciliation-scheduler-enabled", "false");
+        properties.put("archone.fulfillment.orchestration-mode", orchestrationMode);
+        properties.put("archone.wms.simulation.enabled", simulationEnabled);
+        properties.put("archone.wms.simulation.processing-delay", "0s");
+        properties.put("archone.wms.simulation.scheduler-initial-delay-ms", "100");
+        properties.put("archone.wms.simulation.scheduler-delay-ms", "100");
+        if ("temporal".equals(orchestrationMode)) {
+            properties.put("archone.temporal.target", "127.0.0.1:" + TEMPORAL.getMappedPort(7233));
+        }
         properties.put("management.otlp.metrics.export.enabled", "false");
         properties.put("spring.main.banner-mode", "off");
 
@@ -177,6 +195,21 @@ final class FullPathMessagingEnvironment {
         startApplication();
     }
 
+    static void switchToEventDrivenFullFlow() {
+        orchestrationMode = "events";
+        simulationEnabled = true;
+        restartApplication();
+    }
+
+    static void switchToTemporalFullFlow() {
+        if (!TEMPORAL.isRunning()) {
+            TEMPORAL.start();
+        }
+        orchestrationMode = "temporal";
+        simulationEnabled = true;
+        restartApplication();
+    }
+
     private static void closeApplication() {
         if (application != null) {
             application.close();
@@ -189,9 +222,10 @@ final class FullPathMessagingEnvironment {
             try (Admin admin = admin()) {
                 Map<String, org.apache.kafka.clients.admin.ConsumerGroupDescription> descriptions =
                         admin.describeConsumerGroups(List.of(
-                                        AllocationEventSubscriptions.ORDER_LIFECYCLE,
+                                        AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER,
                                         OrderingEventSubscriptions.ALLOCATION_RESULTS,
-                                        WmsEventSubscriptions.FULFILLMENT_HANDOFF))
+                                        WmsEventSubscriptions.FULFILLMENT_HANDOFF,
+                                        OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER))
                                 .all()
                                 .get(5, TimeUnit.SECONDS);
                 return descriptions.values().stream()
@@ -409,27 +443,6 @@ final class FullPathMessagingEnvironment {
         return found.get();
     }
 
-    static UUID awaitFulfillmentHandoffEvent(UUID orderId) {
-        AtomicReference<UUID> found = new AtomicReference<>();
-        awaitCondition("fulfillment handoff Outbox event for order " + orderId, NORMAL_FLOW_TIMEOUT, () -> {
-            List<UUID> ids = jdbc().queryForList(
-                            """
-              SELECT id FROM event_outbox
-               WHERE partition_key = ? AND type = ?
-               ORDER BY timestamp, id
-              """,
-                            UUID.class,
-                            orderId.toString(),
-                            AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE);
-            if (ids.size() == 1) {
-                found.set(ids.getFirst());
-                return true;
-            }
-            return false;
-        });
-        return found.get();
-    }
-
     static int outboxCount(UUID orderId) {
         return jdbc().queryForObject(
                         "SELECT COUNT(*) FROM event_outbox WHERE aggregateid = ?", Integer.class, orderId.toString());
@@ -468,6 +481,49 @@ final class FullPathMessagingEnvironment {
           JOIN wms_shipments shipment ON shipment.id = line.shipment_id
          WHERE shipment.order_id = ?
         """, Integer.class, orderId);
+    }
+
+    static String wmsShipmentStatus(UUID orderId) {
+        return jdbc().queryForObject(
+                "SELECT status FROM wms_shipments WHERE order_id = ?", String.class, orderId);
+    }
+
+    static int wmsWaveCount(UUID orderId) {
+        return jdbc().queryForObject(
+                """
+                SELECT COUNT(*)
+                  FROM wms_wave_assignments assignment
+                  JOIN wms_shipments shipment ON shipment.id = assignment.shipment_id
+                 WHERE shipment.order_id = ?
+                """,
+                Integer.class,
+                orderId);
+    }
+
+    static String fulfillmentOrchestrationMode(UUID orderId) {
+        JsonNode fulfillment = fulfillmentView(orderId);
+        return fulfillment == null ? "UNAVAILABLE" : fulfillment.path("orchestrationMode").asText();
+    }
+
+    static String workflowOutcome(UUID orderId) {
+        JsonNode fulfillment = fulfillmentView(orderId);
+        return fulfillment == null
+                ? "UNAVAILABLE"
+                : fulfillment.path("workflow").path("outcome").asText();
+    }
+
+    private static JsonNode fulfillmentView(UUID orderId) {
+        try {
+            HttpResponse<String> response = HTTP.send(
+                    HttpRequest.newBuilder(applicationUri("/demo/orders/" + orderId + "/fulfillment"))
+                            .timeout(Duration.ofSeconds(5))
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 200 ? JSON.readTree(response.body()) : null;
+        } catch (Exception exception) {
+            return null;
+        }
     }
 
     static int reservedQuantity(String sku) {
@@ -512,7 +568,7 @@ final class FullPathMessagingEnvironment {
         MeterRegistry registry = application.getBean(MeterRegistry.class);
         return registry
                 .find(MessagingObservationNames.CONSUMER)
-                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationEventSubscriptions.ORDER_LIFECYCLE)
+                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER)
                 .tag(MessagingObservationTags.OUTCOME, "duplicate")
                 .timers()
                 .stream()

@@ -6,13 +6,13 @@ import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.OP
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.ORDER_EVENTS;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitConnectorRunning;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitEvent;
-import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitFulfillmentHandoffEvent;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitOrderStatus;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitOutboxEvent;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.awaitWmsShipment;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.copyOf;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.duplicateOutcomeCount;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.failureInjector;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.fulfillmentOrchestrationMode;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.inboxClaimCount;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.intHeader;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.longHeader;
@@ -32,15 +32,20 @@ import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.st
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.startFullPath;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.stopConnector;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.stopFullPath;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.switchToEventDrivenFullFlow;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.switchToTemporalFullFlow;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.textHeader;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.unpauseKafkaIfNecessary;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsInboxClaimCount;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsShipmentCount;
 import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsShipmentLineQuantity;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsShipmentStatus;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.wmsWaveCount;
+import static com.flowzati.archone.e2e.messaging.FullPathMessagingEnvironment.workflowOutcome;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterHeaders;
 import com.flowzati.archone.messaging.spring.consumer.kafka.KafkaDeadLetterReplayRecordFactory;
@@ -97,10 +102,10 @@ class FullPathMessagingCorrectnessE2eTest {
             ConsumerRecord<String, String> original = awaitEvent(orderProbe, placedEventId, NORMAL_FLOW_TIMEOUT);
 
             awaitOrderStatus(orderId, "ALLOCATED", NORMAL_FLOW_TIMEOUT);
-            UUID allocatedEventId = awaitOutboxEvent(orderId, OrderAllocatedIntegrationEvent.EVENT_TYPE);
-            UUID handoffEventId = awaitFulfillmentHandoffEvent(orderId);
-            awaitWmsShipment(orderId, handoffEventId);
-            assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocatedEventId, handoffEventId);
+            UUID allocationCommittedEventId =
+                    awaitOutboxEvent(orderId, OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
+            awaitWmsShipment(orderId, allocationCommittedEventId);
+            assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocationCommittedEventId);
 
             restartApplication();
             double duplicateBefore = duplicateOutcomeCount();
@@ -110,7 +115,7 @@ class FullPathMessagingCorrectnessE2eTest {
                     NORMAL_FLOW_TIMEOUT,
                     () -> duplicateOutcomeCount() > duplicateBefore);
 
-            assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocatedEventId, handoffEventId);
+            assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocationCommittedEventId);
         }
     }
 
@@ -127,7 +132,7 @@ class FullPathMessagingCorrectnessE2eTest {
             UUID delayedPlacedEvent = awaitOutboxEvent(delayedOrder, OrderPlacedIntegrationEvent.EVENT_TYPE);
 
             assertThat(orderStatus(delayedOrder)).isEqualTo("PENDING");
-            assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_LIFECYCLE, delayedPlacedEvent))
+            assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, delayedPlacedEvent))
                     .isZero();
 
             startConnector();
@@ -156,7 +161,7 @@ class FullPathMessagingCorrectnessE2eTest {
             orderId = placeOrder(sku, 4, "E2E-KAFKA-PAUSE-1");
             placedEventId = awaitOutboxEvent(orderId, OrderPlacedIntegrationEvent.EVENT_TYPE);
             assertThat(orderStatus(orderId)).isEqualTo("PENDING");
-            assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_LIFECYCLE, placedEventId))
+            assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, placedEventId))
                     .isZero();
         } finally {
             unpauseKafkaIfNecessary();
@@ -164,7 +169,7 @@ class FullPathMessagingCorrectnessE2eTest {
 
         awaitConnectorRunning();
         awaitOrderStatus(orderId, "ALLOCATED", FAILURE_FLOW_TIMEOUT);
-        assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_LIFECYCLE, placedEventId))
+        assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, placedEventId))
                 .isOne();
     }
 
@@ -194,37 +199,76 @@ class FullPathMessagingCorrectnessE2eTest {
             publish(new KafkaDeadLetterReplayRecordFactory().create(deadLetter));
 
             awaitOrderStatus(orderId, "ALLOCATED", NORMAL_FLOW_TIMEOUT);
-            UUID allocatedEventId = awaitOutboxEvent(orderId, OrderAllocatedIntegrationEvent.EVENT_TYPE);
-            UUID handoffEventId = awaitFulfillmentHandoffEvent(orderId);
-            awaitWmsShipment(orderId, handoffEventId);
-            assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocatedEventId, handoffEventId);
+            UUID allocationCommittedEventId =
+                    awaitOutboxEvent(orderId, OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
+            awaitWmsShipment(orderId, allocationCommittedEventId);
+            assertCompletedExactlyOnce(orderId, sku, quantity, placedEventId, allocationCommittedEventId);
         } finally {
             failureInjector().allowSuccess();
         }
     }
 
+    @Test
+    @Order(5)
+    @DisplayName("Events 模式應執行完整 WMS checkpoint 並把 Order 推進到 FULFILLED")
+    void shouldFulfillAnOrderThroughTheEventDrivenFlow() {
+        switchToEventDrivenFullFlow();
+        String sku = "E2E-EVENTS-FULFILLED";
+        seedAvailableStock(sku, 20);
+
+        UUID orderId = placeOrder(sku, 3, "E2E-EVENTS-FULFILLED-1");
+
+        awaitOrderStatus(orderId, "FULFILLED", FAILURE_FLOW_TIMEOUT);
+        assertThat(fulfillmentOrchestrationMode(orderId)).isEqualTo("EVENTS");
+        assertWarehouseFlowCompleted(orderId);
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("Temporal 模式應使用相同 WMS checkpoint 並完成 Workflow 與 Order")
+    void shouldFulfillAnOrderThroughTheTemporalWorkflow() {
+        switchToTemporalFullFlow();
+        String sku = "E2E-TEMPORAL-FULFILLED";
+        seedAvailableStock(sku, 20);
+
+        UUID orderId = placeOrder(sku, 4, "E2E-TEMPORAL-FULFILLED-1");
+
+        awaitOrderStatus(orderId, "FULFILLED", FAILURE_FLOW_TIMEOUT);
+        FullPathMessagingEnvironment.awaitCondition(
+                "Temporal workflow " + orderId + " to report completion",
+                FAILURE_FLOW_TIMEOUT,
+                () -> "FULFILLMENT_COMPLETED".equals(workflowOutcome(orderId)));
+        assertThat(fulfillmentOrchestrationMode(orderId)).isEqualTo("TEMPORAL");
+        assertWarehouseFlowCompleted(orderId);
+    }
+
+    private static void assertWarehouseFlowCompleted(UUID orderId) {
+        assertThat(wmsShipmentCount(orderId)).isOne();
+        assertThat(wmsShipmentStatus(orderId)).isEqualTo("HANDED_OVER_TO_CARRIER");
+        assertThat(wmsWaveCount(orderId)).isOne();
+    }
+
     private static void assertCompletedExactlyOnce(
-            UUID orderId, String sku, int quantity, UUID placedEventId, UUID allocatedEventId, UUID handoffEventId) {
+            UUID orderId, String sku, int quantity, UUID placedEventId, UUID allocationCommittedEventId) {
         assertThat(orderStatus(orderId)).isEqualTo("ALLOCATED");
-        // This query counts Order aggregate events. The fulfillment handoff is intentionally owned by
-        // the StockPicking aggregate and is asserted separately through its event ID and WMS Inbox.
+        // One canonical allocation fact is fanned out to Ordering and WMS under separate Inbox scopes.
         assertThat(outboxCount(orderId)).isEqualTo(2);
-        assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_LIFECYCLE, placedEventId))
+        assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, placedEventId))
                 .isOne();
-        assertThat(inboxClaimCount(OrderingEventSubscriptions.ALLOCATION_RESULTS, allocatedEventId))
+        assertThat(inboxClaimCount(OrderingEventSubscriptions.ALLOCATION_RESULTS, allocationCommittedEventId))
                 .isOne();
         assertThat(reservedQuantity(sku)).isEqualTo(quantity);
         assertThat(pickingCount(orderId)).isOne();
         assertThat(moveCount(orderId)).isOne();
         assertThat(moveLineQuantity(orderId)).isEqualTo(quantity);
-        assertThat(wmsInboxClaimCount(handoffEventId)).isOne();
+        assertThat(wmsInboxClaimCount(allocationCommittedEventId)).isOne();
         assertThat(wmsShipmentCount(orderId)).isOne();
         assertThat(wmsShipmentLineQuantity(orderId)).isEqualTo(quantity);
     }
 
     private static void assertFailedAllocationRolledBack(UUID orderId, String sku, UUID placedEventId) {
         assertThat(orderStatus(orderId)).isEqualTo("PENDING");
-        assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_LIFECYCLE, placedEventId))
+        assertThat(inboxClaimCount(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, placedEventId))
                 .isZero();
         assertThat(outboxCount(orderId)).isOne();
         assertThat(reservedQuantity(sku)).isZero();
@@ -249,8 +293,8 @@ class FullPathMessagingCorrectnessE2eTest {
         assertThat(textHeader(deadLetter, KafkaDeadLetterHeaders.ORIGINAL_PHYSICAL_DESTINATION))
                 .isEqualTo(ORDER_EVENTS);
         assertThat(textHeader(deadLetter, KafkaDeadLetterHeaders.SUBSCRIBER_ID))
-                .isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
+                .isEqualTo(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER);
         assertThat(textHeader(deadLetter, KafkaDeadLetterHeaders.CONSUMER_GROUP_ID))
-                .isEqualTo(AllocationEventSubscriptions.ORDER_LIFECYCLE);
+                .isEqualTo(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER);
     }
 }
