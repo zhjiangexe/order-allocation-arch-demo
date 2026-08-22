@@ -124,7 +124,7 @@ end note
 
 partition "可靠訊息與 completion driver" {
   :Debezium -> Kafka
-  ShipmentHandedOverForFulfillment; <<#EDE9FE>>
+  ShipmentHandedOver; <<#EDE9FE>>
   if (orchestration mode？) then (Temporal)
     :shipmentHandedOverToCarrier Signal; <<#E8F1FF>>
     :CompleteOutboundMovements Activity; <<#E8F1FF>>

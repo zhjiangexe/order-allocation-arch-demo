@@ -77,35 +77,35 @@ Reconciliation SHALL expose pending age, the blocking predecessor, and the block
 - **WHEN** its pending-age alert threshold is reached
 - **THEN** monitoring identifies the demand, predecessor relationship, and blocked SKU while allocation precedence remains unchanged
 
-### Requirement: Allocation publishes a generic outcome and writes only allocation-owned tables
+### Requirement: Allocation publishes one canonical order outcome and writes only allocation-owned tables
 
-Allocation SHALL record its result by writing allocation-owned demand, stock, movement, and picking tables and by publishing a generic allocation fact. It SHALL NOT load, mutate, or save the source aggregate.
+Allocation SHALL record its result by writing allocation-owned demand, stock, movement, and picking tables. It SHALL NOT load, mutate, or save the source aggregate.
 
-The completion fact SHALL carry the allocation-demand identity, full source allocation-unit identity, and allocation-demand-line identities so each source context can process only its own results. It is an allocation-context fact and SHALL NOT directly replace existing external wire contracts.
+The internal completion result SHALL carry the allocation-demand identity, full source allocation-unit identity, and allocation-demand-line identities so a source-specific publication can map it without loading the source aggregate.
 
-In the first migration stage, the order adapter SHALL translate the generic fact into the existing `OrderAllocatedIntegrationEvent` v1 and `AllocationCommittedForFulfillmentIntegrationEvent` v1 with unchanged event types and payload semantics. The fulfillment v1 `allocationId` SHALL remain the order picking id used by WMS to load execution idempotently; it SHALL NOT be replaced with the new allocation-demand id. The v1 order-line id SHALL be mapped from the order source-line reference. A new source SHALL define its own integration contract in its source-adapter change.
+In the first migration stage, an order-backed completion SHALL publish exactly one `OrderAllocationCommittedIntegrationEvent` v1. Ordering and the selected fulfillment driver SHALL consume the same event under separate subscription identities. Its `allocationId` SHALL remain the order picking id used by WMS to load execution idempotently; it SHALL NOT be replaced with the new allocation-demand id. Its order-line id SHALL be mapped from the order source-line reference. A new source SHALL define its own integration contract in its source-adapter change.
 
 The allocation decision input and immutable plan SHALL use `allocationDemandId` and `allocationDemandLineId` as their internal correlation keys. `sourceLineId`, `orderId`, and `orderLineId` SHALL NOT be used as allocation-core join keys.
 
 #### Scenario: A completed order allocation is source-addressable
 
 - **WHEN** an order-backed allocation commits successfully
-- **THEN** the allocation demand is marked allocated, execution records are updated, and the completion fact carries source type `ORDER`, the canonical order source id, and its allocation-unit key
+- **THEN** the allocation demand is marked allocated, execution records are updated, and the internal completion result carries source type `ORDER`, the canonical order source id, and its allocation-unit key
 
 #### Scenario: A completed transfer allocation does not require an order event
 
 - **WHEN** a transfer-backed allocation commits successfully
-- **THEN** the allocation context publishes the same generic completion fact with source type `TRANSFER`, without requiring an order-specific event
+- **THEN** the allocation core can produce an internal completion result with source type `TRANSFER` without requiring an order-specific event; no production event is published until that source defines its adapter
 
-#### Scenario: Existing order fulfillment consumers remain compatible
+#### Scenario: One canonical order allocation event fans out
 
-- **WHEN** an order-backed generic allocation fact is translated during the first migration stage
-- **THEN** existing ordering and fulfillment consumers receive their unchanged v1 integration events
+- **WHEN** an order-backed allocation commits during the first migration stage
+- **THEN** one `OrderAllocationCommittedIntegrationEvent` is written to Outbox and separate Ordering and fulfillment subscriptions can each claim that same event id
 
 #### Scenario: The existing fulfillment allocation id keeps its meaning
 
 - **GIVEN** an order allocation has allocation demand `demand-1` and picking `picking-1`
-- **WHEN** the order adapter publishes `AllocationCommittedForFulfillmentIntegrationEvent` v1
+- **WHEN** the order publication factory publishes `OrderAllocationCommittedIntegrationEvent` v1
 - **THEN** its `allocationId` remains `picking-1` so WMS can load the existing execution grouping
 
 ### Requirement: A multi-SKU allocation demand is satisfiable only when every one of its SKUs is

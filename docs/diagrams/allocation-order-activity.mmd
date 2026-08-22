@@ -32,8 +32,8 @@ flowchart TB
 
     subgraph COMPLETION["階段 3｜完成事件"]
       direction TB
-      ROUTER["<b>AllocationCompletionRouter</b><br/>generic fact → ORDER adapter"]
-      OUTBOX["transactional Outbox<br/>既有 order / fulfillment v1 events"]
+      PUBLICATION["<b>OrderAllocationCommittedPublicationFactory</b><br/>generic result → canonical ORDER event"]
+      OUTBOX["transactional Outbox<br/>單一 OrderAllocationCommitted event"]
     end
 
     ORDER_EVENT --> ORDER_UC
@@ -48,7 +48,7 @@ flowchart TB
     COORDINATOR --> FIFO --> PLANNER --> DECISION
     DECISION -- "FIFO 未輪到或任一 SKU 不足" --> WAITING_STATE
     DECISION -- "完整可行" --> COMMITTER
-    COMMITTER --> ROUTER --> OUTBOX
+    COMMITTER --> PUBLICATION --> OUTBOX
 
     classDef trigger fill:#e8f1ff,stroke:#2563eb,color:#172554,stroke-width:1.5px;
     classDef usecase fill:#ede9fe,stroke:#7c3aed,color:#2e1065,stroke-width:2px;
@@ -61,7 +61,7 @@ flowchart TB
     class ORDER_EVENT,STOCK_EVENT,SCHEDULER trigger;
     class ORDER_UC,RECONCILE_UC usecase;
     class WAITING_TX transaction;
-    class ADAPTER,REGISTRAR,COORDINATOR,ROUTER adapter;
+    class ADAPTER,REGISTRAR,COORDINATOR,PUBLICATION adapter;
     class FIFO,PLANNER domain;
     class REGISTERED_STATE,WAITING_STATE state;
     class COMMITTER,OUTBOX write;

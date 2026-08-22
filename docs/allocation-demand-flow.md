@@ -54,7 +54,7 @@ demand」。因此 scope 需要放回隊尾，之後重新查詢是否還有 suc
 | 3. 準備喚醒 | `AllocateOrderUsecase` | 從已接受 demand 的 canonical 第一條 line 取 SKU | 不寫資料 | 得到 `triggeringSku`；它只縮小查詢，不代表只配這個 SKU |
 | 4. 選 demand 與規劃 | `PendingDemandAllocator`、repositories、`AllocationFifoSelector`、`AllocationDemandPlanner` | 讀 `PENDING` candidates、所有 required SKU 的 FIFO predecessors、所有 required SKU 的 FEFO stock batches | Selector 與 Planner 都是純演算法，不寫資料庫 | FIFO 未輪到或任一 SKU 不足：維持 `PENDING`；全部可行：得到 immutable plan |
 | 5. Commit 配置 | `AllocationCommitter` | 重新驗證 demand、moves、picking、stock pools 與 plan | reserve stock；moves／picking 變 `ASSIGNED`；demand 變 `ALLOCATED` | 成功產生 `AllocationCommitted`；任何 invariant／lock failure 使整個 transaction rollback |
-| 6. 完成事件 | `AllocationCompletionRouter` | 接收 generic `AllocationCommitted` | ORDER adapter 轉成既有 v1 events，寫入 transactional Outbox | transaction commit 後，由既有訊息管線發布 |
+| 6. 完成事件 | `PendingDemandAllocator`、`OrderAllocationCommittedPublicationFactory` | 接收 generic `AllocationCommitResult` | 建立單一 canonical `OrderAllocationCommittedIntegrationEvent`，寫入 transactional Outbox | Ordering 與選定的 fulfillment driver 各自消費同一 event ID |
 
 ## 最容易混淆的狀態時間線
 
@@ -103,5 +103,5 @@ FIFO 排隊資格由 `AllocationFifoSelector` 決定；真正的 demand／supply
 4. [`AllocationFifoSelector`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationFifoSelector.java)：只看 shared-SKU FIFO eligibility。
 5. [`AllocationDemandPlanner`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationDemandPlanner.java)：只看 all-or-nothing 與 FEFO demand／supply planning；ready plan 建立時就會驗證每條 demand line 的 picks 總量。
 6. [`AllocationCommitter`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/service/reservation/AllocationCommitter.java)：依「load data → validate cross-model scope → reserve → assign moves → assign pickings → complete demand → fact」閱讀。`AllocationCommitData` 只保存資料；`AllocationCommitValidator` 只保留無法由 plan、DB constraint 或單一 aggregate 保證的跨模型檢查，兩者都不是另外的 use case。
-7. [`AllocationCompletionRouter`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/event/AllocationCompletionRouter.java)：看 generic result 如何轉回 ORDER events。
+7. [`OrderAllocationCommittedPublicationFactory`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/event/OrderAllocationCommittedPublicationFactory.java)：看 generic result 如何轉成單一 canonical ORDER allocation event。
 8. [`ReconcileWaitingDemandUsecase`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/ReconcileWaitingDemandUsecase.java)：最後再看背景補配；它從階段 2 開始，不重做 acceptance。

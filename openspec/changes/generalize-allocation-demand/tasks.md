@@ -70,13 +70,13 @@
 
 ## 7. Generalize completion and cancellation facts
 
-- [x] 7.1 Define an allocation-context-internal generic completion fact with allocation-demand, source, move, source-location, quantity, and optional picking/execution-group references.
-- [x] 7.2 Add order adapter translation while keeping `OrderAllocatedIntegrationEvent` v1 and `AllocationCommittedForFulfillmentIntegrationEvent` v1 event types, payloads, and consumer behavior unchanged; keep fulfillment v1 `allocationId = pickingId` and map v1 `orderLineId` from the order source-line reference.
+- [x] 7.1 Define an allocation-context-internal generic completion result with allocation-demand, source, move, source-location, quantity, and optional picking/execution-group references.
+- [x] 7.2 Publish one canonical `OrderAllocationCommittedIntegrationEvent` v1 and fan it out to Ordering plus the selected fulfillment driver; keep `allocationId = pickingId` and map `orderLineId` from the order source-line reference.
 - [x] 7.3 Add the order completion adapter and verify that order status changes remain outside the allocation transaction.
 - [x] 7.4 Implement cancellation of pending demands and unassigned movements using a stable `cancellationOperationId`; use `OrderCancelledIntegrationEvent.eventId` for the order path and treat its workflow sequencing as external cancellation confirmation when required.
 - [x] 7.5 Implement allocated-demand cancellation as an idempotent operation: call the coordinator outside the database transaction with the operation id, durably record rejected or confirmed external decisions, and after confirmation follow the shared lock hierarchy to release reservations and complete local cancellation in one transaction.
 - [x] 7.6 Return a not-cancellable result when external execution cancellation cannot be confirmed, without changing demand, reservation, movement, or picking state.
-- [x] 7.7 Add tests for cancellation/allocation races, crash before external-result persistence, crash after external confirmation but before local commit, exactly-once reservation release, confirmed reversible cancellation, unconfirmed refusal, idempotent retries, and source-specific completion routing.
+- [x] 7.7 Add tests for cancellation/allocation races, crash before external-result persistence, crash after external confirmation but before local commit, exactly-once reservation release, confirmed reversible cancellation, unconfirmed refusal, idempotent retries, and canonical completion publication.
 - [x] 7.8 Verify the order adapter preserves existing fulfillment sequencing: WMS `CANCELLED` permits ordering/allocation cancellation, while WMS `REJECTED` leaves the order, demand, and reservation active.
 - [x] 7.9 Verify same-operation retries retain their original decision and document that unordered future source adapters must persist cancellation tombstones before activation.
 

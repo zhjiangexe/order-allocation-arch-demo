@@ -67,7 +67,7 @@ SimulationDriver -[#2E7D32]-> DomainActions
 DomainActions -[#2E7D32]-> Handover
 
 Handover -[#2E7D32]-> WmsPublisher : ShipmentHandedOverToCarrier
-WmsPublisher -[#2E7D32]-> Kafka : ShipmentHandedOverForFulfillment
+WmsPublisher -[#2E7D32]-> Kafka : ShipmentHandedOver
 Kafka -[#2E7D32]-> EventCompletion : mode = events
 Kafka -[#2E7D32]-> TemporalCompletion : mode = temporal
 EventCompletion -[#2E7D32]-> CompleteStock

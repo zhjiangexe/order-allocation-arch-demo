@@ -166,7 +166,7 @@ Workflow versioning 切換 task queue，不能直接改掉進行中 execution �
 兩種 driver 都委派同一個 `CreateShipmentUsecase`，但 entrypoint 對輸出的使用不同：
 
 ```text
-AllocationCommittedForFulfillmentIntegrationEvent
+OrderAllocationCommittedIntegrationEvent
   -> event driver: WMS consumer -> CreateShipmentUsecase -> ignore CreateShipmentResult
   -> temporal driver: Workflow Signal -> CreateShipment Activity -> CreateShipmentUsecase
                                          -> map CreateShipmentResult to CreateShipmentActivityResult

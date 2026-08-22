@@ -27,10 +27,10 @@ use case／adapter／planner／committer 的責任說明。
 - FIFO 以 owner/facility/location/SKU 分 queue。候選需在每個 required SKU 都是最早 pending；
   stock prefilter 不會移除 predecessor。每個 local transaction 最多 commit 一筆 demand，
   scheduler 以 bounded global work budget 進行後續 iterations。
-- Generic `AllocationCommitted` fact 帶 source identity、move/picking、source location、quantity 與
-  committed batch picks。只有 order completion adapter 轉成既有
-  `OrderAllocatedIntegrationEvent v1` 與
-  `AllocationCommittedForFulfillmentIntegrationEvent v1`；v1 `allocationId` 仍是 picking id。
+- Generic `AllocationCommitResult` 帶 source identity、move/picking、source location、quantity 與
+  committed batch picks。Order publication factory 將它轉成單一
+  `OrderAllocationCommittedIntegrationEvent v1`；Ordering 與 fulfillment driver 各自消費同一 event，
+  且 `allocationId` 仍是 picking id。
 - Inbound receipt、inventory adjustment 與 already-reserved supply operations 不推導 demand；inbound
   move 的 demand references 必須為 null。
 

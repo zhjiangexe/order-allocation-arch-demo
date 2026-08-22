@@ -164,9 +164,9 @@ triggering SKU query 先回傳包含該 SKU 的 demands，再載入每筆 demand
 
 所有會修改 allocation execution 的本地 transaction 採一致的 lock hierarchy：先 claim inbox/cancellation operation，再鎖定 `AllocationDemand`，接著依穩定全域順序鎖定 `StockPool`，最後依 id 順序更新 `StockMove`、`StockPicking` 與 outbox/result records。只修改其中部分資料的路徑仍遵守相同相對順序。warehouse cancellation coordinator 的外部呼叫必須在本地 database transaction 之外完成；取得 acknowledgement 後才進入上述 lock hierarchy，避免在持有資料庫鎖時等待物理世界。
 
-### 7. 使用通用完成 fact，再由來源 context 處理
+### 7. 使用通用完成 result，再由來源 publication 處理
 
-allocation context 在 allocation commit transaction 產生 in-process 通用 `AllocationCompleted` domain fact，攜帶：
+allocation context 在 allocation commit transaction 產生通用 `AllocationCommitResult`，攜帶：
 
 - `allocationDemandId`
 - `sourceType`
@@ -176,7 +176,7 @@ allocation context 在 allocation commit transaction 產生 in-process 通用 `A
 - `allocationDemandLineId`、`sourceLineId`、`moveId`、source location、quantity 與 allocation details
 - allocation time
 
-第一階段的 `OrderAllocationAdapter` 在同一個 transaction 將 `sourceType = ORDER` 的 domain fact 轉成 outbox 中既有 `OrderAllocatedIntegrationEvent` v1 與 `AllocationCommittedForFulfillmentIntegrationEvent` v1；event type、payload 與 partition semantics 維持不變。既有 fulfillment v1 的 `allocationId` 語意是 order picking id，WMS 依它冪等讀取 execution，因此 adapter 必須繼續填入 `pickingId`，不得改填新的 `allocationDemandId`。v1 line 的 `orderLineId` 由 generic fact 的 order `sourceLineId` 映射。generic fact 本身不成為 wire event。未來 transfer、replenishment、production 各自在自己的 change 定義 integration event 或 consumer，避免 allocation core 內出現 source-specific event policy。
+第一階段的 `OrderAllocationCommittedPublicationFactory` 在同一個 transaction 將 `sourceType = ORDER` 的 result 轉成單一 `OrderAllocationCommittedIntegrationEvent` v1。Ordering 使用其中的 `orderId/committedAt` 推進狀態；event-driven WMS 或 Temporal bridge 使用完整 snapshot 繼續履約。`allocationId` 語意仍是 order picking id，WMS 依它冪等讀取 execution，因此 factory 必須填入 `pickingId`，不得改填新的 `allocationDemandId`。line 的 `orderLineId` 由 generic result 的 order `sourceLineId` 映射。未來 transfer、replenishment、production 各自在自己的 change 定義 integration event 或 consumer，避免 allocation core 內出現 source-specific event policy。
 
 來源 adapter 也負責來源特有的建立、取消、版本檢查與完成後動作；`AllocationDemand` 只驗證共通的 source identity、scope、數量與 allocation transition。如此可讓多個來源共用 allocation engine，而不讓 allocation demand 變成包含所有業務流程的萬用 aggregate。本 change 只交付 order adapter；其他來源以 contract fixture 證明 core 不依賴 order，正式 adapter 各自另開 change。
 
