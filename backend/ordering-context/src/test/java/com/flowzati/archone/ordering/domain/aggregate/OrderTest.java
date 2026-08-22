@@ -4,9 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.ordering.domain.event.OrderCancelled;
-import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import java.time.Instant;
@@ -26,23 +23,13 @@ class OrderTest {
     private final Instant receivedAt = Instant.parse("2026-07-23T00:00:00Z");
 
     @Test
-    @DisplayName("建立訂單時應為 PENDING 並記錄下單 Domain Event")
-    void shouldPlacePendingOrderAndRecordDomainEvent() {
+    @DisplayName("建立訂單時應為 PENDING")
+    void shouldPlacePendingOrder() {
         Order order =
                 Order.place(orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)), receivedAt, null);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
         assertThat(order.getVersion()).isNull();
-        assertThat(order.releaseDomainEvents())
-                .containsExactly(new OrderPlaced(
-                        orderId,
-                        ownerId,
-                        facilityId,
-                        "100",
-                        LocalDate.of(2026, 8, 1),
-                        List.of(new LineSnapshot(1, "SKU-1", 3)),
-                        receivedAt));
-        assertThat(order.releaseDomainEvents()).isEmpty();
     }
 
     @Test
@@ -62,7 +49,7 @@ class OrderTest {
     }
 
     @Test
-    @DisplayName("PENDING 訂單應可配置且不另發領域事件")
+    @DisplayName("PENDING 訂單應可配置")
     void shouldAllocatePendingOrder() {
         Instant allocatedAt = receivedAt.plusSeconds(10);
         Order order = pendingOrder();
@@ -71,7 +58,6 @@ class OrderTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
         assertThat(order.getAllocatedAt()).isEqualTo(allocatedAt);
-        assertThat(order.releaseDomainEvents()).isEmpty();
     }
 
     @Test
@@ -87,12 +73,6 @@ class OrderTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
-        assertThat(order.releaseDomainEvents())
-                .containsExactly(new OrderCancelled(
-                        orderId,
-                        ownerId,
-                        com.flowzati.archone.ordering.testsupport.OrderingFixtures.FACILITY_ID,
-                        cancelledAt));
     }
 
     @Test
@@ -100,7 +80,6 @@ class OrderTest {
     void shouldAllowAllocatedOrderToBeCancelled() {
         Order order = pendingOrder();
         order.markAllocated(receivedAt.plusSeconds(10));
-        order.releaseDomainEvents();
 
         order.cancel(UUID.randomUUID(), receivedAt.plusSeconds(20), "Customer requested cancellation");
 
@@ -172,8 +151,8 @@ class OrderTest {
     }
 
     @Test
-    @DisplayName("rehydrate 應還原訂單且不新增 Domain Event")
-    void shouldRehydrateWithoutRecordingDomainEvents() {
+    @DisplayName("rehydrate 應還原訂單")
+    void shouldRehydrateOrder() {
         Instant backorderedAt = receivedAt.plusSeconds(10);
         Instant allocatedAt = receivedAt.plusSeconds(20);
 
@@ -192,7 +171,6 @@ class OrderTest {
                 4L);
 
         assertThat(order.getVersion()).isEqualTo(4L);
-        assertThat(order.releaseDomainEvents()).isEmpty();
     }
 
     @Nested
@@ -423,8 +401,6 @@ class OrderTest {
             Instant upstreamEarlier = receivedAt.minusSeconds(3600);
             Order order = Order.place(
                     orderId, ownerId, "EXT-1", delivery(), List.of(line(1, "SKU-1", 3)), receivedAt, upstreamEarlier);
-            order.releaseDomainEvents();
-
             // 落在上游下單之後、我們收單之前——若下界取錯成 placedAt，這一行會安靜地通過。
             assertThatThrownBy(() -> order.markAllocated(receivedAt.minusSeconds(1)))
                     .isInstanceOf(IllegalArgumentException.class)

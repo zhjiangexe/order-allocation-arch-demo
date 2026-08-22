@@ -1,16 +1,11 @@
 package com.flowzati.archone.ordering.domain.aggregate;
 
-import com.flowzati.archone.foundation.domain.event.DomainEvent;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.ordering.domain.event.OrderCancelled;
-import com.flowzati.archone.ordering.domain.event.OrderPlaced;
 import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
 import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +26,6 @@ public class Order {
      */
     public static final java.time.Duration PLACED_AT_TOLERANCE = java.time.Duration.ofMinutes(5);
 
-    private final List<DomainEvent> events = new ArrayList<>();
     private final UUID id;
     private final UUID ownerId;
     private final String externalOrderNo;
@@ -123,7 +117,7 @@ public class Order {
             List<OrderLine> lines,
             Instant receivedAt,
             Instant placedAt) {
-        Order order = new Order(
+        return new Order(
                 id,
                 ownerId,
                 externalOrderNo,
@@ -140,17 +134,6 @@ public class Order {
                 null,
                 null,
                 null);
-        order.events.add(new OrderPlaced(
-                id,
-                ownerId,
-                deliveryTerms.facilityId(),
-                deliveryTerms.shipToZone(),
-                deliveryTerms.promisedDeliveryDate(),
-                order.toLineSnapshots(),
-                // 事件帶的是收單時刻——它描述「這件事在我們系統裡何時發生」。上游的下單時刻是訂單的
-                // 屬性而非事件的屬性，需要它的消費端重讀訂單就拿得到。
-                receivedAt));
-        return order;
     }
 
     /** 由儲存還原。 */
@@ -287,7 +270,7 @@ public class Order {
         return quantity;
     }
 
-    /** 將 stock 的配貨結果寫入訂單投影；來源事實已由 stock 發布，因此這裡不另發領域事件。 */
+    /** 將 stock 的配貨結果寫入訂單投影；來源 Integration Event 已由 stock 發布。 */
     public void markAllocated(Instant allocatedAt) {
         if (status != OrderStatus.PENDING) {
             throw new IllegalStateException("Only pending orders can be allocated");
@@ -332,7 +315,7 @@ public class Order {
 
     /**
      * 取消這張單。已取消時回 {@link CancellationStatus#ALREADY_CANCELLED}；已履約時回
-     * {@link CancellationStatus#REJECTED}，兩者都不產生新的 Domain Event。
+     * {@link CancellationStatus#REJECTED}，兩者都不改變訂單狀態。
      *
      * <p><b>與 {@link #markAllocated} 刻意不同慣例</b>。差別在驅動來源：
      *
@@ -348,7 +331,7 @@ public class Order {
      *
      * <p><b>目前允許從 {@code PENDING}、{@code ALLOCATED} 取消。</b>
      * ALLOCATED 後是否還要取消 WMS 作業／回架，是跨 bounded context 的取消協調政策，不由
-     * Order aggregate 猜測；本方法只負責 Ordering 自己的狀態轉換與事件。
+     * Order aggregate 猜測；本方法只負責 Ordering 自己的狀態轉換。
      *
      * <p><b>離倉後不得取消。</b>逆物流不在範圍內，因此 {@code FULFILLED} 必須明確拒絕取消；
      * 不能把沒有補償手段的路徑當作一般冪等重送。
@@ -370,7 +353,6 @@ public class Order {
         this.cancelledAt = cancelledAt;
         this.cancellationRequestId = requestId;
         this.cancellationReason = reason;
-        events.add(new OrderCancelled(id, ownerId, deliveryTerms.facilityId(), cancelledAt));
         return CancellationStatus.CANCELLED;
     }
 
@@ -402,18 +384,6 @@ public class Order {
         CANCELLED,
         ALREADY_CANCELLED,
         REJECTED
-    }
-
-    public List<DomainEvent> releaseDomainEvents() {
-        List<DomainEvent> domainEvents = List.copyOf(events);
-        events.clear();
-        return domainEvents;
-    }
-
-    private List<LineSnapshot> toLineSnapshots() {
-        return lines.stream()
-                .map(line -> new LineSnapshot(line.getLineNo(), line.getSkuCode(), line.getQuantity()))
-                .toList();
     }
 
     private static void validateState(

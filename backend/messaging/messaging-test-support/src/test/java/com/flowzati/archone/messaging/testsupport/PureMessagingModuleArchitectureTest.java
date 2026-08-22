@@ -168,30 +168,29 @@ class PureMessagingModuleArchitectureTest {
     }
 
     @Test
-    void applicationKeepsInboundConsumersAndOutboundPublishersOnOppositeAdapters() throws IOException {
+    void applicationConsumesAtEntrypointsAndPublishesIntegrationEventsDirectly() throws IOException {
         Path ordering = root().resolve("ordering-context/src/main/java/com/flowzati/archone/ordering");
         Path inventory = root().resolve("inventory-context/src/main/java/com/flowzati/archone/inventory");
         String orderingConsumers = readProductionSources(ordering.resolve("entrypoint/messaging"));
         String allocationConsumers = readProductionSources(inventory.resolve("allocation/entrypoint/messaging"));
-        String orderingProducers = readProductionSources(ordering.resolve("infrastructure/messaging/producer"));
-        String allocationProducers =
-                readProductionSources(inventory.resolve("allocation/infrastructure/messaging/producer"));
-        String inventoryProducers =
-                readProductionSources(inventory.resolve("balance/infrastructure/messaging/producer"));
+        String orderingApplication = readProductionSources(ordering.resolve("application"));
+        String inventoryApplication = readProductionSources(inventory.resolve("allocation/application"))
+                + readProductionSources(inventory.resolve("balance/application"));
 
         assertThat(orderingConsumers + allocationConsumers)
                 .contains("EventConsumer")
                 .contains("IntegrationEventHandlersBuilder")
                 .doesNotContain("@Qualifier")
                 .doesNotContain("OutboxAppender");
-        assertThat(orderingProducers + allocationProducers + inventoryProducers)
+        assertThat(orderingApplication + inventoryApplication)
                 .contains("IntegrationEventPublisher")
                 .contains("PublicationTarget")
                 .doesNotContain("OutboxAppender")
                 .doesNotContain("IntegrationEventHandlersBuilder");
-        assertThat(ordering.resolve("application/event/translator/OrderingDomainEventTranslator.java"))
+        assertThat(ordering.resolve("infrastructure/messaging/producer/OrderingIntegrationEventPublisher.java"))
                 .doesNotExist();
-        assertThat(inventory.resolve("allocation/application/event/translator/AllocationDomainEventTranslator.java"))
+        assertThat(inventory.resolve(
+                        "allocation/infrastructure/messaging/producer/AllocationIntegrationEventPublisher.java"))
                 .doesNotExist();
     }
 

@@ -1,12 +1,18 @@
 package com.flowzati.archone.inventory.balance.application.usecase;
 
+import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
+import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.contracts.stock.v1.StockContentionKey;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.balance.application.InboundReceiptCompleter;
 import com.flowzati.archone.inventory.balance.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.balance.application.event.InventoryEventPublisher;
-import com.flowzati.archone.inventory.balance.domain.event.StockAvailabilityIncreased;
 import com.flowzati.archone.inventory.movement.application.InboundReceiptRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
+import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.PublicationTarget;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.List;
@@ -28,17 +34,17 @@ public class ConfirmStockReceiptUsecase {
     private final BusinessClock appClock;
     private final InboundReceiptRegistrar inboundReceiptRegistrar;
     private final InboundReceiptCompleter inboundReceiptCompleter;
-    private final InventoryEventPublisher eventPublisher;
+    private final IntegrationEventPublisher integrationEventPublisher;
 
     public ConfirmStockReceiptUsecase(
             BusinessClock appClock,
             InboundReceiptRegistrar inboundReceiptRegistrar,
             InboundReceiptCompleter inboundReceiptCompleter,
-            InventoryEventPublisher eventPublisher) {
+            IntegrationEventPublisher integrationEventPublisher) {
         this.appClock = appClock;
         this.inboundReceiptRegistrar = inboundReceiptRegistrar;
         this.inboundReceiptCompleter = inboundReceiptCompleter;
-        this.eventPublisher = eventPublisher;
+        this.integrationEventPublisher = integrationEventPublisher;
     }
 
     /** Transport-neutral application entrypoint; request idempotency belongs to the caller boundary. */
@@ -56,7 +62,17 @@ public class ConfirmStockReceiptUsecase {
         inboundReceiptCompleter.complete(
                 incoming, new InboundReceiptCompleter.BatchIdentity(command.inDate(), command.expiryDate()), now);
 
-        eventPublisher.publish(new StockAvailabilityIncreased(
-                command.ownerId(), command.facilityId(), command.locationId(), command.sku(), command.quantity(), now));
+        String contentionKey = StockContentionKey.of(command.ownerId(), command.facilityId());
+        integrationEventPublisher.publish(
+                new StockAvailabilityIncreasedIntegrationEvent(
+                        IdGenerator.nextId(),
+                        command.ownerId(),
+                        command.facilityId(),
+                        command.locationId(),
+                        command.sku(),
+                        command.quantity()),
+                new AggregateReference(InventoryAggregateTypes.STOCK_POOL, contentionKey),
+                new PublicationTarget(InventoryChannels.STOCK_EVENTS, contentionKey),
+                now);
     }
 }

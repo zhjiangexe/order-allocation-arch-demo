@@ -1,11 +1,13 @@
 package com.flowzati.archone.inventory.balance.application.usecase;
 
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentAggregateTypes;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.balance.application.command.CompleteOutboundMovementsCommand;
-import com.flowzati.archone.inventory.balance.application.event.OutboundMovementEventPublisher;
 import com.flowzati.archone.inventory.balance.application.result.CompleteOutboundMovementsResult;
 import com.flowzati.archone.inventory.balance.application.result.CompleteOutboundMovementsResult.Status;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.balance.domain.event.OutboundMovementsCompleted;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.inventory.balance.domain.service.StockWriteOrder;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
@@ -16,6 +18,9 @@ import com.flowzati.archone.inventory.movement.domain.repository.StockPickingRep
 import com.flowzati.archone.inventory.movement.domain.type.MoveState;
 import com.flowzati.archone.inventory.movement.domain.type.PickingState;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
+import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.PublicationTarget;
 import jakarta.transaction.Transactional;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -42,17 +47,17 @@ public class CompleteOutboundMovementsUsecase {
     private final StockMoveRepository stockMoveRepository;
     private final StockPickingRepository stockPickingRepository;
     private final StockQuantRepository stockQuantRepository;
-    private final OutboundMovementEventPublisher eventPublisher;
+    private final IntegrationEventPublisher integrationEventPublisher;
 
     public CompleteOutboundMovementsUsecase(
             StockMoveRepository stockMoveRepository,
             StockPickingRepository stockPickingRepository,
             StockQuantRepository stockQuantRepository,
-            OutboundMovementEventPublisher eventPublisher) {
+            IntegrationEventPublisher integrationEventPublisher) {
         this.stockMoveRepository = stockMoveRepository;
         this.stockPickingRepository = stockPickingRepository;
         this.stockQuantRepository = stockQuantRepository;
-        this.eventPublisher = eventPublisher;
+        this.integrationEventPublisher = integrationEventPublisher;
     }
 
     @Transactional
@@ -77,12 +82,21 @@ public class CompleteOutboundMovementsUsecase {
         pickings.forEach(StockPicking::complete);
 
         persistCompletion(stockQuants, movements, pickings);
-        eventPublisher.publish(new OutboundMovementsCompleted(
-                command.allocationId(),
-                command.orderId(),
-                command.shipmentId(),
-                command.movementIds(),
-                command.completedAt()));
+        integrationEventPublisher.publish(
+                new OutboundMovementsCompletedIntegrationEvent(
+                        IdGenerator.nextId(),
+                        command.allocationId(),
+                        command.orderId(),
+                        command.shipmentId(),
+                        command.movementIds(),
+                        command.completedAt()),
+                new AggregateReference(
+                        FulfillmentAggregateTypes.STOCK_PICKING,
+                        command.allocationId().toString()),
+                new PublicationTarget(
+                        FulfillmentChannels.FULFILLMENT_HANDOFFS,
+                        command.orderId().toString()),
+                command.completedAt());
         return result(command, Status.COMPLETED);
     }
 

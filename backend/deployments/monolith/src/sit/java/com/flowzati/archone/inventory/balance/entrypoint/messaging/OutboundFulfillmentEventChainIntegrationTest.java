@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentAggregateTypes;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.messaging.api.ChannelMapping;
@@ -97,7 +97,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
         UUID allocationId =
                 jdbcTemplate.queryForObject("SELECT picking_id FROM stock_moves WHERE id = ?", UUID.class, movementId);
 
-        var handover = new ShipmentHandedOverForFulfillmentIntegrationEvent(
+        var handover = new ShipmentHandedOverIntegrationEvent(
                 UUID.randomUUID(), shipmentId, allocationId, orderId, List.of(movementId), handedOverAt);
 
         // 同一 handover 重送兩次：Inbox 必須讓出庫扣帳與 completion outbox 都只發生一次。
@@ -117,7 +117,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM event_outbox WHERE type = ?",
                         Integer.class,
-                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.EVENT_TYPE))
+                        OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE))
                 .isOne();
 
         UUID completionEventId = drainOutboundCompletion();
@@ -132,7 +132,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
         });
     }
 
-    private void consumeHandover(ShipmentHandedOverForFulfillmentIntegrationEvent event) {
+    private void consumeHandover(ShipmentHandedOverIntegrationEvent event) {
         IntegrationEventPublication publication = new IntegrationEventPublication(
                 event,
                 new AggregateReference(
@@ -150,11 +150,10 @@ class OutboundFulfillmentEventChainIntegrationTest {
     }
 
     private UUID drainOutboundCompletion() {
-        Map<String, Object> row =
-                jdbcTemplate.queryForMap("""
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
         SELECT id, type, partition_key, payload, headers FROM event_outbox
          WHERE type = ?
-        """, OutboundMovementsCompletedForFulfillmentIntegrationEvent.EVENT_TYPE);
+        """, OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE);
         UUID eventId = UUID.fromString(row.get("id").toString());
         ConsumerRecord<String, String> record = new ConsumerRecord<>(
                 FulfillmentChannels.FULFILLMENT_HANDOFFS,

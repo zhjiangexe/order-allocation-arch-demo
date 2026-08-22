@@ -62,8 +62,8 @@ class OrderMapperTest {
     }
 
     @Test
-    @DisplayName("應以 rehydrate 還原 Order 且不產生 domain event")
-    void mapsEntityToDomainWithoutProducingDomainEvents() {
+    @DisplayName("應以 rehydrate 還原 Order")
+    void mapsEntityToDomain() {
         Instant allocatedAt = Instant.parse("2026-07-23T08:02:00Z");
         Instant cancelledAt = Instant.parse("2026-07-23T08:03:00Z");
         UUID cancellationRequestId = UUID.randomUUID();
@@ -114,7 +114,6 @@ class OrderMapperTest {
         assertThat(order.getCancellationRequestId()).isEqualTo(cancellationRequestId);
         assertThat(order.getCancellationReason()).isEqualTo(cancellationReason);
         assertThat(order.getVersion()).isEqualTo(4L);
-        assertThat(order.releaseDomainEvents()).isEmpty();
     }
 
     @Test

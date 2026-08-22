@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.balance.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.inventory.balance.application.command.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.balance.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
@@ -30,14 +30,12 @@ public class ShipmentHandoverEventConsumer {
             IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
                         FulfillmentChannels.FULFILLMENT_HANDOFFS)
-                .onEvent(
-                        ShipmentHandedOverForFulfillmentIntegrationEvent.class,
-                        envelope -> onShipmentHandedOver(envelope.event()))
+                .onEvent(ShipmentHandedOverIntegrationEvent.class, envelope -> onShipmentHandedOver(envelope.event()))
                 .build();
         return factory.make(OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER, handlers);
     }
 
-    void onShipmentHandedOver(ShipmentHandedOverForFulfillmentIntegrationEvent event) {
+    void onShipmentHandedOver(ShipmentHandedOverIntegrationEvent event) {
         completeOutboundMovementsUsecase.execute(new CompleteOutboundMovementsCommand(
                 event.getAllocationId(),
                 event.getOrderId(),

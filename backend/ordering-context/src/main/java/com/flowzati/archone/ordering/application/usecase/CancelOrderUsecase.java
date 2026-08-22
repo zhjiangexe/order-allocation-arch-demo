@@ -1,7 +1,14 @@
 package com.flowzati.archone.ordering.application.usecase;
 
+import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
+import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.ordering.application.command.CancelOrderCommand;
-import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
+import com.flowzati.archone.ordering.application.event.OrderingPartitionKeyResolver;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
@@ -26,11 +33,16 @@ import org.springframework.stereotype.Service;
 public class CancelOrderUsecase {
 
     private final OrderRepository orderRepository;
-    private final OrderingDomainEventPublisher eventPublisher;
+    private final IntegrationEventPublisher integrationEventPublisher;
+    private final OrderingPartitionKeyResolver partitionKeyResolver;
 
-    public CancelOrderUsecase(OrderRepository orderRepository, OrderingDomainEventPublisher eventPublisher) {
+    public CancelOrderUsecase(
+            OrderRepository orderRepository,
+            IntegrationEventPublisher integrationEventPublisher,
+            OrderingPartitionKeyResolver partitionKeyResolver) {
         this.orderRepository = orderRepository;
-        this.eventPublisher = eventPublisher;
+        this.integrationEventPublisher = integrationEventPublisher;
+        this.partitionKeyResolver = partitionKeyResolver;
     }
 
     @Transactional
@@ -44,7 +56,17 @@ public class CancelOrderUsecase {
         }
 
         orderRepository.save(order);
-        eventPublisher.publishAll(order.releaseDomainEvents());
+        integrationEventPublisher.publish(
+                new OrderCancelledIntegrationEvent(IdGenerator.nextId(), order.getId(), command.requestedAt()),
+                new AggregateReference(
+                        OrderingAggregateTypes.ORDER, order.getId().toString()),
+                new PublicationTarget(
+                        OrderingChannels.ORDER_EVENTS,
+                        partitionKeyResolver.resolve(
+                                order.getId(),
+                                order.getOwnerId(),
+                                order.getDeliveryTerms().facilityId())),
+                command.requestedAt());
         return result;
     }
 }

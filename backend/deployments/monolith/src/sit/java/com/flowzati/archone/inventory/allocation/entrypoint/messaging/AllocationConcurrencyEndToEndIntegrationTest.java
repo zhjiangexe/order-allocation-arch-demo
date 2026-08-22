@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
@@ -131,7 +131,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, secondEvent.getEventId()))
                 .isTrue();
         assertThat(jdbcTemplate.queryForList("SELECT type FROM event_outbox", String.class))
-                .contains(OrderAllocatedIntegrationEvent.EVENT_TYPE);
+                .contains(OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
         assertThat(conflictInjector.invocations()).isGreaterThanOrEqualTo(3);
     }
 

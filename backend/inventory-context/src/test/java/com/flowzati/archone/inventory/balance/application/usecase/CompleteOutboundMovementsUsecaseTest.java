@@ -5,13 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
 import com.flowzati.archone.inventory.balance.application.command.CompleteOutboundMovementsCommand;
-import com.flowzati.archone.inventory.balance.application.event.OutboundMovementEventPublisher;
 import com.flowzati.archone.inventory.balance.application.result.CompleteOutboundMovementsResult.Status;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.balance.domain.event.OutboundMovementsCompleted;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockPicking;
@@ -21,6 +21,7 @@ import com.flowzati.archone.inventory.movement.domain.repository.StockPickingRep
 import com.flowzati.archone.inventory.movement.domain.type.MoveState;
 import com.flowzati.archone.inventory.movement.domain.type.PickingState;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -61,7 +62,7 @@ class CompleteOutboundMovementsUsecaseTest {
     private StockQuantRepository stockQuantRepository;
 
     @Mock
-    private OutboundMovementEventPublisher eventPublisher;
+    private IntegrationEventPublisher eventPublisher;
 
     private CompleteOutboundMovementsUsecase usecase;
 
@@ -102,11 +103,12 @@ class CompleteOutboundMovementsUsecaseTest {
         verify(stockPickingRepository).save(picking);
         verify(stockMoveRepository, never()).findByAllocationDemandId(any());
 
-        ArgumentCaptor<OutboundMovementsCompleted> event = ArgumentCaptor.forClass(OutboundMovementsCompleted.class);
-        verify(eventPublisher).publish(event.capture());
-        assertThat(event.getValue().allocationId()).isEqualTo(ALLOCATION_ID);
-        assertThat(event.getValue().shipmentId()).isEqualTo(SHIPMENT_ID);
-        assertThat(event.getValue().occurredAt()).isEqualTo(COMPLETED_AT);
+        ArgumentCaptor<OutboundMovementsCompletedIntegrationEvent> event =
+                ArgumentCaptor.forClass(OutboundMovementsCompletedIntegrationEvent.class);
+        verify(eventPublisher).publish(event.capture(), any(), any(), org.mockito.ArgumentMatchers.eq(COMPLETED_AT));
+        assertThat(event.getValue().getAllocationId()).isEqualTo(ALLOCATION_ID);
+        assertThat(event.getValue().getShipmentId()).isEqualTo(SHIPMENT_ID);
+        assertThat(event.getValue().getCompletedAt()).isEqualTo(COMPLETED_AT);
     }
 
     @Test
@@ -120,7 +122,7 @@ class CompleteOutboundMovementsUsecaseTest {
         assertThat(result.status()).isEqualTo(Status.ALREADY_COMPLETED);
         verify(stockMoveRepository, never()).findLinesOf(any());
         verify(stockQuantRepository, never()).findByIds(any());
-        verify(eventPublisher, never()).publish(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -134,7 +136,7 @@ class CompleteOutboundMovementsUsecaseTest {
 
         verify(stockPickingRepository, never()).findByIds(any());
         verify(stockQuantRepository, never()).save(any());
-        verify(eventPublisher, never()).publish(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     private void stubExecution(StockMove movement, StockPicking picking) {

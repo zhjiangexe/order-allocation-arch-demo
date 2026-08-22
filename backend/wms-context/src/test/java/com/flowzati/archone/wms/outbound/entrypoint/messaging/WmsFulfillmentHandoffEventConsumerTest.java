@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import java.time.Instant;
@@ -29,13 +29,13 @@ class WmsFulfillmentHandoffEventConsumerTest {
         UUID sourceLocationId = UUID.randomUUID();
         Instant committedAt = Instant.parse("2026-08-11T01:00:00Z");
         Instant dispatchBy = Instant.parse("2026-08-11T08:00:00Z");
-        var event = new AllocationCommittedForFulfillmentIntegrationEvent(
+        var event = new OrderAllocationCommittedIntegrationEvent(
                 UUID.randomUUID(),
                 allocationId,
                 orderId,
                 ownerId,
                 facilityId,
-                List.of(new AllocationCommittedForFulfillmentIntegrationEvent.AllocationLine(
+                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
                         orderLineId, moveId, "SKU-1", sourceLocationId, 3)),
                 dispatchBy,
                 80,

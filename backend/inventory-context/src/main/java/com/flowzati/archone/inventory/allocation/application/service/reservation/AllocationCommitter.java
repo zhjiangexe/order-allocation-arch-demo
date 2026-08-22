@@ -1,10 +1,10 @@
 package com.flowzati.archone.inventory.allocation.application.service.reservation;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.inventory.allocation.application.result.AllocationCommitResult;
+import com.flowzati.archone.inventory.allocation.application.result.AllocationCommitResult.CommittedAllocationMove;
+import com.flowzati.archone.inventory.allocation.application.result.AllocationCommitResult.CommittedBatchPick;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
-import com.flowzati.archone.inventory.allocation.domain.event.AllocationCommitted;
-import com.flowzati.archone.inventory.allocation.domain.event.AllocationCommitted.CommittedAllocationMove;
-import com.flowzati.archone.inventory.allocation.domain.event.AllocationCommitted.CommittedBatchPick;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationBatchPick;
@@ -44,7 +44,7 @@ import org.springframework.stereotype.Component;
  *   <li>驗證 plan、execution 與庫存 scope。</li>
  *   <li>reserve stock quants。</li>
  *   <li>assign moves／pickings，再將 demand 標記為 ALLOCATED。</li>
- *   <li>建立 source-agnostic completion fact。</li>
+ *   <li>建立 source-agnostic completion result。</li>
  * </ol>
  *
  * <p>查詢結果只放進 {@link AllocationCommitData}；跨模型規則由純
@@ -84,7 +84,7 @@ public class AllocationCommitter {
 
     /** 回傳 empty 表示 demand 已被其他 retry commit；呼叫端不得再次發布 completion。 */
     @Transactional
-    public Optional<AllocationCommitted> commit(AllocationDemandPlan plan, Instant occurredAt) {
+    public Optional<AllocationCommitResult> commit(AllocationDemandPlan plan, Instant occurredAt) {
         requireCommitArguments(plan, occurredAt);
 
         AllocationDemand demand = loadDemand(plan.allocationDemandId());
@@ -103,7 +103,7 @@ public class AllocationCommitter {
         assignPickings(data);
         markDemandAllocated(data);
 
-        return Optional.of(createCompletionFact(data, occurredAt));
+        return Optional.of(createCompletionResult(data, occurredAt));
     }
 
     private static void requireCommitArguments(AllocationDemandPlan plan, Instant occurredAt) {
@@ -206,8 +206,8 @@ public class AllocationCommitter {
         demandRepository.save(data.demand());
     }
 
-    /** 把已成功套用的 plan 轉成 completion fact；事件 routing 仍由呼叫端負責。 */
-    private static AllocationCommitted createCompletionFact(AllocationCommitData data, Instant occurredAt) {
+    /** 把已成功套用的 plan 轉成 completion result；Integration Event routing 仍由呼叫端負責。 */
+    private static AllocationCommitResult createCompletionResult(AllocationCommitData data, Instant occurredAt) {
         Map<UUID, List<CommittedBatchPick>> committedPicksByLine = groupCommittedPicksByLine(data.plan());
         AllocationDemand demand = data.demand();
 
@@ -215,7 +215,7 @@ public class AllocationCommitter {
                 .map(move -> toCommittedMove(demand, move, committedPicksByLine))
                 .toList();
 
-        return new AllocationCommitted(
+        return new AllocationCommitResult(
                 demand.id(),
                 demand.source(),
                 demand.ownerId(),

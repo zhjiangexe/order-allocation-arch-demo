@@ -219,9 +219,7 @@ class InventoryBoundaryArchitectureTest {
         List<String> violations = boundaries.stream()
                 .filter(path -> {
                     String source = stripComments(readSource(path));
-                    return source.contains("org.apache.kafka")
-                            || source.contains("io.temporal")
-                            || source.contains("IntegrationEvent");
+                    return source.contains("org.apache.kafka") || source.contains("io.temporal");
                 })
                 .map(Path::toString)
                 .toList();
@@ -242,7 +240,7 @@ class InventoryBoundaryArchitectureTest {
         List<String> violations = consumerUsecases.stream()
                 .filter(path -> {
                     String source = stripComments(readSource(path));
-                    return source.contains("com.flowzati.archone.messaging")
+                    return source.contains("com.flowzati.archone.messaging.api.Message")
                             || source.contains("InboundCommand")
                             || source.contains("InboxRepo");
                 })

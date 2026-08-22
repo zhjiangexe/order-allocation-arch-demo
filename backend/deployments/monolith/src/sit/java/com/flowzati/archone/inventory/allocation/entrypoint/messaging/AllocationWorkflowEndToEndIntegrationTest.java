@@ -6,7 +6,7 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.application.command.ConfirmStockReceiptCommand;
@@ -96,7 +96,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID allocationOutcomeEventId = jdbcTemplate.queryForObject(
                 "SELECT id FROM event_outbox WHERE type = ? ORDER BY timestamp",
                 UUID.class,
-                com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent.EVENT_TYPE);
+                OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
+        assertThat(tableCount("event_outbox")).isOne();
 
         // 配貨只寫自己的表並發事件；訂單狀態由 ordering 收到那則事件後才推進。SIT 沒有
         // Debezium，所以這裡自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
@@ -130,9 +131,9 @@ class AllocationWorkflowEndToEndIntegrationTest {
         assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
         Map<String, Object> outbox = jdbcTemplate.queryForMap(
                 "SELECT type, route, aggregateid FROM event_outbox WHERE type = ?",
-                OrderAllocatedIntegrationEvent.EVENT_TYPE);
+                OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
         assertThat(outbox)
-                .containsEntry("type", OrderAllocatedIntegrationEvent.EVENT_TYPE)
+                .containsEntry("type", OrderAllocationCommittedIntegrationEvent.EVENT_TYPE)
                 .containsEntry("route", AllocationChannels.ALLOCATION_EVENTS)
                 .containsEntry("aggregateid", orderId.toString());
     }
@@ -198,7 +199,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM event_outbox WHERE type = ?",
                         Integer.class,
-                        OrderAllocatedIntegrationEvent.EVENT_TYPE))
+                        OrderAllocationCommittedIntegrationEvent.EVENT_TYPE))
                 .isOne();
     }
 
@@ -365,7 +366,6 @@ class AllocationWorkflowEndToEndIntegrationTest {
                 orderId,
                 backorderedAt.minusSeconds(1),
                 new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 1, "SKU-BASKET-B", 1)));
-        order.releaseDomainEvents();
         MovementFixtures.saveQueuedOrder(orderRepository, jdbcTemplate, order);
 
         receive("SKU-BASKET-A", 5);

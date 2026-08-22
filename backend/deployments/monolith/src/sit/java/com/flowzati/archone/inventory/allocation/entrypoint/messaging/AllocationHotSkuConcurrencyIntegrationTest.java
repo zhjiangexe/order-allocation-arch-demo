@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
@@ -288,7 +288,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
         //    也沒有殘留任何「rollback 後沒被成功重送」的半途狀態。
         //
         //    **以事件型別篩選，不數總筆數。** 現在有兩個 context 各自去重：allocation 消費
-        //    OrderPlaced，ordering 只消費成功配貨結果（OrderAllocated）。缺貨的需求留在
+        //    OrderPlaced，ordering 只消費成功配置事實。缺貨的需求留在
         //    StockMove.CONFIRMED，不再產生一個重複的訂單事件。
         Integer inboxCount = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM event_inbox WHERE event_type = ?",
@@ -300,16 +300,16 @@ class AllocationHotSkuConcurrencyIntegrationTest {
         Integer orderingClaims = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM event_inbox WHERE event_type = ?",
                 Integer.class,
-                OrderAllocatedIntegrationEvent.EVENT_TYPE);
+                OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
         assertThat(orderingClaims).isEqualTo(ON_HAND_QUANTITY);
 
-        // 5) 每張結果都有 lifecycle event；成功配置另外有一筆 WMS handoff snapshot。
+        // 5) 每次成功配置只發布一則 canonical event；Ordering 與 WMS 各自 fan out 消費。
         Integer outboxCount = jdbcTemplate.queryForObject("SELECT count(*) FROM event_outbox", Integer.class);
         Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM event_outbox WHERE type = ?",
                 Integer.class,
-                OrderAllocatedIntegrationEvent.EVENT_TYPE);
-        assertThat(outboxCount).isEqualTo(ON_HAND_QUANTITY * 2);
+                OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
+        assertThat(outboxCount).isEqualTo(ON_HAND_QUANTITY);
         assertThat(allocatedOutboxCount).isEqualTo(ON_HAND_QUANTITY);
     }
 

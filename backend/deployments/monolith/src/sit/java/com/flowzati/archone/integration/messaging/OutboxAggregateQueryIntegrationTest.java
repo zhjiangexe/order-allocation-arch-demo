@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
@@ -97,7 +97,8 @@ class OutboxAggregateQueryIntegrationTest {
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
 
         assertThat(eventTypesFor(orderId))
-                .containsExactly(OrderPlacedIntegrationEvent.EVENT_TYPE, OrderAllocatedIntegrationEvent.EVENT_TYPE);
+                .containsExactly(
+                        OrderPlacedIntegrationEvent.EVENT_TYPE, OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
     }
 
     @Test

@@ -2,13 +2,12 @@ package com.flowzati.archone.contracts;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import java.io.InputStream;
 import java.time.Instant;
@@ -64,47 +63,43 @@ class IntegrationEventJsonContractTest {
                         new OrderCancelledIntegrationEvent(EVENT_ID, ORDER_ID, OCCURRED_AT),
                         OrderCancelledIntegrationEvent.class),
                 Arguments.of(
-                        "order-allocated-v1.json",
-                        new OrderAllocatedIntegrationEvent(EVENT_ID, ORDER_ID, OCCURRED_AT),
-                        OrderAllocatedIntegrationEvent.class),
-                Arguments.of(
                         "stock-availability-increased-v1.json",
                         new StockAvailabilityIncreasedIntegrationEvent(
                                 EVENT_ID, OWNER_ID, FACILITY_ID, LOCATION_ID, "SKU-1", 3),
                         StockAvailabilityIncreasedIntegrationEvent.class),
                 Arguments.of(
-                        "allocation-committed-for-fulfillment-v1.json",
-                        new AllocationCommittedForFulfillmentIntegrationEvent(
+                        "order-allocation-committed-v1.json",
+                        new OrderAllocationCommittedIntegrationEvent(
                                 EVENT_ID,
                                 ALLOCATION_ID,
                                 ORDER_ID,
                                 OWNER_ID,
                                 FACILITY_ID,
-                                java.util.List.of(new AllocationCommittedForFulfillmentIntegrationEvent.AllocationLine(
+                                java.util.List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
                                         ORDER_LINE_ID, MOVE_ID, "SKU-1", LOCATION_ID, 3)),
                                 OCCURRED_AT.plusSeconds(3600),
                                 80,
                                 OCCURRED_AT),
-                        AllocationCommittedForFulfillmentIntegrationEvent.class),
+                        OrderAllocationCommittedIntegrationEvent.class),
                 Arguments.of(
-                        "shipment-handed-over-for-fulfillment-v1.json",
-                        new ShipmentHandedOverForFulfillmentIntegrationEvent(
+                        "shipment-handed-over-v1.json",
+                        new ShipmentHandedOverIntegrationEvent(
                                 EVENT_ID,
                                 SHIPMENT_ID,
                                 ALLOCATION_ID,
                                 ORDER_ID,
                                 java.util.List.of(MOVE_ID),
                                 OCCURRED_AT),
-                        ShipmentHandedOverForFulfillmentIntegrationEvent.class),
+                        ShipmentHandedOverIntegrationEvent.class),
                 Arguments.of(
-                        "outbound-movements-completed-for-fulfillment-v1.json",
-                        new OutboundMovementsCompletedForFulfillmentIntegrationEvent(
+                        "outbound-movements-completed-v1.json",
+                        new OutboundMovementsCompletedIntegrationEvent(
                                 EVENT_ID,
                                 ALLOCATION_ID,
                                 ORDER_ID,
                                 SHIPMENT_ID,
                                 java.util.List.of(MOVE_ID),
                                 OCCURRED_AT),
-                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.class));
+                        OutboundMovementsCompletedIntegrationEvent.class));
     }
 }

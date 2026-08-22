@@ -1,7 +1,7 @@
 package com.flowzati.archone.ordering.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -29,13 +29,15 @@ public class OrderingAllocationResultEventConsumer {
             IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
                         AllocationChannels.ALLOCATION_EVENTS)
-                .onEvent(OrderAllocatedIntegrationEvent.class, envelope -> onOrderAllocated(envelope.event()))
+                .onEvent(
+                        OrderAllocationCommittedIntegrationEvent.class,
+                        envelope -> onOrderAllocationCommitted(envelope.event()))
                 .build();
         return factory.make(OrderingEventSubscriptions.ALLOCATION_RESULTS, handlers);
     }
 
-    void onOrderAllocated(OrderAllocatedIntegrationEvent event) {
+    void onOrderAllocationCommitted(OrderAllocationCommittedIntegrationEvent event) {
         recordOrderAllocationUsecase.execute(
-                new RecordOrderAllocationCommand(event.getOrderId(), event.getAllocatedAt()));
+                new RecordOrderAllocationCommand(event.getOrderId(), event.getCommittedAt()));
     }
 }

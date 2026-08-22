@@ -1,19 +1,21 @@
 package com.flowzati.archone.inventory.balance.application.usecase;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.inventory.balance.application.InboundReceiptCompleter;
 import com.flowzati.archone.inventory.balance.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.balance.application.event.InventoryEventPublisher;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
-import com.flowzati.archone.inventory.balance.domain.event.StockAvailabilityIncreased;
 import com.flowzati.archone.inventory.movement.application.InboundReceiptRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -22,6 +24,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 @DisplayName("確認一段式收貨並發布庫存可用事實")
@@ -32,14 +35,14 @@ class ConfirmStockReceiptUsecaseTest {
 
     private InboundReceiptRegistrar inboundReceiptRegistrar;
     private InboundReceiptCompleter inboundReceiptCompleter;
-    private InventoryEventPublisher eventPublisher;
+    private IntegrationEventPublisher eventPublisher;
     private ConfirmStockReceiptUsecase usecase;
 
     @BeforeEach
     void setUp() {
         inboundReceiptRegistrar = mock(InboundReceiptRegistrar.class);
         inboundReceiptCompleter = mock(InboundReceiptCompleter.class);
-        eventPublisher = mock(InventoryEventPublisher.class);
+        eventPublisher = mock(IntegrationEventPublisher.class);
         usecase = new ConfirmStockReceiptUsecase(
                 InventoryFixtures.businessClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"),
                 inboundReceiptRegistrar,
@@ -77,14 +80,13 @@ class ConfirmStockReceiptUsecaseTest {
                         List.of(move),
                         new InboundReceiptCompleter.BatchIdentity(command.inDate(), command.expiryDate()),
                         NOW);
-        order.verify(eventPublisher)
-                .publish(new StockAvailabilityIncreased(
-                        command.ownerId(),
-                        command.facilityId(),
-                        InventoryFixtures.LOCATION_ID,
-                        SKU,
-                        command.quantity(),
-                        NOW));
+        ArgumentCaptor<StockAvailabilityIncreasedIntegrationEvent> event =
+                ArgumentCaptor.forClass(StockAvailabilityIncreasedIntegrationEvent.class);
+        order.verify(eventPublisher).publish(event.capture(), any(), any(), eq(NOW));
+        org.assertj.core.api.Assertions.assertThat(event.getValue().getLocationId())
+                .isEqualTo(InventoryFixtures.LOCATION_ID);
+        org.assertj.core.api.Assertions.assertThat(event.getValue().getQuantity())
+                .isEqualTo(command.quantity());
     }
 
     @Test

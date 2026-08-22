@@ -1,9 +1,15 @@
 package com.flowzati.archone.ordering.application.usecase;
 
+import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
+import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
-import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
+import com.flowzati.archone.ordering.application.event.OrderingPartitionKeyResolver;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
@@ -19,13 +25,18 @@ public class PlaceOrderUsecase {
 
     private final OrderRepository orderRepository;
     private final BusinessClock clock;
-    private final OrderingDomainEventPublisher eventPublisher;
+    private final IntegrationEventPublisher integrationEventPublisher;
+    private final OrderingPartitionKeyResolver partitionKeyResolver;
 
     public PlaceOrderUsecase(
-            OrderRepository orderRepository, BusinessClock clock, OrderingDomainEventPublisher eventPublisher) {
+            OrderRepository orderRepository,
+            BusinessClock clock,
+            IntegrationEventPublisher integrationEventPublisher,
+            OrderingPartitionKeyResolver partitionKeyResolver) {
         this.orderRepository = orderRepository;
         this.clock = clock;
-        this.eventPublisher = eventPublisher;
+        this.integrationEventPublisher = integrationEventPublisher;
+        this.partitionKeyResolver = partitionKeyResolver;
     }
 
     /**
@@ -51,10 +62,22 @@ public class PlaceOrderUsecase {
                 receivedAt,
                 command.placedAt());
         orderRepository.save(placedOrder);
-        // Eventuate Tram 式：直接呼叫 transactional publisher。Outbox 寫入失敗會讓本交易回滾，
-        // 不透過 ApplicationEventPublisher 或隱含的 Spring listener。
-        eventPublisher.publishAll(placedOrder.releaseDomainEvents());
+        publishOrderPlaced(placedOrder, receivedAt);
         return placedOrder;
+    }
+
+    private void publishOrderPlaced(Order order, Instant receivedAt) {
+        integrationEventPublisher.publish(
+                new OrderPlacedIntegrationEvent(IdGenerator.nextId(), order.getId(), receivedAt),
+                new AggregateReference(
+                        OrderingAggregateTypes.ORDER, order.getId().toString()),
+                new PublicationTarget(
+                        OrderingChannels.ORDER_EVENTS,
+                        partitionKeyResolver.resolve(
+                                order.getId(),
+                                order.getOwnerId(),
+                                order.getDeliveryTerms().facilityId())),
+                receivedAt);
     }
 
     /** 行號依提交順序產生，從 1 起算。 */

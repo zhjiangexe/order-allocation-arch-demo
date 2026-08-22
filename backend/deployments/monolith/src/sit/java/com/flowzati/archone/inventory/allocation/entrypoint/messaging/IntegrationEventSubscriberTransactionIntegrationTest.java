@@ -137,7 +137,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         assertThat(stockQuantRepository.findById(stockQuantId))
                 .hasValueSatisfying(
                         pool -> assertThat(pool.getReservedQuantity()).isEqualTo(3));
-        assertThat(count("event_outbox")).isEqualTo(2);
+        assertThat(count("event_outbox")).isOne();
     }
 
     @Test

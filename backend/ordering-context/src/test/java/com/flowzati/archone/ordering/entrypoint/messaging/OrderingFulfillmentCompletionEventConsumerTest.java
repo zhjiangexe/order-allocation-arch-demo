@@ -3,7 +3,7 @@ package com.flowzati.archone.ordering.entrypoint.messaging;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
 import com.flowzati.archone.ordering.application.command.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import java.time.Instant;
@@ -21,7 +21,7 @@ class OrderingFulfillmentCompletionEventConsumerTest {
         RecordOrderFulfillmentUsecase usecase = mock(RecordOrderFulfillmentUsecase.class);
         OrderingFulfillmentCompletionEventConsumer consumer = new OrderingFulfillmentCompletionEventConsumer(usecase);
 
-        consumer.onOutboundMovementsCompleted(new OutboundMovementsCompletedForFulfillmentIntegrationEvent(
+        consumer.onOutboundMovementsCompleted(new OutboundMovementsCompletedIntegrationEvent(
                 UUID.randomUUID(), UUID.randomUUID(), orderId, shipmentId, List.of(UUID.randomUUID()), completedAt));
 
         verify(usecase).execute(new RecordOrderFulfillmentCommand(orderId, shipmentId, completedAt));

@@ -1,10 +1,11 @@
 package com.flowzati.archone.bootstrap.fulfillment.temporal;
 
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.entrypoint.messaging.OutboundFulfillmentEventSubscriptions;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
@@ -49,9 +50,9 @@ public class TemporalFulfillmentEventConsumer {
     @Bean
     IntegrationEventDispatcher temporalAllocationFactDispatcher(IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
-                        FulfillmentChannels.FULFILLMENT_HANDOFFS)
+                        AllocationChannels.ALLOCATION_EVENTS)
                 .onEvent(
-                        AllocationCommittedForFulfillmentIntegrationEvent.class,
+                        OrderAllocationCommittedIntegrationEvent.class,
                         envelope -> onAllocationCommitted(envelope.event()))
                 .build();
         return factory.make(WmsEventSubscriptions.FULFILLMENT_HANDOFF, handlers);
@@ -61,9 +62,7 @@ public class TemporalFulfillmentEventConsumer {
     IntegrationEventDispatcher temporalShipmentHandoverFactDispatcher(IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
                         FulfillmentChannels.FULFILLMENT_HANDOFFS)
-                .onEvent(
-                        ShipmentHandedOverForFulfillmentIntegrationEvent.class,
-                        envelope -> onShipmentHandedOver(envelope.event()))
+                .onEvent(ShipmentHandedOverIntegrationEvent.class, envelope -> onShipmentHandedOver(envelope.event()))
                 .build();
         return factory.make(OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER, handlers);
     }
@@ -83,7 +82,7 @@ public class TemporalFulfillmentEventConsumer {
         }
     }
 
-    void onAllocationCommitted(AllocationCommittedForFulfillmentIntegrationEvent event) {
+    void onAllocationCommitted(OrderAllocationCommittedIntegrationEvent event) {
         workflow(event.getOrderId())
                 .allocationCommitted(new AllocationSnapshot(
                         event.getAllocationId(),
@@ -103,7 +102,7 @@ public class TemporalFulfillmentEventConsumer {
                         event.getCommittedAt()));
     }
 
-    void onShipmentHandedOver(ShipmentHandedOverForFulfillmentIntegrationEvent event) {
+    void onShipmentHandedOver(ShipmentHandedOverIntegrationEvent event) {
         workflow(event.getOrderId())
                 .shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierSignal(
                         event.getOrderId(), event.getShipmentId(), event.getHandedOverAt()));

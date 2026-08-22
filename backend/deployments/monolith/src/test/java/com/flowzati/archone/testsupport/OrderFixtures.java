@@ -211,8 +211,7 @@ public final class OrderFixtures {
      * 一張已存在的待配訂單。
      *
      * <p>刻意走 {@code rehydrate} 而非 {@code place}：這些測試要的是「資料庫裡躺著一張
-     * PENDING 訂單」，不是「此刻正在收單」。用 {@code place} 造會憑空產生一個 OrderPlaced
-     * domain event，而它從來不會被發布——測試得記得清掉它，忘了清就污染事件斷言。
+     * PENDING 訂單」，不是「此刻正在收單」。
      *
      * <p>真的要測收單本身的測試直接呼叫 {@code Order.place(...)}，那是 {@code OrderTest}
      * 的事。

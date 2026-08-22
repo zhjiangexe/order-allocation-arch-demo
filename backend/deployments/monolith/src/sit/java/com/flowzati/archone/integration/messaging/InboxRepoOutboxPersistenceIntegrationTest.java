@@ -25,10 +25,6 @@ import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMess
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.messaging.events.PublicationTarget;
-import com.flowzati.archone.ordering.application.event.OrderingDomainEventPublisher;
-import com.flowzati.archone.ordering.domain.event.LineSnapshot;
-import com.flowzati.archone.ordering.domain.event.OrderPlaced;
-import com.flowzati.archone.ordering.infrastructure.messaging.producer.OrderingIntegrationEventPublisher;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import jakarta.persistence.EntityManager;
@@ -75,11 +71,7 @@ import tools.jackson.databind.ObjectMapper;
     MessagingIntegrationEventPublisherAutoConfiguration.class
 })
 @ActiveProfiles("test")
-@Import({
-    PostgreSQLTestConfiguration.class,
-    OrderingIntegrationEventPublisher.class,
-    JdbcMessagingPersistenceIntegrationTest.JsonConfiguration.class
-})
+@Import({PostgreSQLTestConfiguration.class, JdbcMessagingPersistenceIntegrationTest.JsonConfiguration.class})
 class JdbcMessagingPersistenceIntegrationTest {
 
     @Autowired
@@ -90,9 +82,6 @@ class JdbcMessagingPersistenceIntegrationTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
-
-    @Autowired
-    private OrderingDomainEventPublisher eventPublisher;
 
     @Autowired
     private IntegrationEventPublisher integrationEventPublisher;
@@ -186,8 +175,8 @@ class JdbcMessagingPersistenceIntegrationTest {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("業務異動失敗時應連同翻譯後的 Outbox 一起回滾")
-    void shouldRollbackBusinessChangeAndTranslatedOutboxTogether() {
+    @DisplayName("業務異動失敗時應連同直接發布的 Outbox 一起回滾")
+    void shouldRollbackBusinessChangeAndPublishedOutboxTogether() {
         UUID orderId = IdGenerator.nextId();
         Instant receivedAt = Instant.parse("2026-07-24T10:00:00Z");
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
@@ -211,14 +200,11 @@ class JdbcMessagingPersistenceIntegrationTest {
                     "PENDING",
                     Timestamp.from(receivedAt),
                     0L);
-            eventPublisher.publish(new OrderPlaced(
-                    orderId,
-                    OrderFixtures.OWNER_ID,
-                    OrderFixtures.FACILITY_ID,
-                    "100",
-                    java.time.LocalDate.of(2026, 8, 1),
-                    java.util.List.of(new LineSnapshot(1, "SKU-1", 3)),
-                    receivedAt));
+            integrationEventPublisher.publish(
+                    new OrderPlacedIntegrationEvent(IdGenerator.nextId(), orderId, receivedAt),
+                    new AggregateReference(OrderingAggregateTypes.ORDER, orderId.toString()),
+                    new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId.toString()),
+                    receivedAt);
             status.setRollbackOnly();
         });
 

@@ -3,7 +3,7 @@ package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
@@ -361,12 +361,12 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         assertThat(inboxCount).isGreaterThanOrEqualTo(expected.inboxCount());
         assertThat(duplicateInboxClaims).isZero();
 
-        // 5) Outbox 結果：只有被配置的訂單各發一筆 OrderAllocatedIntegrationEvent，這個測試
+        // 5) Outbox 結果：只有被配置的訂單各發一筆 OrderAllocationCommittedIntegrationEvent，這個測試
         //    情境全程只由 StockMove.CONFIRMED 表達待配貨，不發布額外的缺貨訂單事件。
         Integer allocatedOutboxCount = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM event_outbox WHERE type = ?",
                 Integer.class,
-                OrderAllocatedIntegrationEvent.EVENT_TYPE);
+                OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
         assertThat(allocatedOutboxCount).isEqualTo(expected.outboxAllocatedCount());
     }
 
@@ -399,7 +399,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         return jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM event_outbox WHERE type = ?",
                 Integer.class,
-                OrderAllocatedIntegrationEvent.EVENT_TYPE);
+                OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
     }
 
     /** FIFO 佇列中三個關鍵位置的 orderId，用來做不依賴聚合數字的精準身分驗證。 */

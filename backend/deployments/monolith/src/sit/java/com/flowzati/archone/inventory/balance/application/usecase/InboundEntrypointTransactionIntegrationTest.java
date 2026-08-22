@@ -7,7 +7,7 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.application.command.ConfirmStockReceiptCommand;
@@ -103,7 +103,7 @@ class InboundEntrypointTransactionIntegrationTest {
                 .isEqualTo("ASSIGNED");
         assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("ASSIGNED");
         assertThat(MovementFixtures.heldBy(jdbcTemplate, orderId)).hasSize(1);
-        assertThat(count("event_outbox")).isEqualTo(2);
+        assertThat(count("event_outbox")).isOne();
     }
 
     @Test
@@ -223,7 +223,7 @@ class InboundEntrypointTransactionIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM event_outbox WHERE type = ?",
                         Integer.class,
-                        OrderAllocatedIntegrationEvent.EVENT_TYPE))
+                        OrderAllocationCommittedIntegrationEvent.EVENT_TYPE))
                 .isOne();
         outcomeDrain().drain();
         assertThat(orderRepository.findById(orderId))

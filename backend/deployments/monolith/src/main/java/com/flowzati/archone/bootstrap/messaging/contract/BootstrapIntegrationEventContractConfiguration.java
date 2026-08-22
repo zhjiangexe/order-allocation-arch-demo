@@ -1,12 +1,11 @@
 package com.flowzati.archone.bootstrap.messaging.contract;
 
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.messaging.events.MapBasedIntegrationEventNameMapping;
@@ -21,8 +20,8 @@ public class BootstrapIntegrationEventContractConfiguration {
     IntegrationEventNameMapping bootstrapIntegrationEventNameMapping() {
         return MapBasedIntegrationEventNameMapping.builder()
                 .map(
-                        OrderAllocatedIntegrationEvent.class,
-                        OrderAllocatedIntegrationEvent.EVENT_TYPE,
+                        OrderAllocationCommittedIntegrationEvent.class,
+                        OrderAllocationCommittedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION)
                 .map(
                         OrderPlacedIntegrationEvent.class,
@@ -37,16 +36,12 @@ public class BootstrapIntegrationEventContractConfiguration {
                         StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION)
                 .map(
-                        AllocationCommittedForFulfillmentIntegrationEvent.class,
-                        AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        ShipmentHandedOverIntegrationEvent.class,
+                        ShipmentHandedOverIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION)
                 .map(
-                        ShipmentHandedOverForFulfillmentIntegrationEvent.class,
-                        ShipmentHandedOverForFulfillmentIntegrationEvent.EVENT_TYPE,
-                        EventMessageHeaders.INITIAL_CONTRACT_VERSION)
-                .map(
-                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.class,
-                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        OutboundMovementsCompletedIntegrationEvent.class,
+                        OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION)
                 .build();
     }

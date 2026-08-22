@@ -1,7 +1,7 @@
 package com.flowzati.archone.ordering.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -32,13 +32,13 @@ public class OrderingFulfillmentCompletionEventConsumer {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
                         FulfillmentChannels.FULFILLMENT_HANDOFFS)
                 .onEvent(
-                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.class,
+                        OutboundMovementsCompletedIntegrationEvent.class,
                         envelope -> onOutboundMovementsCompleted(envelope.event()))
                 .build();
         return factory.make(OrderingEventSubscriptions.FULFILLMENT_COMPLETION, handlers);
     }
 
-    void onOutboundMovementsCompleted(OutboundMovementsCompletedForFulfillmentIntegrationEvent event) {
+    void onOutboundMovementsCompleted(OutboundMovementsCompletedIntegrationEvent event) {
         recordOrderFulfillmentUsecase.execute(
                 new RecordOrderFulfillmentCommand(event.getOrderId(), event.getShipmentId(), event.getCompletedAt()));
     }

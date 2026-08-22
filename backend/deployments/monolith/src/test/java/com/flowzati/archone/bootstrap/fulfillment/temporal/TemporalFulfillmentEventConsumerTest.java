@@ -5,8 +5,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
 import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
@@ -33,13 +33,13 @@ class TemporalFulfillmentEventConsumerTest {
         when(workflowClient.newWorkflowStub(
                         OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
                 .thenReturn(workflow);
-        var event = new AllocationCommittedForFulfillmentIntegrationEvent(
+        var event = new OrderAllocationCommittedIntegrationEvent(
                 UUID.randomUUID(),
                 allocationId,
                 orderId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                List.of(new AllocationCommittedForFulfillmentIntegrationEvent.AllocationLine(
+                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
                         UUID.randomUUID(), movementId, "SKU-1", UUID.randomUUID(), 3)),
                 committedAt.plusSeconds(3600),
                 80,
@@ -63,7 +63,7 @@ class TemporalFulfillmentEventConsumerTest {
         when(workflowClient.newWorkflowStub(
                         OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
                 .thenReturn(workflow);
-        var event = new ShipmentHandedOverForFulfillmentIntegrationEvent(
+        var event = new ShipmentHandedOverIntegrationEvent(
                 UUID.randomUUID(), shipmentId, UUID.randomUUID(), orderId, List.of(UUID.randomUUID()), handedOverAt);
 
         consumer.onShipmentHandedOver(event);

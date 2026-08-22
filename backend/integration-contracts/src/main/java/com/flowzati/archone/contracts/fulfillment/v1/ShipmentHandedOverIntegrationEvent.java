@@ -9,37 +9,41 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Inventory 已扣除實體庫存並完成 outbound movements，Ordering 可以記錄履約完成。 */
-public final class OutboundMovementsCompletedForFulfillmentIntegrationEvent extends IntegrationEvent {
+/** WMS 已將 Shipment custody 交給承運人。 */
+public final class ShipmentHandedOverIntegrationEvent extends IntegrationEvent {
 
-    public static final String EVENT_TYPE = "OutboundMovementsCompletedForFulfillmentIntegrationEvent";
+    public static final String EVENT_TYPE = "ShipmentHandedOverIntegrationEvent";
 
+    private final UUID shipmentId;
     private final UUID allocationId;
     private final UUID orderId;
-    private final UUID shipmentId;
     private final List<UUID> movementIds;
-    private final Instant completedAt;
+    private final Instant handedOverAt;
 
     @JsonCreator
-    public OutboundMovementsCompletedForFulfillmentIntegrationEvent(
+    public ShipmentHandedOverIntegrationEvent(
             @JsonProperty("eventId") UUID eventId,
+            @JsonProperty("shipmentId") UUID shipmentId,
             @JsonProperty("allocationId") UUID allocationId,
             @JsonProperty("orderId") UUID orderId,
-            @JsonProperty("shipmentId") UUID shipmentId,
             @JsonProperty("movementIds") List<UUID> movementIds,
-            @JsonProperty("completedAt") Instant completedAt) {
+            @JsonProperty("handedOverAt") Instant handedOverAt) {
         super(eventId);
+        this.shipmentId = Objects.requireNonNull(shipmentId, "Shipment ID is required");
         this.allocationId = Objects.requireNonNull(allocationId, "Allocation ID is required");
         this.orderId = Objects.requireNonNull(orderId, "Order ID is required");
-        this.shipmentId = Objects.requireNonNull(shipmentId, "Shipment ID is required");
         this.movementIds = List.copyOf(Objects.requireNonNull(movementIds, "Movement IDs are required"));
-        this.completedAt = Objects.requireNonNull(completedAt, "Completion time is required");
+        this.handedOverAt = Objects.requireNonNull(handedOverAt, "Handover time is required");
         if (this.movementIds.isEmpty() || this.movementIds.stream().anyMatch(Objects::isNull)) {
             throw new IllegalArgumentException("At least one movement ID is required");
         }
         if (new HashSet<>(this.movementIds).size() != this.movementIds.size()) {
             throw new IllegalArgumentException("Movement IDs must be unique");
         }
+    }
+
+    public UUID getShipmentId() {
+        return shipmentId;
     }
 
     public UUID getAllocationId() {
@@ -50,16 +54,12 @@ public final class OutboundMovementsCompletedForFulfillmentIntegrationEvent exte
         return orderId;
     }
 
-    public UUID getShipmentId() {
-        return shipmentId;
-    }
-
     public List<UUID> getMovementIds() {
         return movementIds;
     }
 
-    public Instant getCompletedAt() {
-        return completedAt;
+    public Instant getHandedOverAt() {
+        return handedOverAt;
     }
 
     @Override

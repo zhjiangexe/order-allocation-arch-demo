@@ -1,12 +1,12 @@
-package com.flowzati.archone.inventory.allocation.domain.event;
+package com.flowzati.archone.inventory.allocation.application.result;
 
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/** Source-agnostic allocation completion fact owned by the allocation context. */
-public record AllocationCommitted(
+/** Immutable details produced after an allocation plan has been committed successfully. */
+public record AllocationCommitResult(
         UUID allocationDemandId,
         SourceAllocationUnit source,
         UUID ownerId,
@@ -17,7 +17,7 @@ public record AllocationCommitted(
         Instant occurredAt,
         List<CommittedAllocationMove> moves) {
 
-    public AllocationCommitted {
+    public AllocationCommitResult {
         if (allocationDemandId == null
                 || source == null
                 || ownerId == null

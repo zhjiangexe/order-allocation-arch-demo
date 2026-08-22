@@ -10,17 +10,16 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.bootstrap.messaging.consumer.BootstrapKafkaConsumerConfiguration;
 import com.flowzati.archone.bootstrap.messaging.contract.BootstrapIntegrationEventContractConfiguration;
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
@@ -149,7 +148,7 @@ class BootstrapIntegrationEventWiringTest {
         assertThat(new IntegrationEventDispatcher(deserializer, orderingHandlers.getValue(), mapping, event -> {}))
                 .matches(dispatcher -> dispatcher.supports(
                         AllocationChannels.ALLOCATION_EVENTS,
-                        OrderAllocatedIntegrationEvent.EVENT_TYPE,
+                        OrderAllocationCommittedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION));
 
         ArgumentCaptor<IntegrationEventHandlers> orderLifecycleHandlers =
@@ -185,12 +184,11 @@ class BootstrapIntegrationEventWiringTest {
         ArgumentCaptor<IntegrationEventHandlers> fulfillmentHandlers =
                 ArgumentCaptor.forClass(IntegrationEventHandlers.class);
         verify(factory).make(eq(WmsEventSubscriptions.FULFILLMENT_HANDOFF), fulfillmentHandlers.capture());
-        assertThat(fulfillmentHandlers.getValue().destinations())
-                .containsExactly(FulfillmentChannels.FULFILLMENT_HANDOFFS);
+        assertThat(fulfillmentHandlers.getValue().destinations()).containsExactly(AllocationChannels.ALLOCATION_EVENTS);
         assertThat(new IntegrationEventDispatcher(deserializer, fulfillmentHandlers.getValue(), mapping, event -> {}))
                 .matches(dispatcher -> dispatcher.supports(
-                        FulfillmentChannels.FULFILLMENT_HANDOFFS,
-                        AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        AllocationChannels.ALLOCATION_EVENTS,
+                        OrderAllocationCommittedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION));
 
         ArgumentCaptor<IntegrationEventHandlers> handoverHandlers =
@@ -199,7 +197,7 @@ class BootstrapIntegrationEventWiringTest {
         assertThat(new IntegrationEventDispatcher(deserializer, handoverHandlers.getValue(), mapping, event -> {}))
                 .matches(dispatcher -> dispatcher.supports(
                         FulfillmentChannels.FULFILLMENT_HANDOFFS,
-                        ShipmentHandedOverForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        ShipmentHandedOverIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION));
 
         ArgumentCaptor<IntegrationEventHandlers> completionHandlers =
@@ -208,7 +206,7 @@ class BootstrapIntegrationEventWiringTest {
         assertThat(new IntegrationEventDispatcher(deserializer, completionHandlers.getValue(), mapping, event -> {}))
                 .matches(dispatcher -> dispatcher.supports(
                         FulfillmentChannels.FULFILLMENT_HANDOFFS,
-                        OutboundMovementsCompletedForFulfillmentIntegrationEvent.EVENT_TYPE,
+                        OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION));
     }
 }

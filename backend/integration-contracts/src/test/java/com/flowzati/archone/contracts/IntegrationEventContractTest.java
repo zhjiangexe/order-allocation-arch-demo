@@ -3,13 +3,12 @@ package com.flowzati.archone.contracts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.contracts.fulfillment.v1.AllocationCommittedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedForFulfillmentIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverForFulfillmentIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocatedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -28,13 +27,11 @@ class IntegrationEventContractTest {
     void keepsLifecycleEventIdentityAndTimesExplicit() {
         var placed = new OrderPlacedIntegrationEvent(EVENT_ID, ORDER_ID, OCCURRED_AT);
         var cancelled = new OrderCancelledIntegrationEvent(EVENT_ID, ORDER_ID, OCCURRED_AT);
-        var allocated = new OrderAllocatedIntegrationEvent(EVENT_ID, ORDER_ID, OCCURRED_AT);
 
         assertThat(placed.getEventId()).isEqualTo(EVENT_ID);
         assertThat(placed.getOrderId()).isEqualTo(ORDER_ID);
         assertThat(placed.getReceivedAt()).isEqualTo(OCCURRED_AT);
         assertThat(cancelled.getCancelledAt()).isEqualTo(OCCURRED_AT);
-        assertThat(allocated.getAllocatedAt()).isEqualTo(OCCURRED_AT);
     }
 
     @Test
@@ -61,13 +58,13 @@ class IntegrationEventContractTest {
         UUID facilityId = new UUID(0, 4);
         UUID locationId = new UUID(0, 5);
         Instant dispatchBy = OCCURRED_AT.plusSeconds(3600);
-        var event = new AllocationCommittedForFulfillmentIntegrationEvent(
+        var event = new OrderAllocationCommittedIntegrationEvent(
                 EVENT_ID,
                 ALLOCATION_ID,
                 ORDER_ID,
                 ownerId,
                 facilityId,
-                List.of(new AllocationCommittedForFulfillmentIntegrationEvent.AllocationLine(
+                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
                         ORDER_LINE_ID, MOVE_ID, "SKU-1", locationId, 3)),
                 dispatchBy,
                 80,
@@ -78,7 +75,7 @@ class IntegrationEventContractTest {
         assertThat(event.getLines()).hasSize(1);
         assertThat(event.getDispatchBy()).isEqualTo(dispatchBy);
         assertThat(event.getReleasePriority()).isEqualTo(80);
-        assertThatThrownBy(() -> new AllocationCommittedForFulfillmentIntegrationEvent(
+        assertThatThrownBy(() -> new OrderAllocationCommittedIntegrationEvent(
                         EVENT_ID,
                         ALLOCATION_ID,
                         ORDER_ID,
@@ -96,21 +93,19 @@ class IntegrationEventContractTest {
         List<String> eventTypes = List.of(
                 OrderPlacedIntegrationEvent.EVENT_TYPE,
                 OrderCancelledIntegrationEvent.EVENT_TYPE,
-                OrderAllocatedIntegrationEvent.EVENT_TYPE,
+                OrderAllocationCommittedIntegrationEvent.EVENT_TYPE,
                 StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
-                AllocationCommittedForFulfillmentIntegrationEvent.EVENT_TYPE,
-                ShipmentHandedOverForFulfillmentIntegrationEvent.EVENT_TYPE,
-                OutboundMovementsCompletedForFulfillmentIntegrationEvent.EVENT_TYPE);
+                ShipmentHandedOverIntegrationEvent.EVENT_TYPE,
+                OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE);
 
         assertThat(eventTypes)
                 .containsExactly(
                         "OrderPlacedIntegrationEvent",
                         "OrderCancelledIntegrationEvent",
-                        "OrderAllocatedIntegrationEvent",
+                        "OrderAllocationCommittedIntegrationEvent",
                         "StockAvailabilityIncreasedIntegrationEvent",
-                        "AllocationCommittedForFulfillmentIntegrationEvent",
-                        "ShipmentHandedOverForFulfillmentIntegrationEvent",
-                        "OutboundMovementsCompletedForFulfillmentIntegrationEvent");
+                        "ShipmentHandedOverIntegrationEvent",
+                        "OutboundMovementsCompletedIntegrationEvent");
         assertThat(eventTypes).doesNotHaveDuplicates();
     }
 }

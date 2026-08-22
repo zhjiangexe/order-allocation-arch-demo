@@ -9,9 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.allocation.application.result.AllocationCommitResult;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.entity.AllocationDemandLine;
-import com.flowzati.archone.inventory.allocation.domain.event.AllocationCommitted;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationSourceType;
@@ -77,7 +77,7 @@ class AllocationCommitterTest {
         when(moveRepository.findByAllocationDemandId(DEMAND_ID)).thenReturn(List.of(move));
         when(pickingRepository.findByIds(java.util.Set.of(PICKING_ID))).thenReturn(List.of(picking));
 
-        AllocationCommitted fact = committer.commit(plan, NOW).orElseThrow();
+        AllocationCommitResult fact = committer.commit(plan, NOW).orElseThrow();
 
         assertThat(pool.getReservedQuantity()).isEqualTo(5);
         assertThat(move.getState().name()).isEqualTo("ASSIGNED");

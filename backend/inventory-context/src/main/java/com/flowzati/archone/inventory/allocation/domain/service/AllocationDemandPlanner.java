@@ -23,7 +23,7 @@ import java.util.Map;
  * 而且那個順序正是索引的順序，資料庫本來就排好了。
  *
  * <p>本服務不查 repository、不保留或修改 {@link StockQuant}，只回傳 allocation-owned immutable
- * plan；持久化、reservation、movement 與 completion fact 由 application committer 負責。
+ * plan；持久化、reservation、movement 與 completion result 由 application committer 負責。
  */
 public class AllocationDemandPlanner {
 

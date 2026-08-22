@@ -91,7 +91,6 @@ class OrderPersistenceIntegrationTest {
         assertThat(restored.getAllocatedAt()).isNull();
         assertThat(restored.getCancelledAt()).isNull();
         assertThat(restored.getVersion()).isZero();
-        assertThat(restored.releaseDomainEvents()).isEmpty();
     }
 
     @Test

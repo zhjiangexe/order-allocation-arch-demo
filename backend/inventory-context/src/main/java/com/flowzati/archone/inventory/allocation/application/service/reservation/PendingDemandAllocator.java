@@ -1,8 +1,8 @@
 package com.flowzati.archone.inventory.allocation.application.service.reservation;
 
-import com.flowzati.archone.inventory.allocation.application.event.AllocationCompletionRouter;
+import com.flowzati.archone.inventory.allocation.application.event.OrderAllocationCommittedPublicationFactory;
+import com.flowzati.archone.inventory.allocation.application.result.AllocationCommitResult;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
-import com.flowzati.archone.inventory.allocation.domain.event.AllocationCommitted;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.inventory.allocation.domain.service.AllocationDemandPlanner;
 import com.flowzati.archone.inventory.allocation.domain.service.AllocationFifoSelector;
@@ -11,6 +11,7 @@ import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDe
 import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.inventory.balance.domain.valueobject.AllocatableBatches;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -30,7 +31,7 @@ public class PendingDemandAllocator {
     private final AllocationFifoSelector demandSelector;
     private final AllocationDemandPlanner demandPlanner;
     private final AllocationCommitter planCommitter;
-    private final AllocationCompletionRouter completionRouter;
+    private final IntegrationEventPublisher integrationEventPublisher;
     private final AllocationAttemptObserver attemptObserver;
 
     public PendingDemandAllocator(
@@ -39,14 +40,14 @@ public class PendingDemandAllocator {
             AllocationFifoSelector demandSelector,
             AllocationDemandPlanner demandPlanner,
             AllocationCommitter planCommitter,
-            AllocationCompletionRouter completionRouter,
+            IntegrationEventPublisher integrationEventPublisher,
             AllocationAttemptObserver attemptObserver) {
         this.demandRepository = demandRepository;
         this.stockQuantRepository = stockQuantRepository;
         this.demandSelector = demandSelector;
         this.demandPlanner = demandPlanner;
         this.planCommitter = planCommitter;
-        this.completionRouter = completionRouter;
+        this.integrationEventPublisher = integrationEventPublisher;
         this.attemptObserver = attemptObserver;
     }
 
@@ -76,10 +77,10 @@ public class PendingDemandAllocator {
             return Optional.empty();
         }
 
-        // Committer 重新驗證資料仍一致後才 reserve；成功才 route completion fact。
-        Optional<AllocationCommitted> commit = planCommitter.commit(plan, now);
+        // Committer 重新驗證資料仍一致後才 reserve；成功才依 completion result 發布 Integration Events。
+        Optional<AllocationCommitResult> commit = planCommitter.commit(plan, now);
         if (commit.isPresent()) {
-            completionRouter.publish(commit.get());
+            integrationEventPublisher.publish(OrderAllocationCommittedPublicationFactory.create(commit.get()));
             return Optional.of(demand);
         }
         return Optional.empty();
