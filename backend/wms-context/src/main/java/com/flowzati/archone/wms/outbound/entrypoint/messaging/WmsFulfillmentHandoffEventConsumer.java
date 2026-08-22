@@ -2,6 +2,7 @@ package com.flowzati.archone.wms.outbound.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -9,7 +10,6 @@ import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.shared.application.IdGenerator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,11 +21,9 @@ import org.springframework.context.annotation.Configuration;
 public class WmsFulfillmentHandoffEventConsumer {
 
     private final CreateShipmentUsecase createShipmentUsecase;
-    private final IdGenerator idGenerator;
 
-    public WmsFulfillmentHandoffEventConsumer(CreateShipmentUsecase createShipmentUsecase, IdGenerator idGenerator) {
+    public WmsFulfillmentHandoffEventConsumer(CreateShipmentUsecase createShipmentUsecase) {
         this.createShipmentUsecase = createShipmentUsecase;
-        this.idGenerator = idGenerator;
     }
 
     @Bean
@@ -44,7 +42,7 @@ public class WmsFulfillmentHandoffEventConsumer {
         // Event-driven driver 不需要同步回覆；CreateShipmentResult 仍確保相同 application use case
         // 也能被 Temporal Activity adapter 使用，而不必回傳 domain Shipment aggregate。
         createShipmentUsecase.handle(new CreateShipmentCommand(
-                idGenerator.nextId(),
+                IdGenerator.nextId(),
                 event.getAllocationId(),
                 event.getOrderId(),
                 event.getOwnerId(),

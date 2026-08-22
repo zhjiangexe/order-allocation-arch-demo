@@ -19,7 +19,6 @@ import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUseca
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
-import com.flowzati.archone.wms.shared.application.IdGenerator;
 import io.temporal.failure.ApplicationFailure;
 import java.time.Instant;
 import java.util.List;
@@ -31,13 +30,11 @@ class TemporalWmsActivitiesAdapterTest {
 
     private final CreateShipmentUsecase createShipmentUsecase = mock(CreateShipmentUsecase.class);
     private final CancelShipmentUsecase cancelShipmentUsecase = mock(CancelShipmentUsecase.class);
-    private final IdGenerator idGenerator = mock(IdGenerator.class);
     private final TemporalWmsActivitiesAdapter activities =
-            new TemporalWmsActivitiesAdapter(createShipmentUsecase, cancelShipmentUsecase, idGenerator);
+            new TemporalWmsActivitiesAdapter(createShipmentUsecase, cancelShipmentUsecase);
 
     @Test
     void mapsCommittedAllocationToTheSharedCreateShipmentUsecase() {
-        UUID generatedShipmentId = UUID.randomUUID();
         UUID returnedShipmentId = UUID.randomUUID();
         UUID allocationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
@@ -56,7 +53,6 @@ class TemporalWmsActivitiesAdapterTest {
                 committedAt.plusSeconds(3600),
                 80,
                 committedAt);
-        when(idGenerator.nextId()).thenReturn(generatedShipmentId);
         when(createShipmentUsecase.handle(any())).thenReturn(new CreateShipmentResult(returnedShipmentId));
 
         var receipt = activities.createShipment(new CreateShipmentActivityInput("process-1", allocation));
@@ -64,7 +60,7 @@ class TemporalWmsActivitiesAdapterTest {
         assertThat(receipt.shipmentId()).isEqualTo(returnedShipmentId);
         ArgumentCaptor<CreateShipmentCommand> command = ArgumentCaptor.forClass(CreateShipmentCommand.class);
         verify(createShipmentUsecase).handle(command.capture());
-        assertThat(command.getValue().shipmentId()).isEqualTo(generatedShipmentId);
+        assertThat(command.getValue().shipmentId()).isNotNull();
         assertThat(command.getValue().allocationId()).isEqualTo(allocationId);
         assertThat(command.getValue().lines())
                 .extracting(CreateShipmentCommand.AllocationLine::moveId)

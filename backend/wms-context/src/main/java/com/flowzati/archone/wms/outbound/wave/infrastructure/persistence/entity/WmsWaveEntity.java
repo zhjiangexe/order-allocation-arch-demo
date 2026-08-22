@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.outbound.wave.infrastructure.persistence.entity;
 
 import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
-import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
+import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WavePlanningPolicy;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

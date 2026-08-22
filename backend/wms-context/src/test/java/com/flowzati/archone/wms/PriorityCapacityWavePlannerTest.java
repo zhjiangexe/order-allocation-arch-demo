@@ -2,9 +2,9 @@ package com.flowzati.archone.wms;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import com.flowzati.archone.wms.outbound.wave.domain.service.PriorityCapacityWavePlanner;
 import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveCandidate;
+import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WavePlanningPolicy;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

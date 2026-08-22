@@ -13,7 +13,6 @@ import com.flowzati.archone.ordering.entrypoint.temporal.TemporalOrderingActivit
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.entrypoint.temporal.TemporalWmsActivitiesAdapter;
-import com.flowzati.archone.wms.shared.application.IdGenerator;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
@@ -60,10 +59,8 @@ public class TemporalFulfillmentConfiguration {
 
     @Bean
     TemporalWmsActivitiesAdapter wmsActivities(
-            CreateShipmentUsecase createShipmentUsecase,
-            CancelShipmentUsecase cancelShipmentUsecase,
-            IdGenerator idGenerator) {
-        return new TemporalWmsActivitiesAdapter(createShipmentUsecase, cancelShipmentUsecase, idGenerator);
+            CreateShipmentUsecase createShipmentUsecase, CancelShipmentUsecase cancelShipmentUsecase) {
+        return new TemporalWmsActivitiesAdapter(createShipmentUsecase, cancelShipmentUsecase);
     }
 
     @Bean(destroyMethod = "shutdown")

@@ -1,5 +1,6 @@
 package com.flowzati.archone.wms.outbound.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmentActivityInput;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityInput;
@@ -13,7 +14,6 @@ import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUseca
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentAllocationSnapshotConflictException;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
-import com.flowzati.archone.wms.shared.application.IdGenerator;
 import io.temporal.failure.ApplicationFailure;
 
 /** Temporal Activity contract 到 WMS application use cases 的 inbound adapter。 */
@@ -21,15 +21,11 @@ public final class TemporalWmsActivitiesAdapter implements WmsActivities {
 
     private final CreateShipmentUsecase createShipmentUsecase;
     private final CancelShipmentUsecase cancelShipmentUsecase;
-    private final IdGenerator idGenerator;
 
     public TemporalWmsActivitiesAdapter(
-            CreateShipmentUsecase createShipmentUsecase,
-            CancelShipmentUsecase cancelShipmentUsecase,
-            IdGenerator idGenerator) {
+            CreateShipmentUsecase createShipmentUsecase, CancelShipmentUsecase cancelShipmentUsecase) {
         this.createShipmentUsecase = createShipmentUsecase;
         this.cancelShipmentUsecase = cancelShipmentUsecase;
-        this.idGenerator = idGenerator;
     }
 
     @Override
@@ -38,7 +34,7 @@ public final class TemporalWmsActivitiesAdapter implements WmsActivities {
         CreateShipmentResult result;
         try {
             result = createShipmentUsecase.handle(new CreateShipmentCommand(
-                    idGenerator.nextId(),
+                    IdGenerator.nextId(),
                     allocation.allocationId(),
                     allocation.orderId(),
                     allocation.ownerId(),

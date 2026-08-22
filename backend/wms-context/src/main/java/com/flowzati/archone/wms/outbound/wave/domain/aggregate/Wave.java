@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.outbound.wave.domain.aggregate;
 
-import com.flowzati.archone.wms.outbound.wave.domain.policy.WavePlanningPolicy;
 import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
 import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveAssignment;
+import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WavePlanningPolicy;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;

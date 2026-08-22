@@ -18,8 +18,7 @@ class WmsFulfillmentHandoffEventConsumerTest {
     @Test
     void mapsTheStandaloneHandoffSnapshotToThePureWmsUsecase() {
         CreateShipmentUsecase usecase = mock(CreateShipmentUsecase.class);
-        UUID shipmentId = UUID.randomUUID();
-        var consumer = new WmsFulfillmentHandoffEventConsumer(usecase, () -> shipmentId);
+        var consumer = new WmsFulfillmentHandoffEventConsumer(usecase);
         UUID allocationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
@@ -45,7 +44,7 @@ class WmsFulfillmentHandoffEventConsumerTest {
 
         ArgumentCaptor<CreateShipmentCommand> command = ArgumentCaptor.forClass(CreateShipmentCommand.class);
         verify(usecase).handle(command.capture());
-        assertThat(command.getValue().shipmentId()).isEqualTo(shipmentId);
+        assertThat(command.getValue().shipmentId()).isNotNull();
         assertThat(command.getValue().allocationId()).isEqualTo(allocationId);
         assertThat(command.getValue().orderId()).isEqualTo(orderId);
         assertThat(command.getValue().ownerId()).isEqualTo(ownerId);

@@ -1,6 +1,5 @@
-package com.flowzati.archone.wms.outbound.wave.domain.policy;
+package com.flowzati.archone.wms.outbound.wave.domain.valueobject;
 
-import com.flowzati.archone.wms.outbound.wave.domain.valueobject.WaveCandidate;
 import java.time.Instant;
 import java.util.UUID;
 

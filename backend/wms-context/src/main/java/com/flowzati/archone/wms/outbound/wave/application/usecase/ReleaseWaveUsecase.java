@@ -1,5 +1,6 @@
 package com.flowzati.archone.wms.outbound.wave.application.usecase;
 
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.entity.PickTask;
 import com.flowzati.archone.wms.outbound.domain.entity.WarehouseWork;
@@ -10,7 +11,6 @@ import com.flowzati.archone.wms.outbound.wave.application.command.ReleaseWaveCom
 import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
 import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
 import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
-import com.flowzati.archone.wms.shared.application.IdGenerator;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,13 +29,10 @@ public class ReleaseWaveUsecase {
 
     private final WaveRepository waveRepository;
     private final ShipmentRepository shipmentRepository;
-    private final IdGenerator idGenerator;
 
-    public ReleaseWaveUsecase(
-            WaveRepository waveRepository, ShipmentRepository shipmentRepository, IdGenerator idGenerator) {
+    public ReleaseWaveUsecase(WaveRepository waveRepository, ShipmentRepository shipmentRepository) {
         this.waveRepository = waveRepository;
         this.shipmentRepository = shipmentRepository;
-        this.idGenerator = idGenerator;
     }
 
     @Transactional
@@ -83,12 +80,12 @@ public class ReleaseWaveUsecase {
     private WarehouseWork createPickingWork(Wave wave, Shipment shipment) {
         List<PickTask> tasks =
                 shipment.lines().stream().map(this::createPickTask).toList();
-        return new WarehouseWork(idGenerator.nextId(), wave.id(), shipment.id(), tasks);
+        return new WarehouseWork(IdGenerator.nextId(), wave.id(), shipment.id(), tasks);
     }
 
     private PickTask createPickTask(ShipmentLine line) {
         return new PickTask(
-                idGenerator.nextId(),
+                IdGenerator.nextId(),
                 line.orderLineId(),
                 line.moveId(),
                 line.skuCode(),

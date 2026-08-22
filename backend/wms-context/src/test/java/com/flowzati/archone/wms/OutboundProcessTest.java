@@ -71,7 +71,7 @@ class OutboundProcessTest {
     void setUp() {
         createShipment = new CreateShipmentUsecase(shipmentRepository);
         planWave = new PlanWaveUsecase(waveRepository, shipmentRepository, new PriorityCapacityWavePlanner());
-        releaseWave = new ReleaseWaveUsecase(waveRepository, shipmentRepository, this::nextId);
+        releaseWave = new ReleaseWaveUsecase(waveRepository, shipmentRepository);
         completeWave = new CompleteWaveUsecase(waveRepository, shipmentRepository);
         confirmPick = new ConfirmPickUsecase(shipmentRepository);
         packShipment = new PackShipmentUsecase(shipmentRepository);

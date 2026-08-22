@@ -37,8 +37,7 @@ class SimulateWarehouseOperationsUsecaseTest {
     private final List<IntegrationEventPublication> publications = new java.util.ArrayList<>();
     private final PlanWaveUsecase planWaveUsecase =
             new PlanWaveUsecase(waveRepository, shipmentRepository, new PriorityCapacityWavePlanner());
-    private final ReleaseWaveUsecase releaseWaveUsecase =
-            new ReleaseWaveUsecase(waveRepository, shipmentRepository, this::nextId);
+    private final ReleaseWaveUsecase releaseWaveUsecase = new ReleaseWaveUsecase(waveRepository, shipmentRepository);
     private final ConfirmPickUsecase confirmPickUsecase = new ConfirmPickUsecase(shipmentRepository);
     private final CompleteWaveUsecase completeWaveUsecase = new CompleteWaveUsecase(waveRepository, shipmentRepository);
     private final PackShipmentUsecase packShipmentUsecase = new PackShipmentUsecase(shipmentRepository);
@@ -47,7 +46,6 @@ class SimulateWarehouseOperationsUsecaseTest {
             new HandOverShipmentUsecase(shipmentRepository, publications::add);
     private final SimulateWarehouseOperationsUsecase usecase = new SimulateWarehouseOperationsUsecase(
             shipmentRepository,
-            this::nextId,
             planWaveUsecase,
             releaseWaveUsecase,
             confirmPickUsecase,

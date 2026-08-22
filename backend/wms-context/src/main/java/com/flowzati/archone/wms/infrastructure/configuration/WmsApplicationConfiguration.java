@@ -1,6 +1,5 @@
 package com.flowzati.archone.wms.infrastructure.configuration;
 
-import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.wms.inbound.application.usecase.ConfirmArrivalUsecase;
@@ -95,11 +94,8 @@ public class WmsApplicationConfiguration {
     }
 
     @Bean
-    ReleaseWaveUsecase releaseWaveUsecase(
-            WaveRepository waveRepository,
-            ShipmentRepository shipmentRepository,
-            com.flowzati.archone.wms.shared.application.IdGenerator wmsIdGenerator) {
-        return new ReleaseWaveUsecase(waveRepository, shipmentRepository, wmsIdGenerator);
+    ReleaseWaveUsecase releaseWaveUsecase(WaveRepository waveRepository, ShipmentRepository shipmentRepository) {
+        return new ReleaseWaveUsecase(waveRepository, shipmentRepository);
     }
 
     @Bean
@@ -125,7 +121,6 @@ public class WmsApplicationConfiguration {
     @Bean
     SimulateWarehouseOperationsUsecase simulateWarehouseOperationsUsecase(
             ShipmentRepository shipmentRepository,
-            com.flowzati.archone.wms.shared.application.IdGenerator wmsIdGenerator,
             PlanWaveUsecase planWaveUsecase,
             ReleaseWaveUsecase releaseWaveUsecase,
             ConfirmPickUsecase confirmPickUsecase,
@@ -135,7 +130,6 @@ public class WmsApplicationConfiguration {
             HandOverShipmentUsecase handOverShipmentUsecase) {
         return new SimulateWarehouseOperationsUsecase(
                 shipmentRepository,
-                wmsIdGenerator,
                 planWaveUsecase,
                 releaseWaveUsecase,
                 confirmPickUsecase,
@@ -154,10 +148,5 @@ public class WmsApplicationConfiguration {
             @Value("${archone.wms.simulation.batch-limit:100}") int batchLimit) {
         return new ProcessDueShipmentsUsecase(
                 shipmentRepository, simulateWarehouseOperationsUsecase, appClock, processingDelay, batchLimit);
-    }
-
-    @Bean
-    com.flowzati.archone.wms.shared.application.IdGenerator wmsIdGenerator() {
-        return IdGenerator::nextId;
     }
 }

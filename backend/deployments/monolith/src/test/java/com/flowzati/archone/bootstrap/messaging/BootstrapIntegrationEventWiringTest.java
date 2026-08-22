@@ -44,7 +44,6 @@ import com.flowzati.archone.ordering.entrypoint.messaging.OrderingFulfillmentCom
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsFulfillmentHandoffEventConsumer;
-import com.flowzati.archone.wms.shared.application.IdGenerator;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -125,8 +124,7 @@ class BootstrapIntegrationEventWiringTest {
                 .withBean(TransactionalAllocationAttempt.class, () -> mock(TransactionalAllocationAttempt.class))
                 .withBean(CreateShipmentUsecase.class, () -> mock(CreateShipmentUsecase.class))
                 .withBean(CompleteOutboundMovementsUsecase.class, () -> mock(CompleteOutboundMovementsUsecase.class))
-                .withBean(RecordOrderFulfillmentUsecase.class, () -> mock(RecordOrderFulfillmentUsecase.class))
-                .withBean(IdGenerator.class, () -> mock(IdGenerator.class));
+                .withBean(RecordOrderFulfillmentUsecase.class, () -> mock(RecordOrderFulfillmentUsecase.class));
         return factory == null ? runner : runner.withBean(IntegrationEventDispatcherFactory.class, () -> factory);
     }
 

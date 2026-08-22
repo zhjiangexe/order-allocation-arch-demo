@@ -1,5 +1,6 @@
 package com.flowzati.archone.wms.outbound.application.usecase;
 
+import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.wms.outbound.application.command.ConfirmPickCommand;
 import com.flowzati.archone.wms.outbound.application.command.HandOverShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.command.PackShipmentCommand;
@@ -14,7 +15,6 @@ import com.flowzati.archone.wms.outbound.wave.application.command.ReleaseWaveCom
 import com.flowzati.archone.wms.outbound.wave.application.usecase.CompleteWaveUsecase;
 import com.flowzati.archone.wms.outbound.wave.application.usecase.PlanWaveUsecase;
 import com.flowzati.archone.wms.outbound.wave.application.usecase.ReleaseWaveUsecase;
-import com.flowzati.archone.wms.shared.application.IdGenerator;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -32,7 +32,6 @@ public class SimulateWarehouseOperationsUsecase {
     private static final Logger log = LoggerFactory.getLogger(SimulateWarehouseOperationsUsecase.class);
 
     private final ShipmentRepository shipmentRepository;
-    private final IdGenerator idGenerator;
     private final PlanWaveUsecase planWaveUsecase;
     private final ReleaseWaveUsecase releaseWaveUsecase;
     private final ConfirmPickUsecase confirmPickUsecase;
@@ -43,7 +42,6 @@ public class SimulateWarehouseOperationsUsecase {
 
     public SimulateWarehouseOperationsUsecase(
             ShipmentRepository shipmentRepository,
-            IdGenerator idGenerator,
             PlanWaveUsecase planWaveUsecase,
             ReleaseWaveUsecase releaseWaveUsecase,
             ConfirmPickUsecase confirmPickUsecase,
@@ -52,7 +50,6 @@ public class SimulateWarehouseOperationsUsecase {
             StageShipmentUsecase stageShipmentUsecase,
             HandOverShipmentUsecase handOverShipmentUsecase) {
         this.shipmentRepository = shipmentRepository;
-        this.idGenerator = idGenerator;
         this.planWaveUsecase = planWaveUsecase;
         this.releaseWaveUsecase = releaseWaveUsecase;
         this.confirmPickUsecase = confirmPickUsecase;
@@ -79,7 +76,7 @@ public class SimulateWarehouseOperationsUsecase {
             return false;
         }
 
-        UUID waveId = idGenerator.nextId();
+        UUID waveId = IdGenerator.nextId();
         int lineCount = shipment.lines().size();
         int unitCount =
                 shipment.lines().stream().mapToInt(line -> line.quantity()).sum();
