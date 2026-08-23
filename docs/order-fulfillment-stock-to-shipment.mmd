@@ -40,7 +40,7 @@ flowchart TB
   R --> AV
   AV --> AVT
   AVT --> RETRY
-  C -. 找出可重試 scope .-> SCH
+  C -. 找出可重試 queue key .-> SCH
   SCH --> RETRY
   RETRY -->|仍不足| C
   RETRY -->|全部配足| AS

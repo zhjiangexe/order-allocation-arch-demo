@@ -6,8 +6,8 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
-import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileWaitingDemandUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandAllocationUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandBacklogAllocationUsecase;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
@@ -46,22 +46,16 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @SpringBootTest(
         classes = ArchoneApplication.class,
-        properties = {
-            "spring.kafka.listener.auto-startup=false",
-            // 上限寫在測試裡而不是吃 production 預設：預設值會隨壓測結果調整，那不該讓這支
-            // 測試變色。它驗的是「分多輪會收斂」，與上限的具體數字無關。
-            "archone.allocation.waiting-demand-batch-limit="
-                    + AllocationFifoAvailabilityIncreaseBatchIntegrationTest.BATCH_LIMIT_TEXT
-        },
+        properties = "spring.kafka.listener.auto-startup=false",
         webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
 @Import(PostgreSQLTestConfiguration.class)
 class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
 
-    static final String BATCH_LIMIT_TEXT = "200";
-    private static final int BATCH_LIMIT = Integer.parseInt(BATCH_LIMIT_TEXT);
+    private static final int MAX_ATTEMPTS_PER_RUN = 200;
+    private static final long MAX_RECONCILIATION_RUN_DURATION_MS = 45_000;
     /** Scheduler reconciliation 的測試硬上限，避免錯誤的收斂條件讓測試一直執行。 */
-    private static final int MAX_RECONCILIATION_ROUNDS = 1_000 / BATCH_LIMIT + 2;
+    private static final int MAX_RECONCILIATION_ROUNDS = 1_000 / MAX_ATTEMPTS_PER_RUN + 2;
 
     private static final String FIFO_SKU = "FIFO-SKU";
     private static final int FITTING_ORDERS_BEFORE_BLOCKER = 500;
@@ -80,13 +74,13 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     @Autowired
     private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-    private ReconcileWaitingDemandUsecase reconcileWaitingDemandUsecase;
+    private PendingDemandBacklogAllocationUsecase pendingDemandBacklogAllocationUsecase;
 
     @Autowired
     private AllocationDemandRepository allocationDemandRepository;
 
     @Autowired
-    private TransactionalAllocationAttempt allocationAttempt;
+    private PendingDemandAllocationUsecase pendingDemandAllocationUsecase;
 
     @Autowired
     private BusinessClock appClock;
@@ -110,8 +104,12 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     void seedCatalogForOrders() {
         // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
         // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
-        reconcileWaitingDemandUsecase =
-                new ReconcileWaitingDemandUsecase(allocationDemandRepository, allocationAttempt, appClock, BATCH_LIMIT);
+        pendingDemandBacklogAllocationUsecase = new PendingDemandBacklogAllocationUsecase(
+                allocationDemandRepository,
+                pendingDemandAllocationUsecase,
+                appClock,
+                MAX_ATTEMPTS_PER_RUN,
+                MAX_RECONCILIATION_RUN_DURATION_MS);
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
     }
 
@@ -199,7 +197,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         Instant backorderedAt = Instant.now().minusSeconds(3600);
         int position = 0;
         UUID blockerOrderId = seedBackorderedOrder(BLOCKER_QUANTITY, backorderedAt, position++);
-        for (int i = 0; i < BATCH_LIMIT * 2; i++) {
+        for (int i = 0; i < MAX_ATTEMPTS_PER_RUN * 2; i++) {
             seedBackorderedOrder(1, backorderedAt, position++);
         }
 
@@ -228,7 +226,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         // 會排在最前面被讀進來，然後因為查不到自己那個倉的批次而一張張被跳過——不會出錯，
         // 但整個上限就這樣被用光，真正配得到的單一張都輪不到。
         List<UUID> otherWarehouseOrders = new java.util.ArrayList<>();
-        for (int i = 0; i < BATCH_LIMIT; i++) {
+        for (int i = 0; i < MAX_ATTEMPTS_PER_RUN; i++) {
             UUID orderId = IdGenerator.nextId();
             MovementFixtures.saveQueuedOrder(
                     orderRepository,
@@ -384,7 +382,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         int productiveRounds = 0;
         for (int attempt = 0; attempt < MAX_RECONCILIATION_ROUNDS; attempt++) {
             int before = allocatedOutcomeCount();
-            reconcileWaitingDemandUsecase.execute();
+            pendingDemandBacklogAllocationUsecase.execute();
             int after = allocatedOutcomeCount();
             if (after == before) {
                 return productiveRounds;

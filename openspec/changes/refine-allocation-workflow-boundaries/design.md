@@ -101,7 +101,7 @@ waiting and no new order outcome occurred.
 
 The use case does not decide how another round is scheduled. It does
 not publish a continuation event: the availability event provides a prompt first round and the
-periodic scheduler discovers any eligible scope that remains. A future Temporal Workflow may use a
+periodic scheduler discovers any eligible pending-demand queue that remains. A future Temporal Workflow may use a
 durably replayable result as its loop condition instead of relying on the scheduler cadence.
 
 `ConfirmStockReceiptUsecase.handle(...)` records and completes one inbound receipt. Completing the
@@ -111,10 +111,10 @@ a keyed Integration Event to the Outbox in that receipt transaction. It does not
 `AllocateWaitingDemandUsecase` and does not return an allocation-round result.
 
 `AllocateWaitingDemandUsecase` owns each bounded allocation transaction. The availability-event handler
-claims its message through the Inbox before invoking it; a periodic `AllocationReconciliationScheduler`
-discovers bounded waiting scopes and invokes the same use case without transport metadata. Both
+claims its message through the Inbox before invoking it; a periodic `PendingDemandBacklogAllocationScheduler`
+discovers bounded pending-demand queue keys and invokes the same use case without transport metadata. Both
 triggers invoke the same bounded-round implementation and publish completion facts. A full productive round
-leaves the remaining waiting scope for a later scheduler scan instead of emitting orchestration
+leaves the remaining queue work for a later scheduler scan instead of emitting orchestration
 control through the Outbox.
 
 The REST controller maps HTTP fields, including the selected `locationId`, and the caller-provided
@@ -200,7 +200,7 @@ Kafka handlers and future Temporal Activities are adapters around the same appli
 | --- | --- | --- |
 | `AllocateOrderUsecase` | maps `OrderPlaced` to `AllocateOrderCommand` | calls one allocation Activity; any branching result is introduced with the Temporal adapter and durable replay |
 | `ConfirmStockReceiptUsecase` | synchronous stock REST controller maps an HTTP request to `ConfirmStockReceiptCommand`; its Outbox fact triggers allocation after commit | calls one receipt-confirmation Activity |
-| `AllocateWaitingDemandUsecase` | maps availability events to `AllocateWaitingDemandCommand`; the scheduler invokes the same boundary directly | calls one bounded waiting-allocation Activity; branching requires a separately introduced durable result contract |
+| `AllocateWaitingDemandUsecase` | maps availability events to `AllocatePendingDemandCommand`; the scheduler invokes the same boundary directly | calls one bounded waiting-allocation Activity; branching requires a separately introduced durable result contract |
 
 This does not mean every application component is an Activity. A future split creates another use
 case only where a committed checkpoint may be retried, waited on, or compensated independently.

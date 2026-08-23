@@ -62,7 +62,7 @@
 ## 6. Rewire initial allocation and waiting reconciliation
 
 - [x] 6.1 Refactor initial allocation to use the generic demand creator, planner, and committer without changing its external trigger contract.
-- [x] 6.2 Introduce `TransactionalAllocationAttempt` to consume demand-first candidates instead of reconstructing demand from `StockMove`, and share that transaction operation between availability wake-up and reconciliation use cases.
+- [x] 6.2 Introduce `PendingDemandAllocationUsecase` to consume demand-first candidates instead of reconstructing demand from `StockMove`, and share that transaction operation between availability wake-up and reconciliation use cases.
 - [x] 6.3 Replace `MovementAssigner.toDemands` with the new candidate/commit boundary and remove redundant movement-to-demand conversion.
 - [x] 6.4 Keep availability events and reconciliation scheduler as separate triggers of the same bounded allocation use case; process at most one demand per transaction and let the outer reconciliation loop invoke subsequent iterations.
 - [x] 6.5 Ensure duplicate wake-ups for the same demand are safe under optimistic locking and idempotent commit.

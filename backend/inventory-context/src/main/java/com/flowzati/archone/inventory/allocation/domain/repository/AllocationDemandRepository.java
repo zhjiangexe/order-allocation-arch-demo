@@ -2,8 +2,8 @@ package com.flowzati.archone.inventory.allocation.domain.repository;
 
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -26,11 +26,10 @@ public interface AllocationDemandRepository {
     List<AllocationDemand> findPendingThrough(Instant enqueuedAt, UUID allocationDemandId);
 
     /** Bounded candidates plus all earlier shared-SKU predecessors needed for strict FIFO. */
-    AllocationCandidateBatch findPendingCandidates(
-            WaitingAllocationScope scope, String triggeringSku, int candidateLimit);
+    AllocationCandidateBatch findPendingCandidates(AllocationDemandQueueKey queueKey, int candidateLimit);
 
-    /** Oldest pending demand scopes that currently have allocatable stock. */
-    List<WaitingAllocationScope> findAllocatablePendingScopes(LocalDate today, int limit);
+    /** Oldest pending-demand queue keys that currently have allocatable stock. */
+    List<AllocationDemandQueueKey> findAllocatablePendingQueueKeys(LocalDate today, int limit);
 
     /** Pending demands isolated because their execution references violate acceptance invariants. */
     List<UUID> findPendingExecutionAnomalyIds(int limit);

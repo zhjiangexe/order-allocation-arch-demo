@@ -44,7 +44,7 @@ partition "Inventory：Demand / Reservation" {
     :Demand 保持 WAITING
     不建立部分 reservation; <<#FFF7D6>>
     :入庫／可用量增加
-    喚醒 ReconcileWaitingDemandUsecase; <<#E8F1FF>>
+    喚醒 PendingDemandBacklogAllocationUsecase; <<#E8F1FF>>
     :依 FIFO 重選 demand；
     Planner 重新比較 supply/demand; <<#E2F0D9>>
   endwhile (是)

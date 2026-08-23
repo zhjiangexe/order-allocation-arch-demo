@@ -61,7 +61,7 @@
 
 - [x] 10.1 Update allocation artifacts to replace the receipt-and-first-wake atomic boundary with an Outbox-backed availability fact, a shared transactional wake use case, and periodic scheduler reconciliation.
 - [x] 10.2 Make `ConfirmStockReceiptUsecase` complete only inbound execution and publish `StockAvailabilityIncreased`; translate it to a keyed Integration Event and handle it through `AllocateWaitingDemandUsecase` after commit.
-- [x] 10.3 Add `AllocationReconciliationScheduler` and a bounded waiting-scope query so scheduled reconciliation invokes the same transactional `AllocateWaitingDemandUsecase` without transport metadata.
+- [x] 10.3 Add `PendingDemandBacklogAllocationScheduler` and a bounded pending-demand queue-key query so scheduled reconciliation invokes the same transactional `AllocateWaitingDemandUsecase` without transport metadata.
 - [x] 10.4 Update unit, architecture, transaction, Kafka, FIFO, and living-documentation coverage for asynchronous first wake, duplicate-safe event/scheduler overlap, and eventual convergence.
 - [x] 10.5 Run the complete backend unit suite, compile SIT, run focused receipt/allocation integration suites, and validate the OpenSpec change strictly.
 

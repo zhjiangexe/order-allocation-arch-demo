@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
@@ -203,12 +203,11 @@ class DevSeedDataIntegrationTest {
         // predicate。這裡直接走 production demand-first candidate query。
         List<UUID> queuedOrders = allocationDemandRepository
                 .findPendingCandidates(
-                        new WaitingAllocationScope(
+                        new AllocationDemandQueueKey(
                                 DevSeedDataInitializer.SECOND_OWNER_ID,
                                 DevSeedDataInitializer.SOUTH_FACILITY_ID,
                                 DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID,
                                 DevSeedDataInitializer.EMPTY_SKU),
-                        DevSeedDataInitializer.EMPTY_SKU,
                         1_000)
                 .candidates()
                 .stream()

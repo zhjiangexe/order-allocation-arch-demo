@@ -8,7 +8,7 @@ import com.flowzati.archone.inventory.allocation.domain.service.AllocationDemand
 import com.flowzati.archone.inventory.allocation.domain.service.AllocationFifoSelector;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandPlan;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.inventory.balance.domain.valueobject.AllocatableBatches;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -52,13 +52,11 @@ public class PendingDemandAllocator {
     }
 
     /** 最多 commit 一筆 demand；successor 交給下一次 bounded invocation 重新評估。 */
-    public Optional<AllocationDemand> allocateOne(
-            WaitingAllocationScope scope, String triggeringSku, int candidateLimit, LocalDate today, Instant now) {
-        // 此次查到的 candidate 都共享 triggeringSku。strict FIFO 下，第一筆若不能通過它的所有 SKU
-        // queue，後面的 demand 也不能在 triggering queue 超車；因此實際只需載入 queue head，再加上
+    public Optional<AllocationDemand> allocateOne(AllocationDemandQueueKey queueKey, LocalDate today, Instant now) {
+        // 此次查到的 candidate 都共享 queueKey.skuCode。strict FIFO 下，第一筆若不能通過它的所有 SKU
+        // queue，後面的 demand 也不能在這條 queue 超車；因此實際只需載入 queue head，再加上
         // repository 帶回的所有 shared-SKU predecessor context。多載 candidate 不會改變本輪決策。
-        AllocationCandidateBatch batch =
-                demandRepository.findPendingCandidates(scope, triggeringSku, Math.min(candidateLimit, 1));
+        AllocationCandidateBatch batch = demandRepository.findPendingCandidates(queueKey, 1);
 
         // 純演算法：candidate 必須在每個 required SKU queue 都是最早的一筆。
         Optional<AllocationDemand> selected = demandSelector.selectFirstEligible(batch);

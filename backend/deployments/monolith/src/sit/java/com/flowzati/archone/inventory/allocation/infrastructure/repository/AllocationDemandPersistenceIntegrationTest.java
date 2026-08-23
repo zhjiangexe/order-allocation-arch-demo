@@ -11,8 +11,8 @@ import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandSta
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationSourceType;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
 import com.flowzati.archone.inventory.allocation.infrastructure.repository.jpa.JpaAllocationCancellationOperationRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.repository.jpa.JpaAllocationDemandRepository;
 import com.flowzati.archone.testsupport.MovementFixtures;
@@ -184,9 +184,8 @@ class AllocationDemandPersistenceIntegrationTest {
         entityManager.clear();
 
         AllocationCandidateBatch batch = demandRepository.findPendingCandidates(
-                new WaitingAllocationScope(
+                new AllocationDemandQueueKey(
                         OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, "SKU-A"),
-                "SKU-A",
                 2);
 
         assertThat(batch.candidates()).extracting(AllocationDemand::id).containsExactly(candidateAb.id(), laterA.id());
@@ -211,12 +210,11 @@ class AllocationDemandPersistenceIntegrationTest {
         assertThat(demandRepository.findPendingExecutionAnomalyIds(10)).containsExactly(malformed.id());
         assertThat(demandRepository
                         .findPendingCandidates(
-                                new WaitingAllocationScope(
+                                new AllocationDemandQueueKey(
                                         OrderFixtures.OWNER_ID,
                                         OrderFixtures.FACILITY_ID,
                                         OrderFixtures.LOCATION_ID,
                                         "SKU-A"),
-                                "SKU-A",
                                 10)
                         .candidates())
                 .isEmpty();

@@ -8,10 +8,9 @@ import com.flowzati.archone.inventory.allocation.application.service.reservation
 import com.flowzati.archone.inventory.allocation.application.source.order.OrderAllocationDemandSource;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.entity.AllocationDemandLine;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import jakarta.transaction.Transactional;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -34,22 +33,16 @@ public class AllocateOrderUsecase {
     private final AllocationDemandRegistrar demandRegistrar;
     private final PendingDemandAllocator pendingDemandAllocator;
     private final BusinessClock appClock;
-    private final int candidateLimit;
 
     public AllocateOrderUsecase(
             OrderAllocationDemandSource orderSource,
             AllocationDemandRegistrar demandRegistrar,
             PendingDemandAllocator pendingDemandAllocator,
-            BusinessClock appClock,
-            @Value("${archone.allocation.waiting-demand-batch-limit:200}") int candidateLimit) {
-        if (candidateLimit <= 0) {
-            throw new IllegalArgumentException("Initial allocation candidate limit must be positive");
-        }
+            BusinessClock appClock) {
         this.orderSource = orderSource;
         this.demandRegistrar = demandRegistrar;
         this.pendingDemandAllocator = pendingDemandAllocator;
         this.appClock = appClock;
-        this.candidateLimit = candidateLimit;
     }
 
     /**
@@ -67,16 +60,14 @@ public class AllocateOrderUsecase {
         // Acceptance 只建立/重播 immutable demand 與 outbound execution，還沒有 reserve 庫存。
         AllocationDemand accepted = demandRegistrar.register(source.get()).demand();
 
-        // triggering SKU 只用來縮小 wake-up 查詢；真正的 FIFO 與庫存檢查仍涵蓋 demand 的所有 SKU。
-        String triggeringSku = accepted.lines().stream()
+        // queue SKU 只用來定位首次 wake-up 的 FIFO queue；完整檢查仍涵蓋 demand 的所有 SKU。
+        String queueSku = accepted.lines().stream()
                 .min(java.util.Comparator.comparingInt(AllocationDemandLine::lineSequence))
                 .orElseThrow()
                 .skuCode();
         pendingDemandAllocator.allocateOne(
-                new WaitingAllocationScope(
-                        accepted.ownerId(), accepted.facilityId(), accepted.locationId(), triggeringSku),
-                triggeringSku,
-                candidateLimit,
+                new AllocationDemandQueueKey(
+                        accepted.ownerId(), accepted.facilityId(), accepted.locationId(), queueSku),
                 appClock.today(),
                 appClock.instant());
     }

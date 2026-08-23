@@ -21,9 +21,9 @@ import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.application.usecase.CancelMovementsUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandAllocationUsecase;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationOrderCancellationEventConsumer;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationOrderPlacedEventConsumer;
@@ -121,7 +121,7 @@ class BootstrapIntegrationEventWiringTest {
                 .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
                 .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
                 .withBean(CancelMovementsUsecase.class, () -> mock(CancelMovementsUsecase.class))
-                .withBean(TransactionalAllocationAttempt.class, () -> mock(TransactionalAllocationAttempt.class))
+                .withBean(PendingDemandAllocationUsecase.class, () -> mock(PendingDemandAllocationUsecase.class))
                 .withBean(CreateShipmentUsecase.class, () -> mock(CreateShipmentUsecase.class))
                 .withBean(CompleteOutboundMovementsUsecase.class, () -> mock(CompleteOutboundMovementsUsecase.class))
                 .withBean(RecordOrderFulfillmentUsecase.class, () -> mock(RecordOrderFulfillmentUsecase.class));

@@ -38,7 +38,7 @@ receipt transaction. The fact's Integration Event handler and a periodic reconci
 SHALL invoke the same transactional wake use case and the same FIFO/FEFO allocation semantics.
 
 Every bounded round SHALL process at most the configured order limit. It SHALL NOT publish an
-orchestration-only continuation event. Remaining eligible scopes SHALL be discovered by periodic
+orchestration-only continuation event. Remaining eligible pending-demand queues SHALL be discovered by periodic
 scheduled reconciliation. Event retries and overlap with the scheduler SHALL be safe:
 already-assigned movements and reserved quantities SHALL NOT be applied twice.
 
@@ -52,14 +52,14 @@ already-assigned movements and reserved quantities SHALL NOT be applied twice.
 
 #### Scenario: Availability event triggers a prompt wake
 
-- **GIVEN** a committed availability fact for a scope with waiting outbound movements
+- **GIVEN** a committed availability fact for a pending-demand queue with waiting outbound movements
 - **WHEN** its Integration Event is consumed
 - **THEN** the handler claims the message and invokes one transactional bounded wake round
 
-#### Scenario: Scheduler reconciles a waiting scope
+#### Scenario: Scheduler reconciles a pending-demand queue
 
 - **GIVEN** waiting outbound movements remain because an event was delayed, lost, or exhausted
-- **WHEN** the reconciliation scheduler scans eligible scopes
+- **WHEN** the reconciliation scheduler scans eligible pending-demand queue keys
 - **THEN** it invokes the same transactional bounded wake use case without transport metadata
 - **AND** allocation converges according to the same queue and stock rules
 
@@ -76,7 +76,7 @@ already-assigned movements and reserved quantities SHALL NOT be applied twice.
 - **GIVEN** a wake round processes the configured maximum number of candidate orders
 - **WHEN** the round completes
 - **THEN** no continuation event is recorded with the transaction
-- **AND** the scheduler can discover the remaining eligible scope on a later scan
+- **AND** the scheduler can discover the remaining eligible queue on a later scan
 - **AND** the next bounded round runs in a separate transaction without repeating the receipt
   operation
 

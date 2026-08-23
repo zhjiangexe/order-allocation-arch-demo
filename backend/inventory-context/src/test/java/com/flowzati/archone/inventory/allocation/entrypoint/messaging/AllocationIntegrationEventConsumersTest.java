@@ -7,11 +7,11 @@ import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedInt
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.command.AllocateOrderCommand;
-import com.flowzati.archone.inventory.allocation.application.command.AllocateWaitingDemandCommand;
+import com.flowzati.archone.inventory.allocation.application.command.AllocatePendingDemandCommand;
 import com.flowzati.archone.inventory.allocation.application.command.CancelMovementsCommand;
-import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.application.usecase.CancelMovementsUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandAllocationUsecase;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -40,9 +40,9 @@ class AllocationIntegrationEventConsumersTest {
 
     @Test
     void shouldTranslateAvailabilityEventToOneBoundedWaitingDemandCommand() {
-        TransactionalAllocationAttempt allocationAttempt = mock(TransactionalAllocationAttempt.class);
+        PendingDemandAllocationUsecase usecase = mock(PendingDemandAllocationUsecase.class);
         AllocationInventoryAvailabilityEventConsumer consumer =
-                new AllocationInventoryAvailabilityEventConsumer(allocationAttempt);
+                new AllocationInventoryAvailabilityEventConsumer(usecase);
         UUID ownerId = UUID.randomUUID();
         UUID facilityId = UUID.randomUUID();
         UUID locationId = UUID.randomUUID();
@@ -50,6 +50,6 @@ class AllocationIntegrationEventConsumersTest {
         consumer.onStockAvailabilityIncreased(new StockAvailabilityIncreasedIntegrationEvent(
                 UUID.randomUUID(), ownerId, facilityId, locationId, "SKU-1", 5));
 
-        verify(allocationAttempt).attempt(new AllocateWaitingDemandCommand(ownerId, facilityId, locationId, "SKU-1"));
+        verify(usecase).execute(new AllocatePendingDemandCommand(ownerId, facilityId, locationId, "SKU-1"));
     }
 }

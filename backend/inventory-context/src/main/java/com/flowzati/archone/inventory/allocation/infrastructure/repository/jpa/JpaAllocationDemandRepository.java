@@ -14,7 +14,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaAllocationDemandRepository extends JpaRepository<AllocationDemandEntity, UUID> {
 
-    interface PendingAllocationScopeView {
+    interface AllocationDemandQueueKeyView {
         UUID getOwnerId();
 
         UUID getFacilityId();
@@ -52,7 +52,7 @@ public interface JpaAllocationDemandRepository extends JpaRepository<AllocationD
                SELECT 1
                  FROM allocation_demand_lines line
                 WHERE line.allocation_demand_id = d.id
-                  AND line.sku_code = :triggeringSku
+                  AND line.sku_code = :skuCode
              )
          AND NOT EXISTS (
                SELECT 1
@@ -84,11 +84,11 @@ public interface JpaAllocationDemandRepository extends JpaRepository<AllocationD
        ORDER BY d.enqueued_at, d.id
        LIMIT :candidateLimit
       """, nativeQuery = true)
-    List<UUID> findTriggeredCandidateIds(
+    List<UUID> findPendingQueueCandidateIds(
             @Param("ownerId") UUID ownerId,
             @Param("facilityId") UUID facilityId,
             @Param("locationId") UUID locationId,
-            @Param("triggeringSku") String triggeringSku,
+            @Param("skuCode") String skuCode,
             @Param("candidateLimit") int candidateLimit);
 
     @Query(value = """
@@ -164,10 +164,10 @@ public interface JpaAllocationDemandRepository extends JpaRepository<AllocationD
              )
        GROUP BY d.owner_id, d.facility_id, d.location_id, line.sku_code
        ORDER BY MIN(d.enqueued_at), MIN(d.id::text), line.sku_code
-       LIMIT :scopeLimit
+       LIMIT :queueKeyLimit
       """, nativeQuery = true)
-    List<PendingAllocationScopeView> findAllocatablePendingScopes(
-            @Param("today") java.time.LocalDate today, @Param("scopeLimit") int scopeLimit);
+    List<AllocationDemandQueueKeyView> findAllocatablePendingQueueKeys(
+            @Param("today") java.time.LocalDate today, @Param("queueKeyLimit") int queueKeyLimit);
 
     /** Pending demands excluded from allocation because execution references are unsafe. */
     @Query(value = """

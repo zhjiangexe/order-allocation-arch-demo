@@ -2,9 +2,9 @@ package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.command.AllocateWaitingDemandCommand;
+import com.flowzati.archone.inventory.allocation.application.command.AllocatePendingDemandCommand;
 import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.inventory.allocation.application.service.reservation.TransactionalAllocationAttempt;
+import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandAllocationUsecase;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -18,10 +18,10 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnIntegrationEventConsumption
 public class AllocationInventoryAvailabilityEventConsumer {
 
-    private final TransactionalAllocationAttempt allocationAttempt;
+    private final PendingDemandAllocationUsecase pendingDemandAllocationUsecase;
 
-    public AllocationInventoryAvailabilityEventConsumer(TransactionalAllocationAttempt allocationAttempt) {
-        this.allocationAttempt = allocationAttempt;
+    public AllocationInventoryAvailabilityEventConsumer(PendingDemandAllocationUsecase pendingDemandAllocationUsecase) {
+        this.pendingDemandAllocationUsecase = pendingDemandAllocationUsecase;
     }
 
     @Bean
@@ -31,7 +31,7 @@ public class AllocationInventoryAvailabilityEventConsumer {
         //
         // 這裡只負責「訂閱哪個 destination、收到哪種 integration event 後呼叫哪個 handler」；
         // 不在 messaging adapter 裡實作配貨規則。真正的等待需求配貨由
-        // TransactionalAllocationAttempt 負責，scheduler 也會共用同一個 transaction operation。
+        // PendingDemandAllocationUsecase 負責，scheduler 也會共用同一個 transaction operation。
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
                 // STOCK_EVENTS 是 Inventory／StockQuant 發布實際庫存增加事實的 destination。
                 .forDestination(InventoryChannels.STOCK_EVENTS)
@@ -49,8 +49,8 @@ public class AllocationInventoryAvailabilityEventConsumer {
 
     void onStockAvailabilityIncreased(StockAvailabilityIncreasedIntegrationEvent event) {
         // Availability event 是低延遲觸發來源；定期 reconciliation scheduler 也會呼叫同一個
-        // TransactionalAllocationAttempt，兩者因此共用 FIFO、FEFO 與 ship-complete 規則。
-        allocationAttempt.attempt(new AllocateWaitingDemandCommand(
+        // PendingDemandAllocationUsecase，兩者因此共用 FIFO、FEFO 與 ship-complete 規則。
+        pendingDemandAllocationUsecase.execute(new AllocatePendingDemandCommand(
                 event.getOwnerId(), event.getFacilityId(), event.getLocationId(), event.getSku()));
     }
 }

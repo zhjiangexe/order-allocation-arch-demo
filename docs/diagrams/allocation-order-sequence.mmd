@@ -35,7 +35,7 @@ sequenceDiagram
 
     rect rgb(240, 253, 244)
         Note over UC,Committer: 階段 2｜FIFO eligibility + demand / supply planning
-        UC->>Attempt: allocateOne(scope, triggeringSku, limit, today, now)
+        UC->>Attempt: allocateOne(queueKey, today, now)
         Attempt->>DemandRepo: findPendingCandidates + shared-SKU predecessors
         DemandRepo-->>Attempt: AllocationCandidateBatch
         Attempt->>Fifo: selectFirstEligible(batch)

@@ -9,8 +9,8 @@ flowchart TB
     subgraph ENTRIES["Application 入口／transaction owner"]
       direction TB
       ORDER_UC["<b>AllocateOrderUsecase</b><br/>初次路徑的 transaction owner<br/>登記需求後立即嘗試一次配置"]
-      WAITING_TX["<b>TransactionalAllocationAttempt</b><br/>等待需求路徑的 transaction owner<br/>每次最多 commit 一筆 demand"]
-      RECONCILE_UC["<b>ReconcileWaitingDemandUsecase</b><br/>找 scope keys 後用 queue 做 round-robin<br/>成功 scope 放回隊尾，未成功不回列"]
+      WAITING_TX["<b>PendingDemandAllocationUsecase</b><br/>等待需求路徑的 transaction owner<br/>每次最多 commit 一筆 demand"]
+      RECONCILE_UC["<b>PendingDemandBacklogAllocationUsecase</b><br/>在 attempt／時間預算內公平推進<br/>成功 queue 進入下一輪，未成功則停止"]
     end
 
     subgraph REGISTRATION["階段 1｜登記需求（只有初次訂單路徑會走）"]
@@ -22,7 +22,7 @@ flowchart TB
 
     subgraph ATTEMPT["階段 2｜選需求、算供需、寫 reservation"]
       direction TB
-      COORDINATOR["<b>PendingDemandAllocator</b><br/>依 scope 重新載入 PENDING candidates、FIFO predecessors<br/>與全部 required SKU supply"]
+      COORDINATOR["<b>PendingDemandAllocator</b><br/>依 queue key 重新載入 PENDING candidates、FIFO predecessors<br/>與全部 required SKU supply"]
       FIFO["<b>AllocationFifoSelector</b><br/>shared-SKU strict FIFO<br/><i>選出可前進的 demand</i>"]
       PLANNER["<b>AllocationDemandPlanner</b><br/>aggregate preflight → FEFO batch queues<br/><i>規劃 demand / supply，不寫資料庫</i>"]
       DECISION{"本次 plan 可 commit？"}
@@ -42,7 +42,7 @@ flowchart TB
 
     STOCK_EVENT --> WAITING_TX
     SCHEDULER --> RECONCILE_UC
-    RECONCILE_UC -- "removeFirst 後逐個 scope 呼叫" --> WAITING_TX
+    RECONCILE_UC -- "每輪逐個 active queue 呼叫" --> WAITING_TX
     WAITING_TX --> COORDINATOR
 
     COORDINATOR --> FIFO --> PLANNER --> DECISION

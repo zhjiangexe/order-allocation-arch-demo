@@ -4,8 +4,8 @@ import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDema
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
 import com.flowzati.archone.inventory.allocation.infrastructure.mapper.AllocationDemandMapper;
 import com.flowzati.archone.inventory.allocation.infrastructure.repository.jpa.JpaAllocationDemandRepository;
 import java.util.Comparator;
@@ -73,21 +73,20 @@ public class AllocationDemandRepositoryImpl implements AllocationDemandRepositor
     }
 
     @Override
-    public AllocationCandidateBatch findPendingCandidates(
-            WaitingAllocationScope scope, String triggeringSku, int candidateLimit) {
-        if (scope == null || triggeringSku == null || triggeringSku.isBlank()) {
-            throw new IllegalArgumentException("Allocation candidate scope and triggering SKU are required");
+    public AllocationCandidateBatch findPendingCandidates(AllocationDemandQueueKey queueKey, int candidateLimit) {
+        if (queueKey == null) {
+            throw new IllegalArgumentException("Pending-demand queue key is required");
         }
         if (candidateLimit <= 0) {
             throw new IllegalArgumentException("Allocation candidate limit must be positive");
         }
-        List<UUID> candidateIds = repository.findTriggeredCandidateIds(
-                scope.ownerId(), scope.facilityId(), scope.locationId(), triggeringSku, candidateLimit);
+        List<UUID> candidateIds = repository.findPendingQueueCandidateIds(
+                queueKey.ownerId(), queueKey.facilityId(), queueKey.locationId(), queueKey.skuCode(), candidateLimit);
         if (candidateIds.isEmpty()) {
             return AllocationCandidateBatch.empty();
         }
-        List<UUID> contextIds =
-                repository.findFifoContextIds(scope.ownerId(), scope.facilityId(), scope.locationId(), candidateIds);
+        List<UUID> contextIds = repository.findFifoContextIds(
+                queueKey.ownerId(), queueKey.facilityId(), queueKey.locationId(), candidateIds);
         Comparator<AllocationDemand> precedence =
                 Comparator.comparing(AllocationDemand::enqueuedAt).thenComparing(AllocationDemand::id);
         Map<UUID, AllocationDemand> byId = repository.findByIdIn(contextIds).stream()
@@ -101,13 +100,13 @@ public class AllocationDemandRepositoryImpl implements AllocationDemandRepositor
     }
 
     @Override
-    public List<WaitingAllocationScope> findAllocatablePendingScopes(java.time.LocalDate today, int limit) {
+    public List<AllocationDemandQueueKey> findAllocatablePendingQueueKeys(java.time.LocalDate today, int limit) {
         if (today == null || limit <= 0) {
-            throw new IllegalArgumentException("Pending allocation scope date and positive limit are required");
+            throw new IllegalArgumentException("Pending-demand queue date and positive limit are required");
         }
-        return repository.findAllocatablePendingScopes(today, limit).stream()
-                .map(scope -> new WaitingAllocationScope(
-                        scope.getOwnerId(), scope.getFacilityId(), scope.getLocationId(), scope.getSkuCode()))
+        return repository.findAllocatablePendingQueueKeys(today, limit).stream()
+                .map(key -> new AllocationDemandQueueKey(
+                        key.getOwnerId(), key.getFacilityId(), key.getLocationId(), key.getSkuCode()))
                 .toList();
     }
 

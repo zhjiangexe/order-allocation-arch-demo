@@ -205,21 +205,24 @@ class InventoryBoundaryArchitectureTest {
     }
 
     @Test
-    @DisplayName("inventory 命令、喚醒結果與交易 usecase 不得依賴 Kafka 或 Temporal SDK")
+    @DisplayName("inventory allocation application boundary 不得依賴 transport 或 Spring persistence exception")
     void allocationTransactionBoundariesAreTransportNeutral() {
         List<Path> boundaries = Stream.of(
                         ALLOCATION_APPLICATION_ROOT.resolve("command/AllocateOrderCommand.java"),
                         BALANCE_APPLICATION_ROOT.resolve("command/ConfirmStockReceiptCommand.java"),
-                        ALLOCATION_APPLICATION_ROOT.resolve("command/AllocateWaitingDemandCommand.java"),
+                        ALLOCATION_APPLICATION_ROOT.resolve("command/AllocatePendingDemandCommand.java"),
                         ALLOCATION_APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
+                        ALLOCATION_APPLICATION_ROOT.resolve("usecase/PendingDemandBacklogAllocationUsecase.java"),
                         BALANCE_APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
-                        ALLOCATION_APPLICATION_ROOT.resolve("service/reservation/TransactionalAllocationAttempt.java"))
+                        ALLOCATION_APPLICATION_ROOT.resolve("usecase/PendingDemandAllocationUsecase.java"))
                 .toList();
 
         List<String> violations = boundaries.stream()
                 .filter(path -> {
                     String source = stripComments(readSource(path));
-                    return source.contains("org.apache.kafka") || source.contains("io.temporal");
+                    return source.contains("org.apache.kafka")
+                            || source.contains("io.temporal")
+                            || source.contains("org.springframework.dao");
                 })
                 .map(Path::toString)
                 .toList();
@@ -232,7 +235,7 @@ class InventoryBoundaryArchitectureTest {
     void inboundApplicationUsecasesDoNotOwnMessagingIdempotency() {
         List<Path> consumerUsecases = List.of(
                 ALLOCATION_APPLICATION_ROOT.resolve("usecase/AllocateOrderUsecase.java"),
-                ALLOCATION_APPLICATION_ROOT.resolve("service/reservation/TransactionalAllocationAttempt.java"),
+                ALLOCATION_APPLICATION_ROOT.resolve("usecase/PendingDemandAllocationUsecase.java"),
                 ALLOCATION_APPLICATION_ROOT.resolve("usecase/CancelMovementsUsecase.java"),
                 BALANCE_APPLICATION_ROOT.resolve("usecase/ConfirmStockReceiptUsecase.java"),
                 ORDERING_APPLICATION_ROOT.resolve("usecase/RecordOrderAllocationUsecase.java"));

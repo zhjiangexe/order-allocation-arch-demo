@@ -602,7 +602,7 @@ packaging、SO line、reordering rule——沒有 partner／owner。
 | --- | --- |
 | 候選批次有穩定排序 | `idx_stock_pools_fefo` 的三層排序鍵（效期 → 入庫日 → id） |
 | 所有交易以相同順序鎖列 | `WRITE_ORDER` 的寫入排序 |
-| 交易保持短小 | `waiting-demand-batch-limit` 分批；availability 做首輪、Scheduler 做後續 reconciliation |
+| 交易保持短小 | 每個 transaction 最多配置一筆 demand；availability 做首輪、Scheduler 在單輪預算內做後續 reconciliation |
 | 樂觀鎖衝突有 local retry | opt-in `OptimisticLockingDecorator`＋Allocation observer |
 
 **這四項在後續 change 裡都不得被優化掉。** 它們看起來像效能措施，實際上是正確性措施——
@@ -731,7 +731,7 @@ Temporal Activity 呼叫同一個「完成收貨」transactional use case，或�
 不能同時保留兩條可各自增加 `StockQuant` 的寫入路徑。
 
 收貨完成只發布 `StockAvailabilityIncreased`；Kafka handler 與
-`AllocationReconciliationScheduler` 共用 `AllocateWaitingDemandUsecase`。因此 inbound rollback 不受 outbound
+`PendingDemandBacklogAllocationScheduler` 共用 `AllocateWaitingDemandUsecase`。因此 inbound rollback 不受 outbound
 佇列失敗影響，事件與排程重疊時仍由同一套 movement state、庫存鎖與配貨政策收斂。
 
 **`AllocationService` 一個字都不動。** 它已經是純決策、不碰 IO，切法改變的是誰去呼叫它。

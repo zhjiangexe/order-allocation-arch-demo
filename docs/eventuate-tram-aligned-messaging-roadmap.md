@@ -989,7 +989,7 @@ Gate E 的實際遷移單位不是單一 class，而是一條完整 entrypoint p
 | `OrderingKafkaIntegrationEventConsumer.consumeAllocationEvent`／`ALLOCATION_RESULTS` | `OrderAllocatedIntegrationEventHandler` | `RecordOrderAllocationUsecase` | use case `@Transactional` 並以 `InboxRepo` claim；沒有 application optimistic-lock retry | ordered chain 直接建立 transaction／claim，handler 呼叫 `execute`；Spring Kafka policy 仍處理向外傳出的 failure |
 | 同上 | `BackorderCreatedIntegrationEventHandler` | `RecordOrderBackorderUsecase` | 同上 | 同上 |
 | `StockReceiptController.confirm`／HTTP `receiptId` | 無 messaging handler | `ConfirmStockReceiptUsecase` | controller 把 `receiptId` fabricated 成 `MessageMetadata`；use case `@Transactional` 並以 messaging Inbox claim | transactional application facade 以正式 receipt request identity／unique persistence 去重，再呼叫純 command API；不使用 Kafka Inbox metadata |
-| `AllocationReconciliationScheduler` | 無 messaging handler | `AllocateWaitingDemandUsecase` | 直接呼叫 transport-neutral overload；use case `@Transactional`，不 claim Inbox；optimistic conflict 留待下次 scheduler scan | 呼叫同一個 `execute` 並保留 use case transaction；不套用 message Inbox，也不把 scheduler reconciliation 偽裝成 delivery retry |
+| `PendingDemandBacklogAllocationScheduler` | 無 messaging handler | `AllocateWaitingDemandUsecase` | 直接呼叫 transport-neutral overload；use case `@Transactional`，不 claim Inbox；optimistic conflict 留待下次 scheduler scan | 呼叫同一個 `execute` 並保留 use case transaction；不套用 message Inbox，也不把 scheduler reconciliation 偽裝成 delivery retry |
 
 固定 metadata boundary：Kafka mapper／dispatcher、entrypoint policy 與 typed handler 可以讀取 `Message`／`MessageContext` 進行 routing、diagnostics 或建立 retry context；application command 與 use case signature 不攜帶 subscriber ID、message ID、Kafka header 或 Inbox concern。
 
@@ -1229,7 +1229,7 @@ ES0 驗證證據（2026-08-09）：
 ES1 驗證證據（2026-08-09）：
 
 - 六個 consumer-side use cases 都提供 `execute(Command)`，legacy Kafka／REST callers 仍走 `handle(InboundCommand)`；沒有提早切換 Inbox ownership。
-- `AllocationReconciliationScheduler` 已改呼叫 `AllocateWaitingDemandUsecase.execute`，use case 的 transaction annotation 保留。
+- `PendingDemandBacklogAllocationScheduler` 已改呼叫 `AllocateWaitingDemandUsecase.execute`，use case 的 transaction annotation 保留。
 - main／unit／SIT source sets 全部 compile；六個 use case 與 scheduler 的 ES1 targeted unit tests 21 tests 通過。
 - `InboundEntrypointTransactionIntegrationTest`（ES4 前原名 `InboundCommandTransactionIntegrationTest`）與 `AllocationConcurrencyEndToEndIntegrationTest` 通過，證明 compatibility path 的 Inbox／transaction／retry baseline 未變。
 - 完整 targeted unit 組仍可重現 Gate A 已記錄的單一既有 failure：mocked `InboundReceiptRegistrar` 的 location-validation test；不是本次 API preparation 新增的 regression。
@@ -1869,7 +1869,7 @@ Messaging runtime／starter 應擁有以下 mechanics：
 
 ##### 相鄰的 Allocation reconciliation cleanup（非 messaging 能力）
 
-`AllocationReconciliationScheduler` 是 waiting-demand 的 anti-entropy／補漏入口，Kafka event 仍是
+`PendingDemandBacklogAllocationScheduler` 是 waiting-demand 的 anti-entropy／補漏入口，Kafka event 仍是
 低延遲 trigger；是否保留 reconciliation 取決於 waiting demand 是否可能因 DLT、持續性 concurrency、
 非事件庫存修正或歷史資料而停滯，不因採用 messaging starter 就自然消失。這組工作與 I-F 可同批
 評估，但不得把 scheduling API 下沉到 messaging modules。
@@ -1877,7 +1877,7 @@ Messaging runtime／starter 應擁有以下 mechanics：
 - [x] AR1. 將 `@EnableScheduling` 放在 application bootstrap 的單一 scheduling owner，並把
   `archone.allocation.reconciliation-scheduler-enabled` condition 放到 scheduler bean／configuration
   本身；即使未來其他功能啟用 scheduling，關閉此 property 也不得執行 allocation reconciliation。
-- [x] AR2. 明確決定 multi-instance execution ownership：單一 leader／distributed lock、按 scope
+- [x] AR2. 明確決定 multi-instance execution ownership：單一 leader／distributed lock、按 queue key
   partition，或允許每個 instance 重複掃描但以可證明的 idempotency／locking 保護；未決定前不得把
   「多 instance 都跑」視為安全預設。
 - [x] AR3. 保留 scheduler → application use case 邊界；補充 disabled、single execution、failure

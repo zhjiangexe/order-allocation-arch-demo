@@ -16,8 +16,8 @@ import com.flowzati.archone.inventory.allocation.application.service.reservation
 import com.flowzati.archone.inventory.allocation.application.source.order.OrderAllocationDemandSource;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.WaitingAllocationScope;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
 import java.time.Clock;
@@ -52,8 +52,7 @@ class AllocateOrderUsecaseTest {
                 adapter,
                 registrar,
                 pendingDemandAllocator,
-                InventoryFixtures.businessClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"),
-                5);
+                InventoryFixtures.businessClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"));
     }
 
     @Test
@@ -83,13 +82,11 @@ class AllocateOrderUsecaseTest {
         order.verify(registrar).register(command);
         order.verify(pendingDemandAllocator)
                 .allocateOne(
-                        new WaitingAllocationScope(
+                        new AllocationDemandQueueKey(
                                 InventoryFixtures.OWNER_ID,
                                 InventoryFixtures.FACILITY_ID,
                                 InventoryFixtures.LOCATION_ID,
                                 "SKU-1"),
-                        "SKU-1",
-                        5,
                         LocalDate.of(2026, 7, 22),
                         NOW);
     }

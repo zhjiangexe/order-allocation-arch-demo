@@ -559,15 +559,16 @@ Ordering 在取消 transaction 中將 Order 改為 `CANCELLED` 並發布 `OrderC
 `StockAdjusted`。
 
 收貨完成後，同交易寫入 `StockAvailabilityIncreased` Outbox；事件提交後才開新的配貨交易。
-此外 `AllocationReconciliationScheduler` 定期掃描仍等待的 owner/facility/location/SKU scope，作為漏事件與失敗
+此外 `PendingDemandBacklogAllocationScheduler` 定期掃描仍等待的 `AllocationDemandQueueKey`，作為漏事件與失敗
 重試後的 reconciliation。兩個入口都呼叫 `AllocateWaitingDemandUsecase`。
 
 新訂單的即時配貨在預留前會檢查每個需求 SKU 的 waiting head；只要同 owner/location/SKU 有
 更早的 picking，新單就先維持等待。否則 receipt commit 與 availability consumer 之間的空窗會
 讓新單繞過 Scheduler 排好的舊 backorder。
 
-**等待需求配貨有張數上限**（`archone.allocation.waiting-demand-batch-limit`）。availability event 只觸發
-首輪；若仍有可用庫存與等待 demand，後續由 `AllocationReconciliationScheduler` 的下一次掃描再跑一輪。
+每個 `PendingDemandAllocationUsecase` transaction 固定最多配置一筆 queue-head demand。availability event 只觸發
+首輪；若仍有可用庫存與等待 demand，後續由 `PendingDemandBacklogAllocationScheduler` 在 attempt 與時間預算內公平推進。
+Scheduler 使用 60 秒 `fixedDelay`，同一 instance 會在本輪完成後才等待並啟動下一輪。
 系統不為此發布 continuation control event，代價是超過單輪上限的 backlog 收斂速度受 Scheduler
 週期影響；需要秒級清空時，應先調整週期與上限，再評估導入正式 workflow orchestration。
 
@@ -692,7 +693,7 @@ Allocation flow 另發布下列 Domain Events。它們不是 `Order` Aggregate �
 **四則訂單生命週期的對外事件都只帶 `(eventId, orderId, 時間戳)`**——`OrderPlaced`、
 `OrderCancelled`、`OrderAllocated`、`BackorderCreated`。消費端拿 `orderId` 回頭讀整張單，它反正
 得讀（收件資訊、交期、行的內容都不在事件裡），payload 抄一份只是多一個會與訂單不一致的來源。
-Backorder 的後續輪次不使用 Integration Event 串接；Scheduler 會從等待佇列重新發現 scope。
+Backorder 的後續輪次不使用 Integration Event 串接；Scheduler 會重新發現仍有工作的 queue key。
 
 `OrderAllocationCompleted` 由 allocation flow 在完整配置完成後發布；ordering 只保存收到的結果，
 不重複陳述同一個業務事實。
@@ -802,7 +803,7 @@ Java 常數名稱以 `*_TOPIC` 結尾，明確表示其值是 Kafka topic，例�
 `ordering.order-events` 與 `promising.allocation-events` 的預設 key 仍是全域 UUID `orderId`。
 `inventory.stock-events` 的 availability 使用 `StockContentionKey(ownerId, facilityId)`；SKU 留在
 payload 決定喚醒哪條佇列。HTTP 收貨本身同步，但它提交的 availability fact 經 Outbox/Kafka
-觸發首輪配貨；Scheduler 直接查詢等待 scope，不產生 Kafka control message。
+觸發首輪配貨；Scheduler 直接查詢 pending-demand queue keys，不產生 Kafka control message。
 
 ## 事件與 Transaction 邊界
 
