@@ -70,6 +70,10 @@ Feature: Temporal workflow 的取消分支
     And retry until response.order.status == 'CANCELLED' && response.allocation.status == 'CANCELLED' && response.shipments[0].status == 'CANCELLED' && response.workflow.outcome == 'ORDER_CANCELLED'
     When method get
     Then status 200
-    And match response.shipments[0].cancellationOutcome == 'CANCELLED'
+    And match response.shipments[0].cancellationState == 'COMPLETED'
+    And match response.shipments[0].cancellationRequestId == cancellation.requestId
+    And match response.shipments[0].cancellationRequestedAt == cancellation.requestedAt
+    And match response.shipments[0].cancellationReason == cancellation.reason
+    And match response.shipments[0].cancelledAt == '#string'
     And match response.workflow.phase == 'FINISHED'
     And match response.workflow.cancellationState == 'ORDER_CANCELLED'

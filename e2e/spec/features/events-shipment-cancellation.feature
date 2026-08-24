@@ -37,6 +37,9 @@ Feature: Events 模式在倉內作業前取消 Shipment
     And retry until response.order.status == 'CANCELLED' && response.allocation.status == 'CANCELLED' && response.shipments[0].status == 'CANCELLED'
     When method get
     Then status 200
-    And match response.shipments[0].cancellationOutcome == 'CANCELLED'
+    And match response.shipments[0].cancellationState == 'COMPLETED'
     And match response.shipments[0].cancellationRequestId == cancellation.requestId
+    And match response.shipments[0].cancellationRequestedAt == cancellation.requestedAt
+    And match response.shipments[0].cancellationReason == cancellation.reason
+    And match response.shipments[0].cancelledAt == '#string'
     And match response.workflow == null
