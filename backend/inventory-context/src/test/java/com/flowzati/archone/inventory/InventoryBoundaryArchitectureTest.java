@@ -74,8 +74,8 @@ class InventoryBoundaryArchitectureTest {
     private static final List<Path> ALLOCATION_DECISION_CORE = List.of(
             ALLOCATION_ROOT.resolve("domain/aggregate/AllocationDemand.java"),
             ALLOCATION_ROOT.resolve("domain/entity/AllocationDemandLine.java"),
-            ALLOCATION_ROOT.resolve("domain/valueobject/AllocationCandidateBatch.java"),
-            ALLOCATION_ROOT.resolve("domain/service/AllocationFifoSelector.java"),
+            ALLOCATION_ROOT.resolve("domain/valueobject/PendingDemandQueuePosition.java"),
+            ALLOCATION_ROOT.resolve("domain/valueobject/AllocationQueueHead.java"),
             ALLOCATION_ROOT.resolve("domain/service/AllocationDemandPlanner.java"),
             ALLOCATION_ROOT.resolve("domain/service/FefoBatchQueue.java"),
             ALLOCATION_ROOT.resolve("domain/valueobject/AllocationDemandPlan.java"),

@@ -29,7 +29,7 @@ public class PendingDemandAllocationUsecase {
         AllocationDemandQueueKey queueKey = new AllocationDemandQueueKey(
                 command.ownerId(), command.facilityId(), command.locationId(), command.sku());
         return pendingDemandAllocator
-                .allocateOne(queueKey, appClock.today(), appClock.instant())
+                .tryAllocateQueueHead(queueKey, appClock.today(), appClock.instant())
                 .isPresent();
     }
 }

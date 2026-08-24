@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.command.AllocatePendingDemandCommand;
-import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.inventory.allocation.application.query.PendingDemandBacklogQuery;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;
@@ -36,18 +36,22 @@ class PendingDemandBacklogAllocationUsecaseTest {
     @Test
     @DisplayName("成功的 queue key 進入下一個公平輪次，並用完全域預算")
     void shouldAdvanceSuccessfulQueueKeysInRoundRobinOrder() {
-        AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+        PendingDemandBacklogQuery backlogQuery = mock(PendingDemandBacklogQuery.class);
         PendingDemandAllocationUsecase pendingDemandAllocationUsecase = mock(PendingDemandAllocationUsecase.class);
         AllocationDemandQueueKey firstQueueKey = queueKey("SKU-1");
         AllocationDemandQueueKey secondQueueKey = queueKey("SKU-2");
 
-        when(demands.findAllocatablePendingQueueKeys(TODAY, MAX_ATTEMPTS_PER_RUN))
+        when(backlogQuery.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
                 .thenReturn(List.of(firstQueueKey, secondQueueKey));
         when(pendingDemandAllocationUsecase.execute(commandFor(firstQueueKey))).thenReturn(true);
         when(pendingDemandAllocationUsecase.execute(commandFor(secondQueueKey))).thenReturn(true);
 
         new PendingDemandBacklogAllocationUsecase(
-                        demands, pendingDemandAllocationUsecase, appClock(), MAX_ATTEMPTS_PER_RUN, MAX_RUN_DURATION_MS)
+                        backlogQuery,
+                        pendingDemandAllocationUsecase,
+                        appClock(),
+                        MAX_ATTEMPTS_PER_RUN,
+                        MAX_RUN_DURATION_MS)
                 .execute();
 
         InOrder allocationOrder = inOrder(pendingDemandAllocationUsecase);
@@ -62,12 +66,12 @@ class PendingDemandBacklogAllocationUsecaseTest {
     @Test
     @DisplayName("沒有可配 demand 的 queue 不在同一輪重試，並繼續處理其他 queue")
     void shouldDeferUnallocatedQueueUntilTheNextRunAndContinueWithFollowingQueues() {
-        AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+        PendingDemandBacklogQuery backlogQuery = mock(PendingDemandBacklogQuery.class);
         PendingDemandAllocationUsecase pendingDemandAllocationUsecase = mock(PendingDemandAllocationUsecase.class);
         AllocationDemandQueueKey unallocatedQueueKey = queueKey("SKU-1");
         AllocationDemandQueueKey followingQueueKey = queueKey("SKU-2");
 
-        when(demands.findAllocatablePendingQueueKeys(TODAY, MAX_ATTEMPTS_PER_RUN))
+        when(backlogQuery.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
                 .thenReturn(List.of(unallocatedQueueKey, followingQueueKey));
         when(pendingDemandAllocationUsecase.execute(commandFor(unallocatedQueueKey)))
                 .thenReturn(false);
@@ -75,7 +79,11 @@ class PendingDemandBacklogAllocationUsecaseTest {
                 .thenReturn(false);
 
         new PendingDemandBacklogAllocationUsecase(
-                        demands, pendingDemandAllocationUsecase, appClock(), MAX_ATTEMPTS_PER_RUN, MAX_RUN_DURATION_MS)
+                        backlogQuery,
+                        pendingDemandAllocationUsecase,
+                        appClock(),
+                        MAX_ATTEMPTS_PER_RUN,
+                        MAX_RUN_DURATION_MS)
                 .execute();
 
         verify(pendingDemandAllocationUsecase, times(1)).execute(commandFor(unallocatedQueueKey));
@@ -86,12 +94,12 @@ class PendingDemandBacklogAllocationUsecaseTest {
     @Test
     @DisplayName("單一 queue 非預期失敗時繼續處理後續 queue")
     void shouldIsolateUnexpectedQueueFailureAndContinueWithFollowingQueues() {
-        AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+        PendingDemandBacklogQuery backlogQuery = mock(PendingDemandBacklogQuery.class);
         PendingDemandAllocationUsecase pendingDemandAllocationUsecase = mock(PendingDemandAllocationUsecase.class);
         AllocationDemandQueueKey failedQueueKey = queueKey("SKU-1");
         AllocationDemandQueueKey followingQueueKey = queueKey("SKU-2");
 
-        when(demands.findAllocatablePendingQueueKeys(TODAY, MAX_ATTEMPTS_PER_RUN))
+        when(backlogQuery.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
                 .thenReturn(List.of(failedQueueKey, followingQueueKey));
         when(pendingDemandAllocationUsecase.execute(commandFor(failedQueueKey)))
                 .thenThrow(new IllegalStateException("unexpected"));
@@ -99,7 +107,11 @@ class PendingDemandBacklogAllocationUsecaseTest {
                 .thenReturn(false);
 
         new PendingDemandBacklogAllocationUsecase(
-                        demands, pendingDemandAllocationUsecase, appClock(), MAX_ATTEMPTS_PER_RUN, MAX_RUN_DURATION_MS)
+                        backlogQuery,
+                        pendingDemandAllocationUsecase,
+                        appClock(),
+                        MAX_ATTEMPTS_PER_RUN,
+                        MAX_RUN_DURATION_MS)
                 .execute();
 
         InOrder allocationOrder = inOrder(pendingDemandAllocationUsecase);
@@ -111,7 +123,7 @@ class PendingDemandBacklogAllocationUsecaseTest {
     @Test
     @DisplayName("超過單輪時間預算後停止新的 queue 嘗試")
     void shouldStopStartingAllocationAttemptsAfterTheRunDeadline() {
-        AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+        PendingDemandBacklogQuery backlogQuery = mock(PendingDemandBacklogQuery.class);
         PendingDemandAllocationUsecase pendingDemandAllocationUsecase = mock(PendingDemandAllocationUsecase.class);
         BusinessClock clock = mock(BusinessClock.class);
         AllocationDemandQueueKey firstQueueKey = queueKey("SKU-1");
@@ -120,12 +132,12 @@ class PendingDemandBacklogAllocationUsecaseTest {
 
         when(clock.today()).thenReturn(TODAY);
         when(clock.instant()).thenReturn(startedAt, startedAt.plusMillis(1), startedAt.plusMillis(MAX_RUN_DURATION_MS));
-        when(demands.findAllocatablePendingQueueKeys(TODAY, MAX_ATTEMPTS_PER_RUN))
+        when(backlogQuery.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
                 .thenReturn(List.of(firstQueueKey, secondQueueKey));
         when(pendingDemandAllocationUsecase.execute(commandFor(firstQueueKey))).thenReturn(true);
 
         new PendingDemandBacklogAllocationUsecase(
-                        demands, pendingDemandAllocationUsecase, clock, MAX_ATTEMPTS_PER_RUN, MAX_RUN_DURATION_MS)
+                        backlogQuery, pendingDemandAllocationUsecase, clock, MAX_ATTEMPTS_PER_RUN, MAX_RUN_DURATION_MS)
                 .execute();
 
         verify(pendingDemandAllocationUsecase).execute(commandFor(firstQueueKey));
@@ -135,14 +147,14 @@ class PendingDemandBacklogAllocationUsecaseTest {
     @Test
     @DisplayName("等待 queue key 掃描失敗時中斷整輪 reconciliation")
     void shouldPropagateQueueKeyScanFailure() {
-        AllocationDemandRepository demands = mock(AllocationDemandRepository.class);
+        PendingDemandBacklogQuery backlogQuery = mock(PendingDemandBacklogQuery.class);
         PendingDemandAllocationUsecase pendingDemandAllocationUsecase = mock(PendingDemandAllocationUsecase.class);
         IllegalStateException failure = new IllegalStateException("scan failed");
-        when(demands.findAllocatablePendingQueueKeys(TODAY, MAX_ATTEMPTS_PER_RUN))
+        when(backlogQuery.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
                 .thenThrow(failure);
 
         PendingDemandBacklogAllocationUsecase usecase = new PendingDemandBacklogAllocationUsecase(
-                demands, pendingDemandAllocationUsecase, appClock(), MAX_ATTEMPTS_PER_RUN, MAX_RUN_DURATION_MS);
+                backlogQuery, pendingDemandAllocationUsecase, appClock(), MAX_ATTEMPTS_PER_RUN, MAX_RUN_DURATION_MS);
 
         assertThatThrownBy(usecase::execute).isSameAs(failure);
         verifyNoMoreInteractions(pendingDemandAllocationUsecase);

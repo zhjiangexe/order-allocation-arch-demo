@@ -12,8 +12,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/** Allocation demand 的 Spring Data repository；複雜查詢只回傳配置流程需要的最小資料。 */
 public interface JpaAllocationDemandRepository extends JpaRepository<AllocationDemandEntity, UUID> {
 
+    /** backlog 排程使用的 queue 識別資料。 */
     interface AllocationDemandQueueKeyView {
         UUID getOwnerId();
 
@@ -24,23 +26,48 @@ public interface JpaAllocationDemandRepository extends JpaRepository<AllocationD
         String getSkuCode();
     }
 
+    /** 某個 SKU queue 目前最前面的 demand。 */
+    interface AllocationQueueHeadView {
+        String getSkuCode();
+
+        UUID getAllocationDemandId();
+
+        String getSourceType();
+
+        java.time.Instant getEnqueuedAt();
+    }
+
     Optional<AllocationDemandEntity> findBySourceTypeAndSourceIdAndAllocationUnitKey(
             AllocationSourceType sourceType, String sourceId, String allocationUnitKey);
 
+    /** 依入列時間讀取 demands，並一次載入 lines，避免逐筆查詢。 */
     @EntityGraph(attributePaths = "lines")
     List<AllocationDemandEntity> findByStatusOrderByEnqueuedAtAscIdAsc(
             com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus status, Pageable pageable);
 
+    /** 找出比 candidate 更早、且競爭任一相同 SKU 的第一筆 PENDING demand。 */
     @Query(value = """
-      SELECT d.id
-        FROM allocation_demands d
-       WHERE d.status = 'PENDING'
-         AND (d.enqueued_at, d.id) <= (:enqueuedAt, :allocationDemandId)
-       ORDER BY d.enqueued_at, d.id
+      SELECT predecessor.id
+        FROM allocation_demands predecessor
+        JOIN allocation_demand_lines line ON line.allocation_demand_id = predecessor.id
+       WHERE predecessor.status = 'PENDING'
+         AND predecessor.owner_id = :ownerId
+         AND predecessor.facility_id = :facilityId
+         AND predecessor.location_id = :locationId
+         AND line.sku_code IN (:skuCodes)
+         AND (predecessor.enqueued_at, predecessor.id) < (:candidateEnqueuedAt, :candidateId)
+       ORDER BY predecessor.enqueued_at, predecessor.id
+       LIMIT 1
       """, nativeQuery = true)
-    List<UUID> findPendingIdsThrough(
-            @Param("enqueuedAt") java.time.Instant enqueuedAt, @Param("allocationDemandId") UUID allocationDemandId);
+    Optional<UUID> findBlockingDemandId(
+            @Param("ownerId") UUID ownerId,
+            @Param("facilityId") UUID facilityId,
+            @Param("locationId") UUID locationId,
+            @Param("candidateEnqueuedAt") java.time.Instant candidateEnqueuedAt,
+            @Param("candidateId") UUID candidateId,
+            @Param("skuCodes") Collection<String> skuCodes);
 
+    /** 取得指定 queue 中 FIFO 最前面且 execution references 完整的 demand ID。 */
     @Query(value = """
       SELECT d.id
         FROM allocation_demands d
@@ -82,42 +109,40 @@ public interface JpaAllocationDemandRepository extends JpaRepository<AllocationD
                         AND (picking.id IS NULL OR picking.state IN ('CANCELLED', 'DONE'))))
              )
        ORDER BY d.enqueued_at, d.id
-       LIMIT :candidateLimit
+       LIMIT 1
       """, nativeQuery = true)
-    List<UUID> findPendingQueueCandidateIds(
+    Optional<UUID> findPendingQueueHeadId(
             @Param("ownerId") UUID ownerId,
             @Param("facilityId") UUID facilityId,
             @Param("locationId") UUID locationId,
-            @Param("skuCode") String skuCode,
-            @Param("candidateLimit") int candidateLimit);
+            @Param("skuCode") String skuCode);
 
+    /** 對 candidate 需要的每個 SKU，各取一筆不晚於 candidate 的 FIFO queue head。 */
     @Query(value = """
-      SELECT DISTINCT predecessor.id
-        FROM allocation_demands predecessor
-        JOIN allocation_demand_lines predecessor_line
-          ON predecessor_line.allocation_demand_id = predecessor.id
-        JOIN allocation_demands candidate
-          ON candidate.id IN (:candidateIds)
-        JOIN allocation_demand_lines candidate_line
-          ON candidate_line.allocation_demand_id = candidate.id
-         AND candidate_line.sku_code = predecessor_line.sku_code
-       WHERE predecessor.status = 'PENDING'
-         AND predecessor.owner_id = :ownerId
-         AND predecessor.facility_id = :facilityId
-         AND predecessor.location_id = :locationId
-         AND (predecessor.enqueued_at, predecessor.id)
-             <= (candidate.enqueued_at, candidate.id)
-       ORDER BY predecessor.id
+      SELECT DISTINCT ON (line.sku_code)
+             line.sku_code AS skuCode,
+             demand.id AS allocationDemandId,
+             demand.source_type AS sourceType,
+             demand.enqueued_at AS enqueuedAt
+        FROM allocation_demands demand
+        JOIN allocation_demand_lines line ON line.allocation_demand_id = demand.id
+       WHERE demand.status = 'PENDING'
+         AND demand.owner_id = :ownerId
+         AND demand.facility_id = :facilityId
+         AND demand.location_id = :locationId
+         AND line.sku_code IN (:skuCodes)
+         AND (demand.enqueued_at, demand.id) <= (:candidateEnqueuedAt, :candidateId)
+       ORDER BY line.sku_code, demand.enqueued_at, demand.id
       """, nativeQuery = true)
-    List<UUID> findFifoContextIds(
+    List<AllocationQueueHeadView> findRequiredQueueHeads(
             @Param("ownerId") UUID ownerId,
             @Param("facilityId") UUID facilityId,
             @Param("locationId") UUID locationId,
-            @Param("candidateIds") Collection<UUID> candidateIds);
+            @Param("candidateEnqueuedAt") java.time.Instant candidateEnqueuedAt,
+            @Param("candidateId") UUID candidateId,
+            @Param("skuCodes") Collection<String> skuCodes);
 
-    @EntityGraph(attributePaths = "lines")
-    List<AllocationDemandEntity> findByIdIn(Collection<UUID> ids);
-
+    /** 找出目前有可用庫存、值得本輪排程嘗試的 distinct queue keys。 */
     @Query(value = """
       SELECT d.owner_id AS ownerId,
              d.facility_id AS facilityId,
@@ -166,10 +191,10 @@ public interface JpaAllocationDemandRepository extends JpaRepository<AllocationD
        ORDER BY MIN(d.enqueued_at), MIN(d.id::text), line.sku_code
        LIMIT :queueKeyLimit
       """, nativeQuery = true)
-    List<AllocationDemandQueueKeyView> findAllocatablePendingQueueKeys(
+    List<AllocationDemandQueueKeyView> findPendingQueueKeysWithAvailableStock(
             @Param("today") java.time.LocalDate today, @Param("queueKeyLimit") int queueKeyLimit);
 
-    /** Pending demands excluded from allocation because execution references are unsafe. */
+    /** 取樣因 execution references 不完整而不應進入配置的 PENDING demands，供 health check 使用。 */
     @Query(value = """
       SELECT d.id
         FROM allocation_demands d

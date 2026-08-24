@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.application.service.reservation;
 
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.PendingDemandQueuePosition;
 import java.time.Instant;
 
 /**
@@ -10,5 +10,5 @@ import java.time.Instant;
  */
 public interface AllocationAttemptObserver {
 
-    void recordBlocked(AllocationCandidateBatch batch, Instant observedAt);
+    void recordBlocked(PendingDemandQueuePosition position, Instant observedAt);
 }

@@ -35,6 +35,7 @@ class AllocationDemandQueryServiceTest {
     private static final Instant NOW = Instant.parse("2026-06-01T08:00:00Z");
 
     private AllocationDemandRepository demandRepository;
+    private AllocationDemandQueryRepository demandQueryRepository;
     private StockQuantRepository stockQuantRepository;
     private StockMoveRepository stockMoveRepository;
     private StockPickingRepository stockPickingRepository;
@@ -43,12 +44,18 @@ class AllocationDemandQueryServiceTest {
     @BeforeEach
     void setUp() {
         demandRepository = mock(AllocationDemandRepository.class);
+        demandQueryRepository = mock(AllocationDemandQueryRepository.class);
         stockQuantRepository = mock(StockQuantRepository.class);
         stockMoveRepository = mock(StockMoveRepository.class);
         stockPickingRepository = mock(StockPickingRepository.class);
         BusinessClock clock = InventoryFixtures.businessClock(Clock.fixed(NOW, ZoneOffset.UTC), "Asia/Taipei");
         queryService = new AllocationDemandQueryService(
-                demandRepository, stockQuantRepository, stockMoveRepository, stockPickingRepository, clock);
+                demandRepository,
+                demandQueryRepository,
+                stockQuantRepository,
+                stockMoveRepository,
+                stockPickingRepository,
+                clock);
 
         when(stockMoveRepository.findByAllocationDemandId(any())).thenReturn(List.of());
         when(stockMoveRepository.findLinesOf(List.of())).thenReturn(List.of());
@@ -61,7 +68,7 @@ class AllocationDemandQueryServiceTest {
     void shouldExplainFifoBlockerAndCurrentShortage() {
         AllocationDemand first = pendingDemand(1, NOW, 5);
         AllocationDemand second = pendingDemand(2, NOW.plusSeconds(1), 5);
-        when(demandRepository.findPending(2)).thenReturn(List.of(first, second));
+        when(demandQueryRepository.findPending(2)).thenReturn(List.of(first, second));
         when(stockQuantRepository.findAllocatableBatchesBySku(
                         InventoryFixtures.OWNER_ID,
                         InventoryFixtures.LOCATION_ID,

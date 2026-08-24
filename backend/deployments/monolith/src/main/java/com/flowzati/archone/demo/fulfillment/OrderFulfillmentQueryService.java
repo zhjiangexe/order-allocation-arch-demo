@@ -2,12 +2,19 @@ package com.flowzati.archone.demo.fulfillment;
 
 import com.flowzati.archone.bootstrap.fulfillment.FulfillmentOrchestrationMode;
 import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandQueryService;
+import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandView;
+import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
+import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
 import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
-/** Monolith composition query；只組合各 Context 公開的 application query，不直接查它們的資料表。 */
+/**
+ * Monolith composition query；只組合各 Context 公開的 application query，不直接查它們的資料表。
+ */
 @Service
 public class OrderFulfillmentQueryService {
 
@@ -31,11 +38,13 @@ public class OrderFulfillmentQueryService {
     }
 
     public OrderFulfillmentView query(UUID orderId) {
+        Order order = getOrderUsecase.getOrder(orderId);
+        AllocationDemandView allocation =
+                allocationQueryService.findPrimaryOrder(orderId).orElse(null);
+        List<ShipmentView> shipmentViewList = getOrderShipmentsUsecase.query(orderId);
+        OrderFulfillmentWorkflowSnapshot workflow =
+                workflowStateReader.find(orderId).orElse(null);
         return new OrderFulfillmentView(
-                orchestrationMode.name(),
-                FulfillmentOrderView.from(getOrderUsecase.getOrder(orderId)),
-                allocationQueryService.findPrimaryOrder(orderId).orElse(null),
-                getOrderShipmentsUsecase.query(orderId),
-                workflowStateReader.find(orderId).orElse(null));
+                orchestrationMode.name(), FulfillmentOrderView.from(order), allocation, shipmentViewList, workflow);
     }
 }

@@ -1,7 +1,7 @@
 flowchart TB
-    START([Pending-demand allocation scheduler tick])
+    START([PendingDemandBacklogAllocationScheduler tick])
     USECASE["<b>PendingDemandBacklogAllocationUsecase.execute</b><br/>管理公平輪次，不包住整輪 transaction"]
-    FIND["<b>findAllocatablePendingQueueKeys(today, maxAttemptsPerRun)</b><br/>掃描數不超過 attempt budget，讓每條 queue 至少有一次機會"]
+    FIND["<b>findQueueKeysWithAvailableStock(today, maxAttemptsPerRun)</b><br/>掃描數不超過 attempt budget，讓每條 queue 至少有一次機會"]
     QUEUE_KEY["<b>AllocationDemandQueueKey</b><br/>ownerId + facilityId + locationId + skuCode<br/><i>識別一條 FIFO queue，不含 demand List</i>"]
     INIT["activeQueueKeys = initialQueueKeys<br/>remainingAttemptBudget = maxAttemptsPerRun<br/>deadline = startedAt + maxRunDuration"]
     HAS_WORK{"activeQueueKeys 非空？"}
@@ -10,7 +10,7 @@ flowchart TB
     HAS_QUEUE{"本輪還有<br/>未嘗試的 active queue？"}
     ATTEMPT["取本輪下一個 queue key<br/>remainingAttemptBudget--"]
     TX["<b>PendingDemandAllocationUsecase.execute</b><br/>開啟該 queue 的獨立 transaction<br/>本次最多 commit 一筆 demand"]
-    PIPELINE["<b>PendingDemandAllocator</b><br/>依 queue key 重新查 PENDING candidate<br/>→ <b>AllocationFifoSelector</b><br/>→ <b>AllocationDemandPlanner</b><br/>→ 可行才呼叫 <b>AllocationCommitter</b>"]
+    PIPELINE["<b>PendingDemandAllocator.tryAllocateQueueHead</b><br/>依 queue key 重新查 PENDING demand 的 queue position<br/>→ <b>PendingDemandQueuePosition</b><br/>→ <b>AllocationDemandPlanner</b><br/>→ 可行才呼叫 <b>AllocationCommitter</b>"]
     SUCCESS{"本次有成功<br/>commit 一筆 demand？"}
     CONTINUE["nextRoundQueueKeys.add(queueKey)<br/><b>進入下一輪</b><br/>該 queue 可能還有 successor"]
     STOP["<b>不進入下一輪</b><br/>FIFO blocked / 缺貨 / 失敗<br/>避免同一 tick 無效重試"]

@@ -5,13 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationCancellationOperation;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
-import com.flowzati.archone.inventory.allocation.domain.service.AllocationFifoSelector;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationCancellationState;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationSourceType;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.PendingDemandQueuePosition;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 import com.flowzati.archone.inventory.allocation.infrastructure.repository.jpa.JpaAllocationCancellationOperationRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.repository.jpa.JpaAllocationDemandRepository;
@@ -45,6 +44,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Import({
     PostgreSQLTestConfiguration.class,
     AllocationDemandRepositoryImpl.class,
+    PendingDemandSelectionImpl.class,
     AllocationCancellationOperationRepositoryImpl.class,
     AllocationDemandPersistenceIntegrationTest.RepositoryConfiguration.class
 })
@@ -56,6 +56,12 @@ class AllocationDemandPersistenceIntegrationTest {
 
     @Autowired
     private AllocationDemandRepositoryImpl demandRepository;
+
+    @Autowired
+    private PendingDemandSelectionImpl pendingDemandSelection;
+
+    @Autowired
+    private JpaAllocationDemandRepository jpaDemandRepository;
 
     @Autowired
     private AllocationCancellationOperationRepositoryImpl cancellationRepository;
@@ -183,16 +189,26 @@ class AllocationDemandPersistenceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        AllocationCandidateBatch batch = demandRepository.findPendingCandidates(
-                new AllocationDemandQueueKey(
-                        OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, "SKU-A"),
-                2);
+        PendingDemandQueuePosition queueHeadPosition = pendingDemandSelection
+                .findQueueHead(new AllocationDemandQueueKey(
+                        OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, "SKU-A"))
+                .orElseThrow();
 
-        assertThat(batch.candidates()).extracting(AllocationDemand::id).containsExactly(candidateAb.id(), laterA.id());
-        assertThat(batch.fifoContext())
-                .extracting(AllocationDemand::id)
-                .containsExactly(earlierB.id(), candidateAb.id(), laterA.id());
-        assertThat(new AllocationFifoSelector().selectFirstEligible(batch)).isEmpty();
+        assertThat(queueHeadPosition.demand().id()).isEqualTo(candidateAb.id());
+        assertThat(queueHeadPosition.requiredQueueHeads())
+                .extracting(queueHead -> queueHead.skuCode(), queueHead -> queueHead.allocationDemandId())
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple("SKU-A", candidateAb.id()),
+                        org.assertj.core.groups.Tuple.tuple("SKU-B", earlierB.id()));
+        assertThat(queueHeadPosition.isHeadOfEveryRequiredQueue()).isFalse();
+
+        PendingDemandQueuePosition exactPosition = pendingDemandSelection.positionOf(candidateAb);
+        assertThat(exactPosition.requiredQueueHeads())
+                .extracting(queueHead -> queueHead.skuCode(), queueHead -> queueHead.allocationDemandId())
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple("SKU-A", candidateAb.id()),
+                        org.assertj.core.groups.Tuple.tuple("SKU-B", earlierB.id()));
+        assertThat(exactPosition.isHeadOfEveryRequiredQueue()).isFalse();
     }
 
     @Test
@@ -207,16 +223,9 @@ class AllocationDemandPersistenceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(demandRepository.findPendingExecutionAnomalyIds(10)).containsExactly(malformed.id());
-        assertThat(demandRepository
-                        .findPendingCandidates(
-                                new AllocationDemandQueueKey(
-                                        OrderFixtures.OWNER_ID,
-                                        OrderFixtures.FACILITY_ID,
-                                        OrderFixtures.LOCATION_ID,
-                                        "SKU-A"),
-                                10)
-                        .candidates())
+        assertThat(jpaDemandRepository.findPendingExecutionAnomalyIds(10)).containsExactly(malformed.id());
+        assertThat(pendingDemandSelection.findQueueHead(new AllocationDemandQueueKey(
+                        OrderFixtures.OWNER_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID, "SKU-A")))
                 .isEmpty();
     }
 

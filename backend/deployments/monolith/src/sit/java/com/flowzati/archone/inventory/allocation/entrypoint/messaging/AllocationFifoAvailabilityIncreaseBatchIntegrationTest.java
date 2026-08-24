@@ -6,6 +6,7 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.allocation.application.query.PendingDemandBacklogQuery;
 import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandAllocationUsecase;
 import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandBacklogAllocationUsecase;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
@@ -80,6 +81,9 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     private AllocationDemandRepository allocationDemandRepository;
 
     @Autowired
+    private PendingDemandBacklogQuery pendingDemandBacklogQuery;
+
+    @Autowired
     private PendingDemandAllocationUsecase pendingDemandAllocationUsecase;
 
     @Autowired
@@ -105,7 +109,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
         // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
         pendingDemandBacklogAllocationUsecase = new PendingDemandBacklogAllocationUsecase(
-                allocationDemandRepository,
+                pendingDemandBacklogQuery,
                 pendingDemandAllocationUsecase,
                 appClock,
                 MAX_ATTEMPTS_PER_RUN,

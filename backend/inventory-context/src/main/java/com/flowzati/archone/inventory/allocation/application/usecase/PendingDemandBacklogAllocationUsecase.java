@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.allocation.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.command.AllocatePendingDemandCommand;
-import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
+import com.flowzati.archone.inventory.allocation.application.query.PendingDemandBacklogQuery;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import java.time.Duration;
 import java.time.Instant;
@@ -24,14 +24,14 @@ public class PendingDemandBacklogAllocationUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(PendingDemandBacklogAllocationUsecase.class);
 
-    private final AllocationDemandRepository demandRepository;
+    private final PendingDemandBacklogQuery backlogQuery;
     private final PendingDemandAllocationUsecase pendingDemandAllocationUsecase;
     private final BusinessClock appClock;
     private final int maxAttemptsPerRun;
     private final Duration maxRunDuration;
 
     public PendingDemandBacklogAllocationUsecase(
-            AllocationDemandRepository demandRepository,
+            PendingDemandBacklogQuery backlogQuery,
             PendingDemandAllocationUsecase pendingDemandAllocationUsecase,
             BusinessClock appClock,
             @Value("${archone.allocation.reconciliation-scheduler-max-attempts-per-run:"
@@ -44,7 +44,7 @@ public class PendingDemandBacklogAllocationUsecase {
         if (maxRunDurationMs <= 0) {
             throw new IllegalArgumentException("Allocation reconciliation run duration must be positive");
         }
-        this.demandRepository = demandRepository;
+        this.backlogQuery = backlogQuery;
         this.pendingDemandAllocationUsecase = pendingDemandAllocationUsecase;
         this.appClock = appClock;
         this.maxAttemptsPerRun = maxAttemptsPerRun;
@@ -62,9 +62,9 @@ public class PendingDemandBacklogAllocationUsecase {
         Instant deadline = appClock.instant().plus(maxRunDuration);
 
         // 掃描數不超過 attempt budget，確保每個查到的 queue key 至少有一次機會。
-        List<AllocationDemandQueueKey> allocatableQueueKeys =
-                demandRepository.findAllocatablePendingQueueKeys(appClock.today(), maxAttemptsPerRun);
-        allocateInFairRounds(allocatableQueueKeys, deadline);
+        List<AllocationDemandQueueKey> queueKeys =
+                backlogQuery.findQueueKeysWithAvailableStock(appClock.today(), maxAttemptsPerRun);
+        allocateInFairRounds(queueKeys, deadline);
     }
 
     /**

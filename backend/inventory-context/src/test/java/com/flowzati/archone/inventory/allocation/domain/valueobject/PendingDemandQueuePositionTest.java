@@ -1,12 +1,9 @@
-package com.flowzati.archone.inventory.allocation.domain.service;
+package com.flowzati.archone.inventory.allocation.domain.valueobject;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.type.AllocationSourceType;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -14,18 +11,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-@DisplayName("shared-SKU FIFO selector")
-class AllocationFifoSelectorTest {
+@DisplayName("pending demand queue position")
+class PendingDemandQueuePositionTest {
 
     private static final UUID OWNER_ID = uuid(1);
     private static final UUID FACILITY_ID = uuid(2);
     private static final UUID LOCATION_ID = uuid(3);
 
-    private final AllocationFifoSelector selector = new AllocationFifoSelector();
-
     @Test
-    @DisplayName("A+B candidate 不得越過 earlier B-only predecessor")
-    void shouldEnforceHeadOfLineAcrossEveryRequiredSku() {
+    @DisplayName("A+B demand 不是 B queue head 時不得前進，並能指出 blocker")
+    void shouldExposeBlockingQueueHeadsAcrossEveryRequiredSku() {
         AllocationDemand earlierB = queueDemand(
                 40, Instant.parse("2026-08-18T00:00:00Z"), List.of(new AllocationDemandLineRequest("b", "SKU-B", 1)));
         AllocationDemand candidateAb = queueDemand(
@@ -35,24 +30,30 @@ class AllocationFifoSelectorTest {
                         new AllocationDemandLineRequest("a", "SKU-A", 1),
                         new AllocationDemandLineRequest("b", "SKU-B", 1)));
 
-        assertThat(selector.selectFirstEligible(
-                        new AllocationCandidateBatch(List.of(candidateAb), List.of(earlierB, candidateAb))))
-                .isEmpty();
+        PendingDemandQueuePosition position = new PendingDemandQueuePosition(
+                candidateAb, List.of(queueHead(candidateAb, "SKU-A"), queueHead(earlierB, "SKU-B")));
+
+        assertThat(position.isHeadOfEveryRequiredQueue()).isFalse();
+        assertThat(position.blockingQueueHeads())
+                .extracting(AllocationQueueHead::allocationDemandId)
+                .containsExactly(earlierB.id());
     }
 
     @Test
-    @DisplayName("disjoint SKU predecessor 不得阻擋 candidate，empty batch 是 no-op")
-    void shouldKeepDisjointQueuesIndependentAndHandleEmptyBatch() {
-        AllocationDemand earlierB = queueDemand(
-                60, Instant.parse("2026-08-18T00:00:00Z"), List.of(new AllocationDemandLineRequest("b", "SKU-B", 1)));
+    @DisplayName("demand 位於每個 required queue head 時可以前進")
+    void shouldRecognizeHeadOfEveryRequiredQueue() {
         AllocationDemand candidateC = queueDemand(
                 70, Instant.parse("2026-08-18T00:01:00Z"), List.of(new AllocationDemandLineRequest("c", "SKU-C", 1)));
 
-        assertThat(selector.selectFirstEligible(
-                        new AllocationCandidateBatch(List.of(candidateC), List.of(earlierB, candidateC))))
-                .contains(candidateC);
-        assertThat(selector.selectFirstEligible(AllocationCandidateBatch.empty()))
-                .isEmpty();
+        PendingDemandQueuePosition position =
+                new PendingDemandQueuePosition(candidateC, List.of(queueHead(candidateC, "SKU-C")));
+
+        assertThat(position.isHeadOfEveryRequiredQueue()).isTrue();
+        assertThat(position.blockingQueueHeads()).isEmpty();
+    }
+
+    private static AllocationQueueHead queueHead(AllocationDemand demand, String skuCode) {
+        return new AllocationQueueHead(skuCode, demand.id(), demand.source().sourceType(), demand.enqueuedAt());
     }
 
     private static AllocationDemand queueDemand(int id, Instant enqueuedAt, List<AllocationDemandLineRequest> lines) {

@@ -1,19 +1,20 @@
 sequenceDiagram
     autonumber
-    actor Event as OrderPlaced event
+    actor Event as OrderPlacedIntegrationEvent
     participant UC as AllocateOrderUsecase
-    participant Adapter as OrderDemandAdapter
+    participant Adapter as OrderAllocationDemandAdapter
     participant Registrar as AllocationDemandRegistrar
     participant DemandRepo as DemandRepository
     participant Attempt as PendingDemandAllocator
-    participant Fifo as AllocationFifoSelector
+    participant Position as PendingDemandQueuePosition
     participant Planner as AllocationDemandPlanner
     participant StockRepo as StockQuantRepository
     participant Committer as AllocationCommitter
-    participant Completion as CompletionRouter / Outbox
+    participant Publication as PublicationFactory / Publisher
+    participant Outbox as Transactional Outbox
 
     Event->>UC: execute(AllocateOrderCommand)
-    Note over UC,Completion: 初次訂單路徑：AllocateOrderUsecase 擁有整段本地 transaction
+    Note over UC,Outbox: 初次訂單路徑：AllocateOrderUsecase 擁有整段本地 transaction
 
     rect rgb(239, 246, 255)
         Note over UC,DemandRepo: 階段 1｜登記需求，尚未 reserve 庫存
@@ -35,16 +36,16 @@ sequenceDiagram
 
     rect rgb(240, 253, 244)
         Note over UC,Committer: 階段 2｜FIFO eligibility + demand / supply planning
-        UC->>Attempt: allocateOne(queueKey, today, now)
-        Attempt->>DemandRepo: findPendingCandidates + shared-SKU predecessors
-        DemandRepo-->>Attempt: AllocationCandidateBatch
-        Attempt->>Fifo: selectFirstEligible(batch)
+        UC->>Attempt: tryAllocateDemand(accepted, today, now)
+        Attempt->>DemandRepo: positionOf(accepted) + required-SKU queue heads
+        DemandRepo-->>Attempt: PendingDemandQueuePosition
+        Attempt->>Position: isHeadOfEveryRequiredQueue()
 
         alt FIFO 尚未輪到
-            Fifo-->>Attempt: empty
+            Position-->>Attempt: false
             Attempt-->>UC: empty，demand 維持 PENDING
-        else 選到 queue head demand
-            Fifo-->>Attempt: eligible demand
+        else 剛接受的 demand 是所有 required-SKU queues 的 head
+            Position-->>Attempt: true
             Attempt->>StockRepo: findAllocatableBatchesBySku(all required SKUs)
             StockRepo-->>Attempt: FEFO AllocatableBatches
             Attempt->>Planner: aggregate preflight → FEFO batch queues
@@ -57,10 +58,10 @@ sequenceDiagram
                 Attempt->>Committer: commit(plan, now)
                 Note over Committer: demand → globally ordered stock quants → moves / picking<br/>reserve → ASSIGNED → ALLOCATED
                 Committer-->>Attempt: AllocationCommitted
-                Note over Attempt,Completion: 階段 3｜來源事件轉譯與 Outbox
-                Attempt->>Completion: publish(generic AllocationCommitted)
-                Completion->>Completion: ORDER adapter → existing v1 events
-                Completion-->>UC: allocated demand；events 已寫入 Outbox
+                Note over Attempt,Outbox: 階段 3｜建立 canonical Integration Event 並寫入 Outbox
+                Attempt->>Publication: create(AllocationCommitResult)
+                Publication->>Outbox: publish(OrderAllocationCommittedIntegrationEvent)
+                Outbox-->>UC: allocated demand；event 已加入 caller transaction
             end
         end
     end

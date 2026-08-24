@@ -830,13 +830,14 @@ Integration Event 應逐一寫入 Outbox，不可在 transaction commit 前直�
 
 | 交易 use case | 交易內直接組合 | 回傳結果 | Integration Event 模式 |
 | --- | --- | --- | --- |
-| `AllocateOrderUsecase` | Inbox → order demand source → `AllocationDemandRegistrar` → `PendingDemandAllocator` → completion event | 無；結果由 Integration Event 表達 | Kafka handler 呼叫；成功事實經 Outbox 推進 ordering／WMS |
+| `AllocateOrderUsecase` | Inbox → order demand source → `AllocationDemandRegistrar` → `PendingDemandAllocator.tryAllocateDemand(accepted)` → completion event | 無；結果由 Integration Event 表達 | Kafka handler 呼叫；成功事實經 Outbox 推進 ordering／WMS |
 | `ConfirmStockReceiptUsecase` | Inbox → 建立並完成 inbound execution → `StockQuant.receive` → availability fact | 無 | HTTP 同步提交；translator 在同交易寫 availability Outbox |
-| `AllocateWaitingDemandUsecase` | event 入口先 claim Inbox；scheduler 入口直接帶 command → 庫存守門查詢 → FIFO 取一頁 → `MovementAssigner.assignWaitingBatch` → completion events | 無；結果由 completion events 與持久化狀態表達 | availability 做首輪，Scheduler 做後續 reconciliation；不發布 continuation event |
+| `PendingDemandAllocationUsecase` | event 入口先 claim Inbox；scheduler 入口直接帶 command → `PendingDemandAllocator.tryAllocateQueueHead(queueKey)` → 最多 commit 一筆 demand | boolean 只供 backlog fair-round 判斷是否讓 queue 晉級 | availability 做低延遲首輪，Scheduler 做後續 reconciliation；不發布 continuation event |
 
-`AllocateWaitingDemandUsecase` 直接擁有一輪有上限的工作與 transaction：庫存守門查詢、FIFO
-取一頁、`MovementAssigner.assignWaitingBatch` 與每張成功訂單一個 completion event。若仍有等待
-工作，Scheduler 會在後續 tick 重新查詢；head-of-line blocker 不會造成 control event 無限循環。
+`PendingDemandAllocationUsecase` 擁有單一 queue-head attempt 的 transaction；
+`PendingDemandBacklogAllocationUsecase` 則只在 attempt 與時間預算內安排公平輪次，不包住整輪
+transaction。若仍有等待工作，Scheduler 會在後續 tick 重新查詢；head-of-line blocker 不會造成
+control event 無限循環。首次訂單路徑只嘗試剛接受的 demand，FIFO blocked 時不會改去配置別張訂單。
 
 Kafka handler 與未來 Temporal Activity 的交換點是上表的**完整交易 use case**，不是
 `AllocationDemandRegistrar`、`PendingDemandAllocator` 或 `AllocationCommitter` 這些交易內元件。未來 Temporal Workflow

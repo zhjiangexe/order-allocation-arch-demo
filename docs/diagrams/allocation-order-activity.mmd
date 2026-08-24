@@ -1,9 +1,9 @@
 flowchart TB
     subgraph TRIGGERS["觸發來源"]
       direction TB
-      ORDER_EVENT([OrderPlaced event])
-      STOCK_EVENT([Stock availability event])
-      SCHEDULER([Reconciliation scheduler])
+      ORDER_EVENT([OrderPlacedIntegrationEvent])
+      STOCK_EVENT([StockAvailabilityIncreasedIntegrationEvent])
+      SCHEDULER([PendingDemandBacklogAllocationScheduler])
     end
 
     subgraph ENTRIES["Application 入口／transaction owner"]
@@ -22,8 +22,8 @@ flowchart TB
 
     subgraph ATTEMPT["階段 2｜選需求、算供需、寫 reservation"]
       direction TB
-      COORDINATOR["<b>PendingDemandAllocator</b><br/>依 queue key 重新載入 PENDING candidates、FIFO predecessors<br/>與全部 required SKU supply"]
-      FIFO["<b>AllocationFifoSelector</b><br/>shared-SKU strict FIFO<br/><i>選出可前進的 demand</i>"]
+      COORDINATOR["<b>PendingDemandAllocator</b><br/>首次路徑指定 demand；等待路徑指定 queue head<br/>共用 FIFO predecessors 與全部 required SKU supply"]
+      POSITION["<b>PendingDemandQueuePosition</b><br/>shared-SKU strict FIFO<br/><i>回答 demand 是否位於每條 required queue 的隊首</i>"]
       PLANNER["<b>AllocationDemandPlanner</b><br/>aggregate preflight → FEFO batch queues<br/><i>規劃 demand / supply，不寫資料庫</i>"]
       DECISION{"本次 plan 可 commit？"}
       WAITING_STATE["本次結束<br/><b>Demand 仍為 PENDING</b><br/>等下一次 availability / scheduler"]
@@ -33,19 +33,19 @@ flowchart TB
     subgraph COMPLETION["階段 3｜完成事件"]
       direction TB
       PUBLICATION["<b>OrderAllocationCommittedPublicationFactory</b><br/>generic result → canonical ORDER event"]
-      OUTBOX["transactional Outbox<br/>單一 OrderAllocationCommitted event"]
+      OUTBOX["IntegrationEventPublisher → transactional Outbox<br/>單一 OrderAllocationCommittedIntegrationEvent"]
     end
 
     ORDER_EVENT --> ORDER_UC
     ORDER_UC --> ADAPTER --> REGISTRAR --> REGISTERED_STATE
-    REGISTERED_STATE --> COORDINATOR
+    REGISTERED_STATE -- "tryAllocateDemand(demandId)" --> COORDINATOR
 
     STOCK_EVENT --> WAITING_TX
     SCHEDULER --> RECONCILE_UC
     RECONCILE_UC -- "每輪逐個 active queue 呼叫" --> WAITING_TX
-    WAITING_TX --> COORDINATOR
+    WAITING_TX -- "tryAllocateQueueHead(queueKey)" --> COORDINATOR
 
-    COORDINATOR --> FIFO --> PLANNER --> DECISION
+    COORDINATOR --> POSITION --> PLANNER --> DECISION
     DECISION -- "FIFO 未輪到或任一 SKU 不足" --> WAITING_STATE
     DECISION -- "完整可行" --> COMMITTER
     COMMITTER --> PUBLICATION --> OUTBOX
@@ -62,6 +62,6 @@ flowchart TB
     class ORDER_UC,RECONCILE_UC usecase;
     class WAITING_TX transaction;
     class ADAPTER,REGISTRAR,COORDINATOR,PUBLICATION adapter;
-    class FIFO,PLANNER domain;
+    class POSITION,PLANNER domain;
     class REGISTERED_STATE,WAITING_STATE state;
     class COMMITTER,OUTBOX write;

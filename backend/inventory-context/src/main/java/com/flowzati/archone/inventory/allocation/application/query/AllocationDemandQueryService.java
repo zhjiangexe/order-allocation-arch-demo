@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AllocationDemandQueryService {
 
     private final AllocationDemandRepository demandRepository;
+    private final AllocationDemandQueryRepository demandQueryRepository;
     private final StockQuantRepository stockQuantRepository;
     private final StockMoveRepository stockMoveRepository;
     private final StockPickingRepository stockPickingRepository;
@@ -40,11 +41,13 @@ public class AllocationDemandQueryService {
 
     public AllocationDemandQueryService(
             AllocationDemandRepository demandRepository,
+            AllocationDemandQueryRepository demandQueryRepository,
             StockQuantRepository stockQuantRepository,
             StockMoveRepository stockMoveRepository,
             StockPickingRepository stockPickingRepository,
             BusinessClock appClock) {
         this.demandRepository = demandRepository;
+        this.demandQueryRepository = demandQueryRepository;
         this.stockQuantRepository = stockQuantRepository;
         this.stockMoveRepository = stockMoveRepository;
         this.stockPickingRepository = stockPickingRepository;
@@ -52,10 +55,11 @@ public class AllocationDemandQueryService {
     }
 
     public List<AllocationDemandView> listPending(int limit) {
-        List<AllocationDemand> pending = demandRepository.findPending(limit);
+        List<AllocationDemand> pending = demandQueryRepository.findPending(limit);
         List<AllocationDemandView> result = new ArrayList<>(pending.size());
         for (int index = 0; index < pending.size(); index++) {
-            result.add(toView(pending.get(index), pending.subList(0, index + 1)));
+            AllocationDemand demand = pending.get(index);
+            result.add(toView(demand, findVisibleBlockerId(demand, pending.subList(0, index))));
         }
         return List.copyOf(result);
     }
@@ -67,16 +71,16 @@ public class AllocationDemandQueryService {
         return demandRepository
                 .findBySource(SourceAllocationUnit.primaryOrder(orderId.toString()))
                 .map(demand -> {
-                    List<AllocationDemand> fifoContext = demand.status() == AllocationDemandStatus.PENDING
-                            ? demandRepository.findPendingThrough(demand.enqueuedAt(), demand.id())
-                            : List.of();
-                    return toView(demand, fifoContext);
+                    UUID blockerId = demand.status() == AllocationDemandStatus.PENDING
+                            ? demandQueryRepository.findBlockingDemandId(demand).orElse(null)
+                            : null;
+                    return toView(demand, blockerId);
                 });
     }
 
-    private AllocationDemandView toView(AllocationDemand demand, List<AllocationDemand> fifoContext) {
+    private AllocationDemandView toView(AllocationDemand demand, UUID blockerId) {
         AllocationSupplyExplanation supply = demand.status() == AllocationDemandStatus.PENDING
-                ? explainPending(demand, fifoContext)
+                ? explainPending(demand, blockerId)
                 : AllocationSupplyExplanation.notPending();
         List<StockMove> moves = stockMoveRepository.findByAllocationDemandId(demand.id());
         List<StockMoveLine> moveLines = stockMoveRepository.findLinesOf(
@@ -134,13 +138,16 @@ public class AllocationDemandQueryService {
                         .toList());
     }
 
-    private AllocationSupplyExplanation explainPending(AllocationDemand demand, List<AllocationDemand> fifoContext) {
-        AllocationDemand blocker = fifoContext.stream()
-                .filter(other -> !other.id().equals(demand.id()))
+    private static UUID findVisibleBlockerId(AllocationDemand demand, List<AllocationDemand> earlierDemands) {
+        return earlierDemands.stream()
                 .filter(other -> sameScope(other, demand))
                 .filter(other -> sharesRequiredSku(other, demand))
+                .map(AllocationDemand::id)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private AllocationSupplyExplanation explainPending(AllocationDemand demand, UUID blockerId) {
 
         Map<String, Integer> required = demand.totalsBySku();
         AllocatableBatches batches = stockQuantRepository.findAllocatableBatchesBySku(
@@ -156,7 +163,7 @@ public class AllocationDemandQueryService {
         }
 
         AllocationWaitingReason reason;
-        if (blocker != null) {
+        if (blockerId != null) {
             reason = AllocationWaitingReason.WAITING_FOR_EARLIER_DEMAND;
         } else if (missing.isEmpty()) {
             reason = AllocationWaitingReason.READY_TO_ALLOCATE;
@@ -165,8 +172,7 @@ public class AllocationDemandQueryService {
         } else {
             reason = AllocationWaitingReason.INSUFFICIENT_ATP;
         }
-        return new AllocationSupplyExplanation(
-                reason, blocker == null ? null : blocker.id(), Map.copyOf(available), Map.copyOf(missing));
+        return new AllocationSupplyExplanation(reason, blockerId, Map.copyOf(available), Map.copyOf(missing));
     }
 
     private static int availableUpTo(int required, List<StockQuant> batches) {

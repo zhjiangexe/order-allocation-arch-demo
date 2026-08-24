@@ -7,8 +7,6 @@ import com.flowzati.archone.inventory.allocation.application.service.demand.Allo
 import com.flowzati.archone.inventory.allocation.application.service.reservation.PendingDemandAllocator;
 import com.flowzati.archone.inventory.allocation.application.source.order.OrderAllocationDemandSource;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
-import com.flowzati.archone.inventory.allocation.domain.entity.AllocationDemandLine;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import jakarta.transaction.Transactional;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -21,8 +19,8 @@ import org.springframework.stereotype.Service;
  * <ol>
  *   <li>用 order adapter 把訂單 read model 轉成共用 demand command；
  *   <li>冪等接受 {@code ORDER/orderId/PRIMARY} demand，建立 outbound execution；
- *   <li>以第一條 canonical line 的 SKU 喚醒共用 allocator；
- *   <li>allocator 仍會檢查 demand 的全部 SKU，不是只配 triggering SKU；
+ *   <li>嘗試配置剛接受的 demand，不會改去配置另一筆 queue head；
+ *   <li>allocator 會檢查 demand 是否為全部 required-SKU queues 的 FIFO head；
  *   <li>若庫存不足或 FIFO 尚未輪到，保留 PENDING 等後續 availability/reconciliation。</li>
  * </ol>
  */
@@ -60,15 +58,7 @@ public class AllocateOrderUsecase {
         // Acceptance 只建立/重播 immutable demand 與 outbound execution，還沒有 reserve 庫存。
         AllocationDemand accepted = demandRegistrar.register(source.get()).demand();
 
-        // queue SKU 只用來定位首次 wake-up 的 FIFO queue；完整檢查仍涵蓋 demand 的所有 SKU。
-        String queueSku = accepted.lines().stream()
-                .min(java.util.Comparator.comparingInt(AllocationDemandLine::lineSequence))
-                .orElseThrow()
-                .skuCode();
-        pendingDemandAllocator.allocateOne(
-                new AllocationDemandQueueKey(
-                        accepted.ownerId(), accepted.facilityId(), accepted.locationId(), queueSku),
-                appClock.today(),
-                appClock.instant());
+        // 首次路徑只嘗試剛接受的 demand；FIFO blocked 時留在 backlog，不改去配置其他訂單。
+        pendingDemandAllocator.tryAllocateDemand(accepted, appClock.today(), appClock.instant());
     }
 }

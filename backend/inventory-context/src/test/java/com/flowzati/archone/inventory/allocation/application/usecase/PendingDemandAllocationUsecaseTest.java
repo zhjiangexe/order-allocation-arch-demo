@@ -31,7 +31,7 @@ class PendingDemandAllocationUsecaseTest {
         usecase.execute(command);
 
         verify(pendingDemandAllocator)
-                .allocateOne(
+                .tryAllocateQueueHead(
                         new AllocationDemandQueueKey(
                                 InventoryFixtures.OWNER_ID,
                                 InventoryFixtures.FACILITY_ID,

@@ -26,6 +26,8 @@
 讀圖時先看紫色入口，再沿著箭頭看它從哪個階段開始：
 
 - `AllocateOrderUsecase` 會先走「接受需求」，再進入「嘗試配置」。
+- 首次路徑只嘗試剛接受的 demand；若它不是每條 required-SKU queue 的 head，就留在
+  `PENDING`，不會順便配置另一張訂單。
 - availability event 直接呼叫 `PendingDemandAllocationUsecase`，不會再建立 demand。
 - scheduler 先由 `PendingDemandBacklogAllocationUsecase` 找 `AllocationDemandQueueKey`；每個 key 只包含
   `ownerId / facilityId / locationId / skuCode`，不是 demand List。
@@ -53,8 +55,8 @@
 | 0. 進入 | `AllocateOrderUsecase` | 收到 `orderId` | 不直接寫 domain data | 開始同一個本地 transaction |
 | 1. 轉接來源 | `OrderAllocationDemandAdapter` | 讀 order 提供給 allocation 的 read model | 不寫資料 | 找不到或已取消：整個 use case 直接結束；否則產生共用 command |
 | 2. 接受需求 | `AllocationDemandRegistrar` | 依 `ORDER / orderId / PRIMARY` 查 demand、moves、picking | 首次建立 `PENDING` demand、canonical lines、`CONFIRMED` moves／picking；冪等重播不重建 | 新建成功、回傳既有 demand，或 immutable content 衝突而失敗 |
-| 3. 準備喚醒 | `AllocateOrderUsecase` | 從已接受 demand 的 canonical 第一條 line 取 SKU | 不寫資料 | 以該 SKU 建立 `AllocationDemandQueueKey`；key 只定位 queue，不代表只配這個 SKU |
-| 4. 選 demand 與規劃 | `PendingDemandAllocator`、repositories、`AllocationFifoSelector`、`AllocationDemandPlanner` | 讀 `PENDING` candidates、所有 required SKU 的 FIFO predecessors、所有 required SKU 的 FEFO stock batches | Selector 與 Planner 都是純演算法，不寫資料庫 | FIFO 未輪到或任一 SKU 不足：維持 `PENDING`；全部可行：得到 immutable plan |
+| 3. 指定首次候選 | `AllocateOrderUsecase` | 使用剛接受的 allocation demand | 不寫資料 | 呼叫 `tryAllocateDemand(accepted)`；只嘗試這筆 demand，不改去配置別張訂單 |
+| 4. 檢查位置與規劃 | `PendingDemandAllocator`、`PendingDemandSelection`、`PendingDemandQueuePosition`、`AllocationDemandPlanner` | 讀 demand 每個 required SKU 當下可見的 queue head，以及所有 required SKU 的 FEFO stock batches | Queue position 與 Planner 都不寫資料庫 | FIFO 未輪到或任一 SKU 不足：維持 `PENDING`；全部可行：得到 immutable plan |
 | 5. Commit 配置 | `AllocationCommitter` | 重新驗證 demand、moves、picking、stock pools 與 plan | reserve stock；moves／picking 變 `ASSIGNED`；demand 變 `ALLOCATED` | 成功產生 `AllocationCommitted`；任何 invariant／lock failure 使整個 transaction rollback |
 | 6. 完成事件 | `PendingDemandAllocator`、`OrderAllocationCommittedPublicationFactory` | 接收 generic `AllocationCommitResult` | 建立單一 canonical `OrderAllocationCommittedIntegrationEvent`，寫入 transactional Outbox | Ordering 與選定的 fulfillment driver 各自消費同一 event ID |
 
@@ -68,8 +70,11 @@
 | allocation commit 後 | `ALLOCATED` | `ASSIGNED` | **已 reserve** | 已寫入 |
 
 所以 `demandRegistrar.register(...)` 的 registration 是**系統已登記並保存需求**，不是「庫存已配置」。
-FIFO 排隊資格由 `AllocationFifoSelector` 決定；真正的 demand／supply 演算在
+FIFO 排隊位置由 `PendingDemandQueuePosition` 自己回答；真正的 demand／supply 演算在
 `AllocationDemandPlanner`；真正扣住庫存則在 `AllocationCommitter`。
+
+這裡的 FIFO 是「決策當下已提交且可見的 `PENDING` backlog 不得被超越」；尚未提交或延遲抵達的
+demand 不在同一次資料庫 snapshot 內，因此不是跨所有 concurrent submissions 的全域序列化順序。
 
 ## `AllocateOrderUsecase` 單次交易循序圖
 
@@ -87,9 +92,9 @@ FIFO 排隊資格由 `AllocationFifoSelector` 決定；真正的 demand／supply
 
 ## 演算法到底在哪裡
 
-配置決策刻意拆成兩個純領域元件：
+配置決策刻意拆成兩個領域物件：
 
-1. `AllocationFifoSelector.selectFirstEligible`：candidate 必須在每個 required SKU queue 都是
+1. `PendingDemandQueuePosition.isHeadOfEveryRequiredQueue`：demand 必須在每個 required SKU queue 都是
    最早的 pending demand。
 2. `AllocationDemandPlanner.plan`：先以 SKU aggregate 計算完整的缺少數量；全部足夠後，才依
    canonical line sequence 與每個 SKU 各自的 FEFO batch queue 建立 picks。
@@ -102,7 +107,7 @@ FIFO 排隊資格由 `AllocationFifoSelector` 決定；真正的 demand／supply
 1. [`AllocateOrderUsecase`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/usecase/AllocateOrderUsecase.java)：看首次訂單入口與 transaction。
 2. [`AllocationDemandRegistrar`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/service/demand/AllocationDemandRegistrar.java)：看 demand registration 建立了什麼。
 3. [`PendingDemandAllocator`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/service/reservation/PendingDemandAllocator.java)：看決策需要哪些 repository 資料。
-4. [`AllocationFifoSelector`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationFifoSelector.java)：只看 shared-SKU FIFO eligibility。
+4. [`PendingDemandQueuePosition`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/domain/valueobject/PendingDemandQueuePosition.java)：看 demand 在各 required-SKU queues 的位置與 blockers。
 5. [`AllocationDemandPlanner`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/domain/service/AllocationDemandPlanner.java)：只看 all-or-nothing 與 FEFO demand／supply planning；ready plan 建立時就會驗證每條 demand line 的 picks 總量。
 6. [`AllocationCommitter`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/service/reservation/AllocationCommitter.java)：依「load data → validate cross-model scope → reserve → assign moves → assign pickings → complete demand → fact」閱讀。`AllocationCommitData` 只保存資料；`AllocationCommitValidator` 只保留無法由 plan、DB constraint 或單一 aggregate 保證的跨模型檢查，兩者都不是另外的 use case。
 7. [`OrderAllocationCommittedPublicationFactory`](../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/application/event/OrderAllocationCommittedPublicationFactory.java)：看 generic result 如何轉成單一 canonical ORDER allocation event。

@@ -16,7 +16,6 @@ import com.flowzati.archone.inventory.allocation.application.service.reservation
 import com.flowzati.archone.inventory.allocation.application.source.order.OrderAllocationDemandSource;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandLineRequest;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SourceAllocationUnit;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
@@ -80,15 +79,7 @@ class AllocateOrderUsecaseTest {
         InOrder order = inOrder(adapter, registrar, pendingDemandAllocator);
         order.verify(adapter).find(ORDER_ID);
         order.verify(registrar).register(command);
-        order.verify(pendingDemandAllocator)
-                .allocateOne(
-                        new AllocationDemandQueueKey(
-                                InventoryFixtures.OWNER_ID,
-                                InventoryFixtures.FACILITY_ID,
-                                InventoryFixtures.LOCATION_ID,
-                                "SKU-1"),
-                        LocalDate.of(2026, 7, 22),
-                        NOW);
+        order.verify(pendingDemandAllocator).tryAllocateDemand(demand, LocalDate.of(2026, 7, 22), NOW);
     }
 
     private static AcceptAllocationDemandCommand sourceCommand() {

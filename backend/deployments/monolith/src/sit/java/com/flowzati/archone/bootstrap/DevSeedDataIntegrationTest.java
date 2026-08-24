@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandQueryRepository;
 import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
@@ -48,6 +48,9 @@ class DevSeedDataIntegrationTest {
 
     @Autowired
     private AllocationDemandRepository allocationDemandRepository;
+
+    @Autowired
+    private AllocationDemandQueryRepository allocationDemandQueryRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -200,17 +203,13 @@ class DevSeedDataIntegrationTest {
         // 補貨後畫面毫無變化，看起來像壞掉。
         //
         // 佇列由 allocation-owned demand lifecycle 回答；訂單狀態與 picking.orderId 都不是 generic
-        // predicate。這裡直接走 production demand-first candidate query。
-        List<UUID> queuedOrders = allocationDemandRepository
-                .findPendingCandidates(
-                        new AllocationDemandQueueKey(
-                                DevSeedDataInitializer.SECOND_OWNER_ID,
-                                DevSeedDataInitializer.SOUTH_FACILITY_ID,
-                                DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID,
-                                DevSeedDataInitializer.EMPTY_SKU),
-                        1_000)
-                .candidates()
-                .stream()
+        // predicate。read-side query 用來確認兩筆 seed 都存在，不用 production 的 singular queue-head
+        // selection，因為它刻意只會帶回一筆。
+        List<UUID> queuedOrders = allocationDemandQueryRepository.findPending(1_000).stream()
+                .filter(demand -> demand.ownerId().equals(DevSeedDataInitializer.SECOND_OWNER_ID))
+                .filter(demand -> demand.facilityId().equals(DevSeedDataInitializer.SOUTH_FACILITY_ID))
+                .filter(demand -> demand.locationId().equals(DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID))
+                .filter(demand -> demand.totalsBySku().containsKey(DevSeedDataInitializer.EMPTY_SKU))
                 .map(demand -> UUID.fromString(demand.source().sourceId()))
                 .toList();
 

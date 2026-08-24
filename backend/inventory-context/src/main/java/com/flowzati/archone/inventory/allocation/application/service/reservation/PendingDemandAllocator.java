@@ -3,12 +3,11 @@ package com.flowzati.archone.inventory.allocation.application.service.reservatio
 import com.flowzati.archone.inventory.allocation.application.event.OrderAllocationCommittedPublicationFactory;
 import com.flowzati.archone.inventory.allocation.application.result.AllocationCommitResult;
 import com.flowzati.archone.inventory.allocation.domain.aggregate.AllocationDemand;
-import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
 import com.flowzati.archone.inventory.allocation.domain.service.AllocationDemandPlanner;
-import com.flowzati.archone.inventory.allocation.domain.service.AllocationFifoSelector;
-import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationCandidateBatch;
+import com.flowzati.archone.inventory.allocation.domain.type.AllocationDemandStatus;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandPlan;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.AllocationDemandQueueKey;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.PendingDemandQueuePosition;
 import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
 import com.flowzati.archone.inventory.balance.domain.valueobject.AllocatableBatches;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -20,52 +19,62 @@ import org.springframework.stereotype.Component;
 /**
  * Demand-first allocation 的共用 allocator。
  *
- * <p>首次接受、availability wake-up 與 reconciliation 都走這一條路。每次最多 commit 一筆
- * demand，避免一個 transaction 鎖住整條 queue；成功或失敗後由外層 trigger 決定是否再跑下一輪。
+ * <p>首次接受直接使用剛保存的 demand 只嘗試該筆需求；availability wake-up 與 reconciliation 則以 queue key
+ * 嘗試隊首。兩者共用 FIFO、planning 與 commit 流程，而且每次最多 commit 一筆 demand，避免一個
+ * transaction 鎖住整條 queue。
  */
 @Component
 public class PendingDemandAllocator {
 
-    private final AllocationDemandRepository demandRepository;
+    private final PendingDemandSelection pendingDemandSelection;
     private final StockQuantRepository stockQuantRepository;
-    private final AllocationFifoSelector demandSelector;
     private final AllocationDemandPlanner demandPlanner;
     private final AllocationCommitter planCommitter;
     private final IntegrationEventPublisher integrationEventPublisher;
     private final AllocationAttemptObserver attemptObserver;
 
     public PendingDemandAllocator(
-            AllocationDemandRepository demandRepository,
+            PendingDemandSelection pendingDemandSelection,
             StockQuantRepository stockQuantRepository,
-            AllocationFifoSelector demandSelector,
             AllocationDemandPlanner demandPlanner,
             AllocationCommitter planCommitter,
             IntegrationEventPublisher integrationEventPublisher,
             AllocationAttemptObserver attemptObserver) {
-        this.demandRepository = demandRepository;
+        this.pendingDemandSelection = pendingDemandSelection;
         this.stockQuantRepository = stockQuantRepository;
-        this.demandSelector = demandSelector;
         this.demandPlanner = demandPlanner;
         this.planCommitter = planCommitter;
         this.integrationEventPublisher = integrationEventPublisher;
         this.attemptObserver = attemptObserver;
     }
 
-    /** 最多 commit 一筆 demand；successor 交給下一次 bounded invocation 重新評估。 */
-    public Optional<AllocationDemand> allocateOne(AllocationDemandQueueKey queueKey, LocalDate today, Instant now) {
-        // 此次查到的 candidate 都共享 queueKey.skuCode。strict FIFO 下，第一筆若不能通過它的所有 SKU
-        // queue，後面的 demand 也不能在這條 queue 超車；因此實際只需載入 queue head，再加上
-        // repository 帶回的所有 shared-SKU predecessor context。多載 candidate 不會改變本輪決策。
-        AllocationCandidateBatch batch = demandRepository.findPendingCandidates(queueKey, 1);
+    /** 只嘗試指定 demand；若它不是每條 required-SKU queue 的 head，就維持 PENDING。 */
+    public Optional<AllocationDemand> tryAllocateDemand(AllocationDemand candidate, LocalDate today, Instant now) {
+        if (candidate.status() != AllocationDemandStatus.PENDING) {
+            return Optional.empty();
+        }
+        PendingDemandQueuePosition position = pendingDemandSelection.positionOf(candidate);
+        return tryCommitIfAtQueueHeads(position, today, now);
+    }
 
-        // 純演算法：candidate 必須在每個 required SKU queue 都是最早的一筆。
-        Optional<AllocationDemand> selected = demandSelector.selectFirstEligible(batch);
-        if (selected.isEmpty()) {
-            attemptObserver.recordBlocked(batch, now);
+    /** 最多 commit 指定 queue 的一筆 head demand；successor 留給下一次 bounded invocation。 */
+    public Optional<AllocationDemand> tryAllocateQueueHead(
+            AllocationDemandQueueKey queueKey, LocalDate today, Instant now) {
+        // 先找觸發 queue 的第一筆 pending demand，再只載入它每個 required SKU 當下可見的 queue head。
+        // 任一 queue head 不是 candidate 自己，就表示它仍須等待，不能從其他 SKU queue 插隊。
+        return pendingDemandSelection
+                .findQueueHead(queueKey)
+                .flatMap(position -> tryCommitIfAtQueueHeads(position, today, now));
+    }
+
+    private Optional<AllocationDemand> tryCommitIfAtQueueHeads(
+            PendingDemandQueuePosition position, LocalDate today, Instant now) {
+        if (!position.isHeadOfEveryRequiredQueue()) {
+            attemptObserver.recordBlocked(position, now);
             return Optional.empty();
         }
 
-        AllocationDemand demand = selected.get();
+        AllocationDemand demand = position.demand();
         // 一次載入這筆 demand 的全部 SKU；每個 SKU group 都已由 repository 依 FEFO 排好。
         AllocatableBatches stock = stockQuantRepository.findAllocatableBatchesBySku(
                 demand.ownerId(), demand.locationId(), demand.totalsBySku().keySet(), today);
