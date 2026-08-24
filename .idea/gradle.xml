@@ -8,12 +8,13 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$/backend" />
-            <option value="$PROJECT_DIR$/backend/integration-contracts" />
             <option value="$PROJECT_DIR$/backend/deployments" />
             <option value="$PROJECT_DIR$/backend/deployments/monolith" />
+            <option value="$PROJECT_DIR$/backend/domain-contract" />
             <option value="$PROJECT_DIR$/backend/foundation" />
             <option value="$PROJECT_DIR$/backend/fulfillment-workflow-contract" />
             <option value="$PROJECT_DIR$/backend/fulfillment-workflow-runtime" />
+            <option value="$PROJECT_DIR$/backend/integration-contracts" />
             <option value="$PROJECT_DIR$/backend/inventory-context" />
             <option value="$PROJECT_DIR$/backend/logistics-data-context" />
             <option value="$PROJECT_DIR$/backend/messaging" />
@@ -40,6 +41,7 @@
             <option value="$PROJECT_DIR$/backend/messaging/messaging-spring-producer-starter" />
             <option value="$PROJECT_DIR$/backend/messaging/messaging-test-support" />
             <option value="$PROJECT_DIR$/backend/ordering-context" />
+            <option value="$PROJECT_DIR$/backend/spring-framework-support" />
             <option value="$PROJECT_DIR$/backend/wms-context" />
           </set>
         </option>
