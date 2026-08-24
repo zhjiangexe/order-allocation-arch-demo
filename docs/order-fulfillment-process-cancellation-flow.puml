@@ -1,5 +1,5 @@
 @startuml
-title OrderFulfillmentWorkflow 取消協調活動圖（目前實作）
+title Order fulfillment 取消流程：共用 REST 入口與兩種 orchestration mode
 
 skinparam defaultFontName "PingFang TC"
 skinparam dpi 150
@@ -17,96 +17,98 @@ skinparam NoteBackgroundColor #FFF7D6
 
 start
 
-partition "A. Update 受理" {
-  :validateCancellationRequest();
-  if (request 為 null 或屬於其他 Order？) then (是)
-    :IllegalArgumentException
-    拒絕本次 Update；不改變 Workflow state; <<#FFF7D6>>
-    stop
-  endif
-
-  :requestCancellation();
-  if (Order 取消已提交？) then (是)
-    :ACK ALREADY_CANCELLED;
-    stop
-  elseif (已觀察到 handover 或先前已拒絕？) then (是)
-    :ACK REJECTED;
-    stop
-  elseif (已有取消請求？) then (是)
-    :ACK ALREADY_REQUESTED;
-    stop
-  else (首次請求)
-    :保存 immutable CancellationRequest
-    requestId + orderId + requestedAt + reason; <<#FDECEC>>
-    :OrderFulfillmentWorkflowCancellationState = REQUESTED; <<#FDECEC>>
-    :ACK ACCEPTED;
-  endif
+partition "A. 共用 HTTP 入口" {
+  :POST /orders/{orderId}/cancellation-requests; <<#E8F1FF>>
+  :OrderCancellationController
+  建立 immutable request
+  requestId + requestedAt + reason; <<#E8F1FF>>
+  :依 archone.fulfillment.orchestration-mode
+  注入唯一 FulfillmentCancellationCoordinator; <<#FFF7D6>>
 }
 
-note right
-  ACCEPTED 只表示請求已 durable 進入 Workflow，
-  不表示 Shipment 或 Order 已取消。
+if (Order 已 FULFILLED？) then (是)
+  :回 409 REJECTED
+  必須改走 return flow; <<#FFF0F0>>
+  stop
+endif
 
-  目前尚未實作對外 REST／人工取消 entrypoint。
-end note
-
-partition "B. execute 在 checkpoint 處理" {
-  if (Shipment 尚未建立？) then (是)
-    :enterPhase(CANCELLATION); <<#FDECEC>>
-    :cancelOrderInOrdering(); <<#FDECEC>>
-    :CancelOrder Activity
-    使用同一個 requestId; <<#FDECEC>>
-    :Order + OrderCancelled Outbox
-    同一 transaction; <<#FDECEC>>
-    :OrderFulfillmentWorkflowCancellationState = ORDER_CANCELLED; <<#FDECEC>>
-    :finishCancellation(ORDER_CANCELLED); <<#FDECEC>>
-    stop
-  else (已建立)
-    :cancelShipmentInWms(); <<#FDECEC>>
-    :CancelShipment Activity
-    帶 requestId/orderId/shipmentId; <<#FDECEC>>
-  endif
-}
-
-partition "C. WMS 同步決策" {
-  :CancelShipmentUsecase 核對 requestId
-  並儲存 cancellation outcome; <<#E2F0D9>>
-  if (WMS domain outcome？) then (CANCELLED /\nALREADY_CANCELLED)
-    :Activity 回傳 CANCELLED; <<#FDECEC>>
-    if (同 Shipment 的 handover 已觀察？) then (是)
-      :non-retryable ApplicationFailure
-      WMS_SHIPMENT_FACT_CONFLICT; <<#FFF0F0>>
-      stop
+if (orchestration mode？) then (events)
+  partition "B1. Events mode：同步 command coordinator" {
+    :EventDrivenFulfillmentCancellationCoordinator; <<#E8F1FF>>
+    :讀取 Order 與最多一張 Shipment; <<#E2F0D9>>
+    if (Shipment 存在？) then (是)
+      :CancelShipmentUsecase
+      在同一 request 下判斷實體進度; <<#E2F0D9>>
+      if (WMS outcome？) then (CANCELLED /
+      ALREADY_CANCELLED)
+        :允許繼續取消 Order; <<#FDECEC>>
+      else (PUTBACK_REQUIRED /
+      REJECTED_AFTER_HANDOVER)
+        :回 409 REJECTED
+        不取消 Order; <<#FFF0F0>>
+        stop
+      endif
     endif
-  else (PUTBACK_REQUIRED /\nREJECTED_AFTER_HANDOVER)
-    :Activity 目前統一回傳 REJECTED; <<#FFF7D6>>
-    :OrderFulfillmentWorkflowCancellationState = REJECTED; <<#FFF7D6>>
-    :不取消 Order; <<#FFF7D6>>
-    :等待同一 Shipment handover
-    後繼續履約主線; <<#FFF7D6>>
-    stop
-  endif
-}
+    :CancelOrderUsecase
+    Order = CANCELLED；同 transaction
+    發布 OrderCancelledIntegrationEvent; <<#FDECEC>>
+    :回 202 ACCEPTED
+    或 200 ALREADY_CANCELLED; <<#E8F1FF>>
+  }
+else (temporal)
+  partition "B2. Temporal mode：Update 既有 Workflow" {
+    :TemporalFulfillmentCancellationCoordinator; <<#E8F1FF>>
+    :requestCancellation(Update)
+    保存 immutable CancellationRequest; <<#FDECEC>>
+    :先回 ACK
+    ACCEPTED／ALREADY_REQUESTED／ALREADY_CANCELLED／REJECTED; <<#E8F1FF>>
 
-partition "D. WMS 已安全取消，再取消 Order" {
-  :cancelOrderInOrdering(); <<#FDECEC>>
-  :CancelOrder Activity 核對同一
-  requestId/orderId/requestedAt/reason; <<#FDECEC>>
-  if (Ordering 回傳其他 Order 或 REJECTED？) then (是)
-    :non-retryable ApplicationFailure
-    ORDER_CANCELLATION_REJECTED; <<#FFF0F0>>
-    stop
-  endif
-  :OrderFulfillmentWorkflowCancellationState = ORDER_CANCELLED; <<#FDECEC>>
-  :finishCancellation(ORDER_CANCELLED); <<#FDECEC>>
+    note right
+      ACCEPTED 只表示請求已 durable 進入 Workflow，
+      不表示 Shipment、Order 或 Inventory 已完成取消。
+    end note
+
+    if (Shipment 尚未建立？) then (是)
+      :CancelOrder Activity; <<#FDECEC>>
+    else (已建立)
+      :CancelShipment Activity
+      使用同一 requestId; <<#FDECEC>>
+      if (WMS outcome？) then (CANCELLED /
+      ALREADY_CANCELLED)
+        :CancelOrder Activity; <<#FDECEC>>
+      else (REJECTED)
+        :Workflow cancellationState = REJECTED
+        保留 Order，等待原 Shipment handover; <<#FFF7D6>>
+        stop
+      endif
+    endif
+
+    :CancelOrderUsecase
+    Order = CANCELLED；發布
+    OrderCancelledIntegrationEvent; <<#FDECEC>>
+    :Workflow = FINISHED / ORDER_CANCELLED; <<#FDECEC>>
+  }
+endif
+
+partition "C. 兩種模式共用的 Inventory cleanup" {
+  :Debezium → Kafka
+  OrderCancelledIntegrationEvent; <<#EDE9FE>>
+  :AllocationOrderCancellationEventConsumer
+  Inbox transaction; <<#E8F1FF>>
+  :CancelMovementsUsecase
+  取消 PENDING／ALLOCATED demand、Move、Picking
+  並釋放 reservation; <<#E2F0D9>>
 }
 
 stop
 
 legend bottom
-  |<#FDECEC>| 取消 command／狀態推進 |
-  |<#E2F0D9>| Usecase／Domain／DB 已實作 |
-  |<#FFF7D6>| 業務決策／目前限制 |
-  |<#FFF0F0>| 明確失敗 Workflow Execution 的 contract conflict |
+  |<#E8F1FF>| HTTP／consumer／Temporal boundary |
+  |<#E2F0D9>| Usecase／Domain／DB 狀態變更 |
+  |<#EDE9FE>| Integration Event／Outbox／Kafka |
+  |<#FDECEC>| 已接受的取消與補償 |
+  |<#FFF7D6>| Durable wait／mode policy |
+  |<#FFF0F0>| 業務拒絕，不改寫既有履約狀態 |
 endlegend
+
 @enduml

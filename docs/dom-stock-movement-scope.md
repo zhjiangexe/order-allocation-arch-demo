@@ -22,8 +22,9 @@
 ![庫存生命週期總覽](images/inventory-stock-lifecycle-overview.png)
 
 圖的 Mermaid 原始檔位於
-[`diagrams/inventory-stock-lifecycle-overview.mmd`](diagrams/inventory-stock-lifecycle-overview.mmd)。紅色虛線節點
-表示目前只有 Workflow Activity contract，還沒有呼叫 `StockQuant.consume()` 的 production use case。
+[`diagrams/inventory-stock-lifecycle-overview.mmd`](diagrams/inventory-stock-lifecycle-overview.mmd)。目前 Events 與
+Temporal 兩種 driver 都會進入 `CompleteOutboundMovementsUsecase`，由它完成 outbound movements 並正式扣減
+`StockQuant`；兩種模式只改變流程協調方式，不改變庫存寫入邊界。
 
 決定散落在五個 change 裡，但共用同一組前提。寫在這裡，各 change 的 design 才不必各自重述，
 也才不會在第三個 change 時發現第一個的前提已經被改掉。
@@ -730,15 +731,15 @@ demand/execution 的 `AllocationDemandRegistrar` 在 `inventory/allocation/appli
 Temporal Activity 呼叫同一個「完成收貨」transactional use case，或明確切換 source of truth；
 不能同時保留兩條可各自增加 `StockQuant` 的寫入路徑。
 
-收貨完成只發布 `StockAvailabilityIncreased`；Kafka handler 與
-`PendingDemandBacklogAllocationScheduler` 共用 `AllocateWaitingDemandUsecase`。因此 inbound rollback 不受 outbound
-佇列失敗影響，事件與排程重疊時仍由同一套 movement state、庫存鎖與配貨政策收斂。
+收貨完成只發布 `StockAvailabilityIncreasedIntegrationEvent`；Kafka handler 直接呼叫
+`PendingDemandAllocationUsecase`，而 `PendingDemandBacklogAllocationScheduler` 經由
+`PendingDemandBacklogAllocationUsecase` 逐一呼叫同一個 use case。因此 inbound rollback 不受 outbound
+待配需求失敗影響，事件與排程重疊時仍由同一套 movement state、庫存鎖與配貨政策收斂。
 
 **`AllocationService` 一個字都不動。** 它已經是純決策、不碰 IO，切法改變的是誰去呼叫它。
 
-**結果事件留在 flow owner 而不進 ②**：初次配不到要發
-`OrderBackorderRecorded`，已在佇列的單配不到則什麼都不發。`AllocateOrderUsecase` 因此
-擁有初次結果政策，`AllocateWaitingDemandUsecase` 擁有「每張成功單一個 completion」的政策。
+**結果事件留在 flow owner 而不進 ②**：初次或後續嘗試配不到時，Demand 保持 `PENDING` 且不發布結果
+事件；成功提交時才由 publication factory 建立唯一的 `OrderAllocationCommittedIntegrationEvent`。
 
 ### picking 是流程政策，不是 move 的全域強制容器
 

@@ -136,10 +136,10 @@
         <dt>Gradle modules</dt><dd>1</dd>
         <dt>Shared technical modules</dt><dd>10</dd>
         <dt>Bounded areas</dt><dd>Inbound / Outbound</dd>
-        <dt>Use cases</dt><dd>13</dd>
+        <dt>Use cases</dt><dd>16</dd>
         <dt>Repository ports</dt><dd>3</dd>
-        <dt>Repository impl</dt><dd>1</dd>
-        <dt>Workflow engine</dt><dd>0</dd>
+        <dt>JPA adapters</dt><dd>3</dd>
+        <dt>Temporal adapter</dt><dd>Activities</dd>
       </dl>
     </aside>
   </header>
@@ -173,12 +173,12 @@
       </article>
       <article class="card">
         <h3><code>deployments:monolith → wms-context</code></h3>
-        <p>目前由單體共用的 messaging starter 接收 fulfillment handoff，並以 Inbox transaction 與 JPA <code>ShipmentRepository</code> 落地。尚未出現 reader 的 WMS domain events 不發布 Kafka；Inbound、Wave 與 Inventory/TMS adapters 仍待真實 use case 再補。</p>
+        <p>單體以同一組 messaging starter 接收 <code>OrderAllocationCommittedIntegrationEvent</code>。Events mode 由 consumer 建立 Shipment；Temporal mode 則由 Workflow Activity 呼叫相同的 <code>CreateShipmentUsecase</code>。Handover 透過通用 <code>IntegrationEventPublisher</code> 寫入 transactional Outbox。</p>
       </article>
     </div>
     <div class="callout" style="margin-top: 16px">
       <strong>依賴方向</strong>
-      <p><code>deployments:monolith → wms-context → application API → aggregate → ports</code>；WMS adapters 只向內實作 ports。其他 context 只發布不可變 handoff snapshot，不引用 WMS class，也不跨 boundary 讀取 WMS tables。</p>
+      <p><code>deployments:monolith → wms-context → application API → aggregate → repository ports</code>；messaging、Temporal Activity 與 JPA adapters 都由外向內呼叫。其他 context 只交換 <code>integration-contracts</code> 的不可變 snapshot，不引用 WMS aggregate，也不跨 boundary 讀取 WMS tables。</p>
     </div>
   </section>
 
@@ -197,7 +197,7 @@
         <div class="step"><strong>StageShipmentUsecase</strong><span>READY_FOR_DISPATCH</span></div><div class="arrow">→</div>
         <div class="step"><strong>HandOverShipmentUsecase</strong><span>HANDED_OVER_TO_CARRIER</span></div>
       </div>
-      <p class="flow-note">並行的 Wave checkpoint：<code>PlanWaveUsecase → ReleaseWaveUsecase → CompleteWaveUsecase</code>。只有所有 assignment 的 picking work 完成或取消才關閉 Wave；某張 Shipment 一旦 <code>PICKED</code>，即使同 Wave 仍有工作，也可先 Pack。<code>ShipmentReadyForDispatch</code> 是未來交給 dispatch／TMS 的粗粒度 readiness fact。</p>
+      <p class="flow-note">並行的 Wave checkpoint：<code>PlanWaveUsecase → ReleaseWaveUsecase → CompleteWaveUsecase</code>。只有所有 assignment 的 picking work 完成或取消才關閉 Wave；某張 Shipment 一旦 <code>PICKED</code>，即使同 Wave 仍有工作，也可先 Pack。現行唯一跨 context WMS fact 是完成 handover 後發布的 <code>ShipmentHandedOverIntegrationEvent</code>。</p>
     </div>
 
     <div id="wave-design" style="margin-top: 20px">
@@ -207,7 +207,7 @@
         <tbody>
           <tr><td>演算法</td><td><code>PriorityCapacityWavePlanner</code> 先過濾 Facility／cutoff，再依 priority、dispatch deadline、created time、Shipment ID 穩定排序，最後 greedy 填入 Shipment／line／unit 容量。</td><td>結果可重現、容易解釋；暫不導入 knapsack、route optimization 或 AI optimizer。</td></tr>
           <tr><td>資料結構</td><td>不可變 <code>WaveCandidate</code>／<code>WaveAssignment</code> snapshots、排序 <code>List</code>、重複檢查 <code>HashSet</code>、claim 時以 ID <code>Map</code> 對回 aggregate。</td><td>只保存規劃所需資料；Wave 若成長到數千張，再把 assignments 改為分頁 persistence。</td></tr>
-          <tr><td>設計模式</td><td><code>WavePlanner</code> Strategy、<code>Wave</code>／<code>Shipment</code> Aggregates、Repository ports、Domain Events，以及 command redelivery idempotency。</td><td>演算法可替換，但不把 repository、Kafka、排程或 WES 細節塞進 domain model。</td></tr>
+          <tr><td>設計模式</td><td><code>WavePlanner</code> Strategy、<code>Wave</code>／<code>Shipment</code> Aggregates、Repository ports、application publication factory，以及 command redelivery idempotency。</td><td>演算法可替換；Domain 不依賴 Kafka、Outbox、Temporal、排程或 WES。</td></tr>
           <tr><td>工作產生</td><td>Planning 只 claim Shipment；Release 才建立 <code>WarehouseWork</code> 與逐 line <code>PickTask</code>。</td><td>避免候選重算時提前產生現場工作；未來真的採 zone／cluster picking 再拆 work ownership。</td></tr>
         </tbody>
       </table>
@@ -217,12 +217,12 @@
   <section id="cancellation" aria-labelledby="cancellation-title">
     <div class="section-head">
       <h2 id="cancellation-title">三、取消依實體進度分支</h2>
-      <p><code>CancelShipmentUsecase</code> 不假裝所有狀態都能立即 rollback；Aggregate 回傳 typed <code>CancellationOutcome</code>。</p>
+      <p><code>CancelShipmentUsecase</code> 不假裝所有狀態都能立即 rollback；對外回傳 typed <code>ShipmentCancellationStatus</code>。</p>
     </div>
     <div class="state-branches">
       <article class="state-branch"><h3>CREATED / WAVE_PLANNED / RELEASED</h3><p>Wave 尚未 release 時沒有 PickTask；已 release 但未開工時取消 WarehouseWork，進入 <code>CANCELLED</code>。</p></article>
-      <article class="state-branch warn"><h3>已開始實體作業</h3><p>進入 <code>CANCELLING</code>，發布 <code>ShipmentPutbackRequired</code>；Putback lifecycle 尚待實作。</p></article>
-      <article class="state-branch stop"><h3>已交給 Carrier</h3><p>不再作 WMS cancellation，發布 <code>ShipmentCancellationRejected</code>；後續應由 return／TMS 流程處理。</p></article>
+      <article class="state-branch warn"><h3>已開始實體作業</h3><p>回傳 <code>PUTBACK_REQUIRED</code>；現行 coordinator 拒絕取消 Order，Putback lifecycle 尚待實作。</p></article>
+      <article class="state-branch stop"><h3>已交給 Carrier</h3><p>回傳 <code>REJECTED_AFTER_HANDOVER</code>；Order 保持完成狀態，後續應由 return／TMS 流程處理。</p></article>
     </div>
   </section>
 
@@ -265,8 +265,8 @@
         <div class="relation">→</div>
         <div class="class-stack">
           <div class="class-box port"><strong>Repository ports</strong><ul><li>WaveRepository</li><li>ShipmentRepository</li><li>InboundOperationRepository</li></ul></div>
-          <div class="class-box port"><strong>Shared ports</strong><ul><li>DomainEventPublisher</li><li>IdGenerator</li></ul></div>
-          <div class="class-box port"><strong>WmsDomainEvent</strong><ul><li>Outbound events</li><li>Inbound events</li></ul></div>
+          <div class="class-box port"><strong>Integration boundary</strong><ul><li>IntegrationEventPublisher</li><li>integration-contracts</li></ul></div>
+          <div class="class-box port"><strong>Publication factory</strong><ul><li>ShipmentHandedOverPublicationFactory</li><li>ShipmentHandedOverIntegrationEvent</li></ul></div>
         </div>
       </div>
     </div>
@@ -275,7 +275,7 @@
   <section id="catalog" aria-labelledby="catalog-title">
     <div class="section-head">
       <h2 id="catalog-title">六、Use case catalog</h2>
-      <p>目前共 13 個；Wave 與單張 Shipment 是兩條相關但不互相誤當全域閘門的 application lifecycle。</p>
+      <p>目前共 16 個；其中 12 個 Outbound／Wave use cases（含查詢與 simulation driver）及 4 個 Inbound use cases。</p>
     </div>
     <table>
       <thead><tr><th>Area</th><th>依序 Usecases</th><th>結果</th></tr></thead>
@@ -283,6 +283,7 @@
         <tr><td><span class="tag">Outbound Shipment</span></td><td><code>CreateShipmentUsecase</code> → Wave assign／release → <code>ConfirmPickUsecase</code> → <code>PackShipmentUsecase</code> → <code>StageShipmentUsecase</code> → <code>HandOverShipmentUsecase</code></td><td>由已配置 demand 產生 picking work，完成 WMS custody handover。</td></tr>
         <tr><td><span class="tag">Wave</span></td><td><code>PlanWaveUsecase</code> → <code>ReleaseWaveUsecase</code> → <code>CompleteWaveUsecase</code></td><td>服務多張 Shipment；關閉 Wave 不阻塞個別已揀完 Shipment 的 Pack。</td></tr>
         <tr><td><span class="tag">Outbound branch</span></td><td><code>CancelShipmentUsecase</code></td><td>Cancelled、Putback required 或 rejected after handover。</td></tr>
+        <tr><td><span class="tag">Runtime driver</span></td><td><code>GetOrderShipmentsUsecase</code>；<code>ProcessDueShipmentsUsecase</code> → <code>SimulateWarehouseOperationsUsecase</code></td><td>查詢 Order 的 Shipment；模擬入口從資料庫找出到期的 CREATED Shipment，再串接正式細粒度 use cases。</td></tr>
         <tr><td><span class="tag">Inbound</span></td><td><code>RegisterInboundOperationUsecase</code> → <code>ConfirmArrivalUsecase</code> → <code>RecordInspectionUsecase</code> → <code>ConfirmPutawayUsecase</code></td><td>Completed 或 Quarantined。</td></tr>
       </tbody>
     </table>
@@ -291,24 +292,24 @@
   <section id="next" aria-labelledby="next-title">
     <div class="section-head">
       <h2 id="next-title">七、刻意未實作與下一步</h2>
-      <p>先補 source of truth 與現場行為，不先建立新的 workflow module。</p>
+      <p>現行主線已接通；下一步是用真實現場入口替換 simulation，並補足異常與進階作業。</p>
     </div>
     <table>
       <thead><tr><th>缺口</th><th>目前狀態</th><th>建議</th></tr></thead>
       <tbody>
-        <tr><td>Repository／Outbox implementations</td><td><span class="tag">Outbound handoff 已建立</span></td><td><code>wms-context</code> 已提供 Shipment JPA adapter 與 Inbox consumer，WMS tables 由 <code>deployments:monolith</code> migration 管理。WMS producer／Outbox 暫不建立，因目前沒有具體跨邊界 reader；Wave 與 Inbound repository adapter 仍待補。</td></tr>
-        <tr><td>Order Promising → WMS input</td><td><span class="tag">Handoff 已接通</span></td><td><code>AllocationCommittedForFulfillmentIntegrationEvent</code> 獨立攜帶 allocation／StockPicking ID、owner、Facility、committed lines、source locations、quantity、<code>dispatchBy</code> 與 <code>releasePriority</code>；既有最小 <code>OrderAllocatedIntegrationEvent</code> 不被膨脹。整單取消 consumer 與跨 topic 亂序保護仍待下一步。</td></tr>
-        <tr><td>Inventory adapter</td><td><span class="tag missing">未建立</span></td><td>以 committed receipt／putaway／handover facts 接庫存帳，不讓 WMS aggregate 直接依賴 order-promising model。</td></tr>
-        <tr><td>Short-pick resolution／Putback</td><td><span class="tag missing">僅有事件</span></td><td>先建 WMS commands、business keys 與 terminal outcomes。</td></tr>
-        <tr><td>Wave planning／release</td><td><span class="tag">Core 已建立</span></td><td>目前依 priority、dispatch cutoff、Shipment／line／unit capacity 選擇；取消的 assignment 保留 audit trail，但不產生 WarehouseWork。template persistence 與 scheduler 尚未建立。</td></tr>
+        <tr><td>Repository／Outbox implementations</td><td><span class="tag">主線已建立</span></td><td>InboundOperation、Wave、Shipment 均有 JPA adapter；handover 經 <code>ShipmentHandedOverPublicationFactory → IntegrationEventPublisher → Outbox</code> 發布。</td></tr>
+        <tr><td>Allocation → WMS input</td><td><span class="tag">雙模式已接通</span></td><td>唯一的 <code>OrderAllocationCommittedIntegrationEvent</code> 由 Events consumer 或 Temporal Signal／Activity 其中一條路徑建立同一個 Shipment。</td></tr>
+        <tr><td>Inventory completion</td><td><span class="tag">已接通</span></td><td><code>ShipmentHandedOverIntegrationEvent</code> 在 Events mode 直接觸發 <code>CompleteOutboundMovementsUsecase</code>；Temporal mode 由 Workflow Activity 呼叫相同 use case。</td></tr>
+        <tr><td>Short-pick resolution／Putback</td><td><span class="tag missing">未完成</span></td><td>目前 cancellation 遇到已開始實體作業會回 <code>PUTBACK_REQUIRED</code> 並拒絕取消 Order，尚無 recovery completion。</td></tr>
+        <tr><td>Wave planning／release</td><td><span class="tag">Core + persistence 已建立</span></td><td>目前 simulation 在單一 transaction 內規劃、release 並完成一張 Shipment；真實 Wave scheduler／operator entrypoint 尚未接入。</td></tr>
         <tr><td>Replenishment、Pick route、Container／LPN、Loading</td><td><span class="tag missing">未建立</span></td><td>依真實倉庫需求逐一形成 process；不要預先建立空殼。</td></tr>
-        <tr><td>Temporal orchestration</td><td><span class="tag missing">不採用</span></td><td>只有跨獨立系統的 durable coordination 成立後，依 ADR 重新評估。</td></tr>
+        <tr><td>Temporal orchestration</td><td><span class="tag">可選模式</span></td><td><code>TemporalWmsActivitiesAdapter</code> 委派既有 WMS use cases；Workflow 只保存跨 context checkpoints，不接管 Pick／Pack／Stage 內部狀態。</td></tr>
       </tbody>
     </table>
   </section>
 
   <footer>
-    <span>程式基準：<code>backend/wms-context/src/main</code>、<code>backend/deployments/monolith/src/main</code>，狀態日期 2026-08-19。</span>
+    <span>程式基準：<code>backend/wms-context/src/main</code>、<code>backend/deployments/monolith/src/main</code>，狀態日期 2026-08-24。</span>
     <span><a href="temporal-adoption-decision.md">Temporal 採用決策</a> · <a href="wms-business-process-decomposition.md">WMS process 切分</a> · <a href="wms-wes-wcs-tms-workflow-boundary-review.md">WMS／WES／WCS／TMS 邊界</a></span>
   </footer>
 </main>

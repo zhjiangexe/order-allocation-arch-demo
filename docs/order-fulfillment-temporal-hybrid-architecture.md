@@ -7,8 +7,12 @@ Ordering、Inventory、WMS 仍由各自的 application use case 與 domain model
 
 目前的 happy path 已在 `events` 與 `temporal` 兩種 orchestration mode 中完整串起：
 `OrderPlaced -> Allocation -> Shipment -> Handover -> Outbound completion -> Order FULFILLED`。這裡的
-「完整」是指本專案目前的 runtime 範圍；Wave、Pick、Pack、Stage 與 Handover 仍由 10 秒
-scheduler 模擬，尚未串接真實 WMS、設備或人工操作 API。
+「完整」是指本專案目前的 runtime 範圍；Wave、Pick、Pack、Stage 與 Handover 仍由可設定
+processing delay 的 scheduler 模擬（預設 10 秒；E2E 使用 0 秒／30 秒建立不同觀察窗口），尚未串接
+真實 WMS、設備或人工操作 API。
+
+所有 producer 都只發布一份 canonical Integration Event。`events`／`temporal` 不在 producer 分流；
+`archone.fulfillment.orchestration-mode` 只控制哪一組 consumer／Activity driver 擁有後續副作用。
 
 ![Order fulfillment 目前已實作的端到端活動圖](order-fulfillment-end-to-end-activity.png)
 
@@ -17,18 +21,21 @@ Order accepted
   -> Request allocation Activity
   -> wait AllocationCommitted / CancellationRequest
   -> Create shipment Activity (returns shipmentId)
-  -> wait ShipmentHandedOverToCarrier / CancellationRequest
+  -> wait ShipmentHandedOverToCarrierSignal / CancellationRequest
   -> Complete outbound movements Activity
   -> Record order fulfilled Activity
   -> FULFILLMENT_COMPLETED
 
 External overdue detector / user cancellation
-  -> requestCancellation Update on the existing Workflow
-     -> no Shipment can exist: CancelOrder Activity
-     -> Shipment exists: CancelShipment Activity returns a decision
-          -> CANCELLED: CancelOrder Activity
-          -> REJECTED: keep Order active, wait handover and continue fulfillment
-  -> ORDER_CANCELLED only after the safe branch completes
+  -> POST /orders/{orderId}/cancellation-requests
+     -> events: EventDrivenFulfillmentCancellationCoordinator
+          -> optional CancelShipmentUsecase -> CancelOrderUsecase
+     -> temporal: requestCancellation Update on the existing Workflow
+          -> no Shipment can exist: CancelOrder Activity
+          -> Shipment exists: CancelShipment Activity returns a decision
+               -> CANCELLED: CancelOrder Activity
+               -> REJECTED: keep Order active, wait handover and continue fulfillment
+  -> OrderCancelledIntegrationEvent asynchronously releases Inventory reservation
 ```
 
 ## 如何閱讀 `WorkflowImpl`：主線與子方法分層
@@ -136,8 +143,8 @@ adapter 投遞。一次 HTTP RPC 成功與否不能成為取消命令唯一的 d
 `OrderFulfillmentWorkflowInput`，才重新評估 Update-With-Start。本階段不為尚未選定的 client initiation policy 保留
 production contract 或專用測試。
 
-`AllocationCommitted` 與 `ShipmentHandedOverToCarrier` 是既有流程的 business facts，只能
-Signal existing Workflow。
+`AllocationCommittedSignal` 與 `ShipmentHandedOverToCarrierSignal` 是由既有 Integration Event
+轉入 Workflow 的 business facts，只能 Signal existing Workflow。
 它們不得使用 Signal-With-Start 取得建立流程的權限；找不到 execution 時由 adapter retry／告警。
 
 `AllocationCommitted` 必須由本 Workflow 的 `RequestAllocation` Activity 所觸發，因此因果順序固定為
@@ -180,9 +187,9 @@ Activity adapter 則使用相同結果回覆 Workflow。兩條入口必須由 pr
 ### 現階段共用的模擬 WMS runtime
 
 本專案目前不串接真實 WMS，所以 dev、stage、prod 都由 `SimulatedWarehouseOperationsScheduler`
-扮演倉庫操作 actor。它每秒從資料庫找出 `createdAt <= now - 10s` 且仍為 `CREATED` 的 Shipment，
+扮演倉庫操作 actor。它每秒從資料庫找出已超過設定 processing delay 且仍為 `CREATED` 的 Shipment，
 再由 `SimulateWarehouseOperationsUsecase` 在單一 transaction 內依序執行 synthetic Wave／Work、完整
-Pick、Pack、Stage 與 carrier handover。
+Pick、Pack、Stage 與 carrier handover。預設 delay 是 10 秒；E2E 依案例使用 0 秒或 30 秒。
 
 這不是 `Thread.sleep(10s)`：等待依據保存在 Shipment 狀態與時間，runtime 重啟後仍能補跑；多個
 instances 掃到同一 Shipment 時，由 transaction 與 optimistic version 保證只有一方提交。等待期間若
@@ -190,8 +197,9 @@ Shipment 已取消，重新載入後不再是 `CREATED`，模擬 use case 會安
 
 ![三個環境共用的 Shipment handover 自動模擬流程](shipment-handover-connection-gaps.png)
 
-未來接真實 WMS 時，外部 WMS／操作 API 取代這個 scheduler；`ShipmentHandedOverToCarrier` 之後的
-Outbox、Kafka、Inventory 出庫完成及 Ordering fulfillment 線路維持不變。
+未來接真實 WMS 時，外部 WMS／操作 API 取代這個 scheduler；其發布
+`ShipmentHandedOverIntegrationEvent` 之後的 Outbox、Kafka、Inventory 出庫完成及 Ordering fulfillment
+線路維持不變。
 
 ## 為何 allocation 暫時仍用 Signal
 
@@ -216,10 +224,10 @@ Ordering 的 `OrderStatus` 是業務真相；Workflow 只保存是否具備進�
 NOT_REQUESTED -> WAITING_FOR_COMMITMENT -> COMMITTED
 ```
 
-`BACKORDERED`、等待補貨的 StockMove 與相關時間仍由 Order／Stock domain model、read model 與
-integration event 呈現；它們不會改變跨服務協調路徑，因此不送進 Workflow。只有配貨真正完成時，
-adapter 才將帶完整 snapshot 的 committed fact 映射為 `allocationCommitted` Signal。Workflow
-因而不維護第二套 `PENDING／BACKORDERED／ALLOCATED` 訂單狀態機。
+等待補貨的 `AllocationDemand(PENDING)`、StockMove 與 queue position 仍由 Inventory domain model
+與 read model 呈現；它們不會改變跨服務協調路徑，因此不送進 Workflow，也不發布第二種
+backorder result event。只有配貨真正完成時，adapter 才將帶完整 snapshot 的 committed fact 映射為
+`allocationCommitted` Signal。Workflow 因而不維護第二套 `PENDING／ALLOCATED` 業務狀態機。
 
 目前沒有「配貨等待超過 N 小時就失敗或告警」的真實業務政策，所以 Workflow
 不設 allocation deadline，也不產生 `ALLOCATION_TIMED_OUT`。等待時間先透過 Query、
@@ -290,7 +298,7 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 - `CANCELLED／REJECTED` 等正常業務結果使用 typed result，不用例外控制流程。
 - Activity implementation 必須呼叫完整 transaction-boundary use case，不直接操作 repository。
 - `CreateShipment`、`CancelShipment`、`CancelOrder`、`CompleteOutboundMovements`、`RecordOrderFulfillment` 都必須可冪等。
-- `ShipmentHandedOverToCarrier` 是物理世界稍後發生的事實，保留 Signal。
+- `ShipmentHandedOverIntegrationEvent` 進入 Temporal 後轉成 `ShipmentHandedOverToCarrierSignal`；這是物理世界稍後發生的事實，因此保留 Signal。
 - `CancelShipment` Activity 同步回 `CANCELLED／REJECTED`；目前沒有後續 cancellation-resolution Signal。
 - `requestCancellation` 是 Temporal profile 唯一取消 command，使用 Update；`OrderCancelledIntegrationEvent` 不回送同一個 Workflow。
 - `requestCancellation` 以 Update validator 在寫入 History 前拒絕不屬於此 Order 的請求；已 handover 等業務結果仍由 handler 回傳明確 ACK。

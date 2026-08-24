@@ -18,7 +18,7 @@ flowchart TB
       IN_CONFIRMED["Picking／Move<br/><b>CONFIRMED</b><br/><i>Quant 尚未改變</i>"]
       IN_COMPLETE["<b>InboundReceiptCompleter</b><br/>建立 MoveLine<br/>完成 Move／Picking"]
       RECEIVE["<b>StockQuant.receive()</b><br/>onHand += quantity<br/>reserved 不變"]
-      AVAILABLE["StockAvailabilityIncreased<br/>Outbox event"]
+      AVAILABLE["StockAvailabilityIncreasedIntegrationEvent<br/>Outbox event"]
 
       RECEIPT_ENTRY --> RECEIPT_UC --> IN_REG --> IN_CONFIRMED --> IN_COMPLETE --> RECEIVE --> AVAILABLE
     end
@@ -32,7 +32,7 @@ flowchart TB
       ALLOCATOR["<b>PendingDemandAllocator</b><br/>FIFO selector + demand planner"]
       COMMITTER["<b>AllocationCommitter</b><br/>建立 MoveLine<br/>Move／Picking = ASSIGNED<br/>Demand = ALLOCATED"]
       RESERVE["<b>StockQuant.reserve()</b><br/>onHand 不變<br/>reserved += quantity<br/>available -= quantity"]
-      HANDOFF["AllocationCommittedForFulfillment<br/>immutable snapshot"]
+      HANDOFF["OrderAllocationCommittedIntegrationEvent<br/>immutable allocation snapshot"]
 
       ORDER_EVENT --> ALLOCATE_UC --> DEMAND_REG --> OUT_CONFIRMED --> ALLOCATOR --> COMMITTER --> RESERVE --> HANDOFF
     end
@@ -48,25 +48,25 @@ flowchart TB
       PICK["Confirm Pick"]
       PACK["Pack"]
       STAGE["Stage"]
-      HANDOVER["<b>HandOverShipmentUsecase</b><br/>ShipmentHandedOverToCarrier"]
+      HANDOVER["<b>HandOverShipmentUsecase</b><br/>Shipment = HANDED_OVER_TO_CARRIER"]
+      HANDOVER_EVENT["ShipmentHandedOverIntegrationEvent<br/>Outbox event"]
 
-      CREATE_SHIPMENT --> WAVE --> PICK --> PACK --> STAGE --> HANDOVER
+      CREATE_SHIPMENT --> WAVE --> PICK --> PACK --> STAGE --> HANDOVER --> HANDOVER_EVENT
     end
 
     HANDOFF --> CREATE_SHIPMENT
 
-    subgraph OUTBOUND_DONE["D｜正式出庫扣帳：Workflow 已預留，inventory implementation 尚缺"]
+    subgraph OUTBOUND_DONE["D｜正式出庫扣帳：Events 與 Temporal 共用同一個 use case"]
       direction LR
-      WORKFLOW["<b>OrderFulfillmentWorkflowImpl</b><br/>收到 carrier handover"]
-      ACTIVITY["InventoryActivities<br/><b>completeOutboundMovements()</b>"]
-      MISSING["<b>尚缺 production use case</b><br/>CompleteOutboundMovementsUsecase<br/>／OutboundIssueCompleter"]
+      DRIVER["Events：ShipmentHandoverEventConsumer<br/>Temporal：Workflow Signal → Inventory Activity"]
+      COMPLETE["<b>CompleteOutboundMovementsUsecase</b><br/>依 allocation／shipment／movement IDs 完成扣帳"]
       CONSUME["<b>StockQuant.consume()</b><br/>onHand -= quantity<br/>reserved -= quantity"]
-      OUT_DONE["Move／Picking = <b>DONE</b><br/>之後才完成 Order fulfillment"]
+      OUT_DONE["Move／Picking = <b>DONE</b><br/>OutboundMovementsCompletedIntegrationEvent"]
 
-      WORKFLOW --> ACTIVITY --> MISSING -. "待實作" .-> CONSUME --> OUT_DONE
+      DRIVER --> COMPLETE --> CONSUME --> OUT_DONE
     end
 
-    HANDOVER --> WORKFLOW
+    HANDOVER_EVENT --> DRIVER
 
     subgraph CANCELLATION["E｜交接前取消：取消 execution，必要時釋放 reservation"]
       direction LR
@@ -93,10 +93,9 @@ flowchart TB
     classDef cancel fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:1.5px;
 
     class PICKING,MOVE,LINE,QUANT model;
-    class RECEIPT_ENTRY,RECEIPT_UC,ALLOCATE_UC,WORKFLOW entry;
-    class IN_REG,IN_COMPLETE,DEMAND_REG,ALLOCATOR,COMMITTER,CREATE_SHIPMENT,WAVE,PICK,PACK,STAGE,HANDOVER,ACTIVITY component;
+    class RECEIPT_ENTRY,RECEIPT_UC,ALLOCATE_UC,DRIVER entry;
+    class IN_REG,IN_COMPLETE,DEMAND_REG,ALLOCATOR,COMMITTER,CREATE_SHIPMENT,WAVE,PICK,PACK,STAGE,HANDOVER,COMPLETE component;
     class IN_CONFIRMED,OUT_CONFIRMED,OUT_DONE state;
     class RECEIVE,RESERVE,CONSUME,RELEASE quant;
-    class ORDER_EVENT,AVAILABLE,HANDOFF event;
-    class MISSING missing;
+    class ORDER_EVENT,AVAILABLE,HANDOFF,HANDOVER_EVENT,OUT_DONE event;
     class CANCEL_FLOW,CANCELLER,CANCELLED cancel;

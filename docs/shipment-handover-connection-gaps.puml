@@ -1,5 +1,5 @@
 @startuml
-title Shipment handover：三個環境共用的 10 秒自動模擬流程（已實作）
+title Shipment handover：可設定延遲的自動模擬流程（已實作）
 
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
@@ -17,7 +17,7 @@ top to bottom direction
 
 package "inventory-context\n配貨階段" as Allocation #EAF4EA {
   rectangle "Allocation 已 committed\nStockQuant 仍是 reserved／held\n✅ 已存在" as AllocationCommitted #E2F0D9
-  rectangle "AllocationCommittedForFulfillment\n✅ 已存在" as AllocationEvent #E2F0D9
+  rectangle "OrderAllocationCommittedIntegrationEvent\n✅ 單一 canonical publication" as AllocationEvent #E2F0D9
 }
 
 package "wms-context\n倉內出庫階段" as Wms #FFF3CD {
@@ -27,13 +27,13 @@ package "wms-context\n倉內出庫階段" as Wms #FFF3CD {
 
   database "Shipment 持久化狀態\nstatus = CREATED\ncreatedAt = Inventory handoff time\n✅ 已存在" as ShipmentState #E2F0D9
   rectangle "SimulatedWarehouseOperationsScheduler\n✅ 現階段正式 driver\n定期查詢到期 Shipment" as SimulationScheduler #DCEEFF
-  rectangle "到期條件\nCREATED 且 createdAt <= now - 10s？" as Due #FFF2CC
+  rectangle "到期條件\nCREATED 且 createdAt <= now - processing delay？" as Due #FFF2CC
   rectangle "ProcessDueShipmentsUsecase\n✅ 找回到期 Shipment，隔離單筆失敗" as DueShipments #DCEEFF
   rectangle "SimulateWarehouseOperationsUsecase\n✅ 單一 transaction" as SimulationDriver #DCEEFF
   rectangle "Shipment domain actions\nassignToWave（synthetic waveId）\n→ releaseToWave（WarehouseWork／PickTasks）\n→ confirmPick → pack → stage → handOverToCarrier\n✅ 逐步遵守既有 invariant" as DomainActions #E2F0D9
   rectangle "Shipment = HANDED_OVER_TO_CARRIER" as Handover #E2F0D9
 
-  rectangle "WmsIntegrationEventPublisher\nTransactional Outbox\n✅ 已存在" as WmsPublisher #E2F0D9
+  rectangle "ShipmentHandedOverPublicationFactory\n→ IntegrationEventPublisher\n→ Transactional Outbox" as WmsPublisher #E2F0D9
 }
 
 queue "Kafka\nfulfillment-handoffs\n✅ 已存在" as Kafka #E2F0D9
@@ -47,7 +47,7 @@ package "handover 之後\nInventory 正式完成出庫" as Downstream #EAF4EA {
 
 rectangle "未來正式接 WMS 時\n外部 WMS／操作 API 取代模擬 scheduler\nPOST /shipments/{shipmentId}/handover\n本階段不需要實作" as FutureWms #F2F2F2
 
-rectangle "目前三個環境採相同行為\ndev／stage／prod：enabled=true\ndelay=10s、scan interval=1s" as Settings #DCEEFF
+rectangle "simulation.enabled 控制入口\nprocessing delay 可依環境設定\n預設 10s；scan interval 預設 1s" as Settings #DCEEFF
 
 AllocationCommitted -[#2E7D32]-> AllocationEvent
 AllocationEvent -[#2E7D32]-> EventCreateDriver : mode = events
@@ -66,8 +66,8 @@ DueShipments -[#1565C0,dashed]-> SimulationDriver : 每張 Shipment
 SimulationDriver -[#2E7D32]-> DomainActions
 DomainActions -[#2E7D32]-> Handover
 
-Handover -[#2E7D32]-> WmsPublisher : ShipmentHandedOverToCarrier
-WmsPublisher -[#2E7D32]-> Kafka : ShipmentHandedOver
+Handover -[#2E7D32]-> WmsPublisher : Shipment = HANDED_OVER_TO_CARRIER
+WmsPublisher -[#2E7D32]-> Kafka : ShipmentHandedOverIntegrationEvent
 Kafka -[#2E7D32]-> EventCompletion : mode = events
 Kafka -[#2E7D32]-> TemporalCompletion : mode = temporal
 EventCompletion -[#2E7D32]-> CompleteStock
@@ -82,7 +82,7 @@ note right of SimulationScheduler
 end note
 
 note right of Due
-  10 秒代表模擬 Wave／Pick／Pack／Stage 的時間。
+  processing delay 代表模擬 Wave／Pick／Pack／Stage 的時間。
   不使用 Thread.sleep()，也不占住 Kafka consumer
   或 Temporal Activity thread。等待期間若已取消，
   status 不再是 CREATED，因此不會執行 handover。
@@ -96,8 +96,8 @@ end note
 legend bottom
   |= 顏色／線條 |= 意義 |
   |<#E2F0D9> 綠色、綠色實線 | 現有程式與線路 |
-  |<#DCEEFF> 藍色、藍色虛線 | 三個環境共用、已實作的模擬 runtime 線路 |
-  |<#FFF2CC> 黃色 | 以資料庫時間判斷是否已等待 10 秒 |
+  |<#DCEEFF> 藍色、藍色虛線 | 已實作、可由 properties 控制的模擬 runtime 線路 |
+  |<#FFF2CC> 黃色 | 以資料庫時間判斷是否已超過 configured delay |
   |<#F2F2F2> 灰色、灰色點線 | 未來正式 WMS 替換方案，本次不做 |
 endlegend
 

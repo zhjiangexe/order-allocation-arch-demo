@@ -524,22 +524,24 @@
 <main>
   <header class="hero">
     <div class="hero-copy">
-      <div class="eyebrow">Current architecture · 2026-08-10</div>
+      <div class="eyebrow">Current architecture · 2026-08-24</div>
       <h1>Archone 全流程、Use Case 與開發狀態</h1>
       <p>
-        本頁依操作與事件發生順序，串起主檔查詢、入庫、接單、初次配置、缺貨重配、訂單投影、查詢與取消。
-        <code>order-promising</code> 中的 16 個 application use case 均以完整類名出現在流程與盤點表中；目前的 13 個 WMS use cases 另見
-        <a href="wms-module-architecture.html">WMS-only 模組架構</a>。跨應用技術已分成 <code>foundation</code>、<code>integration-contracts</code>、pure JDBC／Kafka messaging core、Spring adapters 與 Spring Boot auto-configuration／starters；系統時間與營運日曆則由 <code>bootstrap</code> 組裝。舊 JPA Inbox／Outbox facade 已移除，physical tables 仍維持 <code>event_inbox</code>／<code>event_outbox</code>。系統具備可運作的 order promising 與基礎 WMS domain contract，但還不是完整 WMS／3PL execution system。
+        本頁依實際 runtime 串起主檔查詢、接單、配貨、WMS Shipment、正式出庫、訂單完成與取消。
+        專案目前有 35 個 application use case：Logistics Data 4、Ordering 6、Inventory 9、WMS 16；
+        WMS 細節另見 <a href="wms-module-architecture.html">WMS-only 模組架構</a>。跨 context 只傳遞
+        <code>integration-contracts</code> 中的 canonical events；producer 不依 orchestration mode 分流，
+        <code>events</code> 與 <code>temporal</code> 只決定哪一組 consumer／Activity driver 擁有後續副作用。
       </p>
     </div>
     <aside class="snapshot" aria-label="目前開發快照">
       <dl>
-        <dt>Application use cases</dt><dd>16</dd>
-        <dt>Order Promising</dt><dd>16 / 16</dd>
-        <dt>WMS（另頁）</dt><dd>13 / 13</dd>
-        <dt>Messaging artifacts</dt><dd>21</dd>
-        <dt>已有入口可達</dt><dd>15 / 16</dd>
-        <dt>缺少入口</dt><dd>CancelOrder</dd>
+        <dt>Application use cases</dt><dd>35</dd>
+        <dt>Logistics / Ordering</dt><dd>4 / 6</dd>
+        <dt>Inventory / WMS</dt><dd>9 / 16</dd>
+        <dt>Orchestration modes</dt><dd>events / temporal</dd>
+        <dt>Cancellation API</dt><dd>已接通</dd>
+        <dt>E2E scenarios</dt><dd>17</dd>
         <dt>文件基準</dt><dd>目前 working tree</dd>
       </dl>
     </aside>
@@ -549,19 +551,19 @@
     <div aria-hidden="true">⚠</div>
     <div>
       <strong>閱讀方式：</strong>
-      本文件描述目前工作樹中的實作，不代表已部署版本。流程中的實線能力已有程式入口；標示「入口缺口」者雖已有 use case 與後續事件鏈，仍無 REST／UI／上游訊息可發動。
+      本文件描述目前工作樹中的實作，不代表已部署版本。實線能力已由 unit／integration 或 Karate E2E 保護；灰色能力表示尚未接入真實外部 WMS／設備，不代表 WMS domain 與 persistence 是測試替身。
     </div>
   </div>
 
   <section aria-labelledby="journey-title">
     <div class="section-head">
       <h2 id="journey-title">一、端到端流程總覽</h2>
-      <p>流程依「操作準備 → 收貨／接單 → 配置結果 → 缺貨重配 → 查詢 → 取消」閱讀；收貨與接單可各自獨立發生。</p>
+      <p>流程依「操作準備 → 接單與配貨 → WMS 執行 → 出庫與完成 → 取消」閱讀；每個跨 context checkpoint 都由已提交的 Integration Event 或 Temporal Activity 推進。</p>
     </div>
 
     <div class="coverage-strip">
-      <strong>16 / 16 use cases</strong>
-      <span>Catalog 5 個、Ordering 6 個、Stock 5 個。流程圖不再用「5 個 queries」或「RecordOrder…」縮寫，每一個 use case 都會具名出現。</span>
+      <strong>35 個 use cases · 3 個業務 contexts + 1 個主檔 context</strong>
+      <span>Logistics Data、Ordering、Inventory、WMS 各自擁有 model 與 transaction；Temporal runtime 是跨 context coordinator，不是新的資料 owner。</span>
     </div>
 
     <div class="journey">
@@ -586,30 +588,30 @@
       </article>
       <article class="journey-stage ordering">
         <h3>接單與初次配置</h3>
-        <p>訂單先落地為 PENDING，再由 Stock context 建立 outbound movement 並配置。</p>
+        <p>訂單先落地為 PENDING；Events consumer 或 Temporal Activity 其中一條路徑建立 immutable demand 並嘗試 ship-complete 配置。</p>
         <ul>
           <li><code>PlaceOrderUsecase</code></li>
           <li><code>AllocateOrderUsecase</code></li>
-          <li>整單 ALLOCATED 或 BACKORDERED</li>
+          <li>Demand 整單 ALLOCATED 或保持 PENDING</li>
         </ul>
       </article>
       <article class="journey-stage result">
-        <h3>回寫、重配與查詢</h3>
-        <p>Ordering 接收配置結果；缺貨單在庫存增加或排程掃描時重配，畫面再主動刷新。</p>
+        <h3>重配與履約</h3>
+        <p>缺貨 demand 由 availability event 低延遲喚醒，scheduler 公平補漏；成功後同一事件分別推進 Ordering projection 與選定的 fulfillment driver。</p>
         <ul>
           <li><code>RecordOrderAllocationUsecase</code></li>
-          <li><code>RecordOrderBackorderUsecase</code></li>
-          <li><code>AllocateWaitingDemandUsecase</code></li>
-          <li><code>ListRecentOrdersUsecase</code>／<code>GetOrderUsecase</code></li>
+          <li><code>PendingDemandAllocationUsecase</code></li>
+          <li><code>PendingDemandBacklogAllocationUsecase</code></li>
+          <li>Shipment → Handover → Outbound completion</li>
         </ul>
       </article>
       <article class="journey-stage cancel">
         <h3>取消與釋放</h3>
-        <p>取消訂單後發布事件，Stock context 取消搬運並歸還鎖定量。</p>
+        <p>共用 REST API 依 mode 選擇同步 coordinator 或 Workflow Update；Order 安全取消後再由事件清理 Inventory。</p>
         <ul>
-          <li><code>CancelOrderUsecase</code> 尚無入口</li>
+          <li><code>POST /orders/{id}/cancellation-requests</code></li>
+          <li>Events／Temporal 各有唯一 coordinator</li>
           <li><code>CancelMovementsUsecase</code> 已可消費事件</li>
-          <li>釋放後主動 wake 尚未實作</li>
         </ul>
       </article>
     </div>
@@ -617,8 +619,8 @@
 
   <section aria-labelledby="usecases-title">
     <div class="section-head">
-      <h2 id="usecases-title">二、Use Case 完整盤點</h2>
-      <p>以讀者會遇到的流程順序列出全部 16 個 class；「入口缺口」不代表 use case 未實作，而是目前無法由外部發動。</p>
+      <h2 id="usecases-title">二、非 WMS Use Case 盤點</h2>
+      <p>依流程列出 Logistics Data、Ordering 與 Inventory 的 19 個 use cases；WMS 的 16 個 use cases 由 WMS-only 架構頁承載。</p>
     </div>
 
     <div class="usecase-table-wrap">
@@ -639,19 +641,26 @@
           <tr><td>07</td><td><code>ConfirmStockReceiptUsecase</code></td><td><code>POST /stock-receipts</code></td><td>一個交易內完成 inbound picking、move、move line、StockQuant 增加與 availability event。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
 
           <tr class="phase-row"><td colspan="5">C｜接單、初次配置與結果投影</td></tr>
-          <tr><td>08</td><td><code>PlaceOrderUsecase</code></td><td><code>POST /orders</code></td><td>建立 order 與 lines，以系統接單時間排序並發布 <code>OrderPlaced</code>。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
-          <tr><td>09</td><td><code>AllocateOrderUsecase</code></td><td><code>OrderPlaced</code> Kafka</td><td>Programmatic subscriber 先在交易內完成 Inbox claim，再讀取 Demand、建立 outbound moves，以 FIFO／FEFO 整單配置。</td><td><span class="tag write">Command</span><span class="tag event">Consumer</span></td></tr>
-          <tr><td>10</td><td><code>RecordOrderAllocationUsecase</code></td><td><code>OrderAllocated</code> Kafka</td><td>將 Stock context 已完成的配置事實回寫為訂單 ALLOCATED。</td><td><span class="tag write">Projection</span></td></tr>
-          <tr><td>11</td><td><code>RecordOrderBackorderUsecase</code></td><td><code>BackorderCreated</code> Kafka</td><td>保留第一次缺貨時間，將尚未配置訂單回寫為 BACKORDERED。</td><td><span class="tag write">Projection</span></td></tr>
+          <tr><td>08</td><td><code>PlaceOrderUsecase</code></td><td><code>POST /orders</code></td><td>建立 Order 與 lines，以系統接單時間排序並直接發布 <code>OrderPlacedIntegrationEvent</code>。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
+          <tr><td>09</td><td><code>AllocateOrderUsecase</code></td><td>Events consumer／Temporal Activity</td><td>讀取 Order demand source、建立 outbound moves，以 FIFO／FEFO 與 ship-complete 規則嘗試整單配置。</td><td><span class="tag write">Command</span><span class="tag event">Mode-selected driver</span></td></tr>
+          <tr><td>10</td><td><code>RecordOrderAllocationUsecase</code></td><td><code>OrderAllocationCommittedIntegrationEvent</code> Kafka</td><td>將 Inventory 已提交的配置事實回寫為 Order ALLOCATED；此 projection 不受 orchestration mode 影響。</td><td><span class="tag write">Projection</span></td></tr>
+          <tr><td>11</td><td><code>PendingDemandAllocationUsecase</code></td><td>Availability Kafka／Backlog use case</td><td>以一個 queue key 嘗試當下 FIFO 隊首；每次最多 commit 一筆 demand。</td><td><span class="tag write">Command</span><span class="tag event">Dual trigger</span></td></tr>
 
           <tr class="phase-row"><td colspan="5">D｜庫存增加後重配與畫面查詢</td></tr>
-          <tr><td>12</td><td><code>AllocateWaitingDemandUsecase</code></td><td>Availability Kafka／Scheduler</td><td>按 owner、location、SKU 掃描有限批量的等待 moves，成功後再發布配置完成事實。</td><td><span class="tag write">Command</span><span class="tag event">Dual trigger</span></td></tr>
+          <tr><td>12</td><td><code>PendingDemandBacklogAllocationUsecase</code></td><td>Scheduler</td><td>在 attempt 與時間預算內以公平輪次推進多條 pending-demand queues；每個 attempt 使用獨立交易。</td><td><span class="tag write">Coordinator</span><span class="tag event">Scheduler</span></td></tr>
           <tr><td>13</td><td><code>ListRecentOrdersUsecase</code></td><td><code>GET /orders</code></td><td>列出最近訂單；前端主動刷新後看見非同步配置結果。</td><td><span class="tag">Query</span></td></tr>
           <tr><td>14</td><td><code>GetOrderUsecase</code></td><td><code>GET /orders/{orderId}</code></td><td>讀取單一訂單目前狀態、行明細與各階段時間。</td><td><span class="tag">Query</span></td></tr>
 
           <tr class="phase-row"><td colspan="5">E｜取消與庫存釋放</td></tr>
-          <tr><td>15</td><td><code>CancelOrderUsecase</code></td><td>尚無 REST／UI／Kafka 入口</td><td>取消訂單並發布 <code>OrderCancelled</code>；domain 與 transaction 已完成，但外部目前無法觸發。</td><td><span class="tag write">Command</span><span class="tag gap">入口缺口</span></td></tr>
-          <tr><td>16</td><td><code>CancelMovementsUsecase</code></td><td><code>OrderCancelled</code> Kafka</td><td>Programmatic subscriber 先完成 Inbox claim，再取消該訂單的 moves 並釋放已鎖定庫存。</td><td><span class="tag write">Compensation</span><span class="tag event">Consumer</span></td></tr>
+          <tr><td>15</td><td><code>CancelOrderUsecase</code></td><td><code>POST /orders/{id}/cancellation-requests</code> 的 mode-specific coordinator</td><td>在 WMS safe branch 成立後取消 Order，並直接發布 <code>OrderCancelledIntegrationEvent</code>。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
+          <tr><td>16</td><td><code>CancelMovementsUsecase</code></td><td><code>OrderCancelledIntegrationEvent</code> Kafka</td><td>Inbox transaction 內取消 demand、moves、picking 並釋放 reservation。</td><td><span class="tag write">Compensation</span><span class="tag event">Consumer</span></td></tr>
+
+          <tr class="phase-row"><td colspan="5">F｜完成出庫與訂單履約</td></tr>
+          <tr><td>17</td><td><code>CompleteOutboundMovementsUsecase</code></td><td>Events consumer／Temporal Activity</td><td>依 handover fact 扣除 StockQuant on-hand／reserved，完成 Move／Picking，發布 <code>OutboundMovementsCompletedIntegrationEvent</code>。</td><td><span class="tag write">Command</span><span class="tag event">Outbox</span></td></tr>
+          <tr><td>18</td><td><code>RecordOrderFulfillmentUsecase</code></td><td>Events completion consumer／Temporal Activity</td><td>以 shipmentId 與 handover time 將 Order 推進至 FULFILLED。</td><td><span class="tag write">Command</span></td></tr>
+
+          <tr class="phase-row"><td colspan="5">G｜通用 allocation cancellation API</td></tr>
+          <tr><td>19</td><td><code>CancelAllocationDemandUsecase</code></td><td>目前只有 application API／單元測試</td><td>source-agnostic、跨短交易的 cancellation saga；正式 Order 路徑目前使用 <code>CancelMovementsUsecase</code>。</td><td><span class="tag write">Saga API</span><span class="tag gap">尚無 production caller</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -671,7 +680,7 @@
       <span><i style="background: var(--rose-soft)"></i>入口缺口</span>
     </div>
 
-    <div class="flow-wrap" role="img" aria-label="全部 16 個 use case 依操作與事件順序編排的流程圖">
+    <div class="flow-wrap" role="img" aria-label="目前 Events 與 Temporal 共用的關鍵交易與事件流程圖">
       <div class="flow-title"><strong>流程</strong><strong>執行順序</strong></div>
 
       <div class="flow-lane">
@@ -692,7 +701,7 @@
         <div class="step state"><strong>register</strong><span>supplier → internal location</span></div>
         <div class="step state"><strong>InboundReceiptCompleter</strong><span>move line + DONE</span></div>
         <div class="step state"><strong>StockQuant.receive</strong><span>增加 on-hand</span><b class="checkpoint">COMMIT</b></div>
-        <div class="step event"><strong>StockAvailabilityIncreased</strong><span>Domain Event → Outbox</span></div>
+        <div class="step event"><strong>StockAvailabilityIncreasedIntegrationEvent</strong><span>IntegrationEventPublisher → Outbox</span></div>
         <div class="step end event"><strong>Kafka after commit</strong><span>快速喚醒等待需求</span></div>
       </div>
 
@@ -700,38 +709,49 @@
         <div class="lane-name"><strong>C1. 新訂單成功</strong><span>初次配置成功分支</span></div>
         <div class="step event"><strong>POST /orders</strong><span>多品項 basket</span></div>
         <div class="step sync"><strong>PlaceOrderUsecase</strong><span>Order + lines → PENDING</span></div>
-        <div class="step event"><strong>OrderPlaced</strong><span>Outbox → Kafka</span></div>
-        <div class="step event"><strong>Programmatic subscriber</strong><span>mapper → transaction + Inbox → typed dispatcher</span></div>
+        <div class="step event"><strong>OrderPlacedIntegrationEvent</strong><span>Outbox → Debezium → Kafka</span></div>
+        <div class="step event"><strong>Mode-selected driver</strong><span>Events consumer 或 Temporal Workflow Activity</span></div>
         <div class="step sync"><strong>AllocateOrderUsecase</strong><span>建 moves、整單配置</span></div>
-        <div class="step event"><strong>OrderAllocated</strong><span>Outbox → Kafka</span></div>
-        <div class="step event"><strong>Programmatic subscriber</strong><span>Ordering subscriber + Inbox</span></div>
+        <div class="step event"><strong>OrderAllocationCommittedIntegrationEvent</strong><span>單一 canonical Outbox event</span></div>
+        <div class="step event"><strong>兩個獨立訂閱目的</strong><span>Ordering projection + mode-selected fulfillment driver</span></div>
         <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>Ordering projection</span></div>
         <div class="step end outcome"><strong>ALLOCATED</strong><span>整張訂單已配置</span></div>
       </div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>C2. 新訂單缺貨</strong><span>初次配置失敗分支</span></div>
-        <div class="step event"><strong>OrderPlaced</strong><span>已由接單交易提交</span></div>
-        <div class="step event"><strong>Programmatic subscriber</strong><span>transaction + Inbox + typed dispatch</span></div>
-        <div class="step sync"><strong>AllocateOrderUsecase</strong><span>仍建立 waiting moves</span></div>
+        <div class="lane-name"><strong>C2. 新訂單缺貨</strong><span>等待但不發布假結果</span></div>
+        <div class="step event"><strong>OrderPlacedIntegrationEvent</strong><span>已由接單交易提交</span></div>
+        <div class="step event"><strong>Mode-selected driver</strong><span>呼叫同一個 AllocateOrderUsecase</span></div>
+        <div class="step sync"><strong>AllocateOrderUsecase</strong><span>建立 PENDING demand 與 CONFIRMED moves</span></div>
         <div class="step state"><strong>whole-order 判定</strong><span>任何一行不足即缺貨</span></div>
-        <div class="step event"><strong>BackorderCreated</strong><span>Outbox → Kafka</span></div>
-        <div class="step event"><strong>Programmatic subscriber</strong><span>Ordering subscriber + Inbox</span></div>
-        <div class="step sync"><strong>RecordOrderBackorderUsecase</strong><span>保存第一次缺貨時間</span></div>
-        <div class="step outcome"><strong>BACKORDERED</strong><span>等待可用庫存</span></div>
+        <div class="step state"><strong>不發布 allocation result</strong><span>沒有 BackorderCreated 第二種結果事件</span></div>
+        <div class="step outcome"><strong>Demand / Order = PENDING</strong><span>等待可用庫存</span></div>
         <div class="step end schedule"><strong>進入 D 流程</strong><span>事件喚醒或排程收斂</span></div>
       </div>
 
       <div class="flow-lane">
         <div class="lane-name"><strong>D. 缺貨重配</strong><span>低延遲 + 最終收斂</span></div>
         <div class="step event"><strong>Availability subscriber</strong><span>Kafka → transaction + Inbox → typed target</span></div>
-        <div class="step schedule"><strong>或 Scheduler</strong><span>掃描可配置 scope 補漏</span></div>
-        <div class="step sync"><strong>AllocateWaitingDemandUsecase</strong><span>一輪一交易、批次上限</span></div>
-        <div class="step sync"><strong>MovementAssigner</strong><span>FIFO + FEFO + whole-order</span></div>
-        <div class="step event"><strong>OrderAllocated</strong><span>每張成功單一個事實</span></div>
+        <div class="step schedule"><strong>PendingDemandBacklogAllocationScheduler</strong><span>掃描有庫存的 queue keys 補漏</span></div>
+        <div class="step sync"><strong>PendingDemandBacklogAllocationUsecase</strong><span>公平輪次 + attempt／時間預算</span></div>
+        <div class="step sync"><strong>PendingDemandAllocationUsecase</strong><span>每個 attempt 獨立交易、最多一筆 demand</span></div>
+        <div class="step sync"><strong>PendingDemandAllocator</strong><span>queue position + FIFO + FEFO + ship-complete</span></div>
+        <div class="step event"><strong>OrderAllocationCommittedIntegrationEvent</strong><span>每張成功單一個事實</span></div>
         <div class="step event"><strong>Ordering subscriber</strong><span>transaction + Inbox + typed target</span></div>
-        <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>BACKORDERED → ALLOCATED</span></div>
+        <div class="step sync"><strong>RecordOrderAllocationUsecase</strong><span>PENDING → ALLOCATED</span></div>
         <div class="step end schedule"><strong>仍有等待</strong><span>下次 Scheduler 再掃</span></div>
+      </div>
+
+      <div class="flow-lane">
+        <div class="lane-name"><strong>D2. Shipment 到履約完成</strong><span>兩種 mode 共用業務 use cases</span></div>
+        <div class="step event"><strong>OrderAllocationCommittedIntegrationEvent</strong><span>producer 不分 mode</span></div>
+        <div class="step sync"><strong>CreateShipmentUsecase</strong><span>Events consumer 或 Temporal Activity</span></div>
+        <div class="step schedule"><strong>SimulatedWarehouseOperationsScheduler</strong><span>依可設定 delay 掃描 CREATED Shipment</span></div>
+        <div class="step state"><strong>Wave → Pick → Pack → Stage → Handover</strong><span>正式 WMS domain／persistence</span></div>
+        <div class="step event"><strong>ShipmentHandedOverIntegrationEvent</strong><span>Outbox → Kafka</span></div>
+        <div class="step sync"><strong>CompleteOutboundMovementsUsecase</strong><span>扣 on-hand／reserved；Move／Picking = DONE</span></div>
+        <div class="step event"><strong>OutboundMovementsCompletedIntegrationEvent</strong><span>Events completion fact</span></div>
+        <div class="step end outcome"><strong>RecordOrderFulfillmentUsecase</strong><span>Order = FULFILLED</span></div>
       </div>
 
       <div class="flow-lane">
@@ -741,26 +761,27 @@
         <div class="step outcome"><strong>訂單列表</strong><span>顯示目前 projection 狀態</span></div>
         <div class="step event"><strong>GET /orders/{id}</strong><span>選擇單筆訂單</span></div>
         <div class="step sync"><strong>GetOrderUsecase</strong><span>載入 Order 與 lines</span></div>
-        <div class="step state"><strong>目前狀態</strong><span>PENDING／BACKORDERED／ALLOCATED／CANCELLED</span></div>
+        <div class="step state"><strong>目前狀態</strong><span>PENDING／ALLOCATED／FULFILLED／CANCELLED</span></div>
         <div class="step end schedule"><strong>主動刷新</strong><span>目前沒有 push UI</span></div>
       </div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>F. 取消訂單</strong><span>Ordering → Stock 補償</span></div>
-        <div class="step missing"><strong>REST／UI 入口</strong><span>目前尚未實作</span></div>
+        <div class="lane-name"><strong>F. 取消訂單</strong><span>共用 API → mode coordinator → Inventory 補償</span></div>
+        <div class="step event"><strong>POST /orders/{id}/cancellation-requests</strong><span>immutable request</span></div>
+        <div class="step sync"><strong>FulfillmentCancellationCoordinator</strong><span>Events 同步協調；Temporal Update 既有 Workflow</span></div>
+        <div class="step state"><strong>CancelShipmentUsecase</strong><span>有 Shipment 時先取得 WMS safe decision</span></div>
         <div class="step sync"><strong>CancelOrderUsecase</strong><span>Order → CANCELLED</span></div>
-        <div class="step event"><strong>OrderCancelled</strong><span>Outbox → Kafka</span></div>
+        <div class="step event"><strong>OrderCancelledIntegrationEvent</strong><span>Outbox → Kafka</span></div>
         <div class="step event"><strong>Programmatic subscriber</strong><span>transaction + Inbox + typed dispatch</span></div>
         <div class="step sync"><strong>CancelMovementsUsecase</strong><span>只處理 Stock business command</span></div>
         <div class="step state"><strong>AllocationReservationCanceller</strong><span>取消 moves、釋放鎖定量</span></div>
-        <div class="step missing"><strong>Availability event</strong><span>釋放後尚未主動發布</span></div>
         <div class="step end schedule"><strong>Scheduler 收斂</strong><span>舊 backorders 之後再掃</span></div>
       </div>
 
       <div class="flow-lane">
         <div class="lane-name"><strong>G. Subscriber 接線</strong><span>Application 顯式擁有</span></div>
         <div class="step state"><strong>EventContractConfiguration</strong><span>stable type／version allow-list</span></div>
-        <div class="step state"><strong>Context Configuration × 3</strong><span>Ordering 一組、Allocation 兩組</span></div>
+        <div class="step state"><strong>Bounded-context consumers</strong><span>Ordering、Allocation、WMS、completion 與 Temporal mode-specific groups</span></div>
         <div class="step sync"><strong>HandlersBuilder</strong><span>event → typed target method</span></div>
         <div class="step sync"><strong>Subscription identity</strong><span>subscriber／consumer group／unhandled policy</span></div>
         <div class="step sync"><strong>factory.make(...)</strong><span>每組唯一 dispatcher owner</span></div>
@@ -769,7 +790,7 @@
       </div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>H. Consumer runtime</strong><span>三個 subscriber 共用 mechanics</span></div>
+        <div class="lane-name"><strong>H. Consumer runtime</strong><span>所有 subscriber 共用 mechanics</span></div>
         <div class="step event"><strong>Spring Kafka container</strong><span><code>MessageConsumer.subscribe(...)</code> 程式化建立</span></div>
         <div class="step sync"><strong>KafkaMessageMapper</strong><span>physical record → generic Message</span></div>
         <div class="step sync"><strong>Decorator chain</strong><span>observation → transaction → Inbox idempotency</span></div>
@@ -800,19 +821,19 @@
         <div class="layer-label"><strong>Entrypoint</strong><small>誰發動流程</small></div>
         <div class="layer-items">
           <div class="node adapter"><strong>Catalog / Facility Controllers</strong><span>貨主、商品、SKU、Facility、庫位查詢</span></div>
-          <div class="node adapter"><strong>Order Controller</strong><span>下單、列表、單筆查詢；尚無取消</span></div>
+          <div class="node adapter"><strong>Order + Cancellation Controllers</strong><span>下單、列表、單筆查詢與 cancellation request</span></div>
           <div class="node adapter"><strong>Stock Controllers</strong><span>庫存查詢與同步收貨</span></div>
-          <div class="node adapter"><strong>Bounded-context Subscriber Configurations + Scheduler</strong><span>三份 handlers + <code>factory.make(...)</code> 顯式接線，typed targets 發動配置、投影、取消補償與 reconciliation</span></div>
+          <div class="node adapter"><strong>Consumers / Temporal Activities / Schedulers</strong><span>依 mode 啟用唯一 command driver；availability 與 backlog scheduler 共用 allocation transaction operation</span></div>
         </div>
       </div>
 
       <div class="layer">
-        <div class="layer-label"><strong>Application</strong><small>16 個 use cases</small></div>
+        <div class="layer-label"><strong>Application</strong><small>35 個 use cases</small></div>
         <div class="layer-items">
-          <div class="node usecase"><strong>Catalog queries × 5</strong><span>Owner、Product、SKU、Facility、Location</span></div>
-          <div class="node usecase"><strong>Ordering × 6</strong><span>Place、Cancel、Get、List、Record Allocation／Backorder</span></div>
-          <div class="node usecase"><strong>Stock commands × 4</strong><span>Receipt、Initial Allocation、Waiting Allocation、Cancel Movements</span></div>
-          <div class="node usecase"><strong>Stock query × 1</strong><span>依 owner／location 讀取批次庫存</span></div>
+          <div class="node usecase"><strong>Logistics Data × 4</strong><span>Owner、Product、SKU、Facility 查詢</span></div>
+          <div class="node usecase"><strong>Ordering × 6</strong><span>Place、Cancel、Get、List、Record Allocation／Fulfillment</span></div>
+          <div class="node usecase"><strong>Inventory × 9</strong><span>Receipt、Allocation、Backlog、Cancellation、Outbound completion 與 queries</span></div>
+          <div class="node usecase"><strong>WMS × 16</strong><span>Inbound、Shipment、Wave、Cancellation、Query 與 simulation driver</span></div>
         </div>
       </div>
 
@@ -821,7 +842,7 @@
         <div class="layer-items">
           <div class="node component"><strong>InboundReceiptRegistrar</strong><span>建立 picking 與 moves</span></div>
           <div class="node component"><strong>InboundReceiptCompleter</strong><span>完成 inbound 與 move lines</span></div>
-          <div class="node component"><strong>MovementAssigner</strong><span>FIFO／FEFO／whole-order 配置</span></div>
+          <div class="node component"><strong>PendingDemandSelection + Planner</strong><span>queue position、FIFO、FEFO、ship-complete 配置</span></div>
           <div class="node component"><strong>AllocationReservationCanceller</strong><span>取消搬運並釋放鎖定量</span></div>
         </div>
       </div>
@@ -832,7 +853,8 @@
           <div class="node domain"><strong>Order + OrderLine</strong><span>需求生命週期與 projection</span></div>
           <div class="node domain"><strong>StockPicking + StockMove</strong><span>作業分組與實際搬運</span></div>
           <div class="node domain"><strong>StockQuant + MoveLine</strong><span>批次實體庫存 source of truth</span></div>
-          <div class="node domain"><strong>Demand + AllocationService</strong><span>待配需求與配置決策</span></div>
+          <div class="node domain"><strong>AllocationDemand + QueuePosition</strong><span>待配需求、共享 SKU FIFO 與配置決策</span></div>
+          <div class="node domain"><strong>Shipment + Wave</strong><span>倉內執行、handover 與取消不變式</span></div>
         </div>
       </div>
 
@@ -841,7 +863,7 @@
         <div class="layer-items">
           <div class="node infra"><strong>Business repositories / JPA</strong><span>bounded-context PostgreSQL persistence</span></div>
           <div class="node infra"><strong>JDBC Inbox decorator</strong><span>subscriber-scoped idempotency，與 handler 同交易</span></div>
-          <div class="node infra"><strong>Domain publisher → IntegrationEventPublisher → MessageProducer → Outbox</strong><span>直接同步寫入 caller transaction，不經 ApplicationEventPublisher</span></div>
+          <div class="node infra"><strong>IntegrationEventPublisher → MessageProducer → Outbox</strong><span>Use case 或 publication factory 直接建立 canonical event；不經 Domain Event translator</span></div>
           <div class="node infra"><strong>Debezium / programmatic Kafka / Retry / DLT</strong><span>提交後 relay；runtime 依實際 subscriber 組裝 container、DLT headers 與 Micrometer failure observer</span></div>
         </div>
       </div>
@@ -858,7 +880,7 @@
   <section aria-labelledby="status-title">
     <div class="section-head">
       <h2 id="status-title">五、開發成熟度與缺口</h2>
-      <p>「16 個 use case 都有列到」不等於「所有倉儲能力都已完成」；目前最成熟的是接單、promising 與庫存交易邊界。</p>
+      <p>Order fulfillment 主線已可在 Events／Temporal 兩種模式完成；尚未完成的是外部 WMS 現場入口與部分進階倉儲能力。</p>
     </div>
 
     <div class="status-grid">
@@ -868,18 +890,20 @@
           <li>Catalog 查詢鏈可提供貨主、商品、SKU、Facility 與 internal location。</li>
           <li>前端可查位置批次庫存、建立多品項訂單並同步確認收貨。</li>
           <li>收貨建立 inbound picking、move、move line，再增加 StockQuant。</li>
-          <li>初次配置與 backorder wake 共用 FIFO／FEFO／whole-order 語意。</li>
-          <li>配置／缺貨結果由各自的 projection use case 回寫 Ordering。</li>
-          <li>Pure JDBC Inbox／Outbox、programmatic Kafka subscribers、retry、DLT、observability、reconciliation scheduler 與相關測試已存在。</li>
+          <li>初次配置與 pending-demand wake 共用 FIFO／FEFO／ship-complete 語意。</li>
+          <li>單一 allocation event 同時供 Ordering projection 與 mode-selected fulfillment driver 使用。</li>
+          <li>Shipment、Wave、Pick、Pack、Stage、Handover、正式出庫扣帳與 Order FULFILLED 已接通。</li>
+          <li>Pure JDBC Inbox／Outbox、Debezium、Kafka、Temporal、retry、DLT、observability 與 reconciliation scheduler 已存在。</li>
+          <li>17 條 Karate E2E 會實際啟動 Spring Boot、PostgreSQL、Kafka、Connect 與 Temporal Server。</li>
         </ul>
       </article>
 
       <article class="status-column partial">
         <h3>已有骨架，但仍是簡化版</h3>
         <ul>
-          <li><code>CancelOrderUsecase</code> 與取消事件鏈已實作，但沒有 REST／UI／上游訊息入口。</li>
-          <li>Inbound 是直接確認完成的一段式流程，尚無 ASN、卸貨、驗收、上架 checkpoint。</li>
-          <li>Outbound 目前做到 demand、picking／moves 與配置，尚未形成完整揀貨執行鏈。</li>
+          <li>取消 REST 與兩種 coordinator 已實作；已開工 Shipment 的 putback recovery completion 尚未實作。</li>
+          <li>WMS Inbound 有 register、arrival、inspection、putaway checkpoints，但尚未接入正式外部 entrypoint。</li>
+          <li>Outbound 倉內步驟目前由 simulation scheduler 自動完成，不是人員、設備或外部 WMS 分段命令。</li>
           <li>Scheduler 可收斂等待佇列，但缺少等待年齡、失敗率、每輪量等營運觀測。</li>
           <li>庫存批以入庫日與效期識別，尚未擴充 lot／serial／container。</li>
         </ul>
@@ -888,9 +912,9 @@
       <article class="status-column todo">
         <h3>尚未形成 use case 的主要能力</h3>
         <ul>
-          <li>Outbound execution：pick、pack、stage、ship 與操作人員工作佇列。</li>
-          <li>出庫完成後正式扣減 on-hand 的 shipment posting use case。</li>
-          <li>取消釋放庫存後主動喚醒舊 backorders。</li>
+          <li>真實 WMS／scanner／設備入口與操作人員工作佇列。</li>
+          <li>Putback recovery、short-pick resolution 與人工介入流程。</li>
+          <li><code>CancelAllocationDemandUsecase</code> 的正式 source-agnostic caller。</li>
           <li>盤點、庫存調整、報廢、移庫與對帳。</li>
           <li>多段 inbound route／putaway policy 與中繼責任位置。</li>
           <li>完整授權、主檔維護、營運監控與 migration／rollback 策略。</li>
@@ -911,12 +935,13 @@
       </thead>
       <tbody>
         <tr><td>Receipt → StockQuant</td><td><code>ConfirmStockReceiptUsecase</code> 同交易 invoke recorder 與 completer。</td><td>picking、move line 與實體庫存必須一起成功或一起 rollback。</td></tr>
-        <tr><td>Receipt → Backorder</td><td>提交 <code>StockAvailabilityIncreased</code>，由 Kafka 另開交易。</td><td>收貨成立後不應因 outbound queue 失敗而撤銷。</td></tr>
-        <tr><td>Ordering → Stock</td><td><code>OrderPlaced</code> 啟動 <code>AllocateOrderUsecase</code>。</td><td>Ordering 只擁有需求；Stock 擁有配置與搬運事實。</td></tr>
-        <tr><td>Stock → Ordering</td><td>兩個 record use cases 各自消費 allocated／backordered facts。</td><td>訂單狀態是落後投影，不拿來當 Stock 的配置閘門。</td></tr>
-        <tr><td>Kafka → Scheduler</td><td>兩個 adapter 共用 <code>AllocateWaitingDemandUsecase</code>。</td><td>Kafka 提供速度，Scheduler 提供最終收斂；政策只有一份。</td></tr>
-        <tr><td>Cancel compensation</td><td>Ordering 先取消並提交事件，Stock 再取消 movements。</td><td>兩個 context 各自提交，重送由 Inbox 與 domain idempotency 吸收。</td></tr>
-        <tr><td>Use case → Components</td><td>Recorder、Assigner、Completer、Canceller 不獨立開交易。</td><td>它們是可重用 application policy，不是獨立流程 checkpoint。</td></tr>
+        <tr><td>Receipt → Pending demand</td><td>提交 <code>StockAvailabilityIncreasedIntegrationEvent</code>，由 Kafka 另開 attempt transaction。</td><td>收貨成立後不應因 outbound queue 失敗而撤銷。</td></tr>
+        <tr><td>Ordering → Inventory</td><td><code>OrderPlacedIntegrationEvent</code> 由 Events consumer 或 Temporal Activity 其中一條路徑呼叫 <code>AllocateOrderUsecase</code>。</td><td>Producer 不知道 orchestration mode；Ordering 只擁有訂單需求。</td></tr>
+        <tr><td>Inventory → Ordering / WMS</td><td>單一 <code>OrderAllocationCommittedIntegrationEvent</code> 分別供 Ordering projection 與 fulfillment driver 消費。</td><td>一個已提交事實可以有多個讀者，不為 driver 複製 producer event。</td></tr>
+        <tr><td>Kafka → Scheduler</td><td>Availability consumer 與 backlog scheduler 都呼叫 <code>PendingDemandAllocationUsecase</code>；scheduler 外層另由 <code>PendingDemandBacklogAllocationUsecase</code> 管公平輪次。</td><td>Kafka 提供速度，Scheduler 提供最終收斂；單筆 attempt 政策只有一份。</td></tr>
+        <tr><td>WMS → Inventory → Ordering</td><td>Handover event 推進 <code>CompleteOutboundMovementsUsecase</code>，再由 event consumer 或 Temporal Activity 完成 Order。</td><td>庫存只在 custody handover 後正式扣帳；兩種 mode 共用 use case。</td></tr>
+        <tr><td>Cancel compensation</td><td>REST coordinator 先取得 WMS safe decision，再取消 Order；<code>OrderCancelledIntegrationEvent</code> 非同步清理 Inventory。</td><td>不在實體作業不可逆後假裝 rollback，重送由 request identity、Inbox 與 domain idempotency 吸收。</td></tr>
+        <tr><td>Use case → Components</td><td>Registrar、Selection、Planner、Committer、Completer、Canceller 不自行成為跨 context driver。</td><td>它們是 transaction 內 application／domain policy，不是獨立 orchestration checkpoint。</td></tr>
       </tbody>
     </table>
   </section>
@@ -924,20 +949,20 @@
   <section aria-labelledby="next-title">
     <div class="section-head">
       <h2 id="next-title">七、建議後續實作順序</h2>
-      <p>先補目前流程真正中斷的位置，再延伸至完整倉儲 execution。</p>
+      <p>主線已接通；後續優先替換模擬入口並補真正尚缺的異常處理。</p>
     </div>
 
     <div class="next-steps">
-      <article class="next-step"><h3>接通取消入口</h3><p>替 <code>CancelOrderUsecase</code> 增加 REST／UI 或明確上游訊息入口，補上 16 個 use case 中唯一不可達的一個。</p></article>
-      <article class="next-step"><h3>補釋放後 wake</h3><p>取消 movements 歸還可用量後發布 availability fact，讓較舊 backorders 不必只等排程。</p></article>
-      <article class="next-step"><h3>完成 outbound execution</h3><p>從 ASSIGNED move 往下建立 pick／pack／stage／ship checkpoint，並定義正式扣減 on-hand 的 use case。</p></article>
-      <article class="next-step"><h3>穩定 WMS 業務邊界</h3><p>先定義 picking、packing、dispatch preparation 與 recovery 的 identity、commands、events 與 terminal outcomes，再判斷是否真的需要跨系統 orchestration。</p></article>
+      <article class="next-step"><h3>替換 WMS simulation</h3><p>以操作 API、scanner、設備或外部 WMS adapter 分段呼叫既有 Wave／Pick／Pack／Stage／Handover use cases。</p></article>
+      <article class="next-step"><h3>完成 recovery</h3><p>替 <code>PUTBACK_REQUIRED</code> 建立可持續、可觀測的實體回架與 cancellation completion。</p></article>
+      <article class="next-step"><h3>建立 fulfillment projection</h3><p>將 Demo query 的跨 context 即時組裝改成事件驅動 read model，降低查詢時耦合。</p></article>
+      <article class="next-step"><h3>補 production operations</h3><p>建立等待年齡、scheduler run、Temporal execution、Inbox／Outbox lag、DLT 與 connector health 的營運視圖。</p></article>
     </div>
   </section>
 
   <footer>
-    <span>依據：目前 workspace 的 16 個 <code>*Usecase.java</code>、REST／Kafka／Scheduler entrypoints 與 OpenSpec。</span>
-    <span>狀態日期：2026-08-07（Asia/Taipei）</span>
+    <span>依據：目前 workspace 的 35 個 <code>*Usecase.java</code>、REST／Kafka／Temporal／Scheduler entrypoints 與 17 條 Karate E2E。</span>
+    <span>狀態日期：2026-08-24（Asia/Taipei）</span>
   </footer>
 </main>
 </body>

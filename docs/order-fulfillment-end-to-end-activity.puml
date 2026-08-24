@@ -20,13 +20,17 @@ start
 partition "Ordering：收單" {
   :PlaceOrderUsecase 接受訂單; <<#E2F0D9>>
   :同一 transaction 寫入
-  Order(PENDING) + OrderPlaced Outbox; <<#E2F0D9>>
+  Order(PENDING) + OrderPlacedIntegrationEvent Outbox; <<#E2F0D9>>
 }
 
 partition "可靠訊息與 orchestration driver" {
   :Debezium -> Kafka
   OrderPlacedIntegrationEvent; <<#EDE9FE>>
-  if (orchestration mode？) then (Temporal)
+  note right
+    Producer 永遠只發布一份 canonical event；
+    mode 只決定哪一組 consumer 擁有副作用。
+  end note
+  if (orchestration mode？) then (temporal)
     :以 order-fulfillment/{orderId}
     啟動唯一 Workflow; <<#E8F1FF>>
     :RequestOrderAllocation Activity; <<#E8F1FF>>
@@ -41,7 +45,7 @@ partition "Inventory：Demand / Reservation" {
   immutable AllocationDemand; <<#E2F0D9>>
 
   while (整張 demand 的所有 SKU\n都有足夠 supply？) is (否)
-    :Demand 保持 WAITING
+    :Demand 保持 PENDING
     不建立部分 reservation; <<#FFF7D6>>
     :入庫／可用量增加
     喚醒 PendingDemandBacklogAllocationUsecase; <<#E8F1FF>>
@@ -54,12 +58,12 @@ partition "Inventory：Demand / Reservation" {
   :Committer 以 optimistic lock 驗證並提交
   StockQuant reservation + Move + Picking; <<#E2F0D9>>
   :Demand = ALLOCATED；
-  AllocationCommitted Outbox; <<#E2F0D9>>
+  OrderAllocationCommittedIntegrationEvent Outbox; <<#E2F0D9>>
 }
 
 partition "可靠訊息與 WMS handoff" {
-  :Kafka AllocationCommitted; <<#EDE9FE>>
-  if (orchestration mode？) then (Temporal)
+  :Kafka OrderAllocationCommittedIntegrationEvent; <<#EDE9FE>>
+  if (orchestration mode？) then (temporal)
     :allocationCommitted Signal
     喚醒既有 Workflow; <<#E8F1FF>>
 
@@ -105,18 +109,23 @@ partition "WMS：Shipment 與倉內作業" {
     endif
   endif
 
-  :DB 時間到期（createdAt + 10 秒）; <<#FFF7D6>>
+  :DB 時間到期（createdAt + configured delay）; <<#FFF7D6>>
   :SimulatedWarehouseOperationsUsecase
   Wave -> Release -> Pick -> Pack -> Stage; <<#DCEEFF>>
   :handOverToCarrier
   Shipment = HANDED_OVER_TO_CARRIER; <<#E2F0D9>>
-  :ShipmentHandedOver Outbox; <<#E2F0D9>>
+  :ShipmentHandedOverIntegrationEvent Outbox; <<#E2F0D9>>
 }
 
 note right
   目前沒有串真實 WMS／設備入口。
-  10 秒 scheduler 是 dev、stage、prod 共用的暫行 actor；
+  processing delay 可依環境設定；預設為 10 秒，
+  E2E 會用 0 秒或 30 秒建立不同 checkpoint；
   未來只替換這一段，handover 後的線路不變。
+
+  Events mode 的取消由 REST controller 呼叫
+  EventDrivenFulfillmentCancellationCoordinator；
+  Temporal mode 則把同一請求送進既有 Workflow Update。
 
   PUTBACK_REQUIRED 尚無 recovery completion，
   所以目前映射為 REJECTED 並繼續履約。
@@ -124,8 +133,8 @@ end note
 
 partition "可靠訊息與 completion driver" {
   :Debezium -> Kafka
-  ShipmentHandedOver; <<#EDE9FE>>
-  if (orchestration mode？) then (Temporal)
+  ShipmentHandedOverIntegrationEvent; <<#EDE9FE>>
+  if (orchestration mode？) then (temporal)
     :shipmentHandedOverToCarrier Signal; <<#E8F1FF>>
     :CompleteOutboundMovements Activity; <<#E8F1FF>>
   else (events)
@@ -137,11 +146,11 @@ partition "Inventory：正式出庫扣帳" {
   :CompleteOutboundMovementsUsecase; <<#E2F0D9>>
   :依既有 MoveLine 扣 reserved + on-hand；
   Move／Picking = DONE; <<#E2F0D9>>
-  :OutboundMovementsCompleted Outbox; <<#E2F0D9>>
+  :OutboundMovementsCompletedIntegrationEvent Outbox; <<#E2F0D9>>
 }
 
 partition "Ordering：履約終態" {
-  if (orchestration mode？) then (Temporal)
+  if (orchestration mode？) then (temporal)
     :RecordOrderFulfillment Activity; <<#E8F1FF>>
   else (events)
     :Kafka completion event
@@ -160,9 +169,9 @@ legend bottom
   |<#E2F0D9>| Usecase／Domain／DB 已實作 |
   |<#E8F1FF>| Entry point／Temporal Activity／Signal |
   |<#EDE9FE>| Outbox／Debezium／Kafka |
-  |<#DCEEFF>| 暫行 WMS 10 秒模擬 runtime |
+  |<#DCEEFF>| 暫行 WMS 可設定延遲的模擬 runtime |
   |<#FFF7D6>| Durable wait／供需或決策 checkpoint |
-  |<#FDECEC>| Temporal cancellation 安全分支 |
+  |<#FDECEC>| Cancellation 安全分支 |
 endlegend
 
 @enduml

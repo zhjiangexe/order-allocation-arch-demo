@@ -45,7 +45,7 @@ partition "3. Shipment 已建立：等待 handover，可被取消中斷" {
   :enterPhase(SHIPMENT_HANDOVER);
   :Workflow.await(hasCorrelatedCarrierHandover()\n或 cancellationRequested()); <<#FFF7D6>>
   note right
-    等待期間由 WMS 10 秒模擬 runtime 獨立執行：
+    等待期間由 WMS 可設定延遲的模擬 runtime 獨立執行：
     Wave -> Release -> Pick -> Pack -> Stage -> Handover
   end note
 
@@ -90,7 +90,7 @@ stop
 legend bottom
   |<#E8F1FF>| Activity 呼叫 |
   |<#E2F0D9>| Usecase／Domain 狀態變更 |
-  |<#DCEEFF>| 現階段 WMS 模擬 runtime |
+  |<#DCEEFF>| 現階段 WMS 可設定延遲的模擬 runtime |
   |<#FFF7D6>| Durable wait／判斷 |
   |<#FDECEC>| 取消分支 |
 endlegend

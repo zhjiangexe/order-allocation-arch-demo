@@ -1,64 +1,69 @@
-%% 缺貨訂單由 StockMove 等待，補貨後重新配貨並進入 WMS Shipment
+%% 從接單、配貨、WMS handover 到完成出庫；producer 不因 orchestration mode 分叉。
 flowchart TB
-  subgraph O[Ordering 訂單上下文]
-    OP[OrderPlaced]
-    P[Order = PENDING]
-    A[Order = ALLOCATED]
+  subgraph O[Ordering context]
+    PLACE[PlaceOrderUsecase]
+    OP[OrderPlacedIntegrationEvent]
+    PROJECT[RecordOrderAllocationUsecase]
+    FINISH[RecordOrderFulfillmentUsecase<br/>Order = FULFILLED]
   end
 
-  subgraph S[Stock / Allocation 庫存與配貨上下文]
-    D[建立 outbound StockMove]
-    IA[AllocateOrderUsecase]
-    DEC{全部配足？}
-    C[StockMove = CONFIRMED\n等待供應]
-    R[實際入庫\nConfirmStockReceipt]
-    AV[StockAvailabilityIncreased]
-    AVT[Availability event consumer]
-    SCH[Reconciliation scheduler\n定期掃描]
-    RETRY[AllocateWaitingDemandUsecase\nFIFO + ship-complete]
-    AS[StockMove = ASSIGNED\n全部需求配足]
-    DONE[OrderAllocationCompleted]
+  subgraph DRIVER[由設定選擇唯一 orchestration driver]
+    MODE{archone.fulfillment.orchestration-mode}
+    EVENTS[Events consumers]
+    TEMPORAL[OrderFulfillmentWorkflow<br/>Temporal Activities / Signals]
   end
 
-  subgraph W[WMS 倉內作業上下文]
-    H[AllocationCommittedForFulfillment]
-    SH[建立 Shipment = CREATED]
-    WP[Wave planning / release]
-    PICK[PICKING → PICKED]
-    PACK[PACKED → READY_FOR_DISPATCH]
-    HAND[HANDED_OVER_TO_CARRIER]
+  subgraph I[Inventory / Allocation context]
+    ALLOCATE[AllocateOrderUsecase<br/>登記 immutable demand]
+    DEC{FIFO 隊首且<br/>所有 SKU 足夠？}
+    PENDING[Demand = PENDING<br/>不建立部分 reservation]
+    WAKE[StockAvailabilityIncreasedIntegrationEvent<br/>或 backlog scheduler]
+    RETRY[PendingDemandAllocationUsecase<br/>每次最多 commit 一筆 demand]
+    COMMIT[PendingDemandAllocator + AllocationCommitter<br/>Demand = ALLOCATED]
+    AC[OrderAllocationCommittedIntegrationEvent<br/>單一 canonical publication]
+    OUTBOUND[CompleteOutboundMovementsUsecase<br/>Move / Picking = DONE]
+    OC[OutboundMovementsCompletedIntegrationEvent]
   end
 
-  OP --> D
-  D --> P
-  D --> IA
-  IA --> DEC
-  DEC -->|是：初次配貨成功| AS
-  DEC -->|否：庫存不足或 FIFO 被擋住| C
+  subgraph W[WMS context]
+    CREATE[CreateShipmentUsecase<br/>Shipment = CREATED]
+    SIM[SimulatedWarehouseOperationsScheduler<br/>可設定 processing delay]
+    OPS[Plan / Release Wave → Pick → Pack → Stage]
+    HAND[HandOverShipmentUsecase<br/>HANDED_OVER_TO_CARRIER]
+    SH[ShipmentHandedOverIntegrationEvent]
+  end
 
-  C -. 等待實際補貨 .-> R
-  R --> AV
-  AV --> AVT
-  AVT --> RETRY
-  C -. 找出可重試 queue key .-> SCH
-  SCH --> RETRY
-  RETRY -->|仍不足| C
-  RETRY -->|全部配足| AS
-  AS --> DONE
+  PLACE --> OP --> MODE
+  MODE -->|events| EVENTS
+  MODE -->|temporal| TEMPORAL
+  EVENTS -->|AllocationOrderPlacedEventConsumer| ALLOCATE
+  TEMPORAL -->|RequestAllocation Activity| ALLOCATE
+  ALLOCATE --> DEC
+  DEC -->|否| PENDING
+  PENDING -. 下一次可用量或補漏 .-> WAKE --> RETRY --> DEC
+  DEC -->|是| COMMIT --> AC
 
-  DONE --> A
-  DONE --> H
-  H --> SH
-  SH --> WP --> PICK --> PACK --> HAND
+  AC --> PROJECT
+  AC -->|events: WmsFulfillmentHandoffEventConsumer| CREATE
+  AC -->|temporal: Signal → CreateShipment Activity| TEMPORAL
+  TEMPORAL --> CREATE
+
+  CREATE --> SIM --> OPS --> HAND --> SH
+  SH -->|events: ShipmentHandoverEventConsumer| OUTBOUND
+  SH -->|temporal: Signal → CompleteOutboundMovements Activity| TEMPORAL
+  TEMPORAL --> OUTBOUND
+  OUTBOUND --> OC
+  OC -->|events: completion consumer| FINISH
+  OUTBOUND -->|temporal: RecordOrderFulfillment Activity| TEMPORAL
+  TEMPORAL --> FINISH
 
   classDef order fill:#E8F0FE,stroke:#356AE6,color:#17336B;
-  classDef stock fill:#E8F7EE,stroke:#2E8B57,color:#174D2E;
+  classDef inventory fill:#E8F7EE,stroke:#2E8B57,color:#174D2E;
   classDef wms fill:#FFF3D6,stroke:#C77D00,color:#694200;
+  classDef driver fill:#F0E8FF,stroke:#7B4BB7,color:#42245F;
   classDef wait fill:#FDE8E8,stroke:#C0392B,color:#6B1D1D;
-  class OP,P,A order;
-  class D,R,AV,AVT,SCH,AS,DONE stock;
-  class IA,RETRY usecase;
-  class C wait;
-  class H,SH,WP,PICK,PACK,HAND wms;
-
-  classDef usecase fill:#F0E8FF,stroke:#7B4BB7,color:#42245F;
+  class PLACE,OP,PROJECT,FINISH order;
+  class ALLOCATE,DEC,WAKE,RETRY,COMMIT,AC,OUTBOUND,OC inventory;
+  class CREATE,SIM,OPS,HAND,SH wms;
+  class MODE,EVENTS,TEMPORAL driver;
+  class PENDING wait;

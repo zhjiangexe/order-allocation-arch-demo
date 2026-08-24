@@ -21,7 +21,7 @@ participant "OrderFulfillment\nWorkflow" as WF
 participant "Inventory\nActivities" as INV
 participant "Ordering\nActivities" as ORD
 participant "WMS\nActivities" as WMS
-participant "10 秒模擬 WMS\nScheduler" as SimWms
+participant "可設定延遲的模擬 WMS\nScheduler" as SimWms
 participant "Integration Event\nAdapter" as EventAdapter
 
 Starter -> WF: start execute(OrderFulfillmentWorkflowInput)
@@ -55,7 +55,7 @@ group 建立 WMS Shipment
 end
 
 group Shipment 已建立：等待 handover，可被取消中斷
-  note over WF: await ShipmentHandedOverToCarrier\n或 CancellationRequest
+  note over WF: await ShipmentHandedOverToCarrierSignal\n或 CancellationRequest
 
   alt WMS 正常完成倉內作業
     SimWms -> SimWms: Wave -> Release -> Pick -> Pack -> Stage
