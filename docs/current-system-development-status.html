@@ -768,9 +768,10 @@
       <div class="flow-lane">
         <div class="lane-name"><strong>F. 取消訂單</strong><span>共用 API → mode coordinator → Inventory 補償</span></div>
         <div class="step event"><strong>POST /orders/{id}/cancellation-requests</strong><span>immutable request</span></div>
-        <div class="step sync"><strong>FulfillmentCancellationCoordinator</strong><span>Events 同步協調；Temporal Update 既有 Workflow</span></div>
-        <div class="step state"><strong>CancelShipmentUsecase</strong><span>有 Shipment 時先取得 WMS safe decision</span></div>
-        <div class="step sync"><strong>CancelOrderUsecase</strong><span>Order → CANCELLED</span></div>
+        <div class="step sync"><strong>FulfillmentCancellationCoordinator</strong><span>Events 提交 WMS command；Temporal Update 保存 request</span></div>
+        <div class="step state"><strong>WMS cancellation command</strong><span>Temporal 的短 Activity ACK 不等於 Shipment 已取消</span></div>
+        <div class="step event"><strong>Shipment terminal fact</strong><span>CANCELLED → 取消 Order；HANDED_OVER → 正常履約勝出</span></div>
+        <div class="step sync"><strong>CancelOrderUsecase</strong><span>只在 ShipmentCancelled 或 Shipment 尚未建立時執行</span></div>
         <div class="step event"><strong>OrderCancelledIntegrationEvent</strong><span>Outbox → Kafka</span></div>
         <div class="step event"><strong>Programmatic subscriber</strong><span>transaction + Inbox + typed dispatch</span></div>
         <div class="step sync"><strong>CancelMovementsUsecase</strong><span>只處理 Stock business command</span></div>
@@ -954,7 +955,7 @@
 
     <div class="next-steps">
       <article class="next-step"><h3>替換 WMS simulation</h3><p>以操作 API、scanner、設備或外部 WMS adapter 分段呼叫既有 Wave／Pick／Pack／Stage／Handover use cases。</p></article>
-      <article class="next-step"><h3>完成 recovery</h3><p>替 <code>PUTBACK_REQUIRED</code> 建立可持續、可觀測的實體回架與 cancellation completion。</p></article>
+      <article class="next-step"><h3>深化 recovery</h3><p>現有 <code>CANCELLING</code> backlog 已能完成並發布 cancellation terminal event；下一步是加入真實 PutbackTask、庫位建議與人工確認。</p></article>
       <article class="next-step"><h3>建立 fulfillment projection</h3><p>將 Demo query 的跨 context 即時組裝改成事件驅動 read model，降低查詢時耦合。</p></article>
       <article class="next-step"><h3>補 production operations</h3><p>建立等待年齡、scheduler run、Temporal execution、Inbox／Outbox lag、DLT 與 connector health 的營運視圖。</p></article>
     </div>

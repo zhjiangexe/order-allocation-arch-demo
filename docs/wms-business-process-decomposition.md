@@ -298,6 +298,13 @@ flowchart TD
 
 Putback 有獨立 task、多人或長 SLA 時，才建立 `PutbackProcess`；簡單未揀貨取消仍可在一次 transaction 完成。
 
+目前專案先落地較小但語意完整的版本：`CancelShipmentUsecase` 回傳
+`CancelShipmentStatus.ACCEPTED／ALREADY_ACCEPTED／REJECTED`；已開始作業的 Shipment 進入
+`ShipmentStatus.CANCELLING／ShipmentCancellationState.REQUESTED`，由持久化 recovery backlog 呼叫
+`CompleteShipmentCancellationUsecase`。只有進入 `CANCELLED／COMPLETED` 後才發布
+`ShipmentCancelledIntegrationEvent`。這個 backlog 是真實 RecoveryProcess 的替身，不宣稱已具備
+PutbackTask、庫位建議或人工確認能力；carrier handover 若先完成，後續一律是新的 Return flow。
+
 ## 8. Inbound：建議切出的流程
 
 ### 8.1 ReceivingProcess
@@ -596,7 +603,7 @@ classDiagram
 | `PackShipmentUsecase` | PackingProcess | 從單一 status transition 長成 container／pack lifecycle 時再拆 aggregate |
 | `StageShipmentUsecase` | DispatchPreparationProcess | 以 readiness invariant 為終點，不只 `STAGED` |
 | `HandOverShipmentUsecase` | LoadingAndHandoverProcess | 保留 WMS custody boundary |
-| `CancelShipmentUsecase` | CancellationRecoveryProcess 入口 | 依 physical progress 建立 recovery plan |
+| `CancelShipmentUsecase`／`CompleteShipmentCancellationUsecase` | CancellationRecoveryProcess 入口與終態 | 目前以 durable `CANCELLING` backlog 模擬 recovery；未來再把真實 task／plan 放進 WMS 內部 |
 | `Shipment` Aggregate | Shipment／outbound document | 不再承擔所有 process 內部狀態；保存必要 summary／invariant |
 | 已移除的 workflow prototypes | 技術實驗 | 不作為現行 contract；由穩定的 WMS commands／events 重新長出未來整合邊界 |
 | 未來跨系統 coordinator | 尚未建立 | 只有符合 ADR 採用門檻後，才以真正業務流程命名並建立 |

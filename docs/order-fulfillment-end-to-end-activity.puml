@@ -90,31 +90,66 @@ partition "WMS：Shipment 與倉內作業" {
   以 allocationId 冪等建立 Shipment; <<#E2F0D9>>
   :Shipment = CREATED; <<#E2F0D9>>
 
-  if (Temporal 且 handover 前收到 cancellation？) then (是)
-    :CancelShipment Activity／Usecase
-    核對 cancellation requestId; <<#FDECEC>>
-    if (WMS cancellation decision？) then (CANCELLED)
-      :取消 Shipment／Work; <<#FDECEC>>
-      :CancelOrder Activity
-      核對同一 immutable request; <<#FDECEC>>
-      :Workflow = ORDER_CANCELLED
-      不等待 Inventory cleanup; <<#FDECEC>>
-      :OrderCancelled Outbox
-      -> Inventory 釋放 reservation; <<#FDECEC>>
-      stop
-    else (REJECTED)
-      :PUTBACK_REQUIRED 或已進入不可取消階段
-      目前都不取消 Order; <<#FFF7D6>>
-      :繼續等待同一 Shipment handover; <<#FFF7D6>>
+  if (Shipment 存在後收到 cancellation？) then (是)
+    if (orchestration mode？) then (temporal)
+      :requestShipmentCancellation Activity
+      提交 immutable command; <<#FDECEC>>
+      :Activity 完成只代表 command transaction 已提交；
+      等待兩種 canonical terminal Signal; <<#FFF7D6>>
+
+      if (WMS terminal fact？) then (ShipmentCancelled)
+        :Shipment = CANCELLED；
+        cancellationState = COMPLETED; <<#FDECEC>>
+        :ShipmentCancelledIntegrationEvent Outbox
+        -> shipmentCancelled Signal; <<#EDE9FE>>
+        :CancelOrder Activity
+        -> OrderCancelled Outbox; <<#FDECEC>>
+        :Workflow = ORDER_CANCELLED; <<#FDECEC>>
+        :Inventory 消費 OrderCancelled
+        釋放 reservation／取消 Move; <<#FDECEC>>
+        stop
+      else (ShipmentHandedOver)
+        :carrier handover 在 recovery 前勝出；
+        保留已受理 request 並繼續正常履約; <<#FFF7D6>>
+        :handover fact 已成立; <<#E2F0D9>>
+      endif
+    else (events)
+      :EventDrivenFulfillmentCancellationCoordinator
+      -> CancelShipmentUsecase; <<#FDECEC>>
+
+      if (CancelShipmentStatus？) then (ACCEPTED /
+      ALREADY_ACCEPTED)
+        if (實體作業已開始？) then (是)
+          :Shipment = CANCELLING；
+          WMS recovery backlog 完成停止／回庫; <<#FFF7D6>>
+        endif
+        :Shipment = CANCELLED；
+        cancellationState = COMPLETED; <<#FDECEC>>
+        :ShipmentCancelledIntegrationEvent Outbox
+        帶 requestedAt 與實際 cancelledAt; <<#EDE9FE>>
+        :OrderingShipmentCancellationEventConsumer
+        -> CancelOrderUsecase; <<#E8F1FF>>
+        :OrderCancelled Outbox
+        -> Inventory 釋放 reservation; <<#FDECEC>>
+        stop
+      else (REJECTED)
+        :carrier handover 已先提交；
+        正常履約已勝出，取消改走 Return flow; <<#FFF0F0>>
+        :handover fact 已成立; <<#E2F0D9>>
+      endif
     endif
   endif
 
-  :DB 時間到期（createdAt + configured delay）; <<#FFF7D6>>
-  :SimulatedWarehouseOperationsUsecase
-  Wave -> Release -> Pick -> Pack -> Stage; <<#DCEEFF>>
-  :handOverToCarrier
-  Shipment = HANDED_OVER_TO_CARRIER; <<#E2F0D9>>
-  :ShipmentHandedOverIntegrationEvent Outbox; <<#E2F0D9>>
+  if (handover fact 已成立？) then (是)
+    :沿用既有 ShipmentHandedOverIntegrationEvent; <<#E2F0D9>>
+  else (否)
+    :DB 時間到期（createdAt + configured delay）; <<#FFF7D6>>
+    :SimulatedWarehouseOperationsUsecase
+    Wave -> Release -> Pick -> Pack -> Stage; <<#DCEEFF>>
+    :handOverToCarrier
+    Shipment = HANDED_OVER_TO_CARRIER; <<#E2F0D9>>
+    :ShipmentHandedOverIntegrationEvent Outbox; <<#E2F0D9>>
+  endif
 }
 
 note right
@@ -127,8 +162,9 @@ note right
   EventDrivenFulfillmentCancellationCoordinator；
   Temporal mode 則把同一請求送進既有 Workflow Update。
 
-  PUTBACK_REQUIRED 尚無 recovery completion，
-  所以目前映射為 REJECTED 並繼續履約。
+  已開始作業的 cancellation 會進入 CANCELLING，
+  simulation 由獨立 recovery backlog 完成；
+  真實 WMS 未來可替換此 driver，不改跨 Context event。
 end note
 
 partition "可靠訊息與 completion driver" {

@@ -21,9 +21,9 @@ partition "1. Shipment 建立前：配貨" {
   :AllocationCheckpoint.waiting();
   :enterPhase(ALLOCATION);
   :RequestAllocation Activity; <<#E8F1FF>>
-  :Workflow.await(isCommitted()\n或 cancellationRequested()); <<#FFF7D6>>
+  :Workflow.await(isCommitted()\n或 cancellation.isRequested()); <<#FFF7D6>>
 
-  if (cancellationRequested()？) then (是)
+  if (cancellation.isRequested()？) then (是)
     :enterPhase(CANCELLATION); <<#FDECEC>>
     :cancelOrderInOrdering(); <<#FDECEC>>
     :finishCancellation(); <<#FDECEC>>
@@ -38,36 +38,42 @@ partition "2. WMS 建立 Shipment" {
   :CreateShipment Activity; <<#E8F1FF>>
   :CreateShipmentUsecase
   以 allocationId 冪等建立／讀回; <<#E2F0D9>>
-  :保存 shipmentId;
+  :ShipmentCheckpoint.recordCreated(shipmentId);
 }
 
 partition "3. Shipment 已建立：等待 handover，可被取消中斷" {
   :enterPhase(SHIPMENT_HANDOVER);
-  :Workflow.await(hasCorrelatedCarrierHandover()\n或 cancellationRequested()); <<#FFF7D6>>
+  :Workflow.await(shipment.hasTerminal()\n或 cancellation.isRequested()); <<#FFF7D6>>
   note right
     等待期間由 WMS 可設定延遲的模擬 runtime 獨立執行：
     Wave -> Release -> Pick -> Pack -> Stage -> Handover
   end note
 
-  if (cancellationRequested()？) then (是)
-    :cancelShipmentInWms(); <<#FDECEC>>
+  if (cancellation.isRequested() 且
+  尚無 correlated terminal？) then (是)
+    :requestShipmentCancellation(); <<#FDECEC>>
     note right
       詳細展開於 cancellation-flow 圖：
-      CancelShipment Activity
-      -> CANCELLED 或 REJECTED
+      Activity 只確認 command 已提交；
+      終態由 canonical event Signal 決定。
     end note
-
-    if (status = CANCELLED？) then (是)
-      :cancelOrderInOrdering(); <<#FDECEC>>
-      :finishCancellation(); <<#FDECEC>>
-      stop
-    else (否)
-      :status = REJECTED\n（PUTBACK_REQUIRED 目前也映射為 REJECTED）; <<#FDECEC>>
-      :Workflow.await(hasCorrelatedCarrierHandover()); <<#FFF7D6>>
-    endif
+    :Workflow.await(shipment.hasTerminal()); <<#FFF7D6>>
+  else (否)
+    :既有 terminal 直接決定路線；
+    handover 先到時不再提交取消 command; <<#FFF7D6>>
   endif
 
-  :correlatedCarrierHandover();
+  :terminal = shipment.requireTerminal();
+
+  if (terminal = CANCELLED？) then (是)
+    :以 ShipmentCancelled.cancelledAt
+    cancelOrderInOrdering(); <<#FDECEC>>
+    :finishCancellation(); <<#FDECEC>>
+    stop
+  else (否：HANDED_OVER)
+    :正常履約路線勝出；
+    若曾受理取消，保留 request 作為事實; <<#FFF7D6>>
+  endif
 }
 
 partition "4. 出庫完成" {

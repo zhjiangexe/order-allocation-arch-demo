@@ -25,6 +25,7 @@ archone.wms.simulation.enabled=true
 archone.wms.simulation.processing-delay=10s
 archone.wms.simulation.scheduler-delay-ms=1000
 archone.wms.simulation.batch-limit=100
+archone.wms.simulation.cancellation-batch-limit=100
 ```
 
 完整線路見 [Shipment handover 自動模擬流程](../../docs/shipment-handover-connection-gaps.png)。未來接真實

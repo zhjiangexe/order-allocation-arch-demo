@@ -197,7 +197,7 @@
         <div class="step"><strong>StageShipmentUsecase</strong><span>READY_FOR_DISPATCH</span></div><div class="arrow">→</div>
         <div class="step"><strong>HandOverShipmentUsecase</strong><span>HANDED_OVER_TO_CARRIER</span></div>
       </div>
-      <p class="flow-note">並行的 Wave checkpoint：<code>PlanWaveUsecase → ReleaseWaveUsecase → CompleteWaveUsecase</code>。只有所有 assignment 的 picking work 完成或取消才關閉 Wave；某張 Shipment 一旦 <code>PICKED</code>，即使同 Wave 仍有工作，也可先 Pack。現行唯一跨 context WMS fact 是完成 handover 後發布的 <code>ShipmentHandedOverIntegrationEvent</code>。</p>
+      <p class="flow-note">並行的 Wave checkpoint：<code>PlanWaveUsecase → ReleaseWaveUsecase → CompleteWaveUsecase</code>。只有所有 assignment 的 picking work 完成或取消才關閉 Wave；某張 Shipment 一旦 <code>PICKED</code>，即使同 Wave 仍有工作，也可先 Pack。跨 context 的 WMS terminal facts 為 <code>ShipmentHandedOverIntegrationEvent</code> 與 <code>ShipmentCancelledIntegrationEvent</code>。</p>
     </div>
 
     <div id="wave-design" style="margin-top: 20px">
@@ -217,12 +217,12 @@
   <section id="cancellation" aria-labelledby="cancellation-title">
     <div class="section-head">
       <h2 id="cancellation-title">三、取消依實體進度分支</h2>
-      <p><code>CancelShipmentUsecase</code> 不假裝所有狀態都能立即 rollback；對外回傳 typed <code>ShipmentCancellationStatus</code>。</p>
+      <p><code>CancelShipmentUsecase</code> 不假裝 command 已提交就等於物理終態；command 回傳 typed <code>CancelShipmentStatus</code>，生命週期另由 <code>ShipmentCancellationState</code> 表達。</p>
     </div>
     <div class="state-branches">
       <article class="state-branch"><h3>CREATED / WAVE_PLANNED / RELEASED</h3><p>Wave 尚未 release 時沒有 PickTask；已 release 但未開工時取消 WarehouseWork，進入 <code>CANCELLED</code>。</p></article>
-      <article class="state-branch warn"><h3>已開始實體作業</h3><p>回傳 <code>PUTBACK_REQUIRED</code>；現行 coordinator 拒絕取消 Order，Putback lifecycle 尚待實作。</p></article>
-      <article class="state-branch stop"><h3>已交給 Carrier</h3><p>回傳 <code>REJECTED_AFTER_HANDOVER</code>；Order 保持完成狀態，後續應由 return／TMS 流程處理。</p></article>
+      <article class="state-branch warn"><h3>已開始實體作業</h3><p>回傳 <code>ACCEPTED</code> 並進入 <code>CANCELLING／REQUESTED</code>；recovery 完成後才發布 <code>ShipmentCancelledIntegrationEvent</code>。</p></article>
+      <article class="state-branch stop"><h3>已交給 Carrier</h3><p>回傳 <code>REJECTED</code>；Order 保持完成狀態，後續應由 return／TMS 流程處理。</p></article>
     </div>
   </section>
 
@@ -275,15 +275,15 @@
   <section id="catalog" aria-labelledby="catalog-title">
     <div class="section-head">
       <h2 id="catalog-title">六、Use case catalog</h2>
-      <p>目前共 16 個；其中 12 個 Outbound／Wave use cases（含查詢與 simulation driver）及 4 個 Inbound use cases。</p>
+      <p>目前共 18 個；其中 14 個 Outbound／Wave use cases（含查詢、simulation 與 cancellation recovery driver）及 4 個 Inbound use cases。</p>
     </div>
     <table>
       <thead><tr><th>Area</th><th>依序 Usecases</th><th>結果</th></tr></thead>
       <tbody>
         <tr><td><span class="tag">Outbound Shipment</span></td><td><code>CreateShipmentUsecase</code> → Wave assign／release → <code>ConfirmPickUsecase</code> → <code>PackShipmentUsecase</code> → <code>StageShipmentUsecase</code> → <code>HandOverShipmentUsecase</code></td><td>由已配置 demand 產生 picking work，完成 WMS custody handover。</td></tr>
         <tr><td><span class="tag">Wave</span></td><td><code>PlanWaveUsecase</code> → <code>ReleaseWaveUsecase</code> → <code>CompleteWaveUsecase</code></td><td>服務多張 Shipment；關閉 Wave 不阻塞個別已揀完 Shipment 的 Pack。</td></tr>
-        <tr><td><span class="tag">Outbound branch</span></td><td><code>CancelShipmentUsecase</code></td><td>Cancelled、Putback required 或 rejected after handover。</td></tr>
-        <tr><td><span class="tag">Runtime driver</span></td><td><code>GetOrderShipmentsUsecase</code>；<code>ProcessDueShipmentsUsecase</code> → <code>SimulateWarehouseOperationsUsecase</code></td><td>查詢 Order 的 Shipment；模擬入口從資料庫找出到期的 CREATED Shipment，再串接正式細粒度 use cases。</td></tr>
+        <tr><td><span class="tag">Outbound branch</span></td><td><code>CancelShipmentUsecase</code> → <code>CompleteShipmentCancellationUsecase</code></td><td>Command accepted／rejected 與 cancellation requested／completed 分開建模；只在完成後發布 canonical event。</td></tr>
+        <tr><td><span class="tag">Runtime driver</span></td><td><code>GetOrderShipmentsUsecase</code>；<code>ProcessDueShipmentsUsecase</code>；<code>ProcessCancellingShipmentsUsecase</code></td><td>正常模擬與 cancellation recovery 使用各自的持久化 backlog；scheduler 先完成 cancellation，再處理到期 CREATED Shipment。</td></tr>
         <tr><td><span class="tag">Inbound</span></td><td><code>RegisterInboundOperationUsecase</code> → <code>ConfirmArrivalUsecase</code> → <code>RecordInspectionUsecase</code> → <code>ConfirmPutawayUsecase</code></td><td>Completed 或 Quarantined。</td></tr>
       </tbody>
     </table>
@@ -300,7 +300,7 @@
         <tr><td>Repository／Outbox implementations</td><td><span class="tag">主線已建立</span></td><td>InboundOperation、Wave、Shipment 均有 JPA adapter；handover 經 <code>ShipmentHandedOverPublicationFactory → IntegrationEventPublisher → Outbox</code> 發布。</td></tr>
         <tr><td>Allocation → WMS input</td><td><span class="tag">雙模式已接通</span></td><td>唯一的 <code>OrderAllocationCommittedIntegrationEvent</code> 由 Events consumer 或 Temporal Signal／Activity 其中一條路徑建立同一個 Shipment。</td></tr>
         <tr><td>Inventory completion</td><td><span class="tag">已接通</span></td><td><code>ShipmentHandedOverIntegrationEvent</code> 在 Events mode 直接觸發 <code>CompleteOutboundMovementsUsecase</code>；Temporal mode 由 Workflow Activity 呼叫相同 use case。</td></tr>
-        <tr><td>Short-pick resolution／Putback</td><td><span class="tag missing">未完成</span></td><td>目前 cancellation 遇到已開始實體作業會回 <code>PUTBACK_REQUIRED</code> 並拒絕取消 Order，尚無 recovery completion。</td></tr>
+        <tr><td>Short-pick resolution／真實 Putback tasks</td><td><span class="tag missing">部分模擬</span></td><td>目前已有 durable <code>CANCELLING</code> backlog 與 cancellation completion event；但尚未建立 PutbackTask、庫位建議與人工確認模型。</td></tr>
         <tr><td>Wave planning／release</td><td><span class="tag">Core + persistence 已建立</span></td><td>目前 simulation 在單一 transaction 內規劃、release 並完成一張 Shipment；真實 Wave scheduler／operator entrypoint 尚未接入。</td></tr>
         <tr><td>Replenishment、Pick route、Container／LPN、Loading</td><td><span class="tag missing">未建立</span></td><td>依真實倉庫需求逐一形成 process；不要預先建立空殼。</td></tr>
         <tr><td>Temporal orchestration</td><td><span class="tag">可選模式</span></td><td><code>TemporalWmsActivitiesAdapter</code> 委派既有 WMS use cases；Workflow 只保存跨 context checkpoints，不接管 Pick／Pack／Stage 內部狀態。</td></tr>

@@ -33,35 +33,50 @@ if (Order 已 FULFILLED？) then (是)
 endif
 
 if (orchestration mode？) then (events)
-  partition "B1. Events mode：同步 command coordinator" {
+  partition "B1. Events mode：command 與終態 event 分離" {
     :EventDrivenFulfillmentCancellationCoordinator; <<#E8F1FF>>
     :讀取 Order 與最多一張 Shipment; <<#E2F0D9>>
     if (Shipment 存在？) then (是)
       :CancelShipmentUsecase
-      在同一 request 下判斷實體進度; <<#E2F0D9>>
-      if (WMS outcome？) then (CANCELLED /
-      ALREADY_CANCELLED)
-        :允許繼續取消 Order; <<#FDECEC>>
-      else (PUTBACK_REQUIRED /
-      REJECTED_AFTER_HANDOVER)
-        :回 409 REJECTED
-        不取消 Order; <<#FFF0F0>>
+      提交 immutable cancellation command; <<#E2F0D9>>
+      if (command status？) then (ACCEPTED /
+      ALREADY_ACCEPTED)
+        :回 202 ACCEPTED
+        不在 HTTP transaction 取消 Order; <<#E8F1FF>>
+        :WMS 完成停止作業／recovery
+        Shipment = CANCELLED; <<#FDECEC>>
+        :ShipmentCancelledIntegrationEvent; <<#EDE9FE>>
+        :OrderingShipmentCancellationEventConsumer
+        使用實際 cancelledAt 取消 Order; <<#E8F1FF>>
+      else (REJECTED)
+        :回 409 REJECTED；handover 已先提交
+        後續必須走 Return flow; <<#FFF0F0>>
         stop
       endif
+    else (否)
+      :CancelOrderUsecase
+      cancellation 立即成立; <<#FDECEC>>
     endif
-    :CancelOrderUsecase
-    Order = CANCELLED；同 transaction
+    :Order = CANCELLED；同 transaction
     發布 OrderCancelledIntegrationEvent; <<#FDECEC>>
-    :回 202 ACCEPTED
-    或 200 ALREADY_CANCELLED; <<#E8F1FF>>
   }
 else (temporal)
   partition "B2. Temporal mode：Update 既有 Workflow" {
     :TemporalFulfillmentCancellationCoordinator; <<#E8F1FF>>
-    :requestCancellation(Update)
-    保存 immutable CancellationRequest; <<#FDECEC>>
-    :先回 ACK
-    ACCEPTED／ALREADY_REQUESTED／ALREADY_CANCELLED／REJECTED; <<#E8F1FF>>
+    :requestCancellation(Update); <<#E8F1FF>>
+
+    if (correlated handover
+    已先記錄？) then (是)
+      :回 409 REJECTED；不保存新 request
+      正常履約路線已勝出; <<#FFF0F0>>
+      :既有 Workflow 繼續完成
+      outbound movements 與 Order; <<#E2F0D9>>
+      stop
+    else (否)
+      :保存第一筆 immutable CancellationRequest; <<#FDECEC>>
+      :回 ACK
+      ACCEPTED／ALREADY_REQUESTED／ALREADY_CANCELLED; <<#E8F1FF>>
+    endif
 
     note right
       ACCEPTED 只表示請求已 durable 進入 Workflow，
@@ -69,24 +84,28 @@ else (temporal)
     end note
 
     if (Shipment 尚未建立？) then (是)
-      :CancelOrder Activity; <<#FDECEC>>
+      :CancelOrder Activity → CancelOrderUsecase
+      Order = CANCELLED；發布
+      OrderCancelledIntegrationEvent; <<#FDECEC>>
+      :Workflow = FINISHED / ORDER_CANCELLED; <<#FDECEC>>
     else (已建立)
-      :CancelShipment Activity
-      使用同一 requestId; <<#FDECEC>>
-      if (WMS outcome？) then (CANCELLED /
-      ALREADY_CANCELLED)
-        :CancelOrder Activity; <<#FDECEC>>
-      else (REJECTED)
-        :Workflow cancellationState = REJECTED
-        保留 Order，等待原 Shipment handover; <<#FFF7D6>>
+      :requestShipmentCancellation Activity
+      僅確認 command transaction 已提交; <<#FDECEC>>
+      :等待 ShipmentCancelled 或
+      ShipmentHandedOver 具體終態 Signal; <<#FFF7D6>>
+      if (WMS terminal fact？) then (ShipmentCancelled)
+        :使用事件的實際 cancelledAt
+        執行 CancelOrder Activity → CancelOrderUsecase
+        Order = CANCELLED；發布
+        OrderCancelledIntegrationEvent; <<#FDECEC>>
+        :Workflow = FINISHED / ORDER_CANCELLED; <<#FDECEC>>
+      else (ShipmentHandedOver)
+        :handover 在 command／recovery 競爭中勝出；
+        保留已受理 request 作為事實; <<#FFF7D6>>
+        :依既有 handover fact 完成出庫與 Order; <<#E2F0D9>>
         stop
       endif
     endif
-
-    :CancelOrderUsecase
-    Order = CANCELLED；發布
-    OrderCancelledIntegrationEvent; <<#FDECEC>>
-    :Workflow = FINISHED / ORDER_CANCELLED; <<#FDECEC>>
   }
 endif
 

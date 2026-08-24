@@ -51,35 +51,49 @@ end
 
 group 建立 WMS Shipment
   WF -> WMS: createShipment(CreateShipmentActivityInput)
+  opt Activity 尚未回傳時，handover fact 已先到
+    SimWms ->> EventAdapter: ShipmentHandedOver Outbox -> Kafka
+    EventAdapter ->> WF: shipmentHandedOverToCarrier(Signal)
+    note over WF: Signal 可先記入 checkpoint；取得 shipmentId 後再做 correlation
+  end
   WMS --> WF: CreateShipmentActivityResult(shipmentId)
 end
 
 group Shipment 已建立：等待 handover，可被取消中斷
-  note over WF: await ShipmentHandedOverToCarrierSignal\n或 CancellationRequest
+  note over WF: await Shipment terminal Signal\n或 CancellationRequest
 
-  alt WMS 正常完成倉內作業
+  alt correlated handover 已先成立
+    CancelClient -> WF: requestCancellation(Update)
+    WF --> CancelClient: REJECTED
+    note over WF: 不保存新 request、不送 WMS cancellation command
+  else WMS 正常完成倉內作業
     SimWms -> SimWms: Wave -> Release -> Pick -> Pack -> Stage
     SimWms ->> EventAdapter: ShipmentHandedOver Outbox -> Kafka
     EventAdapter ->> WF: shipmentHandedOverToCarrier(Signal)
   else Shipment 存在後收到取消
     CancelClient -> WF: requestCancellation(Update)
     WF --> CancelClient: ACCEPTED
-    WF -> WMS: cancelShipment(CancelShipmentActivityInput)
-    WMS --> WF: ShipmentCancellationDecision
+    WF -> WMS: requestShipmentCancellation(CancelShipmentActivityInput)
+    WMS --> WF: command committed
+    note over WMS
+      CREATED／WAVE_PLANNED／RELEASED 可立即完成；
+      已開始作業則進入 CANCELLING，
+      由 WMS recovery backlog 稍後完成。
+    end note
+    note over WF: await ShipmentCancelledSignal\n或 ShipmentHandedOverToCarrierSignal
 
-    alt decision = CANCELLED
+    alt cancellation terminal 先提交
+      WMS ->> EventAdapter: ShipmentCancelled Outbox -> Kafka
+      EventAdapter ->> WF: shipmentCancelled(Signal, cancellationRequestId, actual cancelledAt)
       WF -> ORD: cancelOrder(CancelOrder)
       ORD --> WF: completed
       break Workflow 以 ORDER_CANCELLED 結束
         WF --> Starter: ORDER_CANCELLED
       end
-    else decision = REJECTED
-      note over WF
-        PUTBACK_REQUIRED 或 REJECTED_AFTER_HANDOVER
-        目前都映射為 REJECTED，等待同一 Shipment handover
-      end note
+    else carrier handover 在 recovery 前提交
       SimWms ->> EventAdapter: ShipmentHandedOver Outbox -> Kafka
       EventAdapter ->> WF: shipmentHandedOverToCarrier(Signal)
+      note over WF: 正常履約路線勝出；保留已受理取消請求並繼續 fulfillment
     end
   end
 end

@@ -38,35 +38,40 @@ wbsDiagram {
 *** @WorkflowMethod execute(OrderFulfillmentWorkflowInput)
 *** @SignalMethod allocationCommitted()
 *** @SignalMethod shipmentHandedOverToCarrier()
+*** @SignalMethod shipmentCancelled()
 *** @UpdateValidatorMethod validateCancellationRequest()
 *** @UpdateMethod requestCancellation()
 *** @QueryMethod state()
 ** execute 主線 helpers
+*** Typed Activity stubs
+**** InventoryActivities / OrderingActivities / WmsActivities
+**** 共用 retry policy；各 use case 自己保證業務冪等
 *** Allocation checkpoint
 **** AllocationCheckpoint.notRequested() / waiting()
 **** isWaiting() / isCommitted()
 **** committed() / requireCommittedSnapshot()
 **** allocationId() / requireWaiting()
-*** Mainline checkpoints
-**** cancellationRequested()
-**** enterPhase()
-**** hasCorrelatedCarrierHandover()
-**** correlatedCarrierHandover()
+*** Shipment checkpoint
+**** ShipmentCheckpoint.recordCreated()
+**** recordHandover() / recordCancelled()
+**** canAcceptTerminalFor() <<guard>>
+**** hasTerminal() / hasHandover()
+**** requireShipmentId() / requireTerminal() <<guard>>
+**** shipmentIdOrNull() / terminalStatusOrNull() / terminalAtOrNull()
+*** Cancellation checkpoint
+**** CancellationCheckpoint.isRequested()
+**** requireRequest() <<guard>>
+**** requestIdOrNull() / requestedAtOrNull()
+*** Mainline helpers
 **** finish()
 ** 取消協調 helpers <<cancellation>>
-*** cancelShipmentInWms()
-**** ensureCancellationNotAfterHandover() <<guard>>
-**** rejectShipmentCancellation()
-*** cancelOrderInOrdering()
-*** requireCancellationRequest() <<guard>>
+*** requestShipmentCancellation()：command ACK，不代表 terminal
+*** cancelOrderInOrdering(cancelledAt)
 *** finishCancellation()
-** Query／progress／failure helpers <<projection>>
-*** updateProgress()
-*** cancellationRequestIdOrNull()
-*** cancellationRequestedAtOrNull()
+** Query／progress helpers <<projection>>
+*** WorkflowProgress.enter() / update()
 *** workflowNow()
 *** activityOptions()
-*** workflowInvariantViolation() <<guard>>
 
 legend bottom
   |<#E8F1FF>| Temporal boundary |
