@@ -1,61 +1,69 @@
-# e2e/spec
+# Karate v2 E2E
 
-這裡是 messaging 的 full-path correctness 規格。它啟動真實 PostgreSQL、Kafka、Debezium
-Connect 與 `order-promising` Spring application，驗證：
+這裡是獨立於 backend Gradle source set 的黑箱 E2E。測試透過 HTTP 驗證完整履約流程，環境包含
+真實 PostgreSQL、Kafka、Debezium Connect、Temporal 與 monolith：
 
 ```text
-HTTP business transaction
-  → event_outbox
-  → PostgreSQL WAL
-  → Debezium Outbox Event Router
-  → Kafka
-  → event_inbox + consumer use case
-  → follow-up event_outbox
-  → Kafka
-  → downstream use case
+HTTP 下單
+  → event_outbox → Debezium → Kafka → event_inbox
+  → Inventory allocation → WMS shipment
+  → Events 或 Temporal orchestration
+  → Order FULFILLED
 ```
-
-測試不使用 in-process Outbox drain，也不 mock broker／CDC。容器、topic、database 與隨機 HTTP
-port 皆由 Testcontainers 隔離，不依賴 `../perf` 的長駐 Compose project。
 
 ## 執行
 
-前置條件只有可用的 Docker daemon；第一次執行會下載 PostgreSQL、Kafka、Debezium 與 Ryuk
-images。
+前置條件是 Java 25、Docker、`curl`、`jq` 與 `shasum`。執行器會優先使用 Gradle toolchain
+偵測到的 Java 25；必要時可用 `E2E_JAVA_BIN` 指定 executable。執行：
 
 ```bash
-cd backend
-./gradlew :deployments:monolith:correctnessE2e --no-daemon
+make e2e
 ```
 
-測試報告位於：
+`run.sh` 會執行以下工作：
 
-```text
-backend/deployments/monolith/build/reports/tests/correctnessE2e/index.html
+1. 下載官方 Karate `2.1.1` standalone JAR，並核對固定的 SHA-256。
+2. 建立 monolith executable JAR。
+3. 以獨立 Compose project 啟動 PostgreSQL、Kafka、Debezium Connect 與 Temporal。
+4. 在 dev 主檔上加入每個案例獨享的 E2E SKU／庫存 fixture，避免流程互相污染。
+5. 先以 Events mode 驗證配貨、補貨、FIFO、取消、完整履約及 Debezium pause/resume 追趕。
+6. 以 30 秒 WMS simulation delay 重啟 Events mode，穩定驗證 Shipment 建立後、作業前的取消窗口。
+7. 重啟為 Temporal mode，驗證成功、等待補貨與取消 workflow；取消 Shipment 的案例同樣使用 30 秒窗口。
+8. 測試結束後關閉 app，移除這次 E2E 的 containers 與 volumes。
+
+HTML／JUnit 報告輸出在 `e2e/spec/build/reports/`。若失敗後需要保留基礎設施以便檢查，可執行：
+
+```bash
+KEEP_E2E_STACK=true make e2e
 ```
 
-`correctnessE2e` 是獨立的重型 CI layer，刻意不掛在一般 `check`。一般 pull request 可以先跑
-unit／SIT，再由 Docker-capable job 執行本 task；release gate 則應要求三層全部通過。
+## 流程案例矩陣
 
-## 目前情境
+Karate 只從 HTTP 與 Connect 管理契約觀察系統，涵蓋下列使用者流程：
 
-1. 真實下單 transaction 經兩輪 Outbox／CDC／Kafka／Inbox，最後將訂單推進為
-   `ALLOCATED`。
-2. application restart 後重送原 Kafka record，原 message ID 由相同 subscriber Inbox 判定為
-   duplicate，不重複預留、建立搬運或發布結果事件。
-3. Debezium Connect 停機期間提交 Outbox；重啟後由 PostgreSQL WAL／Kafka offset 追趕，並可
-   繼續處理新交易。
-4. Kafka container 暫停期間 business transaction 仍可提交；Kafka 恢復後 CDC 與 consumer
-   追上，不遺失事件。
-5. 在 consumer transaction 內、business writes 之後注入 optimistic-lock failure，證明每次
-   失敗的 Inbox、庫存預留、搬運與 follow-up Outbox 全部 rollback。
-6. `3 local attempts × 5 Kafka deliveries = 15` 次耗盡後進 DLT；DLT 保留 message ID、key、
-   event type、generic headers 與原 topic／partition／offset。解除故障並 replay 後只成功一次。
+| 分類 | 案例 |
+| --- | --- |
+| 下單前置 | 貨主 → 商品 → SKU、可用倉、倉內庫位查詢 |
+| 命令安全 | 重複上游單號拒絕、收貨 retry 冪等、同 receiptId 不同內容拒絕 |
+| Events 配貨 | 立即配貨、缺貨等待與補貨喚醒、ship-complete、同 SKU 多行加總、嚴格 FIFO |
+| Events 取消 | 待配貨取消、取消後不再被喚醒、Shipment 建立後取消、交運後拒絕取消 |
+| Messaging | Connect 暫停時提交 outbox，恢復後從 WAL 追趕 |
+| Temporal | 成功履約、缺貨等待後恢復、無 Shipment 取消、Shipment 建立後取消、交運後拒絕取消 |
 
-## 與 performance E2E 的分工
+Feature 與 Scenario 都使用中文名稱，重要步驟旁也說明該斷言保護的業務規則。
 
-- `e2e/spec`：低資料量、強斷言、可重複的 correctness gate。
-- `e2e/perf`：固定 host ports、Compose、k6 與高併發量測；不取代 correctness assertions。
+`karate-config.js` 只放環境 URL、fixture IDs、timeout 與 UUID／時間等全域工具。Order 與 Stock
+Receipt 的 request builder 放在 `features/support/`；`externalOrderNo` 與 `receiptId` 則由 Scenario
+明確建立，讓重送與冪等案例能直接看出使用的是不是同一個業務鍵。
 
-測試 source 留在 repository-level `e2e/spec`，classpath 與 Gradle lifecycle 則由實際被測的
-`order-promising` deployable 擁有；因此不需要為 E2E 再建立一個假 application module。
+## E2E 與較低層測試的邊界
+
+舊 correctnessE2E 透過 Java/Testcontainers 取得 Spring bean、repository 與 Kafka record，並注入
+consumer failure。這些不是外部使用者流程，因此不搬進 Karate 黑箱案例：
+
+- consumer retry exhaustion、transaction rollback、DLT headers／replay 由 messaging integration test 驗證。
+- optimistic locking、同 eventId 的 Inbox claim 與併發不超賣由 SIT 驗證。
+- HTTP 欄位 validation 與例外到 status code 的完整排列由 controller test 驗證。
+
+這樣的邊界讓 E2E 專注回答「一個真實業務流程能不能從入口走到可觀察結果」，而不為了注入內部
+故障，替 production application 增加測試專用 API。

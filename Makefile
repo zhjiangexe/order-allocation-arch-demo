@@ -4,13 +4,14 @@ SHELL := /bin/bash
 ENV ?= dev
 DEPLOY := ./scripts/deploy.sh
 
-.PHONY: help test check package push pull up deploy restart down logs ps config \
+.PHONY: help test check e2e package push pull up deploy restart down logs ps config \
 	dev-up dev-up-temporal dev-down stage-deploy stage-down prod-deploy prod-down
 
 help:
 	@printf '%s\n' \
 		'make test                         Run backend unit tests' \
 		'make check                        Run backend checks and SIT' \
+		'make e2e                          Run isolated Karate v2 Events and Temporal E2E' \
 		'make package ENV=dev|stage|prod   Build the monolith image' \
 		'make push ENV=stage|prod          Push the selected image' \
 		'make up ENV=dev|stage|prod        Start an image already available locally' \
@@ -24,6 +25,9 @@ test:
 
 check:
 	./backend/gradlew -p backend check
+
+e2e:
+	./e2e/spec/run.sh
 
 package push pull up deploy restart down logs ps config:
 	$(DEPLOY) $(ENV) $@

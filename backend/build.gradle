@@ -4,15 +4,6 @@ plugins {
     alias(libs.plugins.spotless)
 }
 
-spotless {
-    java {
-        target '../e2e/spec/src/test/java/**/*.java'
-        palantirJavaFormat(libs.versions.palantirJavaFormat.get())
-        trimTrailingWhitespace()
-        endWithNewline()
-    }
-}
-
 tasks.named('spotlessApply') {
     dependsOn subprojects.collect { "${it.path}:spotlessApply" }
 }

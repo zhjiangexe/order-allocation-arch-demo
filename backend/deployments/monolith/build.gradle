@@ -16,23 +16,11 @@ sourceSets {
         compileClasspath += sourceSets.main.output + sourceSets.test.output
         runtimeClasspath += output + compileClasspath
     }
-
-    correctnessE2e {
-        // Full-path correctness tests are repository-level specifications, but they execute the
-        // real modular monolith. Keep their sources under e2e/spec while letting this deployable
-        // own the classpath and Gradle lifecycle.
-        java.srcDir rootProject.file('../e2e/spec/src/test/java')
-        resources.srcDir rootProject.file('../e2e/spec/src/test/resources')
-        compileClasspath += sourceSets.main.output + sourceSets.test.output
-        runtimeClasspath += output + compileClasspath
-    }
 }
 
 configurations {
     sitImplementation.extendsFrom testImplementation
     sitRuntimeOnly.extendsFrom testRuntimeOnly
-    correctnessE2eImplementation.extendsFrom sitImplementation
-    correctnessE2eRuntimeOnly.extendsFrom sitRuntimeOnly
 }
 
 dependencies {
@@ -89,16 +77,6 @@ tasks.register('sit', Test) {
     classpath = sourceSets.sit.runtimeClasspath
     useJUnitPlatform()
     shouldRunAfter tasks.named('test')
-}
-
-tasks.register('correctnessE2e', Test) {
-    group = 'verification'
-    description = 'Runs the real Outbox/Debezium/Kafka/Inbox correctness specifications.'
-    testClassesDirs = sourceSets.correctnessE2e.output.classesDirs
-    classpath = sourceSets.correctnessE2e.runtimeClasspath
-    useJUnitPlatform()
-    maxParallelForks = 1
-    shouldRunAfter tasks.named('sit')
 }
 
 tasks.named('check') {
