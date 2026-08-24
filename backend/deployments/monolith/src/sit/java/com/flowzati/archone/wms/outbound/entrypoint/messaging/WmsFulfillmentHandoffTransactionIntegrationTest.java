@@ -3,6 +3,8 @@ package com.flowzati.archone.wms.outbound.entrypoint.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.api.Message;
@@ -11,9 +13,13 @@ import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
+import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ProcessDueShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationState;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import java.time.Instant;
 import java.util.List;
@@ -45,6 +51,9 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
 
     @Autowired
     private ProcessDueShipmentsUsecase processDueShipmentsUsecase;
+
+    @Autowired
+    private CancelShipmentUsecase cancelShipmentUsecase;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -120,6 +129,56 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                         Integer.class,
                         shipmentId.toString()))
                 .isOne();
+    }
+
+    @Test
+    void commitsCompletedCancellationMetadataAndItsCanonicalOutboxEventOnce() {
+        UUID allocationId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Instant requestedAt = Instant.parse("2026-08-12T09:00:00Z");
+        String reason = "Customer changed mind";
+        emit(event(UUID.randomUUID(), allocationId, orderId));
+        UUID shipmentId = shipmentRepository
+                .findByAllocationId(allocationId)
+                .orElseThrow()
+                .id();
+
+        CancelShipmentStatus first =
+                cancelShipmentUsecase.handle(new CancelShipmentCommand(requestId, shipmentId, requestedAt, reason));
+        CancelShipmentStatus retry =
+                cancelShipmentUsecase.handle(new CancelShipmentCommand(requestId, shipmentId, requestedAt, reason));
+
+        assertThat(first).isEqualTo(CancelShipmentStatus.ACCEPTED);
+        assertThat(retry).isEqualTo(CancelShipmentStatus.ALREADY_ACCEPTED);
+        assertThat(shipmentRepository.findById(shipmentId)).hasValueSatisfying(shipment -> {
+            assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
+            assertThat(shipment.cancellationStateValue()).contains(ShipmentCancellationState.COMPLETED);
+            assertThat(shipment.cancellationRequestId()).isEqualTo(requestId);
+            assertThat(shipment.cancellationRequestedAt()).isEqualTo(requestedAt);
+            assertThat(shipment.cancellationReason()).isEqualTo(reason);
+            assertThat(shipment.cancelledAt()).isAfter(requestedAt);
+        });
+        assertThat(jdbcTemplate.queryForMap("""
+                        SELECT type, route, partition_key,
+                               payload ->> 'shipmentId' AS shipment_id,
+                               payload ->> 'orderId' AS order_id,
+                               payload ->> 'cancellationRequestId' AS cancellation_request_id,
+                               payload ->> 'cancellationRequestedAt' AS cancellation_requested_at,
+                               payload ->> 'cancellationReason' AS cancellation_reason,
+                               payload ->> 'cancelledAt' AS cancelled_at
+                        FROM event_outbox
+                        WHERE aggregateid = ?
+                        """, shipmentId.toString()))
+                .containsEntry("type", ShipmentCancelledIntegrationEvent.EVENT_TYPE)
+                .containsEntry("route", FulfillmentChannels.SHIPMENT_EVENTS)
+                .containsEntry("partition_key", orderId.toString())
+                .containsEntry("shipment_id", shipmentId.toString())
+                .containsEntry("order_id", orderId.toString())
+                .containsEntry("cancellation_request_id", requestId.toString())
+                .containsEntry("cancellation_requested_at", requestedAt.toString())
+                .containsEntry("cancellation_reason", reason)
+                .containsKey("cancelled_at");
     }
 
     private void emit(OrderAllocationCommittedIntegrationEvent event) {

@@ -68,7 +68,6 @@ public class TemporalFulfillmentCancellationCoordinator implements FulfillmentCa
 
     private static void requireSameCommittedRequest(Order order, FulfillmentCancellationRequest request) {
         if (!request.requestId().equals(order.getCancellationRequestId())
-                || !request.requestedAt().equals(order.getCancelledAt())
                 || !request.reason().equals(order.getCancellationReason())) {
             throw new OrderCancellationRequestConflictException(
                     "Order was already cancelled by a different immutable request: " + order.getId());

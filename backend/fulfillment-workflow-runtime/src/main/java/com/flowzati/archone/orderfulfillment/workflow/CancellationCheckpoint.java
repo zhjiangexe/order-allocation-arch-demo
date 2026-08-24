@@ -3,8 +3,9 @@ package com.flowzati.archone.orderfulfillment.workflow;
 import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationRequest;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowCancellationState;
 import java.time.Instant;
+import java.util.UUID;
 
-/** 純粹收納 Workflow replay 所需的取消狀態；業務轉換仍由 Workflow 主線決定。 */
+/** 收納 Workflow replay 所需的取消請求事實；Shipment terminal fact 才決定正常履約或取消路線。 */
 final class CancellationCheckpoint {
 
     private OrderFulfillmentWorkflowCancellationState state = OrderFulfillmentWorkflowCancellationState.NONE;
@@ -23,13 +24,28 @@ final class CancellationCheckpoint {
         return cancelledAt;
     }
 
-    void accept(CancellationRequest acceptedRequest) {
-        state = OrderFulfillmentWorkflowCancellationState.REQUESTED;
-        request = acceptedRequest;
+    boolean isRequested() {
+        return state == OrderFulfillmentWorkflowCancellationState.REQUESTED;
     }
 
-    void reject() {
-        state = OrderFulfillmentWorkflowCancellationState.REJECTED;
+    CancellationRequest requireRequest() {
+        if (request == null) {
+            throw WorkflowFailures.invariantViolation("Cancellation state " + state + " requires an accepted request");
+        }
+        return request;
+    }
+
+    UUID requestIdOrNull() {
+        return request == null ? null : request.requestId();
+    }
+
+    Instant requestedAtOrNull() {
+        return request == null ? null : request.requestedAt();
+    }
+
+    void recordRequest(CancellationRequest acceptedRequest) {
+        state = OrderFulfillmentWorkflowCancellationState.REQUESTED;
+        request = acceptedRequest;
     }
 
     void markOrderCancelled(Instant occurredAt) {

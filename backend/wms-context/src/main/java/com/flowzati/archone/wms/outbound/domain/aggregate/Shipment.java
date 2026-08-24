@@ -3,8 +3,9 @@ package com.flowzati.archone.wms.outbound.domain.aggregate;
 import com.flowzati.archone.wms.outbound.domain.entity.PickTask;
 import com.flowzati.archone.wms.outbound.domain.entity.WarehouseWork;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
+import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
-import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationState;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import java.time.Instant;
@@ -34,8 +35,11 @@ public class Shipment {
     private ShipmentStatus status;
     private UUID waveId;
     private WarehouseWork pickingWork;
-    private ShipmentCancellationStatus cancellationOutcome;
-    private String cancellationRequestId;
+    private ShipmentCancellationState cancellationState;
+    private UUID cancellationRequestId;
+    private Instant cancellationRequestedAt;
+    private String cancellationReason;
+    private Instant cancelledAt;
 
     private Shipment(
             UUID id,
@@ -103,8 +107,11 @@ public class Shipment {
             ShipmentStatus status,
             UUID waveId,
             WarehouseWork pickingWork,
-            ShipmentCancellationStatus cancellationOutcome,
-            String cancellationRequestId) {
+            ShipmentCancellationState cancellationState,
+            UUID cancellationRequestId,
+            Instant cancellationRequestedAt,
+            String cancellationReason,
+            Instant cancelledAt) {
         Shipment shipment = new Shipment(
                 id, allocationId, orderId, ownerId, facilityId, lines, createdAt, dispatchBy, releasePriority);
         if (status == null) {
@@ -113,14 +120,21 @@ public class Shipment {
         if (pickingWork != null && (waveId == null || !pickingWork.belongsTo(waveId, id))) {
             throw new IllegalArgumentException("Persisted WarehouseWork does not belong to Shipment");
         }
-        if ((cancellationOutcome == null) != (cancellationRequestId == null)) {
-            throw new IllegalArgumentException("Cancellation request and outcome must both be present or absent");
-        }
+        validateCancellationState(
+                status,
+                cancellationState,
+                cancellationRequestId,
+                cancellationRequestedAt,
+                cancellationReason,
+                cancelledAt);
         shipment.status = status;
         shipment.waveId = waveId;
         shipment.pickingWork = pickingWork;
-        shipment.cancellationOutcome = cancellationOutcome;
+        shipment.cancellationState = cancellationState;
         shipment.cancellationRequestId = cancellationRequestId;
+        shipment.cancellationRequestedAt = cancellationRequestedAt;
+        shipment.cancellationReason = cancellationReason;
+        shipment.cancelledAt = cancelledAt;
         return shipment;
     }
 
@@ -228,39 +242,66 @@ public class Shipment {
         return true;
     }
 
-    public ShipmentCancellationStatus cancel(String requestId, Instant requestedAt) {
-        if (requestId == null || requestId.isBlank()) {
+    public CancelShipmentStatus cancel(UUID requestId, Instant requestedAt, String reason, Instant handledAt) {
+        if (requestId == null) {
             throw new IllegalArgumentException("Cancellation request ID is required");
         }
         requireTime(requestedAt, "Cancellation request time is required");
-        if (cancellationOutcome != null) {
-            if (!requestId.equals(cancellationRequestId)) {
+        requireTime(handledAt, "Cancellation handling time is required");
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Cancellation reason is required");
+        }
+        if (reason.length() > 512) {
+            throw new IllegalArgumentException("Cancellation reason must not exceed 512 characters");
+        }
+        if (cancellationState != null) {
+            if (!requestId.equals(cancellationRequestId)
+                    || !requestedAt.equals(cancellationRequestedAt)
+                    || !reason.equals(cancellationReason)) {
                 throw new ShipmentCancellationRequestConflictException(
-                        "Shipment already has a different cancellation request: " + id);
+                        "Shipment already has a different immutable cancellation request: " + id);
             }
-            return cancellationOutcome == ShipmentCancellationStatus.CANCELLED
-                    ? ShipmentCancellationStatus.ALREADY_CANCELLED
-                    : cancellationOutcome;
+            return cancellationState == ShipmentCancellationState.REJECTED
+                    ? CancelShipmentStatus.REJECTED
+                    : CancelShipmentStatus.ALREADY_ACCEPTED;
         }
         cancellationRequestId = requestId;
+        cancellationRequestedAt = requestedAt;
+        cancellationReason = reason;
         if (status == ShipmentStatus.HANDED_OVER_TO_CARRIER) {
-            cancellationOutcome = ShipmentCancellationStatus.REJECTED_AFTER_HANDOVER;
-            return cancellationOutcome;
+            cancellationState = ShipmentCancellationState.REJECTED;
+            return CancelShipmentStatus.REJECTED;
         }
         if (status != ShipmentStatus.CREATED
                 && status != ShipmentStatus.WAVE_PLANNED
                 && status != ShipmentStatus.RELEASED) {
             status = ShipmentStatus.CANCELLING;
-            cancellationOutcome = ShipmentCancellationStatus.PUTBACK_REQUIRED;
-            return cancellationOutcome;
+            cancellationState = ShipmentCancellationState.REQUESTED;
+            return CancelShipmentStatus.ACCEPTED;
         }
 
         if (pickingWork != null) {
             pickingWork.cancel();
         }
         status = ShipmentStatus.CANCELLED;
-        cancellationOutcome = ShipmentCancellationStatus.CANCELLED;
-        return cancellationOutcome;
+        cancellationState = ShipmentCancellationState.COMPLETED;
+        cancelledAt = handledAt;
+        return CancelShipmentStatus.ACCEPTED;
+    }
+
+    /** WMS 已完成停止作業與必要的實體 recovery；保留原 PickTask 作業歷史。 */
+    public boolean completeCancellation(Instant completedAt) {
+        requireTime(completedAt, "Cancellation completion time is required");
+        if (cancellationState == ShipmentCancellationState.COMPLETED) {
+            return false;
+        }
+        if (status != ShipmentStatus.CANCELLING || cancellationState != ShipmentCancellationState.REQUESTED) {
+            throw new IllegalStateException("Only a cancelling Shipment can complete cancellation");
+        }
+        status = ShipmentStatus.CANCELLED;
+        cancellationState = ShipmentCancellationState.COMPLETED;
+        cancelledAt = completedAt;
+        return true;
     }
 
     private void requireStatus(ShipmentStatus expected, String message) {
@@ -349,11 +390,59 @@ public class Shipment {
         return status;
     }
 
-    public String cancellationRequestId() {
+    public UUID cancellationRequestId() {
         return cancellationRequestId;
     }
 
-    public Optional<ShipmentCancellationStatus> cancellationOutcomeValue() {
-        return Optional.ofNullable(cancellationOutcome);
+    public Optional<ShipmentCancellationState> cancellationStateValue() {
+        return Optional.ofNullable(cancellationState);
+    }
+
+    public Instant cancellationRequestedAt() {
+        return cancellationRequestedAt;
+    }
+
+    public String cancellationReason() {
+        return cancellationReason;
+    }
+
+    public Instant cancelledAt() {
+        return cancelledAt;
+    }
+
+    private static void validateCancellationState(
+            ShipmentStatus shipmentStatus,
+            ShipmentCancellationState cancellationState,
+            UUID requestId,
+            Instant requestedAt,
+            String reason,
+            Instant cancelledAt) {
+        boolean hasRequest = requestId != null && requestedAt != null && reason != null && !reason.isBlank();
+        if (cancellationState == null) {
+            if (hasRequest || requestId != null || requestedAt != null || reason != null || cancelledAt != null) {
+                throw new IllegalArgumentException("Shipment without cancellation state cannot contain metadata");
+            }
+            return;
+        }
+        if (!hasRequest) {
+            throw new IllegalArgumentException("Shipment cancellation state requires complete request metadata");
+        }
+        switch (cancellationState) {
+            case REQUESTED -> {
+                if (shipmentStatus != ShipmentStatus.CANCELLING || cancelledAt != null) {
+                    throw new IllegalArgumentException("Requested cancellation requires a cancelling Shipment");
+                }
+            }
+            case COMPLETED -> {
+                if (shipmentStatus != ShipmentStatus.CANCELLED || cancelledAt == null) {
+                    throw new IllegalArgumentException("Completed cancellation requires a cancelled Shipment and time");
+                }
+            }
+            case REJECTED -> {
+                if (shipmentStatus != ShipmentStatus.HANDED_OVER_TO_CARRIER || cancelledAt != null) {
+                    throw new IllegalArgumentException("Rejected cancellation requires a handed-over Shipment");
+                }
+            }
+        }
     }
 }

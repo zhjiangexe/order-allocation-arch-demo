@@ -41,7 +41,7 @@ public final class TemporalOrderingActivitiesAdapter implements OrderingActiviti
         Order.CancellationStatus result;
         try {
             result = cancelOrderUsecase.cancel(
-                    new CancelOrderCommand(input.requestId(), input.orderId(), input.requestedAt(), input.reason()));
+                    new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
         } catch (OrderCancellationRequestConflictException exception) {
             throw nonRetryable(exception, "ORDER_CANCELLATION_REQUEST_CONFLICT");
         }

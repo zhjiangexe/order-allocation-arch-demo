@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmentActivityInput;
-import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityInput;
 import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
 import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
@@ -18,7 +17,7 @@ import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
-import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
+import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import io.temporal.failure.ApplicationFailure;
 import java.time.Instant;
 import java.util.List;
@@ -68,17 +67,17 @@ class TemporalWmsActivitiesAdapterTest {
     }
 
     @Test
-    void treatsPutbackRequiredAsARejectedSynchronousCancellation() {
+    void acknowledgesTheCommandWithoutExposingWmsRecoveryState() {
         UUID requestId = UUID.randomUUID();
         UUID shipmentId = UUID.randomUUID();
         Instant requestedAt = Instant.parse("2026-08-19T10:00:00Z");
-        when(cancelShipmentUsecase.handle(any())).thenReturn(ShipmentCancellationStatus.PUTBACK_REQUIRED);
+        when(cancelShipmentUsecase.handle(any())).thenReturn(CancelShipmentStatus.ACCEPTED);
 
-        var status = activities.cancelShipment(new CancelShipmentActivityInput(
+        activities.requestShipmentCancellation(new CancelShipmentActivityInput(
                 "process-1", requestId, UUID.randomUUID(), shipmentId, requestedAt, "customer request"));
 
-        assertThat(status).isEqualTo(CancelShipmentActivityStatus.REJECTED);
-        verify(cancelShipmentUsecase).handle(new CancelShipmentCommand(requestId.toString(), shipmentId, requestedAt));
+        verify(cancelShipmentUsecase)
+                .handle(new CancelShipmentCommand(requestId, shipmentId, requestedAt, "customer request"));
     }
 
     @Test
@@ -86,11 +85,12 @@ class TemporalWmsActivitiesAdapterTest {
         UUID requestId = UUID.randomUUID();
         UUID shipmentId = UUID.randomUUID();
         Instant requestedAt = Instant.parse("2026-08-19T10:00:00Z");
-        CancelShipmentCommand command = new CancelShipmentCommand(requestId.toString(), shipmentId, requestedAt);
+        CancelShipmentCommand command =
+                new CancelShipmentCommand(requestId, shipmentId, requestedAt, "customer request");
         when(cancelShipmentUsecase.handle(command))
                 .thenThrow(new ShipmentCancellationRequestConflictException("different cancellation request"));
 
-        assertThatThrownBy(() -> activities.cancelShipment(new CancelShipmentActivityInput(
+        assertThatThrownBy(() -> activities.requestShipmentCancellation(new CancelShipmentActivityInput(
                         "process-1", requestId, UUID.randomUUID(), shipmentId, requestedAt, "customer request")))
                 .isInstanceOf(ApplicationFailure.class)
                 .satisfies(failure -> assertThat(((ApplicationFailure) failure).isNonRetryable())

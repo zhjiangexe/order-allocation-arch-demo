@@ -1,6 +1,10 @@
 package com.flowzati.archone.bootstrap.fulfillment.temporal;
 
+import static io.temporal.api.enums.v1.WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_FAIL;
+import static io.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE;
+
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
@@ -17,6 +21,7 @@ import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapsho
 import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowInput;
+import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentCancelledSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import io.temporal.client.WorkflowClient;
@@ -31,6 +36,8 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnIntegrationEventConsumption
 @ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "temporal")
 public class TemporalFulfillmentEventConsumer {
+
+    static final String SHIPMENT_CANCELLATION_SUBSCRIPTION = "temporal-shipment-cancellation";
 
     private final WorkflowClient workflowClient;
 
@@ -67,19 +74,33 @@ public class TemporalFulfillmentEventConsumer {
         return factory.make(OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER, handlers);
     }
 
+    @Bean
+    IntegrationEventDispatcher temporalShipmentCancellationFactDispatcher(IntegrationEventDispatcherFactory factory) {
+        IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
+                        FulfillmentChannels.SHIPMENT_EVENTS)
+                .onEvent(ShipmentCancelledIntegrationEvent.class, envelope -> onShipmentCancelled(envelope.event()))
+                .build();
+        return factory.make(SHIPMENT_CANCELLATION_SUBSCRIPTION, handlers);
+    }
+
     void onOrderPlaced(OrderPlacedIntegrationEvent event) {
-        OrderFulfillmentWorkflow workflow = workflowClient.newWorkflowStub(
-                OrderFulfillmentWorkflow.class,
-                WorkflowOptions.newBuilder()
-                        .setWorkflowId(OrderFulfillmentWorkflow.workflowId(event.getOrderId()))
-                        .setTaskQueue(OrderFulfillmentWorkflow.TASK_QUEUE)
-                        .build());
+        OrderFulfillmentWorkflow workflow =
+                workflowClient.newWorkflowStub(OrderFulfillmentWorkflow.class, workflowOptions(event.getOrderId()));
         try {
             WorkflowClient.start(
                     workflow::execute, new OrderFulfillmentWorkflowInput(event.getOrderId(), event.getReceivedAt()));
         } catch (WorkflowExecutionAlreadyStarted ignored) {
             // Kafka redelivery 與 Inbox retry 可能再次嘗試啟動；workflowId 保證同一張 Order 只有一條流程。
         }
+    }
+
+    static WorkflowOptions workflowOptions(java.util.UUID orderId) {
+        return WorkflowOptions.newBuilder()
+                .setWorkflowId(OrderFulfillmentWorkflow.workflowId(orderId))
+                .setWorkflowIdConflictPolicy(WORKFLOW_ID_CONFLICT_POLICY_FAIL)
+                .setWorkflowIdReusePolicy(WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE)
+                .setTaskQueue(OrderFulfillmentWorkflow.TASK_QUEUE)
+                .build();
     }
 
     void onAllocationCommitted(OrderAllocationCommittedIntegrationEvent event) {
@@ -106,6 +127,15 @@ public class TemporalFulfillmentEventConsumer {
         workflow(event.getOrderId())
                 .shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierSignal(
                         event.getOrderId(), event.getShipmentId(), event.getHandedOverAt()));
+    }
+
+    void onShipmentCancelled(ShipmentCancelledIntegrationEvent event) {
+        workflow(event.getOrderId())
+                .shipmentCancelled(new ShipmentCancelledSignal(
+                        event.getOrderId(),
+                        event.getShipmentId(),
+                        event.getCancellationRequestId(),
+                        event.getCancelledAt()));
     }
 
     private OrderFulfillmentWorkflow workflow(java.util.UUID orderId) {

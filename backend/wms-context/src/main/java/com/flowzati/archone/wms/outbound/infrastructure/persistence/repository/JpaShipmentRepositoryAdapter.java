@@ -80,6 +80,15 @@ public class JpaShipmentRepositoryAdapter implements ShipmentRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findCancelling(int limit) {
+        if (limit <= 0) {
+            throw new IllegalArgumentException("Cancelling Shipment limit must be positive");
+        }
+        return repository.findIdsByStatus(ShipmentStatus.CANCELLING, PageRequest.of(0, limit));
+    }
+
+    @Override
     @Transactional
     public void save(Shipment shipment) {
         WmsShipmentEntity entity = repository

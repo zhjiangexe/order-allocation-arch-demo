@@ -9,7 +9,7 @@ import com.flowzati.archone.wms.outbound.application.command.CancelShipmentComma
 import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
-import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
+import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -53,14 +53,15 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
                     "Ship-complete Order has multiple WMS Shipments: " + request.orderId());
         }
         if (!shipments.isEmpty()) {
-            ShipmentCancellationStatus outcome = cancelShipmentUsecase.handle(new CancelShipmentCommand(
-                    request.requestId().toString(), shipments.getFirst().shipmentId(), request.requestedAt()));
-            if (outcome == ShipmentCancellationStatus.PUTBACK_REQUIRED) {
-                return rejected(request, "Warehouse work has started and requires physical putback");
-            }
-            if (outcome == ShipmentCancellationStatus.REJECTED_AFTER_HANDOVER) {
+            CancelShipmentStatus status = cancelShipmentUsecase.handle(new CancelShipmentCommand(
+                    request.requestId(), shipments.getFirst().shipmentId(), request.requestedAt(), request.reason()));
+            if (status == CancelShipmentStatus.REJECTED) {
                 return rejected(request, "Shipment was already handed over to the carrier");
             }
+            return new FulfillmentCancellationResult(
+                    FulfillmentCancellationStatus.ACCEPTED,
+                    request.requestId(),
+                    "WMS cancellation was accepted; Order cancellation awaits the Shipment terminal fact");
         }
         return cancelOrder(request);
     }

@@ -12,6 +12,7 @@ import com.flowzati.archone.bootstrap.messaging.consumer.BootstrapKafkaConsumerC
 import com.flowzati.archone.bootstrap.messaging.contract.BootstrapIntegrationEventContractConfiguration;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
@@ -37,10 +38,12 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResultEventConsumer;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingFulfillmentCompletionEventConsumer;
+import com.flowzati.archone.ordering.entrypoint.messaging.OrderingShipmentCancellationEventConsumer;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsFulfillmentHandoffEventConsumer;
@@ -51,13 +54,13 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class BootstrapIntegrationEventWiringTest {
 
     @Test
-    void declaresStableMappingsAndSevenExplicitTramShapedSubscriptions() {
+    void declaresStableMappingsAndEightExplicitTramShapedSubscriptions() {
         IntegrationEventDispatcherFactory factory = factory();
 
         contextRunner(factory).run(context -> {
             assertThat(context).hasSingleBean(IntegrationEventNameMapping.class);
             assertThat(context).doesNotHaveBean(IntegrationEventHandlers.class);
-            assertThat(context.getBeansOfType(IntegrationEventDispatcher.class)).hasSize(7);
+            assertThat(context.getBeansOfType(IntegrationEventDispatcher.class)).hasSize(8);
 
             IntegrationEventNameMapping mapping = context.getBean(IntegrationEventNameMapping.class);
             IntegrationEventDeserializer deserializer = mock(IntegrationEventDeserializer.class);
@@ -72,7 +75,7 @@ class BootstrapIntegrationEventWiringTest {
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(IntegrationEventHandlers.class);
                     assertThat(context.getBeansOfType(IntegrationEventDispatcher.class))
-                            .hasSize(7);
+                            .hasSize(8);
                 });
     }
 
@@ -84,6 +87,7 @@ class BootstrapIntegrationEventWiringTest {
                     assertThat(context).doesNotHaveBean(WmsFulfillmentHandoffEventConsumer.class);
                     assertThat(context).doesNotHaveBean(ShipmentHandoverEventConsumer.class);
                     assertThat(context).doesNotHaveBean(OrderingFulfillmentCompletionEventConsumer.class);
+                    assertThat(context).doesNotHaveBean(OrderingShipmentCancellationEventConsumer.class);
                     assertThat(context).doesNotHaveBean(AllocationOrderPlacedEventConsumer.class);
                     // Allocation projection、Order cancellation 與 availability reconciliation 仍是一般事件 consumer。
                     assertThat(context.getBeansOfType(IntegrationEventDispatcher.class))
@@ -117,7 +121,8 @@ class BootstrapIntegrationEventWiringTest {
                         AllocationInventoryAvailabilityEventConsumer.class,
                         WmsFulfillmentHandoffEventConsumer.class,
                         ShipmentHandoverEventConsumer.class,
-                        OrderingFulfillmentCompletionEventConsumer.class)
+                        OrderingFulfillmentCompletionEventConsumer.class,
+                        OrderingShipmentCancellationEventConsumer.class)
                 .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
                 .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
                 .withBean(CancelMovementsUsecase.class, () -> mock(CancelMovementsUsecase.class))
@@ -125,6 +130,7 @@ class BootstrapIntegrationEventWiringTest {
                 .withBean(CreateShipmentUsecase.class, () -> mock(CreateShipmentUsecase.class))
                 .withBean(CompleteOutboundMovementsUsecase.class, () -> mock(CompleteOutboundMovementsUsecase.class))
                 .withBean(RecordOrderFulfillmentUsecase.class, () -> mock(RecordOrderFulfillmentUsecase.class));
+        runner = runner.withBean(CancelOrderUsecase.class, () -> mock(CancelOrderUsecase.class));
         return factory == null ? runner : runner.withBean(IntegrationEventDispatcherFactory.class, () -> factory);
     }
 
@@ -205,6 +211,17 @@ class BootstrapIntegrationEventWiringTest {
                 .matches(dispatcher -> dispatcher.supports(
                         FulfillmentChannels.FULFILLMENT_HANDOFFS,
                         OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE,
+                        EventMessageHeaders.INITIAL_CONTRACT_VERSION));
+
+        ArgumentCaptor<IntegrationEventHandlers> shipmentCancellationHandlers =
+                ArgumentCaptor.forClass(IntegrationEventHandlers.class);
+        verify(factory)
+                .make(eq(OrderingEventSubscriptions.SHIPMENT_CANCELLATIONS), shipmentCancellationHandlers.capture());
+        assertThat(new IntegrationEventDispatcher(
+                        deserializer, shipmentCancellationHandlers.getValue(), mapping, event -> {}))
+                .matches(dispatcher -> dispatcher.supports(
+                        FulfillmentChannels.SHIPMENT_EVENTS,
+                        ShipmentCancelledIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION));
     }
 }

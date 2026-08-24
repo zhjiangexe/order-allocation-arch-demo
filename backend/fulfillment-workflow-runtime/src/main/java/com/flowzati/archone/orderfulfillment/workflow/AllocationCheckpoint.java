@@ -29,11 +29,17 @@ record AllocationCheckpoint(OrderFulfillmentWorkflowAllocationState state, Alloc
         return new AllocationCheckpoint(OrderFulfillmentWorkflowAllocationState.WAITING_FOR_COMMITMENT, null);
     }
 
-    AllocationCheckpoint committed(AllocationSnapshot snapshot) {
-        requireWaiting();
+    AllocationCheckpoint recordCommitted(AllocationSnapshot snapshot) {
         if (snapshot == null) {
             throw WorkflowFailures.invariantViolation("Committed allocation snapshot is required");
         }
+        if (isCommitted()) {
+            if (committedSnapshot.equals(snapshot)) {
+                return this;
+            }
+            throw WorkflowFailures.invariantViolation("Workflow received conflicting committed allocation facts");
+        }
+        requireWaiting();
         return new AllocationCheckpoint(OrderFulfillmentWorkflowAllocationState.COMMITTED, snapshot);
     }
 

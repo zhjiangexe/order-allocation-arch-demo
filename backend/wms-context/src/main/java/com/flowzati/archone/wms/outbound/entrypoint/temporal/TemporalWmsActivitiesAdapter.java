@@ -2,7 +2,6 @@ package com.flowzati.archone.wms.outbound.entrypoint.temporal;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmentActivityInput;
-import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityInput;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityResult;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.WmsActivities;
@@ -13,7 +12,6 @@ import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUseca
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentAllocationSnapshotConflictException;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
-import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
 import io.temporal.failure.ApplicationFailure;
 
 /** Temporal Activity contract 到 WMS application use cases 的 inbound adapter。 */
@@ -57,18 +55,13 @@ public final class TemporalWmsActivitiesAdapter implements WmsActivities {
     }
 
     @Override
-    public CancelShipmentActivityStatus cancelShipment(CancelShipmentActivityInput input) {
-        ShipmentCancellationStatus outcome;
+    public void requestShipmentCancellation(CancelShipmentActivityInput input) {
         try {
-            outcome = cancelShipmentUsecase.handle(
-                    new CancelShipmentCommand(input.requestId().toString(), input.shipmentId(), input.requestedAt()));
+            cancelShipmentUsecase.handle(new CancelShipmentCommand(
+                    input.requestId(), input.shipmentId(), input.requestedAt(), input.reason()));
         } catch (ShipmentCancellationRequestConflictException exception) {
             throw nonRetryable(exception, "WMS_SHIPMENT_CANCELLATION_REQUEST_CONFLICT");
         }
-        return switch (outcome) {
-            case CANCELLED, ALREADY_CANCELLED -> CancelShipmentActivityStatus.CANCELLED;
-            case PUTBACK_REQUIRED, REJECTED_AFTER_HANDOVER -> CancelShipmentActivityStatus.REJECTED;
-        };
     }
 
     private static ApplicationFailure nonRetryable(RuntimeException exception, String type) {

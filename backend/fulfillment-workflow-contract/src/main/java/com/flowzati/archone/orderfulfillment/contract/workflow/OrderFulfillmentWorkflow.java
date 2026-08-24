@@ -41,6 +41,10 @@ public interface OrderFulfillmentWorkflow {
     @SignalMethod(name = "shipmentHandedOverToCarrier")
     void shipmentHandedOverToCarrier(ShipmentHandedOverToCarrierSignal handover);
 
+    /** 接收 WMS 已完成停止作業與必要 recovery 的 Shipment cancellation fact。 */
+    @SignalMethod(name = "shipmentCancelled")
+    void shipmentCancelled(ShipmentCancelledSignal cancellation);
+
     /**
      * 外部入口提交「要求取消」命令，但不得先取消 Order。Update 只接受並記錄請求；WMS 安全判斷與
      * Order cancellation 由 {@link #execute(OrderFulfillmentWorkflowInput)} 主線在同一條 Workflow execution 協調。

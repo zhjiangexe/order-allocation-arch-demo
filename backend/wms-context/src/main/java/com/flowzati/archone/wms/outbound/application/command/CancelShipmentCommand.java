@@ -11,11 +11,17 @@ import java.util.UUID;
  */
 public record CancelShipmentCommand(
         /** 由外部命令入口產生並在所有重試中保持不變。 */
-        String requestId, UUID shipmentId, Instant requestedAt) {
+        UUID requestId, UUID shipmentId, Instant requestedAt, String reason) {
 
     public CancelShipmentCommand {
-        if (requestId == null || requestId.isBlank() || shipmentId == null || requestedAt == null) {
+        if (requestId == null || shipmentId == null || requestedAt == null) {
             throw new IllegalArgumentException("Cancellation request ID, shipment ID and time are required");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Cancellation reason is required");
+        }
+        if (reason.length() > 512) {
+            throw new IllegalArgumentException("Cancellation reason must not exceed 512 characters");
         }
     }
 }

@@ -191,6 +191,7 @@ class ContextBoundaryArchitectureTest {
         assertThat(InventoryChannels.STOCK_EVENTS).isEqualTo("inventory.stock-events");
         assertThat(InventoryAggregateTypes.STOCK_POOL).isEqualTo("StockPool");
         assertThat(FulfillmentChannels.FULFILLMENT_HANDOFFS).isEqualTo("promising.fulfillment-handoffs");
+        assertThat(FulfillmentChannels.SHIPMENT_EVENTS).isEqualTo("wms.shipment-events");
 
         assertThat(readSource(Path.of("build.gradle"))).contains("description = 'modular monolith deployment'");
         assertThat(readSource(Path.of("build.gradle")))

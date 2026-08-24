@@ -10,8 +10,10 @@ import com.flowzati.archone.wms.inbound.application.usecase.ConfirmPutawayUsecas
 import com.flowzati.archone.wms.inbound.application.usecase.RecordInspectionUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.RegisterInboundOperationUsecase;
 import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
+import com.flowzati.archone.wms.outbound.application.usecase.CompleteShipmentCancellationUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.PackShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.ProcessCancellingShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.SimulateWarehouseOperationsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecase;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
@@ -46,6 +48,8 @@ class WmsApplicationConfigurationTest {
             assertThat(context).hasSingleBean(ReleaseWaveUsecase.class);
             assertThat(context).hasSingleBean(CompleteWaveUsecase.class);
             assertThat(context).hasSingleBean(ConfirmPickUsecase.class);
+            assertThat(context).hasSingleBean(CompleteShipmentCancellationUsecase.class);
+            assertThat(context).hasSingleBean(ProcessCancellingShipmentsUsecase.class);
             assertThat(context).hasSingleBean(PackShipmentUsecase.class);
             assertThat(context).hasSingleBean(StageShipmentUsecase.class);
             assertThat(context).hasSingleBean(SimulateWarehouseOperationsUsecase.class);

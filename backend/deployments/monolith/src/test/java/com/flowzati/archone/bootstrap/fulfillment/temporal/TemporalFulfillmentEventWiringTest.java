@@ -36,10 +36,12 @@ class TemporalFulfillmentEventWiringTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(TemporalFulfillmentEventConsumer.class);
                     assertThat(context.getBeansOfType(IntegrationEventDispatcher.class))
-                            .hasSize(3);
+                            .hasSize(4);
                     verify(factory).make(eq(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER), any());
                     verify(factory).make(eq(WmsEventSubscriptions.FULFILLMENT_HANDOFF), any());
                     verify(factory).make(eq(OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER), any());
+                    verify(factory)
+                            .make(eq(TemporalFulfillmentEventConsumer.SHIPMENT_CANCELLATION_SUBSCRIPTION), any());
                 });
     }
 

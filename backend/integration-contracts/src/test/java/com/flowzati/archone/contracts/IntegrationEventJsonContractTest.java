@@ -3,6 +3,7 @@ package com.flowzati.archone.contracts;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
@@ -30,6 +31,7 @@ class IntegrationEventJsonContractTest {
     private static final UUID ORDER_LINE_ID = UUID.fromString("00000000-0000-0000-0000-000000000007");
     private static final UUID MOVE_ID = UUID.fromString("00000000-0000-0000-0000-000000000008");
     private static final UUID SHIPMENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000009");
+    private static final UUID CANCELLATION_REQUEST_ID = UUID.fromString("00000000-0000-0000-0000-000000000010");
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-07T00:00:00Z");
 
     private final ObjectMapper objectMapper = new ObjectMapper()
@@ -81,6 +83,17 @@ class IntegrationEventJsonContractTest {
                                 80,
                                 OCCURRED_AT),
                         OrderAllocationCommittedIntegrationEvent.class),
+                Arguments.of(
+                        "shipment-cancelled-v1.json",
+                        new ShipmentCancelledIntegrationEvent(
+                                EVENT_ID,
+                                SHIPMENT_ID,
+                                ORDER_ID,
+                                CANCELLATION_REQUEST_ID,
+                                OCCURRED_AT,
+                                "customer request",
+                                OCCURRED_AT.plusSeconds(30)),
+                        ShipmentCancelledIntegrationEvent.class),
                 Arguments.of(
                         "shipment-handed-over-v1.json",
                         new ShipmentHandedOverIntegrationEvent(

@@ -17,9 +17,9 @@ public interface WmsActivities {
     CreateShipmentActivityResult createShipment(CreateShipmentActivityInput input);
 
     /**
-     * 冪等要求 WMS 取消 Shipment，並等待 WMS 回傳最終決策。WMS 必須在此 Activity 完成前判斷
-     * Shipment 是否仍可安全取消；Workflow 不等待後續的停止／putback Signal。
+     * 冪等提交 WMS cancellation command；相同 request ID、請求時間與原因可安全重播，不同 immutable
+     * request 必須拒絕。Activity 只確認 command 已處理，不等待實體 recovery。
      */
     @ActivityMethod(name = "CancelWmsShipment")
-    CancelShipmentActivityStatus cancelShipment(CancelShipmentActivityInput input);
+    void requestShipmentCancellation(CancelShipmentActivityInput input);
 }

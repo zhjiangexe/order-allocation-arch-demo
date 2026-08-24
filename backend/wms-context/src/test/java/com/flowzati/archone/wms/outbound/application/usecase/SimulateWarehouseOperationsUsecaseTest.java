@@ -85,7 +85,7 @@ class SimulateWarehouseOperationsUsecaseTest {
         assertThat(publications).hasSize(eventsAfterCompletion);
 
         Shipment cancelled = createdShipment();
-        cancelled.cancel("cancel-before-simulation", CREATED_AT.plusSeconds(5));
+        cancelled.cancel(UUID.randomUUID(), CREATED_AT.plusSeconds(5), "customer request", CREATED_AT.plusSeconds(6));
         shipmentRepository.save(cancelled);
 
         assertThat(usecase.handle(new SimulateWarehouseOperationsCommand(cancelled.id(), PROCESSED_AT)))
@@ -164,6 +164,17 @@ class SimulateWarehouseOperationsUsecaseTest {
             return shipments.values().stream()
                     .filter(shipment -> shipment.status() == ShipmentStatus.CREATED)
                     .filter(shipment -> !shipment.createdAt().isAfter(cutoff))
+                    .map(Shipment::id)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public List<UUID> findCancelling(int limit) {
+            return shipments.values().stream()
+                    .filter(shipment -> shipment.status() == ShipmentStatus.CANCELLING)
+                    .sorted(Comparator.comparing(Shipment::cancellationRequestedAt)
+                            .thenComparing(Shipment::id))
                     .map(Shipment::id)
                     .limit(limit)
                     .toList();

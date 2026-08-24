@@ -17,8 +17,11 @@ public record ShipmentView(
         Instant createdAt,
         Instant dispatchBy,
         int releasePriority,
-        String cancellationRequestId,
-        String cancellationOutcome,
+        UUID cancellationRequestId,
+        Instant cancellationRequestedAt,
+        String cancellationReason,
+        Instant cancelledAt,
+        String cancellationState,
         List<ShipmentLineView> lines,
         List<PickTaskView> pickTasks) {
 
@@ -40,7 +43,10 @@ public record ShipmentView(
                 shipment.dispatchBy(),
                 shipment.releasePriority(),
                 shipment.cancellationRequestId(),
-                shipment.cancellationOutcomeValue().map(Enum::name).orElse(null),
+                shipment.cancellationRequestedAt(),
+                shipment.cancellationReason(),
+                shipment.cancelledAt(),
+                shipment.cancellationStateValue().map(Enum::name).orElse(null),
                 shipment.lines().stream()
                         .map(line -> new ShipmentLineView(
                                 line.orderLineId(),

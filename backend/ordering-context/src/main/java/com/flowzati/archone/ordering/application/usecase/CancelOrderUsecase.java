@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
 /**
  * 取消一張訂單。
  *
- * <p>目前由 Temporal 的 {@code CancelOrder} Activity 在 WMS 同意取消後呼叫。未來 REST／操作台
- * 應提交 cancellation request 給 fulfillment coordinator，由它先取得 WMS 決策；不得直接繞過協調
+ * <p>目前由 Temporal 的 {@code CancelOrder} Activity 或 Events consumer 在 WMS cancellation
+ * 終態成立後呼叫。REST／操作台應提交 cancellation request 給 fulfillment coordinator；不得直接繞過協調
  * 呼叫本 Usecase，否則可能取消 Order 卻留下仍在作業的 Shipment。
  *
  * <p>{@link CancelOrderCommand#requestId()} 與 immutable payload 會保存於 Order。完全相同的重播是
@@ -50,14 +50,14 @@ public class CancelOrderUsecase {
         Order order = orderRepository
                 .findById(command.orderId())
                 .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
-        Order.CancellationStatus result = order.cancel(command.requestId(), command.requestedAt(), command.reason());
+        Order.CancellationStatus result = order.cancel(command.requestId(), command.cancelledAt(), command.reason());
         if (result != Order.CancellationStatus.CANCELLED) {
             return result;
         }
 
         orderRepository.save(order);
         integrationEventPublisher.publish(
-                new OrderCancelledIntegrationEvent(IdGenerator.nextId(), order.getId(), command.requestedAt()),
+                new OrderCancelledIntegrationEvent(IdGenerator.nextId(), order.getId(), command.cancelledAt()),
                 new AggregateReference(
                         OrderingAggregateTypes.ORDER, order.getId().toString()),
                 new PublicationTarget(
@@ -66,7 +66,7 @@ public class CancelOrderUsecase {
                                 order.getId(),
                                 order.getOwnerId(),
                                 order.getDeliveryTerms().facilityId())),
-                command.requestedAt());
+                command.cancelledAt());
         return result;
     }
 }

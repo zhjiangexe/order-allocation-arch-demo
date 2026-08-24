@@ -3,7 +3,9 @@ package com.flowzati.archone.wms;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.command.ConfirmPickCommand;
@@ -13,6 +15,7 @@ import com.flowzati.archone.wms.outbound.application.command.PackShipmentCommand
 import com.flowzati.archone.wms.outbound.application.command.StageShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.CompleteShipmentCancellationUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.HandOverShipmentUsecase;
@@ -21,8 +24,9 @@ import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecas
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
-import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationState;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.wave.application.command.CompleteWaveCommand;
 import com.flowzati.archone.wms.outbound.wave.application.command.PlanWaveCommand;
@@ -35,6 +39,7 @@ import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
 import com.flowzati.archone.wms.outbound.wave.domain.service.PriorityCapacityWavePlanner;
 import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -66,6 +71,7 @@ class OutboundProcessTest {
     private StageShipmentUsecase stageShipment;
     private HandOverShipmentUsecase handOverShipment;
     private CancelShipmentUsecase cancelShipment;
+    private CompleteShipmentCancellationUsecase completeShipmentCancellation;
 
     @BeforeEach
     void setUp() {
@@ -77,7 +83,8 @@ class OutboundProcessTest {
         packShipment = new PackShipmentUsecase(shipmentRepository);
         stageShipment = new StageShipmentUsecase(shipmentRepository);
         handOverShipment = new HandOverShipmentUsecase(shipmentRepository, publications::add);
-        cancelShipment = new CancelShipmentUsecase(shipmentRepository);
+        cancelShipment = new CancelShipmentUsecase(shipmentRepository, publications::add, fixedClock());
+        completeShipmentCancellation = new CompleteShipmentCancellationUsecase(shipmentRepository, publications::add);
     }
 
     @Test
@@ -127,12 +134,17 @@ class OutboundProcessTest {
         Shipment shipment = createTwoLineShipment(70, T0.plusSeconds(3_600));
         Wave wave = planSingleWave(T0.plusSeconds(7_200));
 
-        ShipmentCancellationStatus outcome =
-                cancelShipment.handle(new CancelShipmentCommand("cancel-planned", shipment.id(), T0.plusSeconds(8)));
+        CancelShipmentStatus status = cancelShipment.handle(
+                new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(8), "customer request"));
 
-        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.CANCELLED);
+        assertThat(status).isEqualTo(CancelShipmentStatus.ACCEPTED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
+        assertThat(shipment.cancellationStateValue()).contains(ShipmentCancellationState.COMPLETED);
         assertThat(shipment.pickTasks()).isEmpty();
+        assertThat(publications).singleElement().satisfies(publication -> {
+            assertThat(publication.event()).isInstanceOf(ShipmentCancelledIntegrationEvent.class);
+            assertThat(publication.occurredAt()).isEqualTo(T0.plusSeconds(90));
+        });
 
         releaseWave.handle(new ReleaseWaveCommand(wave.id(), T0.plusSeconds(10)));
         completeWave.handle(new CompleteWaveCommand(wave.id(), T0.plusSeconds(11)));
@@ -141,17 +153,23 @@ class OutboundProcessTest {
     }
 
     @Test
-    void acceptsTheSameCancellationRequestButRejectsAnotherRequestId() {
+    void acceptsTheSameCancellationRequestButRejectsAnotherImmutablePayload() {
         Shipment shipment = createTwoLineShipment(70, T0.plusSeconds(3_600));
-        CancelShipmentCommand first = new CancelShipmentCommand("cancel-request-1", shipment.id(), T0.plusSeconds(8));
+        CancelShipmentCommand first =
+                new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(8), "customer request");
 
-        assertThat(cancelShipment.handle(first)).isEqualTo(ShipmentCancellationStatus.CANCELLED);
-        assertThat(cancelShipment.handle(first)).isEqualTo(ShipmentCancellationStatus.ALREADY_CANCELLED);
+        assertThat(cancelShipment.handle(first)).isEqualTo(CancelShipmentStatus.ACCEPTED);
+        assertThat(cancelShipment.handle(first)).isEqualTo(CancelShipmentStatus.ALREADY_ACCEPTED);
+        assertThat(publications).hasSize(1);
 
         assertThatThrownBy(() -> cancelShipment.handle(
-                        new CancelShipmentCommand("cancel-request-2", shipment.id(), T0.plusSeconds(8))))
+                        new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(8), "another request")))
                 .isInstanceOf(ShipmentCancellationRequestConflictException.class)
-                .hasMessageContaining("different cancellation request");
+                .hasMessageContaining("immutable cancellation request");
+        assertThatThrownBy(() -> cancelShipment.handle(new CancelShipmentCommand(
+                        first.requestId(), first.shipmentId(), first.requestedAt(), "another reason")))
+                .isInstanceOf(ShipmentCancellationRequestConflictException.class)
+                .hasMessageContaining("immutable cancellation request");
     }
 
     @Test
@@ -221,10 +239,10 @@ class OutboundProcessTest {
         Wave wave = planSingleWave(T0.plusSeconds(7_200));
         releaseWave.handle(new ReleaseWaveCommand(wave.id(), T0.plusSeconds(10)));
 
-        ShipmentCancellationStatus outcome =
-                cancelShipment.handle(new CancelShipmentCommand("cancel-released", shipment.id(), T0.plusSeconds(20)));
+        CancelShipmentStatus status = cancelShipment.handle(
+                new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(20), "customer request"));
 
-        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.CANCELLED);
+        assertThat(status).isEqualTo(CancelShipmentStatus.ACCEPTED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
         assertThat(shipment.pickTasks()).allMatch(task -> task.status() == PickTaskStatus.CANCELLED);
 
@@ -240,12 +258,27 @@ class OutboundProcessTest {
         var firstTask = shipment.pickTasks().getFirst();
         confirmPick.handle(new ConfirmPickCommand(firstTask.id(), firstTask.requestedQuantity(), T0.plusSeconds(20)));
 
-        ShipmentCancellationStatus outcome =
-                cancelShipment.handle(new CancelShipmentCommand("cancel-picked", shipment.id(), T0.plusSeconds(30)));
+        CancelShipmentStatus status = cancelShipment.handle(
+                new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(30), "customer request"));
 
-        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.PUTBACK_REQUIRED);
+        assertThat(status).isEqualTo(CancelShipmentStatus.ACCEPTED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLING);
+        assertThat(shipment.cancellationStateValue()).contains(ShipmentCancellationState.REQUESTED);
         assertThat(shipmentRepository.findById(shipment.id())).contains(shipment);
+        assertThat(publications).isEmpty();
+
+        Instant completedAt = T0.plusSeconds(40);
+        completeShipmentCancellation.execute(shipment.id(), completedAt);
+
+        assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
+        assertThat(shipment.cancellationStateValue()).contains(ShipmentCancellationState.COMPLETED);
+        assertThat(shipment.cancelledAt()).isEqualTo(completedAt);
+        assertThat(firstTask.status()).isEqualTo(PickTaskStatus.PICKED);
+        assertThat(firstTask.pickedQuantity()).isEqualTo(firstTask.requestedQuantity());
+        assertThat(publications)
+                .singleElement()
+                .satisfies(publication ->
+                        assertThat(publication.event()).isInstanceOf(ShipmentCancelledIntegrationEvent.class));
     }
 
     @Test
@@ -292,11 +325,12 @@ class OutboundProcessTest {
         stageShipment.handle(new StageShipmentCommand(shipment.id(), T0.plusSeconds(50)));
         handOverShipment.handle(new HandOverShipmentCommand(shipment.id(), T0.plusSeconds(60)));
 
-        ShipmentCancellationStatus outcome = cancelShipment.handle(
-                new CancelShipmentCommand("cancel-after-handover", shipment.id(), T0.plusSeconds(70)));
+        CancelShipmentStatus status = cancelShipment.handle(
+                new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(70), "customer request"));
 
-        assertThat(outcome).isEqualTo(ShipmentCancellationStatus.REJECTED_AFTER_HANDOVER);
+        assertThat(status).isEqualTo(CancelShipmentStatus.REJECTED);
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.HANDED_OVER_TO_CARRIER);
+        assertThat(shipment.cancellationStateValue()).contains(ShipmentCancellationState.REJECTED);
     }
 
     private Wave planSingleWave(Instant cutoff) {
@@ -338,6 +372,20 @@ class OutboundProcessTest {
 
     private UUID nextId() {
         return new UUID(0, sequence.incrementAndGet());
+    }
+
+    private static BusinessClock fixedClock() {
+        return new BusinessClock() {
+            @Override
+            public LocalDate today() {
+                return LocalDate.of(2026, 8, 6);
+            }
+
+            @Override
+            public Instant instant() {
+                return T0.plusSeconds(90);
+            }
+        };
     }
 
     private static final class InMemoryShipmentRepository implements ShipmentRepository {
@@ -391,6 +439,17 @@ class OutboundProcessTest {
                     .filter(shipment -> shipment.status() == ShipmentStatus.CREATED)
                     .filter(shipment -> !shipment.createdAt().isAfter(cutoff))
                     .sorted(Comparator.comparing(Shipment::createdAt).thenComparing(Shipment::id))
+                    .map(Shipment::id)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public List<UUID> findCancelling(int limit) {
+            return shipments.values().stream()
+                    .filter(shipment -> shipment.status() == ShipmentStatus.CANCELLING)
+                    .sorted(Comparator.comparing(Shipment::cancellationRequestedAt)
+                            .thenComparing(Shipment::id))
                     .map(Shipment::id)
                     .limit(limit)
                     .toList();

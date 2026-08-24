@@ -33,5 +33,8 @@ public interface ShipmentRepository {
      */
     List<UUID> findCreatedAtOrBefore(Instant cutoff, int limit);
 
+    /** 取得等待 WMS 完成停止作業與 recovery 的 Shipment IDs，依 request time、ID 穩定排序。 */
+    List<UUID> findCancelling(int limit);
+
     void save(Shipment shipment);
 }

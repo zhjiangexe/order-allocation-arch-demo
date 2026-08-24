@@ -2,7 +2,7 @@ package com.flowzati.archone.wms.outbound.infrastructure.persistence.entity;
 
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.entity.WarehouseWork;
-import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
+import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationState;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.type.WarehouseWorkStatus;
 import jakarta.persistence.CascadeType;
@@ -69,11 +69,20 @@ public class WmsShipmentEntity {
     private WarehouseWorkStatus workStatus;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "cancellation_outcome")
-    private ShipmentCancellationStatus cancellationOutcome;
+    @Column(name = "cancellation_state")
+    private ShipmentCancellationState cancellationState;
 
     @Column(name = "cancellation_request_id")
-    private String cancellationRequestId;
+    private UUID cancellationRequestId;
+
+    @Column(name = "cancellation_requested_at")
+    private Instant cancellationRequestedAt;
+
+    @Column(name = "cancellation_reason", length = 512)
+    private String cancellationReason;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "shipment_id", nullable = false)
@@ -110,8 +119,11 @@ public class WmsShipmentEntity {
         this.releasePriority = shipment.releasePriority();
         this.status = shipment.status();
         this.waveId = shipment.waveId();
-        this.cancellationOutcome = shipment.cancellationOutcomeValue().orElse(null);
+        this.cancellationState = shipment.cancellationStateValue().orElse(null);
         this.cancellationRequestId = shipment.cancellationRequestId();
+        this.cancellationRequestedAt = shipment.cancellationRequestedAt();
+        this.cancellationReason = shipment.cancellationReason();
+        this.cancelledAt = shipment.cancelledAt();
 
         this.lines.clear();
         shipment.lines().stream().map(WmsShipmentLineEntity::new).forEach(this.lines::add);
@@ -151,8 +163,11 @@ public class WmsShipmentEntity {
                 status,
                 waveId,
                 work,
-                cancellationOutcome,
-                cancellationRequestId);
+                cancellationState,
+                cancellationRequestId,
+                cancellationRequestedAt,
+                cancellationReason,
+                cancelledAt);
     }
 
     public UUID getId() {

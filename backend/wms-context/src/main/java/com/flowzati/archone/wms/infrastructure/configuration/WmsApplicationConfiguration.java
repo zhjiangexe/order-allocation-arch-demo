@@ -8,11 +8,13 @@ import com.flowzati.archone.wms.inbound.application.usecase.RecordInspectionUsec
 import com.flowzati.archone.wms.inbound.application.usecase.RegisterInboundOperationUsecase;
 import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.CompleteShipmentCancellationUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.HandOverShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.PackShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.ProcessCancellingShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ProcessDueShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.SimulateWarehouseOperationsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecase;
@@ -67,8 +69,17 @@ public class WmsApplicationConfiguration {
     }
 
     @Bean
-    CancelShipmentUsecase cancelShipmentUsecase(ShipmentRepository shipmentRepository) {
-        return new CancelShipmentUsecase(shipmentRepository);
+    CancelShipmentUsecase cancelShipmentUsecase(
+            ShipmentRepository shipmentRepository,
+            IntegrationEventPublisher integrationEventPublisher,
+            BusinessClock appClock) {
+        return new CancelShipmentUsecase(shipmentRepository, integrationEventPublisher, appClock);
+    }
+
+    @Bean
+    CompleteShipmentCancellationUsecase completeShipmentCancellationUsecase(
+            ShipmentRepository shipmentRepository, IntegrationEventPublisher integrationEventPublisher) {
+        return new CompleteShipmentCancellationUsecase(shipmentRepository, integrationEventPublisher);
     }
 
     @Bean
@@ -148,5 +159,15 @@ public class WmsApplicationConfiguration {
             @Value("${archone.wms.simulation.batch-limit:100}") int batchLimit) {
         return new ProcessDueShipmentsUsecase(
                 shipmentRepository, simulateWarehouseOperationsUsecase, appClock, processingDelay, batchLimit);
+    }
+
+    @Bean
+    ProcessCancellingShipmentsUsecase processCancellingShipmentsUsecase(
+            ShipmentRepository shipmentRepository,
+            CompleteShipmentCancellationUsecase completeShipmentCancellationUsecase,
+            BusinessClock appClock,
+            @Value("${archone.wms.simulation.cancellation-batch-limit:100}") int batchLimit) {
+        return new ProcessCancellingShipmentsUsecase(
+                shipmentRepository, completeShipmentCancellationUsecase, appClock, batchLimit);
     }
 }

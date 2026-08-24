@@ -14,6 +14,8 @@ public record OrderFulfillmentWorkflowSnapshot(
         OrderFulfillmentWorkflowStatus outcome,
         UUID allocationId,
         UUID shipmentId,
+        ShipmentTerminalStatus shipmentTerminalStatus,
+        Instant shipmentTerminalAt,
         Instant cancelledAt,
         Instant updatedAt,
         String detail) {}

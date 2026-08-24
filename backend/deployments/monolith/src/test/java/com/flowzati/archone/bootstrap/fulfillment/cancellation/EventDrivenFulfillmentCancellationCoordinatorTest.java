@@ -2,8 +2,8 @@ package com.flowzati.archone.bootstrap.fulfillment.cancellation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -14,14 +14,13 @@ import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
-import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationStatus;
+import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.InOrder;
 
 class EventDrivenFulfillmentCancellationCoordinatorTest {
 
@@ -51,34 +50,46 @@ class EventDrivenFulfillmentCancellationCoordinatorTest {
     }
 
     @Test
-    @DisplayName("events mode 必須先取得 WMS 取消決策，確認安全後才取消 Order")
-    void shouldCancelShipmentBeforeOrder() {
+    @DisplayName("events mode 受理 WMS 取消後必須等待 Shipment 終態事件才取消 Order")
+    void shouldAwaitShipmentTerminalEventBeforeCancellingOrder() {
         ShipmentView shipment = mock(ShipmentView.class);
         when(shipment.shipmentId()).thenReturn(SHIPMENT_ID);
         when(getOrderShipmentsUsecase.query(ORDER_ID)).thenReturn(List.of(shipment));
-        when(cancelShipmentUsecase.handle(any())).thenReturn(ShipmentCancellationStatus.CANCELLED);
-        when(cancelOrderUsecase.cancel(any())).thenReturn(Order.CancellationStatus.CANCELLED);
+        when(cancelShipmentUsecase.handle(any())).thenReturn(CancelShipmentStatus.ACCEPTED);
 
         FulfillmentCancellationResult result = coordinator.request(request());
 
         assertThat(result.status()).isEqualTo(FulfillmentCancellationStatus.ACCEPTED);
-        InOrder order = inOrder(cancelShipmentUsecase, cancelOrderUsecase);
-        order.verify(cancelShipmentUsecase).handle(any());
-        order.verify(cancelOrderUsecase).cancel(any());
+        verify(cancelShipmentUsecase).handle(any());
+        verifyNoInteractions(cancelOrderUsecase);
     }
 
     @Test
-    @DisplayName("WMS 要求實體 putback 時不可先把 Order 取消")
-    void shouldKeepOrderWhenPhysicalPutbackIsRequired() {
+    @DisplayName("WMS recovery 尚未完成時仍回受理，但不可先把 Order 取消")
+    void shouldAcceptDeferredCancellationWithoutCancellingOrder() {
         ShipmentView shipment = mock(ShipmentView.class);
         when(shipment.shipmentId()).thenReturn(SHIPMENT_ID);
         when(getOrderShipmentsUsecase.query(ORDER_ID)).thenReturn(List.of(shipment));
-        when(cancelShipmentUsecase.handle(any())).thenReturn(ShipmentCancellationStatus.PUTBACK_REQUIRED);
+        when(cancelShipmentUsecase.handle(any())).thenReturn(CancelShipmentStatus.ALREADY_ACCEPTED);
+
+        FulfillmentCancellationResult result = coordinator.request(request());
+
+        assertThat(result.status()).isEqualTo(FulfillmentCancellationStatus.ACCEPTED);
+        verifyNoInteractions(cancelOrderUsecase);
+    }
+
+    @Test
+    @DisplayName("Shipment 已 handover 時維持拒絕，交給未來 return flow")
+    void shouldRejectCancellationAfterHandover() {
+        ShipmentView shipment = mock(ShipmentView.class);
+        when(shipment.shipmentId()).thenReturn(SHIPMENT_ID);
+        when(getOrderShipmentsUsecase.query(ORDER_ID)).thenReturn(List.of(shipment));
+        when(cancelShipmentUsecase.handle(any())).thenReturn(CancelShipmentStatus.REJECTED);
 
         FulfillmentCancellationResult result = coordinator.request(request());
 
         assertThat(result.status()).isEqualTo(FulfillmentCancellationStatus.REJECTED);
-        assertThat(result.detail()).contains("putback");
+        assertThat(result.detail()).contains("handed over");
         verifyNoInteractions(cancelOrderUsecase);
     }
 

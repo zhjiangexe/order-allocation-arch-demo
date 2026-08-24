@@ -25,6 +25,11 @@ public interface JpaWmsShipmentRepository extends JpaRepository<WmsShipmentEntit
     List<UUID> findIdsCreatedAtOrBefore(
             @Param("status") ShipmentStatus status, @Param("cutoff") Instant cutoff, Pageable pageable);
 
+    @Query("select shipment.id from WmsShipmentEntity shipment "
+            + "where shipment.status = :status "
+            + "order by shipment.cancellationRequestedAt asc, shipment.id asc")
+    List<UUID> findIdsByStatus(@Param("status") ShipmentStatus status, Pageable pageable);
+
     @Query("select distinct shipment from WmsShipmentEntity shipment "
             + "join shipment.pickTasks task where task.id = :pickTaskId")
     Optional<WmsShipmentEntity> findByPickTaskId(@Param("pickTaskId") UUID pickTaskId);

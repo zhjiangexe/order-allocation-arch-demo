@@ -1,5 +1,6 @@
 package com.flowzati.archone.wms.outbound.entrypoint.scheduler;
 
+import com.flowzati.archone.wms.outbound.application.usecase.ProcessCancellingShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ProcessDueShipmentsUsecase;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,15 +18,20 @@ import org.springframework.stereotype.Component;
 public class SimulatedWarehouseOperationsScheduler {
 
     private final ProcessDueShipmentsUsecase processDueShipmentsUsecase;
+    private final ProcessCancellingShipmentsUsecase processCancellingShipmentsUsecase;
 
-    public SimulatedWarehouseOperationsScheduler(ProcessDueShipmentsUsecase processDueShipmentsUsecase) {
+    public SimulatedWarehouseOperationsScheduler(
+            ProcessDueShipmentsUsecase processDueShipmentsUsecase,
+            ProcessCancellingShipmentsUsecase processCancellingShipmentsUsecase) {
         this.processDueShipmentsUsecase = processDueShipmentsUsecase;
+        this.processCancellingShipmentsUsecase = processCancellingShipmentsUsecase;
     }
 
     @Scheduled(
             initialDelayString = "${archone.wms.simulation.scheduler-initial-delay-ms:1000}",
             fixedDelayString = "${archone.wms.simulation.scheduler-delay-ms:1000}")
     public void processDueShipments() {
+        processCancellingShipmentsUsecase.execute();
         processDueShipmentsUsecase.execute();
     }
 }

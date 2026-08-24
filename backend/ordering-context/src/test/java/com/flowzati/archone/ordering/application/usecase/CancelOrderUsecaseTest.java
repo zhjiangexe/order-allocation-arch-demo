@@ -41,9 +41,11 @@ class CancelOrderUsecaseTest {
         Order order = OrderingFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
         when(repository.findById(order.getId())).thenReturn(Optional.of(order));
 
-        assertThat(new CancelOrderUsecase(repository, publisher, partitionKeyResolver())
-                        .cancel(new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason)))
-                .isEqualTo(Order.CancellationStatus.CANCELLED);
+        CancelOrderUsecase usecase = new CancelOrderUsecase(repository, publisher, partitionKeyResolver());
+        CancelOrderCommand command = new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason);
+
+        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.CANCELLED);
+        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancellationRequestId()).isEqualTo(requestId);
