@@ -11,7 +11,7 @@ import java.util.UUID;
 public record CompleteOutboundMovementsActivityInput(
         String processId,
         UUID orderId,
-        UUID allocationId,
+        UUID stockOperationId,
         UUID shipmentId,
         List<UUID> movementIds,
         Instant handedOverAt) {
@@ -21,7 +21,7 @@ public record CompleteOutboundMovementsActivityInput(
             throw new IllegalArgumentException("Process ID is required");
         }
         Objects.requireNonNull(orderId, "Order ID is required");
-        Objects.requireNonNull(allocationId, "Allocation ID is required");
+        Objects.requireNonNull(stockOperationId, "Stock operation ID is required");
         Objects.requireNonNull(shipmentId, "Shipment ID is required");
         Objects.requireNonNull(movementIds, "Movement IDs are required");
         Objects.requireNonNull(handedOverAt, "Handover time is required");

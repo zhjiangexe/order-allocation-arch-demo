@@ -865,26 +865,21 @@ R3 archive 時任務 10.3 未勾。**它不是被放棄，是條件不具備**�
 
 兩項一起做，因為它們共用同一次環境準備（關掉其他負載 → `down` 重建 → 暖機一輪 → 正式一輪）。
 
-### 配貨服務對「一組批」的 feature envy
+### 配貨規劃的 Demand／Supply 邊界
 
-`AllocationService` 對傳進來的 `Map<String, List<StockQuant>>` 做了七處 map 形狀的操作：
-`keySet().containsAll`、`removeAll`、`values().stream().allMatch(List::isEmpty)`、`forEach`
-加總 ATP、`get(sku).isEmpty()`、`get(sku)` 取批、`forEach` 驗每個批掛對 SKU。**沒有一個是
-「配貨」**，全是「這組庫存怎麼查」。
+純 Planner 不再接收裸的 `Map<String, List<StockQuant>>`，也不接收 mutable `StockQuant` aggregate。
+目前契約是：
 
-該抽的是那個 map 而不是 `(Demand, batches)` 這一對。配對物件套不上喚醒那條路（它是
-`List<Demand>` 對一組批），而且配對本身沒有自己的不變式——唯一能寫的「這兩者相容」有更自然的
-擁有者：庫存回答「我是不是這筆需求的合法供給」。
+```text
+StockOperationDemand + StockAllocationSupply -> StockAllocationProposal
+```
 
-已抽成 `AllocatableBatches`：建構時驗「每個批掛在自己的 SKU 鍵下」、`forSku(skuCode)` 缺鍵
-即拋錯、`availableToPromiseFor(skuCode)`，以及需求涵蓋檢查。
+`StockAllocationSupply` 擁有 owner/location/SKU coverage、明確空 SKU group 與 ATP 加總等供給集合不變式；
+每一列是從 SQL 直接投影的 immutable `StockQuantSupply`。focused `StockAllocationSupplyStore` 保留 set-based FEFO
+查詢，`StockAllocationCommitter` 才在 commit phase 重新鎖定並載入 mutable `StockQuant`。
 
-`allocate(demand, batches)` 已拿掉未使用的 `now`；只有 `allocateWaitingBatch` 保留時間，餵給
-`AllocationRequest.decisionAt`。單筆與批次入口共用 private `attemptAllocation`，但挑選政策仍只
-屬於等待需求批次。
-
-沒有排程是因為它不修任何 bug——但它動的是 `AllocationService` 的介面與 repository 的回傳型別，
-混進任何一個功能 change 都會讓那個 change 讀不出來，所以要自己一個。
+因此 collection shape、planning facts 與 command aggregate 已分離：Planner 只計算，Proposal 不持久化，
+reservation 仍由唯一 transaction boundary 建立。
 
 #### 第二個物件：`AllocationAttempt`——`planned` 需要一個擁有者
 

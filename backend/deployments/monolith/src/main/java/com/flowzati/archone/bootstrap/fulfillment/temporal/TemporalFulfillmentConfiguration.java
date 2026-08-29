@@ -1,8 +1,8 @@
 package com.flowzati.archone.bootstrap.fulfillment.temporal;
 
-import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.balance.application.usecase.CompleteOutboundMovementsUsecase;
-import com.flowzati.archone.inventory.entrypoint.temporal.TemporalInventoryActivitiesAdapter;
+import com.flowzati.archone.inventory.adapter.TemporalInventoryActivitiesAdapter;
+import com.flowzati.archone.inventory.movement.application.usecase.CompleteStockOperationUsecase;
+import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.orderfulfillment.contract.activity.inventory.InventoryActivities;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.WmsActivities;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
@@ -46,9 +46,8 @@ public class TemporalFulfillmentConfiguration {
 
     @Bean
     TemporalInventoryActivitiesAdapter inventoryActivities(
-            AllocateOrderUsecase allocateOrderUsecase,
-            CompleteOutboundMovementsUsecase completeOutboundMovementsUsecase) {
-        return new TemporalInventoryActivitiesAdapter(allocateOrderUsecase, completeOutboundMovementsUsecase);
+            AllocateOrderUsecase allocateOrderUsecase, CompleteStockOperationUsecase completeStockOperationUsecase) {
+        return new TemporalInventoryActivitiesAdapter(allocateOrderUsecase, completeStockOperationUsecase);
     }
 
     @Bean

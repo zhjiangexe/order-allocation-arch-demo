@@ -3,6 +3,12 @@ package com.flowzati.archone.demo.fulfillment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.movement.domain.MoveState;
+import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -28,7 +34,7 @@ class OrderFulfillmentDemoControllerTest {
     private OrderFulfillmentQueryService queryService;
 
     @Test
-    @DisplayName("履約查詢應以一份 response 組合 Order、Allocation、WMS 與 orchestration mode")
+    @DisplayName("履約查詢應以一份 response 組合 source、stock operation、WMS 與 orchestration mode")
     void shouldReturnComposedFulfillmentView() {
         when(queryService.query(ORDER_ID)).thenReturn(view());
 
@@ -38,7 +44,11 @@ class OrderFulfillmentDemoControllerTest {
         response.bodyJson().extractingPath("$.orchestrationMode").isEqualTo("EVENTS");
         response.bodyJson().extractingPath("$.order.orderId").isEqualTo(ORDER_ID.toString());
         response.bodyJson().extractingPath("$.order.externalOrderNo").isEqualTo("DEMO-001");
-        response.bodyJson().extractingPath("$.allocation").isNull();
+        response.bodyJson().extractingPath("$.stockOperation.source.type").isEqualTo("ORDER");
+        response.bodyJson()
+                .extractingPath("$.stockOperation.moves[0].batches[0].quantity")
+                .isEqualTo(5);
+        response.bodyJson().doesNotHavePath("$.stockOperation.moves[0].moveLines");
         response.bodyJson().extractingPath("$.shipments.length()").isEqualTo(0);
     }
 
@@ -72,6 +82,37 @@ class OrderFulfillmentDemoControllerTest {
                 null,
                 null,
                 List.of());
-        return new OrderFulfillmentView("EVENTS", order, null, List.of(), null);
+        Instant enqueuedAt = Instant.parse("2026-08-20T08:00:00Z");
+        StockOperationResponse stockOperation = new StockOperationResponse(
+                new StockOperationResponse.SourceTrace(MovementSourceType.ORDER, ORDER_ID.toString(), "PRIMARY"),
+                new StockOperationResponse.Operation(
+                        UUID.fromString("00000000-0000-7000-8000-000000000010"),
+                        UUID.fromString("00000000-0000-7000-8000-000000000011"),
+                        StockOperationDirection.OUTBOUND,
+                        UUID.fromString("00000000-0000-7000-8000-000000000002"),
+                        UUID.fromString("00000000-0000-7000-8000-000000000012"),
+                        UUID.fromString("00000000-0000-7000-8000-000000000013"),
+                        MovementAssignmentPolicy.SHIP_COMPLETE,
+                        enqueuedAt,
+                        enqueuedAt.plusSeconds(3600),
+                        50,
+                        StockOperationState.ASSIGNED),
+                List.of(new StockOperationResponse.Move(
+                        UUID.fromString("00000000-0000-7000-8000-000000000014"),
+                        UUID.fromString("00000000-0000-7000-8000-000000000015").toString(),
+                        1,
+                        "E2E-TEA",
+                        5,
+                        MoveState.ASSIGNED,
+                        enqueuedAt,
+                        enqueuedAt.plusSeconds(60),
+                        List.of(new StockOperationResponse.Batch(
+                                UUID.fromString("00000000-0000-7000-8000-000000000016"),
+                                UUID.fromString("00000000-0000-7000-8000-000000000012"),
+                                "E2E-TEA",
+                                LocalDate.parse("2026-08-01"),
+                                LocalDate.parse("2026-09-01"),
+                                5)))));
+        return new OrderFulfillmentView("EVENTS", order, stockOperation, List.of(), null);
     }
 }

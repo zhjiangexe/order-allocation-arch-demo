@@ -32,6 +32,12 @@ public class OrderingAllocationResultEventConsumer {
                 .onEvent(
                         OrderAllocationCommittedIntegrationEvent.class,
                         envelope -> onOrderAllocationCommitted(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent.class,
+                        envelope -> onOrderPickingAssigned(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent.class,
+                        envelope -> onStockOperationAssigned(envelope.event()))
                 .build();
         return factory.make(OrderingEventSubscriptions.ALLOCATION_RESULTS, handlers);
     }
@@ -39,5 +45,17 @@ public class OrderingAllocationResultEventConsumer {
     void onOrderAllocationCommitted(OrderAllocationCommittedIntegrationEvent event) {
         recordOrderAllocationUsecase.execute(
                 new RecordOrderAllocationCommand(event.getOrderId(), event.getCommittedAt()));
+    }
+
+    void onOrderPickingAssigned(
+            com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent event) {
+        recordOrderAllocationUsecase.execute(
+                new RecordOrderAllocationCommand(event.getOrderId(), event.getAssignedAt()));
+    }
+
+    void onStockOperationAssigned(
+            com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent event) {
+        recordOrderAllocationUsecase.execute(
+                new RecordOrderAllocationCommand(event.getOrderId(), event.getAssignedAt()));
     }
 }

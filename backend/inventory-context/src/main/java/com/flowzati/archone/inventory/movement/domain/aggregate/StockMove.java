@@ -1,7 +1,8 @@
 package com.flowzati.archone.inventory.movement.domain.aggregate;
 
-import com.flowzati.archone.inventory.movement.domain.type.MoveState;
+import com.flowzati.archone.inventory.movement.domain.MoveState;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -10,27 +11,24 @@ import java.util.UUID;
  * <p>兩端都必須有。少了目的地，這一列就退回舊 {@code StockReservation} 的處境——記了鎖住
  * 多少，沒記要去哪，而那正是出貨時要補、補了就得重新詮釋既有資料的那一半。
  *
- * <p><b>收單時就建立，即使一件貨都沒有</b>，狀態為 {@link MoveState#CONFIRMED}。那讓「還在
- * 等貨」成為一列真實資料而不是一個查詢的副產物——一張永遠配不到的單因此留得下痕跡。
+ * <p>Inbound and stock-consuming outbound movements both begin in {@link com.flowzati.archone.inventory.movement.domain.MoveState#CONFIRMED}. An
+ * outbound move stays there while it waits for stock, then the assignment transaction adds move lines
+ * and changes the existing move to {@link com.flowzati.archone.inventory.movement.domain.MoveState#ASSIGNED}.
  *
- * <p>{@code orderLineId} 可空：入庫的搬運背後沒有任何訂單行。它是需求與執行之間**唯一**的
- * 連結（對應 Odoo 的 {@code stock_move.sale_line_id}）——單據上刻意沒有指向訂單的捷徑。
- *
- * <p>{@code pickingId} 也可空：move 是數量真相，picking 只是倉庫任務的可選分組。訂單
- * outbound 與目前 inbound 流程都會建 picking，但這是流程政策，不是這個型別強制的規則。
+ * <p>來源文件的行只留下 source-neutral {@code sourceLineId + lineSequence} trace；Inventory core
+ * 不知道 order line。Inbound move 沒有 source line，但所有 moves 都屬於一張 operation，讓群組狀態與
+ * move-line coverage 能由資料庫完整約束。
  */
 public class StockMove {
 
     private final UUID id;
-    private final UUID pickingId;
+    private final UUID stockOperationId;
     private final UUID ownerId;
     private final String skuCode;
     private final UUID fromLocationId;
     private final UUID toLocationId;
-    private final UUID allocationDemandId;
-    private final UUID allocationDemandLineId;
     private final String sourceLineId;
-    private final UUID orderLineId;
+    private final Integer lineSequence;
     private final int demandQuantity;
     private MoveState state;
     /** 這一段什麼時候被建立。「還在等貨」的價值有一半在這裡——看得出它躺了多久。 */
@@ -42,71 +40,34 @@ public class StockMove {
 
     public StockMove(
             UUID id,
-            UUID pickingId,
+            UUID stockOperationId,
             UUID ownerId,
             String skuCode,
             UUID fromLocationId,
             UUID toLocationId,
-            UUID allocationDemandId,
-            UUID allocationDemandLineId,
             String sourceLineId,
-            UUID orderLineId,
+            Integer lineSequence,
             int demandQuantity,
             MoveState state,
             Instant createdAt,
             Instant assignedAt,
             Long version) {
-        if (id == null) {
-            throw new IllegalArgumentException("Move ID is required");
+        if ((sourceLineId == null) != (lineSequence == null)) {
+            throw new IllegalArgumentException("Source line and line sequence must appear together");
         }
-        if (ownerId == null) {
-            throw new IllegalArgumentException("Owner ID is required");
+        if (sourceLineId != null && (sourceLineId.isBlank() || lineSequence <= 0)) {
+            throw new IllegalArgumentException("Source line must be non-blank and line sequence must be positive");
         }
-        if (skuCode == null || skuCode.isBlank()) {
-            throw new IllegalArgumentException("SKU code is required");
-        }
-        // 兩端都要有。這與資料庫的 NOT NULL 重複是刻意的——那裡擋的是任何寫入路徑，這裡擋的是
-        // 「這個型別不存在只有一端的實例」，讓讀取端不必處理半條搬運。
-        if (fromLocationId == null) {
-            throw new IllegalArgumentException("A movement must say where the goods come from");
-        }
-        if (toLocationId == null) {
-            throw new IllegalArgumentException("A movement must say where the goods go");
-        }
-        if ((allocationDemandId == null) != (allocationDemandLineId == null)) {
-            throw new IllegalArgumentException(
-                    "Allocation demand and allocation demand line references must appear together");
-        }
-        if (allocationDemandId != null && (sourceLineId == null || sourceLineId.isBlank())) {
-            throw new IllegalArgumentException("A demand movement requires a source-line reference");
-        }
-        if (demandQuantity <= 0) {
-            throw new IllegalArgumentException("Demand quantity must be positive");
-        }
-        if (state == null) {
-            throw new IllegalArgumentException("Move state is required");
-        }
-        if (createdAt == null) {
-            throw new IllegalArgumentException("Created time is required");
-        }
-        // 狀態與時間戳要對得上，與資料庫的 CHECK 同一個判準：一個沒有被綁住的時間戳遲早會
-        // 出現「狀態說配到了，時刻卻是空的」這種對不起來的實例。
-        if (state == MoveState.CONFIRMED && assignedAt != null) {
-            throw new IllegalArgumentException("A confirmed movement cannot have been assigned");
-        }
-        if ((state == MoveState.ASSIGNED || state == MoveState.DONE) && assignedAt == null) {
-            throw new IllegalArgumentException("An assigned movement must say when it was assigned");
-        }
+        validateCanonicalIdentity(stockOperationId);
+        validateCore(id, ownerId, skuCode, fromLocationId, toLocationId, demandQuantity, state, createdAt, assignedAt);
         this.id = id;
-        this.pickingId = pickingId;
+        this.stockOperationId = stockOperationId;
         this.ownerId = ownerId;
         this.skuCode = skuCode;
         this.fromLocationId = fromLocationId;
         this.toLocationId = toLocationId;
-        this.allocationDemandId = allocationDemandId;
-        this.allocationDemandLineId = allocationDemandLineId;
         this.sourceLineId = sourceLineId;
-        this.orderLineId = orderLineId;
+        this.lineSequence = lineSequence;
         this.demandQuantity = demandQuantity;
         this.state = state;
         this.createdAt = createdAt;
@@ -114,36 +75,40 @@ public class StockMove {
         this.version = version;
     }
 
-    /** Rolling-version compatibility constructor for movements created before demand references. */
-    public StockMove(
+    private static void validateCanonicalIdentity(UUID stockOperationId) {
+        if (stockOperationId == null) {
+            throw new IllegalArgumentException("Canonical movement requires a stock operation ID");
+        }
+    }
+
+    private static void validateCore(
             UUID id,
-            UUID pickingId,
             UUID ownerId,
             String skuCode,
             UUID fromLocationId,
             UUID toLocationId,
-            UUID orderLineId,
             int demandQuantity,
             MoveState state,
             Instant createdAt,
-            Instant assignedAt,
-            Long version) {
-        this(
-                id,
-                pickingId,
-                ownerId,
-                skuCode,
-                fromLocationId,
-                toLocationId,
-                null,
-                null,
-                null,
-                orderLineId,
-                demandQuantity,
-                state,
-                createdAt,
-                assignedAt,
-                version);
+            Instant assignedAt) {
+        if (id == null || ownerId == null) {
+            throw new IllegalArgumentException("Move ID and owner ID are required");
+        }
+        if (skuCode == null || skuCode.isBlank()) {
+            throw new IllegalArgumentException("SKU code is required");
+        }
+        if (fromLocationId == null || toLocationId == null) {
+            throw new IllegalArgumentException("A movement must say where the goods move between");
+        }
+        if (demandQuantity <= 0 || state == null || createdAt == null) {
+            throw new IllegalArgumentException("Movement quantity, state and created time are required");
+        }
+        if (state == MoveState.CONFIRMED && assignedAt != null) {
+            throw new IllegalArgumentException("A confirmed movement cannot have been assigned");
+        }
+        if ((state == MoveState.ASSIGNED || state == MoveState.DONE) && assignedAt == null) {
+            throw new IllegalArgumentException("An assigned movement must say when it was assigned");
+        }
     }
 
     /**
@@ -160,25 +125,22 @@ public class StockMove {
      */
     public static StockMove confirmed(
             UUID id,
-            UUID pickingId,
+            UUID stockOperationId,
             UUID ownerId,
             String skuCode,
             UUID fromLocationId,
             UUID toLocationId,
-            UUID orderLineId,
             int demandQuantity,
             Instant createdAt) {
         return new StockMove(
                 id,
-                pickingId,
+                stockOperationId,
                 ownerId,
                 skuCode,
                 fromLocationId,
                 toLocationId,
                 null,
                 null,
-                null,
-                orderLineId,
                 demandQuantity,
                 MoveState.CONFIRMED,
                 createdAt,
@@ -186,31 +148,26 @@ public class StockMove {
                 null);
     }
 
-    /** 建立會消耗庫存、且由 allocation demand 驅動的 outbound movement。 */
-    public static StockMove confirmedForDemand(
+    public static StockMove confirmedForSourceLine(
             UUID id,
-            UUID pickingId,
+            UUID stockOperationId,
             UUID ownerId,
             String skuCode,
             UUID fromLocationId,
             UUID toLocationId,
-            UUID allocationDemandId,
-            UUID allocationDemandLineId,
             String sourceLineId,
-            UUID orderLineId,
+            int lineSequence,
             int demandQuantity,
             Instant createdAt) {
         return new StockMove(
                 id,
-                pickingId,
+                stockOperationId,
                 ownerId,
                 skuCode,
                 fromLocationId,
                 toLocationId,
-                allocationDemandId,
-                allocationDemandLineId,
                 sourceLineId,
-                orderLineId,
+                lineSequence,
                 demandQuantity,
                 MoveState.CONFIRMED,
                 createdAt,
@@ -236,6 +193,32 @@ public class StockMove {
         state = MoveState.ASSIGNED;
         this.assignedAt = assignedAt;
         return true;
+    }
+
+    /** Deletes current reservation detail outside the aggregate, then returns the intent to the queue. */
+    public boolean unassign() {
+        if (state == MoveState.CONFIRMED) {
+            return false;
+        }
+        if (state != MoveState.ASSIGNED) {
+            throw new IllegalStateException("Only an assigned movement can be unassigned, was " + state);
+        }
+        state = MoveState.CONFIRMED;
+        assignedAt = null;
+        return true;
+    }
+
+    /** Replay equality ignores generated identity, lifecycle state, timestamps and optimistic version. */
+    public boolean hasSameRegistrationContent(StockMove candidate) {
+        return candidate != null
+                && Objects.equals(stockOperationId, candidate.stockOperationId)
+                && ownerId.equals(candidate.ownerId)
+                && skuCode.equals(candidate.skuCode)
+                && fromLocationId.equals(candidate.fromLocationId)
+                && toLocationId.equals(candidate.toLocationId)
+                && Objects.equals(sourceLineId, candidate.sourceLineId)
+                && Objects.equals(lineSequence, candidate.lineSequence)
+                && demandQuantity == candidate.demandQuantity;
     }
 
     /**
@@ -292,8 +275,8 @@ public class StockMove {
         return id;
     }
 
-    public UUID getPickingId() {
-        return pickingId;
+    public UUID getStockOperationId() {
+        return stockOperationId;
     }
 
     public UUID getOwnerId() {
@@ -312,20 +295,12 @@ public class StockMove {
         return toLocationId;
     }
 
-    public UUID getOrderLineId() {
-        return orderLineId;
-    }
-
-    public UUID getAllocationDemandId() {
-        return allocationDemandId;
-    }
-
-    public UUID getAllocationDemandLineId() {
-        return allocationDemandLineId;
-    }
-
     public String getSourceLineId() {
         return sourceLineId;
+    }
+
+    public Integer getLineSequence() {
+        return lineSequence;
     }
 
     public int getDemandQuantity() {

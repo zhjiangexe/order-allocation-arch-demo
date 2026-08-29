@@ -15,8 +15,12 @@ class DefaultIntegrationEventPublisherTest {
     @Test
     void convertsTheStableEventContractIntoAGenericMessage() {
         CapturingMessageProducer producer = new CapturingMessageProducer();
-        IntegrationEventPublisher publisher =
-                new DefaultIntegrationEventPublisher(producer, new JacksonIntegrationEventSerde(new ObjectMapper()));
+        IntegrationEventPublisher publisher = new DefaultIntegrationEventPublisher(
+                producer,
+                new JacksonIntegrationEventSerde(new ObjectMapper()),
+                MapBasedIntegrationEventNameMapping.builder()
+                        .map(InternallyRenamedEvent.class, "ordering.order-placed.v1", 1)
+                        .build());
         UUID eventId = UUID.randomUUID();
         Instant occurredAt = Instant.parse("2026-08-08T00:00:00Z");
 

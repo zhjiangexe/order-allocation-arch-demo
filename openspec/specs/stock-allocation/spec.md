@@ -152,6 +152,7 @@ tests:
 -->
 
 ---
+
 ### Requirement: Expired stock is present but not allocatable
 
 Stock whose expiry date has passed SHALL remain in the system and SHALL be excluded
@@ -319,6 +320,7 @@ tests:
 -->
 
 ---
+
 ### Requirement: Allocation consumes the earliest-expiring stock first
 
 Allocation SHALL take stock in order of expiry date, earliest first. Where two rows
@@ -476,6 +478,7 @@ tests:
 -->
 
 ---
+
 ### Requirement: An order is satisfied wholly or not at all
 
 An order SHALL be allocated only when its entire demand can be met from allocatable
@@ -622,6 +625,7 @@ tests:
 -->
 
 ---
+
 ### Requirement: Seed data makes every allocation outcome reproducible
 
 Seed data SHALL include, for one SKU, three unexpired rows of near, middle and far
@@ -765,154 +769,7 @@ tests:
 -->
 
 ---
-### Requirement: Allocation takes its demand from a published view, never from the order aggregate
 
-Allocation SHALL obtain what it has to satisfy from a `demand_lines` view published on the
-ordering side, mapped into its own read-only types. It SHALL NOT reference the order
-aggregate, and its code SHALL NOT name the `orders` or `order_lines` tables — in imports,
-in SQL strings, or in any other form. Checking imports alone does not stop code that
-bypasses the type and writes the table directly.
-
-Allocation's own type SHALL carry the order identifier, the owner, the warehouse, when the
-order was received, and the lines. It SHALL NOT carry the order's status. Ordering's
-record of the allocation outcome trails allocation's own decision, because it is advanced
-by an event; using it as a gate would let a second replenishment read the same demand and
-reserve stock for it twice.
-
-Its name SHALL NOT contain `Order`. It describes the same real-world order as the ordering
-aggregate but is a different model of it — read-only, five fields, no behaviour, no
-lifecycle — and a name suggesting otherwise invites the question of why it lacks a status.
-Holding an order identifier is how reservations and events are addressed, not evidence that
-the type is an order.
-
-**A query for a queue SHALL return whole orders, each with all of its outstanding lines**,
-not the lines that matched the SKU being asked about. An order is satisfied wholly or not
-at all, so a decision needs every line of it; a result filtered to one SKU cannot express
-that question. This SHALL hold while intake permits one line per order, so that relaxing
-that limit does not require the query, the view or the types to be rewritten.
-
-The wake limit SHALL count orders, matching the unit the query returns.
-
-#### Scenario: The allocation module does not reach into ordering
-
-- **WHEN** allocation's sources are inspected
-- **THEN** no file imports the order aggregate, and no file contains the `orders` or
-  `order_lines` table names
-
-#### Scenario: A queue entry carries every outstanding line of its order
-
-- **GIVEN** an order with outstanding demand for two different SKUs
-- **WHEN** the queue for one of those SKUs is read
-- **THEN** the returned entry for that order carries both lines
-
-#### Scenario: Demand is scoped and ordered by the view's caller
-
-- **GIVEN** outstanding demand across two owners, two warehouses and two SKU codes
-- **WHEN** a queue is read for one owner, warehouse and SKU code
-- **THEN** only that combination is returned, in the order the orders entered the system
-
----
-### Requirement: Allocation publishes its outcome and writes only its own tables
-
-Allocation SHALL record an outcome by writing its own tables and publishing an integration
-event. It SHALL NOT load, mutate or save the order aggregate, and one transaction SHALL
-modify one aggregate.
-
-The event SHALL be the only channel by which the outcome reaches ordering. Stating the same
-outcome both through a shared transaction and through an event would require the two to be
-kept in agreement, and only one of them has a consumer.
-
-#### Scenario: A completed allocation touches only allocation's tables
-
-- **WHEN** an order is allocated
-- **THEN** the stock row and the reservation are written, an outcome event is appended for
-  publication, and no row in `orders` or `order_lines` is modified in that transaction
-
-#### Scenario: A backorder is recorded the same way
-
-- **WHEN** demand cannot be satisfied in full
-- **THEN** no reservation is created, a backorder event is appended for publication, and no
-  row in `orders` or `order_lines` is modified in that transaction
-
----
-### Requirement: A multi-SKU order is satisfiable only when every one of its SKUs is
-
-An order's demand SHALL be satisfiable only when, for **every** SKU it names, the allocatable
-stock covers that SKU's aggregated quantity. One SKU falling short SHALL prevent the whole
-order from allocating, and SHALL leave every other SKU's stock untouched.
-
-This is the same rule the system has always applied — it was simply invisible while intake
-permitted one line, because "every SKU" and "the SKU" were the same thing.
-
-**The check SHALL NOT short-circuit.** Stopping at the first SKU that falls short would be
-faster, but the shortfall it reports would then depend on which SKU happened to be checked
-first. A caller asking "what is this order waiting for" needs all of them.
-
-#### Scenario: One SKU short blocks the whole order
-
-- **GIVEN** an order demanding 10 of `SKU-A` and 5 of `SKU-B`, with 100 of `SKU-A`
-  allocatable and 3 of `SKU-B`
-- **WHEN** the order is allocated
-- **THEN** no reservation exists for either SKU, and `SKU-A`'s reserved quantity is unchanged
-
-#### Scenario: Every SKU covered allocates the whole basket
-
-- **GIVEN** an order demanding 10 of `SKU-A` and 5 of `SKU-B`, both fully allocatable
-- **WHEN** the order is allocated
-- **THEN** reservations exist for both, each attributed to its own line
-
-#### Scenario: The shortfall names every SKU that falls short
-
-- **GIVEN** an order demanding three SKUs of which two fall short
-- **WHEN** allocation is attempted
-- **THEN** the reported shortfall names both, with the missing quantity for each
-
-
-<!-- @trace
-source: allocate-multi-sku-orders-as-one-basket
-updated: 2026-07-31
-code:
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/policy/StrictFifoAllocationPolicy.java
-  - order-promising/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/policy/MaximizeFulfilledOrdersPolicy.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/context/BasicAllocationContext.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/coordinator/OrderAllocationCoordinator.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/usecase/AllocateOrderUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/context/BasicAllocationContextFactory.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationRequest.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationResult.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/entrypoint/rest/PlaceOrderRequest.java
-  - frontend/src/components/OrderTable.tsx
-  - frontend/src/components/PlaceOrderForm.module.css
-  - frontend/src/components/PlaceOrderForm.tsx
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationService.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/SkuQuantities.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/repository/StockPoolRepository.java
-  - docs/execution-roadmap.md
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationPlan.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/Order.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/jpa/JpaStockRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/StockPoolRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/usecase/ReplenishmentUsecase.java
-tests:
-  - frontend/src/components/PlaceOrderForm.test.tsx
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationServiceTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/OrderingArchitectureTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/usecase/ReplenishmentUsecaseTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationPlanTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/entrypoint/rest/OrderControllerTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/selector/AllocationPolicyTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/domain/model/OrderTest.java
-  - order-promising/src/test/java/com/flowzati/archone/testsupport/OrderFixtures.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/usecase/AllocateOrderUsecaseTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/SkuQuantitiesTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationSelectorTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/coordinator/OrderAllocationCoordinatorTest.java
--->
-
----
 ### Requirement: Allocatable stock is supplied to allocation grouped by SKU
 
 The batches offered to an allocation decision SHALL be grouped by SKU code, and that
@@ -995,174 +852,33 @@ tests:
 -->
 
 ---
+
 ### Requirement: Waking a queue loads every SKU its candidates need
 
-Replenishment SHALL identify its candidate orders from the replenished SKU, then load the
-allocatable batches for **every** SKU those candidates name — not only the replenished one.
-An order needing a SKU that was not replenished SHALL still be judged against that SKU's
-current stock.
+Availability wake-up and reconciliation SHALL first discover a bounded set of whole pending demands from the affected inventory scope. Before planning a candidate, the transaction SHALL reject it when an earlier intersecting-SKU demand exists. It SHALL then load allocatable batches for every SKU in the eligible candidate, not only the triggering SKU.
 
-The set of stock rows a wake round will touch SHALL be fully known before the transaction
-begins. The deadlock-avoiding write order can only be computed over a known set, and loading
-batches while allocating would leave it undetermined until halfway through.
+The set of stock rows one attempt may touch SHALL be known before reservations are written, and repository query count SHALL NOT grow with the number of stock batches. A predecessor commit SHALL cause its successor to be reconsidered in a later bounded iteration, not in the same transaction.
 
-The number of queries SHALL NOT grow with the number of candidates.
+#### Scenario: Another required SKU is loaded
 
-#### Scenario: A candidate's other SKU is judged against its own stock
+- **GIVEN** a demand requires SKU-A and unavailable SKU-B
+- **WHEN** SKU-A wakes its scope
+- **THEN** the attempt also evaluates SKU-B and leaves SKU-A unreserved
 
-- **GIVEN** a queued order demanding one unit each of `SKU-A` and `SKU-B`, and no `SKU-B` in
-  stock
-- **WHEN** `SKU-A` is replenished
-- **THEN** the order is not allocated, and the replenished `SKU-A` remains unreserved
+#### Scenario: A predecessor blocks before stock planning
 
-#### Scenario: A blocked candidate stops the round rather than being skipped
+- **GIVEN** a candidate has an earlier pending demand sharing one SKU
+- **WHEN** the candidate attempt begins
+- **THEN** it stops before reserving or materializing target execution
 
-- **GIVEN** two queued orders, the first demanding `SKU-A` and `SKU-B`, the second demanding
-  only `SKU-A`, with `SKU-A` plentiful and `SKU-B` absent
-- **WHEN** `SKU-A` is replenished
-- **THEN** neither order is allocated
+#### Scenario: A successor is reconsidered after commit
 
-The second order SHALL NOT be allocated ahead of the first. Head-of-line blocking is what
-first-come-first-served means; the only thing that changed is that "cannot be filled" may now
-be due to a SKU other than the replenished one, and that makes no difference to the orders
-queued behind.
-
-<!-- @trace
-source: allocate-multi-sku-orders-as-one-basket
-updated: 2026-07-31
-code:
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/policy/StrictFifoAllocationPolicy.java
-  - order-promising/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/policy/MaximizeFulfilledOrdersPolicy.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/context/BasicAllocationContext.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/coordinator/OrderAllocationCoordinator.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/usecase/AllocateOrderUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/context/BasicAllocationContextFactory.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationRequest.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationResult.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/entrypoint/rest/PlaceOrderRequest.java
-  - frontend/src/components/OrderTable.tsx
-  - frontend/src/components/PlaceOrderForm.module.css
-  - frontend/src/components/PlaceOrderForm.tsx
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationService.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/SkuQuantities.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/repository/StockPoolRepository.java
-  - docs/execution-roadmap.md
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationPlan.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/Order.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/jpa/JpaStockRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/StockPoolRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/usecase/ReplenishmentUsecase.java
-tests:
-  - frontend/src/components/PlaceOrderForm.test.tsx
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationServiceTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/OrderingArchitectureTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/usecase/ReplenishmentUsecaseTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationPlanTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/entrypoint/rest/OrderControllerTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/selector/AllocationPolicyTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/domain/model/OrderTest.java
-  - order-promising/src/test/java/com/flowzati/archone/testsupport/OrderFixtures.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/usecase/AllocateOrderUsecaseTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/SkuQuantitiesTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationSelectorTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/coordinator/OrderAllocationCoordinatorTest.java
--->
+- **GIVEN** two allocatable demands share a SKU
+- **WHEN** the earlier demand commits
+- **THEN** the later demand is considered in a subsequent bounded iteration
 
 ---
-### Requirement: Outstanding demand is decided by whether a movement exists
 
-An order line SHALL count as outstanding while no movement exists for it, and SHALL
-disappear from the published demand once one does — **whatever state that movement is in**.
-
-This changes what the published view answers. It no longer says "what is still owed",
-because that question now has a better home: a movement that needs goods says so itself.
-What the view answers is narrower — **which lines execution has not yet taken up** — and it
-exists because execution has no other way to learn them. The event announcing a new order
-carries only its identifier, by a decision this system pins with a test, and the opposite
-direction would have ordering writing execution's tables.
-
-**A completed movement SHALL count as existing.** Nothing completes movements yet; the
-predicate is written against the full set now for the same reason it always was — were
-completion added later, every shipped order would reappear as untaken demand, and no test
-would fail on the day the mistake was made.
-
-Cancellation SHALL continue to be excluded by the order's own cancellation record, which
-ordering owns and writes synchronously, so it is immediately correct. That division is
-unchanged: ordering is authoritative for what was ordered and whether it was cancelled.
-
-**The reason for excluding the line's own status disappears.** It was excluded because
-ordering's copy lagged allocation's decision; the new predicate reads a table execution
-writes itself, so there is no lag to guard against.
-
-#### Scenario: A line with no movement is untaken
-
-- **GIVEN** an order line for which no movement has been created
-- **WHEN** the published demand is read
-- **THEN** that line appears
-
-#### Scenario: A line whose movement is still waiting for goods is not untaken
-
-- **GIVEN** an order line whose movement needs goods and has not got them
-- **WHEN** the published demand is read
-- **THEN** that line does not appear, because execution has taken it up
-
-#### Scenario: A line whose movement completed is not untaken
-
-- **GIVEN** an order line whose movement has completed
-- **WHEN** the published demand is read
-- **THEN** that line does not appear
-
-#### Scenario: A cancelled order holds no untaken demand
-
-- **GIVEN** a cancelled order whose lines have no movement
-- **WHEN** the published demand is read
-- **THEN** none of its lines appear
-
----
-### Requirement: Allocation satisfies movements, not orders directly
-
-Allocation SHALL draw its queue from movements needing goods, ordered as it ordered demand
-before, and SHALL satisfy them by assigning stock and recording which batches were drawn on.
-
-**A cancelled order SHALL leave the queue when its movements are cancelled, not when the
-order is.** This is a real narrowing and it is recorded rather than hidden. The published
-view still excludes cancelled orders synchronously, but the queue no longer reads that view:
-it reads movement state, and movements are cancelled by handling the cancellation event.
-Between ordering writing the cancellation and execution consuming it, a replenishment can
-still assign stock to that order — the release then frees it again.
-
-Nothing is corrupted by this: the quantity returns, and the order never ships. What is lost
-is exactness of fairness inside that window, bounded by consumer lag. The alternative —
-having the queue join the order table — would reintroduce the cross-context read this whole
-migration removed, on the hottest path in the system. Odoo has the same shape: cancelling a
-sale order cancels its moves, and nothing consults the order from the reservation path.
-
-The batch selection, the strict ordering, the whole-order rule and the bound on how many
-orders one replenishment wakes SHALL all be unchanged. **What changes is the shape of the
-input and the output**: the queue is a set of movements rather than a derived view, and the
-result is an assigned movement rather than a reservation beside it.
-
-**The queue SHALL remain scoped to one owner, one location and one SKU.** Widening it costs
-the same as before: candidates that this replenishment cannot satisfy consume the bound and
-are then skipped.
-
-#### Scenario: Replenishment wakes movements in the same order as before
-
-- **GIVEN** several orders waiting for the same goods in one location
-- **WHEN** stock arrives
-- **THEN** they are satisfied in the order they arrived, stopping at the first that cannot
-  be satisfied in full
-
-#### Scenario: An assigned movement names the batches it drew on
-
-- **GIVEN** a movement satisfied from two batches
-- **WHEN** it is read
-- **THEN** it carries one line per batch, and their quantities sum to what was needed
-
----
 ### Requirement: Every writer of stock rows uses one global order
 
 Every code path that writes stock rows SHALL write them sorted by one order defined in a
@@ -1195,6 +911,7 @@ compatible order; releasing and waking assemble their sets from entirely differe
 - **THEN** they are written in the global order, not the order supplied
 
 ---
+
 ### Requirement: Stock is held per owner, location, arrival and expiry
 
 A stock row SHALL be identified by its owner, its location, its SKU code, the date the
@@ -1260,6 +977,7 @@ it has been shipped.
 - **THEN** the write is refused
 
 ---
+
 ### Requirement: Allocation draws stock from a location, and demand is published with one
 
 Allocation SHALL select candidate stock by owner, **location**, and SKU code. It SHALL NOT
@@ -1303,3 +1021,486 @@ reason it was scoped to one warehouse before.
 - **WHEN** the row is opened
 - **THEN** it holds nothing
 - **AND** it holds the arrival's quantity only once the movement's line has been applied
+
+---
+
+### Requirement: Initial allocation and backorder waking use the same allocation semantics
+
+An initial assignment attempt and a backorder wake attempt SHALL use the same stock operation selection, pure planning and transactional
+assignment semantics. Both paths SHALL preserve owner/location isolation, strict FIFO selection, FEFO batch selection,
+`SHIP_COMPLETE` and stock-lock ordering.
+
+The initial path SHALL register the stock operation and confirmed moves before invoking the shared assignment responsibility. The wake path SHALL
+select an already registered confirmed stock operation. Neither application use case SHALL invoke the other.
+
+#### Scenario: Initial assignment applies the shared semantics
+
+- **GIVEN** newly registered confirmed moves whose complete stock operation is covered by allocatable stock
+- **WHEN** their initial assignment is attempted
+- **THEN** the existing moves are assigned using the same semantics used by a wake attempt
+
+#### Scenario: A wake round applies the shared semantics
+
+- **GIVEN** a confirmed stock operation selected after stock becomes available
+- **WHEN** a bounded wake round is attempted
+- **THEN** its moves are assigned using the same semantics used by an initial attempt
+
+#### Scenario: Neither flow delegates to the other flow
+
+- **WHEN** initial assignment and backorder waking are inspected
+- **THEN** each flow invokes the shared assignment responsibility directly
+- **AND** neither application use case invokes the other application use case
+
+### Requirement: Stock availability triggers convergent backorder allocation
+
+A confirmed receipt SHALL commit its completed inbound execution and a `StockAvailabilityIncreased` Outbox fact together. It SHALL NOT
+assign waiting outbound stock operations in the receipt transaction. The fact handler and a periodic reconciliation scheduler SHALL invoke the
+same transactional bounded wake use case and FIFO/FEFO assignment semantics.
+
+Every bounded round SHALL process at most the configured stock operation limit. It SHALL NOT publish an orchestration-only continuation event.
+Remaining confirmed stock operation queues SHALL be discovered by periodic reconciliation. Event retries and overlap with the scheduler SHALL
+be safe: already assigned moves and reserved quantities SHALL NOT be applied twice.
+
+#### Scenario: Receipt commits before assignment
+
+- **GIVEN** a local receipt makes stock available to confirmed outbound moves
+- **WHEN** the receipt transaction commits
+- **THEN** its completed inbound execution, physical stock increase and availability fact commit together
+- **AND** no waiting outbound move is assigned by that receipt transaction
+
+#### Scenario: Availability event triggers a prompt wake
+
+- **GIVEN** a committed availability fact for a queue containing confirmed stock operations
+- **WHEN** its Integration Event is consumed
+- **THEN** the handler claims the message and invokes one transactional bounded wake round
+
+#### Scenario: Scheduler reconciles confirmed stock operation queues
+
+- **GIVEN** confirmed stock operations remain because an event was delayed, lost or exhausted
+- **WHEN** the reconciliation scheduler scans eligible queue keys
+- **THEN** it invokes the same transactional bounded wake use case without transport metadata
+
+#### Scenario: A new stock operation cannot bypass an older shared-SKU stock operation
+
+- **GIVEN** an older confirmed stock operation remains unassigned after stock becomes available
+- **WHEN** a newer stock operation attempts immediate assignment for any shared owner, location and SKU
+- **THEN** the newer stock operation remains confirmed behind the older stock operation
+
+#### Scenario: A full round leaves bounded work for reconciliation
+
+- **GIVEN** a wake round processes the configured maximum number of stock operations
+- **WHEN** the round completes
+- **THEN** no continuation event is recorded and a later scheduler round can discover the remaining confirmed work
+
+### Requirement: Confirmed receipts create warehouse execution before physical stock changes
+
+`StockPool` SHALL be the stock context's physical inventory source of truth. A local receipt
+confirmation SHALL create an inbound stock operation and move, complete that move with a move line pointing
+to the identified owner, location, SKU, in-date, and expiry-date batch, and change physical stock
+only through that completed line. It SHALL record the availability fact in the same transaction,
+while backorder allocation runs after commit.
+
+#### Scenario: Receipt confirmation updates physical stock through movement completion
+
+- **GIVEN** a synchronous receipt request identifies one stock batch and a positive quantity
+- **WHEN** `ConfirmStockReceiptUsecase` handles it
+- **THEN** one inbound stock operation, move, and move line are recorded and completed
+- **AND** the matching batch is increased or a new batch is created from that move line
+
+#### Scenario: The use case validates the selected receipt location
+
+- **GIVEN** a synchronous receipt request identifies a facility and one of its internal locations
+- **WHEN** the REST adapter invokes `ConfirmStockReceiptUsecase`
+- **THEN** the adapter does not access a stock-location repository
+- **AND** the use case verifies that the location is internal and belongs to the facility before
+  recording the movement
+- **AND** the stock operation, move, physical stock, and availability fact use that location
+
+#### Scenario: A facility may offer multiple receipt locations
+
+- **GIVEN** a facility has more than one internal stock location
+- **WHEN** the stock UI prepares a receipt
+- **THEN** it can list those locations and submit the selected `locationId`
+- **AND** the receipt is not silently redirected to the operation type's default destination
+
+#### Scenario: Receipt and availability fact commit atomically
+
+- **GIVEN** a receipt confirmation increases available physical stock
+- **WHEN** its transaction commits
+- **THEN** the completed inbound execution, stock increase, and availability Outbox fact commit
+  together
+- **AND** backorder assignments belong to a later transaction
+
+---
+
+### Requirement: Allocation transaction boundaries are independent of their orchestrator
+
+Allocation commands, in-process wake-round results, and transactional use cases SHALL NOT depend on Kafka event classes
+or Temporal SDK types. An entrypoint SHALL translate transport input into an application command
+before invoking the use case. Business-fact Integration Events remain
+the channel by which outcomes reach other bounded contexts.
+
+This requirement establishes a shared application seam; it does not enable a Temporal runtime.
+If a future Workflow branches on a retried Activity result, the adapter SHALL introduce that result
+with durable replay or authoritative reconstruction of the original committed result.
+
+#### Scenario: An Integration Event adapter invokes the transactional boundary
+
+- **GIVEN** an allocation-related Integration Event has been received
+- **WHEN** its handler invokes application logic
+- **THEN** the handler maps the event and metadata into transport-neutral command input
+- **AND** the transactional use case contains no dependency on the Kafka event class
+
+#### Scenario: A future Activity wraps one complete transaction
+
+- **GIVEN** a Temporal adapter is introduced after durable result replay is available
+- **WHEN** it invokes initial allocation or a bounded wake round
+- **THEN** one Activity invokes one complete transactional use case
+- **AND** `StockOperationRecorder` and `MovementAssigner` are not exposed as separate
+  Activities merely because they are separate application components
+
+#### Scenario: A retried Activity observes its original result
+
+- **GIVEN** a transactional use case committed but its Activity completion was not recorded
+- **WHEN** Temporal retries the same deterministic invocation
+- **THEN** the adapter returns the original committed result without repeating business side effects
+
+---
+
+### Requirement: Allocation takes its demand from confirmed movements, never from a source aggregate
+
+Allocation SHALL select a complete stock-consuming `StockOperation` and its confirmed moves. It SHALL NOT load or mutate an Order,
+Transfer or other source aggregate and SHALL NOT reconstruct movement intent from a duplicate allocation-demand model.
+
+Strict FIFO precedence SHALL be scoped by owner, source stock location and intersecting confirmed-move SKUs using
+`(stock operation.enqueuedAt, stock operation.id)`. A candidate SHALL be eligible exactly when no earlier confirmed stock-consuming stock operation in that scope
+has an intersecting confirmed SKU set. Required-by time, release priority, destination and current ATP SHALL NOT reorder this relation.
+The final predecessor check SHALL occur inside the assignment transaction, and one transaction SHALL assign at most one stock operation.
+
+#### Scenario: A shared confirmed SKU establishes precedence
+
+- **GIVEN** an earlier confirmed stock operation needs SKU-A and SKU-B and a later confirmed stock operation needs SKU-B and SKU-C in the same scope
+- **WHEN** the later stock operation is evaluated
+- **THEN** the earlier stock operation blocks it because their confirmed SKU sets intersect
+
+#### Scenario: Disjoint confirmed stock operations are independent
+
+- **GIVEN** an earlier confirmed stock operation needs only SKU-A and a later confirmed stock operation needs only SKU-B in the same scope
+- **WHEN** SKU-B availability is reconciled
+- **THEN** the later stock operation is not blocked by the earlier stock operation
+
+#### Scenario: An unavailable predecessor remains visible
+
+- **GIVEN** an earlier shared-SKU stock operation is currently short of another SKU
+- **WHEN** a later otherwise-satisfiable stock operation is evaluated
+- **THEN** the exact predecessor check rejects the later stock operation
+
+### Requirement: Assignment publishes one canonical stock operation outcome
+
+An assignment transaction SHALL write only Inventory stock, stock operation, movement, movement-line and Outbox facts. It SHALL NOT load a source
+aggregate or write WMS-owned Shipment, Wave or PickTask records.
+
+The Inventory `stockOperationId` SHALL be the stable operation-group identity across the assignment result and move-centric integration contract.
+The result SHALL include source-unit trace, move identities and current batch-pick details. For an order-backed stock operation, exactly one
+order-allocation committed fact SHALL be written to Outbox; Ordering and WMS SHALL consume it under separate subscription identities.
+
+The breaking move-centric payload SHALL use a new contract version. Consumers SHALL accept both legacy and move-centric versions before
+the producer switches. Legacy readers SHALL remain until source-topic retention, Outbox re-snapshot exposure and DLT replay windows have
+expired; removing legacy readers SHALL require a later change.
+
+#### Scenario: Stock operation identity crosses the assignment boundary
+
+- **GIVEN** an assigned Inventory stock operation has id `stock operation-1`
+- **WHEN** its assignment fact is published
+- **THEN** the fact identifies `stock operation-1`, its moves and their batch picks without an allocation-demand id
+
+#### Scenario: WMS remains a separate writer
+
+- **WHEN** WMS consumes the assigned-stock operation fact
+- **THEN** WMS creates or finds its execution by `stockOperationId` without Inventory writing WMS tables
+
+#### Scenario: A transfer assignment needs no order event
+
+- **WHEN** a transfer-backed stock operation is assigned
+- **THEN** the core result remains source-addressable and no order-specific fact is required
+
+#### Scenario: A retained legacy event remains consumable
+
+- **GIVEN** a legacy allocation event is replayed during the compatibility window
+- **WHEN** a deployed consumer receives it
+- **THEN** the consumer resolves the canonical stock operation from the event's retained move identities and applies the legacy contract
+  idempotently without treating its allocation identity as a stock operation identity
+
+#### Scenario: New producers emit only the move-centric version
+
+- **GIVEN** tolerant consumers are deployed
+- **WHEN** the producer cutover completes
+- **THEN** new assignment facts use the move-centric contract version and stock operation identity
+
+### Requirement: A SHIP_COMPLETE stock operation is satisfiable only when every move is covered
+
+A confirmed `SHIP_COMPLETE` stock operation SHALL be planned only after it passes the exact shared-SKU predecessor check. It SHALL be ready only
+when allocatable stock covers the aggregate requested quantity of every SKU and the resulting reservation drafts exactly cover every
+confirmed move. A short SKU SHALL leave all moves confirmed and SHALL reserve no stock.
+
+The pure planner SHALL report every short SKU and SHALL return no reservation drafts for an insufficient proposal. For repeated SKU
+moves, it SHALL perform sufficiency on the aggregate and distribute FEFO batch quantities in immutable move line-sequence order. Each
+draft SHALL identify `moveId`, `stockQuantId` and quantity.
+
+#### Scenario: One SKU short changes no movement or stock
+
+- **GIVEN** a confirmed stock operation needs SKU-A and SKU-B and SKU-B is short
+- **WHEN** it is planned
+- **THEN** no move line or reservation is created and every move remains `CONFIRMED`
+
+#### Scenario: Every move covered creates a complete proposal
+
+- **GIVEN** every SKU aggregate is covered and the stock operation has no predecessor
+- **WHEN** it is planned
+- **THEN** the immutable proposal exactly covers every confirmed move
+
+#### Scenario: Repeated SKU moves are deterministic
+
+- **GIVEN** two confirmed moves request the same SKU across multiple FEFO batches
+- **WHEN** the same snapshot is planned repeatedly
+- **THEN** batch quantities map to move ids identically in immutable line-sequence order
+
+### Requirement: Allocation assigns existing movements atomically
+
+For one eligible and fully satisfiable stock operation, a single transaction SHALL lock and reload the stock operation, its moves and relevant stock
+quants; verify proposal versions and exact precedence; reserve the planned quantities; create `StockMoveLine` details; transition the
+existing moves to `ASSIGNED`; update the stock operation summary to `ASSIGNED`; and append the committed fact to Outbox.
+
+The transaction SHALL follow the common lock order `StockOperation -> StockMove id order -> StockQuant global write order`. If any
+revalidation, counter, move-line, state or Outbox write fails, every effect SHALL roll back and the stock operation and moves SHALL remain
+confirmed. A retry after a successful commit SHALL reconstruct the original result from assigned moves and move lines without reserving
+again.
+
+#### Scenario: A successful proposal assigns a coherent existing move set
+
+- **WHEN** a complete eligible proposal commits
+- **THEN** every original move is assigned with exact move-line coverage, the stock operation is assigned and one committed fact is persisted
+
+#### Scenario: A commit failure leaves the movement set confirmed
+
+- **GIVEN** one counter, move-line, state or Outbox write fails
+- **WHEN** the assignment transaction rolls back
+- **THEN** no partial reservation remains and the original stock operation and moves remain `CONFIRMED`
+
+#### Scenario: A committed retry does not reserve twice
+
+- **GIVEN** an assignment committed but its caller did not observe the result
+- **WHEN** the same deterministic invocation is retried
+- **THEN** it returns the persisted assignment result without changing reserved quantities
+
+### Requirement: Quant reservation counters reconcile with assigned move lines
+
+For each stock quant, `reservedQuantity` SHALL equal the sum of quantities on move lines whose parent stock-consuming move is
+`ASSIGNED`. Reconciliation SHALL report a counter mismatch, an assigned move without exact line coverage, a confirmed or cancelled move
+with lines, or a `SHIP_COMPLETE` stock operation whose move states are mixed.
+
+#### Scenario: A healthy assigned stock operation reconciles
+
+- **GIVEN** every assigned move has exact move-line coverage and every referenced quant counter equals its assigned-line sum
+- **WHEN** allocation reconciliation runs
+- **THEN** it reports no anomaly for that stock operation or its quants
+
+#### Scenario: Counter drift is detected
+
+- **GIVEN** a quant reserved counter differs from the sum of its assigned outgoing move lines
+- **WHEN** allocation reconciliation runs
+- **THEN** it reports the mismatch and does not infer correctness from stock operation state alone
+
+### Requirement: Allocation treats StockOperation as its selection and atomicity boundary
+
+Allocation SHALL select a complete confirmed stock-consuming `StockOperation` and its confirmed moves without loading its source
+aggregate. The pure planner SHALL consume immutable operation, move and quant snapshots and SHALL produce only an immutable proposal;
+it SHALL NOT mutate persistence or publish an outcome.
+
+For a fully satisfiable operation, one transaction SHALL lock and reload the operation, its moves and relevant quants; revalidate the
+proposal and exact predecessor; reserve the planned quantities; create `StockMoveLine` details; transition the existing moves and
+operation to `ASSIGNED`; and append the committed fact to Outbox. The lock order SHALL remain `StockOperation`, then `StockMove` in ID
+order, then `StockQuant` in global write order.
+
+#### Scenario: Planning has no side effect
+
+- **GIVEN** a confirmed stock operation and an immutable stock snapshot
+- **WHEN** the planner computes an assignment proposal
+- **THEN** no operation, move, move line, quant counter or Outbox fact is changed
+
+#### Scenario: A complete proposal assigns one operation atomically
+
+- **WHEN** an eligible complete proposal commits
+- **THEN** every original move gains exact move-line coverage and becomes `ASSIGNED`
+- **AND** its stock operation becomes `ASSIGNED` and one committed fact is persisted in the same transaction
+
+#### Scenario: A commit failure leaves no partial allocation
+
+- **GIVEN** one counter, line, state or Outbox write fails
+- **WHEN** the assignment transaction rolls back
+- **THEN** the stock operation and its moves remain `CONFIRMED` and no partial reservation remains
+
+### Requirement: Allocation policies are invariant under the operation rename
+
+Renaming the operation group SHALL NOT change `SHIP_COMPLETE`, strict shared-SKU FIFO, FEFO, owner and source-location isolation,
+proposal revalidation, reservation counters or retry idempotency. Strict precedence SHALL continue to use intersecting confirmed-move
+SKUs and `(operation.enqueuedAt, operation.id)` within owner and source-location scope.
+
+A `SHIP_COMPLETE` stock operation SHALL be assignable only when every confirmed move is covered exactly. A short SKU SHALL leave every
+move confirmed and SHALL reserve no stock. FEFO drafts SHALL continue to identify `moveId`, `stockQuantId` and quantity.
+
+#### Scenario: A short SKU changes nothing
+
+- **GIVEN** a confirmed `SHIP_COMPLETE` stock operation needs multiple SKUs and one SKU is short
+- **WHEN** allocation is attempted
+- **THEN** no move line or reservation is created and every move remains `CONFIRMED`
+
+#### Scenario: An older shared-SKU operation keeps precedence
+
+- **GIVEN** an older confirmed stock operation and a newer one share an owner, source location and confirmed SKU
+- **WHEN** the newer operation is evaluated
+- **THEN** it remains behind the older operation regardless of the vocabulary rename
+
+#### Scenario: FEFO remains deterministic
+
+- **GIVEN** a stock operation is satisfiable from multiple eligible batches
+- **WHEN** the same immutable snapshots are planned repeatedly
+- **THEN** the same quant quantities map to the same move IDs in deterministic order
+
+### Requirement: Assignment outcomes publish the canonical stock-operation identity
+
+An assignment result and every new move-centric integration contract SHALL identify the Inventory operation by `stockOperationId` and
+SHALL include source-unit trace, move identities and current batch-pick details. A new producer SHALL emit only the new contract version
+after tolerant consumers are deployed; it SHALL NOT dual-publish old and new facts for one assignment.
+
+During the declared compatibility window, consumers SHALL accept both the legacy contract containing `pickingId` and the new version
+containing `stockOperationId`, normalize either at ingress to one stock-operation command, and apply it idempotently. Historical Outbox
+or DLT payloads SHALL NOT be rewritten. New audit publication SHALL use aggregate type `StockOperation`; history readers that span the
+window SHALL normalize legacy aggregate type `StockPicking` to the same identity.
+
+#### Scenario: A new outcome crosses contexts with one identity
+
+- **GIVEN** an assigned stock operation has a stable UUID
+- **WHEN** its assignment fact is published
+- **THEN** Ordering and WMS receive `stockOperationId` with that UUID and the move-centric batch snapshot
+
+#### Scenario: A legacy assignment fact remains consumable
+
+- **GIVEN** a retained legacy fact containing `pickingId` is replayed during the compatibility window
+- **WHEN** a tolerant consumer receives it
+- **THEN** the consumer normalizes the value to `stockOperationId` at ingress and applies the fact idempotently
+
+#### Scenario: Producer cutover does not duplicate warehouse execution
+
+- **GIVEN** consumers accept both contract versions
+- **WHEN** the producer switches to the stock-operation version
+- **THEN** it publishes exactly one version for each new assignment
+
+### Requirement: In-flight workflow history survives the terminology cutover
+
+The canonical Temporal assignment signal SHALL be `stockOperationAssigned` with a `StockOperationAssignmentSnapshot`. During the
+compatibility window, the workflow contract SHALL retain the history-visible `pickingAssigned` signal and its legacy snapshot and SHALL
+convert it inside the workflow to the same stock-operation checkpoint.
+
+New adapters SHALL send only the canonical signal. A legacy DTO or field alias SHALL remain confined to the workflow compatibility
+boundary and SHALL NOT appear in Inventory or WMS domain/application APIs. Pure payload normalization SHALL NOT change workflow command
+sequence, activity names, timers or branching.
+
+#### Scenario: A new workflow receives the canonical signal
+
+- **WHEN** a new assignment reaches an active workflow
+- **THEN** the adapter sends `stockOperationAssigned` with `stockOperationId`
+
+#### Scenario: An old workflow history can replay
+
+- **GIVEN** a workflow history contains `pickingAssigned` and a legacy assignment snapshot
+- **WHEN** the renamed workflow implementation replays that history
+- **THEN** it converts the legacy snapshot to the canonical checkpoint without changing emitted commands
+
+### Requirement: StockOperationAssigner is the canonical assignment application entry
+
+Initial assignment after source registration, availability-driven retry and backlog reconciliation SHALL invoke one
+`StockOperationAssigner` application façade. The façade SHALL coordinate candidate acquisition, pure planning and transactional apply;
+an application use case SHALL NOT invoke another application use case to reconstruct that flow. Availability and backlog entry points
+SHALL pass one transport-neutral `AssignmentQueueKey` and SHALL NOT wrap the same fields in a second command type.
+
+`MovementAssignmentPlanner` SHALL remain a deterministic calculation over immutable facts. `StockOperationAssignmentTransaction` SHALL
+remain an internal apply boundary and SHALL NOT be exposed as an independent adapter entry point. A backlog reconciler SHALL discover
+retryable keys and invoke the same façade rather than duplicate planning or apply logic.
+
+#### Scenario: Source registration attempts assignment through the façade
+
+- **GIVEN** source registration creates a confirmed stock operation
+- **WHEN** the registration flow attempts initial assignment
+- **THEN** it invokes `StockOperationAssigner` and does not invoke the assignment transaction directly
+
+#### Scenario: Availability and reconciliation share one flow
+
+- **GIVEN** an availability event and a scheduled reconciliation identify the same assignment queue
+- **WHEN** each trigger attempts the next candidate
+- **THEN** both pass the same `AssignmentQueueKey` to `StockOperationAssigner`
+- **AND** both use the same candidate, planner and transactional apply sequence
+
+### Requirement: Assignment candidate acquisition exposes immutable source facts
+
+`AssignmentCandidateQuery` SHALL return an immutable `AssignmentCandidate` containing a `MovementPlanningSnapshot` and an optional
+`StockOperationPredecessor`. It SHALL NOT expose a mutable `StockOperation` aggregate to the planner or triggering adapter. Candidate
+acquisition SHALL be treated as an optimistic read, and the assignment transaction SHALL lock the canonical operation and moves, reload
+affected quants, and recheck exact predecessor and proposal validity before changing any target state.
+
+#### Scenario: Planning cannot mutate the selected operation
+
+- **GIVEN** a confirmed operation is eligible for planning
+- **WHEN** `AssignmentCandidateQuery` returns its candidate
+- **THEN** the candidate contains immutable movement facts and no mutable operation aggregate
+
+#### Scenario: A stale candidate cannot bypass final precedence
+
+- **GIVEN** a candidate was planned before an older intersecting operation became visible to the transaction
+- **WHEN** transactional apply performs its final predecessor check
+- **THEN** it rejects or skips the stale proposal without creating move lines or changing reserved counters
+
+### Requirement: Allocation command stores and read queries have separate ports
+
+Allocation command stores SHALL expose only identity lookup, persistence and required lock operations. Candidate selection, backlog
+discovery, deterministic FEFO supply and stock-operation reconciliation SHALL use purpose-specific query ports. A shared JPA aggregate
+repository SHALL NOT serve as the public port for both command persistence and those unrelated read purposes.
+
+The backlog query SHALL expose only production reconciliation needs. An oldest-enqueued-age query with no production caller SHALL be
+removed rather than retained solely for a persistence test.
+
+#### Scenario: FEFO planning reads through a supply query
+
+- **GIVEN** a planner needs eligible quants for multiple SKUs
+- **WHEN** it loads allocatable stock
+- **THEN** it uses `AllocatableStockQuery` with deterministic owner, location, SKU and FEFO scope
+- **AND** it does not call a command store's generic quant listing method
+
+#### Scenario: Backlog discovery does not enlarge the operation store
+
+- **WHEN** reconciliation discovers assignment queues with ready work
+- **THEN** it uses `AssignmentBacklogQuery`
+- **AND** `StockOperationStore` remains free of backlog and queue-head discovery methods
+
+### Requirement: Assignment apply uses ephemeral validated working sets
+
+The assignment transaction SHALL construct an internal `LockedStockOperation` from the complete locked operation, move and move-line
+set and an internal `QuantReservationSet` from proposal quantities. These working sets SHALL centralize completeness, homogeneous-state,
+exact-coverage, quant-scope and reservation-delta validation while preserving the lock order
+`StockOperation -> StockMove ID order -> StockQuant global write order`.
+
+Neither working set SHALL have a persistence identity, repository or lifecycle, and neither SHALL become a parallel reservation ledger.
+If any validation, save or Outbox operation fails, the complete assignment SHALL roll back.
+
+#### Scenario: A valid proposal commits through one validated target set
+
+- **GIVEN** a proposal exactly covers every confirmed move with in-scope quants
+- **WHEN** assignment apply succeeds
+- **THEN** move lines, quant reserved counters, moves, operation state and Outbox facts commit in one transaction
+
+#### Scenario: An invalid quant scope rolls back the complete assignment
+
+- **GIVEN** a proposal references a quant outside the operation owner or source-location scope
+- **WHEN** `QuantReservationSet` is validated
+- **THEN** the transaction rejects the proposal
+- **AND** no move line, reservation counter, move state, operation state or Outbox fact changes

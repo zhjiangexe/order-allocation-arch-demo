@@ -260,7 +260,7 @@ order-promising transaction
   `promising.fulfillment-handoffs` channel。它攜帶 committed allocation snapshot；Ordering 使用的
   `OrderAllocatedIntegrationEvent` 仍維持最小 lifecycle notification。
 - `dispatchBy` 與 `releasePriority` 在 order input 明確提供，經 `DeliveryTerms`、Demand、outbound
-  `StockPicking` 與 domain completion fact 傳到 Outbox；WMS 不從承諾日期猜離倉 deadline，也不在
+  `StockOperation` 與 domain completion fact 傳到 Outbox；WMS 不從承諾日期猜離倉 deadline，也不在
   收到逾期單時拒絕建單。
 - 這個 slice 最初以 `wms-runtime` 驗證獨立 deployable；2026-08-19 改採 monolith-first，將 WMS
   JPA、Kafka consumer 與 Spring configuration 收回 `wms` bounded-context module，並由
@@ -269,7 +269,7 @@ order-promising transaction
   `event_inbox` transaction，資料表由 `deployments:monolith` Flyway migration 管理。
 - consumer 以 Tram-style `IntegrationEventDispatcherFactory.make(subscriberId, handlers)` 註冊；
   共用 Inbox transaction 包住 contract mapping、`CreateShipmentUsecase` 與 Shipment persistence。
-- message ID duplicate 由 Inbox 擋住；同一 allocation 以新 event ID 重發則由 `allocationId` business
+- message ID duplicate 由 Inbox 擋住；同一 operation 以新 event ID 重發則由 `stockOperationId` business
   key 收斂。相同 snapshot 回傳既有 Shipment，不同 snapshot 明確失敗。
 - correctness E2E 啟動單一 `deployments:monolith` Spring context，共用真實 Debezium Connect／Kafka；驗證
   Outbox → CDC → Kafka → WMS Inbox → Shipment，且 application restart／record replay 後不會多建

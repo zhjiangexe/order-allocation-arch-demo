@@ -242,7 +242,7 @@ order_lines
 | 後果 | 說明 |
 | --- | --- |
 | migration 要明確處理既有列 | 既有列的 `in_date` 與 `expiry_date` 該填什麼是資料決定，不是技術細節 |
-| 「一個 SKU 只有一列」的假設全部失效 | `StockQuantRepository.findBySku()` 目前回傳 `Optional<StockQuant>`，擴維度後必須回傳 `List`。所有依賴單筆回傳的呼叫端都要改 |
+| 「一個 SKU 只有一列」的假設全部失效 | 舊式的 `findBySku()` 單筆回傳不再成立；現行 `StockQuantStore` 已依完整庫存身分載入批次，批次查詢則必須回傳 `List` |
 
 ### Index 的連鎖
 
@@ -509,7 +509,7 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 | 建 `products` 款主檔 | 新 migration、`Product`、`ProductEntity`、`ProductRepository(+Impl)`。key 為 `(owner_id, product_code)`，持有 `temperature_zone` |
 | 建 `skus` 規格主檔 | 新 migration、`Sku`、`SkuEntity`、`SkuRepository(+Impl)`。key 為 `(owner_id, sku_code)`，FK 指向 `products`，持有 `weight_gram` |
 | `orders` 加 `owner_id` | `Order`、`OrderEntity`、`OrderMapper`、新 migration |
-| `stock_pools` key 加 `owner_id` 與 `facility_id`（**不改名**，理由見「資料模型」） | `StockQuant`、`StockQuantEntity`、`StockQuantMapper`、`StockQuantRepository(+Impl)`（`findBySku` 改回傳 `List`）、`JpaStockRepository`、新 migration |
+| `stock_pools` key 加 `owner_id` 與 `facility_id`（**不改名**，理由見「資料模型」） | `StockQuant`、`StockQuantEntity`、`StockQuantMapper`、`StockQuantStore(+Impl)`、`JpaStockQuantRepository`、新 migration |
 | 加跨貨主校驗 | `AllocationService.requireMatchingOwner()` |
 | 查詢帶貨主 | `AllocateOrderUsecase`、`ConfirmStockReceiptUsecase`、`GetStockQuantUsecase` |
 | Seed | `DevSeedDataInitializer` 加一至兩個貨主；商品含常溫與冷凍各一款，其中一款帶兩個規格以顯示款／規格兩層 |

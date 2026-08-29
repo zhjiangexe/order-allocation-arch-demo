@@ -13,7 +13,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaWmsShipmentRepository extends JpaRepository<WmsShipmentEntity, UUID> {
 
-    Optional<WmsShipmentEntity> findByAllocationId(UUID allocationId);
+    Optional<WmsShipmentEntity> findByStockOperationId(UUID stockOperationId);
 
     List<WmsShipmentEntity> findByOrderIdOrderByCreatedAtAscIdAsc(UUID orderId);
 

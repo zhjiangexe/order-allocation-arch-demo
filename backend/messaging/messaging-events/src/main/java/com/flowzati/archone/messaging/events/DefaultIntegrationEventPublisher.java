@@ -8,8 +8,11 @@ public final class DefaultIntegrationEventPublisher implements IntegrationEventP
     private final MessageProducer messageProducer;
     private final IntegrationEventMessageMapper messageMapper;
 
-    public DefaultIntegrationEventPublisher(MessageProducer messageProducer, IntegrationEventSerializer serializer) {
-        this(messageProducer, new IntegrationEventMessageMapper(serializer));
+    public DefaultIntegrationEventPublisher(
+            MessageProducer messageProducer,
+            IntegrationEventSerializer serializer,
+            IntegrationEventNameMapping nameMapping) {
+        this(messageProducer, new IntegrationEventMessageMapper(serializer, nameMapping));
     }
 
     public DefaultIntegrationEventPublisher(

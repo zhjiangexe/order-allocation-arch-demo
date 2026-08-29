@@ -4,6 +4,7 @@ package com.flowzati.archone.contracts.inventory.v1;
 public final class InventoryChannels {
 
     public static final String STOCK_EVENTS = "inventory.stock-events";
+    public static final String STOCK_OPERATION_EVENTS = "inventory.stock-operation-events";
 
     private InventoryChannels() {}
 }

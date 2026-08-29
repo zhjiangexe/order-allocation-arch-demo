@@ -1,131 +1,102 @@
-# Allocation demand boundary、cutover 與 repair runbook
+# Move-centric stock operation boundary 與 cutover
 
-首次閱讀程式流程請先看
-[從 AllocateOrderUsecase 看懂配貨流程](allocation-demand-flow.md)，其中包含活動圖、循序圖與主要
-use case／adapter／planner／committer 的責任說明。
+狀態：現行設計。檔名保留既有連結。模型見
+[Move-centric allocation policy](architecture/allocation-precedence-policy.md)，程式入口見
+[Source → Operation → Move → Batch](allocation-demand-flow.md)。
 
-狀態：現行設計。此文件取代 `stock-reservation-design.md` 與 `dom-order-intake-scope.md`
-中以 `demand_lines`／`MovementAssigner`／`picking.orderId` 定義 generic allocation queue 的段落。
+## Boundary
 
-## 現行 boundary
+- `stock_operations` 保存 source allocation unit、policy、queue/scheduling snapshot、route 與 group state。
+- `stock_moves` 保存 source line、SKU、required quantity、route 與 quantity lifecycle。
+- `stock_move_lines` 是唯一 current reservation / retained execution detail。
+- `stock_pools.reserved_quantity` 是 assigned move-line sum 的 transactionally maintained counter。
+- WMS Shipment 以 `stockOperationId` 冪等建立，但 Inventory 不擁有 wave/task/operator/packing state。
+- Inbound operation 沒有 source document identity；它仍有 from/to location 與 moves。
 
-- Allocation 的唯一需求生命週期是 `allocation_demands` + `allocation_demand_lines`。
-  identity 為 `(source_type, canonical source_id, allocation_unit_key)`；order 使用
-  `ORDER/{orderId}/PRIMARY`。
-- 一筆 demand 只有一個 owner、facility、source location，數量是 positive integer base unit。
-  V1 不支援 partial allocation、FIFO bypass、UOM/decimal、lot/serial、quality constraint，或跨
-  allocation unit 的 source-level atomic completion。
-- Order adapter 從 `allocation_order_source_demands` published view 擷取 immutable snapshot，
-  acceptance 在一個 allocation local transaction 建 demand、canonical lines、outbound picking
-  與帶 paired demand references 的 moves。相同 identity 的 retry 以
-  `accepted_content_version = 1` 做 structural comparison；mutable execution state 與 generated id
-  不參與比較，任何 immutable 差異回 `SourceDemandConflict`。
-- Planner 只接收 `AllocationDemand` 與已載入的 `AllocatableBatches`，回傳以
-  `allocationDemandId/allocationDemandLineId` 識別的 immutable plan，不查 repository、不 reserve。
-  Committer 依 demand → globally ordered stock pools → moves/picking 的順序寫入，最後才將 demand
-  改為 `ALLOCATED`。
-- FIFO 以 owner/facility/location/SKU 分 queue。候選需在每個 required SKU 都是最早 pending；
-  stock prefilter 不會移除 predecessor。每個 local transaction 最多 commit 一筆 demand，
-  scheduler 以 bounded global work budget 進行後續 iterations。
-- Generic `AllocationCommitResult` 帶 source identity、move/picking、source location、quantity 與
-  committed batch picks。Order publication factory 將它轉成單一
-  `OrderAllocationCommittedIntegrationEvent v1`；Ordering 與 fulfillment driver 各自消費同一 event，
-  且 `allocationId` 仍是 picking id。
-- Inbound receipt、inventory adjustment 與 already-reserved supply operations 不推導 demand；inbound
-  move 的 demand references 必須為 null。
+不存在 runtime `AllocationDemand`、`Allocation`、`AllocationSlice` persistence。歷史 V12–V20 schema 與 v1
+Integration Event 類別只用於 migration/retained-reader compatibility，不是新 writer 的模型。
 
-正式 `TRANSFER`、`REPLENISHMENT`、`PRODUCTION`、`MANUAL` adapter 必須各開 OpenSpec change，
-定義 stable allocation-unit key、acceptance、completion、cancellation 與 integration contract。
-本 change 只用 contract fixtures 證明 core 不依賴 order aggregate。
+## Canonical identity
 
-## Migration 與 invariant gates
+| Identity | 唯一語意 |
+| --- | --- |
+| `sourceType + sourceId + allocationUnitKey` | 上游的一次 allocation unit；在 operations 唯一 |
+| `stockOperationId` | Inventory operation group；WMS idempotency key |
+| `sourceLineId` | 上游明細 trace；在同一 operation 唯一 |
+| `moveId` | required stock movement identity，release/reassign 不更換 |
+| `stockQuantId` | location/SKU/batch balance identity |
+| `moveLineId` | move × quant 的 current reservation / execution detail |
+| `shipmentId` | WMS 自己的 execution grouping identity |
 
-Migration 順序固定為：
+## Historical expand / backfill / validate / contract
 
-1. `V12` 新增 demand/cancellation tables 與 nullable movement references，允許 rolling coexistence。
-2. `V13` 冪等 backfill no-move、`CONFIRMED`、active `ASSIGNED` order units。已有 execution 時保留
-   move source location 與最早 `created_at`；沒有 execution 才使用當下 outbound default；不發布
-   completion。
-3. `V14` 驗證 paired references、order trace、demand/demand-line FK，並建立 execution lookup index。
+V1–V20 是已發布 baseline，不得改 checksum。此 change 的 V21–V29 依序：
 
-Quiesced final backfill 後必須取得零列：
+1. **Expand**：為 picking/move/WMS/cancellation operation 加入 nullable canonical identity。
+2. **Backfill pickings**：每個 legacy demand 決定性對應一個 picking，複製 source、policy、route、queue facts。
+3. **Backfill moves/downstream**：重用既有 move identity，補 source line/sequence 與 picking references。
+4. **Validate**：檢查 cardinality、immutable content、state homogeneity、move-line coverage、quant counters 與
+   downstream picking identity；任何 mismatch 立即停止 migration。
+5. **Enforce**：建立 source-unit/source-line unique indexes 與 row-local checks。
+6. **Cut downstream keys**：cancellation operation 與 WMS Shipment 改以 `stockOperationId`。
+7. **Contract**：移除 demand/order-specific core columns 與 demand tables。
+8. **Cross-row guard**：deferred constraint triggers 檢查 group、coverage 與 counter invariants。
 
-```sql
-SELECT source_type, source_id, allocation_unit_key, count(*)
-FROM allocation_demands
-GROUP BY 1, 2, 3 HAVING count(*) > 1;
+V21–V29 已是 rename 的輸入基線，不得再修改。V30 只做 forward-only metadata rename：保留既有 UUID、資料列、
+source identity、state、timestamps、versions 與 relationships，並在 canonical table/column names 上重建 deferred invariants。
+若任何非 disposable database 已套用 V30，只能新增 forward repair migration，不可重寫 checksum。
 
-SELECT id FROM stock_moves
-WHERE order_line_id IS NOT NULL
-  AND (allocation_demand_id IS NULL OR allocation_demand_line_id IS NULL
-       OR source_line_id IS DISTINCT FROM order_line_id::text);
+## Contract rollout
 
-SELECT d.id
-FROM allocation_demands d
-WHERE d.status = 'PENDING'
-  AND EXISTS (
-    SELECT 1 FROM allocation_demand_lines l
-    WHERE l.allocation_demand_id = d.id
-      AND (SELECT count(*) FROM stock_moves m
-           WHERE m.allocation_demand_id = d.id
-             AND m.allocation_demand_line_id = l.id) <> 1
-  );
-```
+1. 先部署同時接受 legacy v1/v2 與 canonical v3（Inventory lifecycle 為 v2）的 consumers。
+2. producer 單版本切換：assignment 與 fulfillment facts 發 v3，Inventory lifecycle audit 發 v2。
+3. 歷史 Outbox、topic retention 與 DLT replay window 內保留舊 reader；新 producer 不 dual-publish。
+4. v1 event 沒有 canonical `stockOperationId`；reader 必須在 composition boundary 透過既有 `moveId` 查出唯一的
+   `stockOperationId`。不可把 legacy `allocationId` 直接當成 `stockOperationId`，也不可為此恢復 demand/allocation persistence。
+5. v1 reader 的刪除是之後獨立 change，不與資料模型 cutover 綁在一起。
 
-以 representative no-move／`CONFIRMED`／`ASSIGNED` fixture 各跑 initial 與 final backfill；確認
-`enqueued_at` 未刷新、active assignment 仍是 `ALLOCATED`、move references 成對、outbox 沒有新增
-completion。`EXPLAIN (ANALYZE, BUFFERS)` pending scope/candidate queries 時應使用：
+## Cutover validation
 
-- `idx_allocation_demands_pending_scope`
-- `idx_allocation_demand_lines_sku_queue`
-- `idx_stock_moves_allocation_demand`
-- Stock pool owner/location/SKU/FEFO index
+必須證明：
 
-若 planner 或 DB statistics 使查詢改走高成本 sequential scan，先保留 legacy indexes、更新
-statistics 並評估資料分布；不得只為讓 plan 看起來漂亮而移除 predecessor correctness predicate。
+- 每個 source allocation unit 恰有一個 canonical operation；
+- 每個 source line 恰有一個 canonical move，immutable content 無 drift；
+- operation 非空且與 moves state homogeneous；
+- `ASSIGNED/DONE` move lines 精確覆蓋 demand quantity，`CONFIRMED/CANCELLED` 沒有 lines；
+- quant reserved counter 等於 assigned move-line sum；
+- WMS shipments 與 durable cancellation operations 都有 `stockOperationId`；
+- final schema 沒有 demand/slice persistence 或 order-specific movement FK。
 
-## Read-only shadow comparison
+## Rollback limits
 
-Shadow phase 不得呼叫 legacy committer。比較時把兩側正規化成
-`ORDER/{orderId}/PRIMARY + owner/facility/location + canonical lines`：
+- 發出第一筆 canonical v3/v2 event 之前：可 pause writers、drain Inbox/Outbox、reconcile，再回退到仍能讀舊版事件的
+  prior release。
+- 發出第一筆 canonical v3/v2 event 之後：不得回退到只認 legacy contracts 的 binary；只能回退至同時接受 legacy 與
+  canonical contracts 的 dual-reader compatibility release。
+- V30 是 metadata rename，不以逆向 rename 作 operational rollback。migration 已套用後，prior binary 若仍查詢
+  `stock_pickings`／`picking_id` 就不相容；需使用已驗證的 forward repair，或在災難復原情境 restore database backup。
+- 不可同時啟用 legacy 與 canonical writers，也不可用 reconciliation 自動補帳掩蓋 drift。
 
-- 已有 move/picking：兩側都以 execution source location 比較。
-- 沒有 move：以目前 outbound default location 比較。
-- Legacy view 展開出的額外 internal-location rows 分類為 `KNOWN_LEGACY_LOCATION_EXPANSION`。
-- New shared-SKU predecessor check 拒絕 legacy 可能允許的 multi-SKU 超車，分類為
-  `KNOWN_CROSS_SKU_FIFO_CORRECTION`。
-- identity、quantity、FIFO/FEFO outcome 的其他差異是 blocking anomaly。
+## Deployment runbook
 
-Shadow query 只讀；unique source key 無法阻止 legacy/new 兩個 writer 同時 reserve，不能把它當
-single-writer gate。`AllocationShadowComparator` 本身不注入 repository 或 committer；呼叫端完成
-兩側 read 後才交給它分類，因此 comparison 不具任何寫入能力。
+1. **Consumer-first**：先部署 dual readers，確認 Ordering、Inventory、WMS、bootstrap messaging 與 Temporal workflow
+   同時接受 legacy 與 canonical payload；入口立即 normalize 為 `stockOperationId`。
+2. **Quiesce and drain**：暫停會建立新 operation 的 writer，等待 Inbox/Outbox lag 歸零，執行 operation/move/quant
+   reconciliation 並保存結果。
+3. **Flyway-before-traffic**：在 application traffic 恢復前完成 V30，驗證 canonical tables、columns、foreign keys、
+   indexes、functions 與 deferred triggers；任何驗證失敗都不開 traffic。
+4. **Deploy canonical code**：部署只讀寫 `stock_operations`／`stock_operation_id` 的 application；先以 probes 驗證 source
+   replay、allocation、release、completion、cancellation 與 WMS correlation。
+5. **Producer single-version cutover**：新 assignment/fulfillment facts 只發 v3，Inventory lifecycle 只發 v2；同一 business
+   fact 不 dual-publish。觀察 duplicate Shipment、duplicate completion、DLT 與 reconciliation 指標。
+6. **Retain compatibility readers**：在 topic retention、Outbox re-snapshot、DLT replay、Temporal history retention 與最長
+   workflow duration 全部越過部署門檻前，不移除 legacy readers。移除工作必須另開 cleanup change。
 
-## Quiesced cutover 與 rollback
+## Operations
 
-1. 暫停 legacy order-allocation consumer、availability consumer 與 reconciliation scheduler；order
-   intake 可繼續，事件留在 broker。
-2. 等待進行中的 allocation transactions 與 outbox publish 排空。
-3. 執行 final idempotent backfill、上述 anomaly/constraint gates、shadow comparison 與 query-plan
-   檢查。
-4. 將所有 instances 一致設定 `ORDER_PROMISING_ALLOCATION_WRITER_MODE=demand`。此版本只有 demand
-   committer；任何其他值會拒絕啟動。不得在同一 consumer group 混跑 legacy/new writer binary。
-5. 先恢復 demand writer instances，再恢復 consumers/scheduler；queued order events 由 acceptance
-   idempotency 安全 replay。
-
-New consumers 恢復前，可維持 quiescence 直接切回 legacy release。任何 new-path reservation、
-movement state 或 completion event commit 後，不得 hot rollback：再次 pause/drain，對帳 shared
-movement/outbox，執行 forward reconciliation，證明 legacy 不會重複處理後才可恢復；無法證明時
-維持停寫並 forward-fix。
-
-## Alert 與人工處置
-
-- `allocation_anomaly_isolated > 0` 或 `/actuator/health` 的 `allocationDemand=DOWN`：保持 demand
-  隔離，不得 auto-repair。依 sample id 對帳 header/lines/moves/picking，修復缺失或重複 execution
-  reference 後再喚醒 scope。
-- `allocation_fifo_blocked_total{sku,...}` 持續增加，搭配
-  `allocation_fifo_pending_age{blocked_sku,...}`：從 structured log 取得
-  `blockingPredecessorId` 與 `blockedSku`。確認 predecessor 是真實需求；可由 source 正式取消，
-  不得手動改 enqueue time、跳過或刪除 predecessor。
-- Cancellation operation 卡在 `STARTED`：可安全以同 operation id 重試外部 coordination。
-  `EXTERNAL_CONFIRMED`：不得再呼叫 warehouse，直接重試 local completion。
-  `EXTERNAL_REJECTED`：同 operation 的 decision 固定，demand/reservation/move/picking 保持不變。
+- waiting/backlog：讀 confirmed operation + confirmed moves；
+- reservation：讀 assigned move lines；
+- execution evidence：讀 done move lines；
+- ATP：`onHand - reserved`；
+- health：`StockOperationReconciliationStore` + `stockOperation` HealthIndicator；
+- lifecycle audit：`inventory.stock-operation-events` 的 `StockOperationLifecycleIntegrationEvent`。

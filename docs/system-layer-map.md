@@ -84,7 +84,7 @@
 | --- | --- |
 | 粒度 | `(owner, location, sku, in_date, expiry)` |
 | 回答 | 這一批貨放在哪、還能承諾多少 |
-| 維護者 | 庫存執行層（`inventory.balance` / `inventory.movement`），而且**只能由搬運的明細改** |
+| 維護者 | 庫存執行層（`inventory.position` / `inventory.movement` / `inventory.reservation`），而且**只能由搬運的明細改** |
 
 位置本身分層：現在是「一個 Facility 可有多個平面 internal locations」，R7 讓它長出
 `parent_id` 之後，庫存列仍掛在
@@ -340,10 +340,10 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 發布 context-owned 測試資料。需要同時組裝 Ordering、Inventory、migration 或 PostgreSQL 的測試才留在
 `bootstrap`，避免測試 fixture 反向模糊 production module 邊界。
 
-`inventory` 目前是同一 bounded context 的 package 根；`allocation` 負責需求排序、供需規劃與批次選擇，
-`balance` 負責 `StockQuant` 與收貨，`movement` 負責 picking／move 的執行紀錄，`warehouse` 擁有
-`StockLocation` 與 `PickingType` 倉儲設定。這是內部 namespace 整理，不改資料表、Kafka topic 或
-integration contract 名稱。
+`inventory` 目前是同一 bounded context 的 package 根；`allocation` 負責 operation precedence、純供需規劃與批次選擇，
+`balance` 負責 `StockQuant` 與收貨，`movement` 負責 `StockOperation`／`StockMove` 的意圖與生命週期紀錄，
+`warehouse` 擁有 `StockLocation` 與 `StockOperationType` 倉儲設定。WMS 的 picking、wave 與 task execution 仍由
+`wms-context` 擁有，不因 Inventory operation 命名而轉移責任。
 
 餘額 aggregate 採 Odoo ubiquitous language 命名為 `StockQuant`。既有 PostgreSQL 表
 `stock_pools`、欄位 `stock_pool_id`、`GET /stock-pool`、v1 JSON 的 `stockPoolId`，以及

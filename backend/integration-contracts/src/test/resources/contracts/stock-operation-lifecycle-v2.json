@@ -1,0 +1,24 @@
+{
+  "eventId": "00000000-0000-0000-0000-000000000001",
+  "stockOperationId": "00000000-0000-0000-0000-000000000006",
+  "stockOperationTypeId": "00000000-0000-0000-0000-000000000015",
+  "sourceType": "ORDER",
+  "sourceId": "00000000-0000-0000-0000-000000000002",
+  "allocationUnitKey": "PRIMARY",
+  "action": "RELEASED",
+  "moves": [
+    {
+      "moveId": "00000000-0000-0000-0000-000000000008",
+      "sourceLineId": "00000000-0000-0000-0000-000000000007",
+      "skuCode": "SKU-1",
+      "quantity": 3,
+      "batches": [
+        {
+          "stockQuantId": "00000000-0000-0000-0000-000000000014",
+          "quantity": 3
+        }
+      ]
+    }
+  ],
+  "occurredAt": "2026-08-07T00:00:00Z"
+}

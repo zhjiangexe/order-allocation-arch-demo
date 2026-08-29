@@ -22,6 +22,10 @@ class IntegrationEventContractTest {
     private static final UUID ALLOCATION_ID = new UUID(0, 6);
     private static final UUID ORDER_LINE_ID = new UUID(0, 7);
     private static final UUID MOVE_ID = new UUID(0, 8);
+    private static final UUID ALLOCATION_DEMAND_ID = new UUID(0, 9);
+    private static final UUID ALLOCATION_DEMAND_LINE_ID = new UUID(0, 10);
+    private static final UUID ALLOCATION_SLICE_ID = new UUID(0, 11);
+    private static final UUID STOCK_QUANT_ID = new UUID(0, 12);
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-07T00:00:00Z");
 
     @Test
@@ -62,16 +66,25 @@ class IntegrationEventContractTest {
         var event = new OrderAllocationCommittedIntegrationEvent(
                 EVENT_ID,
                 ALLOCATION_ID,
+                ALLOCATION_DEMAND_ID,
                 ORDER_ID,
                 ownerId,
                 facilityId,
                 List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
-                        ORDER_LINE_ID, MOVE_ID, "SKU-1", locationId, 3)),
+                        ORDER_LINE_ID,
+                        ALLOCATION_DEMAND_LINE_ID,
+                        MOVE_ID,
+                        "SKU-1",
+                        locationId,
+                        3,
+                        List.of(new OrderAllocationCommittedIntegrationEvent.AllocationSlice(
+                                ALLOCATION_SLICE_ID, STOCK_QUANT_ID, 3)))),
                 dispatchBy,
                 80,
                 OCCURRED_AT);
 
         assertThat(event.getAllocationId()).isEqualTo(ALLOCATION_ID);
+        assertThat(event.getAllocationDemandId()).isEqualTo(ALLOCATION_DEMAND_ID);
         assertThat(event.getOrderId()).isEqualTo(ORDER_ID);
         assertThat(event.getLines()).hasSize(1);
         assertThat(event.getDispatchBy()).isEqualTo(dispatchBy);
@@ -79,6 +92,7 @@ class IntegrationEventContractTest {
         assertThatThrownBy(() -> new OrderAllocationCommittedIntegrationEvent(
                         EVENT_ID,
                         ALLOCATION_ID,
+                        ALLOCATION_DEMAND_ID,
                         ORDER_ID,
                         ownerId,
                         facilityId,
@@ -110,5 +124,18 @@ class IntegrationEventContractTest {
                         "ShipmentHandedOverIntegrationEvent",
                         "OutboundMovementsCompletedIntegrationEvent");
         assertThat(eventTypes).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void normalizesLegacyAndCanonicalAggregateReferencesToOneStockOperationIdentity() {
+        var legacy = com.flowzati.archone.contracts.inventory.v2.StockOperationAggregateIdentity.from(
+                com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes.LEGACY_STOCK_PICKING,
+                ALLOCATION_ID.toString());
+        var canonical = com.flowzati.archone.contracts.inventory.v2.StockOperationAggregateIdentity.from(
+                com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes.STOCK_OPERATION,
+                ALLOCATION_ID.toString());
+
+        assertThat(legacy).isEqualTo(canonical);
+        assertThat(canonical.stockOperationId()).isEqualTo(ALLOCATION_ID);
     }
 }

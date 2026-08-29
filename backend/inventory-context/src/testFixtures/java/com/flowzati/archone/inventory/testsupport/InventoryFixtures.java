@@ -2,11 +2,11 @@ package com.flowzati.archone.inventory.testsupport;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.location.domain.LocationUsageType;
+import com.flowzati.archone.inventory.location.domain.StockLocation;
+import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.StockOperationType;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
-import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -47,15 +47,25 @@ public final class InventoryFixtures {
     }
 
     /** 測試倉的出庫類型：庫存位置 → 客戶。 */
-    public static PickingDefinition outboundType() {
-        return new PickingDefinition(
-                OUTBOUND_TYPE_ID, FACILITY_ID, PickingDirection.OUTBOUND, "出貨", LOCATION_ID, CUSTOMERS_LOCATION_ID);
+    public static StockOperationType outboundType() {
+        return new StockOperationType(
+                OUTBOUND_TYPE_ID,
+                FACILITY_ID,
+                StockOperationDirection.OUTBOUND,
+                "出貨",
+                LOCATION_ID,
+                CUSTOMERS_LOCATION_ID);
     }
 
     /** 測試倉的入庫類型：供應商 → 庫存位置。 */
-    public static PickingDefinition inboundType() {
-        return new PickingDefinition(
-                INBOUND_TYPE_ID, FACILITY_ID, PickingDirection.INBOUND, "收貨", SUPPLIERS_LOCATION_ID, LOCATION_ID);
+    public static StockOperationType inboundType() {
+        return new StockOperationType(
+                INBOUND_TYPE_ID,
+                FACILITY_ID,
+                StockOperationDirection.INBOUND,
+                "收貨",
+                SUPPLIERS_LOCATION_ID,
+                LOCATION_ID);
     }
 
     public static StockLocation suppliersLocation() {
@@ -73,22 +83,23 @@ public final class InventoryFixtures {
     }
 
     public static StockMove waitingMove(
-            UUID pickingId, String skuCode, UUID sourceLineId, int quantity, Instant createdAt) {
-        return StockMove.confirmed(
+            UUID stockOperationId, String skuCode, UUID sourceLineId, int quantity, Instant createdAt) {
+        return StockMove.confirmedForSourceLine(
                 IdGenerator.nextId(),
-                pickingId,
+                stockOperationId,
                 OWNER_ID,
                 skuCode,
                 LOCATION_ID,
                 CUSTOMERS_LOCATION_ID,
-                sourceLineId,
+                sourceLineId.toString(),
+                1,
                 quantity,
                 createdAt);
     }
 
     public static StockMove assignedMove(
-            UUID pickingId, String skuCode, UUID sourceLineId, int quantity, Instant createdAt) {
-        StockMove move = waitingMove(pickingId, skuCode, sourceLineId, quantity, createdAt);
+            UUID stockOperationId, String skuCode, UUID sourceLineId, int quantity, Instant createdAt) {
+        StockMove move = waitingMove(stockOperationId, skuCode, sourceLineId, quantity, createdAt);
         move.assign(createdAt);
         return move;
     }

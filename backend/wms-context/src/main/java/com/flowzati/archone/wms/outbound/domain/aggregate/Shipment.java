@@ -24,7 +24,7 @@ import java.util.UUID;
 public class Shipment {
 
     private final UUID id;
-    private final UUID allocationId;
+    private final UUID stockOperationId;
     private final UUID orderId;
     private final UUID ownerId;
     private final UUID facilityId;
@@ -43,7 +43,7 @@ public class Shipment {
 
     private Shipment(
             UUID id,
-            UUID allocationId,
+            UUID stockOperationId,
             UUID orderId,
             UUID ownerId,
             UUID facilityId,
@@ -51,15 +51,15 @@ public class Shipment {
             Instant createdAt,
             Instant dispatchBy,
             int releasePriority) {
-        if (id == null || allocationId == null || orderId == null || ownerId == null || facilityId == null) {
-            throw new IllegalArgumentException("Shipment requires shipment, allocation, order, owner and facility IDs");
+        if (id == null || stockOperationId == null || orderId == null || ownerId == null || facilityId == null) {
+            throw new IllegalArgumentException("Shipment requires shipment, picking, order, owner and facility IDs");
         }
         if (lines == null || lines.isEmpty()) {
-            throw new IllegalArgumentException("Shipment requires allocation lines");
+            throw new IllegalArgumentException("Shipment requires assigned movement lines");
         }
         Set<UUID> moveIds = new HashSet<>();
         if (lines.stream().anyMatch(line -> line == null || !moveIds.add(line.moveId()))) {
-            throw new IllegalArgumentException("Shipment requires unique non-null allocation lines");
+            throw new IllegalArgumentException("Shipment requires unique non-null movement lines");
         }
         if (createdAt == null || dispatchBy == null) {
             throw new IllegalArgumentException("Shipment requires creation time and dispatch deadline");
@@ -68,7 +68,7 @@ public class Shipment {
             throw new IllegalArgumentException("Release priority must be between 0 and 100");
         }
         this.id = id;
-        this.allocationId = allocationId;
+        this.stockOperationId = stockOperationId;
         this.orderId = orderId;
         this.ownerId = ownerId;
         this.facilityId = facilityId;
@@ -81,7 +81,7 @@ public class Shipment {
 
     public static Shipment create(
             UUID id,
-            UUID allocationId,
+            UUID stockOperationId,
             UUID orderId,
             UUID ownerId,
             UUID facilityId,
@@ -90,13 +90,13 @@ public class Shipment {
             int releasePriority,
             Instant createdAt) {
         return new Shipment(
-                id, allocationId, orderId, ownerId, facilityId, lines, createdAt, dispatchBy, releasePriority);
+                id, stockOperationId, orderId, ownerId, facilityId, lines, createdAt, dispatchBy, releasePriority);
     }
 
     /** 由 persistence adapter 還原完整 aggregate，不重播 command。 */
     public static Shipment rehydrate(
             UUID id,
-            UUID allocationId,
+            UUID stockOperationId,
             UUID orderId,
             UUID ownerId,
             UUID facilityId,
@@ -113,7 +113,7 @@ public class Shipment {
             String cancellationReason,
             Instant cancelledAt) {
         Shipment shipment = new Shipment(
-                id, allocationId, orderId, ownerId, facilityId, lines, createdAt, dispatchBy, releasePriority);
+                id, stockOperationId, orderId, ownerId, facilityId, lines, createdAt, dispatchBy, releasePriority);
         if (status == null) {
             throw new IllegalArgumentException("Persisted Shipment status is required");
         }
@@ -333,8 +333,8 @@ public class Shipment {
         return id;
     }
 
-    public UUID allocationId() {
-        return allocationId;
+    public UUID stockOperationId() {
+        return stockOperationId;
     }
 
     public UUID orderId() {

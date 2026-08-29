@@ -1,47 +1,20 @@
 flowchart TB
-    START([PendingDemandBacklogAllocationScheduler tick])
-    USECASE["<b>PendingDemandBacklogAllocationUsecase.execute</b><br/>管理公平輪次，不包住整輪 transaction"]
-    FIND["<b>findQueueKeysWithAvailableStock(today, maxAttemptsPerRun)</b><br/>掃描數不超過 attempt budget，讓每條 queue 至少有一次機會"]
-    QUEUE_KEY["<b>AllocationDemandQueueKey</b><br/>ownerId + facilityId + locationId + skuCode<br/><i>識別一條 FIFO queue，不含 demand List</i>"]
-    INIT["activeQueueKeys = initialQueueKeys<br/>remainingAttemptBudget = maxAttemptsPerRun<br/>deadline = startedAt + maxRunDuration"]
-    HAS_WORK{"activeQueueKeys 非空？"}
-    WITHIN_LIMIT{"還有 attempt budget<br/>且尚未到 deadline？"}
-    ROUND["nextRoundQueueKeys = []<br/><b>開始新的公平輪次</b>"]
-    HAS_QUEUE{"本輪還有<br/>未嘗試的 active queue？"}
-    ATTEMPT["取本輪下一個 queue key<br/>remainingAttemptBudget--"]
-    TX["<b>PendingDemandAllocationUsecase.execute</b><br/>開啟該 queue 的獨立 transaction<br/>本次最多 commit 一筆 demand"]
-    PIPELINE["<b>PendingDemandAllocator.tryAllocateQueueHead</b><br/>依 queue key 重新查 PENDING demand 的 queue position<br/>→ <b>PendingDemandQueuePosition</b><br/>→ <b>AllocationDemandPlanner</b><br/>→ 可行才呼叫 <b>AllocationCommitter</b>"]
-    SUCCESS{"本次有成功<br/>commit 一筆 demand？"}
-    CONTINUE["nextRoundQueueKeys.add(queueKey)<br/><b>進入下一輪</b><br/>該 queue 可能還有 successor"]
-    STOP["<b>不進入下一輪</b><br/>FIFO blocked / 缺貨 / 失敗<br/>避免同一 tick 無效重試"]
-    NEXT_ROUND["activeQueueKeys = nextRoundQueueKeys"]
-    BUDGET{"attempt budget<br/>已用完？"}
-    DONE(["本次 allocation run 結束"])
+  START([StockOperationBacklogReconciliationScheduler tick])
+  USECASE[StockOperationBacklogReconciler<br/>bounded work/time budget]
+  FIND[Find queue keys with available stock]
+  KEY[AssignmentQueueKey<br/>owner + source location + SKU]
+  NEXT{Budget and deadline remain?}
+  ATTEMPT[StockOperationAssignmentCoordinator<br/>one independent transaction]
+  SELECT[StockOperationAssignmentCandidateFinder<br/>earliest confirmed shared-SKU operation]
+  PLAN[MovementAssignmentPlanner<br/>pure SHIP_COMPLETE proposal]
+  READY{Complete and unblocked?}
+  ASSIGN[StockAllocationCommitter<br/>at most one operation]
+  AGAIN[Keep key for next fair round]
+  STOP[Stop this key until later trigger]
+  DONE([Run complete])
 
-    START --> USECASE --> FIND --> QUEUE_KEY --> INIT --> HAS_WORK
-    HAS_WORK -- "否" --> DONE
-    HAS_WORK -- "是" --> ROUND --> HAS_QUEUE
-    HAS_QUEUE -- "否" --> NEXT_ROUND --> HAS_WORK
-    HAS_QUEUE -- "是" --> WITHIN_LIMIT
-    WITHIN_LIMIT -- "否" --> DONE
-    WITHIN_LIMIT -- "是，開始 attempt" --> ATTEMPT --> TX --> PIPELINE --> SUCCESS
-    SUCCESS -- "是" --> CONTINUE --> BUDGET
-    SUCCESS -- "否" --> STOP --> BUDGET
-    BUDGET -- "是" --> DONE
-    BUDGET -- "否" --> HAS_QUEUE
-
-    classDef trigger fill:#e8f1ff,stroke:#2563eb,color:#172554,stroke-width:1.5px;
-    classDef usecase fill:#ede9fe,stroke:#7c3aed,color:#2e1065,stroke-width:2px;
-    classDef transaction fill:#ecfeff,stroke:#0891b2,color:#164e63,stroke-width:2px;
-    classDef component fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
-    classDef round fill:#fefce8,stroke:#ca8a04,color:#713f12,stroke-width:1.5px;
-    classDef success fill:#ecfdf5,stroke:#059669,color:#064e3b,stroke-width:1.5px;
-    classDef stop fill:#fef2f2,stroke:#dc2626,color:#7f1d1d,stroke-width:1.5px;
-
-    class START trigger;
-    class USECASE usecase;
-    class TX transaction;
-    class FIND,PIPELINE component;
-    class QUEUE_KEY,INIT,ROUND,HAS_QUEUE,WITHIN_LIMIT,ATTEMPT,NEXT_ROUND,BUDGET round;
-    class CONTINUE success;
-    class STOP stop;
+  START --> USECASE --> FIND --> KEY --> NEXT
+  NEXT -- no --> DONE
+  NEXT -- yes --> ATTEMPT --> SELECT --> PLAN --> READY
+  READY -- yes --> ASSIGN --> AGAIN --> NEXT
+  READY -- no --> STOP --> NEXT

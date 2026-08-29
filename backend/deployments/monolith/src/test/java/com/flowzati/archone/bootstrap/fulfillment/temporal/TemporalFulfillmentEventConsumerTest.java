@@ -9,12 +9,13 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
+import com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentCancelledSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshotLine;
+import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import java.time.Instant;
@@ -27,7 +28,9 @@ class TemporalFulfillmentEventConsumerTest {
 
     private final WorkflowClient workflowClient = mock(WorkflowClient.class);
     private final OrderFulfillmentWorkflow workflow = mock(OrderFulfillmentWorkflow.class);
-    private final TemporalFulfillmentEventConsumer consumer = new TemporalFulfillmentEventConsumer(workflowClient);
+    private final LegacyAllocationPickingResolver legacyPickingResolver = mock(LegacyAllocationPickingResolver.class);
+    private final TemporalFulfillmentEventConsumer consumer =
+            new TemporalFulfillmentEventConsumer(workflowClient, legacyPickingResolver);
 
     @Test
     void preventsStartingAnotherFulfillmentWorkflowForTheSameOrder() {
@@ -42,34 +45,127 @@ class TemporalFulfillmentEventConsumerTest {
     }
 
     @Test
-    void mapsAllocationFactToTheOrderWorkflowSignal() {
+    void mapsPickingAssignmentFactToTheOrderWorkflowSignal() {
         UUID orderId = UUID.randomUUID();
-        UUID allocationId = UUID.randomUUID();
+        UUID stockOperationId = UUID.randomUUID();
         UUID movementId = UUID.randomUUID();
-        Instant committedAt = Instant.parse("2026-08-19T10:00:00Z");
+        Instant assignedAt = Instant.parse("2026-08-19T10:00:00Z");
         when(workflowClient.newWorkflowStub(
                         OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
                 .thenReturn(workflow);
         var event = new OrderAllocationCommittedIntegrationEvent(
                 UUID.randomUUID(),
-                allocationId,
+                stockOperationId,
                 orderId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
-                        UUID.randomUUID(), movementId, "SKU-1", UUID.randomUUID(), 3)),
-                committedAt.plusSeconds(3600),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                List.of(new OrderAllocationCommittedIntegrationEvent.AssignedMove(
+                        UUID.randomUUID(),
+                        movementId,
+                        "SKU-1",
+                        3,
+                        List.of(new OrderAllocationCommittedIntegrationEvent.BatchPick(UUID.randomUUID(), 3)))),
+                assignedAt.plusSeconds(3600),
                 80,
-                committedAt);
+                assignedAt);
 
-        consumer.onAllocationCommitted(event);
+        consumer.onPickingAssigned(event);
 
-        ArgumentCaptor<AllocationSnapshot> signal = ArgumentCaptor.forClass(AllocationSnapshot.class);
-        verify(workflow).allocationCommitted(signal.capture());
-        assertThat(signal.getValue().allocationId()).isEqualTo(allocationId);
-        assertThat(signal.getValue().lines())
-                .extracting(AllocationSnapshotLine::moveId)
+        ArgumentCaptor<StockOperationAssignmentSnapshot> signal =
+                ArgumentCaptor.forClass(StockOperationAssignmentSnapshot.class);
+        verify(workflow).stockOperationAssigned(signal.capture());
+        assertThat(signal.getValue().stockOperationId()).isEqualTo(stockOperationId);
+        assertThat(signal.getValue().moves())
+                .extracting(StockOperationAssignmentSnapshotLine::moveId)
                 .containsExactly(movementId);
+    }
+
+    @Test
+    void mapsCanonicalStockOperationFactToTheCanonicalWorkflowSignal() {
+        UUID orderId = UUID.randomUUID();
+        UUID stockOperationId = UUID.randomUUID();
+        UUID movementId = UUID.randomUUID();
+        Instant assignedAt = Instant.parse("2026-08-19T10:00:00Z");
+        when(workflowClient.newWorkflowStub(
+                        OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
+                .thenReturn(workflow);
+        var event = new com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent(
+                UUID.randomUUID(),
+                stockOperationId,
+                orderId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                List.of(
+                        new com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent
+                                .AssignedMove(
+                                UUID.randomUUID(),
+                                movementId,
+                                "SKU-1",
+                                3,
+                                List.of(new com.flowzati.archone.contracts.promising.v3
+                                        .OrderAllocationCommittedIntegrationEvent.BatchPick(UUID.randomUUID(), 3)))),
+                assignedAt.plusSeconds(3600),
+                80,
+                assignedAt);
+
+        consumer.onStockOperationAssigned(event);
+
+        ArgumentCaptor<StockOperationAssignmentSnapshot> signal =
+                ArgumentCaptor.forClass(StockOperationAssignmentSnapshot.class);
+        verify(workflow).stockOperationAssigned(signal.capture());
+        assertThat(signal.getValue().stockOperationId()).isEqualTo(stockOperationId);
+        assertThat(signal.getValue().moves())
+                .extracting(StockOperationAssignmentSnapshotLine::moveId)
+                .containsExactly(movementId);
+    }
+
+    @Test
+    void resolvesRetainedLegacyAllocationIdentityBeforeSignallingTheWorkflow() {
+        UUID orderId = UUID.randomUUID();
+        UUID legacyAllocationId = UUID.randomUUID();
+        UUID stockOperationId = UUID.randomUUID();
+        UUID moveId = UUID.randomUUID();
+        Instant committedAt = Instant.parse("2026-08-19T10:00:00Z");
+        when(workflowClient.newWorkflowStub(
+                        OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
+                .thenReturn(workflow);
+        when(legacyPickingResolver.resolve(legacyAllocationId, List.of(moveId))).thenReturn(stockOperationId);
+        var event =
+                new com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent(
+                        UUID.randomUUID(),
+                        legacyAllocationId,
+                        UUID.randomUUID(),
+                        orderId,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        List.of(new com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent
+                                .AllocationLine(
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                moveId,
+                                "SKU-1",
+                                UUID.randomUUID(),
+                                3,
+                                List.of(new com.flowzati.archone.contracts.promising.v1
+                                        .OrderAllocationCommittedIntegrationEvent.AllocationSlice(
+                                        UUID.randomUUID(), UUID.randomUUID(), 3)))),
+                        committedAt.plusSeconds(3600),
+                        80,
+                        committedAt);
+
+        consumer.onLegacyAllocationCommitted(event);
+
+        ArgumentCaptor<StockOperationAssignmentSnapshot> signal =
+                ArgumentCaptor.forClass(StockOperationAssignmentSnapshot.class);
+        verify(workflow).stockOperationAssigned(signal.capture());
+        verify(legacyPickingResolver).resolve(legacyAllocationId, List.of(moveId));
+        assertThat(signal.getValue().stockOperationId()).isEqualTo(stockOperationId);
     }
 
     @Test
@@ -81,7 +177,13 @@ class TemporalFulfillmentEventConsumerTest {
                         OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId)))
                 .thenReturn(workflow);
         var event = new ShipmentHandedOverIntegrationEvent(
-                UUID.randomUUID(), shipmentId, UUID.randomUUID(), orderId, List.of(UUID.randomUUID()), handedOverAt);
+                UUID.randomUUID(),
+                shipmentId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                orderId,
+                List.of(UUID.randomUUID()),
+                handedOverAt);
 
         consumer.onShipmentHandedOver(event);
 
@@ -102,6 +204,8 @@ class TemporalFulfillmentEventConsumerTest {
         var event = new ShipmentCancelledIntegrationEvent(
                 UUID.randomUUID(),
                 shipmentId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
                 orderId,
                 cancellationRequestId,
                 requestedAt,

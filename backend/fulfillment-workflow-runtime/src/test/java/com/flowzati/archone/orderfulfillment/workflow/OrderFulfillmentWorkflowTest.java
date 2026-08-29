@@ -21,8 +21,6 @@ import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmen
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityInput;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityResult;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.WmsActivities;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
 import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationRequest;
 import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationRequestAcknowledgement;
 import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationRequestStatus;
@@ -31,13 +29,18 @@ import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentW
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowCancellationState;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowInput;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowResult;
+import com.flowzati.archone.orderfulfillment.contract.workflow.PickingAssignmentSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.PickingAssignmentSnapshotLine;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentCancelledSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentTerminalStatus;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshotLine;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.failure.ApplicationFailure;
 import io.temporal.testing.TestWorkflowEnvironment;
+import io.temporal.testing.WorkflowReplayer;
 import io.temporal.worker.Worker;
 import java.time.Duration;
 import java.time.Instant;
@@ -84,7 +87,7 @@ class OrderFulfillmentWorkflowTest {
     }
 
     @Test
-    void coordinatesAllocationShipmentCreationHandoverStockAndOrderCompletion() throws Exception {
+    void replaysLegacyPickingSignalHistoryWithoutChangingTheCommandSequence() throws Exception {
         UUID orderId = UUID.randomUUID();
         UUID shipmentId = UUID.randomUUID();
         recording.shipmentId = shipmentId;
@@ -94,32 +97,62 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
 
-        AllocationSnapshot allocation = allocation(orderId, now, now.plus(Duration.ofDays(1)));
+        PickingAssignmentSnapshot allocation = allocation(orderId, now, now.plus(Duration.ofDays(1)));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation);
+        workflow.pickingAssigned(allocation);
         Instant handoverAt = now.plusSeconds(3);
         workflow.shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierSignal(orderId, shipmentId, handoverAt));
 
         OrderFulfillmentWorkflowResult completed = result.get(5, TimeUnit.SECONDS);
 
         assertThat(completed.outcome()).isEqualTo(FULFILLMENT_COMPLETED);
-        assertThat(completed.allocationId()).isEqualTo(allocation.allocationId());
+        assertThat(completed.stockOperationId()).isEqualTo(allocation.pickingId());
         assertThat(completed.shipmentId()).isEqualTo(shipmentId);
         assertThat(workflow.state().allocationState()).isEqualTo(OrderFulfillmentWorkflowAllocationState.COMMITTED);
         assertThat(recording.allocationRequests).hasSize(1);
         assertThat(recording.shipmentCreations).hasSize(1);
         assertThat(recording.outboundCompletions).singleElement().satisfies(completion -> {
             assertThat(completion.orderId()).isEqualTo(orderId);
-            assertThat(completion.allocationId()).isEqualTo(allocation.allocationId());
+            assertThat(completion.stockOperationId()).isEqualTo(allocation.pickingId());
             assertThat(completion.shipmentId()).isEqualTo(shipmentId);
             assertThat(completion.movementIds())
-                    .containsExactly(allocation.lines().getFirst().moveId());
+                    .containsExactly(allocation.moves().getFirst().moveId());
         });
         assertThat(recording.orderCompletions).singleElement().satisfies(completion -> {
             assertThat(completion.orderId()).isEqualTo(orderId);
             assertThat(completion.shipmentId()).isEqualTo(shipmentId);
             assertThat(completion.fulfilledAt()).isEqualTo(handoverAt);
         });
+        assertThat(recording.calls)
+                .containsSubsequence("createShipment", "completeOutboundMovements", "recordOrderFulfillment");
+        WorkflowReplayer.replayWorkflowExecution(
+                environment.getWorkflowClient().fetchHistory(OrderFulfillmentWorkflow.workflowId(orderId)),
+                OrderFulfillmentWorkflowImpl.class);
+    }
+
+    @Test
+    void canonicalStockOperationSignalProducesTheSameActivitySequence() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        recording.shipmentId = shipmentId;
+        Instant now = now();
+        OrderFulfillmentWorkflow workflow = newWorkflow(orderId);
+
+        CompletableFuture<OrderFulfillmentWorkflowResult> result =
+                WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
+
+        awaitAllocationRequest();
+        StockOperationAssignmentSnapshot assignment =
+                stockOperationAssignment(orderId, now, now.plus(Duration.ofDays(1)));
+        workflow.stockOperationAssigned(assignment);
+        workflow.shipmentHandedOverToCarrier(
+                new ShipmentHandedOverToCarrierSignal(orderId, shipmentId, now.plusSeconds(3)));
+
+        assertThat(result.get(5, TimeUnit.SECONDS).outcome()).isEqualTo(FULFILLMENT_COMPLETED);
+        assertThat(recording.shipmentCreations)
+                .singleElement()
+                .satisfies(creation ->
+                        assertThat(creation.assignment().stockOperationId()).isEqualTo(assignment.stockOperationId()));
         assertThat(recording.calls)
                 .containsSubsequence("createShipment", "completeOutboundMovements", "recordOrderFulfillment");
     }
@@ -137,8 +170,8 @@ class OrderFulfillmentWorkflowTest {
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
 
         awaitAllocationRequest();
-        AllocationSnapshot allocation = allocation(orderId, now, now.plus(Duration.ofDays(1)));
-        workflow.allocationCommitted(allocation);
+        PickingAssignmentSnapshot allocation = allocation(orderId, now, now.plus(Duration.ofDays(1)));
+        workflow.pickingAssigned(allocation);
         workflow.shipmentHandedOverToCarrier(
                 new ShipmentHandedOverToCarrierSignal(orderId, shipmentId, now.plusSeconds(3)));
 
@@ -175,8 +208,9 @@ class OrderFulfillmentWorkflowTest {
         assertThat(recording.orderCompletions).isEmpty();
 
         Instant replenishedAt = now();
-        AllocationSnapshot allocation = allocation(orderId, replenishedAt, replenishedAt.plus(Duration.ofDays(1)));
-        workflow.allocationCommitted(allocation);
+        PickingAssignmentSnapshot allocation =
+                allocation(orderId, replenishedAt, replenishedAt.plus(Duration.ofDays(1)));
+        workflow.pickingAssigned(allocation);
         workflow.shipmentHandedOverToCarrier(
                 new ShipmentHandedOverToCarrierSignal(orderId, shipmentId, replenishedAt.plusSeconds(3)));
 
@@ -197,11 +231,11 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        AllocationSnapshot allocation = allocation(orderId, now, now.plus(Duration.ofDays(1)));
+        PickingAssignmentSnapshot allocation = allocation(orderId, now, now.plus(Duration.ofDays(1)));
 
-        workflow.allocationCommitted(allocation);
+        workflow.pickingAssigned(allocation);
         awaitShipmentCreation();
-        workflow.allocationCommitted(allocation);
+        workflow.pickingAssigned(allocation);
         workflow.shipmentHandedOverToCarrier(
                 new ShipmentHandedOverToCarrierSignal(orderId, shipmentId, now.plusSeconds(3)));
         recording.shipmentCreationGate.countDown();
@@ -211,7 +245,7 @@ class OrderFulfillmentWorkflowTest {
     }
 
     @Test
-    void failsWorkflowWhenAnotherCommittedAllocationArrives() throws Exception {
+    void failsWorkflowWhenConflictingPickingAssignmentArrives() throws Exception {
         UUID orderId = UUID.randomUUID();
         recording.shipmentCreationGate = new CountDownLatch(1);
         Instant now = now();
@@ -220,15 +254,15 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
 
         try {
-            workflow.allocationCommitted(allocation(orderId, now.plusSeconds(1), now.plus(Duration.ofDays(1))));
+            workflow.pickingAssigned(allocation(orderId, now.plusSeconds(1), now.plus(Duration.ofDays(1))));
 
             assertThatThrownBy(() -> result.get(5, TimeUnit.SECONDS))
                     .hasRootCauseInstanceOf(ApplicationFailure.class)
-                    .hasStackTraceContaining("conflicting committed allocation facts");
+                    .hasStackTraceContaining("conflicting stock operation assignment facts");
         } finally {
             recording.shipmentCreationGate.countDown();
         }
@@ -317,7 +351,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
 
         workflow.requestCancellation(
@@ -350,7 +384,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
 
         CancellationRequest request =
@@ -385,7 +419,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
         workflow.requestCancellation(
                 new CancellationRequest(requestId, orderId, now.plusSeconds(2), "Dispatch deadline policy"));
@@ -413,7 +447,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
 
         workflow.requestCancellation(
@@ -442,7 +476,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
 
         CancellationRequestAcknowledgement acknowledgement = workflow.requestCancellation(
@@ -471,7 +505,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
 
         workflow.shipmentHandedOverToCarrier(
@@ -498,7 +532,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
         workflow.requestCancellation(
                 new CancellationRequest(requestId, orderId, now.plusSeconds(2), "Customer requested cancellation"));
@@ -529,7 +563,7 @@ class OrderFulfillmentWorkflowTest {
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation(orderId, now, now.plus(Duration.ofDays(1))));
+        workflow.pickingAssigned(allocation(orderId, now, now.plus(Duration.ofDays(1))));
         awaitShipmentCreation();
         workflow.shipmentHandedOverToCarrier(
                 new ShipmentHandedOverToCarrierSignal(orderId, shipmentId, now.plusSeconds(3)));
@@ -559,12 +593,12 @@ class OrderFulfillmentWorkflowTest {
         Instant now = now();
         Instant dispatchBy = now.plus(Duration.ofHours(1));
         OrderFulfillmentWorkflow workflow = newWorkflow(orderId);
-        AllocationSnapshot allocation = allocation(orderId, now, dispatchBy);
+        PickingAssignmentSnapshot allocation = allocation(orderId, now, dispatchBy);
 
         CompletableFuture<OrderFulfillmentWorkflowResult> result =
                 WorkflowClient.execute(workflow::execute, new OrderFulfillmentWorkflowInput(orderId, now));
         awaitAllocationRequest();
-        workflow.allocationCommitted(allocation);
+        workflow.pickingAssigned(allocation);
         awaitShipmentCreation();
 
         environment.sleep(Duration.ofHours(2));
@@ -626,17 +660,31 @@ class OrderFulfillmentWorkflowTest {
                 .isTrue();
     }
 
-    private static AllocationSnapshot allocation(UUID orderId, Instant committedAt, Instant dispatchBy) {
-        return new AllocationSnapshot(
+    private static PickingAssignmentSnapshot allocation(UUID orderId, Instant assignedAt, Instant dispatchBy) {
+        return new PickingAssignmentSnapshot(
                 UUID.randomUUID(),
                 orderId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                List.of(new AllocationSnapshotLine(
+                List.of(new PickingAssignmentSnapshotLine(
                         UUID.randomUUID(), UUID.randomUUID(), "SKU-1", UUID.randomUUID(), 2)),
                 dispatchBy,
                 50,
-                committedAt);
+                assignedAt);
+    }
+
+    private static StockOperationAssignmentSnapshot stockOperationAssignment(
+            UUID orderId, Instant assignedAt, Instant dispatchBy) {
+        return new StockOperationAssignmentSnapshot(
+                UUID.randomUUID(),
+                orderId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                List.of(new StockOperationAssignmentSnapshotLine(
+                        UUID.randomUUID(), UUID.randomUUID(), "SKU-1", UUID.randomUUID(), 2)),
+                dispatchBy,
+                50,
+                assignedAt);
     }
 
     private static final class WorkflowRecording {

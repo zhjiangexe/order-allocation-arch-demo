@@ -1,7 +1,7 @@
 package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import java.nio.charset.StandardCharsets;
@@ -43,7 +43,9 @@ public final class InventoryEventDrain {
                       AND i.event_id = o.id
                  )
            ORDER BY o.timestamp, o.id
-          """, InventoryChannels.STOCK_EVENTS, AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
+          """,
+                    InventoryChannels.STOCK_EVENTS,
+                    ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY);
             if (rows.isEmpty()) {
                 return delivered;
             }

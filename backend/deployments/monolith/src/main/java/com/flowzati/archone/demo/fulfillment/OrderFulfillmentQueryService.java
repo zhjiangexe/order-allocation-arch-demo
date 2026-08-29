@@ -1,8 +1,8 @@
 package com.flowzati.archone.demo.fulfillment;
 
 import com.flowzati.archone.bootstrap.fulfillment.FulfillmentOrchestrationMode;
-import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandQueryService;
-import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandView;
+import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
+import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
@@ -19,19 +19,19 @@ import org.springframework.stereotype.Service;
 public class OrderFulfillmentQueryService {
 
     private final GetOrderUsecase getOrderUsecase;
-    private final AllocationDemandQueryService allocationQueryService;
+    private final StockOperationQueryService stockOperationQueryService;
     private final GetOrderShipmentsUsecase getOrderShipmentsUsecase;
     private final FulfillmentWorkflowStateReader workflowStateReader;
     private final FulfillmentOrchestrationMode orchestrationMode;
 
     public OrderFulfillmentQueryService(
             GetOrderUsecase getOrderUsecase,
-            AllocationDemandQueryService allocationQueryService,
+            StockOperationQueryService stockOperationQueryService,
             GetOrderShipmentsUsecase getOrderShipmentsUsecase,
             FulfillmentWorkflowStateReader workflowStateReader,
             FulfillmentOrchestrationMode orchestrationMode) {
         this.getOrderUsecase = getOrderUsecase;
-        this.allocationQueryService = allocationQueryService;
+        this.stockOperationQueryService = stockOperationQueryService;
         this.getOrderShipmentsUsecase = getOrderShipmentsUsecase;
         this.workflowStateReader = workflowStateReader;
         this.orchestrationMode = orchestrationMode;
@@ -39,12 +39,14 @@ public class OrderFulfillmentQueryService {
 
     public OrderFulfillmentView query(UUID orderId) {
         Order order = getOrderUsecase.getOrder(orderId);
-        AllocationDemandView allocation =
-                allocationQueryService.findPrimaryOrder(orderId).orElse(null);
+        StockOperationResponse stockOperation = stockOperationQueryService
+                .findPrimaryOrder(orderId)
+                .map(StockOperationResponse::from)
+                .orElse(null);
         List<ShipmentView> shipmentViewList = getOrderShipmentsUsecase.query(orderId);
         OrderFulfillmentWorkflowSnapshot workflow =
                 workflowStateReader.find(orderId).orElse(null);
         return new OrderFulfillmentView(
-                orchestrationMode.name(), FulfillmentOrderView.from(order), allocation, shipmentViewList, workflow);
+                orchestrationMode.name(), FulfillmentOrderView.from(order), stockOperation, shipmentViewList, workflow);
     }
 }

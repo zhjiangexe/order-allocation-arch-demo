@@ -6,9 +6,9 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
-import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
-import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
-import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
+import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
+import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
@@ -67,7 +67,7 @@ class OutboxAggregateQueryIntegrationTest {
     private OrderRepository orderRepository;
 
     @Autowired
-    private StockQuantRepository stockQuantRepository;
+    private StockQuantStore stockQuantStore;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -86,7 +86,7 @@ class OutboxAggregateQueryIntegrationTest {
     @Test
     @DisplayName("stock 分區策略下，仍能以 orderId 查回該訂單完整的事件因果鏈")
     void shouldReturnFullEventChainByOrderIdUnderSkuPartitionStrategy() throws Exception {
-        stockQuantRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
+        stockQuantStore.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
         UUID orderId = placeOrder();
         attemptAllocation(orderId);
@@ -104,7 +104,7 @@ class OutboxAggregateQueryIntegrationTest {
     @Test
     @DisplayName("stock 分區策略下，下單事件的 partition key 是 (貨主, 倉)，配置結果事件是 orderId")
     void shouldKeepDeliveryKeysSeparateFromAggregateIdentity() throws Exception {
-        stockQuantRepository.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
+        stockQuantStore.save(StockFixtures.unexpiredBatch(SKU, 0, 0));
 
         UUID orderId = placeOrder();
         attemptAllocation(orderId);

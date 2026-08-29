@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.infrastructure.entity;
 
-import com.flowzati.archone.inventory.movement.domain.type.MoveState;
+import com.flowzati.archone.inventory.movement.domain.MoveState;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,8 +18,8 @@ public class StockMoveEntity {
     @Id
     private UUID id;
 
-    @Column(name = "picking_id")
-    private UUID pickingId;
+    @Column(name = "stock_operation_id")
+    private UUID stockOperationId;
 
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
@@ -33,18 +33,11 @@ public class StockMoveEntity {
     @Column(name = "to_location_id", nullable = false)
     private UUID toLocationId;
 
-    /** 需求與執行之間唯一的連結。入庫時為空。 */
-    @Column(name = "order_line_id")
-    private UUID orderLineId;
-
-    @Column(name = "allocation_demand_id")
-    private UUID allocationDemandId;
-
-    @Column(name = "allocation_demand_line_id")
-    private UUID allocationDemandLineId;
-
     @Column(name = "source_line_id")
     private String sourceLineId;
+
+    @Column(name = "line_sequence")
+    private Integer lineSequence;
 
     @Column(name = "demand_quantity", nullable = false)
     private int demandQuantity;
@@ -66,30 +59,26 @@ public class StockMoveEntity {
 
     public StockMoveEntity(
             UUID id,
-            UUID pickingId,
+            UUID stockOperationId,
             UUID ownerId,
             String skuCode,
             UUID fromLocationId,
             UUID toLocationId,
-            UUID allocationDemandId,
-            UUID allocationDemandLineId,
             String sourceLineId,
-            UUID orderLineId,
+            Integer lineSequence,
             int demandQuantity,
             MoveState state,
             Instant createdAt,
             Instant assignedAt,
             Long version) {
         this.id = id;
-        this.pickingId = pickingId;
+        this.stockOperationId = stockOperationId;
         this.ownerId = ownerId;
         this.skuCode = skuCode;
         this.fromLocationId = fromLocationId;
         this.toLocationId = toLocationId;
-        this.allocationDemandId = allocationDemandId;
-        this.allocationDemandLineId = allocationDemandLineId;
         this.sourceLineId = sourceLineId;
-        this.orderLineId = orderLineId;
+        this.lineSequence = lineSequence;
         this.demandQuantity = demandQuantity;
         this.state = state;
         this.createdAt = createdAt;
@@ -101,8 +90,8 @@ public class StockMoveEntity {
         return id;
     }
 
-    public UUID getPickingId() {
-        return pickingId;
+    public UUID getStockOperationId() {
+        return stockOperationId;
     }
 
     public UUID getOwnerId() {
@@ -121,20 +110,12 @@ public class StockMoveEntity {
         return toLocationId;
     }
 
-    public UUID getOrderLineId() {
-        return orderLineId;
-    }
-
-    public UUID getAllocationDemandId() {
-        return allocationDemandId;
-    }
-
-    public UUID getAllocationDemandLineId() {
-        return allocationDemandLineId;
-    }
-
     public String getSourceLineId() {
         return sourceLineId;
+    }
+
+    public Integer getLineSequence() {
+        return lineSequence;
     }
 
     public int getDemandQuantity() {

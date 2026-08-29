@@ -21,22 +21,25 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.allocation.application.usecase.CancelMovementsUsecase;
-import com.flowzati.archone.inventory.allocation.application.usecase.PendingDemandAllocationUsecase;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationOrderCancellationEventConsumer;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationOrderPlacedEventConsumer;
-import com.flowzati.archone.inventory.balance.application.usecase.CompleteOutboundMovementsUsecase;
-import com.flowzati.archone.inventory.balance.entrypoint.messaging.OutboundFulfillmentEventSubscriptions;
-import com.flowzati.archone.inventory.balance.entrypoint.messaging.ShipmentHandoverEventConsumer;
+import com.flowzati.archone.inventory.movement.application.usecase.CancelSourceStockMovementsUsecase;
+import com.flowzati.archone.inventory.movement.application.usecase.CompleteSourceStockMovementsUsecase;
+import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.consumer.AllocationOrderCancellationEventConsumer;
+import com.flowzati.archone.inventory.movement.entrypoint.consumer.ShipmentHandoverEventConsumer;
+import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
+import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
+import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.reservation.entrypoint.consumer.AllocationInventoryAvailabilityEventConsumer;
+import com.flowzati.archone.inventory.reservation.entrypoint.consumer.AllocationOrderPlacedEventConsumer;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
+import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
@@ -44,6 +47,7 @@ import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentU
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResultEventConsumer;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingFulfillmentCompletionEventConsumer;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingShipmentCancellationEventConsumer;
+import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsFulfillmentHandoffEventConsumer;
@@ -125,10 +129,16 @@ class BootstrapIntegrationEventWiringTest {
                         OrderingShipmentCancellationEventConsumer.class)
                 .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
                 .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
-                .withBean(CancelMovementsUsecase.class, () -> mock(CancelMovementsUsecase.class))
-                .withBean(PendingDemandAllocationUsecase.class, () -> mock(PendingDemandAllocationUsecase.class))
+                .withBean(CancelSourceStockMovementsUsecase.class, () -> mock(CancelSourceStockMovementsUsecase.class))
+                .withBean(
+                        StockOperationAssignmentCoordinator.class,
+                        () -> mock(StockOperationAssignmentCoordinator.class))
                 .withBean(CreateShipmentUsecase.class, () -> mock(CreateShipmentUsecase.class))
-                .withBean(CompleteOutboundMovementsUsecase.class, () -> mock(CompleteOutboundMovementsUsecase.class))
+                .withBean(LegacyAllocationPickingResolver.class, () -> mock(LegacyAllocationPickingResolver.class))
+                .withBean(
+                        CompleteSourceStockMovementsUsecase.class,
+                        () -> mock(CompleteSourceStockMovementsUsecase.class))
+                .withBean(IntegrationEventPublisher.class, () -> mock(IntegrationEventPublisher.class))
                 .withBean(RecordOrderFulfillmentUsecase.class, () -> mock(RecordOrderFulfillmentUsecase.class));
         runner = runner.withBean(CancelOrderUsecase.class, () -> mock(CancelOrderUsecase.class));
         return factory == null ? runner : runner.withBean(IntegrationEventDispatcherFactory.class, () -> factory);
@@ -157,7 +167,8 @@ class BootstrapIntegrationEventWiringTest {
 
         ArgumentCaptor<IntegrationEventHandlers> orderLifecycleHandlers =
                 ArgumentCaptor.forClass(IntegrationEventHandlers.class);
-        verify(factory).make(eq(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER), orderLifecycleHandlers.capture());
+        verify(factory)
+                .make(eq(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER), orderLifecycleHandlers.capture());
         assertThat(orderLifecycleHandlers.getValue().destinations()).containsExactly(OrderingChannels.ORDER_EVENTS);
         assertThat(new IntegrationEventDispatcher(
                         deserializer, orderLifecycleHandlers.getValue(), mapping, event -> {}))
@@ -168,7 +179,8 @@ class BootstrapIntegrationEventWiringTest {
 
         ArgumentCaptor<IntegrationEventHandlers> cancellationHandlers =
                 ArgumentCaptor.forClass(IntegrationEventHandlers.class);
-        verify(factory).make(eq(AllocationEventSubscriptions.ORDER_CANCELLATIONS), cancellationHandlers.capture());
+        verify(factory)
+                .make(eq(MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS), cancellationHandlers.capture());
         assertThat(new IntegrationEventDispatcher(deserializer, cancellationHandlers.getValue(), mapping, event -> {}))
                 .matches(dispatcher -> dispatcher.supports(
                         OrderingChannels.ORDER_EVENTS,
@@ -177,7 +189,8 @@ class BootstrapIntegrationEventWiringTest {
 
         ArgumentCaptor<IntegrationEventHandlers> inventoryHandlers =
                 ArgumentCaptor.forClass(IntegrationEventHandlers.class);
-        verify(factory).make(eq(AllocationEventSubscriptions.INVENTORY_AVAILABILITY), inventoryHandlers.capture());
+        verify(factory)
+                .make(eq(ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY), inventoryHandlers.capture());
         assertThat(inventoryHandlers.getValue().destinations()).containsExactly(InventoryChannels.STOCK_EVENTS);
         assertThat(new IntegrationEventDispatcher(deserializer, inventoryHandlers.getValue(), mapping, event -> {}))
                 .matches(dispatcher -> dispatcher.supports(
@@ -212,6 +225,12 @@ class BootstrapIntegrationEventWiringTest {
                         FulfillmentChannels.FULFILLMENT_HANDOFFS,
                         OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION));
+        assertThat(new IntegrationEventDispatcher(deserializer, completionHandlers.getValue(), mapping, event -> {}))
+                .matches(dispatcher -> dispatcher.supports(
+                        FulfillmentChannels.FULFILLMENT_HANDOFFS,
+                        OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE,
+                        com.flowzati.archone.contracts.fulfillment.v2.OutboundMovementsCompletedIntegrationEvent
+                                .CONTRACT_VERSION));
 
         ArgumentCaptor<IntegrationEventHandlers> shipmentCancellationHandlers =
                 ArgumentCaptor.forClass(IntegrationEventHandlers.class);

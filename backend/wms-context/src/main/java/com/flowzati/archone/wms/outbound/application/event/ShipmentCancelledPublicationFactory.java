@@ -2,7 +2,7 @@ package com.flowzati.archone.wms.outbound.application.event;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentAggregateTypes;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
@@ -22,6 +22,7 @@ public final class ShipmentCancelledPublicationFactory {
                 new ShipmentCancelledIntegrationEvent(
                         IdGenerator.nextId(),
                         shipment.id(),
+                        shipment.stockOperationId(),
                         shipment.orderId(),
                         shipment.cancellationRequestId(),
                         shipment.cancellationRequestedAt(),

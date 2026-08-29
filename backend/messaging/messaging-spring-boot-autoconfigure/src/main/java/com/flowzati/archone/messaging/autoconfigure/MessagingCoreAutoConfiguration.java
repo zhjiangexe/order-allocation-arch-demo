@@ -4,8 +4,10 @@ import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.api.IdentityChannelMapping;
 import com.flowzati.archone.messaging.api.MapBasedChannelMapping;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;
+import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.JacksonIntegrationEventSerde;
+import com.flowzati.archone.messaging.events.MapBasedIntegrationEventNameMapping;
 import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -37,6 +39,13 @@ public class MessagingCoreAutoConfiguration {
     @ConditionalOnMissingBean
     Clock messagingClock() {
         return Clock.systemUTC();
+    }
+
+    /** Keeps the generic producer starter usable while requiring applications to explicitly map publishable events. */
+    @Bean
+    @ConditionalOnMissingBean
+    IntegrationEventNameMapping integrationEventNameMapping() {
+        return MapBasedIntegrationEventNameMapping.builder().build();
     }
 
     /** Isolates optional typed-event and Jackson classes from core class loading. */

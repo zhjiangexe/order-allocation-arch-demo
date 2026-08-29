@@ -23,7 +23,10 @@ import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
 import com.flowzati.archone.messaging.consumer.common.MessageProcessingStatus;
 import com.flowzati.archone.messaging.consumer.jdbc.TransactionalIdempotencyMessageHandlerDecorator;
 import com.flowzati.archone.messaging.events.AggregateReference;
+import com.flowzati.archone.messaging.events.EventMessageHeaders;
+import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.messaging.events.MapBasedIntegrationEventNameMapping;
 import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -364,6 +367,16 @@ class JdbcMessagingPersistenceIntegrationTest {
         @Bean
         ObjectMapper objectMapper() {
             return new ObjectMapper();
+        }
+
+        @Bean
+        IntegrationEventNameMapping integrationEventNameMapping() {
+            return MapBasedIntegrationEventNameMapping.builder()
+                    .map(
+                            OrderPlacedIntegrationEvent.class,
+                            OrderPlacedIntegrationEvent.EVENT_TYPE,
+                            EventMessageHeaders.INITIAL_CONTRACT_VERSION)
+                    .build();
         }
 
         @Bean

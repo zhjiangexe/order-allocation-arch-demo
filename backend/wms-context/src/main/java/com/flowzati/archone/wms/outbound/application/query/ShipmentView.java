@@ -8,7 +8,7 @@ import java.util.UUID;
 /** DEMO 履約追蹤使用的 WMS Shipment 唯讀視圖。 */
 public record ShipmentView(
         UUID shipmentId,
-        UUID allocationId,
+        UUID stockOperationId,
         UUID orderId,
         UUID ownerId,
         UUID facilityId,
@@ -33,7 +33,7 @@ public record ShipmentView(
     public static ShipmentView from(Shipment shipment) {
         return new ShipmentView(
                 shipment.id(),
-                shipment.allocationId(),
+                shipment.stockOperationId(),
                 shipment.orderId(),
                 shipment.ownerId(),
                 shipment.facilityId(),

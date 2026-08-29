@@ -10,19 +10,20 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.inventory.balance.entrypoint.messaging.OutboundFulfillmentEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
+import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowInput;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentCancelledSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshotLine;
+import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowExecutionAlreadyStarted;
@@ -40,9 +41,12 @@ public class TemporalFulfillmentEventConsumer {
     static final String SHIPMENT_CANCELLATION_SUBSCRIPTION = "temporal-shipment-cancellation";
 
     private final WorkflowClient workflowClient;
+    private final LegacyAllocationPickingResolver legacyPickingResolver;
 
-    public TemporalFulfillmentEventConsumer(WorkflowClient workflowClient) {
+    public TemporalFulfillmentEventConsumer(
+            WorkflowClient workflowClient, LegacyAllocationPickingResolver legacyPickingResolver) {
         this.workflowClient = workflowClient;
+        this.legacyPickingResolver = legacyPickingResolver;
     }
 
     @Bean
@@ -51,7 +55,7 @@ public class TemporalFulfillmentEventConsumer {
                         OrderingChannels.ORDER_EVENTS)
                 .onEvent(OrderPlacedIntegrationEvent.class, envelope -> onOrderPlaced(envelope.event()))
                 .build();
-        return factory.make(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER, handlers);
+        return factory.make(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, handlers);
     }
 
     @Bean
@@ -60,7 +64,13 @@ public class TemporalFulfillmentEventConsumer {
                         AllocationChannels.ALLOCATION_EVENTS)
                 .onEvent(
                         OrderAllocationCommittedIntegrationEvent.class,
-                        envelope -> onAllocationCommitted(envelope.event()))
+                        envelope -> onLegacyAllocationCommitted(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent.class,
+                        envelope -> onPickingAssigned(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent.class,
+                        envelope -> onStockOperationAssigned(envelope.event()))
                 .build();
         return factory.make(WmsEventSubscriptions.FULFILLMENT_HANDOFF, handlers);
     }
@@ -70,6 +80,12 @@ public class TemporalFulfillmentEventConsumer {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
                         FulfillmentChannels.FULFILLMENT_HANDOFFS)
                 .onEvent(ShipmentHandedOverIntegrationEvent.class, envelope -> onShipmentHandedOver(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.fulfillment.v2.ShipmentHandedOverIntegrationEvent.class,
+                        envelope -> onShipmentHandedOver(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent.class,
+                        envelope -> onShipmentHandedOver(envelope.event()))
                 .build();
         return factory.make(OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER, handlers);
     }
@@ -79,6 +95,12 @@ public class TemporalFulfillmentEventConsumer {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
                         FulfillmentChannels.SHIPMENT_EVENTS)
                 .onEvent(ShipmentCancelledIntegrationEvent.class, envelope -> onShipmentCancelled(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent.class,
+                        envelope -> onShipmentCancelled(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent.class,
+                        envelope -> onShipmentCancelled(envelope.event()))
                 .build();
         return factory.make(SHIPMENT_CANCELLATION_SUBSCRIPTION, handlers);
     }
@@ -103,15 +125,60 @@ public class TemporalFulfillmentEventConsumer {
                 .build();
     }
 
-    void onAllocationCommitted(OrderAllocationCommittedIntegrationEvent event) {
+    void onPickingAssigned(com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent event) {
         workflow(event.getOrderId())
-                .allocationCommitted(new AllocationSnapshot(
-                        event.getAllocationId(),
+                .stockOperationAssigned(new StockOperationAssignmentSnapshot(
+                        event.getPickingId(),
+                        event.getOrderId(),
+                        event.getOwnerId(),
+                        event.getFacilityId(),
+                        event.getMoves().stream()
+                                .map(line -> new StockOperationAssignmentSnapshotLine(
+                                        line.orderLineId(),
+                                        line.moveId(),
+                                        line.skuCode(),
+                                        event.getSourceLocationId(),
+                                        line.quantity()))
+                                .toList(),
+                        event.getDispatchBy(),
+                        event.getReleasePriority(),
+                        event.getAssignedAt()));
+    }
+
+    void onStockOperationAssigned(
+            com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent event) {
+        workflow(event.getOrderId())
+                .stockOperationAssigned(new StockOperationAssignmentSnapshot(
+                        event.getStockOperationId(),
+                        event.getOrderId(),
+                        event.getOwnerId(),
+                        event.getFacilityId(),
+                        event.getMoves().stream()
+                                .map(line -> new StockOperationAssignmentSnapshotLine(
+                                        line.orderLineId(),
+                                        line.moveId(),
+                                        line.skuCode(),
+                                        event.getSourceLocationId(),
+                                        line.quantity()))
+                                .toList(),
+                        event.getDispatchBy(),
+                        event.getReleasePriority(),
+                        event.getAssignedAt()));
+    }
+
+    /** Compatibility reader for retained V1 records. */
+    void onLegacyAllocationCommitted(OrderAllocationCommittedIntegrationEvent event) {
+        var moveIds = event.getLines().stream()
+                .map(OrderAllocationCommittedIntegrationEvent.AllocationLine::moveId)
+                .toList();
+        workflow(event.getOrderId())
+                .stockOperationAssigned(new StockOperationAssignmentSnapshot(
+                        legacyPickingResolver.resolve(event.getAllocationId(), moveIds),
                         event.getOrderId(),
                         event.getOwnerId(),
                         event.getFacilityId(),
                         event.getLines().stream()
-                                .map(line -> new AllocationSnapshotLine(
+                                .map(line -> new StockOperationAssignmentSnapshotLine(
                                         line.orderLineId(),
                                         line.moveId(),
                                         line.skuCode(),
@@ -129,7 +196,37 @@ public class TemporalFulfillmentEventConsumer {
                         event.getOrderId(), event.getShipmentId(), event.getHandedOverAt()));
     }
 
+    void onShipmentHandedOver(com.flowzati.archone.contracts.fulfillment.v2.ShipmentHandedOverIntegrationEvent event) {
+        workflow(event.getOrderId())
+                .shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierSignal(
+                        event.getOrderId(), event.getShipmentId(), event.getHandedOverAt()));
+    }
+
+    void onShipmentHandedOver(com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent event) {
+        workflow(event.getOrderId())
+                .shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierSignal(
+                        event.getOrderId(), event.getShipmentId(), event.getHandedOverAt()));
+    }
+
     void onShipmentCancelled(ShipmentCancelledIntegrationEvent event) {
+        workflow(event.getOrderId())
+                .shipmentCancelled(new ShipmentCancelledSignal(
+                        event.getOrderId(),
+                        event.getShipmentId(),
+                        event.getCancellationRequestId(),
+                        event.getCancelledAt()));
+    }
+
+    void onShipmentCancelled(com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent event) {
+        workflow(event.getOrderId())
+                .shipmentCancelled(new ShipmentCancelledSignal(
+                        event.getOrderId(),
+                        event.getShipmentId(),
+                        event.getCancellationRequestId(),
+                        event.getCancelledAt()));
+    }
+
+    void onShipmentCancelled(com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent event) {
         workflow(event.getOrderId())
                 .shipmentCancelled(new ShipmentCancelledSignal(
                         event.getOrderId(),

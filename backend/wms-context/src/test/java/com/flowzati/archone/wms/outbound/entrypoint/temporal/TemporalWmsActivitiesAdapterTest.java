@@ -9,8 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmentActivityInput;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityInput;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshotLine;
 import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
@@ -33,36 +33,36 @@ class TemporalWmsActivitiesAdapterTest {
             new TemporalWmsActivitiesAdapter(createShipmentUsecase, cancelShipmentUsecase);
 
     @Test
-    void mapsCommittedAllocationToTheSharedCreateShipmentUsecase() {
+    void mapsAssignedPickingToTheSharedCreateShipmentUsecase() {
         UUID returnedShipmentId = UUID.randomUUID();
-        UUID allocationId = UUID.randomUUID();
+        UUID stockOperationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         UUID facilityId = UUID.randomUUID();
         UUID moveId = UUID.randomUUID();
         UUID orderLineId = UUID.randomUUID();
         UUID sourceLocationId = UUID.randomUUID();
-        Instant committedAt = Instant.parse("2026-08-19T10:00:00Z");
-        var allocation = new AllocationSnapshot(
-                allocationId,
+        Instant assignedAt = Instant.parse("2026-08-19T10:00:00Z");
+        var assignment = new StockOperationAssignmentSnapshot(
+                stockOperationId,
                 orderId,
                 ownerId,
                 facilityId,
-                List.of(new AllocationSnapshotLine(orderLineId, moveId, "SKU-1", sourceLocationId, 3)),
-                committedAt.plusSeconds(3600),
+                List.of(new StockOperationAssignmentSnapshotLine(orderLineId, moveId, "SKU-1", sourceLocationId, 3)),
+                assignedAt.plusSeconds(3600),
                 80,
-                committedAt);
+                assignedAt);
         when(createShipmentUsecase.handle(any())).thenReturn(new CreateShipmentResult(returnedShipmentId));
 
-        var receipt = activities.createShipment(new CreateShipmentActivityInput("process-1", allocation));
+        var receipt = activities.createShipment(new CreateShipmentActivityInput("process-1", assignment));
 
         assertThat(receipt.shipmentId()).isEqualTo(returnedShipmentId);
         ArgumentCaptor<CreateShipmentCommand> command = ArgumentCaptor.forClass(CreateShipmentCommand.class);
         verify(createShipmentUsecase).handle(command.capture());
         assertThat(command.getValue().shipmentId()).isNotNull();
-        assertThat(command.getValue().allocationId()).isEqualTo(allocationId);
+        assertThat(command.getValue().stockOperationId()).isEqualTo(stockOperationId);
         assertThat(command.getValue().lines())
-                .extracting(CreateShipmentCommand.AllocationLine::moveId)
+                .extracting(CreateShipmentCommand.MovementLine::moveId)
                 .containsExactly(moveId);
     }
 

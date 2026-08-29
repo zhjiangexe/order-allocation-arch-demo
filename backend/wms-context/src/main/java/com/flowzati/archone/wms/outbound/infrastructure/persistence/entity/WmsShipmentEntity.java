@@ -30,8 +30,8 @@ public class WmsShipmentEntity {
     @Id
     private UUID id;
 
-    @Column(name = "allocation_id", nullable = false, unique = true)
-    private UUID allocationId;
+    @Column(name = "stock_operation_id", nullable = false, unique = true)
+    private UUID stockOperationId;
 
     @Column(name = "order_id", nullable = false)
     private UUID orderId;
@@ -110,7 +110,7 @@ public class WmsShipmentEntity {
             throw new IllegalArgumentException("Cannot replace a different Shipment entity");
         }
         this.id = shipment.id();
-        this.allocationId = shipment.allocationId();
+        this.stockOperationId = shipment.stockOperationId();
         this.orderId = shipment.orderId();
         this.ownerId = shipment.ownerId();
         this.facilityId = shipment.facilityId();
@@ -152,7 +152,7 @@ public class WmsShipmentEntity {
                         workStatus);
         return Shipment.rehydrate(
                 id,
-                allocationId,
+                stockOperationId,
                 orderId,
                 ownerId,
                 facilityId,

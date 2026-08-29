@@ -7,7 +7,7 @@ import java.util.UUID;
 public record OrderFulfillmentWorkflowResult(
         UUID orderId,
         OrderFulfillmentWorkflowStatus outcome,
-        UUID allocationId,
+        UUID stockOperationId,
         UUID shipmentId,
         Instant completedAt,
         String detail) {}

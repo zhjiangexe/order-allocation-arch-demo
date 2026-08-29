@@ -1,12 +1,12 @@
 package com.flowzati.archone.bootstrap.fulfillment.rest;
 
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationConflictException;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationCoordinator;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationRequest;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationResult;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationStatus;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationUnavailableException;
 import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationConflictException;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationCoordinator;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationRequest;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationResult;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationStatus;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationUnavailableException;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
 import jakarta.validation.Valid;
 import java.util.NoSuchElementException;

@@ -1,7 +1,7 @@
 package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
@@ -33,6 +33,9 @@ public class InventoryEventDrainFactory {
                 jdbcTemplate,
                 messageMapper,
                 (ignoredDestination, message) -> transport.emit(
-                        AllocationEventSubscriptions.INVENTORY_AVAILABILITY, physicalDestination, message, 1));
+                        ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY,
+                        physicalDestination,
+                        message,
+                        1));
     }
 }

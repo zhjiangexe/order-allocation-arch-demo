@@ -3,7 +3,7 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.outbound.domain.exception.ShipmentAllocationSnapshotConflictException;
+import com.flowzati.archone.wms.outbound.domain.exception.ShipmentStockOperationSnapshotConflictException;
 import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import java.util.List;
@@ -19,13 +19,13 @@ public class CreateShipmentUsecase {
     }
 
     /**
-     * 建立或依 allocation ID 冪等讀回 Shipment，並只回傳 application-layer result。
+     * 建立或依 picking ID 冪等讀回 Shipment，並只回傳 application-layer result。
      * 呼叫端若需要後續操作 aggregate，應透過對應 use case，而不是持有這裡回傳的 domain object。
      */
     @Transactional
     public CreateShipmentResult handle(CreateShipmentCommand command) {
         Shipment shipment = shipmentRepository
-                .findByAllocationId(command.allocationId())
+                .findByStockOperationId(command.stockOperationId())
                 .map(existing -> requireSameSnapshot(existing, command))
                 .orElseGet(() -> create(command));
         return new CreateShipmentResult(shipment.id());
@@ -44,8 +44,8 @@ public class CreateShipmentUsecase {
                 && existing.releasePriority() == command.releasePriority()
                 && existing.createdAt().equals(command.createdAt());
         if (!same) {
-            throw new ShipmentAllocationSnapshotConflictException(
-                    "Allocation was already handed off with a different snapshot: " + command.allocationId());
+            throw new ShipmentStockOperationSnapshotConflictException(
+                    "Stock operation was already handed off with a different snapshot: " + command.stockOperationId());
         }
         return existing;
     }
@@ -58,7 +58,7 @@ public class CreateShipmentUsecase {
 
         Shipment shipment = Shipment.create(
                 command.shipmentId(),
-                command.allocationId(),
+                command.stockOperationId(),
                 command.orderId(),
                 command.ownerId(),
                 command.facilityId(),

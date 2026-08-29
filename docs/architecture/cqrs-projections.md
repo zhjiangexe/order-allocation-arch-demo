@@ -406,7 +406,7 @@ Command 使用 aggregate，Query 直接使用 SQL 查成 View，就已經分開�
 適合：
 
 - `OrderSummaryView`
-- `AllocationDemandView`
+- `StockOperationView`
 - 一般 shipment 明細
 - 最近訂單列表
 

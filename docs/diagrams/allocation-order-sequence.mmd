@@ -1,67 +1,36 @@
 sequenceDiagram
-    autonumber
-    actor Event as OrderPlacedIntegrationEvent
-    participant UC as AllocateOrderUsecase
-    participant Adapter as OrderAllocationDemandAdapter
-    participant Registrar as AllocationDemandRegistrar
-    participant DemandRepo as DemandRepository
-    participant Attempt as PendingDemandAllocator
-    participant Position as PendingDemandQueuePosition
-    participant Planner as AllocationDemandPlanner
-    participant StockRepo as StockQuantRepository
-    participant Committer as AllocationCommitter
-    participant Publication as PublicationFactory / Publisher
-    participant Outbox as Transactional Outbox
+  autonumber
+  actor Source as Order source
+  participant Registrar as StockOperationRegistrar
+  participant Selection as StockOperationAssignmentCandidateFinder
+  participant Planner as MovementAssignmentPlanner
+  participant Assign as StockAllocationCommitter
+  participant Move as StockOperationStore + StockMoveStore
+  participant Quant as StockQuantStore
+  participant Outbox as Transactional Outbox
+  participant WMS as WMS Inbox
 
-    Event->>UC: execute(AllocateOrderCommand)
-    Note over UC,Outbox: 初次訂單路徑：AllocateOrderUsecase 擁有整段本地 transaction
+  Source->>Registrar: register canonical source snapshot
+  Registrar->>Move: create CONFIRMED operation + ordered moves
+  Registrar-->>Source: existing or new stockOperationId
+  Source->>Selection: evaluate confirmed operation
+  Selection-->>Source: optional earlier shared-SKU predecessor
 
-    rect rgb(239, 246, 255)
-        Note over UC,DemandRepo: 階段 1｜登記需求，尚未 reserve 庫存
-        UC->>Adapter: find(orderId)
-        Adapter-->>UC: AcceptAllocationDemandCommand
-        Note right of Adapter: Optional.empty 時 UC 直接 return
-
-        UC->>Registrar: register(command)
-        Registrar->>DemandRepo: findBySource(ORDER / orderId / PRIMARY)
-        alt 首次登記
-            Registrar->>DemandRepo: save(PENDING demand + canonical lines)
-            Note over Registrar,DemandRepo: 同一 transaction 建立<br/>CONFIRMED moves 與 optional picking
-            Registrar-->>UC: new demand
-        else immutable content 相同
-            Registrar-->>UC: existing demand（冪等 replay）
-        end
-        Note right of Registrar: immutable content 不同時拋 SourceDemandConflict
-    end
-
-    rect rgb(240, 253, 244)
-        Note over UC,Committer: 階段 2｜FIFO eligibility + demand / supply planning
-        UC->>Attempt: tryAllocateDemand(accepted, today, now)
-        Attempt->>DemandRepo: positionOf(accepted) + required-SKU queue heads
-        DemandRepo-->>Attempt: PendingDemandQueuePosition
-        Attempt->>Position: isHeadOfEveryRequiredQueue()
-
-        alt FIFO 尚未輪到
-            Position-->>Attempt: false
-            Attempt-->>UC: empty，demand 維持 PENDING
-        else 剛接受的 demand 是所有 required-SKU queues 的 head
-            Position-->>Attempt: true
-            Attempt->>StockRepo: findAllocatableBatchesBySku(all required SKUs)
-            StockRepo-->>Attempt: FEFO AllocatableBatches
-            Attempt->>Planner: aggregate preflight → FEFO batch queues
-
-            alt 任一 SKU 不足
-                Planner-->>Attempt: missingQuantities，picks 為空
-                Attempt-->>UC: empty，demand 維持 PENDING
-            else all-or-nothing plan 可行
-                Planner-->>Attempt: immutable AllocationDemandPlan
-                Attempt->>Committer: commit(plan, now)
-                Note over Committer: demand → globally ordered stock quants → moves / picking<br/>reserve → ASSIGNED → ALLOCATED
-                Committer-->>Attempt: AllocationCommitted
-                Note over Attempt,Outbox: 階段 3｜建立 canonical Integration Event 並寫入 Outbox
-                Attempt->>Publication: create(AllocationCommitResult)
-                Publication->>Outbox: publish(OrderAllocationCommittedIntegrationEvent)
-                Outbox-->>UC: allocated demand；event 已加入 caller transaction
-            end
-        end
-    end
+  alt blocked or insufficient
+    Source->>Planner: plan immutable moves + FEFO quants
+    Planner-->>Source: missing quantities; no proposed move lines
+    Note over Source,Move: same confirmed operation/moves remain durable
+  else complete proposal
+    Source->>Planner: plan immutable moves + FEFO quants
+    Planner-->>Source: exact proposed move lines
+    Source->>Assign: commit allocation proposal
+    Note over Assign,Outbox: one local transaction
+    Assign->>Move: lock operation, then ordered moves
+    Assign->>Selection: recheck predecessor
+    Assign->>Quant: lock globally ordered quants; recheck ATP
+    Assign->>Quant: reserved += quantity
+    Assign->>Move: create move lines; states = ASSIGNED
+    Assign->>Outbox: operation + move + quant allocations
+    Outbox-->>WMS: at-least-once v3 assignment fact
+    WMS->>WMS: idempotent Shipment by stockOperationId
+  end

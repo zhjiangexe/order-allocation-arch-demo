@@ -20,6 +20,7 @@ public final class OrderAllocationCommittedIntegrationEvent extends IntegrationE
     public static final String EVENT_TYPE = "OrderAllocationCommittedIntegrationEvent";
 
     private final UUID allocationId;
+    private final UUID allocationDemandId;
     private final UUID orderId;
     private final UUID ownerId;
     private final UUID facilityId;
@@ -32,6 +33,7 @@ public final class OrderAllocationCommittedIntegrationEvent extends IntegrationE
     public OrderAllocationCommittedIntegrationEvent(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("allocationId") UUID allocationId,
+            @JsonProperty("allocationDemandId") UUID allocationDemandId,
             @JsonProperty("orderId") UUID orderId,
             @JsonProperty("ownerId") UUID ownerId,
             @JsonProperty("facilityId") UUID facilityId,
@@ -40,7 +42,11 @@ public final class OrderAllocationCommittedIntegrationEvent extends IntegrationE
             @JsonProperty("releasePriority") int releasePriority,
             @JsonProperty("committedAt") Instant committedAt) {
         super(eventId);
-        if (allocationId == null || orderId == null || ownerId == null || facilityId == null) {
+        if (allocationId == null
+                || allocationDemandId == null
+                || orderId == null
+                || ownerId == null
+                || facilityId == null) {
             throw new IllegalArgumentException("Order allocation commitment requires all business IDs");
         }
         if (lines == null || lines.isEmpty()) {
@@ -62,6 +68,7 @@ public final class OrderAllocationCommittedIntegrationEvent extends IntegrationE
             throw new IllegalArgumentException("Release priority must be between 0 and 100");
         }
         this.allocationId = allocationId;
+        this.allocationDemandId = allocationDemandId;
         this.orderId = orderId;
         this.ownerId = ownerId;
         this.facilityId = facilityId;
@@ -73,6 +80,10 @@ public final class OrderAllocationCommittedIntegrationEvent extends IntegrationE
 
     public UUID getAllocationId() {
         return allocationId;
+    }
+
+    public UUID getAllocationDemandId() {
+        return allocationDemandId;
     }
 
     public UUID getOrderId() {
@@ -108,26 +119,73 @@ public final class OrderAllocationCommittedIntegrationEvent extends IntegrationE
         return EVENT_TYPE;
     }
 
-    /** 一筆已鎖定的 outbound move；source location 是 WMS 建立 PickTask 的起點。 */
-    public record AllocationLine(UUID orderLineId, UUID moveId, String skuCode, UUID sourceLocationId, int quantity) {
+    /** 一筆已鎖定的 outbound move；slices 是 Inventory 已提交且不可由下游重算的批次事實。 */
+    public record AllocationLine(
+            UUID orderLineId,
+            UUID allocationDemandLineId,
+            UUID moveId,
+            String skuCode,
+            UUID sourceLocationId,
+            int quantity,
+            List<AllocationSlice> slices) {
 
         @JsonCreator
         public AllocationLine(
                 @JsonProperty("orderLineId") UUID orderLineId,
+                @JsonProperty("allocationDemandLineId") UUID allocationDemandLineId,
                 @JsonProperty("moveId") UUID moveId,
                 @JsonProperty("skuCode") String skuCode,
                 @JsonProperty("sourceLocationId") UUID sourceLocationId,
-                @JsonProperty("quantity") int quantity) {
-            if (orderLineId == null || moveId == null || sourceLocationId == null) {
-                throw new IllegalArgumentException("Allocation line requires order line, move and source location IDs");
+                @JsonProperty("quantity") int quantity,
+                @JsonProperty("slices") List<AllocationSlice> slices) {
+            if (orderLineId == null || allocationDemandLineId == null || moveId == null || sourceLocationId == null) {
+                throw new IllegalArgumentException(
+                        "Allocation line requires order line, demand line, move and source location IDs");
             }
             if (skuCode == null || skuCode.isBlank() || quantity <= 0) {
                 throw new IllegalArgumentException("Allocation line requires SKU and positive quantity");
             }
+            if (slices == null || slices.isEmpty()) {
+                throw new IllegalArgumentException("Allocation line requires committed slices");
+            }
+            slices = List.copyOf(slices);
+            Set<UUID> sliceIds = new HashSet<>();
+            if (slices.stream().anyMatch(slice -> slice == null || !sliceIds.add(slice.allocationSliceId()))) {
+                throw new IllegalArgumentException("Allocation line requires unique non-null slices");
+            }
+            int slicedQuantity;
+            try {
+                slicedQuantity =
+                        slices.stream().mapToInt(AllocationSlice::quantity).reduce(0, Math::addExact);
+            } catch (ArithmeticException overflow) {
+                throw new IllegalArgumentException("Allocation slice quantity exceeds integer range", overflow);
+            }
+            if (slicedQuantity != quantity) {
+                throw new IllegalArgumentException("Allocation slices must cover the line quantity exactly");
+            }
             this.orderLineId = orderLineId;
+            this.allocationDemandLineId = allocationDemandLineId;
             this.moveId = moveId;
             this.skuCode = skuCode;
             this.sourceLocationId = sourceLocationId;
+            this.quantity = quantity;
+            this.slices = slices;
+        }
+    }
+
+    /** 一筆 demand-line-to-quant committed fact。 */
+    public record AllocationSlice(UUID allocationSliceId, UUID stockQuantId, int quantity) {
+
+        @JsonCreator
+        public AllocationSlice(
+                @JsonProperty("allocationSliceId") UUID allocationSliceId,
+                @JsonProperty("stockQuantId") UUID stockQuantId,
+                @JsonProperty("quantity") int quantity) {
+            if (allocationSliceId == null || stockQuantId == null || quantity <= 0) {
+                throw new IllegalArgumentException("Allocation slice requires slice, quant and positive quantity");
+            }
+            this.allocationSliceId = allocationSliceId;
+            this.stockQuantId = stockQuantId;
             this.quantity = quantity;
         }
     }

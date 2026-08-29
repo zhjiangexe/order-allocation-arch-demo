@@ -1,6 +1,6 @@
 package com.flowzati.archone.demo.fulfillment;
 
-import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandView;
+import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
 import java.util.List;
@@ -9,7 +9,7 @@ import java.util.List;
 public record OrderFulfillmentView(
         String orchestrationMode,
         FulfillmentOrderView order,
-        AllocationDemandView allocation,
+        StockOperationResponse stockOperation,
         List<ShipmentView> shipments,
         OrderFulfillmentWorkflowSnapshot workflow) {
 

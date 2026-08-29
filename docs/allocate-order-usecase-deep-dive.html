@@ -1,0 +1,1332 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AllocateOrderUsecase 從事件入口、來源正規化、StockMove 註冊、FEFO 規劃、交易式承諾到 Application data ports 與 Inbox／Outbox 的完整中文導讀。">
+  <title>AllocateOrderUsecase｜完整執行導讀</title>
+  <style>
+    :root {
+      --ink: #17222f;
+      --muted: #5d6975;
+      --paper: #f4f1e9;
+      --surface: #fffdf8;
+      --surface-2: #f8f5ed;
+      --line: #d9d4c8;
+      --navy: #17324d;
+      --teal: #0c766d;
+      --orange: #d1692e;
+      --blue: #2867a8;
+      --red: #a94442;
+      --green: #2c7a55;
+      --purple: #6b5796;
+      --shadow: 0 16px 44px rgba(23, 50, 77, .09);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 90% 0%, rgba(12, 118, 109, .08), transparent 28rem),
+        linear-gradient(180deg, #f8f5ed 0, var(--paper) 38rem);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      line-height: 1.75;
+    }
+
+    a { color: var(--blue); text-decoration-thickness: .08em; text-underline-offset: .16em; }
+    code, .mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: .92em;
+    }
+    code {
+      padding: .12em .38em;
+      border: 1px solid #ded8ca;
+      border-radius: 6px;
+      background: #f4f0e6;
+    }
+
+    .page { width: min(1180px, calc(100% - 36px)); margin: 0 auto; }
+    .hero { padding: 72px 0 36px; }
+    .eyebrow {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 16px;
+      color: var(--teal);
+      font-weight: 750;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: 13px;
+    }
+    .eyebrow::before { content: ""; width: 28px; height: 2px; background: currentColor; }
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      color: var(--navy);
+      font-size: clamp(40px, 7vw, 76px);
+      line-height: 1.03;
+      letter-spacing: -.045em;
+      overflow-wrap: anywhere;
+    }
+    .subtitle {
+      max-width: 820px;
+      margin: 24px 0 0;
+      color: var(--muted);
+      font-size: clamp(18px, 2.5vw, 24px);
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 253, 248, .7);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-top: 1px solid rgba(217, 212, 200, .75);
+      border-bottom: 1px solid rgba(217, 212, 200, .9);
+      background: rgba(248, 245, 237, .92);
+      backdrop-filter: blur(14px);
+    }
+    .toc .page { display: flex; gap: 22px; overflow-x: auto; padding-block: 11px; scrollbar-width: none; }
+    .toc a { flex: 0 0 auto; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 680; }
+    .toc a:hover { color: var(--teal); }
+
+    main { padding: 34px 0 90px; }
+    section { scroll-margin-top: 66px; margin-top: 72px; }
+    section:first-child { margin-top: 18px; }
+    .section-kicker { color: var(--orange); font-size: 13px; font-weight: 800; letter-spacing: .12em; }
+    h2 {
+      margin: 4px 0 14px;
+      color: var(--navy);
+      font-size: clamp(30px, 4.2vw, 46px);
+      line-height: 1.14;
+      letter-spacing: -.03em;
+    }
+    h3 { margin: 30px 0 10px; color: var(--navy); font-size: 23px; line-height: 1.3; }
+    h4 { margin: 0 0 8px; color: var(--navy); font-size: 17px; }
+    .lead { max-width: 850px; margin: 0 0 26px; color: var(--muted); font-size: 18px; }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .note {
+      padding: 18px 20px;
+      border-left: 4px solid var(--teal);
+      border-radius: 8px 14px 14px 8px;
+      background: #edf7f4;
+    }
+    .note.warning { border-left-color: var(--orange); background: #fff4e9; }
+    .note strong { color: var(--navy); }
+
+    .glossary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .term { padding: 20px; }
+    .term .kind {
+      display: inline-block;
+      margin-bottom: 10px;
+      color: var(--orange);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .term h3 { margin: 0 0 7px; font-size: 18px; overflow-wrap: anywhere; }
+    .term p { margin: 0; color: var(--muted); font-size: 14.5px; }
+    .term .truth { display: block; margin-top: 10px; color: var(--teal); font-size: 13px; font-weight: 750; }
+
+    .figure { margin: 28px 0; padding: 18px; overflow: hidden; }
+    .figure svg { display: block; width: 100%; height: auto; }
+    figcaption { margin: 12px 6px 0; color: var(--muted); font-size: 14px; }
+
+    .callout-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .callout { padding: 20px; border-top: 4px solid var(--teal); }
+    .callout:nth-child(2) { border-top-color: var(--orange); }
+    .callout:nth-child(3) { border-top-color: var(--purple); }
+    .callout p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .steps { position: relative; margin-top: 28px; }
+    .steps::before {
+      content: "";
+      position: absolute;
+      top: 30px;
+      bottom: 30px;
+      left: 27px;
+      width: 2px;
+      background: linear-gradient(var(--teal), var(--orange));
+    }
+    .step { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 18px; margin-bottom: 18px; }
+    .step-no {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      border: 4px solid var(--paper);
+      border-radius: 50%;
+      color: #fff;
+      background: var(--navy);
+      font-weight: 850;
+    }
+    .step-body { padding: 22px 24px; }
+    .step-body h3 { margin: 0 0 4px; }
+    .signature { margin: 2px 0 13px; color: var(--teal); font-size: 13px; overflow-wrap: anywhere; }
+    .step-body p { margin: 8px 0; }
+    .step-body ul { margin: 10px 0 0; padding-left: 22px; }
+    .effect {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 13px;
+      border-top: 1px dashed var(--line);
+      font-size: 14px;
+    }
+    .effect strong { color: var(--orange); }
+
+    .compare { width: 100%; border-collapse: collapse; border-spacing: 0; overflow: hidden; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--navy); background: #eeebe2; font-size: 13px; letter-spacing: .03em; }
+    td { font-size: 14px; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td small { display: block; margin-top: 5px; color: var(--muted); line-height: 1.55; }
+    .tag { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+    .tag.read { color: #155c73; background: #dff2f7; }
+    .tag.write { color: #7a471d; background: #fbe8d6; }
+    .tag.pure { color: #3c674f; background: #e1f1e6; }
+    .tag.port { color: #5b4780; background: #eee7fa; }
+
+    .branch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .branch { padding: 20px; }
+    .branch.ok { border-top: 4px solid var(--green); }
+    .branch.wait { border-top: 4px solid var(--orange); }
+    .branch.fail { border-top: 4px solid var(--red); }
+    .branch.replay { border-top: 4px solid var(--blue); }
+    .branch p { color: var(--muted); margin: 6px 0 0; }
+
+    .code-flow {
+      padding: 22px;
+      color: #dce9f3;
+      background: #122434;
+      overflow-x: auto;
+      font: 14px/1.75 "SFMono-Regular", Consolas, monospace;
+      white-space: pre;
+    }
+    .code-flow .comment { color: #83bcae; }
+    .code-flow .em { color: #f5b97f; }
+
+    .method-stack { display: grid; gap: 18px; margin-top: 28px; }
+    .method-card { overflow: hidden; }
+    .method-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px 18px;
+      padding: 18px 22px;
+      border-bottom: 1px solid #31485b;
+      color: #fff;
+      background: var(--navy);
+    }
+    .method-head h3 { margin: 0; color: #fff; font-size: 19px; }
+    .method-head span { color: #a9c1d3; font-size: 12px; }
+    .method-code {
+      margin: 0;
+      padding: 22px;
+      overflow-x: auto;
+      color: #dce9f3;
+      background: #122434;
+      font: 13px/1.72 "SFMono-Regular", Consolas, monospace;
+      tab-size: 4;
+    }
+    .method-code code {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      color: inherit;
+      background: transparent;
+      font: inherit;
+    }
+    .method-code .comment { color: #8bc9b9; }
+    .method-code .focus { color: #ffc486; }
+    .method-code .type { color: #9ecbff; }
+    .method-note { margin: 0; padding: 14px 22px 17px; color: var(--muted); background: var(--surface); font-size: 14px; }
+
+    .source-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .source-item { padding: 16px 18px; }
+    .source-item a { font-weight: 750; overflow-wrap: anywhere; }
+    .source-item p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+    footer { padding: 28px 0 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 880px) {
+      .glossary, .callout-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .source-list { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .page { width: min(100% - 22px, 1180px); }
+      .hero { padding-top: 48px; }
+      .glossary, .callout-grid, .branch-grid { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 42px minmax(0, 1fr); gap: 10px; }
+      .step-no { width: 42px; height: 42px; border-width: 3px; }
+      .steps::before { left: 20px; }
+      .step-body { padding: 18px; }
+      .effect { grid-template-columns: 1fr; gap: 3px; }
+      .figure { padding: 8px; }
+    }
+    @media print {
+      body { background: white; font-size: 10pt; }
+      .page { width: 100%; }
+      .hero { padding-top: 20px; }
+      .toc { display: none; }
+      .card { box-shadow: none; break-inside: avoid; }
+      section { margin-top: 38px; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero page">
+    <div class="eyebrow">Inventory Context · Code Walkthrough</div>
+    <h1>AllocateOrderUsecase<br>完整執行導讀</h1>
+    <p class="subtitle">從貨主出貨訂單進入 Inventory，到建立 StockOperation／StockMove、以 FEFO 規劃供給、原子化預留 StockQuant，最後寫入 Outbox 的逐層說明。</p>
+    <div class="meta">
+      <span class="pill">依 2026-08-28 工作區程式碼</span>
+      <span class="pill">涵蓋 interface → adapter → repository → table</span>
+      <span class="pill">事件模式與 Temporal 模式</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="章節導覽">
+    <div class="page">
+      <a href="#glossary">名詞解釋</a>
+      <a href="#one-picture">一張圖看懂</a>
+      <a href="#entrypoints">入口與交易</a>
+      <a href="#walkthrough">逐步執行</a>
+      <a href="#annotated-methods">方法中文註解</a>
+      <a href="#repositories">Data-access port 深入</a>
+      <a href="#branches">所有分支</a>
+      <a href="#example">數量範例</a>
+      <a href="#source-index">類別索引</a>
+    </div>
+  </nav>
+
+  <main class="page">
+    <section id="glossary">
+      <div class="section-kicker">01 · 先建立共同語言</div>
+      <h2>名詞解釋</h2>
+      <p class="lead">先把「來源、需求、供給、規劃結果、已承諾事實」分開。若這五種東西混用，後面的流程一定會看起來像一大坨。</p>
+
+      <div class="glossary">
+        <article class="term card">
+          <span class="kind">Source</span>
+          <h3>貨主出貨訂單</h3>
+          <p>需求的業務起點，由 Ordering 擁有。Inventory 不載入 Order aggregate，而只讀取已發布的 allocation source projection。</p>
+          <span class="truth">真相：為何要出貨</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Source port</span>
+          <h3>OrderStockMovementSource</h3>
+          <p>來源邊界介面。輸入 orderId，輸出 source-neutral 的 <code>RegisterStockOperationCommand</code>，隔離 Order 語彙。</p>
+          <span class="truth">責任：翻譯，不配貨</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Policy group</span>
+          <h3>StockOperation</h3>
+          <p>共同套用 policy 的 Move 分組。保存 source、owner、起訖庫位、時程與摘要狀態；本身沒有 SKU 與數量。</p>
+          <span class="truth">真相：哪些 Move 一起處理</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Demand</span>
+          <h3>StockMove</h3>
+          <p>一個 SKU 從某庫位到另一庫位的需求。<code>demandQuantity</code> 是數量真相；一張訂單行正規化成一個 canonical Move。</p>
+          <span class="truth">真相：什麼貨、多少、從哪到哪</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Supply</span>
+          <h3>StockQuant</h3>
+          <p>owner × location × SKU × inDate × expiryDate 的物化庫存餘額。ATP = onHand − reserved，不另存第二份。</p>
+          <span class="truth">真相：哪一批還能承諾多少</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Planning input</span>
+          <h3>StockOperationDemand</h3>
+          <p>從已確認的 Operation／Moves 複製出的不可變規劃輸入，攜帶 optimistic version，讓規劃不必操作 persistence aggregate。</p>
+          <span class="truth">用途：純演算法的需求快照</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Planning input</span>
+          <h3>StockAllocationSupply</h3>
+          <p>本次 allocation 可考慮的不可變供給集合，固定 owner／location scope，並為每個需求 SKU 保留明確群組。</p>
+          <span class="truth">用途：純演算法的共享供給邊界</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Supply row</span>
+          <h3>StockQuantSupply</h3>
+          <p>從 StockQuant SQL row 直接投影的不可變供給，只攜帶 Quant identity、scope、FEFO 日期與 ATP，不暴露 mutable aggregate。</p>
+          <span class="truth">血統：一筆 StockQuant 的規劃投影</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Pure result</span>
+          <h3>StockAllocationProposal</h3>
+          <p>Planner 算出的「建議 Move 應取哪些 Quant」。尚未鎖資料列、尚未改庫存，不具權威性，可以因併發而失效。</p>
+          <span class="truth">事實：只是方案，不是承諾</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Committed relation</span>
+          <h3>StockMoveLine</h3>
+          <p>持久化的 Move × Quant 預留關係。一個 Move 跨兩批就有兩列。這是「已配到哪批」的權威事實，但不是 WMS 實際揀貨紀錄。</p>
+          <span class="truth">真相：Inventory 已鎖住哪一批</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Policy</span>
+          <h3>SHIP_COMPLETE</h3>
+          <p>整個 Operation 的所有 Move 必須一次完整覆蓋；只要一個 SKU 不足，Proposal 就完全不含 reservation，不做部分配貨。</p>
+          <span class="truth">規則：全有或全無</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Selection rule</span>
+          <h3>FEFO</h3>
+          <p>First Expired, First Out。先取較早效期，再以入庫日、Quant ID 穩定排序，結果可重現。</p>
+          <span class="truth">規則：供給批次的消耗順序</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Concurrency</span>
+          <h3>Predecessor</h3>
+          <p>同 owner、同來源庫位、共享 SKU 且更早入隊的 CONFIRMED Operation。存在時，後單不越過前單搶同一 SKU。</p>
+          <span class="truth">規則：shared-SKU strict FIFO</span>
+        </article>
+        <article class="term card">
+          <span class="kind">Messaging</span>
+          <h3>Inbox／Outbox</h3>
+          <p>Inbox 防止同一 subscriber 重複處理事件；Outbox 讓「庫存已配貨」與待發布事件在同一 DB transaction 一起提交。</p>
+          <span class="truth">保證：至少一次傳輸下的本地一致性</span>
+        </article>
+      </div>
+
+      <div class="note warning" style="margin-top:18px">
+        <strong>最容易混淆的一句話：</strong>Proposal 說「如果現在提交，我打算怎麼配」；StockMoveLine 與 Quant reserved counter 才說「Inventory 已經承諾了什麼」。而 WMS 最後實際揀了哪批，仍是下一個執行／過帳階段的事實，不在本 Use Case 內。
+      </div>
+    </section>
+
+    <section id="one-picture">
+      <div class="section-kicker">02 · Source → Process → Target</div>
+      <h2>一張圖先看懂邊界</h2>
+      <p class="lead"><code>AllocateOrderUsecase</code> 不是演算法本體，而是把三段能力串起來：來源正規化、movement intent 註冊、共用 assignment pipeline。</p>
+
+      <figure class="figure card">
+        <svg viewBox="0 0 1120 560" role="img" aria-labelledby="map-title map-desc">
+          <title id="map-title">AllocateOrderUsecase 的 Source、Process、Target 邊界圖</title>
+          <desc id="map-desc">訂單 projection 經 source adapter 正規化成 operation 和 moves，再由 planner 將 confirmed demand 與 quant supply 配對，assignment transaction 寫入 move lines、reserved quantity 與 outbox。</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f7b86"/>
+            </marker>
+            <filter id="soft" x="-10%" y="-20%" width="120%" height="140%">
+              <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#17324d" flood-opacity=".12"/>
+            </filter>
+          </defs>
+          <rect x="18" y="22" width="1084" height="516" rx="24" fill="#faf8f2" stroke="#d9d4c8"/>
+          <text x="58" y="65" fill="#d1692e" font-size="14" font-weight="800" letter-spacing="2">SOURCE</text>
+          <text x="402" y="65" fill="#0c766d" font-size="14" font-weight="800" letter-spacing="2">PROCESS</text>
+          <text x="888" y="65" fill="#6b5796" font-size="14" font-weight="800" letter-spacing="2">TARGET / FACTS</text>
+
+          <g filter="url(#soft)">
+            <rect x="55" y="94" width="245" height="98" rx="16" fill="#fffdf8" stroke="#d1692e" stroke-width="2"/>
+            <text x="78" y="126" fill="#17324d" font-size="18" font-weight="750">出貨訂單 Projection</text>
+            <text x="78" y="153" fill="#5d6975" font-size="14">stock_order_movement_sources</text>
+            <text x="78" y="174" fill="#5d6975" font-size="13">Order-owned · read-only</text>
+
+            <rect x="55" y="238" width="245" height="98" rx="16" fill="#fffdf8" stroke="#d1692e" stroke-width="2"/>
+            <text x="78" y="270" fill="#17324d" font-size="17" font-weight="750">OrderStockMovementAdapter</text>
+            <text x="78" y="297" fill="#5d6975" font-size="14">Order vocabulary 在此終止</text>
+            <text x="78" y="318" fill="#5d6975" font-size="13">→ RegisterStockOperationCommand</text>
+
+            <rect x="377" y="94" width="300" height="98" rx="16" fill="#eff8f5" stroke="#0c766d" stroke-width="2"/>
+            <text x="400" y="126" fill="#17324d" font-size="18" font-weight="750">StockOperationRegistrar</text>
+            <text x="400" y="153" fill="#5d6975" font-size="14">冪等建立 CONFIRMED intent</text>
+            <text x="400" y="174" fill="#0c766d" font-size="13" font-weight="700">Operation + canonical Moves</text>
+
+            <rect x="377" y="238" width="300" height="98" rx="16" fill="#eff8f5" stroke="#0c766d" stroke-width="2"/>
+            <text x="400" y="270" fill="#17324d" font-size="18" font-weight="750">MovementAssignmentPlanner</text>
+            <text x="400" y="297" fill="#5d6975" font-size="14">SHIP_COMPLETE + FEFO</text>
+            <text x="400" y="318" fill="#0c766d" font-size="13" font-weight="700">純函式：不鎖、不寫 Repository</text>
+
+            <rect x="377" y="382" width="300" height="98" rx="16" fill="#eff8f5" stroke="#0c766d" stroke-width="2"/>
+            <text x="400" y="414" fill="#17324d" font-size="17" font-weight="750">AllocationCommitter</text>
+            <text x="400" y="441" fill="#5d6975" font-size="14">重驗、鎖列、一次承諾</text>
+            <text x="400" y="462" fill="#0c766d" font-size="13" font-weight="700">唯一 Proposal → Facts 邊界</text>
+
+            <rect x="760" y="94" width="300" height="98" rx="16" fill="#f3eef9" stroke="#6b5796" stroke-width="2"/>
+            <text x="784" y="126" fill="#17324d" font-size="18" font-weight="750">Movement Intent</text>
+            <text x="784" y="153" fill="#5d6975" font-size="14">stock_operations</text>
+            <text x="784" y="174" fill="#5d6975" font-size="14">stock_moves</text>
+
+            <rect x="760" y="238" width="300" height="98" rx="16" fill="#f3eef9" stroke="#6b5796" stroke-width="2"/>
+            <text x="784" y="270" fill="#17324d" font-size="18" font-weight="750">Planning Proposal</text>
+            <text x="784" y="297" fill="#5d6975" font-size="14">ProposedMoveLine[]</text>
+            <text x="784" y="318" fill="#a94442" font-size="13" font-weight="700">暫態、不可視為已預留</text>
+
+            <rect x="760" y="382" width="300" height="98" rx="16" fill="#f3eef9" stroke="#6b5796" stroke-width="2"/>
+            <text x="784" y="414" fill="#17324d" font-size="18" font-weight="750">Committed Facts</text>
+            <text x="784" y="440" fill="#5d6975" font-size="14">move_lines + quant.reserved</text>
+            <text x="784" y="462" fill="#5d6975" font-size="14">ASSIGNED states + outbox</text>
+          </g>
+
+          <path d="M177 192 V238" stroke="#6f7b86" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M300 287 H348 Q363 287 363 272 V158 Q363 143 377 143" fill="none" stroke="#6f7b86" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M677 143 H760" stroke="#6f7b86" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M527 192 V238" stroke="#6f7b86" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M677 287 H760" stroke="#6f7b86" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M527 336 V382" stroke="#6f7b86" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M677 431 H760" stroke="#6f7b86" stroke-width="2" marker-end="url(#arrow)"/>
+        </svg>
+        <figcaption>圖 1：Source 只提供需求事實；Planner 只產生方案；Target facts 只有在 transaction 驗證成功後才出現。</figcaption>
+      </figure>
+
+      <div class="callout-grid">
+        <article class="callout card">
+          <h4>Use Case 做什麼</h4>
+          <p>選擇正確的 collaborator 並安排順序；不自己理解 FEFO、不自己操作 JPA。</p>
+        </article>
+        <article class="callout card">
+          <h4>Planner 做什麼</h4>
+          <p>把 immutable <code>StockOperationDemand</code> 與 <code>StockAllocationSupply</code> 配對，輸出可驗證的完整 proposal。</p>
+        </article>
+        <article class="callout card">
+          <h4>Transaction 做什麼</h4>
+          <p>取得權威資料與鎖、重驗 proposal，才改 counters、建立 MoveLine 與發布事件。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="entrypoints">
+      <div class="section-kicker">03 · 進入點與隱形外框</div>
+      <h2>誰呼叫 AllocateOrderUsecase？</h2>
+      <p class="lead">有兩個 inbound adapter；兩者最後都只傳 <code>AllocateOrderCommand(orderId)</code>，但事件模式多一層 Inbox idempotency。</p>
+
+      <div class="table-wrap">
+        <table class="compare">
+          <thead>
+            <tr><th>模式</th><th>入口類別</th><th>呼叫鏈</th><th>交易特性</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Events（預設）</td>
+              <td><code>AllocationOrderPlacedEventConsumer</code></td>
+              <td><code>OrderPlacedIntegrationEvent</code> → <code>onOrderPlaced</code> → <code>execute</code></td>
+              <td><code>TransactionalIdempotencyMessageHandlerDecorator</code> 開啟 transaction，先 claim <code>event_inbox</code>；Use Case 加入同一 transaction。</td>
+            </tr>
+            <tr>
+              <td>Temporal</td>
+              <td><code>TemporalInventoryActivitiesAdapter</code></td>
+              <td><code>requestAllocation</code> → <code>execute</code></td>
+              <td>沒有訊息 Inbox；由 <code>AllocateOrderUsecase.execute</code> 的 <code>@Transactional</code> 建立本地 transaction。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="figure card">
+        <svg viewBox="0 0 1120 720" role="img" aria-labelledby="seq-title seq-desc">
+          <title id="seq-title">AllocateOrderUsecase 完整序列圖</title>
+          <desc id="seq-desc">展示事件入口、Inbox、Use Case、source adapter、registrar、candidate Store、supply Store、planner、assignment transaction、canonical Stores 與 outbox 的呼叫順序。</desc>
+          <defs>
+            <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10z" fill="#66727e"/>
+            </marker>
+            <marker id="seq-return" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M10 0 L0 5 L10 10z" fill="#0c766d"/>
+            </marker>
+          </defs>
+          <rect width="1120" height="720" rx="20" fill="#faf8f2"/>
+          <g font-family="system-ui, sans-serif" font-size="12" text-anchor="middle">
+            <g fill="#17324d" font-weight="750">
+              <text x="70" y="36">Event / Activity</text><text x="190" y="36">Inbox</text>
+              <text x="315" y="36">Usecase</text><text x="440" y="36">Source</text>
+              <text x="565" y="36">Registrar</text><text x="690" y="36">Coordinator</text>
+              <text x="815" y="36">Projections + Planner</text><text x="955" y="36">Commit Tx + Repositories</text>
+              <text x="1060" y="36">Outbox</text>
+            </g>
+            <g stroke="#cbc5b9" stroke-dasharray="5 5">
+              <line x1="70" y1="50" x2="70" y2="688"/><line x1="190" y1="50" x2="190" y2="688"/>
+              <line x1="315" y1="50" x2="315" y2="688"/><line x1="440" y1="50" x2="440" y2="688"/>
+              <line x1="565" y1="50" x2="565" y2="688"/><line x1="690" y1="50" x2="690" y2="688"/>
+              <line x1="815" y1="50" x2="815" y2="688"/><line x1="955" y1="50" x2="955" y2="688"/>
+              <line x1="1060" y1="50" x2="1060" y2="688"/>
+            </g>
+          </g>
+          <g fill="none" stroke="#66727e" stroke-width="1.7" marker-end="url(#seq-arrow)">
+            <path d="M70 78 H190"/><path d="M190 112 H315"/><path d="M315 150 H440"/>
+            <path d="M315 226 H565"/><path d="M315 318 H690"/><path d="M690 356 H815"/>
+            <path d="M690 430 H815"/><path d="M690 504 H955"/><path d="M955 616 H1060"/>
+          </g>
+          <g fill="none" stroke="#0c766d" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#seq-return)">
+            <path d="M440 198 H315"/><path d="M565 280 H315"/><path d="M815 394 H690"/>
+            <path d="M815 468 H690"/><path d="M955 580 H690"/>
+          </g>
+          <g font-family="system-ui, sans-serif" font-size="12" fill="#17222f">
+            <text x="91" y="70">1. message</text><text x="203" y="104">2. claimed → handler</text>
+            <text x="327" y="142">3. find(orderId)</text><text x="323" y="190" fill="#0c766d">Register command / empty</text>
+            <text x="327" y="218">4. register(command)</text><text x="324" y="272" fill="#0c766d">Operation + Moves</text>
+            <text x="327" y="310">5. tryAssign(operationId)</text><text x="701" y="348">6. candidate + predecessor</text>
+            <text x="706" y="386" fill="#0c766d">StockOperationDemand</text><text x="702" y="422">7. StockAllocationSupply</text>
+            <text x="705" y="460" fill="#0c766d">StockQuant projection</text><text x="703" y="496">8. ready proposal</text>
+            <text x="708" y="572" fill="#0c766d">assigned result</text><text x="968" y="608">9. publish assigned fact</text>
+          </g>
+          <g font-family="system-ui, sans-serif" font-size="11">
+            <rect x="178" y="62" width="24" height="76" rx="5" fill="#f3eef9" stroke="#6b5796"/>
+            <rect x="303" y="96" width="24" height="554" rx="5" fill="#edf7f4" stroke="#0c766d"/>
+            <rect x="428" y="136" width="24" height="72" rx="5" fill="#fff4e9" stroke="#d1692e"/>
+            <rect x="553" y="212" width="24" height="76" rx="5" fill="#edf7f4" stroke="#0c766d"/>
+            <rect x="678" y="304" width="24" height="290" rx="5" fill="#edf7f4" stroke="#0c766d"/>
+            <rect x="803" y="342" width="24" height="138" rx="5" fill="#eaf2fa" stroke="#2867a8"/>
+            <rect x="943" y="490" width="24" height="104" rx="5" fill="#fff4e9" stroke="#d1692e"/>
+            <rect x="1048" y="604" width="24" height="40" rx="5" fill="#f3eef9" stroke="#6b5796"/>
+            <rect x="122" y="652" width="900" height="34" rx="8" fill="#17324d"/>
+            <text x="572" y="674" text-anchor="middle" fill="#fff">COMMIT：Inbox + Operation/Moves + Quant/MoveLines/States + Outbox；任一步失敗則全部 ROLLBACK</text>
+          </g>
+        </svg>
+        <figcaption>圖 2：事件模式的完整 happy path。Temporal 模式可把最左側 Inbox 步驟拿掉，其餘 application flow 相同。</figcaption>
+      </figure>
+    </section>
+
+    <section id="walkthrough">
+      <div class="section-kicker">04 · Chronological Walkthrough</div>
+      <h2>從頭到尾，逐步執行</h2>
+      <p class="lead">下面每一步都標明主要 class／interface、讀寫效果，以及「在哪裡停止」。</p>
+
+      <div class="steps">
+        <article class="step">
+          <div class="step-no">0</div>
+          <div class="step-body card">
+            <h3>收到 OrderPlaced 或 Temporal Activity</h3>
+            <div class="signature">AllocationOrderPlacedEventConsumer.onOrderPlaced(event) ｜ TemporalInventoryActivitiesAdapter.requestAllocation(input)</div>
+            <p>Inbound adapter 不傳整個 Order，只建立 <code>AllocateOrderCommand(orderId)</code>。事件模式先由 messaging decorator 用 <code>(subscriberId, eventId)</code> 對 <code>event_inbox</code> 做 insert-if-absent。</p>
+            <div class="effect"><strong>寫入</strong><span>事件模式先 provisional 寫入 <code>event_inbox</code>；若後面 rollback，claim 也 rollback。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">1</div>
+          <div class="step-body card">
+            <h3>Use Case 開始編排</h3>
+            <div class="signature">AllocateOrderUsecase.execute(AllocateOrderCommand) · @Transactional</div>
+            <p>這個類別只有三個 collaborator：</p>
+            <ul>
+              <li><code>OrderStockMovementSource</code>：把 Order source 轉成 movement command。</li>
+              <li><code>StockOperationRegistrar</code>：把需求意圖持久化。</li>
+              <li><code>StockOperationAssignmentCoordinator</code>：選候選、讀供給、規劃、嘗試承諾。</li>
+            </ul>
+            <div class="effect"><strong>設計意義</strong><span>Use Case 只負責流程順序，沒有 FEFO SQL、沒有 reserve counter、沒有 JPA entity。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">2</div>
+          <div class="step-body card">
+            <h3>讀取 Order-owned source projection</h3>
+            <div class="signature">OrderStockMovementSource.find(orderId) → OrderStockMovementAdapter → JpaOrderAllocationSourceRepository</div>
+            <p>Adapter 從 read-only <code>stock_order_movement_sources</code> 依 <code>sourceId</code> 讀取並以 source line 排序。它檢查所有行是否屬於同一 owner、facility、operation type、來源與目的庫位。</p>
+            <p>通過後正規化成 <code>RegisterStockOperationCommand</code>：方向固定 OUTBOUND、來源為 <code>StockOperationSource.primaryOrder(...)</code>、policy 固定 <code>SHIP_COMPLETE</code>，每個來源行成為一個 <code>MovementLine</code>。</p>
+            <div class="effect"><strong>分支</strong><span>查無 rows → <code>Optional.empty()</code> → Use Case 正常 return；不建立任何 movement。這代表 cancelled 或不存在的 source。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">3</div>
+          <div class="step-body card">
+            <h3>冪等註冊 movement intent</h3>
+            <div class="signature">StockOperationRegistrar.register(command) → StockOperationStore.findBySource(source)</div>
+            <p>先用 <code>(sourceType, sourceId, allocationUnitKey)</code> 尋找既有 Operation：</p>
+            <ul>
+              <li><strong>不存在：</strong>建立一個 <code>StockOperation(CONFIRMED)</code>，再依已排序 source line 建立多個 <code>StockMove(CONFIRMED)</code>。</li>
+              <li><strong>已存在且內容相同：</strong>回放既有 Operation／Moves，<code>created=false</code>。</li>
+              <li><strong>已存在但不可變內容不同：</strong>拋 <code>SourceMovementConflictException</code>，整個 transaction rollback。</li>
+            </ul>
+            <div class="effect"><strong>寫入</strong><span><code>stock_operations</code>、<code>stock_moves</code>。此刻只是 confirmed demand，尚無 <code>stock_move_lines</code>，Quant 也沒變。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">4</div>
+          <div class="step-body card">
+            <h3>讀取 assignment candidate 與前置單</h3>
+            <div class="signature">StockOperationAssignmentCoordinator.tryAssign(id) → StockOperationAssignmentCandidateStore.findByOperationId → JdbcStockOperationAssignmentCandidateStore</div>
+            <p>JDBC projection 直接 join <code>stock_operations</code> 與 <code>stock_moves</code>，只接受 CONFIRMED、非 INBOUND、具有 source 的完整 operation demand，組成 <code>StockOperationDemand</code>。</p>
+            <p>接著查同 owner、同來源庫位、共享至少一個 SKU、且 <code>(enqueuedAt, id)</code> 更早的 CONFIRMED operation。</p>
+            <div class="effect"><strong>分支</strong><span>找到 <code>StockOperationPredecessor</code> → 立即回傳 <code>Optional.empty()</code>，連供給都不查；後單不能越過前單搶共享 SKU。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">5</div>
+          <div class="step-body card">
+            <h3>讀取 Planner 專用的 FEFO supply projection</h3>
+            <div class="signature">StockAllocationSupplyStore.findBySku(...) → JdbcStockAllocationSupplyStore</div>
+            <p>用 owner、fromLocation、所有 SKU、business today 查 <code>stock_pools</code>。SQL 排除已過期與 ATP=0 的列，並按 <code>skuCode → expiryDate → inDate → id</code> 排序。</p>
+            <p>SQL row 直接轉成 immutable <code>StockQuantSupply</code>，再包成 <code>StockAllocationSupply</code>；不建立 mutable <code>StockQuant</code>，也沒有加 row lock。</p>
+            <div class="effect"><strong>只讀</strong><span>此時看到的是 optimistic supply snapshot；另一個 transaction 仍可能先預留同一批貨。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">6</div>
+          <div class="step-body card">
+            <h3>純演算法產生 Proposal</h3>
+            <div class="signature">MovementAssignmentPlanner.plan(demand, supply)</div>
+            <p>先彙總各 SKU 的需求與 ATP。若任一 SKU 不足，建立 <code>StockAllocationProposal.insufficient</code>，只帶完整缺口 <code>SkuQuantities</code>，proposed move line list 必須為空。</p>
+            <p>若全部足夠，依 Move lineSequence 逐一從每個 SKU 的 FEFO queue 取量，產生多個 <code>ProposedMoveLine(moveId, quantId, qty)</code>。Proposal constructor 再檢查每個 Move 是否被精確覆蓋。</p>
+            <div class="effect"><strong>純計算</strong><span>沒有 Repository、沒有 lock、沒有 domain aggregate mutation。<code>ready</code> 也不等於成功，只代表值得進交易重驗。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">7</div>
+          <div class="step-body card">
+            <h3>進入唯一的 assignment commit boundary</h3>
+            <div class="signature">StockAllocationCommitter.commit(proposal, today, occurredAt) · @Transactional</div>
+            <p>只接受 ready proposal，並用固定順序取得權威資料：</p>
+            <ol>
+              <li><code>StockOperationStore.findLockedById</code>：PESSIMISTIC_WRITE 鎖 Operation。</li>
+              <li><code>StockMoveStore.findLockedByStockOperationIdInIdOrder</code>：按 Move ID 鎖整組 Moves。</li>
+              <li>載入既有 MoveLines，組成暫態驗證模型 <code>StockOperationComposite</code>；DB lock 由外層 transaction 與 <code>ForUpdate</code> 查詢持有，Composite 本身不取得或擁有 lock。</li>
+              <li>重查 predecessor，防止規劃與提交之間隊列條件改變。</li>
+              <li><code>StockQuantStore.findByIdsForUpdate</code>：按全域順序鎖 Proposal 涉及的 Quants。</li>
+            </ol>
+            <div class="effect"><strong>併發策略</strong><span>Planner 可以樂觀且快速；只有短暫 commit phase 鎖真正要改的列，並以一致順序降低 deadlock。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">8</div>
+          <div class="step-body card">
+            <h3>在鎖內重驗 Proposal 是否仍成立</h3>
+            <div class="signature">StockOperationComposite + MoveQuantAllocationSet.validateAndOrder(...)</div>
+            <p>逐項確認：Operation／Move 仍為 CONFIRMED、version 未變、沒有殘留 MoveLine、Proposal 精確覆蓋整組 Moves、Quant 都存在、owner/location/SKU scope 正確、未過期、目前 ATP 仍足夠。</p>
+            <div class="effect"><strong>失效處理</strong><span>供給或版本已變 → <code>StaleStockAllocationProposalException</code> → AOP 轉為 <code>OptimisticLockingFailureException</code> → messaging retry；本次 Inbox／註冊／配貨全部 rollback。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">9</div>
+          <div class="step-body card">
+            <h3>把 Proposal 轉成權威配貨事實</h3>
+            <div class="signature">StockQuant.reserve → StockMoveLine → StockMove.assign → StockOperation.assign</div>
+            <p>驗證通過後才真正 mutation：</p>
+            <ul>
+              <li>每個 Quant 的 <code>reservedQuantity += proposal quantity</code>，on-hand 不變。</li>
+              <li>每個 move-to-quant allocation 建立一列永久的 <code>StockMoveLine</code>。</li>
+              <li>全部 Move 變成 ASSIGNED 並記錄同一 <code>assignedAt</code>。</li>
+              <li>Operation 的摘要狀態變成 ASSIGNED。</li>
+            </ul>
+            <div class="effect"><strong>寫入</strong><span><code>stock_pools</code>、<code>stock_move_lines</code>、<code>stock_moves</code>、<code>stock_operations</code>。</span></div>
+          </div>
+        </article>
+
+        <article class="step">
+          <div class="step-no">10</div>
+          <div class="step-body card">
+            <h3>建立結果並寫入 Outbox</h3>
+            <div class="signature">StockOperationAssignmentResultFactory → OrderStockOperationAssignedPublicationFactory → IntegrationEventPublisher</div>
+            <p><code>StockOperationAssignmentResult</code> 包含 Operation、每個 assigned Move 及其 batch picks。若 sourceType=ORDER，factory 轉成 <code>OrderAllocationCommittedIntegrationEvent</code>。</p>
+            <p><code>IntegrationEventPublisher.publish</code> 最終在 caller-owned transaction 中 insert <code>event_outbox</code>。成功回傳只代表 Outbox row 已被接受，不代表 Kafka 已立即收到；後續由 CDC 發送。</p>
+            <div class="effect"><strong>原子提交</strong><span>DB commit 後，Inbox、movement intent、reservation facts、ASSIGNED states、Outbox 同時可見；任何一步失敗則全部不可見。</span></div>
+          </div>
+        </article>
+      </div>
+
+      <h3>把主幹壓成可讀的 pseudo-code</h3>
+      <div class="code-flow card"><span class="comment">// transaction：事件模式還包含先前的 Inbox claim</span>
+source = orderSource.find(orderId)
+if (source.isEmpty()) return
+
+registered = registrar.register(source.command())
+candidate  = stockOperationAssignmentCandidateStore.findByOperationId(registered.operationId())
+if (candidate.hasPredecessor()) return
+
+supply   = stockAllocationSupplyStore.findBySku(candidate.demand().scopeAndSkus())
+proposal = planner.plan(candidate.demand(), supply)  <span class="comment">// pure</span>
+if (proposal.isInsufficient()) return
+
+result = allocationCommitter.commit(proposal)         <span class="em">// lock → revalidate → apply</span>
+outbox.publish(OrderAllocationCommitted(result))
+<span class="comment">// commit</span></div>
+    </section>
+
+    <section id="annotated-methods">
+      <div class="section-kicker">05 · Annotated Methods</div>
+      <h2>從頭到尾的方法中文註解版</h2>
+      <p class="lead">以下保留目前程式碼的真實類別、方法名稱與呼叫順序；為了閱讀只省略 constructor、argument validation 與 mapper 細節。每一行中文註解都在說明「為什麼做」及「此刻是否已改動資料」。</p>
+
+      <div class="note warning">
+        <strong>閱讀方式：</strong><code>// 【只讀】</code>、<code>// 【純計算】</code>、<code>// 【寫入】</code> 與 <code>// 【分支】</code> 是教學標記，不是 production source 原本的註解。省略號只代表未展示的既有細節，沒有新增行為。
+      </div>
+
+      <div class="method-stack">
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>0. 事件入口：把 OrderPlaced 轉成 application command</h3>
+            <span>AllocationOrderPlacedEventConsumer</span>
+          </header>
+          <pre class="method-code"><code><span class="comment">// 外層 messaging decorator 已先開始 transaction，並嘗試 claim event_inbox。</span>
+<span class="comment">// 同一 subscriber + eventId 若已處理過，handler 根本不會走到這裡。</span>
+void onOrderPlaced(OrderPlacedIntegrationEvent event) {
+    <span class="comment">// 不把 Order aggregate 傳入 Inventory，只傳最小識別 orderId。</span>
+    allocateOrderUsecase.execute(
+            new AllocateOrderCommand(event.getOrderId()));
+}</code></pre>
+          <p class="method-note">Temporal 模式對應的是 <code>TemporalInventoryActivitiesAdapter.requestAllocation()</code>，同樣只建立 <code>AllocateOrderCommand</code>；差別是沒有 Inbox claim。</p>
+        </article>
+
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>1. Use Case：只編排 source → register → assign</h3>
+            <span>AllocateOrderUsecase.execute()</span>
+          </header>
+          <pre class="method-code"><code>@Transactional
+public void execute(AllocateOrderCommand command) {
+    <span class="comment">// 【只讀】請 Order source port 把來源資料正規化成 Inventory command。</span>
+    Optional&lt;RegisterStockOperationCommand&gt; source =
+            orderSource.find(command.orderId());
+
+    if (source.isEmpty()) {
+        <span class="comment">// 【分支】來源 projection 沒有資料：視為不存在或已取消，正常結束。</span>
+        <span class="comment">// 不建立 Operation／Move，也不嘗試配貨。</span>
+        return;
+    }
+
+    <span class="comment">// 【寫入 intent】建立或重播 CONFIRMED Operation 與 Moves。</span>
+    var registered = movementRegistrar.register(source.get());
+
+    <span class="comment">// 【嘗試承諾】只嘗試剛註冊的這一組 movement，不掃描整個 backlog。</span>
+    assignmentCoordinator.tryAssign(registered.operation().id());
+}</code></pre>
+          <p class="method-note">這裡刻意沒有 FEFO、SQL 與 reserve counter；它們分別屬於 Planner、focused Supply Store adapter 與 Allocation Committer。</p>
+        </article>
+
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>2. Source Adapter：Order 語彙在這裡終止</h3>
+            <span>OrderStockMovementAdapter.find()</span>
+          </header>
+          <pre class="method-code"><code>public Optional&lt;RegisterStockOperationCommand&gt; find(UUID orderId) {
+    <span class="comment">// 【只讀 source adapter】依 orderId 讀 Order-owned allocation source projection。</span>
+    List&lt;OrderAllocationSourceLineEntity&gt; rows =
+            repository.findBySourceIdOrderBySourceLineIdAsc(orderId);
+
+    if (rows.isEmpty()) {
+        <span class="comment">// 【分支】沒有可供 Inventory 建立 movement 的來源事實。</span>
+        return Optional.empty();
+    }
+
+    var first = rows.getFirst();
+    <span class="comment">// 確保同一個 source unit 沒有跨 owner、facility 或起訖庫位。</span>
+    requireOneResolvedScope(orderId, first, rows);
+
+    <span class="comment">// 【純轉譯】從這裡開始不再使用 OrderLine 等 Ordering domain 語彙。</span>
+    return Optional.of(new RegisterStockOperationCommand(
+            first.getStockOperationTypeId(),
+            StockOperationDirection.OUTBOUND,
+            StockOperationSource.primaryOrder(orderId.toString()),
+            first.getOwnerId(),
+            first.getSourceLocationId(),
+            first.getDestinationLocationId(),
+            MovementAssignmentPolicy.SHIP_COMPLETE,
+            first.getEnqueuedAt(),
+            first.getRequiredBy(),
+            first.getReleasePriority(),
+            rows.stream()
+                    <span class="comment">// 每個來源行正規化為一個 SKU movement line。</span>
+                    .map(row -&gt; new MovementLine(
+                            row.getSourceLineReferenceId().toString(),
+                            row.getSkuCode(),
+                            row.getQuantity()))
+                    .toList()));
+}</code></pre>
+          <p class="method-note"><code>JpaOrderAllocationSourceRepository</code> 只是一個 source projection reader；它不會載入或修改 Order aggregate。</p>
+        </article>
+
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>3. Registrar：建立可等待的 durable demand</h3>
+            <span>StockOperationRegistrar.register()</span>
+          </header>
+          <pre class="method-code"><code>@Transactional
+public StockOperationRegistrationResult register(RegisterStockOperationCommand command) {
+    <span class="comment">// 【只讀】先以 source identity 找既有 Operation，避免同一來源建立兩份需求。</span>
+    return stockOperationStore.findBySource(command.source())
+            <span class="comment">// 已存在：比較所有不可變 registration content。</span>
+            .map(existing -&gt; replay(command, existing))
+            <span class="comment">// 不存在：建立新的 canonical movement intent。</span>
+            .orElseGet(() -&gt; create(command));
+}
+
+private StockOperationRegistrationResult create(RegisterStockOperationCommand command) {
+    UUID operationId = idSupplier.get();
+
+    <span class="comment">// 【建立 Domain Object】Operation 只負責分組與 policy，沒有 SKU 數量。</span>
+    StockOperation operation = StockOperation.confirmedStockConsumption(
+            operationId, ..., command.assignmentPolicy(), ...);
+
+    <span class="comment">// 【建立 Domain Objects】每個 source line 形成一個 CONFIRMED StockMove。</span>
+    List&lt;StockMove&gt; moves = canonicalMoves(command, operationId);
+
+    <span class="comment">// 【寫入】先存分組，再按固定 ID 順序保存並 flush 全部 Moves。</span>
+    stockOperationStore.save(operation);
+    List&lt;StockMove&gt; persistedMoves = stockMoveStore.saveAll(moves);
+
+    <span class="comment">// 注意：此刻尚未建立 StockMoveLine，也完全沒有修改 StockQuant。</span>
+    return new StockOperationRegistrationResult(operation, persistedMoves, true);
+}</code></pre>
+          <p class="method-note">若 replay 的來源內容不同，拋出 <code>SourceMovementConflictException</code>；不會默默覆蓋既有 movement intent。</p>
+        </article>
+
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>4. Assigner：選候選、讀供給、呼叫純 Planner</h3>
+            <span>StockOperationAssignmentCoordinator.tryAssign() / attempt()</span>
+          </header>
+          <pre class="method-code"><code>public Optional&lt;StockOperationAssignmentResult&gt; tryAssign(UUID operationId) {
+    <span class="comment">// 【只讀 Query】載入一組 CONFIRMED Moves 與 strict-FIFO predecessor。</span>
+    return attempt(stockOperationAssignmentCandidateStore.findByOperationId(operationId));
+}
+
+private Optional&lt;StockOperationAssignmentResult&gt; attempt(AssignmentCandidate candidate) {
+    if (candidate.predecessor().isPresent()) {
+        <span class="comment">// 【正常等待】有更早且共享 SKU 的 Operation，不允許越隊搶貨。</span>
+        return Optional.empty();
+    }
+
+    StockOperationDemand demand = candidate.demand();
+    LocalDate today = businessClock.today();
+
+    <span class="comment">// 【只讀 Query】取得 owner + source location 範圍內的多 SKU FEFO supply。</span>
+    StockAllocationSupply supply = stockAllocationSupplyStore.findBySku(
+            demand.ownerId(), demand.fromLocationId(), demand.skuCodes(), today);
+
+    <span class="comment">// 【純計算】Planner 不鎖資料列、不呼叫 data-access port、不修改 Quant。</span>
+    StockAllocationProposal proposal = planner.plan(demand, supply);
+
+    if (!proposal.isReady()) {
+        <span class="comment">// 【正常等待】SHIP_COMPLETE 只要一個 SKU 不足，就完全不預留。</span>
+        return Optional.empty();
+    }
+
+    <span class="comment">// 【跨越承諾邊界】只有 ready proposal 才進入鎖定與重驗 transaction。</span>
+    return Optional.of(allocationCommitter.commit(
+            proposal, today, businessClock.instant()));
+}</code></pre>
+          <p class="method-note"><code>tryAssignNext(queueKey)</code> 是日後補貨喚醒使用的同一條 pipeline，只是 candidate selection 改為從 backlog 找下一組。</p>
+        </article>
+
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>5. Planner：SHIP_COMPLETE 檢查與 FEFO 配對</h3>
+            <span>MovementAssignmentPlanner.plan()</span>
+          </header>
+          <pre class="method-code"><code>public StockAllocationProposal plan(
+        StockOperationDemand demand,
+        StockAllocationSupply supply) {
+
+    <span class="comment">// 確保 supply projection 的 owner、location 與 SKU 集合完整對應需求。</span>
+    supply.requireCovers(
+            demand.ownerId(), demand.fromLocationId(), demand.skuCodes());
+
+    <span class="comment">// 【純計算】彙總每個 SKU 的 ATP，再計算完整缺口。</span>
+    SkuQuantities available = availableQuantities(demand, supply);
+    SkuQuantities missing = demand.requiredQuantities().missingFrom(available);
+
+    if (!missing.isEmpty()) {
+        <span class="comment">// 【SHIP_COMPLETE】不足 Proposal 只有缺口，proposed move line list 必須為空。</span>
+        return StockAllocationProposal.insufficient(demand, missing);
+    }
+
+    <span class="comment">// 【FEFO】按 Move sequence；每個 SKU 依 expiryDate、inDate、id 取 Quant。</span>
+    List&lt;ProposedMoveLine&gt; proposedMoveLines =
+            proposeInCanonicalFefoOrder(demand.moves(), supply);
+
+    <span class="comment">// ready() 還會驗證 proposedMoveLines 是否精確覆蓋每個 Move 的 demandQuantity。</span>
+    <span class="comment">// 這仍然只是 Proposal；直到 StockAllocationCommitter 成功前都不具權威性。</span>
+    return StockAllocationProposal.ready(demand, proposedMoveLines);
+}</code></pre>
+          <p class="method-note">Planner 的輸出可以在測試裡完全由輸入推導，因此 FEFO 與 SHIP_COMPLETE 不受 persistence／transaction 細節污染。</p>
+        </article>
+
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>6. Allocation Committer：鎖定、重驗、原子承諾</h3>
+            <span>StockAllocationCommitter.commit()</span>
+          </header>
+          <pre class="method-code"><code>@Transactional
+public StockOperationAssignmentResult commit(
+        StockAllocationProposal proposal,
+        LocalDate today,
+        Instant occurredAt) {
+
+    <span class="comment">// 1.【輸入】只接受完整 ready proposal 與明確的業務日期／時間。</span>
+    validateCommitRequest(proposal, today, occurredAt);
+
+    <span class="comment">// 2.【鎖定】依固定順序載入 Operation、Moves 與既有 MoveLines。</span>
+    StockOperationComposite operationComposite =
+            loadOperationCompositeForUpdate(proposal.stockOperationId());
+
+    if (operationComposite.operation().state() == StockOperationState.ASSIGNED) {
+        <span class="comment">// 3.【冪等重送】從權威 MoveLines 重建結果，不重複 reserve 或 publish。</span>
+        return reconstructCommittedResult(operationComposite);
+    }
+
+    <span class="comment">// 4.【重驗需求】確認版本、狀態、policy、coverage 與最終 predecessor。</span>
+    validateProposalAgainstComposite(operationComposite, proposal);
+    requireNoPredecessor(operationComposite.operation().id());
+
+    <span class="comment">// 5.【準備 mapping】中性的 move → quant → quantity 暫態資料，不是第二套 ledger。</span>
+    MoveQuantAllocationSet allocationSet =
+            MoveQuantAllocationSet.fromProposal(proposal);
+
+    <span class="comment">// 6.【鎖定供給】依全域順序鎖 Quant，再驗 scope、expiry 與目前 ATP。</span>
+    List&lt;StockQuant&gt; lockedStockQuants =
+            lockAndValidateStockQuants(allocationSet, operationComposite, today);
+
+    <span class="comment">// 7.【權威寫入】reserve Quant、建立 MoveLines、Moves／Operation 轉 ASSIGNED。</span>
+    List&lt;StockMoveLine&gt; committedMoveLines = applyAllocation(
+            operationComposite, allocationSet, lockedStockQuants, occurredAt);
+
+    <span class="comment">// 8.【結果】sorting、grouping 與 facility enrichment 交給專責 factory。</span>
+    StockOperationAssignmentResult result = resultFactory.create(
+            operationComposite.operation(),
+            operationComposite.moves(),
+            committedMoveLines,
+            occurredAt);
+
+    <span class="comment">// 9.【Outbox】仍在本 transaction；失敗會連同上述寫入一起 rollback。</span>
+    publish(result);
+    return result;
+}</code></pre>
+          <p class="method-note">公開方法只保留九個有順序意義的階段；lock、validation、mutation 與 result assembly 的細節各自放在具名方法或 <code>StockOperationAssignmentResultFactory</code>。若 Quant 不存在、已過期、ATP 不足或版本改變，Proposal 仍會被判 stale 並完整 rollback。</p>
+        </article>
+
+        <article class="method-card card">
+          <header class="method-head">
+            <h3>7. Publication：把 Inventory 事實交給 Ordering／Fulfillment</h3>
+            <span>publish() → IntegrationEventPublisher</span>
+          </header>
+          <pre class="method-code"><code>private void publish(StockOperationAssignmentResult result) {
+    if (result.source().sourceType() == MovementSourceType.ORDER) {
+        <span class="comment">// 將 source-neutral Inventory result 翻回 ORDER integration contract。</span>
+        IntegrationEventPublication publication =
+                OrderStockOperationAssignedPublicationFactory.create(result);
+
+        <span class="comment">// 【寫入 event_outbox】要求 caller transaction 必須仍然 active。</span>
+        eventPublisher.publish(publication);
+    }
+}
+
+<span class="comment">// DefaultIntegrationEventPublisher 最終呼叫：</span>
+messageProducer.send(destination, mappedMessage);
+
+<span class="comment">// JDBC Outbox adapter 執行 INSERT event_outbox。</span>
+<span class="comment">// 方法成功 ≠ Kafka 已收到；只表示 Outbox row 與庫存變更可一起 commit。</span></code></pre>
+          <p class="method-note">Transaction commit 後才形成完整可見結果：Inbox claim、Operation／Moves、Quant reserved、MoveLines、ASSIGNED states 與 Outbox row 同時成立。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="repositories">
+      <div class="section-kicker">06 · Port / Adapter / Persistence</div>
+      <h2>Application Store 怎麼分工？</h2>
+      <p class="lead">Inventory 的自訂資料 Port 全由 Application 擁有、統一使用 <code>*Store</code>，並放在 capability 的中性 <code>application.port</code>。同一 canonical model 的普通讀取、lock 與寫入合在一個 cohesive Store；Candidate、Supply 與 visibility projection 仍維持 focused Store，避免重新長成巨大 Repository。Domain 不宣告 persistence port。</p>
+
+      <div class="table-wrap">
+        <table class="compare">
+          <thead>
+            <tr><th>Application Port</th><th>Infrastructure Adapter</th><th>底層</th><th>在本流程的責任</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>OrderStockMovementSource</code></td>
+              <td><code>OrderStockMovementAdapter</code><br><code>JpaOrderAllocationSourceRepository</code></td>
+              <td><code>stock_order_movement_sources</code></td>
+              <td><span class="tag read">READ</span> 讀 Order-owned projection，隔離來源語彙並建立 source-neutral command。</td>
+            </tr>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>StockOperationStore</code></td>
+              <td><code>StockOperationPersistenceAdapter</code><br><code>JpaStockOperationRepository</code></td>
+              <td><code>stock_operations</code></td>
+              <td><span class="tag read">READ</span> source replay 與普通 Domain loading；<span class="tag write">WRITE</span> create／ASSIGNED，commit 時以 <code>lockById</code> 取得 PESSIMISTIC_WRITE。</td>
+            </tr>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>StockMoveStore</code></td>
+              <td><code>StockMovePersistenceAdapter</code><br><code>JpaStockMoveRepository</code></td>
+              <td><code>stock_moves</code></td>
+              <td><span class="tag write">WRITE</span> canonical Moves 與 state；按 ID 鎖完整 Move group。</td>
+            </tr>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>StockMoveLineStore</code></td>
+              <td><code>StockMoveLinePersistenceAdapter</code><br><code>JpaStockMoveLineRepository</code></td>
+              <td><code>stock_move_lines</code></td>
+              <td><span class="tag write">WRITE</span> Reservation assignment 建立明細，release 刪除明細；不提供 update。</td>
+            </tr>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>StockOperationAssignmentCandidateStore</code></td>
+              <td><code>JdbcStockOperationAssignmentCandidateStore</code></td>
+              <td><code>stock_operations JOIN stock_moves</code></td>
+              <td><span class="tag read">READ</span> 一次組出 StockOperationDemand 並找 shared-SKU predecessor；永不暴露可 mutation aggregate。</td>
+            </tr>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>StockAllocationSupplyStore</code></td>
+              <td><code>JdbcStockAllocationSupplyStore</code></td>
+              <td><code>stock_pools</code></td>
+              <td><span class="tag read">READ</span> 多 SKU FEFO supply projection；排除過期與零 ATP。</td>
+            </tr>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>StockQuantStore</code></td>
+              <td><code>StockQuantPersistenceAdapter</code><br><code>JpaStockQuantRepository</code></td>
+              <td><code>stock_pools</code></td>
+              <td><span class="tag write">WRITE</span> commit phase 按全域次序 PESSIMISTIC_WRITE，更新 reserved counter；entity 另有 <code>@Version</code>。</td>
+            </tr>
+            <tr>
+              <td><span class="tag port">PORT</span> <code>IntegrationEventPublisher</code></td>
+              <td><code>DefaultIntegrationEventPublisher</code><br><code>JdbcOutboxMessageProducerImplementation</code></td>
+              <td><code>event_outbox</code></td>
+              <td><span class="tag write">WRITE</span> 在既有 transaction 追加 assigned fact，禁止無 transaction 發送。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="figure card">
+        <svg viewBox="0 0 1120 600" role="img" aria-labelledby="repo-title repo-desc">
+          <title id="repo-title">Focused planning Stores、純 Planner 與 canonical Stores 分離圖</title>
+          <desc id="repo-desc">左側是 read-focused planning Stores，中央是純 planner，右側是 transaction 透過 canonical Stores 取得鎖並寫入 JPA entities；介面都由 Application capability 擁有。</desc>
+          <defs>
+            <marker id="repo-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L10 5 L0 10z" fill="#66727e"/>
+            </marker>
+          </defs>
+          <rect width="1120" height="600" rx="22" fill="#faf8f2"/>
+          <rect x="34" y="40" width="318" height="500" rx="20" fill="#eaf2fa" stroke="#2867a8"/>
+          <text x="58" y="78" fill="#2867a8" font-size="14" font-weight="800" letter-spacing="2">COMMAND INPUT</text>
+          <text x="58" y="108" fill="#17324d" font-size="22" font-weight="750">Focused Planning Stores</text>
+          <rect x="58" y="142" width="270" height="110" rx="14" fill="#fff" stroke="#8fb4d8"/>
+          <text x="78" y="174" fill="#17324d" font-size="16" font-weight="750">JdbcStockOperationAssignmentCandidateStore</text>
+          <text x="78" y="201" fill="#5d6975" font-size="13">Operation + Moves + predecessor</text>
+          <text x="78" y="224" fill="#2867a8" font-size="13">→ StockOperationDemand</text>
+          <rect x="58" y="290" width="270" height="110" rx="14" fill="#fff" stroke="#8fb4d8"/>
+          <text x="78" y="322" fill="#17324d" font-size="16" font-weight="750">JdbcStockAllocationSupplyStore</text>
+          <text x="78" y="349" fill="#5d6975" font-size="13">FEFO, non-expired, ATP &gt; 0</text>
+          <text x="78" y="372" fill="#2867a8" font-size="13">→ StockAllocationSupply</text>
+          <text x="58" y="488" fill="#5d6975" font-size="13">快速、無 aggregate tracking、無 row lock</text>
+
+          <rect x="402" y="164" width="300" height="214" rx="22" fill="#edf7f4" stroke="#0c766d" stroke-width="2"/>
+          <text x="430" y="205" fill="#0c766d" font-size="14" font-weight="800" letter-spacing="2">PURE DOMAIN</text>
+          <text x="430" y="242" fill="#17324d" font-size="21" font-weight="750">MovementAssignmentPlanner</text>
+          <text x="430" y="277" fill="#5d6975" font-size="14">Operation Demand + Allocation Supply</text>
+          <text x="430" y="305" fill="#5d6975" font-size="14">SHIP_COMPLETE + FEFO</text>
+          <text x="430" y="341" fill="#0c766d" font-size="14" font-weight="750">→ StockAllocationProposal</text>
+
+          <rect x="752" y="40" width="334" height="500" rx="20" fill="#fff4e9" stroke="#d1692e"/>
+          <text x="778" y="78" fill="#d1692e" font-size="14" font-weight="800" letter-spacing="2">COMMAND COMMIT</text>
+          <text x="778" y="108" fill="#17324d" font-size="22" font-weight="750">Canonical State Stores</text>
+          <rect x="778" y="142" width="282" height="92" rx="14" fill="#fff" stroke="#e4af88"/>
+          <text x="798" y="174" fill="#17324d" font-size="15" font-weight="750">StockOperationStore</text>
+          <text x="798" y="202" fill="#5d6975" font-size="13">lock + state summary</text>
+          <rect x="778" y="254" width="282" height="92" rx="14" fill="#fff" stroke="#e4af88"/>
+          <text x="798" y="286" fill="#17324d" font-size="15" font-weight="750">StockMoveStore</text>
+          <text x="798" y="314" fill="#5d6975" font-size="13">lock moves + save Move state</text>
+          <rect x="778" y="366" width="282" height="92" rx="14" fill="#fff" stroke="#e4af88"/>
+          <text x="798" y="398" fill="#17324d" font-size="15" font-weight="750">StockQuantStore</text>
+          <text x="798" y="426" fill="#5d6975" font-size="13">global lock order + reserve</text>
+          <text x="778" y="496" fill="#5d6975" font-size="13">短交易、重驗、權威 mutation</text>
+
+          <path d="M352 270 H402" stroke="#66727e" stroke-width="2" marker-end="url(#repo-arrow)"/>
+          <path d="M702 270 H752" stroke="#66727e" stroke-width="2" marker-end="url(#repo-arrow)"/>
+          <text x="366" y="257" fill="#5d6975" font-size="11">facts</text>
+          <text x="711" y="257" fill="#5d6975" font-size="11">proposal</text>
+        </svg>
+        <figcaption>圖 3：前段 focused Store 提供 immutable planning input，後段 canonical Store 負責 lock 與 authoritative commit；同一套 Store vocabulary 不代表把兩種用途合成一個大介面。</figcaption>
+      </figure>
+
+      <div class="note">
+        <strong>為什麼 interface 不是多餘的？</strong> 這些 port 各自代表不同語意：source translation、planning projection、command mutation、event publication。若全合併為一個巨大 Repository，application service 會重新同時依賴 Order schema、JPA aggregate、FEFO SQL 與 Outbox，複雜度只是被藏回一大坨。
+      </div>
+    </section>
+
+    <section id="branches">
+      <div class="section-kicker">07 · Outcomes &amp; Failure Semantics</div>
+      <h2>不是每次呼叫都會配到貨</h2>
+      <p class="lead">「沒有 assigned result」可能是正常等待，也可能是資料衝突。這些結果不能用同一個模糊的 false 解讀。</p>
+
+      <div class="branch-grid">
+        <article class="branch ok card">
+          <h4>完整成功</h4>
+          <p>所有 SKU 足夠且 proposal 在鎖內仍有效。Operation／Moves → ASSIGNED，建立 MoveLines，增加 Quant reserved，寫 Outbox，transaction commit。</p>
+        </article>
+        <article class="branch wait card">
+          <h4>正常等待：有 predecessor</h4>
+          <p>已註冊的 Operation／Moves 保持 CONFIRMED；不讀 supply、不產生 proposal、不改 Quant。等前單離隊後由 wake pipeline 再試。</p>
+        </article>
+        <article class="branch wait card">
+          <h4>正常等待：供給不足</h4>
+          <p>Planner 產生 insufficient proposal，沒有任何 partial reservation。Operation／Moves 保持 CONFIRMED，等待 inventory availability event。</p>
+        </article>
+        <article class="branch replay card">
+          <h4>來源不存在／已取消</h4>
+          <p>Source adapter 回 empty，Use Case 正常結束，不建立 movement。在事件模式下 Inbox claim 會隨 transaction commit，表示該事件已被處理。</p>
+        </article>
+        <article class="branch replay card">
+          <h4>Registration replay</h4>
+          <p>同一 source 已存在且不可變內容相同時重用既有資料。事件模式通常更早就由 Inbox 擋住同一 event；Registrar 保護的是 source-level idempotency。</p>
+        </article>
+        <article class="branch fail card">
+          <h4>資料衝突／stale proposal</h4>
+          <p>相同 source 內容不同會拋 conflict；版本、ATP、效期或 predecessor 在規劃後改變會拋 stale。例外向外傳遞，整個 transaction rollback；訊息基礎設施可重試。</p>
+        </article>
+      </div>
+
+      <figure class="figure card">
+        <svg viewBox="0 0 1120 470" role="img" aria-labelledby="state-title state-desc">
+          <title id="state-title">配貨前後的資料狀態變化</title>
+          <desc id="state-desc">註冊後 operation 和 moves 為 confirmed，等待時不改供給；提交成功後建立 move lines、增加 quant reserved 並將 operation 和 moves 改成 assigned。</desc>
+          <defs>
+            <marker id="state-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L10 5 L0 10z" fill="#66727e"/>
+            </marker>
+          </defs>
+          <rect width="1120" height="470" rx="22" fill="#faf8f2"/>
+          <text x="55" y="48" fill="#d1692e" font-size="14" font-weight="800" letter-spacing="2">AFTER REGISTRATION</text>
+          <rect x="55" y="76" width="280" height="75" rx="14" fill="#fff" stroke="#d1692e"/>
+          <text x="78" y="108" fill="#17324d" font-size="17" font-weight="750">StockOperation</text>
+          <text x="78" y="133" fill="#d1692e" font-size="14">CONFIRMED</text>
+          <rect x="55" y="171" width="280" height="75" rx="14" fill="#fff" stroke="#d1692e"/>
+          <text x="78" y="203" fill="#17324d" font-size="17" font-weight="750">StockMove × N</text>
+          <text x="78" y="228" fill="#d1692e" font-size="14">CONFIRMED · demandQuantity</text>
+          <rect x="55" y="266" width="280" height="75" rx="14" fill="#fff" stroke="#d1692e"/>
+          <text x="78" y="298" fill="#17324d" font-size="17" font-weight="750">StockMoveLine</text>
+          <text x="78" y="323" fill="#a94442" font-size="14">尚不存在</text>
+          <text x="55" y="383" fill="#5d6975" font-size="14">若 predecessor／shortage：停在這裡</text>
+
+          <path d="M365 210 H710" stroke="#66727e" stroke-width="2.5" marker-end="url(#state-arrow)"/>
+          <rect x="413" y="152" width="245" height="112" rx="56" fill="#edf7f4" stroke="#0c766d" stroke-width="2"/>
+          <text x="535" y="190" text-anchor="middle" fill="#17324d" font-size="16" font-weight="750">Allocation Committer</text>
+          <text x="535" y="218" text-anchor="middle" fill="#5d6975" font-size="13">lock · revalidate · reserve</text>
+          <text x="535" y="241" text-anchor="middle" fill="#0c766d" font-size="13">all or nothing</text>
+
+          <text x="755" y="48" fill="#0c766d" font-size="14" font-weight="800" letter-spacing="2">AFTER COMMIT</text>
+          <rect x="755" y="76" width="310" height="75" rx="14" fill="#fff" stroke="#0c766d"/>
+          <text x="778" y="108" fill="#17324d" font-size="17" font-weight="750">Operation + Moves</text>
+          <text x="778" y="133" fill="#0c766d" font-size="14">ASSIGNED</text>
+          <rect x="755" y="171" width="310" height="75" rx="14" fill="#fff" stroke="#0c766d"/>
+          <text x="778" y="203" fill="#17324d" font-size="17" font-weight="750">StockMoveLine × M</text>
+          <text x="778" y="228" fill="#0c766d" font-size="14">moveId ↔ quantId ↔ quantity</text>
+          <rect x="755" y="266" width="310" height="75" rx="14" fill="#fff" stroke="#0c766d"/>
+          <text x="778" y="298" fill="#17324d" font-size="17" font-weight="750">StockQuant</text>
+          <text x="778" y="323" fill="#0c766d" font-size="14">reservedQuantity 增加；onHand 不變</text>
+          <rect x="755" y="361" width="310" height="60" rx="14" fill="#f3eef9" stroke="#6b5796"/>
+          <text x="778" y="397" fill="#6b5796" font-size="15" font-weight="750">event_outbox：assigned fact</text>
+        </svg>
+        <figcaption>圖 4：CONFIRMED 表示「需求已成立但未鎖貨」；ASSIGNED 表示「Inventory 已建立完整預留關係」。</figcaption>
+      </figure>
+    </section>
+
+    <section id="example">
+      <div class="section-kicker">08 · Concrete Example</div>
+      <h2>用一個跨批次案例走一次</h2>
+      <p class="lead">訂單有兩行：SKU-A 需求 10、SKU-B 需求 3。SKU-A 需要跨兩個 Quant；SHIP_COMPLETE 要求連 SKU-B 也必須同時足夠。</p>
+
+      <div class="table-wrap">
+        <table class="compare">
+          <thead><tr><th>階段</th><th>SKU-A</th><th>SKU-B</th><th>產物／結果</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>StockOperationDemand</td><td>Move-A：10</td><td>Move-B：3</td><td>Operation v0 + Move versions</td>
+            </tr>
+            <tr>
+              <td>FEFO supply</td><td>Quant-A1：ATP 8（較早效期）<br>Quant-A2：ATP 6</td><td>Quant-B1：ATP 3</td><td>每 SKU 皆足夠，可進 ready planning</td>
+            </tr>
+            <tr>
+              <td>Pure proposal</td><td>A1 取 8 + A2 取 2</td><td>B1 取 3</td><td>3 個 ProposedMoveLine；DB 尚未改</td>
+            </tr>
+            <tr>
+              <td>Commit</td><td>A1 reserved +8；A2 reserved +2</td><td>B1 reserved +3</td><td>3 個 StockMoveLine；兩 Moves 與 Operation → ASSIGNED</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warning" style="margin-top:18px">
+        若 SKU-B 實際只有 ATP 2，Planner 不會先配 SKU-A，也不會保留那 2 個 SKU-B；它回傳 <code>missingQuantities={SKU-B:1}</code> 且 reservations 為空。這正是 <code>SHIP_COMPLETE</code> 讓整體行為變簡單、可推理的地方。
+      </div>
+    </section>
+
+    <section id="source-index">
+      <div class="section-kicker">09 · Code Index</div>
+      <h2>類別與介面索引</h2>
+      <p class="lead">以下連結以本 HTML 所在的 <code>docs/</code> 為基準，可直接回到實際原始碼。</p>
+
+      <div class="source-list">
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/application/AllocateOrderUsecase.java"><code>AllocateOrderUsecase</code></a><p>頂層 transaction 與三段 application orchestration。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/entrypoint/AllocationOrderPlacedEventConsumer.java"><code>AllocationOrderPlacedEventConsumer</code></a><p>OrderPlaced event inbound adapter。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/entrypoint/temporal/TemporalInventoryActivitiesAdapter.java"><code>TemporalInventoryActivitiesAdapter</code></a><p>Temporal Activity inbound adapter。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/application/port/OrderStockMovementSource.java"><code>OrderStockMovementSource</code></a><p>Order source port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/infrastructure/OrderStockMovementAdapter.java"><code>OrderStockMovementAdapter</code></a><p>Order → source-neutral command adapter。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/registration/application/StockOperationRegistrar.java"><code>StockOperationRegistrar</code></a><p>冪等註冊 Operation／Moves。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/application/StockOperationAssignmentCoordinator.java"><code>StockOperationAssignmentCoordinator</code></a><p>select → supply → plan → commit pipeline。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/application/port/StockOperationAssignmentCandidateStore.java"><code>StockOperationAssignmentCandidateStore</code></a><p>Candidate／predecessor read port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/infrastructure/JdbcStockOperationAssignmentCandidateStore.java"><code>JdbcStockOperationAssignmentCandidateStore</code></a><p>Candidate 與 strict-FIFO predecessor SQL。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/application/port/StockAllocationSupplyStore.java"><code>StockAllocationSupplyStore</code></a><p>Planner supply read port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/infrastructure/JdbcStockAllocationSupplyStore.java"><code>JdbcStockAllocationSupplyStore</code></a><p>多 SKU FEFO SQL projection。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/domain/MovementAssignmentPlanner.java"><code>MovementAssignmentPlanner</code></a><p>Repository-free SHIP_COMPLETE／FEFO planner。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/domain/StockOperationDemand.java"><code>StockOperationDemand</code></a><p>Immutable demand snapshot。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/domain/StockMoveDemand.java"><code>StockMoveDemand</code></a><p>Immutable move-level demand row。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/domain/StockAllocationSupply.java"><code>StockAllocationSupply</code></a><p>Owner/location scoped immutable supply boundary。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/domain/StockQuantSupply.java"><code>StockQuantSupply</code></a><p>Immutable StockQuant planning projection。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/planning/domain/StockAllocationProposal.java"><code>StockAllocationProposal</code></a><p>Non-authoritative pure planning result。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/application/StockAllocationCommitter.java"><code>StockAllocationCommitter</code></a><p>唯一 proposal → authoritative assignment commit boundary。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/application/StockOperationAssignmentResultFactory.java"><code>StockOperationAssignmentResultFactory</code></a><p>專責組裝 committed assignment result。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/application/StockOperationComposite.java"><code>StockOperationComposite</code></a><p>Transaction 內由 Operation／Moves／MoveLines 組成的暫態一致性模型；沒有 identity、repository 或 lock ownership。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/application/MoveQuantAllocationSet.java"><code>MoveQuantAllocationSet</code></a><p>Proposal／MoveLines 共用的暫態 move-to-quant mapping 與 stale validation。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/application/port/StockOperationStore.java"><code>StockOperationStore</code></a><p>Operation command-model persistence port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/application/port/StockOperationStore.java"><code>StockOperationStore</code></a><p>Command-owned ordinary Operation read port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/application/port/StockMoveStore.java"><code>StockMoveStore</code></a><p>Canonical Move command-model persistence port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/application/port/StockMoveStore.java"><code>StockMoveStore</code></a><p>Command-owned ordinary Move read port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/application/port/StockMoveLineStore.java"><code>StockMoveLineStore</code></a><p>Reservation-owned command persistence port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/application/port/StockMoveLineStore.java"><code>StockMoveLineStore</code></a><p>Command-owned committed reservation detail read port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/position/onhand/application/port/StockQuantStore.java"><code>StockQuantStore</code></a><p>Quant command Store 與 global lock order port。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/infrastructure/OrderStockOperationAssignedPublicationFactory.java"><code>OrderStockOperationAssignedPublicationFactory</code></a><p>Inventory assigned result → Order integration fact。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/assignment/infrastructure/AssignmentRetryConflictTranslator.java"><code>AssignmentRetryConflictTranslator</code></a><p>Stale proposal → retryable optimistic-lock failure。</p></article>
+      </div>
+
+      <div class="note" style="margin-top:18px">
+        <strong>一句話總結：</strong><code>AllocateOrderUsecase</code> 接受 Order 的「為什麼」，正規化成 StockMove 的「要移什麼」，Planner 計算「可以用哪些 Quant」，Allocation Committer 才留下 StockMoveLine 的「實際承諾」，Outbox 再把這個事實交給下游。
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="page">Flowzati Archone · Inventory allocation code walkthrough · 本文件描述目前程式碼，不把未來 WMS picking／posting 行為混入現況。</div>
+  </footer>
+</body>
+</html>

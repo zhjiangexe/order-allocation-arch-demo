@@ -31,8 +31,8 @@ public class JpaShipmentRepositoryAdapter implements ShipmentRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<Shipment> findByAllocationId(UUID allocationId) {
-        return repository.findByAllocationId(allocationId).map(WmsShipmentEntity::toDomain);
+    public Optional<Shipment> findByStockOperationId(UUID stockOperationId) {
+        return repository.findByStockOperationId(stockOperationId).map(WmsShipmentEntity::toDomain);
     }
 
     @Override

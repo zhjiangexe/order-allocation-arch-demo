@@ -22,9 +22,12 @@ Feature: Events 模式在倉內作業前取消 Shipment
     When method get
     Then status 200
     And match response.order.status == 'ALLOCATED'
-    And match response.allocation.status == 'ALLOCATED'
+    And match response.stockOperation.operation.state == 'ASSIGNED'
+    And match response.stockOperation.moves == '#[1]'
+    And match response.stockOperation.moves[0].state == 'ASSIGNED'
+    And match response.stockOperation.moves[0].batches == '#[1]'
 
-    # 這時送出取消，流程必須先撤銷 Shipment，再回補 allocation 與 Order。
+    # 這時送出取消，流程必須先撤銷 Shipment，再釋放 move reservation 並取消 Order。
     * def cancellation = { requestId: '#(newId())', requestedAt: '#(now())', reason: '倉內作業開始前取消' }
     Given path 'orders', orderId, 'cancellation-requests'
     And request cancellation
@@ -34,7 +37,7 @@ Feature: Events 模式在倉內作業前取消 Shipment
 
     # 202 只代表已受理；輪詢直到三個 Context 都完成 compensation。
     Given path 'demo', 'orders', orderId, 'fulfillment'
-    And retry until response.order.status == 'CANCELLED' && response.allocation.status == 'CANCELLED' && response.shipments[0].status == 'CANCELLED'
+    And retry until response.order.status == 'CANCELLED' && response.stockOperation.operation.state == 'CANCELLED' && response.stockOperation.moves[0].state == 'CANCELLED' && response.stockOperation.moves[0].batches.length == 0 && response.shipments[0].status == 'CANCELLED'
     When method get
     Then status 200
     And match response.shipments[0].cancellationState == 'COMPLETED'

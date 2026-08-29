@@ -12,8 +12,6 @@ import com.flowzati.archone.orderfulfillment.contract.activity.wms.CancelShipmen
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityInput;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.CreateShipmentActivityResult;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.WmsActivities;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshot;
-import com.flowzati.archone.orderfulfillment.contract.workflow.AllocationSnapshotLine;
 import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationRequest;
 import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationRequestAcknowledgement;
 import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationRequestStatus;
@@ -24,9 +22,12 @@ import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentW
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowResult;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowStatus;
+import com.flowzati.archone.orderfulfillment.contract.workflow.PickingAssignmentSnapshot;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentCancelledSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentTerminalStatus;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshot;
+import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshotLine;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
 import io.temporal.failure.ApplicationFailure;
@@ -42,7 +43,7 @@ import java.util.UUID;
  * <p>Activity 的技術失敗交給 Temporal retry，耗盡後讓 Workflow failure 保持可見；業務內部的
  * Pick／Pack／Stage 不在此鏡像。只有稍後才由人員、設備或外部系統產生的事實使用 Signal。
  *
- * <p>目前一個 execution 明確限制一個 committed allocation 與一個 Shipment。若要拆單或改派
+ * <p>目前一個 execution 明確限制一個 assigned picking 與一個 Shipment。若要拆單或改派
  * 倉庫，先引入 fulfillment attempt／多 Shipment completion policy，不能擴充成覆蓋欄位。
  */
 public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkflow {
@@ -64,7 +65,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
 
     private final OrderFulfillmentWorkflowInput input;
     private WorkflowProgress progress;
-    private AllocationCheckpoint allocationCheckpoint;
+    private StockOperationAssignmentCheckpoint assignmentCheckpoint;
     private final ShipmentCheckpoint shipment;
     private final CancellationCheckpoint cancellation;
 
@@ -74,7 +75,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
     @WorkflowInit
     public OrderFulfillmentWorkflowImpl(OrderFulfillmentWorkflowInput input) {
         this.input = input;
-        this.allocationCheckpoint = AllocationCheckpoint.notRequested();
+        this.assignmentCheckpoint = StockOperationAssignmentCheckpoint.notRequested();
         this.shipment = new ShipmentCheckpoint();
         this.cancellation = new CancellationCheckpoint();
         this.progress = new WorkflowProgress(OrderFulfillmentWorkflowPhase.NOT_STARTED, null, null, "Not started");
@@ -86,13 +87,13 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
 
         // 1. Temporal 是本流程唯一的配貨 command driver：先呼叫 Activity，再等待結果 fact。
         // 取消採 best-effort semantics；即使取消請求先抵達，配貨命令仍可能已進入送出流程。
-        allocationCheckpoint = AllocationCheckpoint.waiting();
+        assignmentCheckpoint = StockOperationAssignmentCheckpoint.waiting();
         progress = progress.enter(OrderFulfillmentWorkflowPhase.ALLOCATION, workflowNow(), "Requesting allocation");
         inventoryActivities.requestAllocation(
                 new RequestAllocationActivityInput(processId, this.input.orderId(), this.input.orderReceivedAt()));
 
         // 使用 lambda 重新讀取欄位；Signal handler 會以新的 immutable checkpoint 取代舊物件。
-        Workflow.await(() -> allocationCheckpoint.isCommitted() || cancellation.isRequested());
+        Workflow.await(() -> assignmentCheckpoint.isCommitted() || cancellation.isRequested());
 
         if (cancellation.isRequested()) {
             progress = progress.enter(
@@ -103,13 +104,13 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
             return finishCancellation("Order cancellation completed before WMS shipment");
         }
 
-        AllocationSnapshot allocation = allocationCheckpoint.requireCommittedSnapshot();
+        StockOperationAssignmentSnapshot assignment = assignmentCheckpoint.requireAssignmentSnapshot();
 
-        // 2. WMS 建單 use case 已能依 allocationId 冪等讀回結果，所以直接使用 Activity return。
+        // 2. WMS 建單 use case 依 stockOperationId 冪等讀回結果，所以直接使用 Activity return。
         progress = progress.enter(
                 OrderFulfillmentWorkflowPhase.WMS_SHIPMENT_CREATION, workflowNow(), "Creating WMS shipment");
         CreateShipmentActivityResult shipmentResult =
-                wmsActivities.createShipment(new CreateShipmentActivityInput(processId, allocation));
+                wmsActivities.createShipment(new CreateShipmentActivityInput(processId, assignment));
         shipment.recordCreated(shipmentResult.shipmentId());
 
         // 3. Shipment 建立後只等待 WMS 的具體物理終態；停止作業與 putback 留在 WMS 內部。
@@ -141,9 +142,11 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         inventoryActivities.completeOutboundMovements(new CompleteOutboundMovementsActivityInput(
                 processId,
                 input.orderId(),
-                allocation.allocationId(),
+                assignment.stockOperationId(),
                 terminal.shipmentId(),
-                allocation.lines().stream().map(AllocationSnapshotLine::moveId).toList(),
+                assignment.moves().stream()
+                        .map(StockOperationAssignmentSnapshotLine::moveId)
+                        .toList(),
                 terminal.occurredAt()));
 
         // 5. 庫存已完成才推進 Ordering 終態。沿用出庫完成的業務時間，讓 Temporal 與 event-driven
@@ -160,19 +163,28 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
     }
 
     @Override
-    public void allocationCommitted(AllocationSnapshot allocation) {
-        if (allocation == null
-                || !input.orderId().equals(allocation.orderId())
+    public void stockOperationAssigned(StockOperationAssignmentSnapshot assignment) {
+        recordAssignment(assignment, "Stock operation assigned");
+    }
+
+    @Override
+    public void pickingAssigned(PickingAssignmentSnapshot assignment) {
+        recordAssignment(canonicalSnapshot(assignment), "Picking assigned");
+    }
+
+    private void recordAssignment(StockOperationAssignmentSnapshot assignment, String progressDetail) {
+        if (assignment == null
+                || !input.orderId().equals(assignment.orderId())
                 || cancellation.state() != OrderFulfillmentWorkflowCancellationState.NONE
-                || (!allocationCheckpoint.isWaiting() && !allocationCheckpoint.isCommitted())) {
+                || (!assignmentCheckpoint.isWaiting() && !assignmentCheckpoint.isCommitted())) {
             return;
         }
-        AllocationCheckpoint updatedCheckpoint = allocationCheckpoint.recordCommitted(allocation);
-        if (updatedCheckpoint == allocationCheckpoint) {
+        StockOperationAssignmentCheckpoint updatedCheckpoint = assignmentCheckpoint.recordAssigned(assignment);
+        if (updatedCheckpoint == assignmentCheckpoint) {
             return;
         }
-        allocationCheckpoint = updatedCheckpoint;
-        progress = progress.update(workflowNow(), "Allocation committed");
+        assignmentCheckpoint = updatedCheckpoint;
+        progress = progress.update(workflowNow(), progressDetail);
     }
 
     @Override
@@ -249,12 +261,12 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         return new OrderFulfillmentWorkflowSnapshot(
                 input.orderId(),
                 progress.phase(),
-                allocationCheckpoint.state(),
+                assignmentCheckpoint.state(),
                 cancellation.state(),
                 cancellation.requestIdOrNull(),
                 cancellation.requestedAtOrNull(),
                 progress.outcome(),
-                allocationCheckpoint.allocationId(),
+                assignmentCheckpoint.stockOperationId(),
                 shipment.shipmentIdOrNull(),
                 shipment.terminalStatusOrNull(),
                 shipment.terminalAtOrNull(),
@@ -312,7 +324,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         return new OrderFulfillmentWorkflowResult(
                 input.orderId(),
                 outcome,
-                allocationCheckpoint.allocationId(),
+                assignmentCheckpoint.stockOperationId(),
                 shipment.shipmentIdOrNull(),
                 progress.updatedAt(),
                 detail);
@@ -320,6 +332,28 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
 
     private Instant workflowNow() {
         return Instant.ofEpochMilli(Workflow.currentTimeMillis());
+    }
+
+    private static StockOperationAssignmentSnapshot canonicalSnapshot(PickingAssignmentSnapshot legacy) {
+        if (legacy == null) {
+            return null;
+        }
+        return new StockOperationAssignmentSnapshot(
+                legacy.pickingId(),
+                legacy.orderId(),
+                legacy.ownerId(),
+                legacy.facilityId(),
+                legacy.moves().stream()
+                        .map(move -> new StockOperationAssignmentSnapshotLine(
+                                move.orderLineId(),
+                                move.moveId(),
+                                move.skuCode(),
+                                move.sourceLocationId(),
+                                move.quantity()))
+                        .toList(),
+                legacy.dispatchBy(),
+                legacy.releasePriority(),
+                legacy.assignedAt());
     }
 
     private static ActivityOptions activityOptions(String taskQueue) {

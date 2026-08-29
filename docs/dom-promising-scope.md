@@ -301,9 +301,11 @@ backorder wake 在提交後由 Integration Event 快速觸發，Scheduler 定期
 
 ---
 
-## Repository 介面的改動
+## 庫存存取介面的改動
 
-`StockQuantRepository.findBySku(String) → Optional<StockQuant>` 在批次化後不成立。
+舊式的 `findBySku(String) → Optional<StockQuant>` 在批次化後不成立；現行 command-side 普通讀取由
+`StockQuantStore` 依完整庫存身分載入批次，FEFO planning 則由 `StockAllocationSupplyStore` 提供；
+`StockQuantStore` 只保留 lock 與 save。
 四個呼叫點各有不同的改法：
 
 | 呼叫點 | 現在 | 改成 |

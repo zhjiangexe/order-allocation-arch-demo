@@ -1,0 +1,243 @@
+target_owner	path
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/ArchoneApplication.java
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/fulfillment/compatibility/MoveBackedLegacyAllocationPickingResolver.java
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/fulfillment/temporal/TemporalFulfillmentConfiguration.java
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/fulfillment/temporal/TemporalFulfillmentEventConsumer.java
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/messaging/consumer/BootstrapOptimisticLockingConfiguration.java
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/demo/fulfillment/OrderFulfillmentQueryService.java
+Read Side / Test Support	backend/deployments/monolith/src/main/java/com/flowzati/archone/demo/fulfillment/OrderFulfillmentView.java
+Read Side / Test Support	backend/deployments/monolith/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
+Read Side / Test Support	backend/deployments/monolith/src/sit/java/com/flowzati/archone/integration/messaging/OutboxAggregateQueryIntegrationTest.java
+Read Side / Test Support	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/InboundEntrypointTransactionIntegrationTest.java
+Reservation	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentConcurrencyIntegrationTest.java
+Reservation	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentPersistenceIntegrationTest.java
+Reservation	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentRollbackIntegrationTest.java
+Reservation	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/assignment/entrypoint/AllocationFifoAvailabilityIncreaseBatchIntegrationTest.java
+Reservation	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/assignment/entrypoint/AllocationFifoGuaranteeScopeIntegrationTest.java
+Reservation	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/assignment/entrypoint/AllocationHotSkuConcurrencyIntegrationTest.java
+Allocation	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/StockOperationAssignmentCandidateRepositoryPersistenceIntegrationTest.java
+Movement	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/lifecycle/application/AllocationReleaseConsumeConcurrencyIntegrationTest.java
+Movement	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/lifecycle/entrypoint/OutboundFulfillmentEventChainIntegrationTest.java
+Cross-domain Entrypoint	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/support/entrypoint/AllocationConcurrencyEndToEndIntegrationTest.java
+Cross-domain Entrypoint	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/support/entrypoint/AllocationTransactionalMessageChainIntegrationTest.java
+Cross-domain Entrypoint	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/support/entrypoint/AllocationWorkflowEndToEndIntegrationTest.java
+Cross-domain Entrypoint	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/allocation/support/entrypoint/IntegrationEventSubscriberTransactionIntegrationTest.java
+Position	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/balance/onhand/infrastructure/StockQuantPersistenceIntegrationTest.java
+Position	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/balance/onhand/infrastructure/StockQuantSchemaIntegrationTest.java
+Movement	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockMovementSchemaIntegrationTest.java
+Movement	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/movement/registration/application/StockOperationRegistrationPersistenceIntegrationTest.java
+Movement	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/movement/visibility/infrastructure/StockOperationViewRepositoryIntegrationTest.java
+Location	backend/deployments/monolith/src/sit/java/com/flowzati/archone/inventory/warehouse/location/infrastructure/StockLocationSchemaIntegrationTest.java
+Read Side / Test Support	backend/deployments/monolith/src/sit/java/com/flowzati/archone/testsupport/AllocationOrderLifecycleEventDriver.java
+Read Side / Test Support	backend/deployments/monolith/src/sit/java/com/flowzati/archone/testsupport/InventoryEventDrainFactory.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/architecture/ContextBoundaryArchitectureTest.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/bootstrap/fulfillment/compatibility/MoveBackedLegacyAllocationPickingResolverTest.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/bootstrap/fulfillment/temporal/TemporalFulfillmentEventWiringTest.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/bootstrap/messaging/BootstrapIntegrationEventWiringTest.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/demo/fulfillment/OrderFulfillmentDemoControllerTest.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/testsupport/InventoryEventDrain.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/testsupport/MovementFixtures.java
+Read Side / Test Support	backend/deployments/monolith/src/test/java/com/flowzati/archone/testsupport/StockReceiptFixture.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/AssignmentQueueKey.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/MoveQuantAllocationSet.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StaleStockAllocationProposalException.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockAllocationCommitter.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentCandidate.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentCoordinator.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentResult.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentResultFactory.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationBacklogReconciler.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationComposite.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationLifecycleSnapshot.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationPredecessor.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/port/StockAllocationSupplyRepository.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/port/StockOperationAssignmentBacklogRepository.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/port/StockOperationAssignmentCandidateRepository.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/application/port/StockOperationAssignmentPublisher.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/MovementAssignmentPlanner.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/ProposedMoveLine.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/SkuQuantities.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/StockAllocationPlanner.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/StockAllocationProposal.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/StockAllocationSupply.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/StockMoveDemand.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/StockOperationDemand.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/domain/StockQuantSupply.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/entrypoint/AllocationInventoryAvailabilityEventConsumer.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/entrypoint/StockOperationBacklogReconciliationScheduler.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/AssignmentRetryConflictTranslator.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/JdbcStockAllocationSupplyRepository.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/JdbcStockOperationAssignmentBacklogRepository.java
+Allocation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/JdbcStockOperationAssignmentCandidateRepository.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/OrderStockOperationAssignedPublicationFactory.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/StockAllocationDomainConfiguration.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/StockOperationAssignmentPublisherAdapter.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/CancelSourceStockMovementsCommand.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/CancelSourceStockMovementsUsecase.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/CancelStockOperationCommand.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/CancelStockOperationUsecase.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/StockOperationCancellationStatus.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/StockOperationCancellationTransactions.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/WarehouseCancellationCheckpoint.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/application/port/WarehouseExecutionCancellationCoordinator.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/domain/AllocationCancellationState.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/domain/StockOperationCancellation.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/domain/StockOperationCancellationRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/entrypoint/AllocationOrderCancellationEventConsumer.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/infrastructure/JpaStockOperationCancellationRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/infrastructure/RejectingExecutionCancellationAdapter.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/infrastructure/StockOperationCancellationEntity.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/infrastructure/StockOperationCancellationKey.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/infrastructure/StockOperationCancellationMapper.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/cancellation/infrastructure/StockOperationCancellationRepositoryImpl.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/intake/application/AllocateOrderCommand.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/intake/application/AllocateOrderUsecase.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/intake/application/port/OrderStockMovementSource.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/intake/entrypoint/AllocationOrderPlacedEventConsumer.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/intake/infrastructure/JpaOrderAllocationSourceRepository.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/intake/infrastructure/OrderAllocationSourceLineEntity.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/intake/infrastructure/OrderStockMovementAdapter.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/application/CompleteSourceStockMovementsCommand.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/application/CompleteSourceStockMovementsUsecase.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/application/CompleteStockOperationUsecase.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/application/ReleaseStockOperationUsecase.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/application/SourceStockMovementsCompletionResult.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/application/StockOperationLifecycleAction.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/application/port/StockOperationLifecyclePublisher.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/entrypoint/OutboundFulfillmentEventSubscriptions.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/entrypoint/ShipmentHandoverEventConsumer.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/infrastructure/StockOperationLifecyclePublicationFactory.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/lifecycle/infrastructure/StockOperationLifecyclePublisherAdapter.java
+Cross-domain Entrypoint	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/support/entrypoint/AllocationEventSubscriptions.java
+Technical Infrastructure	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/support/infrastructure/AllocationOptimisticLockRetryObserver.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/onhand/domain/StockQuant.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/onhand/domain/StockQuantRepository.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/onhand/domain/StockWriteOrder.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/onhand/infrastructure/JpaStockQuantRepository.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/onhand/infrastructure/StockQuantEntity.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/onhand/infrastructure/StockQuantMapper.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/onhand/infrastructure/StockQuantRepositoryImpl.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/ConfirmStockReceiptCommand.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/ConfirmStockReceiptUsecase.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/InboundReceiptCompleter.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/StockAvailabilityIncrease.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/StockReceiptApplicationFacade.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/StockReceiptRequest.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/StockReceiptRequestConflictException.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/port/StockAvailabilityPublisher.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/application/port/StockReceiptRequestRepository.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/entrypoint/StockReceiptController.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/infrastructure/JdbcStockReceiptRequestRepository.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/receipt/infrastructure/StockAvailabilityPublisherAdapter.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/visibility/application/GetStockQuantUsecase.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/visibility/application/StockQuantView.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/visibility/application/port/StockQuantViewRepository.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/visibility/entrypoint/StockQuantController.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/visibility/entrypoint/StockQuantResponse.java
+Position	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/balance/visibility/infrastructure/JdbcStockQuantViewRepository.java
+Cross-domain Application	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/entrypoint/temporal/TemporalInventoryActivitiesAdapter.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/application/port/StockMoveRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/application/port/StockOperationRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/MoveState.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/MovementAssignmentPolicy.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/MovementSourceType.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/StockMove.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/StockMoveLine.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/StockOperation.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/StockOperationSource.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/domain/StockOperationState.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/JpaStockMoveLineRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/JpaStockMoveRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/JpaStockOperationRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockMoveEntity.java
+Reservation	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockMoveLineEntity.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockMoveMapper.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockMoveRepositoryImpl.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockOperationEntity.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockOperationMapper.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockOperationRepositoryImpl.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/registration/application/InboundReceiptRegistrar.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/registration/application/RegisterStockOperationCommand.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/registration/application/SourceMovementConflictException.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/registration/application/StockOperationRegistrar.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/registration/application/StockOperationRegistrationResult.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/application/StockOperationQueryService.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/application/StockOperationView.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/application/port/StockOperationReconciliationRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/application/port/StockOperationViewRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/entrypoint/StockOperationController.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/entrypoint/StockOperationResponse.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/infrastructure/JdbcStockOperationReconciliationRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/infrastructure/JdbcStockOperationViewRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/visibility/infrastructure/StockOperationHealthIndicator.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/application/ListStockLocationsUsecase.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/domain/LocationUsageType.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/domain/StockLocation.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/domain/StockLocationRepository.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/entrypoint/FacilityLocationController.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/entrypoint/StockLocationResponse.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/infrastructure/JpaStockLocationRepository.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/infrastructure/StockLocationEntity.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/infrastructure/StockLocationMapper.java
+Location	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/location/infrastructure/StockLocationRepositoryImpl.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/operationtype/domain/StockOperationDirection.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/operationtype/domain/StockOperationType.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/operationtype/domain/StockOperationTypeRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/operationtype/infrastructure/JpaStockOperationTypeRepository.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/operationtype/infrastructure/StockOperationTypeEntity.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/operationtype/infrastructure/StockOperationTypeMapper.java
+Movement	backend/inventory-context/src/main/java/com/flowzati/archone/inventory/warehouse/operationtype/infrastructure/StockOperationTypeRepositoryImpl.java
+Read Side / Test Support	backend/inventory-context/src/main/resources/i18n/inventory/request_field.properties
+Read Side / Test Support	backend/inventory-context/src/main/resources/i18n/inventory/request_field_en.properties
+Read Side / Test Support	backend/inventory-context/src/main/resources/i18n/inventory/request_field_zh_TW.properties
+Read Side / Test Support	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/InventoryBoundaryArchitectureTest.java
+Read Side / Test Support	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/InventoryTestApplication.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/application/StockAllocationCommitterTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAllocationWorkingModelsTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationAssignmentCoordinatorTest.java
+Allocation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/application/StockOperationBacklogReconcilerTest.java
+Allocation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/domain/MovementAssignmentPlannerTest.java
+Allocation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/domain/ProposedMoveLineTest.java
+Allocation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/domain/SkuQuantitiesTest.java
+Allocation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/domain/StockAllocationSupplyTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/entrypoint/AllocationInventoryAvailabilityEventConsumerTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/entrypoint/StockOperationBacklogReconciliationSchedulerTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/assignment/infrastructure/StockOperationAssignmentPublisherAdapterTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/cancellation/application/CancelStockOperationUsecaseTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/cancellation/application/StockOperationCancellationTransactionsTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/cancellation/domain/StockOperationCancellationTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/cancellation/entrypoint/AllocationOrderCancellationEventConsumerTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/intake/application/AllocateOrderUsecaseTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/intake/entrypoint/AllocationOrderPlacedEventConsumerTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/lifecycle/application/CompleteSourceStockMovementsUsecaseTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/lifecycle/application/CompleteStockOperationUsecaseTest.java
+Reservation	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/lifecycle/application/ReleaseStockOperationUsecaseTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/lifecycle/entrypoint/ShipmentHandoverEventConsumerTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/lifecycle/infrastructure/StockOperationLifecyclePublisherAdapterTest.java
+Technical Infrastructure	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/allocation/support/infrastructure/AllocationOptimisticLockRetryObserverTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/onhand/domain/StockQuantTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/onhand/infrastructure/StockQuantMapperTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/receipt/application/ConfirmStockReceiptUsecaseTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/receipt/application/InboundReceiptCompleterTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/receipt/application/StockReceiptApplicationFacadeTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/receipt/entrypoint/StockReceiptControllerTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/receipt/infrastructure/StockAvailabilityPublisherAdapterTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/visibility/application/GetStockQuantUsecaseTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/visibility/application/StockQuantViewTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/visibility/entrypoint/StockQuantControllerTest.java
+Position	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/balance/visibility/infrastructure/JdbcStockQuantViewRepositoryTest.java
+Cross-domain Application	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/entrypoint/temporal/TemporalInventoryActivitiesAdapterTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/operation/domain/StockMoveTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/operation/domain/StockOperationTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/operation/infrastructure/StockMoveMapperTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/registration/application/InboundReceiptRegistrarTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/registration/application/StockOperationRegistrarTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/visibility/application/StockOperationQueryServiceTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/visibility/entrypoint/StockOperationControllerTest.java
+Movement	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/movement/visibility/infrastructure/JdbcStockOperationViewRepositoryTest.java
+Location	backend/inventory-context/src/test/java/com/flowzati/archone/inventory/warehouse/location/entrypoint/FacilityLocationControllerTest.java
+Reservation	backend/inventory-context/src/testFixtures/java/com/flowzati/archone/inventory/allocation/assignment/testsupport/StockOperationDemandFactory.java
+Position	backend/inventory-context/src/testFixtures/java/com/flowzati/archone/inventory/balance/onhand/domain/StockFixtures.java
+Read Side / Test Support	backend/inventory-context/src/testFixtures/java/com/flowzati/archone/inventory/testsupport/InventoryFixtures.java
+Read Side / Test Support	backend/logistics-data-context/src/test/java/com/flowzati/archone/logisticsdata/LogisticsDataContextBoundaryTest.java

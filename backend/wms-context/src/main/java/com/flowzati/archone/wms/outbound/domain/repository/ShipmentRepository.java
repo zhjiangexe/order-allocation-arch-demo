@@ -11,7 +11,7 @@ public interface ShipmentRepository {
 
     Optional<Shipment> findById(UUID shipmentId);
 
-    Optional<Shipment> findByAllocationId(UUID allocationId);
+    Optional<Shipment> findByStockOperationId(UUID stockOperationId);
 
     /** WMS 自己持有 order-to-shipment correlation，取消流程不反查 order-promising。 */
     List<Shipment> findByOrderId(UUID orderId);

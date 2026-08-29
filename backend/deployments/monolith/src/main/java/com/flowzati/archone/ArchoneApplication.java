@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(
         scanBasePackages = {
             "com.flowzati.archone.bootstrap",
+            "com.flowzati.archone.process",
             "com.flowzati.archone.logisticsdata",
             "com.flowzati.archone.demo",
             "com.flowzati.archone.ordering",

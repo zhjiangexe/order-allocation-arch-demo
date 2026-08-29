@@ -2,7 +2,7 @@ package com.flowzati.archone.wms.outbound.domain.valueobject;
 
 import java.util.UUID;
 
-/** Shipment 對一筆已提交 allocation line 的不可變快照。 */
+/** Shipment 對一筆已指派 Inventory movement 的不可變快照。 */
 public record ShipmentLine(UUID orderLineId, UUID moveId, String skuCode, UUID sourceLocationId, int quantity) {
 
     public ShipmentLine {

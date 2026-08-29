@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.query.AllocationDemandQueryRepository;
-import com.flowzati.archone.inventory.allocation.domain.repository.AllocationDemandRepository;
-import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.balance.domain.repository.StockQuantRepository;
+import com.flowzati.archone.inventory.allocation.application.repo.StockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.domain.StockQuantSupply;
+import com.flowzati.archone.inventory.position.domain.StockQuant;
+import com.flowzati.archone.inventory.position.infrastructure.repo.StockQuantStoreImpl;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
 import com.flowzati.archone.logisticsdata.domain.repository.FacilityRepository;
 import com.flowzati.archone.logisticsdata.domain.repository.OwnerRepository;
@@ -18,6 +18,7 @@ import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.SitDatabase;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,16 +42,13 @@ class DevSeedDataIntegrationTest {
     private DevSeedDataInitializer initializer;
 
     @Autowired
-    private StockQuantRepository stockQuantRepository;
+    private StockQuantStoreImpl stockQuantStoreImpl;
+
+    @Autowired
+    private StockAllocationSupplyStore stockAllocationSupplyStore;
 
     @Autowired
     private OrderRepository orderRepository;
-
-    @Autowired
-    private AllocationDemandRepository allocationDemandRepository;
-
-    @Autowired
-    private AllocationDemandQueryRepository allocationDemandQueryRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -147,12 +145,14 @@ class DevSeedDataIntegrationTest {
         // 不刪除、不隱藏：倉庫裡真的有這 25 件，而它與「什麼都沒有」要引導出不同的動作。
         assertThat(expired.getOnHandQuantity()).isEqualTo(25);
         assertThat(expired.isExpired(appClock.today())).isTrue();
-        assertThat(stockQuantRepository.findAllocatableBatchesInFefoOrder(
-                        DevSeedDataInitializer.FIRST_OWNER_ID,
-                        DevSeedDataInitializer.NORTH_FACILITY_ID,
-                        DevSeedDataInitializer.AVAILABLE_SKU,
-                        appClock.today()))
-                .extracting(StockQuant::getId)
+        assertThat(stockAllocationSupplyStore
+                        .findBySku(
+                                DevSeedDataInitializer.FIRST_OWNER_ID,
+                                DevSeedDataInitializer.NORTH_FACILITY_ID,
+                                Set.of(DevSeedDataInitializer.AVAILABLE_SKU),
+                                appClock.today())
+                        .forSku(DevSeedDataInitializer.AVAILABLE_SKU))
+                .extracting(StockQuantSupply::stockQuantId)
                 .doesNotContain(DevSeedDataInitializer.EXPIRED_STOCK_QUANT_ID);
     }
 
@@ -202,20 +202,30 @@ class DevSeedDataIntegrationTest {
         // 寫入、沒有 OrderPlaced 事件，配置端從不知道它存在。照操作台 README 的 demo 流程
         // 補貨後畫面毫無變化，看起來像壞掉。
         //
-        // 佇列由 allocation-owned demand lifecycle 回答；訂單狀態與 picking.orderId 都不是 generic
-        // predicate。read-side query 用來確認兩筆 seed 都存在，不用 production 的 singular queue-head
-        // selection，因為它刻意只會帶回一筆。
-        List<UUID> queuedOrders = allocationDemandQueryRepository.findPending(1_000).stream()
-                .filter(demand -> demand.ownerId().equals(DevSeedDataInitializer.SECOND_OWNER_ID))
-                .filter(demand -> demand.facilityId().equals(DevSeedDataInitializer.SOUTH_FACILITY_ID))
-                .filter(demand -> demand.locationId().equals(DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID))
-                .filter(demand -> demand.totalsBySku().containsKey(DevSeedDataInitializer.EMPTY_SKU))
-                .map(demand -> UUID.fromString(demand.source().sourceId()))
-                .toList();
+        // 佇列就是 CONFIRMED operation/moves；source trace 只用來把操作對回 demo 訂單。
+        List<UUID> queuedOrders = jdbcTemplate.queryForList(
+                """
+                SELECT DISTINCT operation.source_id::uuid
+                  FROM stock_operations operation
+                  JOIN stock_moves move ON move.stock_operation_id = operation.id
+                 WHERE operation.state = 'CONFIRMED'
+                   AND operation.owner_id = ?
+                   AND operation.from_location_id = ?
+                   AND move.sku_code = ?
+                 ORDER BY operation.source_id::uuid
+                """,
+                UUID.class,
+                DevSeedDataInitializer.SECOND_OWNER_ID,
+                DevSeedDataInitializer.SOUTH_STOCK_LOCATION_ID,
+                DevSeedDataInitializer.EMPTY_SKU);
 
         assertThat(queuedOrders)
                 .containsExactlyInAnyOrder(
                         DevSeedDataInitializer.BACKORDERED_ORDER_ID, DevSeedDataInitializer.BASKET_ORDER_ID);
+        assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, DevSeedDataInitializer.BACKORDERED_ORDER_ID))
+                .containsExactly("CONFIRMED");
+        assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, DevSeedDataInitializer.BASKET_ORDER_ID))
+                .containsExactly("CONFIRMED", "CONFIRMED");
 
         // 缺貨對象的庫存池必須真的是空的，否則「試過、沒貨」這個狀態自相矛盾
         assertThat(batch(DevSeedDataInitializer.EMPTY_STOCK_QUANT_ID).availableToPromise())
@@ -339,7 +349,7 @@ class DevSeedDataIntegrationTest {
     /**
      * 這張單目前鎖住了哪些量。
      *
-     * <p>路徑是作業單 → 搬運 → 明細，與 {@code CancelMovementsUsecase} 走同一條。回的是清單
+     * <p>路徑是 demand → movement target → 明細，與 {@code CancelMovementsUsecase} 走同一條。回的是清單
      * 而不是單筆：一條行跨三批就有三條明細。
      */
     private java.util.List<MovementFixtures.HeldQuantity> heldBy(java.util.UUID orderId) {
@@ -348,6 +358,6 @@ class DevSeedDataIntegrationTest {
 
     /** 依 id 取那一批。種子的日期相對於今天計算，所以用 id 取比用五維鍵拼出來可靠。 */
     private StockQuant batch(java.util.UUID stockQuantId) {
-        return stockQuantRepository.findById(stockQuantId).orElseThrow();
+        return stockQuantStoreImpl.findById(stockQuantId).orElseThrow();
     }
 }

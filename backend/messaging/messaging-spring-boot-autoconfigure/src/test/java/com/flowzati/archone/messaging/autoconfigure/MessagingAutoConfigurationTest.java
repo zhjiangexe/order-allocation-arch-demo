@@ -243,6 +243,9 @@ class MessagingAutoConfigurationTest {
                         MessagingProducerJdbcAutoConfiguration.class,
                         MessagingConsumerJdbcAutoConfiguration.class,
                         MessagingIntegrationEventPublisherAutoConfiguration.class))
+                .withBean(
+                        com.flowzati.archone.messaging.events.IntegrationEventNameMapping.class,
+                        () -> MapBasedIntegrationEventNameMapping.builder().build())
                 .withBean(JdbcOperations.class, () -> mock(JdbcOperations.class))
                 .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class));
     }

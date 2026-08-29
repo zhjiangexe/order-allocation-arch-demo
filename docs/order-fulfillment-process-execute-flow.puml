@@ -80,7 +80,7 @@ partition "4. 出庫完成" {
   :enterPhase(OUTBOUND_COMPLETION);
   :CompleteOutboundMovements Activity; <<#E8F1FF>>
   :依 MoveLine 正式扣 reserved + on-hand；
-  Move／Picking = DONE; <<#E2F0D9>>
+  Move／Operation = DONE; <<#E2F0D9>>
 }
 
 partition "5. 訂單完成" {

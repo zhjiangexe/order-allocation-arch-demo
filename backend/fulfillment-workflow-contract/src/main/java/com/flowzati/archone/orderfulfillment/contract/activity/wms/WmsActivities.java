@@ -10,7 +10,7 @@ public interface WmsActivities {
     String TASK_QUEUE = "wms-activities";
 
     /**
-     * 以 committed allocation snapshot 冪等建立 Shipment，並在 transaction 提交後回傳建單
+     * 以 committed picking-assignment snapshot 冪等建立 Shipment，並在 transaction 提交後回傳建單
      * receipt。implementation 必須保證 receipt 非 null；技術失敗直接拋出交給 Temporal retry。
      */
     @ActivityMethod(name = "CreateWmsShipment")

@@ -113,8 +113,8 @@ public final class OrderFixtures {
         VALUES (?, NULL, ?, ?, 'SUPPLIER')
         ON CONFLICT (id) DO NOTHING
         """, MovementFixtures.SUPPLIERS_LOCATION_ID, "FIXTURE/Vendors", "共用 fixture 的供應商");
-        // 每個倉一個出庫作業類型。**收單即建搬運之後這是必要主檔**——少了它，收單會拋
-        // 「這個倉沒有出庫作業類型」，而不是安靜地少建一張單。
+        // 每個倉一個出庫作業類型。Source adapter 由它解析 immutable source/destination route；
+        // 少了它，acceptance 會明確拒絕，而不是猜測搬運端點。
         seedOutboundType(jdbcTemplate, MovementFixtures.OUTBOUND_TYPE_ID, FACILITY_ID, LOCATION_ID, "測試倉出貨");
         seedOutboundType(
                 jdbcTemplate, MovementFixtures.OTHER_OUTBOUND_TYPE_ID, OTHER_FACILITY_ID, OTHER_LOCATION_ID, "第二個倉出貨");
@@ -138,22 +138,41 @@ public final class OrderFixtures {
 
     private static void seedOutboundType(
             JdbcTemplate jdbcTemplate, UUID id, UUID facilityId, UUID stockLocationId, String name) {
-        jdbcTemplate.update("""
-        INSERT INTO stock_picking_types
+        jdbcTemplate.update(
+                """
+        INSERT INTO %s
             (id, facility_id, code, name, default_from_location_id, default_to_location_id)
         VALUES (?, ?, 'OUTBOUND', ?, ?, ?)
         ON CONFLICT (id) DO NOTHING
-        """, id, facilityId, name, stockLocationId, MovementFixtures.CUSTOMERS_LOCATION_ID);
+        """.formatted(operationTypeTable(jdbcTemplate)),
+                id,
+                facilityId,
+                name,
+                stockLocationId,
+                MovementFixtures.CUSTOMERS_LOCATION_ID);
     }
 
     private static void seedInboundType(
             JdbcTemplate jdbcTemplate, UUID id, UUID facilityId, UUID stockLocationId, String name) {
-        jdbcTemplate.update("""
-        INSERT INTO stock_picking_types
+        jdbcTemplate.update(
+                """
+        INSERT INTO %s
             (id, facility_id, code, name, default_from_location_id, default_to_location_id)
         VALUES (?, ?, 'INBOUND', ?, ?, ?)
         ON CONFLICT (id) DO NOTHING
-        """, id, facilityId, name, MovementFixtures.SUPPLIERS_LOCATION_ID, stockLocationId);
+        """.formatted(operationTypeTable(jdbcTemplate)),
+                id,
+                facilityId,
+                name,
+                MovementFixtures.SUPPLIERS_LOCATION_ID,
+                stockLocationId);
+    }
+
+    /** Migration characterization tests stage both sides of the V30 metadata rename. */
+    private static String operationTypeTable(JdbcTemplate jdbcTemplate) {
+        boolean canonical = Boolean.TRUE.equals(
+                jdbcTemplate.queryForObject("SELECT to_regclass('stock_operation_types') IS NOT NULL", Boolean.class));
+        return canonical ? "stock_operation_types" : "stock_picking_types";
     }
 
     /**

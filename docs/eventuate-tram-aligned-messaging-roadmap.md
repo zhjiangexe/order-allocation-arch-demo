@@ -215,7 +215,7 @@ Gate D 後的剩餘結構問題：
 7. `KafkaIntegrationEventDispatcher` 的舊 FQCN 仍是 temporary compatibility bridge，正式 generic chain 尚未接入。
 8. `subscriberId`、Kafka consumer group 與 listener identity 雖已分開建模，實際 application subscription 尚未遷移。
 9. allocation handlers 當時以獨立 retry executor 包住 transactional use case；Gate E 移動 transaction owner 時，不能讓 transactional decorator 反過來包住 retry，否則多次 optimistic-lock attempt 會共用同一筆已失敗的 transaction。
-10. `StockReceiptController` 的 `receiptId` 雖被包成 message metadata，實際上是 HTTP idempotency key；移除 fabricated `InboundCommand` 前必須先建立非 messaging 的 request idempotency owner。
+10. `StockReceiptRest` 的 `receiptId` 雖被包成 message metadata，實際上是 HTTP idempotency key；移除 fabricated `InboundCommand` 前必須先建立非 messaging 的 request idempotency owner。
 
 ## 5. 目標 artifact
 
@@ -960,7 +960,7 @@ archone:
 | `AllocationKafkaIntegrationEventConsumer` | 由 allocation dispatcher/subscription bean 取代 | 移除 `@KafkaListener` glue code |
 | `AllocationKafkaErrorHandlingConfiguration` | 保留行為，演進成 `KafkaSubscriptionPolicy` 或 Spring Kafka override | operational policy 搬移 |
 | `IntegrationEventHandler<?>` implementations | Gate I 收斂成 bounded-context target classes，其 methods 由 `IntegrationEventHandlersBuilder` 顯式註冊 | application adapter 重組 |
-| `StockReceiptController` fabricated `InboundCommand` | 直接呼叫 transactional REST application facade | entrypoint 修正 |
+| `StockReceiptRest` fabricated `InboundCommand` | 直接呼叫 transactional REST application facade | entrypoint 修正 |
 
 package 名稱原則：若 package 本身仍能準確表意，優先只移 module、不立即改 Java package，避免在交易改造前製造大量無價值 import churn。
 
@@ -1217,7 +1217,7 @@ ES0 驗證證據（2026-08-09）：
 
 - `AllocationConcurrencyEndToEndIntegrationTest` 的 retry-exhausted path 從實際 `AllocationKafkaIntegrationEventConsumer` 進入，驗證三次 `MovementAssigner` invocation 位於三筆不同 PostgreSQL transaction，且最終 Inbox、StockQuant reservation、picking／moves／move lines 與 Outbox 均無失敗殘留。
 - `AllocationRetryTransactionIntegrationTest` 當時另固定三次 attempt／三筆 transaction contract，以及耗盡時每次 Inbox probe write 都 rollback；後續由完整 chain SIT 接手。
-- targeted `./gradlew :deployments:monolith:sit --tests com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationConcurrencyEndToEndIntegrationTest` 通過。
+- targeted `./gradlew :deployments:monolith:sit --tests com.flowzati.archone.inventory.entrypoint.messaging.AllocationConcurrencyEndToEndIntegrationTest` 通過。
 
 #### ES1 — 準備純 application API，尚不切換 production path（完成）
 
@@ -1277,7 +1277,7 @@ ES4 驗證證據（2026-08-09）：
 - `StockReceiptApplicationFacade` 以同一個 Spring transaction 依序執行 request claim 與 `ConfirmStockReceiptUsecase.execute`；後者的 `@Transactional(REQUIRED)` 保留，因此 inbound picking／move／move line、StockQuant 與 availability Outbox 仍在同一筆 transaction。
 - `receiptId` 現在是正式的 application request identity，不再偽裝成 Kafka message ID。V9 建立 `stock_receipt_requests`，以完整收貨 command 欄位作 request fingerprint；JDBC adapter 使用 `INSERT ... ON CONFLICT DO NOTHING` 原子 claim。
 - 同 ID、同內容重送回傳成功但不重做庫存與 Outbox；同 ID、不同內容拋出 `StockReceiptRequestConflictException` 並由 REST 映射為 HTTP 409；業務失敗時 request claim、business mutation 與 Outbox 一起 rollback。
-- `ConfirmStockReceiptUsecase` 已移除 messaging／Inbox dependency；`StockReceiptController` 不再建立 fabricated metadata。所有 application callers 遷移後，temporary `InboundCommand` 已從 `messaging-api` 刪除，整合測試更名為 `InboundEntrypointTransactionIntegrationTest`。
+- `ConfirmStockReceiptUsecase` 已移除 messaging／Inbox dependency；`StockReceiptRest` 不再建立 fabricated metadata。所有 application callers 遷移後，temporary `InboundCommand` 已從 `messaging-api` 刪除，整合測試更名為 `InboundEntrypointTransactionIntegrationTest`。
 - scheduler 仍呼叫 annotated `AllocateWaitingDemandUsecase.execute`，因此非 message caller 沒有失去 transaction owner；目前沒有 CLI caller。generic `IntegrationEventHandler` contract 留待後續 Gate，不在 ES4 擴張修改範圍。
 - messaging API／consumer common／events／Spring Boot auto-configuration tests 通過；完整 `order-promising:test` 290 tests 與 `order-promising:sit` 154 tests 全數通過。
 

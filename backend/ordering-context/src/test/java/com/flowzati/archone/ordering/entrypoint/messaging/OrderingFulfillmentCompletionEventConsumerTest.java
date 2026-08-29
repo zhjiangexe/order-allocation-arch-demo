@@ -22,7 +22,53 @@ class OrderingFulfillmentCompletionEventConsumerTest {
         OrderingFulfillmentCompletionEventConsumer consumer = new OrderingFulfillmentCompletionEventConsumer(usecase);
 
         consumer.onOutboundMovementsCompleted(new OutboundMovementsCompletedIntegrationEvent(
-                UUID.randomUUID(), UUID.randomUUID(), orderId, shipmentId, List.of(UUID.randomUUID()), completedAt));
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                orderId,
+                shipmentId,
+                List.of(UUID.randomUUID()),
+                completedAt));
+
+        verify(usecase).execute(new RecordOrderFulfillmentCommand(orderId, shipmentId, completedAt));
+    }
+
+    @Test
+    void acceptsTheMoveCentricCompletionFact() {
+        UUID orderId = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        Instant completedAt = Instant.parse("2026-08-19T10:00:00Z");
+        RecordOrderFulfillmentUsecase usecase = mock(RecordOrderFulfillmentUsecase.class);
+        OrderingFulfillmentCompletionEventConsumer consumer = new OrderingFulfillmentCompletionEventConsumer(usecase);
+
+        consumer.onOutboundMovementsCompleted(
+                new com.flowzati.archone.contracts.fulfillment.v2.OutboundMovementsCompletedIntegrationEvent(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        orderId,
+                        shipmentId,
+                        List.of(UUID.randomUUID()),
+                        completedAt));
+
+        verify(usecase).execute(new RecordOrderFulfillmentCommand(orderId, shipmentId, completedAt));
+    }
+
+    @Test
+    void acceptsTheCanonicalStockOperationCompletionFact() {
+        UUID orderId = UUID.randomUUID();
+        UUID shipmentId = UUID.randomUUID();
+        Instant completedAt = Instant.parse("2026-08-19T10:00:00Z");
+        RecordOrderFulfillmentUsecase usecase = mock(RecordOrderFulfillmentUsecase.class);
+        OrderingFulfillmentCompletionEventConsumer consumer = new OrderingFulfillmentCompletionEventConsumer(usecase);
+
+        consumer.onOutboundMovementsCompleted(
+                new com.flowzati.archone.contracts.fulfillment.v3.OutboundMovementsCompletedIntegrationEvent(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        orderId,
+                        shipmentId,
+                        List.of(UUID.randomUUID()),
+                        completedAt));
 
         verify(usecase).execute(new RecordOrderFulfillmentCommand(orderId, shipmentId, completedAt));
     }

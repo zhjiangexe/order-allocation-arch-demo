@@ -33,19 +33,54 @@ public class OrderingShipmentCancellationEventConsumer {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
                         FulfillmentChannels.SHIPMENT_EVENTS)
                 .onEvent(ShipmentCancelledIntegrationEvent.class, envelope -> onShipmentCancelled(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent.class,
+                        envelope -> onShipmentCancelled(envelope.event()))
+                .onEvent(
+                        com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent.class,
+                        envelope -> onShipmentCancelled(envelope.event()))
                 .build();
         return factory.make(OrderingEventSubscriptions.SHIPMENT_CANCELLATIONS, handlers);
     }
 
     void onShipmentCancelled(ShipmentCancelledIntegrationEvent event) {
-        Order.CancellationStatus status = cancelOrderUsecase.cancel(new CancelOrderCommand(
+        applyCancellation(
+                event.getShipmentId(),
                 event.getCancellationRequestId(),
                 event.getOrderId(),
                 event.getCancelledAt(),
-                event.getCancellationReason()));
+                event.getCancellationReason());
+    }
+
+    void onShipmentCancelled(com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent event) {
+        applyCancellation(
+                event.getShipmentId(),
+                event.getCancellationRequestId(),
+                event.getOrderId(),
+                event.getCancelledAt(),
+                event.getCancellationReason());
+    }
+
+    void onShipmentCancelled(com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent event) {
+        applyCancellation(
+                event.getShipmentId(),
+                event.getCancellationRequestId(),
+                event.getOrderId(),
+                event.getCancelledAt(),
+                event.getCancellationReason());
+    }
+
+    private void applyCancellation(
+            java.util.UUID shipmentId,
+            java.util.UUID requestId,
+            java.util.UUID orderId,
+            java.time.Instant cancelledAt,
+            String reason) {
+        Order.CancellationStatus status =
+                cancelOrderUsecase.cancel(new CancelOrderCommand(requestId, orderId, cancelledAt, reason));
         if (status == Order.CancellationStatus.REJECTED) {
             throw new IllegalStateException(
-                    "Ordering rejected cancellation after WMS cancelled Shipment: " + event.getShipmentId());
+                    "Ordering rejected cancellation after WMS cancelled Shipment: " + shipmentId);
         }
     }
 }

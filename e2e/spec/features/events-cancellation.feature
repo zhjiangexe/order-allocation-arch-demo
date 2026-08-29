@@ -8,7 +8,7 @@ Feature: Events 模式的取消流程
     * def buildStockReceiptRequest = read('support/build-stock-receipt-request.js')
 
   Scenario: 待配貨訂單取消後不會再被補貨喚醒，庫存會留給下一張有效訂單
-    # 這同時驗證 compensation 與 FIFO：已取消的 demand 必須退出競爭，不能卡住後來的訂單。
+    # 這同時驗證 compensation 與 FIFO：已取消的 stock operation 必須退出競爭，不能卡住後來的訂單。
     * def sku = 'E2E-EVT-CANCEL-PENDING'
     * def cancelledExternalOrderNo = 'KARATE-EVT-CANCEL-PENDING-' + newId()
     * def cancelledOrder = buildOrderRequest({ ownerId: ownerId, facilityId: facilityId, externalOrderNo: cancelledExternalOrderNo, lines: [{ skuCode: sku, quantity: 5 }] })
@@ -20,7 +20,7 @@ Feature: Events 模式的取消流程
 
     # 先確認訂單已穩定進入缺貨等待，且尚未建立 Shipment。
     Given path 'demo', 'orders', cancelledOrderId, 'fulfillment'
-    And retry until response.allocation != null && response.allocation.status == 'PENDING'
+    And retry until response.stockOperation != null && response.stockOperation.operation.state == 'CONFIRMED' && response.stockOperation.moves[0].batches.length == 0
     When method get
     Then status 200
 
@@ -35,9 +35,10 @@ Feature: Events 模式的取消流程
 
     # 等待 Ordering 與 Inventory 都完成取消，避免只驗到命令已受理。
     Given path 'demo', 'orders', cancelledOrderId, 'fulfillment'
-    And retry until response.order.status == 'CANCELLED' && response.allocation.status == 'CANCELLED'
+    And retry until response.order.status == 'CANCELLED' && response.stockOperation.operation.state == 'CANCELLED' && response.stockOperation.moves[0].state == 'CANCELLED'
     When method get
     Then status 200
+    And match response.stockOperation.moves[0].batches == '#[0]'
     And match response.shipments == '#[0]'
 
     # 網路 retry 重送完全相同的取消命令時，只回報既有結果，不重做 compensation。
@@ -48,7 +49,7 @@ Feature: Events 模式的取消流程
     And match response.status == 'ALREADY_CANCELLED'
     And match response.effectiveRequestId == cancellation.requestId
 
-    # 同一 SKU 的下一張有效訂單應能取得庫存，證明已取消的 demand 不再阻塞 FIFO。
+    # 同一 SKU 的下一張有效訂單應能取得庫存，證明已取消的 stock operation 不再阻塞 FIFO。
     * def liveExternalOrderNo = 'KARATE-EVT-AFTER-CANCEL-' + newId()
     * def liveOrder = buildOrderRequest({ ownerId: ownerId, facilityId: facilityId, externalOrderNo: liveExternalOrderNo, lines: [{ skuCode: sku, quantity: 5 }] })
     Given path 'orders'
@@ -57,7 +58,7 @@ Feature: Events 模式的取消流程
     Then status 200
     * def liveOrderId = response.orderId
     Given path 'demo', 'orders', liveOrderId, 'fulfillment'
-    And retry until response.allocation != null && response.allocation.status == 'PENDING'
+    And retry until response.stockOperation != null && response.stockOperation.operation.state == 'CONFIRMED' && response.stockOperation.moves[0].batches.length == 0
     When method get
     Then status 200
 

@@ -245,7 +245,7 @@ B 貨主同 SKU 有貨與此無關。
 | --- | --- |
 | `allocation/domain/service/AllocationRequest.java` | 現為 `stockQuantId, sku, availableToPromise, decisionAt`。候選節點、成本、前置時間、貨主一個都不在，需整個重定義 |
 | `allocation/domain/service/AllocationService.java` | `requireMatchingSku()` 把「一單一 SKU 對一池」寫死在 domain service；`allocate()`、`allocateWaitingBatch()` 兩支簽章須改為對節點集合；另須加 `requireMatchingOwner()` |
-| `inventory/balance/domain/aggregate/StockQuant.java` | 加 `facilityId` 與 `ownerId`；`availableToPromise()` 語意由「全網」變為「該貨主在該節點」 |
+| `inventory/position/onhand/domain/StockQuant.java` | 加 `facilityId` 與 `ownerId`；`availableToPromise()` 語意由「全網」變為「該貨主在該節點」 |
 | `ordering/domain/aggregate/Order.java` | 加 `shipToZone`；`markAllocated(Instant)` → `markAllocated(facilityId, Instant)` |
 | `allocation/domain/service/selector/AllocationContext.java` | 目前是空介面，成本函數要靠它注入 |
 
@@ -262,10 +262,10 @@ B 貨主同 SKU 有貨與此無關。
 | 類別 | 檔案 |
 | --- | --- |
 | Entity／Mapper | `StockQuantEntity`、`StockQuantMapper`、`StockReservationEntity`、`StockReservationMapper`、`OrderEntity`、`OrderMapper` |
-| Repository | `StockQuantRepository(+Impl)`、`JpaStockRepository`、`StockReservationRepository(+Impl)`、`JpaStockReservationRepository`、`OrderRepository(+Impl)`、`JpaOrderRepository` |
+| Persistence port / adapter | `StockQuantStore(+Impl)`、`JpaStockQuantRepository`、`StockReservationRepository(+Impl)`、`JpaStockReservationRepository`、`OrderRepository(+Impl)`、`JpaOrderRepository` |
 | Migration | `stock_pools` 的 unique key 由 `sku` 改為 `(owner_id, facility_id, sku)`；`orders` 加 `ship_to_zone`；新增 `facilities`、`facility_coverage`。**V2／V3 已進版本，須開新 migration 而非改原檔** |
 | Kafka | `AllocationKafkaIntegrationEventConsumer` 及各 handler |
-| REST | `StockQuantController`、`StockQuantResponse`、`OrderController`、`PlaceOrderRequest`、`OrderStatusResponse` |
+| REST | `StockQuantRest`、`StockQuantResponse`、`OrderController`、`PlaceOrderRequest`、`OrderStatusResponse` |
 | 其他 | `backend/deployments/monolith/DevSeedDataInitializer`、`e2e/perf/k6/*`、`frontend/` |
 
 規模：main 約 40 檔、測試約 20 檔、migration 新增 2 至 4 支。

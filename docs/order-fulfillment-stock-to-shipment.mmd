@@ -1,69 +1,47 @@
-%% 從接單、配貨、WMS handover 到完成出庫；producer 不因 orchestration mode 分叉。
 flowchart TB
-  subgraph O[Ordering context]
+  subgraph O[Ordering]
     PLACE[PlaceOrderUsecase]
     OP[OrderPlacedIntegrationEvent]
     PROJECT[RecordOrderAllocationUsecase]
     FINISH[RecordOrderFulfillmentUsecase<br/>Order = FULFILLED]
   end
 
-  subgraph DRIVER[由設定選擇唯一 orchestration driver]
-    MODE{archone.fulfillment.orchestration-mode}
-    EVENTS[Events consumers]
-    TEMPORAL[OrderFulfillmentWorkflow<br/>Temporal Activities / Signals]
+  subgraph DRIVER[One orchestration driver]
+    MODE{events or temporal}
+    EVENTS[Event consumers]
+    TEMPORAL[OrderFulfillmentWorkflow]
   end
 
-  subgraph I[Inventory / Allocation context]
-    ALLOCATE[AllocateOrderUsecase<br/>登記 immutable demand]
-    DEC{FIFO 隊首且<br/>所有 SKU 足夠？}
-    PENDING[Demand = PENDING<br/>不建立部分 reservation]
-    WAKE[StockAvailabilityIncreasedIntegrationEvent<br/>或 backlog scheduler]
-    RETRY[PendingDemandAllocationUsecase<br/>每次最多 commit 一筆 demand]
-    COMMIT[PendingDemandAllocator + AllocationCommitter<br/>Demand = ALLOCATED]
-    AC[OrderAllocationCommittedIntegrationEvent<br/>單一 canonical publication]
-    OUTBOUND[CompleteOutboundMovementsUsecase<br/>Move / Picking = DONE]
-    OC[OutboundMovementsCompletedIntegrationEvent]
+  subgraph I[Inventory]
+    REGISTER[Register CONFIRMED operation + moves]
+    DECIDE{FIFO clear and<br/>all SKUs sufficient?}
+    WAIT[Same moves remain CONFIRMED]
+    WAKE[Availability event or backlog scheduler]
+    ASSIGN[Assign existing moves atomically]
+    FACT[Order assignment v3<br/>stockOperationId + moves + batches]
+    COMPLETE[Complete operation<br/>Moves = DONE / Quant consumed]
+    AUDIT[Lifecycle audit Outbox]
+    OC[Outbound completion v3]
   end
 
-  subgraph W[WMS context]
-    CREATE[CreateShipmentUsecase<br/>Shipment = CREATED]
-    SIM[SimulatedWarehouseOperationsScheduler<br/>可設定 processing delay]
-    OPS[Plan / Release Wave → Pick → Pack → Stage]
-    HAND[HandOverShipmentUsecase<br/>HANDED_OVER_TO_CARRIER]
-    SH[ShipmentHandedOverIntegrationEvent]
+  subgraph W[WMS]
+    CREATE[Create Shipment by stockOperationId]
+    OPS[Wave → Pick → Pack → Stage]
+    HAND[Hand over to carrier]
+    SH[ShipmentHandedOver v3]
   end
 
   PLACE --> OP --> MODE
-  MODE -->|events| EVENTS
-  MODE -->|temporal| TEMPORAL
-  EVENTS -->|AllocationOrderPlacedEventConsumer| ALLOCATE
-  TEMPORAL -->|RequestAllocation Activity| ALLOCATE
-  ALLOCATE --> DEC
-  DEC -->|否| PENDING
-  PENDING -. 下一次可用量或補漏 .-> WAKE --> RETRY --> DEC
-  DEC -->|是| COMMIT --> AC
-
-  AC --> PROJECT
-  AC -->|events: WmsFulfillmentHandoffEventConsumer| CREATE
-  AC -->|temporal: Signal → CreateShipment Activity| TEMPORAL
-  TEMPORAL --> CREATE
-
-  CREATE --> SIM --> OPS --> HAND --> SH
-  SH -->|events: ShipmentHandoverEventConsumer| OUTBOUND
-  SH -->|temporal: Signal → CompleteOutboundMovements Activity| TEMPORAL
-  TEMPORAL --> OUTBOUND
-  OUTBOUND --> OC
-  OC -->|events: completion consumer| FINISH
-  OUTBOUND -->|temporal: RecordOrderFulfillment Activity| TEMPORAL
-  TEMPORAL --> FINISH
-
-  classDef order fill:#E8F0FE,stroke:#356AE6,color:#17336B;
-  classDef inventory fill:#E8F7EE,stroke:#2E8B57,color:#174D2E;
-  classDef wms fill:#FFF3D6,stroke:#C77D00,color:#694200;
-  classDef driver fill:#F0E8FF,stroke:#7B4BB7,color:#42245F;
-  classDef wait fill:#FDE8E8,stroke:#C0392B,color:#6B1D1D;
-  class PLACE,OP,PROJECT,FINISH order;
-  class ALLOCATE,DEC,WAKE,RETRY,COMMIT,AC,OUTBOUND,OC inventory;
-  class CREATE,SIM,OPS,HAND,SH wms;
-  class MODE,EVENTS,TEMPORAL driver;
-  class PENDING wait;
+  MODE --> EVENTS
+  MODE --> TEMPORAL
+  EVENTS --> REGISTER
+  TEMPORAL --> REGISTER
+  REGISTER --> DECIDE
+  DECIDE -- no --> WAIT
+  WAIT -. later .-> WAKE --> DECIDE
+  DECIDE -- yes --> ASSIGN --> FACT
+  FACT --> PROJECT
+  FACT --> CREATE
+  CREATE --> OPS --> HAND --> SH
+  SH --> COMPLETE --> AUDIT
+  COMPLETE --> OC --> FINISH

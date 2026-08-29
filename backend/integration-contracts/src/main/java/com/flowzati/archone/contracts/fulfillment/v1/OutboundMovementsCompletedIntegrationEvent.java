@@ -15,6 +15,7 @@ public final class OutboundMovementsCompletedIntegrationEvent extends Integratio
     public static final String EVENT_TYPE = "OutboundMovementsCompletedIntegrationEvent";
 
     private final UUID allocationId;
+    private final UUID allocationDemandId;
     private final UUID orderId;
     private final UUID shipmentId;
     private final List<UUID> movementIds;
@@ -24,12 +25,14 @@ public final class OutboundMovementsCompletedIntegrationEvent extends Integratio
     public OutboundMovementsCompletedIntegrationEvent(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("allocationId") UUID allocationId,
+            @JsonProperty("allocationDemandId") UUID allocationDemandId,
             @JsonProperty("orderId") UUID orderId,
             @JsonProperty("shipmentId") UUID shipmentId,
             @JsonProperty("movementIds") List<UUID> movementIds,
             @JsonProperty("completedAt") Instant completedAt) {
         super(eventId);
         this.allocationId = Objects.requireNonNull(allocationId, "Allocation ID is required");
+        this.allocationDemandId = Objects.requireNonNull(allocationDemandId, "Allocation demand ID is required");
         this.orderId = Objects.requireNonNull(orderId, "Order ID is required");
         this.shipmentId = Objects.requireNonNull(shipmentId, "Shipment ID is required");
         this.movementIds = List.copyOf(Objects.requireNonNull(movementIds, "Movement IDs are required"));
@@ -44,6 +47,10 @@ public final class OutboundMovementsCompletedIntegrationEvent extends Integratio
 
     public UUID getAllocationId() {
         return allocationId;
+    }
+
+    public UUID getAllocationDemandId() {
+        return allocationDemandId;
     }
 
     public UUID getOrderId() {

@@ -8,6 +8,6 @@ public enum OrderFulfillmentWorkflowAllocationState {
     /** 已要求配貨，仍未取得可交給 WMS 的 committed snapshot。 */
     WAITING_FOR_COMMITMENT,
 
-    /** 已取得可交給 WMS 的 committed allocation snapshot。 */
+    /** 已取得可交給 WMS 的 committed picking-assignment snapshot。 */
     COMMITTED
 }

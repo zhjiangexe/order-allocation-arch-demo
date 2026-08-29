@@ -1,67 +1,37 @@
 flowchart TB
-    subgraph TRIGGERS["觸發來源"]
-      direction TB
-      ORDER_EVENT([OrderPlacedIntegrationEvent])
-      STOCK_EVENT([StockAvailabilityIncreasedIntegrationEvent])
-      SCHEDULER([PendingDemandBacklogAllocationScheduler])
-    end
+  subgraph SOURCE[Source document]
+    EVENT([OrderPlacedIntegrationEvent])
+    ADAPTER[OrderStockMovementAdapter<br/>canonicalize source + lines]
+  end
 
-    subgraph ENTRIES["Application 入口／transaction owner"]
-      direction TB
-      ORDER_UC["<b>AllocateOrderUsecase</b><br/>初次路徑的 transaction owner<br/>登記需求後立即嘗試一次配置"]
-      WAITING_TX["<b>PendingDemandAllocationUsecase</b><br/>等待需求路徑的 transaction owner<br/>每次最多 commit 一筆 demand"]
-      RECONCILE_UC["<b>PendingDemandBacklogAllocationUsecase</b><br/>在 attempt／時間預算內公平推進<br/>成功 queue 進入下一輪，未成功則停止"]
-    end
+  subgraph OPERATION[Durable Inventory intent]
+    REGISTER[StockOperationRegistrar]
+    OP[CONFIRMED StockOperation<br/>source unit + policy + queue + route]
+    MOVES[CONFIRMED StockMoves<br/>source line + SKU + quantity + route]
+  end
 
-    subgraph REGISTRATION["階段 1｜登記需求（只有初次訂單路徑會走）"]
-      direction TB
-      ADAPTER["<b>OrderAllocationDemandAdapter</b><br/>order read model → common command<br/><i>只讀，不改庫存</i>"]
-      REGISTRAR["<b>AllocationDemandRegistrar</b><br/>建立或冪等重播 immutable demand"]
-      REGISTERED_STATE["階段結束狀態<br/><b>Demand = PENDING</b><br/><b>Moves / Picking = CONFIRMED</b><br/><i>尚未 reserve StockQuant</i>"]
-    end
+  subgraph PROCESS[Transient assignment process]
+    SELECT[StockOperationAssignmentCandidateFinder]
+    BLOCK{Earlier shared-SKU<br/>confirmed operation?}
+    PLAN[MovementAssignmentPlanner<br/>pure FEFO + SHIP_COMPLETE]
+    READY{Exact complete proposal?}
+    ASSIGN[StockAllocationCommitter.commit<br/>lock + revalidate + apply]
+  end
 
-    subgraph ATTEMPT["階段 2｜選需求、算供需、寫 reservation"]
-      direction TB
-      COORDINATOR["<b>PendingDemandAllocator</b><br/>首次路徑指定 demand；等待路徑指定 queue head<br/>共用 FIFO predecessors 與全部 required SKU supply"]
-      POSITION["<b>PendingDemandQueuePosition</b><br/>shared-SKU strict FIFO<br/><i>回答 demand 是否位於每條 required queue 的隊首</i>"]
-      PLANNER["<b>AllocationDemandPlanner</b><br/>aggregate preflight → FEFO batch queues<br/><i>規劃 demand / supply，不寫資料庫</i>"]
-      DECISION{"本次 plan 可 commit？"}
-      WAITING_STATE["本次結束<br/><b>Demand 仍為 PENDING</b><br/>等下一次 availability / scheduler"]
-      COMMITTER["<b>AllocationCommitter</b><br/>reserve stock → assign moves / picking<br/>→ demand ALLOCATED"]
-    end
+  subgraph DETAIL[Reservation / execution detail]
+    LINES[StockMoveLines<br/>move + quant + quantity]
+    QUANTS[StockQuants<br/>reserved counters]
+    ASSIGNED[Operation + Moves = ASSIGNED]
+    OUTBOX[Assignment Outbox<br/>operation + moves + batches]
+  end
 
-    subgraph COMPLETION["階段 3｜完成事件"]
-      direction TB
-      PUBLICATION["<b>OrderAllocationCommittedPublicationFactory</b><br/>generic result → canonical ORDER event"]
-      OUTBOX["IntegrationEventPublisher → transactional Outbox<br/>單一 OrderAllocationCommittedIntegrationEvent"]
-    end
+  subgraph WMS[Warehouse execution]
+    SHIPMENT[Shipment by stockOperationId]
+    WORK[Wave / Pick / Pack / Stage]
+  end
 
-    ORDER_EVENT --> ORDER_UC
-    ORDER_UC --> ADAPTER --> REGISTRAR --> REGISTERED_STATE
-    REGISTERED_STATE -- "tryAllocateDemand(demandId)" --> COORDINATOR
-
-    STOCK_EVENT --> WAITING_TX
-    SCHEDULER --> RECONCILE_UC
-    RECONCILE_UC -- "每輪逐個 active queue 呼叫" --> WAITING_TX
-    WAITING_TX -- "tryAllocateQueueHead(queueKey)" --> COORDINATOR
-
-    COORDINATOR --> POSITION --> PLANNER --> DECISION
-    DECISION -- "FIFO 未輪到或任一 SKU 不足" --> WAITING_STATE
-    DECISION -- "完整可行" --> COMMITTER
-    COMMITTER --> PUBLICATION --> OUTBOX
-
-    classDef trigger fill:#e8f1ff,stroke:#2563eb,color:#172554,stroke-width:1.5px;
-    classDef usecase fill:#ede9fe,stroke:#7c3aed,color:#2e1065,stroke-width:2px;
-    classDef transaction fill:#ecfeff,stroke:#0891b2,color:#164e63,stroke-width:2px;
-    classDef adapter fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
-    classDef domain fill:#ecfdf5,stroke:#059669,color:#064e3b,stroke-width:1.5px;
-    classDef state fill:#f5f3ff,stroke:#8b5cf6,color:#2e1065,stroke-width:1.5px;
-    classDef write fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:1.5px;
-
-    class ORDER_EVENT,STOCK_EVENT,SCHEDULER trigger;
-    class ORDER_UC,RECONCILE_UC usecase;
-    class WAITING_TX transaction;
-    class ADAPTER,REGISTRAR,COORDINATOR,PUBLICATION adapter;
-    class POSITION,PLANNER domain;
-    class REGISTERED_STATE,WAITING_STATE state;
-    class COMMITTER,OUTBOX write;
+  EVENT --> ADAPTER --> REGISTER --> OP --> MOVES --> SELECT --> BLOCK
+  BLOCK -- yes --> MOVES
+  BLOCK -- no --> PLAN --> READY
+  READY -- no --> MOVES
+  READY -- yes --> ASSIGN --> QUANTS --> LINES --> ASSIGNED --> OUTBOX --> SHIPMENT --> WORK

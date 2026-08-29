@@ -39,25 +39,25 @@ partition "可靠訊息與 orchestration driver" {
   endif
 }
 
-partition "Inventory：Demand / Reservation" {
+partition "Inventory：Operation / Assignment" {
   :AllocateOrderUsecase; <<#E2F0D9>>
-  :Acceptance 建立或重播
-  immutable AllocationDemand; <<#E2F0D9>>
+  :Source adapter 登記或重播
+  CONFIRMED StockOperation + StockMove; <<#E2F0D9>>
 
-  while (整張 demand 的所有 SKU\n都有足夠 supply？) is (否)
-    :Demand 保持 PENDING
-    不建立部分 reservation; <<#FFF7D6>>
+  while (整個 operation 的所有 moves\n都有足夠 supply？) is (否)
+    :Operation + moves 保持 CONFIRMED
+    不建立部分 move line; <<#FFF7D6>>
     :入庫／可用量增加
-    喚醒 PendingDemandBacklogAllocationUsecase; <<#E8F1FF>>
-    :依 FIFO 重選 demand；
-    Planner 重新比較 supply/demand; <<#E2F0D9>>
+    喚醒 StockOperationBacklogReconciler; <<#E8F1FF>>
+    :StockOperationAssignmentCandidateFinder 依 FIFO 重選 operation；
+    Planner 重新比較 immutable move/quant facts; <<#E2F0D9>>
   endwhile (是)
 
-  :Planner 依 canonical line + FEFO
-  建立 allocation plan; <<#E2F0D9>>
-  :Committer 以 optimistic lock 驗證並提交
-  StockQuant reservation + Move + Picking; <<#E2F0D9>>
-  :Demand = ALLOCATED；
+  :MovementAssignmentPlanner 依 move + FEFO
+  建立 non-durable proposal; <<#E2F0D9>>
+  :StockAllocationCommitter lock/revalidate 並提交
+  StockMoveLine + StockQuant reservation + assigned states; <<#E2F0D9>>
+  :Operation = ASSIGNED；
   OrderAllocationCommittedIntegrationEvent Outbox; <<#E2F0D9>>
 }
 
@@ -87,7 +87,7 @@ partition "可靠訊息與 WMS handoff" {
 
 partition "WMS：Shipment 與倉內作業" {
   :CreateShipmentUsecase
-  以 allocationId 冪等建立 Shipment; <<#E2F0D9>>
+  以 stockOperationId 冪等建立 Shipment; <<#E2F0D9>>
   :Shipment = CREATED; <<#E2F0D9>>
 
   if (Shipment 存在後收到 cancellation？) then (是)
@@ -181,7 +181,7 @@ partition "可靠訊息與 completion driver" {
 partition "Inventory：正式出庫扣帳" {
   :CompleteOutboundMovementsUsecase; <<#E2F0D9>>
   :依既有 MoveLine 扣 reserved + on-hand；
-  Move／Picking = DONE; <<#E2F0D9>>
+  Move／Operation = DONE; <<#E2F0D9>>
   :OutboundMovementsCompletedIntegrationEvent Outbox; <<#E2F0D9>>
 }
 

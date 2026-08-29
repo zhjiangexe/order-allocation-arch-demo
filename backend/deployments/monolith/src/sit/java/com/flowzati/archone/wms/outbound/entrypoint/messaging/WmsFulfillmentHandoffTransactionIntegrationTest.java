@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
@@ -72,9 +72,9 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
     @Test
     void commitsInboxAndShipmentOnceForADuplicateDelivery() {
         UUID eventId = UUID.randomUUID();
-        UUID allocationId = UUID.randomUUID();
+        UUID stockOperationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        var event = event(eventId, allocationId, orderId);
+        var event = event(eventId, stockOperationId, orderId);
 
         emit(event);
         emit(event);
@@ -82,7 +82,8 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         assertThat(inboxCount(eventId)).isOne();
         assertThat(count("wms_shipments")).isOne();
         assertThat(count("wms_shipment_lines")).isOne();
-        assertThat(shipmentRepository.findByAllocationId(allocationId)).hasValueSatisfying(shipment -> {
+        assertThat(shipmentRepository.findByStockOperationId(stockOperationId)).hasValueSatisfying(shipment -> {
+            assertThat(shipment.stockOperationId()).isEqualTo(stockOperationId);
             assertThat(shipment.orderId()).isEqualTo(orderId);
             assertThat(shipment.status()).isEqualTo(ShipmentStatus.CREATED);
             assertThat(shipment.releasePriority()).isEqualTo(80);
@@ -91,12 +92,12 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
     }
 
     @Test
-    void keepsBusinessIdempotencyWhenTheSameAllocationIsRepublishedWithANewEventId() {
-        UUID allocationId = UUID.randomUUID();
+    void keepsBusinessIdempotencyWhenTheSamePickingIsRepublishedWithANewEventId() {
+        UUID stockOperationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID firstEventId = UUID.randomUUID();
         UUID secondEventId = UUID.randomUUID();
-        var first = event(firstEventId, allocationId, orderId);
+        var first = event(firstEventId, stockOperationId, orderId);
 
         emit(first);
         emit(copyWithEventId(first, secondEventId));
@@ -109,14 +110,13 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
 
     @Test
     void recoversADueShipmentFromPersistenceAndCompletesTheSimulatedWarehouseFlowOnce() {
-        UUID allocationId = UUID.randomUUID();
+        UUID stockOperationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        emit(event(UUID.randomUUID(), allocationId, orderId));
+        emit(event(UUID.randomUUID(), stockOperationId, orderId));
         UUID shipmentId = shipmentRepository
-                .findByAllocationId(allocationId)
+                .findByStockOperationId(stockOperationId)
                 .orElseThrow()
                 .id();
-
         processDueShipmentsUsecase.execute();
         processDueShipmentsUsecase.execute();
 
@@ -133,14 +133,14 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
 
     @Test
     void commitsCompletedCancellationMetadataAndItsCanonicalOutboxEventOnce() {
-        UUID allocationId = UUID.randomUUID();
+        UUID stockOperationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID requestId = UUID.randomUUID();
         Instant requestedAt = Instant.parse("2026-08-12T09:00:00Z");
         String reason = "Customer changed mind";
-        emit(event(UUID.randomUUID(), allocationId, orderId));
+        emit(event(UUID.randomUUID(), stockOperationId, orderId));
         UUID shipmentId = shipmentRepository
-                .findByAllocationId(allocationId)
+                .findByStockOperationId(stockOperationId)
                 .orElseThrow()
                 .id();
 
@@ -162,6 +162,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         assertThat(jdbcTemplate.queryForMap("""
                         SELECT type, route, partition_key,
                                payload ->> 'shipmentId' AS shipment_id,
+                               payload ->> 'stockOperationId' AS stock_operation_id,
                                payload ->> 'orderId' AS order_id,
                                payload ->> 'cancellationRequestId' AS cancellation_request_id,
                                payload ->> 'cancellationRequestedAt' AS cancellation_requested_at,
@@ -174,6 +175,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                 .containsEntry("route", FulfillmentChannels.SHIPMENT_EVENTS)
                 .containsEntry("partition_key", orderId.toString())
                 .containsEntry("shipment_id", shipmentId.toString())
+                .containsEntry("stock_operation_id", stockOperationId.toString())
                 .containsEntry("order_id", orderId.toString())
                 .containsEntry("cancellation_request_id", requestId.toString())
                 .containsEntry("cancellation_requested_at", requestedAt.toString())
@@ -191,25 +193,33 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                 .withId(event.getEventId())
                 .withType(event.eventType())
                 .withPartitionId(event.getOrderId().toString())
-                .withMessageDate(event.getCommittedAt())
+                .withMessageDate(event.getAssignedAt())
                 .withHeader(EventMessageHeaders.EVENT_TYPE, event.eventType())
                 .withHeader(EventMessageHeaders.EVENT_AGGREGATE_TYPE, "Order")
                 .withHeader(
                         EventMessageHeaders.EVENT_AGGREGATE_ID,
                         event.getOrderId().toString())
-                .withHeader(EventMessageHeaders.EVENT_CONTRACT_VERSION, "1")
+                .withHeader(EventMessageHeaders.EVENT_CONTRACT_VERSION, "2")
                 .build();
     }
 
-    private OrderAllocationCommittedIntegrationEvent event(UUID eventId, UUID allocationId, UUID orderId) {
+    private OrderAllocationCommittedIntegrationEvent event(UUID eventId, UUID stockOperationId, UUID orderId) {
+        UUID sourceLocationId = UUID.randomUUID();
         return new OrderAllocationCommittedIntegrationEvent(
                 eventId,
-                allocationId,
+                stockOperationId,
                 orderId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
-                        UUID.randomUUID(), UUID.randomUUID(), "SKU-1", UUID.randomUUID(), 3)),
+                UUID.randomUUID(),
+                sourceLocationId,
+                UUID.randomUUID(),
+                List.of(new OrderAllocationCommittedIntegrationEvent.AssignedMove(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "SKU-1",
+                        3,
+                        List.of(new OrderAllocationCommittedIntegrationEvent.BatchPick(UUID.randomUUID(), 3)))),
                 Instant.parse("2026-08-12T08:00:00Z"),
                 80,
                 Instant.parse("2026-08-11T01:00:00Z"));
@@ -219,14 +229,17 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
             OrderAllocationCommittedIntegrationEvent event, UUID eventId) {
         return new OrderAllocationCommittedIntegrationEvent(
                 eventId,
-                event.getAllocationId(),
+                event.getPickingId(),
                 event.getOrderId(),
                 event.getOwnerId(),
                 event.getFacilityId(),
-                event.getLines(),
+                event.getPickingTypeId(),
+                event.getSourceLocationId(),
+                event.getDestinationLocationId(),
+                event.getMoves(),
                 event.getDispatchBy(),
                 event.getReleasePriority(),
-                event.getCommittedAt());
+                event.getAssignedAt());
     }
 
     private int inboxCount(UUID eventId) {

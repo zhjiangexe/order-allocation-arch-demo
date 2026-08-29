@@ -5,7 +5,7 @@ public enum OrderFulfillmentWorkflowPhase {
     /** Workflow 尚未進入履約流程；主要供啟動前的 Query 顯示。 */
     NOT_STARTED,
 
-    /** 正在要求配貨，或等待可交給 WMS 的 committed allocation。 */
+    /** 正在要求配貨，或等待可交給 WMS 的 committed picking assignment。 */
     ALLOCATION,
 
     /** 正在呼叫 WMS 冪等建立 Shipment。 */

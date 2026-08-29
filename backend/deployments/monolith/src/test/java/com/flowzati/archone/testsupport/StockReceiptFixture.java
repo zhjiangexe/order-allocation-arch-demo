@@ -1,8 +1,8 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.inventory.balance.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
-import com.flowzati.archone.inventory.balance.domain.aggregate.StockFixtures;
+import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 
 /** 整合測試直接驅動本地同步收貨邊界，不再偽造外部 availability integration event。 */
 public final class StockReceiptFixture {

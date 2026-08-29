@@ -1,0 +1,29 @@
+package com.flowzati.archone.inventory.movement.application.usecase;
+
+import com.flowzati.archone.inventory.movement.application.command.CancelSourceStockMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
+import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationStatus;
+import org.springframework.stereotype.Service;
+
+/** Resolves a source document identity once, then delegates to the operation-targeted lifecycle. */
+@Service
+public class CancelSourceStockMovementsUsecase {
+
+    private final StockOperationStore stockOperationStore;
+    private final CancelStockOperationUsecase cancelStockOperation;
+
+    public CancelSourceStockMovementsUsecase(
+            StockOperationStore stockOperationStore, CancelStockOperationUsecase cancelStockOperation) {
+        this.stockOperationStore = stockOperationStore;
+        this.cancelStockOperation = cancelStockOperation;
+    }
+
+    public StockOperationCancellationStatus execute(CancelSourceStockMovementsCommand command) {
+        return stockOperationStore
+                .findBySource(command.source())
+                .map(operation -> cancelStockOperation.execute(new CancelStockOperationCommand(
+                        operation.id(), command.cancellationOperationId(), command.warehouseCancellationCheckpoint())))
+                .orElse(StockOperationCancellationStatus.COMPLETED);
+    }
+}

@@ -16,9 +16,9 @@ Feature: Temporal workflow 的取消分支
     Then status 200
     * def orderId = response.orderId
 
-    # 先確認 workflow 正在等待 allocation，且尚未建立 Shipment。
+    # 先確認 workflow 正在等待 assignment，且 stock operation 尚未保留 batch、也未建立 Shipment。
     Given path 'demo', 'orders', orderId, 'fulfillment'
-    And retry until response.allocation != null && response.allocation.status == 'PENDING' && response.workflow != null
+    And retry until response.stockOperation != null && response.stockOperation.operation.state == 'CONFIRMED' && response.stockOperation.moves[0].batches.length == 0 && response.workflow != null
     When method get
     Then status 200
     And match response.shipments == '#[0]'
@@ -33,7 +33,7 @@ Feature: Temporal workflow 的取消分支
 
     # 等待 workflow、Ordering 與 Inventory 一起收斂到取消終態。
     Given path 'demo', 'orders', orderId, 'fulfillment'
-    And retry until response.order.status == 'CANCELLED' && response.allocation.status == 'CANCELLED' && response.workflow.outcome == 'ORDER_CANCELLED'
+    And retry until response.order.status == 'CANCELLED' && response.stockOperation.operation.state == 'CANCELLED' && response.stockOperation.moves[0].state == 'CANCELLED' && response.workflow.outcome == 'ORDER_CANCELLED'
     When method get
     Then status 200
     And match response.shipments == '#[0]'
@@ -67,7 +67,7 @@ Feature: Temporal workflow 的取消分支
 
     # 202 只代表已受理；輪詢直到 workflow 與三個業務狀態都完成 compensation。
     Given path 'demo', 'orders', orderId, 'fulfillment'
-    And retry until response.order.status == 'CANCELLED' && response.allocation.status == 'CANCELLED' && response.shipments[0].status == 'CANCELLED' && response.workflow.outcome == 'ORDER_CANCELLED'
+    And retry until response.order.status == 'CANCELLED' && response.stockOperation.operation.state == 'CANCELLED' && response.stockOperation.moves[0].state == 'CANCELLED' && response.stockOperation.moves[0].batches.length == 0 && response.shipments[0].status == 'CANCELLED' && response.workflow.outcome == 'ORDER_CANCELLED'
     When method get
     Then status 200
     And match response.shipments[0].cancellationState == 'COMPLETED'

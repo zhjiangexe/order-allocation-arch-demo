@@ -13,6 +13,8 @@ public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
     public static final String EVENT_TYPE = "ShipmentCancelledIntegrationEvent";
 
     private final UUID shipmentId;
+    private final UUID allocationId;
+    private final UUID allocationDemandId;
     private final UUID orderId;
     private final UUID cancellationRequestId;
     private final Instant cancellationRequestedAt;
@@ -23,6 +25,8 @@ public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
     public ShipmentCancelledIntegrationEvent(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("shipmentId") UUID shipmentId,
+            @JsonProperty("allocationId") UUID allocationId,
+            @JsonProperty("allocationDemandId") UUID allocationDemandId,
             @JsonProperty("orderId") UUID orderId,
             @JsonProperty("cancellationRequestId") UUID cancellationRequestId,
             @JsonProperty("cancellationRequestedAt") Instant cancellationRequestedAt,
@@ -30,6 +34,8 @@ public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
             @JsonProperty("cancelledAt") Instant cancelledAt) {
         super(eventId);
         this.shipmentId = Objects.requireNonNull(shipmentId, "Shipment ID is required");
+        this.allocationId = Objects.requireNonNull(allocationId, "Allocation ID is required");
+        this.allocationDemandId = Objects.requireNonNull(allocationDemandId, "Allocation demand ID is required");
         this.orderId = Objects.requireNonNull(orderId, "Order ID is required");
         this.cancellationRequestId =
                 Objects.requireNonNull(cancellationRequestId, "Cancellation request ID is required");
@@ -47,6 +53,14 @@ public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
 
     public UUID getShipmentId() {
         return shipmentId;
+    }
+
+    public UUID getAllocationId() {
+        return allocationId;
+    }
+
+    public UUID getAllocationDemandId() {
+        return allocationDemandId;
     }
 
     public UUID getOrderId() {

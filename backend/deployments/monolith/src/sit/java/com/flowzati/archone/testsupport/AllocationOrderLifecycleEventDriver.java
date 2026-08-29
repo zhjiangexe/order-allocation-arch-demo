@@ -4,11 +4,13 @@ import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
-import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
+import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEventMessageMapper;
+import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.PublicationTarget;
@@ -31,9 +33,10 @@ public class AllocationOrderLifecycleEventDriver {
 
     public AllocationOrderLifecycleEventDriver(
             IntegrationEventSerializer serializer,
+            IntegrationEventNameMapping nameMapping,
             ChannelMapping channelMapping,
             ControllableMessageConsumerImplementation transport) {
-        this.messageMapper = new IntegrationEventMessageMapper(serializer);
+        this.messageMapper = new IntegrationEventMessageMapper(serializer, nameMapping);
         this.transport = transport;
         this.physicalDestination = channelMapping.transform(OrderingChannels.ORDER_EVENTS);
     }
@@ -53,8 +56,8 @@ public class AllocationOrderLifecycleEventDriver {
                 new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId),
                 occurredAt);
         String subscriberId = event instanceof OrderCancelledIntegrationEvent
-                ? AllocationEventSubscriptions.ORDER_CANCELLATIONS
-                : AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER;
+                ? MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS
+                : ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER;
         transport.emit(subscriberId, physicalDestination, messageMapper.toMessage(publication), 1);
     }
 }

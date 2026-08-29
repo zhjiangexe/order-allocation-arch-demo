@@ -12,7 +12,7 @@ import java.util.UUID;
 /**
  * 從訂單可靠成立後開始，協調 Order Promising 與 WMS 的粗粒度履約主線。
  *
- * <p>Workflow 不擁有 Order、Allocation 或 Shipment aggregate；它只保存跨 bounded context
+ * <p>Workflow 不擁有 Order、StockOperation 或 Shipment aggregate；它只保存跨 bounded context
  * checkpoint。各 Signal 由 integration adapter 將既有的 Integration Event 映射而來。
  */
 @WorkflowInterface
@@ -30,9 +30,14 @@ public interface OrderFulfillmentWorkflow {
     @WorkflowMethod(name = WORKFLOW_TYPE)
     OrderFulfillmentWorkflowResult execute(OrderFulfillmentWorkflowInput input);
 
-    /** 接收可交給 WMS 的最終 committed allocation snapshot。 */
-    @SignalMethod(name = "allocationCommitted")
-    void allocationCommitted(AllocationSnapshot allocation);
+    /** 接收可交給 WMS 的 canonical assigned stock-operation snapshot。 */
+    @SignalMethod(name = "stockOperationAssigned")
+    void stockOperationAssigned(StockOperationAssignmentSnapshot assignment);
+
+    /** Legacy history-visible signal；只供 compatibility replay 使用。 */
+    @Deprecated(forRemoval = false)
+    @SignalMethod(name = "pickingAssigned")
+    void pickingAssigned(PickingAssignmentSnapshot assignment);
 
     /**
      * 接收 {@code ShipmentHandedOverToCarrierSignal} 業務事實；Workflow 隨後要求 Stock context

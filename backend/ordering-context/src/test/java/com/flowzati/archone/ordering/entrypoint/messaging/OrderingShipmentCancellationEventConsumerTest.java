@@ -61,6 +61,8 @@ class OrderingShipmentCancellationEventConsumerTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
                 requestedAt,
                 "customer request",
                 requestedAt.plusSeconds(30));

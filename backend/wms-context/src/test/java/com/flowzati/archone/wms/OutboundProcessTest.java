@@ -3,8 +3,8 @@ package com.flowzati.archone.wms;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
@@ -108,13 +108,13 @@ class OutboundProcessTest {
     }
 
     @Test
-    void returnsTheSameShipmentIdWhenTheAllocationCommandIsRetried() {
+    void returnsTheSameShipmentIdWhenThePickingCommandIsRetried() {
         CreateShipmentCommand firstCommand = createShipmentCommand(nextId(), nextId(), 70, T0.plusSeconds(3_600));
 
         CreateShipmentResult first = createShipment.handle(firstCommand);
         CreateShipmentCommand retry = new CreateShipmentCommand(
                 nextId(),
-                firstCommand.allocationId(),
+                firstCommand.stockOperationId(),
                 firstCommand.orderId(),
                 firstCommand.ownerId(),
                 firstCommand.facilityId(),
@@ -125,7 +125,7 @@ class OutboundProcessTest {
         CreateShipmentResult replayed = createShipment.handle(retry);
 
         assertThat(replayed.shipmentId()).isEqualTo(first.shipmentId());
-        assertThat(shipmentRepository.findByAllocationId(firstCommand.allocationId()))
+        assertThat(shipmentRepository.findByStockOperationId(firstCommand.stockOperationId()))
                 .hasValueSatisfying(shipment -> assertThat(shipment.id()).isEqualTo(first.shipmentId()));
     }
 
@@ -355,16 +355,16 @@ class OutboundProcessTest {
     }
 
     private CreateShipmentCommand createShipmentCommand(
-            UUID shipmentId, UUID allocationId, int releasePriority, Instant dispatchBy) {
+            UUID shipmentId, UUID stockOperationId, int releasePriority, Instant dispatchBy) {
         return new CreateShipmentCommand(
                 shipmentId,
-                allocationId,
+                stockOperationId,
                 nextId(),
                 OWNER_ID,
                 FACILITY_ID,
                 List.of(
-                        new CreateShipmentCommand.AllocationLine(nextId(), nextId(), "SKU-A", nextId(), 3),
-                        new CreateShipmentCommand.AllocationLine(nextId(), nextId(), "SKU-B", nextId(), 2)),
+                        new CreateShipmentCommand.MovementLine(nextId(), nextId(), "SKU-A", nextId(), 3),
+                        new CreateShipmentCommand.MovementLine(nextId(), nextId(), "SKU-B", nextId(), 2)),
                 dispatchBy,
                 releasePriority,
                 T0);
@@ -398,9 +398,9 @@ class OutboundProcessTest {
         }
 
         @Override
-        public Optional<Shipment> findByAllocationId(UUID allocationId) {
+        public Optional<Shipment> findByStockOperationId(UUID stockOperationId) {
             return shipments.values().stream()
-                    .filter(shipment -> shipment.allocationId().equals(allocationId))
+                    .filter(shipment -> shipment.stockOperationId().equals(stockOperationId))
                     .findFirst();
         }
 

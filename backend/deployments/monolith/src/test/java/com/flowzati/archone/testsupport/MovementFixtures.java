@@ -1,17 +1,17 @@
 package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.PickingDefinition;
-import com.flowzati.archone.inventory.warehouse.domain.aggregate.StockLocation;
-import com.flowzati.archone.inventory.warehouse.domain.type.LocationUsageType;
-import com.flowzati.archone.inventory.warehouse.domain.type.PickingDirection;
+import com.flowzati.archone.inventory.location.domain.LocationUsageType;
+import com.flowzati.archone.inventory.location.domain.StockLocation;
+import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.StockOperationType;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 /**
  * 搬運與作業類型的測試資料。
@@ -42,21 +42,21 @@ public final class MovementFixtures {
     private MovementFixtures() {}
 
     /** 測試倉的出庫類型：庫存位置 → 客戶。 */
-    public static PickingDefinition outboundType() {
+    public static StockOperationType outboundType() {
         return outboundTypeAt(OUTBOUND_TYPE_ID, OrderFixtures.FACILITY_ID, OrderFixtures.LOCATION_ID);
     }
 
-    public static PickingDefinition outboundTypeAt(UUID id, UUID facilityId, UUID stockLocationId) {
-        return new PickingDefinition(
-                id, facilityId, PickingDirection.OUTBOUND, "出貨", stockLocationId, CUSTOMERS_LOCATION_ID);
+    public static StockOperationType outboundTypeAt(UUID id, UUID facilityId, UUID stockLocationId) {
+        return new StockOperationType(
+                id, facilityId, StockOperationDirection.OUTBOUND, "出貨", stockLocationId, CUSTOMERS_LOCATION_ID);
     }
 
     /** 測試倉的入庫類型：供應商 → 庫存位置。方向與出庫相反。 */
-    public static PickingDefinition inboundType() {
-        return new PickingDefinition(
+    public static StockOperationType inboundType() {
+        return new StockOperationType(
                 INBOUND_TYPE_ID,
                 OrderFixtures.FACILITY_ID,
-                PickingDirection.INBOUND,
+                StockOperationDirection.INBOUND,
                 "收貨",
                 SUPPLIERS_LOCATION_ID,
                 OrderFixtures.LOCATION_ID);
@@ -79,29 +79,6 @@ public final class MovementFixtures {
         return StockLocation.internal(OrderFixtures.LOCATION_ID, OrderFixtures.FACILITY_ID, "WH-TEST/Stock", "測試倉／庫存");
     }
 
-    /** 一段還在等貨的出庫搬運。 */
-    public static StockMove waitingMove(
-            UUID pickingId, String skuCode, UUID orderLineId, int quantity, Instant createdAt) {
-        return StockMove.confirmed(
-                IdGenerator.nextId(),
-                pickingId,
-                OrderFixtures.OWNER_ID,
-                skuCode,
-                OrderFixtures.LOCATION_ID,
-                CUSTOMERS_LOCATION_ID,
-                orderLineId,
-                quantity,
-                createdAt);
-    }
-
-    /** 一段已配到貨的出庫搬運。 */
-    public static StockMove assignedMove(
-            UUID pickingId, String skuCode, UUID orderLineId, int quantity, Instant createdAt) {
-        StockMove move = waitingMove(pickingId, skuCode, orderLineId, quantity, createdAt);
-        move.assign(createdAt);
-        return move;
-    }
-
     // ---------------------------------------------------------------------------------------
     // 整合測試用：直接以 SQL 造出／讀出搬運
     // ---------------------------------------------------------------------------------------
@@ -109,111 +86,49 @@ public final class MovementFixtures {
     /** 這張單目前鎖住的一筆量。取代舊的「一筆有效預留」。 */
     public record HeldQuantity(UUID stockQuantId, int quantity) {}
 
-    /**
-     * <b>為一張已經在佇列裡的單補上作業單與還在等貨的搬運。</b>
-     *
-     * <p>收單即建搬運改變了這些 fixture 的前提：以 {@code orderRepository.save(backorderedOrder(…))}
-     * 直接造出來的缺貨單**沒有搬運，因此不在待配佇列裡**——補貨喚醒讀的是搬運，不是訂單。少了
-     * 這一步，那些測試會安靜地什麼都沒配到。
-     *
-     * <p>以 SQL 而非 repository 寫入：這是被測路徑的前置狀態，不該牽動被測的那條路徑。
-     */
-    public static UUID seedWaitingPicking(JdbcTemplate jdbcTemplate, Order order) {
-        UUID facilityId = order.getDeliveryTerms().facilityId();
-        // 作業類型由單的倉決定，呼叫端不必指定——跨倉的測試最容易踩的錯是「單在第二個倉、搬運
-        // 卻建在第一個倉」，那樣佇列查詢會查不到而症狀只是「什麼都沒配到」。
-        UUID pickingTypeId;
-        UUID fromLocationId;
-        if (facilityId.equals(OrderFixtures.FACILITY_ID)) {
-            pickingTypeId = OUTBOUND_TYPE_ID;
-            fromLocationId = OrderFixtures.LOCATION_ID;
-        } else if (facilityId.equals(OrderFixtures.OTHER_FACILITY_ID)) {
-            pickingTypeId = OTHER_OUTBOUND_TYPE_ID;
-            fromLocationId = OrderFixtures.OTHER_LOCATION_ID;
-        } else {
-            throw new IllegalArgumentException("No fixture operation type for warehouse " + facilityId);
-        }
+    /** 單行 scenario 的 canonical identity 對照：source → operation → move → move line。 */
+    public record AssignedPickingScenario(UUID sourceId, UUID sourceLineId, UUID stockOperationId, UUID movementId) {}
 
-        java.util.Map<UUID, UUID> allocationLines =
-                seedAllocationDemand(jdbcTemplate, order, fromLocationId, "PENDING");
-        UUID allocationDemandId =
-                jdbcTemplate.queryForObject("""
-        SELECT id FROM allocation_demands
-         WHERE source_type = 'ORDER' AND source_id = ? AND allocation_unit_key = 'PRIMARY'
-        """, UUID.class, order.getId().toString());
-        UUID pickingId = IdGenerator.nextId();
-        insertPicking(jdbcTemplate, pickingId, order, pickingTypeId, fromLocationId);
-        order.getLines()
-                .forEach(line -> jdbcTemplate.update(
-                        """
-        INSERT INTO stock_moves
-            (id, picking_id, owner_id, sku_code, from_location_id, to_location_id,
-             allocation_demand_id, allocation_demand_line_id, source_line_id,
-             order_line_id, demand_quantity, state, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?)
-        """,
-                        IdGenerator.nextId(),
-                        pickingId,
-                        order.getOwnerId(),
-                        line.getSkuCode(),
-                        fromLocationId,
-                        CUSTOMERS_LOCATION_ID,
-                        allocationDemandId,
-                        allocationLines.get(line.getId()),
-                        line.getId().toString(),
-                        line.getId(),
-                        line.getQuantity(),
-                        java.sql.Timestamp.from(order.getReceivedAt())));
-        return pickingId;
+    /** Seeds one confirmed operation and one confirmed move per order line. */
+    public static UUID seedConfirmedPicking(JdbcTemplate jdbcTemplate, Order order) {
+        return inTransaction(jdbcTemplate, transaction -> seedPicking(transaction, order, "CONFIRMED"));
     }
 
-    /**
-     * 一張**已在佇列裡**的單：訂單本體，加上它的作業單與還在等貨的搬運。
-     *
-     * <p>兩者要一起寫，因為「在佇列裡」現在的定義就是「有還在等貨的搬運」——只存訂單造出來的
-     * 是一張任何佇列都看不見的單。合成一個入口，是為了讓那個不變式沒有辦法被漏掉。
-     */
-    public static Order saveQueuedOrder(OrderRepository orderRepository, JdbcTemplate jdbcTemplate, Order order) {
+    /** 一張已進入 assignment queue 的單：訂單 source 與 canonical confirmed movements。 */
+    public static Order saveConfirmedPickingOrder(
+            OrderRepository orderRepository, JdbcTemplate jdbcTemplate, Order order) {
         orderRepository.save(order);
-        seedWaitingPicking(jdbcTemplate, order);
+        seedConfirmedPicking(jdbcTemplate, order);
         return order;
     }
 
-    /**
-     * 一張已配到貨的單：作業單 + 已鎖定的搬運 + 指向那一批的明細。
-     *
-     * <p>取消與釋放的測試要從這個狀態出發。單行才有意義——多行各自跨批的情形由單元測試蓋。
-     */
-    public static UUID seedAssignedPicking(JdbcTemplate jdbcTemplate, Order order, UUID stockQuantId, int quantity) {
-        java.util.Map<UUID, UUID> allocationLines =
-                seedAllocationDemand(jdbcTemplate, order, OrderFixtures.LOCATION_ID, "ALLOCATED");
-        UUID allocationDemandId =
-                jdbcTemplate.queryForObject("""
-        SELECT id FROM allocation_demands
-         WHERE source_type = 'ORDER' AND source_id = ? AND allocation_unit_key = 'PRIMARY'
-        """, UUID.class, order.getId().toString());
-        UUID pickingId = IdGenerator.nextId();
+    /** 一張已配到貨的單：assigned operation/move + 指向庫存批次的 move line。 */
+    public static AssignedPickingScenario seedAssignedPicking(
+            JdbcTemplate jdbcTemplate, Order order, UUID stockQuantId, int quantity) {
+        return inTransaction(
+                jdbcTemplate, transaction -> createAssignedPicking(transaction, order, stockQuantId, quantity));
+    }
+
+    private static AssignedPickingScenario createAssignedPicking(
+            JdbcTemplate jdbcTemplate, Order order, UUID stockQuantId, int quantity) {
+        UUID stockOperationId = seedPicking(jdbcTemplate, order, "ASSIGNED");
         UUID moveId = IdGenerator.nextId();
         var line = order.getLines().getFirst();
-        insertPicking(jdbcTemplate, pickingId, order, OUTBOUND_TYPE_ID, OrderFixtures.LOCATION_ID);
+        jdbcTemplate.update("DELETE FROM stock_moves WHERE stock_operation_id = ?", stockOperationId);
         jdbcTemplate.update(
                 """
         INSERT INTO stock_moves
-            (id, picking_id, owner_id, sku_code, from_location_id, to_location_id,
-             allocation_demand_id, allocation_demand_line_id, source_line_id,
-             order_line_id, demand_quantity, state, created_at, assigned_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ASSIGNED', ?, ?)
+            (id, stock_operation_id, owner_id, sku_code, from_location_id, to_location_id,
+             source_line_id, line_sequence, demand_quantity, state, created_at, assigned_at, version)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 'ASSIGNED', ?, ?, 0)
         """,
                 moveId,
-                pickingId,
+                stockOperationId,
                 order.getOwnerId(),
                 line.getSkuCode(),
                 OrderFixtures.LOCATION_ID,
                 CUSTOMERS_LOCATION_ID,
-                allocationDemandId,
-                allocationLines.get(line.getId()),
                 line.getId().toString(),
-                line.getId(),
                 line.getQuantity(),
                 java.sql.Timestamp.from(order.getReceivedAt()),
                 java.sql.Timestamp.from(order.getReceivedAt()));
@@ -221,91 +136,128 @@ public final class MovementFixtures {
         INSERT INTO stock_move_lines (id, move_id, stock_pool_id, quantity)
         VALUES (?, ?, ?, ?)
         """, IdGenerator.nextId(), moveId, stockQuantId, quantity);
-        return moveId;
+        int updated = jdbcTemplate.update(
+                "UPDATE stock_pools SET reserved_quantity = reserved_quantity + ?, version = version + 1 WHERE id = ?",
+                quantity,
+                stockQuantId);
+        if (updated != 1) {
+            throw new IllegalArgumentException("Stock quant does not exist: " + stockQuantId);
+        }
+        return new AssignedPickingScenario(order.getId(), line.getId(), stockOperationId, moveId);
     }
 
-    private static java.util.Map<UUID, UUID> seedAllocationDemand(
-            JdbcTemplate jdbcTemplate, Order order, UUID sourceLocationId, String status) {
-        UUID demandId = IdGenerator.nextId();
+    private static UUID seedPicking(JdbcTemplate jdbcTemplate, Order order, String state) {
+        UUID stockOperationId = IdGenerator.nextId();
+        UUID facilityId = order.getDeliveryTerms().facilityId();
+        UUID fromLocationId;
+        UUID stockOperationTypeId;
+        if (facilityId.equals(OrderFixtures.FACILITY_ID)) {
+            fromLocationId = OrderFixtures.LOCATION_ID;
+            stockOperationTypeId = OUTBOUND_TYPE_ID;
+        } else if (facilityId.equals(OrderFixtures.OTHER_FACILITY_ID)) {
+            fromLocationId = OrderFixtures.OTHER_LOCATION_ID;
+            stockOperationTypeId = OTHER_OUTBOUND_TYPE_ID;
+        } else {
+            throw new IllegalArgumentException("No fixture operation type for warehouse " + facilityId);
+        }
         jdbcTemplate.update(
                 """
-        INSERT INTO allocation_demands
-            (id, source_type, source_id, allocation_unit_key,
-             owner_id, facility_id, location_id, required_by, release_priority,
-             enqueued_at, accepted_content_version, status, version)
-        VALUES (?, 'ORDER', ?, 'PRIMARY', ?, ?, ?, ?, ?, ?, 1, ?, 0)
+        INSERT INTO stock_operations
+            (id, stock_operation_type_id, direction, owner_id, from_location_id, to_location_id,
+             source_type, source_id, allocation_unit_key, policy_code, enqueued_at,
+             dispatch_by, release_priority, state, version)
+        VALUES (?, ?, 'OUTBOUND', ?, ?, ?, 'ORDER', ?, 'PRIMARY', 'SHIP_COMPLETE', ?, ?, ?, ?, 0)
         """,
-                demandId,
-                order.getId().toString(),
+                stockOperationId,
+                stockOperationTypeId,
                 order.getOwnerId(),
-                order.getDeliveryTerms().facilityId(),
-                sourceLocationId,
+                fromLocationId,
+                CUSTOMERS_LOCATION_ID,
+                order.getId().toString(),
+                java.sql.Timestamp.from(order.getReceivedAt()),
                 java.sql.Timestamp.from(order.getDeliveryTerms().dispatchBy()),
                 order.getDeliveryTerms().releasePriority(),
-                java.sql.Timestamp.from(order.getReceivedAt()),
-                status);
+                state);
 
-        java.util.Map<UUID, UUID> allocationLines = new java.util.LinkedHashMap<>();
         java.util.List<com.flowzati.archone.ordering.domain.entity.OrderLine> canonical = order.getLines().stream()
                 .sorted(java.util.Comparator.comparing(line -> line.getId().toString()))
                 .toList();
         for (int index = 0; index < canonical.size(); index++) {
             var line = canonical.get(index);
-            UUID allocationLineId = IdGenerator.nextId();
-            allocationLines.put(line.getId(), allocationLineId);
             jdbcTemplate.update(
                     """
-          INSERT INTO allocation_demand_lines
-              (id, allocation_demand_id, source_line_id, sku_code, quantity, line_sequence)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO stock_moves
+              (id, stock_operation_id, owner_id, sku_code, from_location_id, to_location_id,
+               source_line_id, line_sequence, demand_quantity, state, created_at, assigned_at, version)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
           """,
-                    allocationLineId,
-                    demandId,
-                    line.getId().toString(),
+                    IdGenerator.nextId(),
+                    stockOperationId,
+                    order.getOwnerId(),
                     line.getSkuCode(),
+                    fromLocationId,
+                    CUSTOMERS_LOCATION_ID,
+                    line.getId().toString(),
+                    index + 1,
                     line.getQuantity(),
-                    index + 1);
+                    state,
+                    java.sql.Timestamp.from(order.getReceivedAt()),
+                    "ASSIGNED".equals(state) ? java.sql.Timestamp.from(order.getReceivedAt()) : null);
         }
-        return allocationLines;
+        return stockOperationId;
     }
 
-    private static void insertPicking(
-            JdbcTemplate jdbcTemplate, UUID pickingId, Order order, UUID pickingTypeId, UUID fromLocationId) {
-        jdbcTemplate.update(
-                """
-        INSERT INTO stock_pickings
-            (id, picking_type_id, owner_id, order_id, from_location_id, to_location_id,
-             dispatch_by, release_priority, state)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ASSIGNED')
-        """,
-                pickingId,
-                pickingTypeId,
-                order.getOwnerId(),
-                order.getId(),
-                fromLocationId,
-                CUSTOMERS_LOCATION_ID,
-                java.sql.Timestamp.from(order.getDeliveryTerms().dispatchBy()),
-                order.getDeliveryTerms().releasePriority());
+    private static <T> T inTransaction(JdbcTemplate jdbcTemplate, TransactionWork<T> work) {
+        return jdbcTemplate.execute((ConnectionCallback<T>) connection -> {
+            boolean ownsTransaction = connection.getAutoCommit();
+            if (ownsTransaction) {
+                connection.setAutoCommit(false);
+            }
+            JdbcTemplate transaction = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+            try {
+                T result = work.execute(transaction);
+                if (ownsTransaction) {
+                    connection.commit();
+                }
+                return result;
+            } catch (RuntimeException | java.sql.SQLException failure) {
+                if (ownsTransaction) {
+                    connection.rollback();
+                }
+                throw failure;
+            } finally {
+                if (ownsTransaction) {
+                    connection.setAutoCommit(true);
+                }
+            }
+        });
+    }
+
+    @FunctionalInterface
+    private interface TransactionWork<T> {
+
+        T execute(JdbcTemplate jdbcTemplate);
     }
 
     /**
-     * 這張單目前鎖住了哪些量——作業單 → 搬運 → 明細。
+     * 這張單目前由 canonical commitment 鎖住了哪些量。
      *
-     * <p>回清單而不是單筆：一條行跨三批就有三條明細。**明細存在就代表鎖著**，沒有狀態要過濾
-     * ——釋放是刪除那一列，不是把它標成已釋放。
+     * <p>回清單而不是單筆：一個 move 可由多個 move lines 跨批覆蓋。
      */
     public static List<HeldQuantity> heldBy(JdbcTemplate jdbcTemplate, UUID orderId) {
         return jdbcTemplate.query(
                 """
-        SELECT ml.stock_pool_id, ml.quantity
-          FROM stock_move_lines ml
-          JOIN stock_moves m ON m.id = ml.move_id
-          JOIN stock_pickings p ON p.id = m.picking_id
-         WHERE p.order_id = ?
-         ORDER BY ml.quantity DESC, ml.stock_pool_id
+        SELECT move_line.stock_pool_id, move_line.quantity
+          FROM stock_move_lines move_line
+          JOIN stock_moves move ON move.id = move_line.move_id
+          JOIN stock_operations operation ON operation.id = move.stock_operation_id
+         WHERE operation.source_type = 'ORDER'
+           AND operation.source_id = ?
+           AND move.state = 'ASSIGNED'
+         ORDER BY move_line.quantity DESC, move_line.stock_pool_id
         """,
                 (rs, rowNum) -> new HeldQuantity(rs.getObject("stock_pool_id", UUID.class), rs.getInt("quantity")),
-                orderId);
+                orderId.toString());
     }
 
     /** 這張單每一段搬運的狀態，依建立順序。 */
@@ -313,9 +265,10 @@ public final class MovementFixtures {
         return jdbcTemplate.queryForList("""
         SELECT m.state
           FROM stock_moves m
-          JOIN stock_pickings p ON p.id = m.picking_id
-         WHERE p.order_id = ?
-         ORDER BY m.created_at, m.id
-        """, String.class, orderId);
+          JOIN stock_operations operation ON operation.id = m.stock_operation_id
+         WHERE operation.source_type = 'ORDER'
+           AND operation.source_id = ?
+         ORDER BY m.line_sequence, m.id
+        """, String.class, orderId.toString());
     }
 }

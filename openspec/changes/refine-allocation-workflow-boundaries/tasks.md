@@ -55,7 +55,7 @@
 
 ## 9. Keep the REST Adapter Thin
 
-- [x] 9.1 Move facility-to-internal-location resolution from `StockReceiptController` into `ConfirmStockReceiptUsecase`, remove `locationId` from the receipt command boundary, add an architecture guard, and run focused unit/SIT plus strict OpenSpec validation.
+- [x] 9.1 Move facility-to-internal-location resolution from `StockReceiptRest` into `ConfirmStockReceiptUsecase`, remove `locationId` from the receipt command boundary, add an architecture guard, and run focused unit/SIT plus strict OpenSpec validation.
 
 ## 10. Decouple Receipt Confirmation from Backorder Allocation
 

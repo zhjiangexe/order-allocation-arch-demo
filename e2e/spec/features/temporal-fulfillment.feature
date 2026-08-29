@@ -26,7 +26,10 @@ Feature: Temporal 模式的配貨與履約流程
     # 終態快照證明各 Context 都留下結果，但不假裝驗證每一個 workflow activity 的執行順序。
     And match response.orchestrationMode == 'TEMPORAL'
     And match response.order.status == 'FULFILLED'
-    And match response.allocation.status == 'ALLOCATED'
+    And match response.stockOperation.source == { type: 'ORDER', sourceId: '#(orderId)', operationUnitKey: 'PRIMARY' }
+    And match response.stockOperation.operation.state == 'DONE'
+    And match response.stockOperation.moves[0].state == 'DONE'
+    And match response.stockOperation.moves[0].batches == '#[1]'
     And match response.shipments == '#[1]'
     And match response.shipments[0].status == 'HANDED_OVER_TO_CARRIER'
     And match response.shipments[0].waveId == '#uuid'
@@ -36,7 +39,7 @@ Feature: Temporal 模式的配貨與履約流程
     And match response.workflow.shipmentId == response.shipments[0].shipmentId
 
   Scenario: Temporal workflow 在缺貨期間保持等待，補貨後從原 workflow 繼續完成
-    # 不建立第二個 workflow，也不重送下單命令；availability event 會把 allocation commitment signal 回原流程。
+    # 不建立第二個 workflow，也不重送下單命令；availability event 會把 stock operation assignment signal 回原流程。
     * def sku = 'E2E-TMP-WAKE'
     * def externalOrderNo = 'KARATE-TMP-WAKE-' + newId()
     * def order = buildOrderRequest({ ownerId: ownerId, facilityId: facilityId, externalOrderNo: externalOrderNo, lines: [{ skuCode: sku, quantity: 3 }] })
@@ -46,9 +49,9 @@ Feature: Temporal 模式的配貨與履約流程
     Then status 200
     * def orderId = response.orderId
 
-    # 先確認原 workflow 停在 allocation 等待點，且尚未建立 Shipment。
+    # 先確認原 workflow 停在 assignment 等待點，且 stock operation 尚未保留 batch、也未建立 Shipment。
     Given path 'demo', 'orders', orderId, 'fulfillment'
-    And retry until response.allocation != null && response.allocation.status == 'PENDING' && response.workflow != null
+    And retry until response.stockOperation != null && response.stockOperation.operation.state == 'CONFIRMED' && response.stockOperation.moves[0].batches.length == 0 && response.workflow != null
     When method get
     Then status 200
     And match response.workflow.phase == 'ALLOCATION'
@@ -69,7 +72,9 @@ Feature: Temporal 模式的配貨與履約流程
     And retry until response.order.status == 'FULFILLED' && response.workflow.outcome == 'FULFILLMENT_COMPLETED'
     When method get
     Then status 200
-    And match response.allocation.status == 'ALLOCATED'
+    And match response.stockOperation.operation.state == 'DONE'
+    And match response.stockOperation.moves[0].state == 'DONE'
+    And match response.stockOperation.moves[0].batches == '#[1]'
     And match response.workflow.phase == 'FINISHED'
 
   Scenario: Temporal 已完成交運時同樣拒絕取消

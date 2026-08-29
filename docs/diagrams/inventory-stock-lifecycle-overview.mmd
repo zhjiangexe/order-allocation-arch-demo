@@ -1,101 +1,53 @@
 flowchart TB
-    subgraph MODEL["共用庫存執行模型"]
-      direction LR
-      PICKING["<b>StockPicking</b><br/>一張庫存作業單／execution summary"]
-      MOVE["<b>StockMove</b><br/>某 SKU 從來源到目的地的預計異動"]
-      LINE["<b>StockMoveLine</b><br/>實際批次、StockQuant 與執行數量"]
-      QUANT["<b>StockQuant</b><br/>location × SKU × batch 的 on-hand／reserved"]
-      PICKING -. "分組" .-> MOVE
-      MOVE -. "執行證據" .-> LINE
-      LINE -. "異動" .-> QUANT
-    end
+  subgraph MODEL[Canonical Inventory model]
+    SOURCE[Source document identity]
+    PICKING[StockOperation<br/>operation group / policy]
+    MOVE[StockMove<br/>SKU / quantity / route]
+    LINE[StockMoveLine<br/>quant / quantity detail]
+    QUANT[StockQuant<br/>on-hand / reserved]
+    SOURCE --> PICKING --> MOVE --> LINE
+    LINE <--> QUANT
+  end
 
-    subgraph INBOUND["A｜入庫：目前由同一個 transaction 一次確認"]
-      direction LR
-      RECEIPT_ENTRY["<b>StockReceiptApplicationFacade</b><br/>receiptId 冪等 claim"]
-      RECEIPT_UC["<b>ConfirmStockReceiptUsecase</b><br/>transaction owner"]
-      IN_REG["<b>InboundReceiptRegistrar</b><br/>建立 inbound Picking／Move"]
-      IN_CONFIRMED["Picking／Move<br/><b>CONFIRMED</b><br/><i>Quant 尚未改變</i>"]
-      IN_COMPLETE["<b>InboundReceiptCompleter</b><br/>建立 MoveLine<br/>完成 Move／Picking"]
-      RECEIVE["<b>StockQuant.receive()</b><br/>onHand += quantity<br/>reserved 不變"]
-      AVAILABLE["StockAvailabilityIncreasedIntegrationEvent<br/>Outbox event"]
+  subgraph INBOUND[Inbound]
+    RECEIPT[ConfirmStockReceiptUsecase]
+    INREG[Register inbound operation + move]
+    INCOMPLETE[Complete + retain move line]
+    RECEIVE[Quant onHand += quantity]
+    AVAILABLE[Availability Outbox]
+    RECEIPT --> INREG --> INCOMPLETE --> RECEIVE --> AVAILABLE
+  end
 
-      RECEIPT_ENTRY --> RECEIPT_UC --> IN_REG --> IN_CONFIRMED --> IN_COMPLETE --> RECEIVE --> AVAILABLE
-    end
+  subgraph OUTBOUND[Outbound assignment]
+    ORDER([OrderPlaced])
+    REG[Register confirmed operation + moves]
+    SELECT[Select + pure plan]
+    ASSIGN[StockAllocationCommitter]
+    RESERVE[Move lines + Quant reserved += quantity]
+    HANDOFF[Assignment Outbox]
+    ORDER --> REG --> SELECT --> ASSIGN --> RESERVE --> HANDOFF
+  end
 
-    subgraph ALLOCATION["B｜訂單配貨：登記 demand，再把 allocation plan 寫成 reservation"]
-      direction LR
-      ORDER_EVENT(["OrderPlaced"])
-      ALLOCATE_UC["<b>AllocateOrderUsecase</b><br/>初次路徑 transaction owner"]
-      DEMAND_REG["<b>AllocationDemandRegistrar</b><br/>登記 immutable demand<br/>建立 outbound Picking／Move"]
-      OUT_CONFIRMED["Demand = <b>PENDING</b><br/>Picking／Move = <b>CONFIRMED</b><br/><i>Quant 尚未改變</i>"]
-      ALLOCATOR["<b>PendingDemandAllocator</b><br/>FIFO selector + demand planner"]
-      COMMITTER["<b>AllocationCommitter</b><br/>建立 MoveLine<br/>Move／Picking = ASSIGNED<br/>Demand = ALLOCATED"]
-      RESERVE["<b>StockQuant.reserve()</b><br/>onHand 不變<br/>reserved += quantity<br/>available -= quantity"]
-      HANDOFF["OrderAllocationCommittedIntegrationEvent<br/>immutable allocation snapshot"]
+  AVAILABLE -. retry confirmed queues .-> SELECT
 
-      ORDER_EVENT --> ALLOCATE_UC --> DEMAND_REG --> OUT_CONFIRMED --> ALLOCATOR --> COMMITTER --> RESERVE --> HANDOFF
-    end
+  subgraph WMS[WMS-owned execution]
+    SHIPMENT[Shipment by stockOperationId]
+    WORK[Wave → Pick → Pack → Stage]
+    HANDED[ShipmentHandedOver]
+    SHIPMENT --> WORK --> HANDED
+  end
+  HANDOFF --> SHIPMENT
 
-    PICKING ~~~ RECEIPT_ENTRY
-    QUANT ~~~ ORDER_EVENT
-    AVAILABLE -. "喚醒等待 demand" .-> ALLOCATOR
+  subgraph TERMINAL[Inventory terminal / reversible operations]
+    RELEASE[Release<br/>delete lines; reserved -= quantity<br/>moves return CONFIRMED]
+    CANCEL[Cancel<br/>WMS reversible decision if assigned<br/>moves become CANCELLED]
+    COMPLETE[Complete<br/>retain lines; onHand/reserved -= quantity<br/>moves become DONE]
+    AUDIT[StockOperationLifecycleIntegrationEvent<br/>before-image batches]
+    RELEASE --> AUDIT
+    CANCEL --> AUDIT
+    COMPLETE --> AUDIT
+  end
 
-    subgraph WMS["C｜WMS 實體出庫作業：不直接修改 StockQuant"]
-      direction LR
-      CREATE_SHIPMENT["<b>CreateShipmentUsecase</b><br/>建立 Shipment"]
-      WAVE["Plan Wave<br/>→ Release Wave"]
-      PICK["Confirm Pick"]
-      PACK["Pack"]
-      STAGE["Stage"]
-      HANDOVER["<b>HandOverShipmentUsecase</b><br/>Shipment = HANDED_OVER_TO_CARRIER"]
-      HANDOVER_EVENT["ShipmentHandedOverIntegrationEvent<br/>Outbox event"]
-
-      CREATE_SHIPMENT --> WAVE --> PICK --> PACK --> STAGE --> HANDOVER --> HANDOVER_EVENT
-    end
-
-    HANDOFF --> CREATE_SHIPMENT
-
-    subgraph OUTBOUND_DONE["D｜正式出庫扣帳：Events 與 Temporal 共用同一個 use case"]
-      direction LR
-      DRIVER["Events：ShipmentHandoverEventConsumer<br/>Temporal：Workflow Signal → Inventory Activity"]
-      COMPLETE["<b>CompleteOutboundMovementsUsecase</b><br/>依 allocation／shipment／movement IDs 完成扣帳"]
-      CONSUME["<b>StockQuant.consume()</b><br/>onHand -= quantity<br/>reserved -= quantity"]
-      OUT_DONE["Move／Picking = <b>DONE</b><br/>OutboundMovementsCompletedIntegrationEvent"]
-
-      DRIVER --> COMPLETE --> CONSUME --> OUT_DONE
-    end
-
-    HANDOVER_EVENT --> DRIVER
-
-    subgraph CANCELLATION["E｜交接前取消：取消 execution，必要時釋放 reservation"]
-      direction LR
-      CANCEL_FLOW["CancelAllocationDemandUsecase<br/>／CancelMovementsUsecase"]
-      CANCELLER["<b>AllocationReservationCanceller</b><br/>取消 outbound Move／Picking<br/>刪除失效 MoveLine"]
-      RELEASE["<b>StockQuant.release()</b><br/>onHand 不變<br/>reserved -= quantity<br/>available += quantity"]
-      CANCELLED["Demand／Move／Picking<br/><b>CANCELLED</b>"]
-
-      CANCEL_FLOW --> CANCELLER
-      CANCELLER -->|已 reserve| RELEASE --> CANCELLED
-      CANCELLER -->|尚未 reserve| CANCELLED
-    end
-
-    OUT_CONFIRMED -. "取消" .-> CANCEL_FLOW
-    RESERVE -. "WMS 確認可取消／回架後" .-> CANCEL_FLOW
-
-    classDef model fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
-    classDef entry fill:#ede9fe,stroke:#7c3aed,color:#2e1065,stroke-width:1.5px;
-    classDef component fill:#eff6ff,stroke:#2563eb,color:#172554,stroke-width:1.5px;
-    classDef state fill:#f5f3ff,stroke:#8b5cf6,color:#2e1065,stroke-width:1.5px;
-    classDef quant fill:#ecfdf5,stroke:#059669,color:#064e3b,stroke-width:2px;
-    classDef event fill:#ecfeff,stroke:#0891b2,color:#164e63,stroke-width:1.5px;
-    classDef missing fill:#fff1f2,stroke:#e11d48,color:#881337,stroke-width:2px,stroke-dasharray:6 4;
-    classDef cancel fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:1.5px;
-
-    class PICKING,MOVE,LINE,QUANT model;
-    class RECEIPT_ENTRY,RECEIPT_UC,ALLOCATE_UC,DRIVER entry;
-    class IN_REG,IN_COMPLETE,DEMAND_REG,ALLOCATOR,COMMITTER,CREATE_SHIPMENT,WAVE,PICK,PACK,STAGE,HANDOVER,COMPLETE component;
-    class IN_CONFIRMED,OUT_CONFIRMED,OUT_DONE state;
-    class RECEIVE,RESERVE,CONSUME,RELEASE quant;
-    class ORDER_EVENT,AVAILABLE,HANDOFF,HANDOVER_EVENT,OUT_DONE event;
-    class CANCEL_FLOW,CANCELLER,CANCELLED cancel;
+  RESERVE --> RELEASE
+  RESERVE --> CANCEL
+  HANDED --> COMPLETE

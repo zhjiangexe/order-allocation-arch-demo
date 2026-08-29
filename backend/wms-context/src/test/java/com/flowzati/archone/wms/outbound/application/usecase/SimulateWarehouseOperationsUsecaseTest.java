@@ -2,7 +2,7 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.outbound.application.command.SimulateWarehouseOperationsCommand;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
@@ -124,9 +124,9 @@ class SimulateWarehouseOperationsUsecaseTest {
         }
 
         @Override
-        public Optional<Shipment> findByAllocationId(UUID allocationId) {
+        public Optional<Shipment> findByStockOperationId(UUID stockOperationId) {
             return shipments.values().stream()
-                    .filter(shipment -> shipment.allocationId().equals(allocationId))
+                    .filter(shipment -> shipment.stockOperationId().equals(stockOperationId))
                     .findFirst();
         }
 

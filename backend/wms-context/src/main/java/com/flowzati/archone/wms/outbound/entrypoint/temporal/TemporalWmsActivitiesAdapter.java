@@ -10,8 +10,8 @@ import com.flowzati.archone.wms.outbound.application.command.CreateShipmentComma
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.outbound.domain.exception.ShipmentAllocationSnapshotConflictException;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
+import com.flowzati.archone.wms.outbound.domain.exception.ShipmentStockOperationSnapshotConflictException;
 import io.temporal.failure.ApplicationFailure;
 
 /** Temporal Activity contract 到 WMS application use cases 的 inbound adapter。 */
@@ -28,28 +28,28 @@ public final class TemporalWmsActivitiesAdapter implements WmsActivities {
 
     @Override
     public CreateShipmentActivityResult createShipment(CreateShipmentActivityInput input) {
-        var allocation = input.allocation();
+        var assignment = input.assignment();
         CreateShipmentResult result;
         try {
             result = createShipmentUsecase.handle(new CreateShipmentCommand(
                     IdGenerator.nextId(),
-                    allocation.allocationId(),
-                    allocation.orderId(),
-                    allocation.ownerId(),
-                    allocation.facilityId(),
-                    allocation.lines().stream()
-                            .map(line -> new CreateShipmentCommand.AllocationLine(
+                    assignment.stockOperationId(),
+                    assignment.orderId(),
+                    assignment.ownerId(),
+                    assignment.facilityId(),
+                    assignment.moves().stream()
+                            .map(line -> new CreateShipmentCommand.MovementLine(
                                     line.orderLineId(),
                                     line.moveId(),
                                     line.skuCode(),
                                     line.sourceLocationId(),
                                     line.quantity()))
                             .toList(),
-                    allocation.dispatchBy(),
-                    allocation.releasePriority(),
-                    allocation.committedAt()));
-        } catch (ShipmentAllocationSnapshotConflictException exception) {
-            throw nonRetryable(exception, "WMS_SHIPMENT_ALLOCATION_SNAPSHOT_CONFLICT");
+                    assignment.dispatchBy(),
+                    assignment.releasePriority(),
+                    assignment.assignedAt()));
+        } catch (ShipmentStockOperationSnapshotConflictException exception) {
+            throw nonRetryable(exception, "WMS_SHIPMENT_STOCK_OPERATION_SNAPSHOT_CONFLICT");
         }
         return new CreateShipmentActivityResult(result.shipmentId());
     }

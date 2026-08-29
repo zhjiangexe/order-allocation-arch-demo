@@ -11,16 +11,16 @@ public interface InventoryActivities {
     String TASK_QUEUE = "order-promising-activities";
 
     /**
-     * 要求開始或冪等重送訂單配貨。返回只代表 command 已執行；最終 committed
-     * snapshot 仍由 {@code allocationCommitted} Signal 回報。implementation 以 Order 的
-     * {@code ORDER/orderId/PRIMARY} source unit 為冪等鍵；已配置的 demand 不得再次 reserve 或發布 completion。
+     * 要求開始或冪等重送訂單配貨。返回只代表 command 已執行；最終 assigned picking
+     * snapshot 仍由 {@code pickingAssigned} Signal 回報。implementation 以 Order 的
+     * {@code ORDER/orderId/PRIMARY} source unit 為冪等鍵；已指派的 picking 不得再次 reserve 或發布 completion。
      */
     @ActivityMethod(name = "RequestOrderAllocation")
     void requestAllocation(RequestAllocationActivityInput input);
 
     /**
-     * 承運商交接後，完成 outbound movements 與實際庫存扣帳。implementation 以 allocation
-     * execution 的 DONE 狀態防止重複扣庫存與重複發布 completion。
+     * 承運商交接後，完成 outbound movements 與實際庫存扣帳。implementation 以 picking/move
+     * 的 DONE 狀態防止重複扣庫存與重複發布 completion。
      */
     @ActivityMethod(name = "CompleteOutboundMovements")
     void completeOutboundMovements(CompleteOutboundMovementsActivityInput input);

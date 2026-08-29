@@ -9,11 +9,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.bootstrap.messaging.contract.BootstrapIntegrationEventContractConfiguration;
-import com.flowzati.archone.inventory.allocation.application.event.AllocationEventSubscriptions;
-import com.flowzati.archone.inventory.balance.entrypoint.messaging.OutboundFulfillmentEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
+import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
+import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
 import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
 import io.temporal.client.WorkflowClient;
 import org.junit.jupiter.api.Test;
@@ -32,12 +33,13 @@ class TemporalFulfillmentEventWiringTest {
                         BootstrapIntegrationEventContractConfiguration.class, TemporalFulfillmentEventConsumer.class)
                 .withPropertyValues("archone.fulfillment.orchestration-mode=temporal")
                 .withBean(WorkflowClient.class, () -> mock(WorkflowClient.class))
+                .withBean(LegacyAllocationPickingResolver.class, () -> mock(LegacyAllocationPickingResolver.class))
                 .withBean(IntegrationEventDispatcherFactory.class, () -> factory)
                 .run(context -> {
                     assertThat(context).hasSingleBean(TemporalFulfillmentEventConsumer.class);
                     assertThat(context.getBeansOfType(IntegrationEventDispatcher.class))
                             .hasSize(4);
-                    verify(factory).make(eq(AllocationEventSubscriptions.ORDER_PLACEMENT_DRIVER), any());
+                    verify(factory).make(eq(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER), any());
                     verify(factory).make(eq(WmsEventSubscriptions.FULFILLMENT_HANDOFF), any());
                     verify(factory).make(eq(OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER), any());
                     verify(factory)

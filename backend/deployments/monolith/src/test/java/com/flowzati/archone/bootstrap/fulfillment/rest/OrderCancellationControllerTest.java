@@ -6,10 +6,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationCoordinator;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationRequest;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationResult;
-import com.flowzati.archone.bootstrap.fulfillment.cancellation.FulfillmentCancellationStatus;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationCoordinator;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationRequest;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationResult;
+import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationStatus;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;

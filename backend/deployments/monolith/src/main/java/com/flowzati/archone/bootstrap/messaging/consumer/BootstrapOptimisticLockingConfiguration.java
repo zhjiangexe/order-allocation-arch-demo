@@ -1,6 +1,6 @@
 package com.flowzati.archone.bootstrap.messaging.consumer;
 
-import com.flowzati.archone.inventory.allocation.infrastructure.messaging.consumer.retry.AllocationOptimisticLockRetryObserver;
+import com.flowzati.archone.inventory.adapter.AllocationOptimisticLockRetryObserver;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingDecoratorConfiguration;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryObserver;

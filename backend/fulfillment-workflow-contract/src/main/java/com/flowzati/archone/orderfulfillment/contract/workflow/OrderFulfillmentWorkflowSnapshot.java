@@ -12,7 +12,7 @@ public record OrderFulfillmentWorkflowSnapshot(
         UUID cancellationRequestId,
         Instant cancellationRequestedAt,
         OrderFulfillmentWorkflowStatus outcome,
-        UUID allocationId,
+        UUID stockOperationId,
         UUID shipmentId,
         ShipmentTerminalStatus shipmentTerminalStatus,
         Instant shipmentTerminalAt,
