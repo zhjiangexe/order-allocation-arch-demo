@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.inbound.application.usecase;
 
 import com.flowzati.archone.wms.inbound.application.command.ConfirmArrivalCommand;
+import com.flowzati.archone.wms.inbound.application.store.InboundOperationStore;
 import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
-import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,9 +11,9 @@ public class ConfirmArrivalUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(ConfirmArrivalUsecase.class);
 
-    private final InboundOperationRepository repository;
+    private final InboundOperationStore repository;
 
-    public ConfirmArrivalUsecase(InboundOperationRepository repository) {
+    public ConfirmArrivalUsecase(InboundOperationStore repository) {
         this.repository = repository;
     }
 

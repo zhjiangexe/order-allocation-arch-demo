@@ -78,8 +78,8 @@ Spring Data scalar projections，但不得還原 `Shipment` aggregate。
 
 完成 read query 後，若沒有其他 production caller：
 
-- 從 `ShipmentRepository` 移除 `findByOrderId()`。
-- 從 `JpaShipmentRepositoryAdapter` 移除對應方法。
+- 從 `ShipmentStore` 移除 `findByOrderId()`。
+- 從 `JpaShipmentStoreAdapter` 移除對應方法。
 - 更新測試中的 fake repositories。
 
 ### 驗收

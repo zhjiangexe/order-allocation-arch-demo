@@ -80,7 +80,7 @@ Before package moves, the focused unit baseline passed with:
   --tests '*ConfirmStockReceiptUsecaseTest' \
   --tests '*StockAllocationCommitterTest' \
   --tests '*ReleaseStockOperationUsecaseTest' \
-  --tests '*CompleteStockOperationUsecaseTest' \
+  --tests '*CompleteOutboundMovementsUsecaseTest' \
   --tests '*StockOperationCancellationTransactionsTest'
 ```
 

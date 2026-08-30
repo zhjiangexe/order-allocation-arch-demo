@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.allocation.planning.domain;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.inventory.allocation.domain.ProposedMoveLine;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 

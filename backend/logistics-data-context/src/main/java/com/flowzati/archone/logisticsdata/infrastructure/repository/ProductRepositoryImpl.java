@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.infrastructure.repository;
 
+import com.flowzati.archone.logisticsdata.application.store.ProductRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
-import com.flowzati.archone.logisticsdata.domain.repository.ProductRepository;
 import com.flowzati.archone.logisticsdata.infrastructure.mapper.ProductMapper;
 import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaProductRepository;
 import java.util.List;

@@ -8,36 +8,38 @@ import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrati
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
+import com.flowzati.archone.wms.outbound.application.command.CompleteWaveCommand;
 import com.flowzati.archone.wms.outbound.application.command.ConfirmPickCommand;
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.command.HandOverShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.command.PackShipmentCommand;
+import com.flowzati.archone.wms.outbound.application.command.PlanWaveCommand;
+import com.flowzati.archone.wms.outbound.application.command.ReleaseWaveCommand;
 import com.flowzati.archone.wms.outbound.application.command.StageShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
+import com.flowzati.archone.wms.outbound.application.store.WaveStore;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CompleteShipmentCancellationUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.CompleteWaveUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.HandOverShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.PackShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.PlanWaveUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.ReleaseWaveUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecase;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Wave;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.domain.service.impl.PriorityCapacityWavePlanner;
 import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationState;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
-import com.flowzati.archone.wms.outbound.wave.application.command.CompleteWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.application.command.PlanWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.application.command.ReleaseWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.CompleteWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.PlanWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.ReleaseWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
-import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
-import com.flowzati.archone.wms.outbound.wave.domain.service.PriorityCapacityWavePlanner;
-import com.flowzati.archone.wms.outbound.wave.domain.type.WaveStatus;
+import com.flowzati.archone.wms.outbound.domain.type.WaveStatus;
+import com.flowzati.archone.wms.outbound.infrastructure.messaging.ShipmentCancelledIntegrationEventAdapter;
+import com.flowzati.archone.wms.outbound.infrastructure.messaging.ShipmentHandedOverIntegrationEventAdapter;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -58,8 +60,8 @@ class OutboundProcessTest {
     private static final UUID FACILITY_ID = new UUID(0, 20);
 
     private final AtomicLong sequence = new AtomicLong(100);
-    private final InMemoryShipmentRepository shipmentRepository = new InMemoryShipmentRepository();
-    private final InMemoryWaveRepository waveRepository = new InMemoryWaveRepository();
+    private final InMemoryShipmentStore shipmentRepository = new InMemoryShipmentStore();
+    private final InMemoryWaveStore waveRepository = new InMemoryWaveStore();
     private final List<IntegrationEventPublication> publications = new ArrayList<>();
 
     private CreateShipmentUsecase createShipment;
@@ -82,9 +84,12 @@ class OutboundProcessTest {
         confirmPick = new ConfirmPickUsecase(shipmentRepository);
         packShipment = new PackShipmentUsecase(shipmentRepository);
         stageShipment = new StageShipmentUsecase(shipmentRepository);
-        handOverShipment = new HandOverShipmentUsecase(shipmentRepository, publications::add);
-        cancelShipment = new CancelShipmentUsecase(shipmentRepository, publications::add, fixedClock());
-        completeShipmentCancellation = new CompleteShipmentCancellationUsecase(shipmentRepository, publications::add);
+        var shipmentHandedOverPublisher = new ShipmentHandedOverIntegrationEventAdapter(publications::add);
+        var shipmentCancelledPublisher = new ShipmentCancelledIntegrationEventAdapter(publications::add);
+        handOverShipment = new HandOverShipmentUsecase(shipmentRepository, shipmentHandedOverPublisher);
+        cancelShipment = new CancelShipmentUsecase(shipmentRepository, shipmentCancelledPublisher, fixedClock());
+        completeShipmentCancellation =
+                new CompleteShipmentCancellationUsecase(shipmentRepository, shipmentCancelledPublisher);
     }
 
     @Test
@@ -388,7 +393,7 @@ class OutboundProcessTest {
         };
     }
 
-    private static final class InMemoryShipmentRepository implements ShipmentRepository {
+    private static final class InMemoryShipmentStore implements ShipmentStore {
 
         private final Map<UUID, Shipment> shipments = new LinkedHashMap<>();
 
@@ -461,7 +466,7 @@ class OutboundProcessTest {
         }
     }
 
-    private static final class InMemoryWaveRepository implements WaveRepository {
+    private static final class InMemoryWaveStore implements WaveStore {
 
         private final Map<UUID, Wave> waves = new LinkedHashMap<>();
 

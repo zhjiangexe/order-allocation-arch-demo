@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.inbound.application.usecase;
 
 import com.flowzati.archone.wms.inbound.application.command.ConfirmPutawayCommand;
+import com.flowzati.archone.wms.inbound.application.store.InboundOperationStore;
 import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
-import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.inbound.domain.valueobject.PutawayLine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,9 +12,9 @@ public class ConfirmPutawayUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(ConfirmPutawayUsecase.class);
 
-    private final InboundOperationRepository repository;
+    private final InboundOperationStore repository;
 
-    public ConfirmPutawayUsecase(InboundOperationRepository repository) {
+    public ConfirmPutawayUsecase(InboundOperationStore repository) {
         this.repository = repository;
     }
 

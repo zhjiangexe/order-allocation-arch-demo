@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.infrastructure.repository;
 
+import com.flowzati.archone.logisticsdata.application.store.FacilityRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
-import com.flowzati.archone.logisticsdata.domain.repository.FacilityRepository;
 import com.flowzati.archone.logisticsdata.infrastructure.entity.OwnerFacilityEntity;
 import com.flowzati.archone.logisticsdata.infrastructure.mapper.FacilityMapper;
 import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaFacilityRepository;

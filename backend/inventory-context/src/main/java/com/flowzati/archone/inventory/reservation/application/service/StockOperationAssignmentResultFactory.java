@@ -1,12 +1,12 @@
 package com.flowzati.archone.inventory.reservation.application.service;
 
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationTypeStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationTypeStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentResult;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentResult.AssignedMove;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentResult.AssignedMoveLine;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.reservation.application.result.AssignedMove;
+import com.flowzati.archone.inventory.reservation.application.result.AssignedMoveLine;
+import com.flowzati.archone.inventory.reservation.application.result.StockOperationAssignmentResult;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;

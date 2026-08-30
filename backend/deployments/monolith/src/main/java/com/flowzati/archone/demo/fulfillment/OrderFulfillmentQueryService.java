@@ -6,7 +6,7 @@ import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
+import com.flowzati.archone.wms.outbound.application.result.ShipmentView;
 import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
 import java.util.List;
 import java.util.UUID;

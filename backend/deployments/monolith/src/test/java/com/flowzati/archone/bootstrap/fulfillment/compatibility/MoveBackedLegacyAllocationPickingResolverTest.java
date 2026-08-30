@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import java.time.Instant;
 import java.util.List;

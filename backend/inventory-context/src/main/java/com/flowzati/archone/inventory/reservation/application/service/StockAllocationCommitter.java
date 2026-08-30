@@ -1,24 +1,25 @@
 package com.flowzati.archone.inventory.reservation.application.service;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.application.repo.StockOperationAssignmentCandidateStore;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationProposal;
+import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.reservation.application.MoveQuantAllocationSet;
-import com.flowzati.archone.inventory.reservation.application.MoveQuantAllocationSet.StaleAllocationSetException;
-import com.flowzati.archone.inventory.reservation.application.StaleStockAllocationProposalException;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentResult;
-import com.flowzati.archone.inventory.reservation.application.messaging.StockOperationAssignmentPublisher;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.reservation.application.event.StockOperationAssigned;
+import com.flowzati.archone.inventory.reservation.application.exception.StaleAllocationSetException;
+import com.flowzati.archone.inventory.reservation.application.exception.StaleStockAllocationProposalException;
+import com.flowzati.archone.inventory.reservation.application.port.StockOperationAssignedPublisher;
+import com.flowzati.archone.inventory.reservation.application.result.StockOperationAssignmentResult;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -42,7 +43,7 @@ public class StockAllocationCommitter {
     private final StockQuantStore stockQuantStore;
     private final StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore;
     private final StockOperationAssignmentResultFactory resultFactory;
-    private final StockOperationAssignmentPublisher assignmentPublisher;
+    private final StockOperationAssignedPublisher assignmentPublisher;
     private final Supplier<UUID> idSupplier;
 
     @Autowired
@@ -53,7 +54,7 @@ public class StockAllocationCommitter {
             StockQuantStore stockQuantStore,
             StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore,
             StockOperationAssignmentResultFactory resultFactory,
-            StockOperationAssignmentPublisher assignmentPublisher) {
+            StockOperationAssignedPublisher assignmentPublisher) {
         this(
                 stockOperationStore,
                 stockMoveStore,
@@ -72,7 +73,7 @@ public class StockAllocationCommitter {
             StockQuantStore stockQuantStore,
             StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore,
             StockOperationAssignmentResultFactory resultFactory,
-            StockOperationAssignmentPublisher assignmentPublisher,
+            StockOperationAssignedPublisher assignmentPublisher,
             Supplier<UUID> idSupplier) {
         this.stockOperationStore = stockOperationStore;
         this.stockMoveStore = stockMoveStore;
@@ -113,7 +114,7 @@ public class StockAllocationCommitter {
         // 7. 在同一交易內組裝結果並同步寫入 Outbox，確保庫存與事件原子一致。
         StockOperationAssignmentResult result = resultFactory.create(
                 operationComposite.operation(), operationComposite.moves(), committedMoveLines, occurredAt);
-        assignmentPublisher.publish(result);
+        assignmentPublisher.publish(StockOperationAssigned.from(result));
         return result;
     }
 

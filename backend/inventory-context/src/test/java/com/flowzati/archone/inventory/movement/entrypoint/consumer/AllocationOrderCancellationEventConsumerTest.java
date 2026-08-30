@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.inventory.movement.application.command.CancelSourceStockMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelSourceStockMovementsUsecase;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

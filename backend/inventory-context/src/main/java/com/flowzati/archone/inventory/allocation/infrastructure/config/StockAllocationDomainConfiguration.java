@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.allocation.infrastructure.config;
 
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
+import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationPlanner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

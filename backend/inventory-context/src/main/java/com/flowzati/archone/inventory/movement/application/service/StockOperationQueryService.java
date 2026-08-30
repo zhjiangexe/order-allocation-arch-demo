@@ -1,8 +1,8 @@
 package com.flowzati.archone.inventory.movement.application.service;
 
-import com.flowzati.archone.inventory.movement.application.StockOperationView;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationViewStore;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationViewStore;
+import com.flowzati.archone.inventory.movement.application.view.StockOperationView;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

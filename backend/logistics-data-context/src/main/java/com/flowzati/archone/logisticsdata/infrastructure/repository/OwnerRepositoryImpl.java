@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.infrastructure.repository;
 
+import com.flowzati.archone.logisticsdata.application.store.OwnerRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
-import com.flowzati.archone.logisticsdata.domain.repository.OwnerRepository;
 import com.flowzati.archone.logisticsdata.infrastructure.mapper.OwnerMapper;
 import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaOwnerRepository;
 import java.util.List;

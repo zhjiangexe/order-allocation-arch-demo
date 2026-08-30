@@ -8,19 +8,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.location.application.repo.StockLocationStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.location.application.store.StockLocationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.position.application.service.InboundReceiptCompleter;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.position.domain.valueobject.ReceivingBatchIdentity;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Instant;
 import java.util.Collection;
@@ -37,8 +38,8 @@ class InboundReceiptCompleterTest {
 
     private static final String SKU = "SKU-1";
     private final Instant now = Instant.parse("2026-07-25T02:00:00Z");
-    private final InboundReceiptCompleter.BatchIdentity batch =
-            new InboundReceiptCompleter.BatchIdentity(StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON);
+    private final ReceivingBatchIdentity batch =
+            new ReceivingBatchIdentity(StockFixtures.ARRIVED_ON, StockFixtures.EXPIRES_ON);
 
     private StockMoveStore stockMoveStore;
     private StockMoveLineStore stockMoveLineStore;

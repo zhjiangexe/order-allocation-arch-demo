@@ -1,11 +1,11 @@
 package com.flowzati.archone.inventory.movement.application.service;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.movement.application.SourceMovementConflictException;
-import com.flowzati.archone.inventory.movement.application.StockOperationRegistrationResult;
 import com.flowzati.archone.inventory.movement.application.command.RegisterStockOperationCommand;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
+import com.flowzati.archone.inventory.movement.application.exception.SourceMovementConflictException;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationRegistrationResult;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
 import jakarta.transaction.Transactional;

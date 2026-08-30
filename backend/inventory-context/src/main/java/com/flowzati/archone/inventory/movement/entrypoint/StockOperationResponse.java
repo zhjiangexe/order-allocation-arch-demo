@@ -1,11 +1,13 @@
 package com.flowzati.archone.inventory.movement.entrypoint;
 
-import com.flowzati.archone.inventory.movement.application.StockOperationView;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.MovementSourceType;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.application.view.StockMoveLineView;
+import com.flowzati.archone.inventory.movement.application.view.StockMoveView;
+import com.flowzati.archone.inventory.movement.application.view.StockOperationView;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -69,7 +71,7 @@ public record StockOperationResponse(SourceTrace source, Operation operation, Li
             batches = List.copyOf(batches);
         }
 
-        private static Move from(StockOperationView.Move move) {
+        private static Move from(StockMoveView move) {
             return new Move(
                     move.moveId(),
                     move.sourceLineId(),
@@ -86,7 +88,7 @@ public record StockOperationResponse(SourceTrace source, Operation operation, Li
     public record Batch(
             UUID stockQuantId, UUID locationId, String skuCode, LocalDate inDate, LocalDate expiryDate, int quantity) {
 
-        private static Batch from(StockOperationView.MoveLineView moveLine) {
+        private static Batch from(StockMoveLineView moveLine) {
             return new Batch(
                     moveLine.stockQuantId(),
                     moveLine.locationId(),

@@ -3,12 +3,12 @@ package com.flowzati.archone.logisticsdata.application.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.logisticsdata.application.store.OwnerRepository;
+import com.flowzati.archone.logisticsdata.application.store.ProductRepository;
+import com.flowzati.archone.logisticsdata.application.store.SkuRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
-import com.flowzati.archone.logisticsdata.domain.repository.OwnerRepository;
-import com.flowzati.archone.logisticsdata.domain.repository.ProductRepository;
-import com.flowzati.archone.logisticsdata.domain.repository.SkuRepository;
 import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
 import java.util.List;
 import java.util.UUID;

@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.inbound.application.usecase;
 
 import com.flowzati.archone.wms.inbound.application.command.RecordInspectionCommand;
+import com.flowzati.archone.wms.inbound.application.store.InboundOperationStore;
 import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
-import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,9 +11,9 @@ public class RecordInspectionUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(RecordInspectionUsecase.class);
 
-    private final InboundOperationRepository repository;
+    private final InboundOperationStore repository;
 
-    public RecordInspectionUsecase(InboundOperationRepository repository) {
+    public RecordInspectionUsecase(InboundOperationStore repository) {
         this.repository = repository;
     }
 

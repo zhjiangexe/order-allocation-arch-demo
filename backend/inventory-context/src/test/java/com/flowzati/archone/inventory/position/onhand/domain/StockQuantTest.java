@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.LocalDate;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;

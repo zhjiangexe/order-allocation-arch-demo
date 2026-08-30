@@ -2,34 +2,34 @@ package com.flowzati.archone.inventory.movement.cancellation.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.application.StockOperationLifecycleSnapshot;
-import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecyclePublisher;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator.Target;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationCancellationStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleAction;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
+import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecycleChangedPublisher;
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationTarget;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions.Preparation;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationStatus;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationLifecycleAction;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationCancellationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
+import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -51,7 +51,7 @@ class StockOperationCancellationTransactionsTest {
     private StockMoveLineStore stockMoveLineStore;
     private StockOperationCancellationStore stockOperationCancellationStore;
     private ReleaseStockOperationUsecase releaseOperation;
-    private StockOperationLifecyclePublisher lifecyclePublisher;
+    private StockOperationLifecycleChangedPublisher lifecyclePublisher;
     private StockOperationCancellationTransactions transactions;
 
     @BeforeEach
@@ -61,7 +61,7 @@ class StockOperationCancellationTransactionsTest {
         stockMoveLineStore = mock(StockMoveLineStore.class);
         stockOperationCancellationStore = mock(StockOperationCancellationStore.class);
         releaseOperation = mock(ReleaseStockOperationUsecase.class);
-        lifecyclePublisher = mock(StockOperationLifecyclePublisher.class);
+        lifecyclePublisher = mock(StockOperationLifecycleChangedPublisher.class);
         transactions = new StockOperationCancellationTransactions(
                 stockOperationStore,
                 stockMoveStore,
@@ -77,16 +77,19 @@ class StockOperationCancellationTransactionsTest {
         StockMove move = move(MoveState.CONFIRMED);
         givenGroup(operation, move, List.of());
 
-        Preparation result = transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW);
+        StockOperationCancellationPreparation result = transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW);
 
-        assertThat(result).isEqualTo(new Preparation.Terminal(StockOperationCancellationStatus.COMPLETED));
+        assertThat(result)
+                .isEqualTo(
+                        new StockOperationCancellationPreparation.Terminal(StockOperationCancellationStatus.COMPLETED));
         assertThat(operation.state()).isEqualTo(StockOperationState.CANCELLED);
         assertThat(move.getState()).isEqualTo(MoveState.CANCELLED);
         verify(stockOperationCancellationStore, never()).save(any());
-        ArgumentCaptor<StockOperationLifecycleSnapshot> snapshot =
-                ArgumentCaptor.forClass(StockOperationLifecycleSnapshot.class);
-        verify(lifecyclePublisher).publish(snapshot.capture(), eq(StockOperationLifecycleAction.CANCELLED));
-        assertThat(snapshot.getValue().moves().getFirst().moveLines()).isEmpty();
+        ArgumentCaptor<StockOperationLifecycleChanged> event =
+                ArgumentCaptor.forClass(StockOperationLifecycleChanged.class);
+        verify(lifecyclePublisher).publish(event.capture());
+        assertThat(event.getValue().action()).isEqualTo(StockOperationLifecycleAction.CANCELLED);
+        assertThat(event.getValue().snapshot().moves().getFirst().moveLines()).isEmpty();
     }
 
     @Test
@@ -98,14 +101,15 @@ class StockOperationCancellationTransactionsTest {
                 .thenReturn(Optional.empty());
         when(stockOperationCancellationStore.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var result = (Preparation.Continue) transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW);
+        var result = (StockOperationCancellationPreparation.Continue)
+                transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW);
 
-        assertThat(result.checkpoint().target()).isEqualTo(new Target(STOCK_OPERATION_ID));
+        assertThat(result.checkpoint().target()).isEqualTo(new WarehouseCancellationTarget(STOCK_OPERATION_ID));
         assertThat(result.checkpoint().state()).isEqualTo(StockOperationCancellationState.STARTED);
         assertThat(operation.state()).isEqualTo(StockOperationState.ASSIGNED);
         assertThat(move.getState()).isEqualTo(MoveState.ASSIGNED);
         verify(releaseOperation, never()).execute(any(), any());
-        verify(lifecyclePublisher, never()).publish(any(), any());
+        verify(lifecyclePublisher, never()).publish(any());
     }
 
     @Test
@@ -138,11 +142,13 @@ class StockOperationCancellationTransactionsTest {
         assertThat(confirmedMove.getState()).isEqualTo(MoveState.CANCELLED);
         assertThat(operation.state()).isEqualTo(StockOperationCancellationState.COMPLETED);
         verify(stockOperationCancellationStore).save(operation);
-        ArgumentCaptor<StockOperationLifecycleSnapshot> publishedSnapshot =
-                ArgumentCaptor.forClass(StockOperationLifecycleSnapshot.class);
-        verify(lifecyclePublisher).publish(publishedSnapshot.capture(), eq(StockOperationLifecycleAction.CANCELLED));
-        assertThat(publishedSnapshot
+        ArgumentCaptor<StockOperationLifecycleChanged> publishedEvent =
+                ArgumentCaptor.forClass(StockOperationLifecycleChanged.class);
+        verify(lifecyclePublisher).publish(publishedEvent.capture());
+        assertThat(publishedEvent.getValue().action()).isEqualTo(StockOperationLifecycleAction.CANCELLED);
+        assertThat(publishedEvent
                         .getValue()
+                        .snapshot()
                         .moves()
                         .getFirst()
                         .moveLines()
@@ -158,7 +164,8 @@ class StockOperationCancellationTransactionsTest {
         givenGroup(operation, move, List.of(new StockMoveLine(new UUID(0, 5), MOVE_ID, QUANT_ID, 3)));
 
         assertThat(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .isEqualTo(new Preparation.Terminal(StockOperationCancellationStatus.NOT_CANCELLABLE));
+                .isEqualTo(new StockOperationCancellationPreparation.Terminal(
+                        StockOperationCancellationStatus.NOT_CANCELLABLE));
 
         verify(stockOperationCancellationStore, never()).save(any());
     }

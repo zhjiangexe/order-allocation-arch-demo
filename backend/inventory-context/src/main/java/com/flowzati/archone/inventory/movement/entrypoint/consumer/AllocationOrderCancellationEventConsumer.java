@@ -4,7 +4,7 @@ import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.inventory.movement.application.command.CancelSourceStockMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelSourceStockMovementsUsecase;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;

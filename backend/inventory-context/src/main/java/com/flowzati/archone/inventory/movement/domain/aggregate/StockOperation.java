@@ -1,9 +1,9 @@
 package com.flowzati.archone.inventory.movement.domain.aggregate;
 
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -17,11 +17,11 @@ import java.util.UUID;
  * <p><b>它不是 WMS warehouse task。</b>Shipment、Wave、PickTask、operator progress 與 packing state
  * 由 WMS 擁有；Inventory 只在 assignment fact 中把 {@code stockOperationId} 當成跨邊界 reference。
  *
- * <p>來源文件身分只存在 source-neutral {@link com.flowzati.archone.inventory.movement.domain.StockOperationSource}。Inventory core 不帶
+ * <p>來源文件身分只存在 source-neutral {@link com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource}。Inventory core 不帶
  * {@code orderId}；ORDER、TRANSFER 或 PRODUCTION 的識別解讀都停在各自的 source adapter。
  *
  * <p><b>狀態是底下 moves 的物化摘要。</b>它不是另一套獨立生命週期：建立時為
- * {@link com.flowzati.archone.inventory.movement.domain.StockOperationState#CONFIRMED}，moves 全部鎖定時進 {@link com.flowzati.archone.inventory.movement.domain.StockOperationState#ASSIGNED}，完成或
+ * {@link com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState#CONFIRMED}，moves 全部鎖定時進 {@link com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState#ASSIGNED}，完成或
  * 取消也與 moves 在同一個 transaction 更新。物化的目的是讓作業單列表可以直接篩選與排程。
  *
  * <p>一旦狀態可寫，配貨與取消就可能同時修改同一張單，因此 operation 也必須帶 optimistic-lock

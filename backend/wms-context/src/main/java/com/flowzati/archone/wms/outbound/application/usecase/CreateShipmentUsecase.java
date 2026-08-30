@@ -2,9 +2,9 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 
 import com.flowzati.archone.wms.outbound.application.command.CreateShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.result.CreateShipmentResult;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.outbound.domain.exception.ShipmentStockOperationSnapshotConflictException;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,10 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 /** 建立尚未 release 的 Shipment demand；PickTask 必須等 Wave Release 才建立。 */
 public class CreateShipmentUsecase {
 
-    private final ShipmentRepository shipmentRepository;
+    private final ShipmentStore shipmentStore;
 
-    public CreateShipmentUsecase(ShipmentRepository shipmentRepository) {
-        this.shipmentRepository = shipmentRepository;
+    public CreateShipmentUsecase(ShipmentStore shipmentStore) {
+        this.shipmentStore = shipmentStore;
     }
 
     /**
@@ -24,7 +24,7 @@ public class CreateShipmentUsecase {
      */
     @Transactional
     public CreateShipmentResult handle(CreateShipmentCommand command) {
-        Shipment shipment = shipmentRepository
+        Shipment shipment = shipmentStore
                 .findByStockOperationId(command.stockOperationId())
                 .map(existing -> requireSameSnapshot(existing, command))
                 .orElseGet(() -> create(command));
@@ -66,7 +66,7 @@ public class CreateShipmentUsecase {
                 command.dispatchBy(),
                 command.releasePriority(),
                 command.createdAt());
-        shipmentRepository.save(shipment);
+        shipmentStore.save(shipment);
         return shipment;
     }
 }

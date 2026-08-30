@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.position.onhand.testsupport;
 
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.LocalDate;
 import java.util.UUID;

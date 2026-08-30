@@ -3,10 +3,11 @@ package com.flowzati.archone.inventory.position.application.usecase;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.position.application.StockAvailabilityIncrease;
 import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.position.application.messaging.StockAvailabilityPublisher;
+import com.flowzati.archone.inventory.position.application.event.StockAvailabilityIncreased;
+import com.flowzati.archone.inventory.position.application.port.StockAvailabilityIncreasedPublisher;
 import com.flowzati.archone.inventory.position.application.service.InboundReceiptCompleter;
+import com.flowzati.archone.inventory.position.domain.valueobject.ReceivingBatchIdentity;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.List;
@@ -28,13 +29,13 @@ public class ConfirmStockReceiptUsecase {
     private final BusinessClock appClock;
     private final InboundReceiptRegistrar inboundReceiptRegistrar;
     private final InboundReceiptCompleter inboundReceiptCompleter;
-    private final StockAvailabilityPublisher availabilityPublisher;
+    private final StockAvailabilityIncreasedPublisher availabilityPublisher;
 
     public ConfirmStockReceiptUsecase(
             BusinessClock appClock,
             InboundReceiptRegistrar inboundReceiptRegistrar,
             InboundReceiptCompleter inboundReceiptCompleter,
-            StockAvailabilityPublisher availabilityPublisher) {
+            StockAvailabilityIncreasedPublisher availabilityPublisher) {
         this.appClock = appClock;
         this.inboundReceiptRegistrar = inboundReceiptRegistrar;
         this.inboundReceiptCompleter = inboundReceiptCompleter;
@@ -54,9 +55,9 @@ public class ConfirmStockReceiptUsecase {
                 command.facilityId(), command.ownerId(), command.locationId(), command.sku(), command.quantity(), now);
 
         inboundReceiptCompleter.complete(
-                incoming, new InboundReceiptCompleter.BatchIdentity(command.inDate(), command.expiryDate()), now);
+                incoming, new ReceivingBatchIdentity(command.inDate(), command.expiryDate()), now);
 
-        availabilityPublisher.publish(new StockAvailabilityIncrease(
+        availabilityPublisher.publish(new StockAvailabilityIncreased(
                 command.ownerId(), command.facilityId(), command.locationId(), command.sku(), command.quantity(), now));
     }
 }

@@ -1,6 +1,5 @@
 package com.flowzati.archone.inventory.movement.application.command;
 
-import com.flowzati.archone.inventory.movement.domain.WarehouseCancellationCheckpoint;
 import java.util.UUID;
 
 /** Target-side command for one idempotent cancellation of an Inventory operation group. */

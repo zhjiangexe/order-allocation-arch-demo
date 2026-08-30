@@ -2,14 +2,14 @@ package com.flowzati.archone.inventory.allocation.planning.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.inventory.allocation.application.AssignmentQueueKey;
-import com.flowzati.archone.inventory.allocation.infrastructure.repo.jdbc.JdbcStockOperationAssignmentBacklogStore;
-import com.flowzati.archone.inventory.allocation.infrastructure.repo.jdbc.JdbcStockOperationAssignmentCandidateStore;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockMoveRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockOperationRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockMovePersistenceAdapter;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockOperationPersistenceAdapter;
-import com.flowzati.archone.inventory.reservation.infrastructure.repo.jpa.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentBacklogStore;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreImpl;
+import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -39,8 +39,8 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    StockOperationPersistenceAdapter.class,
-    StockMovePersistenceAdapter.class,
+    StockOperationStoreImpl.class,
+    StockMoveStoreImpl.class,
     JdbcStockOperationAssignmentCandidateStore.class,
     JdbcStockOperationAssignmentBacklogStore.class,
     StockOperationAssignmentCandidateStoreIntegrationTest.RepositoryConfiguration.class

@@ -2,9 +2,9 @@ package com.flowzati.archone.inventory.position.onhand.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.inventory.position.domain.StockQuant;
-import com.flowzati.archone.inventory.position.infrastructure.entity.StockQuantEntity;
-import com.flowzati.archone.inventory.position.infrastructure.mapper.StockQuantMapper;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.entity.StockQuantEntity;
+import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.mapper.StockQuantMapper;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import java.time.LocalDate;
 import java.util.UUID;

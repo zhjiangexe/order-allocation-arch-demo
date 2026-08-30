@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.position.application.store;
 
 import com.flowzati.archone.inventory.position.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.position.application.StockReceiptRequestConflictException;
+import com.flowzati.archone.inventory.position.application.exception.StockReceiptRequestConflictException;
 
 /** Application port for atomically claiming a synchronous stock receipt request. */
 @FunctionalInterface

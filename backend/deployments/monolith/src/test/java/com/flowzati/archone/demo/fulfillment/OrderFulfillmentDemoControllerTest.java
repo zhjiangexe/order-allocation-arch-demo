@@ -3,11 +3,11 @@ package com.flowzati.archone.demo.fulfillment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.MovementSourceType;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
 import java.time.Instant;
 import java.time.LocalDate;

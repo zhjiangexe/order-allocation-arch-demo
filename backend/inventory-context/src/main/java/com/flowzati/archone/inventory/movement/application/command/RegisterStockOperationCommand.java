@@ -1,8 +1,8 @@
 package com.flowzati.archone.inventory.movement.application.command;
 
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -53,20 +53,5 @@ public record RegisterStockOperationCommand(
         lines = lines.stream()
                 .sorted(Comparator.comparing(MovementLine::sourceLineId))
                 .toList();
-    }
-
-    public record MovementLine(String sourceLineId, String skuCode, int quantity) {
-
-        public MovementLine {
-            if (sourceLineId == null || sourceLineId.isBlank()) {
-                throw new IllegalArgumentException("Source line ID is required");
-            }
-            if (skuCode == null || skuCode.isBlank()) {
-                throw new IllegalArgumentException("SKU code is required");
-            }
-            if (quantity <= 0) {
-                throw new IllegalArgumentException("Movement quantity must be positive");
-            }
-        }
     }
 }

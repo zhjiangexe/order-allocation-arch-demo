@@ -1,20 +1,17 @@
 package com.flowzati.archone.wms.outbound.application.usecase;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.wms.outbound.application.command.CompleteWaveCommand;
 import com.flowzati.archone.wms.outbound.application.command.ConfirmPickCommand;
 import com.flowzati.archone.wms.outbound.application.command.HandOverShipmentCommand;
 import com.flowzati.archone.wms.outbound.application.command.PackShipmentCommand;
+import com.flowzati.archone.wms.outbound.application.command.PlanWaveCommand;
+import com.flowzati.archone.wms.outbound.application.command.ReleaseWaveCommand;
 import com.flowzati.archone.wms.outbound.application.command.SimulateWarehouseOperationsCommand;
 import com.flowzati.archone.wms.outbound.application.command.StageShipmentCommand;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
-import com.flowzati.archone.wms.outbound.wave.application.command.CompleteWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.application.command.PlanWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.application.command.ReleaseWaveCommand;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.CompleteWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.PlanWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.ReleaseWaveUsecase;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -31,7 +28,7 @@ public class SimulateWarehouseOperationsUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(SimulateWarehouseOperationsUsecase.class);
 
-    private final ShipmentRepository shipmentRepository;
+    private final ShipmentStore shipmentStore;
     private final PlanWaveUsecase planWaveUsecase;
     private final ReleaseWaveUsecase releaseWaveUsecase;
     private final ConfirmPickUsecase confirmPickUsecase;
@@ -41,7 +38,7 @@ public class SimulateWarehouseOperationsUsecase {
     private final HandOverShipmentUsecase handOverShipmentUsecase;
 
     public SimulateWarehouseOperationsUsecase(
-            ShipmentRepository shipmentRepository,
+            ShipmentStore shipmentStore,
             PlanWaveUsecase planWaveUsecase,
             ReleaseWaveUsecase releaseWaveUsecase,
             ConfirmPickUsecase confirmPickUsecase,
@@ -49,7 +46,7 @@ public class SimulateWarehouseOperationsUsecase {
             PackShipmentUsecase packShipmentUsecase,
             StageShipmentUsecase stageShipmentUsecase,
             HandOverShipmentUsecase handOverShipmentUsecase) {
-        this.shipmentRepository = shipmentRepository;
+        this.shipmentStore = shipmentStore;
         this.planWaveUsecase = planWaveUsecase;
         this.releaseWaveUsecase = releaseWaveUsecase;
         this.confirmPickUsecase = confirmPickUsecase;
@@ -65,7 +62,7 @@ public class SimulateWarehouseOperationsUsecase {
      */
     @Transactional
     public boolean handle(SimulateWarehouseOperationsCommand command) {
-        Shipment shipment = shipmentRepository
+        Shipment shipment = shipmentStore
                 .findById(command.shipmentId())
                 .orElseThrow(() -> new IllegalStateException("Shipment not found: " + command.shipmentId()));
         if (shipment.status() != ShipmentStatus.CREATED) {
@@ -108,7 +105,7 @@ public class SimulateWarehouseOperationsUsecase {
     }
 
     private Shipment requiredShipment(UUID shipmentId) {
-        return shipmentRepository
+        return shipmentStore
                 .findById(shipmentId)
                 .orElseThrow(() -> new IllegalStateException("Shipment not found: " + shipmentId));
     }

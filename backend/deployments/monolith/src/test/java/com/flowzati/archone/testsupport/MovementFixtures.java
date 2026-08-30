@@ -1,10 +1,10 @@
 package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.location.domain.LocationUsageType;
-import com.flowzati.archone.inventory.location.domain.StockLocation;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationType;
+import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
+import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
+import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.util.List;

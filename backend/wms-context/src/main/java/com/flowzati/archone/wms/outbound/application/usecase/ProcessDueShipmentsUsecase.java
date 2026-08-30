@@ -2,7 +2,7 @@ package com.flowzati.archone.wms.outbound.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.wms.outbound.application.command.SimulateWarehouseOperationsCommand;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -15,14 +15,14 @@ public class ProcessDueShipmentsUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(ProcessDueShipmentsUsecase.class);
 
-    private final ShipmentRepository shipmentRepository;
+    private final ShipmentStore shipmentStore;
     private final SimulateWarehouseOperationsUsecase simulateWarehouseOperations;
     private final BusinessClock appClock;
     private final Duration processingDelay;
     private final int batchLimit;
 
     public ProcessDueShipmentsUsecase(
-            ShipmentRepository shipmentRepository,
+            ShipmentStore shipmentStore,
             SimulateWarehouseOperationsUsecase simulateWarehouseOperations,
             BusinessClock appClock,
             Duration processingDelay,
@@ -33,7 +33,7 @@ public class ProcessDueShipmentsUsecase {
         if (batchLimit <= 0) {
             throw new IllegalArgumentException("Shipment simulation batch limit must be positive");
         }
-        this.shipmentRepository = shipmentRepository;
+        this.shipmentStore = shipmentStore;
         this.simulateWarehouseOperations = simulateWarehouseOperations;
         this.appClock = appClock;
         this.processingDelay = processingDelay;
@@ -43,7 +43,7 @@ public class ProcessDueShipmentsUsecase {
     public void execute() {
         Instant processedAt = appClock.instant();
         Instant cutoff = processedAt.minus(processingDelay);
-        for (UUID shipmentId : shipmentRepository.findCreatedAtOrBefore(cutoff, batchLimit)) {
+        for (UUID shipmentId : shipmentStore.findCreatedAtOrBefore(cutoff, batchLimit)) {
             processOne(shipmentId, processedAt);
         }
     }

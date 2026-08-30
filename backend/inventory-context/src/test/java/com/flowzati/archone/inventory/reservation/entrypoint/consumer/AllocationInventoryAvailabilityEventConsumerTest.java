@@ -4,8 +4,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.AssignmentQueueKey;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 

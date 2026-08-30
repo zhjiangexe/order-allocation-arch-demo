@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.infrastructure;
 
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationReconciliationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationReconciliationStore;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.boot.health.contributor.Health;

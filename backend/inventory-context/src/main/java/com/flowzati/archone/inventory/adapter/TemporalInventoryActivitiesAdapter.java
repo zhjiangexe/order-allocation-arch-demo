@@ -1,6 +1,7 @@
 package com.flowzati.archone.inventory.adapter;
 
-import com.flowzati.archone.inventory.movement.application.usecase.CompleteStockOperationUsecase;
+import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.inventory.reservation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.orderfulfillment.contract.activity.inventory.CompleteOutboundMovementsActivityInput;
@@ -11,12 +12,12 @@ import com.flowzati.archone.orderfulfillment.contract.activity.inventory.Request
 public final class TemporalInventoryActivitiesAdapter implements InventoryActivities {
 
     private final AllocateOrderUsecase allocateOrderUsecase;
-    private final CompleteStockOperationUsecase completeStockOperation;
+    private final CompleteOutboundMovementsUsecase completeOutboundMovements;
 
     public TemporalInventoryActivitiesAdapter(
-            AllocateOrderUsecase allocateOrderUsecase, CompleteStockOperationUsecase completeStockOperation) {
+            AllocateOrderUsecase allocateOrderUsecase, CompleteOutboundMovementsUsecase completeOutboundMovements) {
         this.allocateOrderUsecase = allocateOrderUsecase;
-        this.completeStockOperation = completeStockOperation;
+        this.completeOutboundMovements = completeOutboundMovements;
     }
 
     @Override
@@ -27,6 +28,11 @@ public final class TemporalInventoryActivitiesAdapter implements InventoryActivi
 
     @Override
     public void completeOutboundMovements(CompleteOutboundMovementsActivityInput input) {
-        completeStockOperation.execute(input.stockOperationId(), input.handedOverAt());
+        completeOutboundMovements.execute(new CompleteOutboundMovementsCommand(
+                input.orderId(),
+                input.shipmentId(),
+                input.stockOperationId(),
+                input.movementIds(),
+                input.handedOverAt()));
     }
 }

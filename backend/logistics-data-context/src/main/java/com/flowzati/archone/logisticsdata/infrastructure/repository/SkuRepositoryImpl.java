@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.infrastructure.repository;
 
+import com.flowzati.archone.logisticsdata.application.store.SkuRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
-import com.flowzati.archone.logisticsdata.domain.repository.SkuRepository;
 import com.flowzati.archone.logisticsdata.infrastructure.mapper.SkuMapper;
 import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaSkuRepository;
 import java.util.List;

@@ -1,15 +1,15 @@
 package com.flowzati.archone.inventory.movement.application.service;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.location.application.repo.StockLocationStore;
-import com.flowzati.archone.inventory.location.domain.StockLocation;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationTypeStore;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationType;
+import com.flowzati.archone.inventory.location.application.store.StockLocationStore;
+import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationTypeStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

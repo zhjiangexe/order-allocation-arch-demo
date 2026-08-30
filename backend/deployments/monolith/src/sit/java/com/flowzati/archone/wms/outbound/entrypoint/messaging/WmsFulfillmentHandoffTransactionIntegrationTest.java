@@ -14,9 +14,9 @@ import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.wms.outbound.application.command.CancelShipmentCommand;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ProcessDueShipmentsUsecase;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
 import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentCancellationState;
@@ -47,7 +47,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
     private IntegrationEventSerializer serializer;
 
     @Autowired
-    private ShipmentRepository shipmentRepository;
+    private ShipmentStore shipmentStore;
 
     @Autowired
     private ProcessDueShipmentsUsecase processDueShipmentsUsecase;
@@ -82,7 +82,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         assertThat(inboxCount(eventId)).isOne();
         assertThat(count("wms_shipments")).isOne();
         assertThat(count("wms_shipment_lines")).isOne();
-        assertThat(shipmentRepository.findByStockOperationId(stockOperationId)).hasValueSatisfying(shipment -> {
+        assertThat(shipmentStore.findByStockOperationId(stockOperationId)).hasValueSatisfying(shipment -> {
             assertThat(shipment.stockOperationId()).isEqualTo(stockOperationId);
             assertThat(shipment.orderId()).isEqualTo(orderId);
             assertThat(shipment.status()).isEqualTo(ShipmentStatus.CREATED);
@@ -105,7 +105,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         assertThat(inboxCount(firstEventId)).isOne();
         assertThat(inboxCount(secondEventId)).isOne();
         assertThat(count("wms_shipments")).isOne();
-        assertThat(shipmentRepository.findByOrderId(orderId)).hasSize(1);
+        assertThat(shipmentStore.findByOrderId(orderId)).hasSize(1);
     }
 
     @Test
@@ -113,14 +113,14 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         UUID stockOperationId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         emit(event(UUID.randomUUID(), stockOperationId, orderId));
-        UUID shipmentId = shipmentRepository
+        UUID shipmentId = shipmentStore
                 .findByStockOperationId(stockOperationId)
                 .orElseThrow()
                 .id();
         processDueShipmentsUsecase.execute();
         processDueShipmentsUsecase.execute();
 
-        assertThat(shipmentRepository.findById(shipmentId)).hasValueSatisfying(shipment -> {
+        assertThat(shipmentStore.findById(shipmentId)).hasValueSatisfying(shipment -> {
             assertThat(shipment.status()).isEqualTo(ShipmentStatus.HANDED_OVER_TO_CARRIER);
             assertThat(shipment.pickTasks()).isNotEmpty().allMatch(task -> task.status() == PickTaskStatus.PICKED);
         });
@@ -139,7 +139,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
         Instant requestedAt = Instant.parse("2026-08-12T09:00:00Z");
         String reason = "Customer changed mind";
         emit(event(UUID.randomUUID(), stockOperationId, orderId));
-        UUID shipmentId = shipmentRepository
+        UUID shipmentId = shipmentStore
                 .findByStockOperationId(stockOperationId)
                 .orElseThrow()
                 .id();
@@ -151,7 +151,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
 
         assertThat(first).isEqualTo(CancelShipmentStatus.ACCEPTED);
         assertThat(retry).isEqualTo(CancelShipmentStatus.ALREADY_ACCEPTED);
-        assertThat(shipmentRepository.findById(shipmentId)).hasValueSatisfying(shipment -> {
+        assertThat(shipmentStore.findById(shipmentId)).hasValueSatisfying(shipment -> {
             assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
             assertThat(shipment.cancellationStateValue()).contains(ShipmentCancellationState.COMPLETED);
             assertThat(shipment.cancellationRequestId()).isEqualTo(requestId);

@@ -11,7 +11,7 @@ import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
-import com.flowzati.archone.wms.outbound.application.query.ShipmentView;
+import com.flowzati.archone.wms.outbound.application.result.ShipmentView;
 import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
 import com.flowzati.archone.wms.outbound.domain.type.CancelShipmentStatus;

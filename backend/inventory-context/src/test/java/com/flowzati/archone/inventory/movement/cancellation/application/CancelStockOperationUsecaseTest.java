@@ -8,15 +8,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationTarget;
 import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator.Decision;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator.Target;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions.Checkpoint;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions.Preparation;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelStockOperationUsecase;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationStatus;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -46,7 +46,8 @@ class CancelStockOperationUsecaseTest {
         CancelStockOperationCommand command =
                 CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .thenReturn(new Preparation.Terminal(StockOperationCancellationStatus.COMPLETED));
+                .thenReturn(
+                        new StockOperationCancellationPreparation.Terminal(StockOperationCancellationStatus.COMPLETED));
 
         assertThat(usecase.execute(command)).isEqualTo(StockOperationCancellationStatus.COMPLETED);
 
@@ -58,11 +59,13 @@ class CancelStockOperationUsecaseTest {
     void persistsWarehouseConfirmationBeforeLocalCancellation() {
         CancelStockOperationCommand command =
                 CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        Target target = new Target(STOCK_OPERATION_ID);
+        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .thenReturn(new Preparation.Continue(checkpoint(target, StockOperationCancellationState.STARTED)));
-        when(coordinator.cancelExecution(target, OPERATION_ID)).thenReturn(Decision.CONFIRMED);
-        when(transactions.recordExternalDecision(STOCK_OPERATION_ID, OPERATION_ID, Decision.CONFIRMED, NOW))
+                .thenReturn(new StockOperationCancellationPreparation.Continue(
+                        checkpoint(target, StockOperationCancellationState.STARTED)));
+        when(coordinator.cancelExecution(target, OPERATION_ID)).thenReturn(WarehouseCancellationDecision.CONFIRMED);
+        when(transactions.recordExternalDecision(
+                        STOCK_OPERATION_ID, OPERATION_ID, WarehouseCancellationDecision.CONFIRMED, NOW))
                 .thenReturn(checkpoint(target, StockOperationCancellationState.EXTERNAL_CONFIRMED));
         when(transactions.complete(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(StockOperationCancellationStatus.COMPLETED);
@@ -77,10 +80,12 @@ class CancelStockOperationUsecaseTest {
     void trustedTerminalFactPersistsConfirmationWithoutCallingWarehouseAgain() {
         CancelStockOperationCommand command =
                 CancelStockOperationCommand.afterWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        Target target = new Target(STOCK_OPERATION_ID);
+        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .thenReturn(new Preparation.Continue(checkpoint(target, StockOperationCancellationState.STARTED)));
-        when(transactions.recordExternalDecision(STOCK_OPERATION_ID, OPERATION_ID, Decision.CONFIRMED, NOW))
+                .thenReturn(new StockOperationCancellationPreparation.Continue(
+                        checkpoint(target, StockOperationCancellationState.STARTED)));
+        when(transactions.recordExternalDecision(
+                        STOCK_OPERATION_ID, OPERATION_ID, WarehouseCancellationDecision.CONFIRMED, NOW))
                 .thenReturn(checkpoint(target, StockOperationCancellationState.EXTERNAL_CONFIRMED));
         when(transactions.complete(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(StockOperationCancellationStatus.COMPLETED);
@@ -95,11 +100,13 @@ class CancelStockOperationUsecaseTest {
     void rejectedWarehouseCancellationDoesNotRunLocalChanges() {
         CancelStockOperationCommand command =
                 CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        Target target = new Target(STOCK_OPERATION_ID);
+        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .thenReturn(new Preparation.Continue(checkpoint(target, StockOperationCancellationState.STARTED)));
-        when(coordinator.cancelExecution(target, OPERATION_ID)).thenReturn(Decision.REJECTED);
-        when(transactions.recordExternalDecision(STOCK_OPERATION_ID, OPERATION_ID, Decision.REJECTED, NOW))
+                .thenReturn(new StockOperationCancellationPreparation.Continue(
+                        checkpoint(target, StockOperationCancellationState.STARTED)));
+        when(coordinator.cancelExecution(target, OPERATION_ID)).thenReturn(WarehouseCancellationDecision.REJECTED);
+        when(transactions.recordExternalDecision(
+                        STOCK_OPERATION_ID, OPERATION_ID, WarehouseCancellationDecision.REJECTED, NOW))
                 .thenReturn(checkpoint(target, StockOperationCancellationState.EXTERNAL_REJECTED));
 
         assertThat(usecase.execute(command)).isEqualTo(StockOperationCancellationStatus.NOT_CANCELLABLE);
@@ -111,9 +118,9 @@ class CancelStockOperationUsecaseTest {
     void resumesLocalWorkWithoutCallingWarehouseAgain() {
         CancelStockOperationCommand command =
                 CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        Target target = new Target(STOCK_OPERATION_ID);
+        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .thenReturn(new Preparation.Continue(
+                .thenReturn(new StockOperationCancellationPreparation.Continue(
                         checkpoint(target, StockOperationCancellationState.EXTERNAL_CONFIRMED)));
         when(transactions.complete(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(StockOperationCancellationStatus.COMPLETED);
@@ -123,7 +130,8 @@ class CancelStockOperationUsecaseTest {
         verify(coordinator, never()).cancelExecution(any(), any());
     }
 
-    private static Checkpoint checkpoint(Target target, StockOperationCancellationState state) {
-        return new Checkpoint(target, state);
+    private static StockOperationCancellationCheckpoint checkpoint(
+            WarehouseCancellationTarget target, StockOperationCancellationState state) {
+        return new StockOperationCancellationCheckpoint(target, state);
     }
 }

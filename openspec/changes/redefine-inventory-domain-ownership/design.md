@@ -88,7 +88,10 @@ inventory/movement/
 ```
 
 - `StockOperationType` 與 `StockOperationDirection` 從 `warehouse/operationtype` 移至 Movement，因為它們定義 Movement 的方向與預設端點。
-- `CompleteStockOperationUsecase`、source completion command/result 與 lifecycle publication 歸 Movement completion/operation ownership；它們現在完成 canonical Movement，尚未建立 Posting。
+- `CompleteOutboundMovementsUsecase`、normalized completion command 與 lifecycle／fulfillment publication 歸 Movement
+  completion/operation ownership；Event 與 Temporal entrypoint 共用此一 Usecase 完成 canonical Movement，尚未建立
+  Posting。Usecase 只發布一個 `StockOperationCompleted` Application Event，再由單一 infrastructure adapter 在同一
+  transaction 內原子產生 lifecycle audit 與 fulfillment notification 兩個既有 Integration Event contracts。
 - `StockOperationCancellation`、repository、transactions、WMS cancellation port 與 event consumer 歸 Movement cancellation。`AllocationCancellationState` rename 為 `StockOperationCancellationState`；schema 的 state strings 不變。
 - `StockOperationComposite` 與 `StockOperationLifecycleSnapshot` 是 transaction-scoped Movement working models，沒有 repository、persistence identity 或獨立 lifecycle，歸 Movement Application。
 

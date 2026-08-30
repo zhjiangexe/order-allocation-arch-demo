@@ -22,12 +22,12 @@ import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelSourceStockMovementsUsecase;
-import com.flowzati.archone.inventory.movement.application.usecase.CompleteSourceStockMovementsUsecase;
+import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
 import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
 import com.flowzati.archone.inventory.movement.entrypoint.consumer.AllocationOrderCancellationEventConsumer;
 import com.flowzati.archone.inventory.movement.entrypoint.consumer.ShipmentHandoverEventConsumer;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
@@ -135,9 +135,7 @@ class BootstrapIntegrationEventWiringTest {
                         () -> mock(StockOperationAssignmentCoordinator.class))
                 .withBean(CreateShipmentUsecase.class, () -> mock(CreateShipmentUsecase.class))
                 .withBean(LegacyAllocationPickingResolver.class, () -> mock(LegacyAllocationPickingResolver.class))
-                .withBean(
-                        CompleteSourceStockMovementsUsecase.class,
-                        () -> mock(CompleteSourceStockMovementsUsecase.class))
+                .withBean(CompleteOutboundMovementsUsecase.class, () -> mock(CompleteOutboundMovementsUsecase.class))
                 .withBean(IntegrationEventPublisher.class, () -> mock(IntegrationEventPublisher.class))
                 .withBean(RecordOrderFulfillmentUsecase.class, () -> mock(RecordOrderFulfillmentUsecase.class));
         runner = runner.withBean(CancelOrderUsecase.class, () -> mock(CancelOrderUsecase.class));

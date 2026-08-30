@@ -6,12 +6,12 @@ import com.flowzati.archone.wms.inbound.application.command.ConfirmArrivalComman
 import com.flowzati.archone.wms.inbound.application.command.ConfirmPutawayCommand;
 import com.flowzati.archone.wms.inbound.application.command.RecordInspectionCommand;
 import com.flowzati.archone.wms.inbound.application.command.RegisterInboundOperationCommand;
+import com.flowzati.archone.wms.inbound.application.store.InboundOperationStore;
 import com.flowzati.archone.wms.inbound.application.usecase.ConfirmArrivalUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.ConfirmPutawayUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.RecordInspectionUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.RegisterInboundOperationUsecase;
 import com.flowzati.archone.wms.inbound.domain.aggregate.InboundOperation;
-import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
 import com.flowzati.archone.wms.inbound.domain.type.InboundStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,7 +27,7 @@ class InboundProcessTest {
 
     private static final Instant T0 = Instant.parse("2026-08-06T02:00:00Z");
 
-    private final InMemoryInboundRepository repository = new InMemoryInboundRepository();
+    private final InMemoryInboundStore repository = new InMemoryInboundStore();
     private RegisterInboundOperationUsecase register;
     private ConfirmArrivalUsecase confirmArrival;
     private RecordInspectionUsecase inspect;
@@ -115,7 +115,7 @@ class InboundProcessTest {
                 .hasValueSatisfying(operation -> assertThat(operation.status()).isEqualTo(InboundStatus.COMPLETED));
     }
 
-    private static final class InMemoryInboundRepository implements InboundOperationRepository {
+    private static final class InMemoryInboundStore implements InboundOperationStore {
 
         private final Map<UUID, InboundOperation> operations = new LinkedHashMap<>();
 

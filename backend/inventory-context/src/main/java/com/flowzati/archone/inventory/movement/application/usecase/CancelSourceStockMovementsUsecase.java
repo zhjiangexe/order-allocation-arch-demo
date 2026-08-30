@@ -2,8 +2,8 @@ package com.flowzati.archone.inventory.movement.application.usecase;
 
 import com.flowzati.archone.inventory.movement.application.command.CancelSourceStockMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationStatus;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import org.springframework.stereotype.Service;
 
 /** Resolves a source document identity once, then delegates to the operation-targeted lifecycle. */

@@ -3,8 +3,8 @@ package com.flowzati.archone.inventory.movement.cancellation.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

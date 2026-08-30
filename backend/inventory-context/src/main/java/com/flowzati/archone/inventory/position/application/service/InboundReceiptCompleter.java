@@ -1,18 +1,19 @@
 package com.flowzati.archone.inventory.position.application.service;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.location.application.repo.StockLocationStore;
-import com.flowzati.archone.inventory.location.domain.LocationUsageType;
-import com.flowzati.archone.inventory.location.domain.StockLocation;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
+import com.flowzati.archone.inventory.location.application.store.StockLocationStore;
+import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
+import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.position.application.policy.StockWriteOrder;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
-import com.flowzati.archone.inventory.position.domain.StockWriteOrder;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.position.domain.valueobject.ReceivingBatchIdentity;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class InboundReceiptCompleter {
         this.stockLocationStore = stockLocationStore;
     }
 
-    public void complete(List<StockMove> moves, BatchIdentity batchIdentity, Instant now) {
+    public void complete(List<StockMove> moves, ReceivingBatchIdentity batchIdentity, Instant now) {
         if (moves == null || moves.isEmpty()) {
             throw new IllegalArgumentException("At least one stock move is required");
         }
@@ -111,7 +112,7 @@ public class InboundReceiptCompleter {
     }
 
     private Map<ReceivingBatchKey, StockQuant> resolveReceivingQuants(
-            List<StockMove> moves, BatchIdentity batchIdentity) {
+            List<StockMove> moves, ReceivingBatchIdentity batchIdentity) {
         Map<ReceivingBatchKey, StockQuant> quantsByIdentity = new LinkedHashMap<>();
         for (StockMove move : moves) {
             ReceivingBatchKey key = ReceivingBatchKey.from(move, batchIdentity);
@@ -138,7 +139,7 @@ public class InboundReceiptCompleter {
     private List<StockMoveLine> completeMovements(
             List<StockMove> moves,
             Map<ReceivingBatchKey, StockQuant> receivingQuants,
-            BatchIdentity batchIdentity,
+            ReceivingBatchIdentity batchIdentity,
             Instant now) {
         List<StockMoveLine> lines = new ArrayList<>();
         for (StockMove move : moves) {
@@ -180,20 +181,10 @@ public class InboundReceiptCompleter {
                 .orElseThrow(() -> new IllegalStateException("Stock location " + locationId + " no longer exists"));
     }
 
-    /** 入庫日與效期共同參與 StockQuant 的批次身分。 */
-    public record BatchIdentity(LocalDate inDate, LocalDate expiryDate) {
-
-        public BatchIdentity {
-            if (inDate == null || expiryDate == null) {
-                throw new IllegalArgumentException("A batch is identified by its arrival and expiry");
-            }
-        }
-    }
-
     private record ReceivingBatchKey(
             UUID ownerId, UUID locationId, String skuCode, LocalDate inDate, LocalDate expiryDate) {
 
-        private static ReceivingBatchKey from(StockMove move, BatchIdentity batchIdentity) {
+        private static ReceivingBatchKey from(StockMove move, ReceivingBatchIdentity batchIdentity) {
             return new ReceivingBatchKey(
                     move.getOwnerId(),
                     move.getToLocationId(),

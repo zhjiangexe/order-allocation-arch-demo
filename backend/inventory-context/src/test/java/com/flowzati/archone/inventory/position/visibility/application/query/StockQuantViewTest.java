@@ -3,7 +3,7 @@ package com.flowzati.archone.inventory.position.visibility.application.query;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.inventory.position.application.StockQuantView;
+import com.flowzati.archone.inventory.position.application.view.StockQuantView;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.UUID;

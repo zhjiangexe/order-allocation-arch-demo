@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.reservation.infrastructure.config;
 
-import com.flowzati.archone.inventory.reservation.application.StaleStockAllocationProposalException;
+import com.flowzati.archone.inventory.reservation.application.exception.StaleStockAllocationProposalException;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class AssignmentRetryConflictTranslator {
 
-    @Around("execution(* com.flowzati.archone.inventory.reservation.application."
+    @Around("execution(* com.flowzati.archone.inventory.reservation.application.service."
             + "StockOperationAssignmentCoordinator.tryAssign*(..))")
     public Object translate(ProceedingJoinPoint invocation) throws Throwable {
         try {

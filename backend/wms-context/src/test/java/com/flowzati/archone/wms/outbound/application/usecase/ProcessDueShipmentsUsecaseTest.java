@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.wms.outbound.application.command.SimulateWarehouseOperationsCommand;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -19,7 +19,7 @@ class ProcessDueShipmentsUsecaseTest {
 
     private static final Instant NOW = Instant.parse("2026-08-20T01:00:10Z");
 
-    private final ShipmentRepository shipmentRepository = mock(ShipmentRepository.class);
+    private final ShipmentStore shipmentStore = mock(ShipmentStore.class);
     private final SimulateWarehouseOperationsUsecase simulator = mock(SimulateWarehouseOperationsUsecase.class);
     private final BusinessClock appClock = mock(BusinessClock.class);
 
@@ -28,7 +28,7 @@ class ProcessDueShipmentsUsecaseTest {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
         when(appClock.instant()).thenReturn(NOW);
-        when(shipmentRepository.findCreatedAtOrBefore(NOW.minusSeconds(10), 25)).thenReturn(List.of(first, second));
+        when(shipmentStore.findCreatedAtOrBefore(NOW.minusSeconds(10), 25)).thenReturn(List.of(first, second));
 
         usecase().execute();
 
@@ -41,8 +41,7 @@ class ProcessDueShipmentsUsecaseTest {
         UUID conflicted = UUID.randomUUID();
         UUID following = UUID.randomUUID();
         when(appClock.instant()).thenReturn(NOW);
-        when(shipmentRepository.findCreatedAtOrBefore(NOW.minusSeconds(10), 25))
-                .thenReturn(List.of(conflicted, following));
+        when(shipmentStore.findCreatedAtOrBefore(NOW.minusSeconds(10), 25)).thenReturn(List.of(conflicted, following));
         doThrow(new OptimisticLockingFailureException("conflict"))
                 .when(simulator)
                 .handle(new SimulateWarehouseOperationsCommand(conflicted, NOW));
@@ -53,6 +52,6 @@ class ProcessDueShipmentsUsecaseTest {
     }
 
     private ProcessDueShipmentsUsecase usecase() {
-        return new ProcessDueShipmentsUsecase(shipmentRepository, simulator, appClock, Duration.ofSeconds(10), 25);
+        return new ProcessDueShipmentsUsecase(shipmentStore, simulator, appClock, Duration.ofSeconds(10), 25);
     }
 }

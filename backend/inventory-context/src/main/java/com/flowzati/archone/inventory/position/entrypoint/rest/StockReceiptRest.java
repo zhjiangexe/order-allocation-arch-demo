@@ -1,13 +1,10 @@
 package com.flowzati.archone.inventory.position.entrypoint.rest;
 
-import com.flowzati.archone.inventory.position.application.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.position.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.position.application.StockReceiptRequestConflictException;
 import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.inventory.position.application.exception.StockReceiptRequestConflictException;
+import com.flowzati.archone.inventory.position.application.service.StockReceiptApplicationFacade;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
-import java.time.LocalDate;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -55,22 +52,4 @@ public class StockReceiptRest {
     public ResponseEntity<String> handleIdempotencyConflict(StockReceiptRequestConflictException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
     }
-
-    /** receiptId 是呼叫方產生的冪等鍵；HTTP retry 必須重用同一個值。 */
-    public record ConfirmStockReceiptRequest(
-            @NotNull UUID receiptId,
-
-            @NotNull UUID ownerId,
-
-            @NotNull UUID facilityId,
-
-            @NotNull UUID locationId,
-
-            @NotNull String sku,
-            LocalDate inDate,
-            LocalDate expiryDate,
-
-            @NotNull Integer quantity) {}
-
-    public record StockReceiptConfirmedResponse(UUID receiptId, String sku, int quantity) {}
 }

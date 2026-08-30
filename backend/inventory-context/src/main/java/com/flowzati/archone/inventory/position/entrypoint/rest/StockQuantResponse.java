@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.position.entrypoint.rest;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.flowzati.archone.inventory.position.application.StockQuantView;
+import com.flowzati.archone.inventory.position.application.view.StockQuantView;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;

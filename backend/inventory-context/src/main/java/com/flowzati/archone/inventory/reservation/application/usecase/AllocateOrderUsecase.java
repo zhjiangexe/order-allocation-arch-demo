@@ -1,11 +1,11 @@
 package com.flowzati.archone.inventory.reservation.application.usecase;
 
-import com.flowzati.archone.inventory.movement.application.StockOperationRegistrationResult;
 import com.flowzati.archone.inventory.movement.application.command.RegisterStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationRegistrationResult;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.reservation.application.command.AllocateOrderCommand;
-import com.flowzati.archone.inventory.reservation.application.repo.OrderStockMovementStore;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.reservation.application.store.OrderStockMovementStore;
 import jakarta.transaction.Transactional;
 import java.util.Optional;
 import org.springframework.stereotype.Service;

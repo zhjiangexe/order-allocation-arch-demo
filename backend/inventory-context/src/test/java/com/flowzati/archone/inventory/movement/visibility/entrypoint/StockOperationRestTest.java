@@ -5,14 +5,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.application.StockOperationView;
-import com.flowzati.archone.inventory.movement.application.StockOperationView.MoveLineView;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.MovementSourceType;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.application.view.StockMoveLineView;
+import com.flowzati.archone.inventory.movement.application.view.StockMoveView;
+import com.flowzati.archone.inventory.movement.application.view.StockOperationHeaderView;
+import com.flowzati.archone.inventory.movement.application.view.StockOperationSourceView;
+import com.flowzati.archone.inventory.movement.application.view.StockOperationView;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.movement.entrypoint.rest.StockOperationRest;
 import java.time.Instant;
 import java.util.List;
@@ -58,9 +61,9 @@ class StockOperationRestTest {
     private static StockOperationView operation(UUID stockOperationId) {
         Instant now = Instant.parse("2026-08-20T08:00:00Z");
         return new StockOperationView(
-                new StockOperationView.SourceTrace(
+                new StockOperationSourceView(
                         MovementSourceType.ORDER, UUID.randomUUID().toString(), "PRIMARY"),
-                new StockOperationView.Operation(
+                new StockOperationHeaderView(
                         stockOperationId,
                         UUID.randomUUID(),
                         StockOperationDirection.OUTBOUND,
@@ -72,7 +75,7 @@ class StockOperationRestTest {
                         now.plusSeconds(3600),
                         50,
                         StockOperationState.CONFIRMED),
-                List.of(new StockOperationView.Move(
+                List.of(new StockMoveView(
                         UUID.randomUUID(),
                         "line-1",
                         1,
@@ -81,7 +84,7 @@ class StockOperationRestTest {
                         MoveState.CONFIRMED,
                         now,
                         null,
-                        List.of(new MoveLineView(
+                        List.of(new StockMoveLineView(
                                 UUID.randomUUID(),
                                 UUID.randomUUID(),
                                 "SKU-1",

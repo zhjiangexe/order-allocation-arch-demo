@@ -1,6 +1,6 @@
 package com.flowzati.archone.bootstrap.fulfillment.compatibility;
 
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
 import java.util.LinkedHashSet;

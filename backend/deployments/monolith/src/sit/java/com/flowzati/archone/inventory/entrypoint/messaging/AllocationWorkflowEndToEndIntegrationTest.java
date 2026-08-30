@@ -12,12 +12,12 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
 import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator.Decision;
 import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
-import com.flowzati.archone.inventory.position.application.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.position.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.inventory.position.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
@@ -95,7 +95,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
                 "SKU-PARTIALLY-RESERVED",
                 "SKU-BASKET-A",
                 "SKU-BASKET-B");
-        when(warehouseCancellationCoordinator.cancelExecution(any(), any())).thenReturn(Decision.CONFIRMED);
+        when(warehouseCancellationCoordinator.cancelExecution(any(), any()))
+                .thenReturn(WarehouseCancellationDecision.CONFIRMED);
     }
 
     @Test

@@ -3,7 +3,8 @@ package com.flowzati.archone.inventory.reservation.release.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.inventory.movement.application.usecase.CompleteStockOperationUsecase;
+import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -41,13 +42,15 @@ class AllocationReleaseConsumeConcurrencyIntegrationTest {
     private static final UUID STOCK_OPERATION_ID = UUID.fromString("00000000-0000-7000-8000-000000000801");
     private static final UUID MOVE_ID = UUID.fromString("00000000-0000-7000-8000-000000000802");
     private static final UUID QUANT_ID = UUID.fromString("00000000-0000-7000-8000-000000000803");
+    private static final UUID ORDER_ID = UUID.fromString("00000000-0000-7000-8000-000000000804");
+    private static final UUID SHIPMENT_ID = UUID.fromString("00000000-0000-7000-8000-000000000805");
     private static final Instant ASSIGNED_AT = Instant.parse("2026-08-27T02:00:00Z");
 
     @Autowired
     private ReleaseStockOperationUsecase releaseStockOperationUsecase;
 
     @Autowired
-    private CompleteStockOperationUsecase completeStockOperationUsecase;
+    private CompleteOutboundMovementsUsecase completeOutboundMovementsUsecase;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -104,7 +107,7 @@ class AllocationReleaseConsumeConcurrencyIntegrationTest {
                 STOCK_OPERATION_ID,
                 MovementFixtures.OUTBOUND_TYPE_ID,
                 OrderFixtures.OWNER_ID,
-                UUID.randomUUID().toString(),
+                ORDER_ID.toString(),
                 Timestamp.from(ASSIGNED_AT.minusSeconds(60)),
                 OrderFixtures.LOCATION_ID,
                 MovementFixtures.CUSTOMERS_LOCATION_ID,
@@ -144,8 +147,11 @@ class AllocationReleaseConsumeConcurrencyIntegrationTest {
         try {
             Future<Object> release = executor.submit(() ->
                     race(ready, start, () -> releaseStockOperationUsecase.execute(STOCK_OPERATION_ID, terminalAt)));
-            Future<Object> complete = executor.submit(() ->
-                    race(ready, start, () -> completeStockOperationUsecase.execute(STOCK_OPERATION_ID, terminalAt)));
+            Future<Object> complete = executor.submit(() -> race(
+                    ready,
+                    start,
+                    () -> completeOutboundMovementsUsecase.execute(new CompleteOutboundMovementsCommand(
+                            ORDER_ID, SHIPMENT_ID, STOCK_OPERATION_ID, List.of(MOVE_ID), terminalAt))));
 
             ready.await();
             start.countDown();

@@ -204,8 +204,10 @@ Application result/snapshot
 ```
 
 The assignment publisher accepts the source-neutral `StockOperationAssignmentResult`; its infrastructure adapter routes supported
-source types and performs the current ORDER UUID and contract mapping. The lifecycle publisher accepts
-`StockOperationLifecycleSnapshot` plus an application-owned lifecycle action enum. Infrastructure maps that enum to
+source types and performs the current ORDER UUID and contract mapping. Release and cancellation publish a complete lifecycle event
+containing `StockOperationLifecycleSnapshot` and an application-owned lifecycle action enum. Completion instead publishes one
+`StockOperationCompleted` Application Event; one infrastructure adapter atomically derives both the lifecycle-audit publication and
+the fulfillment-completion publication in the caller's transaction. Infrastructure maps lifecycle actions to
 `StockOperationLifecycleIntegrationEvent.LifecycleAction`. Because receipt currently returns no result, its feature constructs an
 immutable application publication model named `StockAvailabilityIncrease` and passes it through `StockAvailabilityPublisher`;
 infrastructure alone maps that model to

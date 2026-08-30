@@ -1,11 +1,12 @@
 package com.flowzati.archone.inventory.reservation.application;
 
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationProposal;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
-import com.flowzati.archone.inventory.position.domain.StockWriteOrder;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.position.application.policy.StockWriteOrder;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.reservation.application.exception.StaleAllocationSetException;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
@@ -114,14 +115,6 @@ public final class MoveQuantAllocationSet {
     }
 
     public record MoveQuantAllocation(UUID moveId, UUID stockQuantId, int quantity) {}
-
-    /** Supply changed between optimistic planning and the globally ordered quant lock. */
-    public static final class StaleAllocationSetException extends IllegalStateException {
-
-        private StaleAllocationSetException(String message) {
-            super(message);
-        }
-    }
 
     private record MoveQuantKey(UUID moveId, UUID stockQuantId) {}
 }

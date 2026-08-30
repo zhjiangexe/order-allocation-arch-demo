@@ -1,11 +1,11 @@
 package com.flowzati.archone.inventory.allocation.planning.testsupport;
 
-import com.flowzati.archone.inventory.allocation.domain.StockMoveDemand;
-import com.flowzati.archone.inventory.allocation.domain.StockOperationDemand;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockMoveDemand;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import java.util.Collection;
 import java.util.List;
 

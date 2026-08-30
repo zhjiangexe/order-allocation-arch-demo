@@ -9,33 +9,33 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.allocation.application.StockOperationAssignmentCandidate;
-import com.flowzati.archone.inventory.allocation.application.StockOperationPredecessor;
-import com.flowzati.archone.inventory.allocation.application.repo.StockOperationAssignmentCandidateStore;
-import com.flowzati.archone.inventory.allocation.domain.ProposedMoveLine;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationProposal;
-import com.flowzati.archone.inventory.allocation.domain.StockOperationDemand;
+import com.flowzati.archone.inventory.allocation.application.projection.StockOperationAssignmentCandidate;
+import com.flowzati.archone.inventory.allocation.application.projection.StockOperationPredecessor;
+import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationTypeStore;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.MovementSourceType;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationType;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationTypeStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentResult;
-import com.flowzati.archone.inventory.reservation.application.messaging.StockOperationAssignmentPublisher;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.reservation.application.event.StockOperationAssigned;
+import com.flowzati.archone.inventory.reservation.application.port.StockOperationAssignedPublisher;
 import com.flowzati.archone.inventory.reservation.application.service.StockAllocationCommitter;
 import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentResultFactory;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayDeque;
@@ -72,7 +72,7 @@ class StockAllocationCommitterTest {
     private StockQuantStore stockQuantStore;
     private StockOperationTypeStore stockOperationTypeStore;
     private StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore;
-    private StockOperationAssignmentPublisher assignmentPublisher;
+    private StockOperationAssignedPublisher assignmentPublisher;
 
     @BeforeEach
     void setUp() {
@@ -82,7 +82,7 @@ class StockAllocationCommitterTest {
         stockQuantStore = mock(StockQuantStore.class);
         stockOperationTypeStore = mock(StockOperationTypeStore.class);
         stockOperationAssignmentCandidateStore = mock(StockOperationAssignmentCandidateStore.class);
-        assignmentPublisher = mock(StockOperationAssignmentPublisher.class);
+        assignmentPublisher = mock(StockOperationAssignedPublisher.class);
         when(stockOperationTypeStore.findById(STOCK_OPERATION_TYPE_ID))
                 .thenReturn(Optional.of(new StockOperationType(
                         STOCK_OPERATION_TYPE_ID,
@@ -146,10 +146,14 @@ class StockAllocationCommitterTest {
                         org.assertj.core.groups.Tuple.tuple(MOVE_2, QUANT_1, 1),
                         org.assertj.core.groups.Tuple.tuple(MOVE_2, QUANT_2, 3));
 
-        ArgumentCaptor<StockOperationAssignmentResult> publishedResult =
-                ArgumentCaptor.forClass(StockOperationAssignmentResult.class);
-        verify(assignmentPublisher).publish(publishedResult.capture());
-        assertThat(publishedResult.getValue()).isEqualTo(result);
+        ArgumentCaptor<StockOperationAssigned> publishedEvent = ArgumentCaptor.forClass(StockOperationAssigned.class);
+        verify(assignmentPublisher).publish(publishedEvent.capture());
+        assertThat(publishedEvent.getValue().stockOperationId()).isEqualTo(result.stockOperationId());
+        assertThat(publishedEvent.getValue().assignedAt()).isEqualTo(result.assignedAt());
+        assertThat(publishedEvent.getValue().moves())
+                .extracting(StockOperationAssigned.Move::moveId, StockOperationAssigned.Move::quantity)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(MOVE_1, 2), org.assertj.core.groups.Tuple.tuple(MOVE_2, 4));
 
         var locks =
                 inOrder(stockOperationStore, stockMoveStore, stockOperationAssignmentCandidateStore, stockQuantStore);

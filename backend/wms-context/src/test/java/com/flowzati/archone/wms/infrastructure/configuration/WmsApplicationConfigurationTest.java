@@ -4,23 +4,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
+import com.flowzati.archone.wms.inbound.application.store.InboundOperationStore;
 import com.flowzati.archone.wms.inbound.application.usecase.ConfirmArrivalUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.ConfirmPutawayUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.RecordInspectionUsecase;
 import com.flowzati.archone.wms.inbound.application.usecase.RegisterInboundOperationUsecase;
-import com.flowzati.archone.wms.inbound.domain.repository.InboundOperationRepository;
+import com.flowzati.archone.wms.outbound.application.port.ShipmentCancelledPublisher;
+import com.flowzati.archone.wms.outbound.application.port.ShipmentHandedOverPublisher;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
+import com.flowzati.archone.wms.outbound.application.store.WaveStore;
 import com.flowzati.archone.wms.outbound.application.usecase.CompleteShipmentCancellationUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.CompleteWaveUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.PackShipmentUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.PlanWaveUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.ProcessCancellingShipmentsUsecase;
+import com.flowzati.archone.wms.outbound.application.usecase.ReleaseWaveUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.SimulateWarehouseOperationsUsecase;
 import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecase;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.CompleteWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.PlanWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.ReleaseWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -31,10 +32,11 @@ class WmsApplicationConfigurationTest {
             .withInitializer(context ->
                     context.getBeanFactory().setConversionService(ApplicationConversionService.getSharedInstance()))
             .withUserConfiguration(WmsApplicationConfiguration.class)
-            .withBean(InboundOperationRepository.class, () -> mock(InboundOperationRepository.class))
-            .withBean(ShipmentRepository.class, () -> mock(ShipmentRepository.class))
-            .withBean(WaveRepository.class, () -> mock(WaveRepository.class))
-            .withBean(IntegrationEventPublisher.class, () -> mock(IntegrationEventPublisher.class))
+            .withBean(InboundOperationStore.class, () -> mock(InboundOperationStore.class))
+            .withBean(ShipmentStore.class, () -> mock(ShipmentStore.class))
+            .withBean(WaveStore.class, () -> mock(WaveStore.class))
+            .withBean(ShipmentCancelledPublisher.class, () -> mock(ShipmentCancelledPublisher.class))
+            .withBean(ShipmentHandedOverPublisher.class, () -> mock(ShipmentHandedOverPublisher.class))
             .withBean(BusinessClock.class, () -> mock(BusinessClock.class));
 
     @Test

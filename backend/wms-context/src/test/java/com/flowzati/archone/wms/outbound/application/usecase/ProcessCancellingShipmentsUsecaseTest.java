@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -16,7 +16,7 @@ class ProcessCancellingShipmentsUsecaseTest {
 
     private static final Instant NOW = Instant.parse("2026-08-20T01:00:10Z");
 
-    private final ShipmentRepository shipmentRepository = mock(ShipmentRepository.class);
+    private final ShipmentStore shipmentStore = mock(ShipmentStore.class);
     private final CompleteShipmentCancellationUsecase completion = mock(CompleteShipmentCancellationUsecase.class);
     private final BusinessClock appClock = mock(BusinessClock.class);
 
@@ -25,7 +25,7 @@ class ProcessCancellingShipmentsUsecaseTest {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
         when(appClock.instant()).thenReturn(NOW);
-        when(shipmentRepository.findCancelling(25)).thenReturn(List.of(first, second));
+        when(shipmentStore.findCancelling(25)).thenReturn(List.of(first, second));
 
         usecase().execute();
 
@@ -38,7 +38,7 @@ class ProcessCancellingShipmentsUsecaseTest {
         UUID failed = UUID.randomUUID();
         UUID following = UUID.randomUUID();
         when(appClock.instant()).thenReturn(NOW);
-        when(shipmentRepository.findCancelling(25)).thenReturn(List.of(failed, following));
+        when(shipmentStore.findCancelling(25)).thenReturn(List.of(failed, following));
         doThrow(new IllegalStateException("conflict")).when(completion).execute(failed, NOW);
 
         usecase().execute();
@@ -47,6 +47,6 @@ class ProcessCancellingShipmentsUsecaseTest {
     }
 
     private ProcessCancellingShipmentsUsecase usecase() {
-        return new ProcessCancellingShipmentsUsecase(shipmentRepository, completion, appClock, 25);
+        return new ProcessCancellingShipmentsUsecase(shipmentStore, completion, appClock, 25);
     }
 }

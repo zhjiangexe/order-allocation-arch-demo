@@ -6,34 +6,34 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
-import com.flowzati.archone.inventory.allocation.infrastructure.repo.jdbc.JdbcStockAllocationSupplyStore;
-import com.flowzati.archone.inventory.allocation.infrastructure.repo.jdbc.JdbcStockOperationAssignmentCandidateStore;
-import com.flowzati.archone.inventory.movement.application.SourceMovementConflictException;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.movement.application.exception.SourceMovementConflictException;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockMoveRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockOperationCancellationRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockOperationRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockOperationTypeRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockMovePersistenceAdapter;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockOperationCancellationPersistenceAdapter;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockOperationPersistenceAdapter;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockOperationTypePersistenceAdapter;
-import com.flowzati.archone.inventory.position.infrastructure.repo.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.position.infrastructure.repo.StockQuantStoreImpl;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationCancellationRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationTypeRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationCancellationStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationTypeStoreImpl;
+import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
+import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
 import com.flowzati.archone.inventory.reservation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.inventory.reservation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentResultFactory;
 import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.reservation.infrastructure.messaging.StockOperationAssignmentPublisherAdapter;
-import com.flowzati.archone.inventory.reservation.infrastructure.repo.OrderStockMovementStoreImpl;
-import com.flowzati.archone.inventory.reservation.infrastructure.repo.StockMoveLineStoreImpl;
-import com.flowzati.archone.inventory.reservation.infrastructure.repo.jpa.JpaOrderAllocationSourceRepository;
-import com.flowzati.archone.inventory.reservation.infrastructure.repo.jpa.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.reservation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaOrderAllocationSourceRepository;
+import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.store.OrderStockMovementStoreImpl;
+import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.store.StockMoveLineStoreImpl;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -65,11 +65,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    StockOperationPersistenceAdapter.class,
-    StockMovePersistenceAdapter.class,
+    StockOperationStoreImpl.class,
+    StockMoveStoreImpl.class,
     StockMoveLineStoreImpl.class,
     StockQuantStoreImpl.class,
-    StockOperationTypePersistenceAdapter.class,
+    StockOperationTypeStoreImpl.class,
     OrderStockMovementStoreImpl.class,
     StockOperationRegistrar.class,
     JdbcStockOperationAssignmentCandidateStore.class,
@@ -77,10 +77,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     MovementAssignmentPlanner.class,
     StockAllocationCommitter.class,
     StockOperationAssignmentResultFactory.class,
-    StockOperationAssignmentPublisherAdapter.class,
+    StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentCoordinator.class,
     AllocateOrderUsecase.class,
-    StockOperationCancellationPersistenceAdapter.class,
+    StockOperationCancellationStoreImpl.class,
     StockMovementRegistrationPersistenceIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("Stock movement registration PostgreSQL transaction")
@@ -103,7 +103,7 @@ class StockMovementRegistrationPersistenceIntegrationTest {
     private AllocateOrderUsecase allocateOrder;
 
     @Autowired
-    private StockOperationCancellationPersistenceAdapter stockOperationCancellationPersistenceAdapter;
+    private StockOperationCancellationStoreImpl stockOperationCancellationStoreImpl;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -238,11 +238,11 @@ class StockMovementRegistrationPersistenceIntegrationTest {
                 StockOperationCancellation.start(stockOperationId, operationId, RECEIVED_AT.plusSeconds(2));
         operation.confirmExternally(RECEIVED_AT.plusSeconds(3));
 
-        stockOperationCancellationPersistenceAdapter.save(operation);
+        stockOperationCancellationStoreImpl.save(operation);
         entityManager.flush();
         entityManager.clear();
 
-        StockOperationCancellation restored = stockOperationCancellationPersistenceAdapter
+        StockOperationCancellation restored = stockOperationCancellationStoreImpl
                 .find(stockOperationId, operationId)
                 .orElseThrow();
         assertThat(restored.stockOperationId()).isEqualTo(stockOperationId);

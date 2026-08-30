@@ -3,8 +3,8 @@ package com.flowzati.archone.inventory.location.entrypoint;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.location.application.StockLocationView;
 import com.flowzati.archone.inventory.location.application.usecase.ListStockLocationsUsecase;
+import com.flowzati.archone.inventory.location.application.view.StockLocationView;
 import com.flowzati.archone.inventory.location.entrypoint.rest.FacilityLocationRest;
 import java.util.List;
 import java.util.UUID;

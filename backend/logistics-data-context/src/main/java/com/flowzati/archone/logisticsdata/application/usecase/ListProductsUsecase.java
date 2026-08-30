@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.application.usecase;
 
+import com.flowzati.archone.logisticsdata.application.store.ProductRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
-import com.flowzati.archone.logisticsdata.domain.repository.ProductRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;

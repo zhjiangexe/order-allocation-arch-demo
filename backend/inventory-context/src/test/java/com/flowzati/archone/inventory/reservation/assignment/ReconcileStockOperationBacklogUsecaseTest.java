@@ -9,10 +9,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.AssignmentQueueKey;
-import com.flowzati.archone.inventory.allocation.application.repo.StockOperationAssignmentBacklogStore;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentResult;
+import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
+import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.reservation.application.result.StockOperationAssignmentResult;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReconcileStockOperationBacklogUsecase;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;

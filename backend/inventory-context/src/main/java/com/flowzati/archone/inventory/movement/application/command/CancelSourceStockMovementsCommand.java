@@ -1,7 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.command;
 
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.WarehouseCancellationCheckpoint;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.UUID;
 
 /** Source-side command; the application resolves this identity to one canonical operation. */

@@ -1,5 +1,7 @@
 package com.flowzati.archone.inventory.movement.infrastructure;
 
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationTarget;
 import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -9,7 +11,8 @@ import org.springframework.stereotype.Component;
 public class RejectingExecutionCancellationAdapter implements WarehouseExecutionCancellationCoordinator {
 
     @Override
-    public Decision cancelExecution(Target target, UUID cancellationOperationId) {
-        return Decision.REJECTED;
+    public WarehouseCancellationDecision cancelExecution(
+            WarehouseCancellationTarget target, UUID cancellationOperationId) {
+        return WarehouseCancellationDecision.REJECTED;
     }
 }

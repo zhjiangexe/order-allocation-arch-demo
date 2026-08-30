@@ -1,14 +1,8 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
-import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
-import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.messaging.events.AggregateReference;
-import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
-import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.ordering.application.command.CancelOrderCommand;
-import com.flowzati.archone.ordering.application.event.OrderingPartitionKeyResolver;
+import com.flowzati.archone.ordering.application.event.OrderCancelled;
+import com.flowzati.archone.ordering.application.port.OrderCancelledPublisher;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
@@ -33,16 +27,11 @@ import org.springframework.stereotype.Service;
 public class CancelOrderUsecase {
 
     private final OrderRepository orderRepository;
-    private final IntegrationEventPublisher integrationEventPublisher;
-    private final OrderingPartitionKeyResolver partitionKeyResolver;
+    private final OrderCancelledPublisher orderCancelledPublisher;
 
-    public CancelOrderUsecase(
-            OrderRepository orderRepository,
-            IntegrationEventPublisher integrationEventPublisher,
-            OrderingPartitionKeyResolver partitionKeyResolver) {
+    public CancelOrderUsecase(OrderRepository orderRepository, OrderCancelledPublisher orderCancelledPublisher) {
         this.orderRepository = orderRepository;
-        this.integrationEventPublisher = integrationEventPublisher;
-        this.partitionKeyResolver = partitionKeyResolver;
+        this.orderCancelledPublisher = orderCancelledPublisher;
     }
 
     @Transactional
@@ -56,17 +45,8 @@ public class CancelOrderUsecase {
         }
 
         orderRepository.save(order);
-        integrationEventPublisher.publish(
-                new OrderCancelledIntegrationEvent(IdGenerator.nextId(), order.getId(), command.cancelledAt()),
-                new AggregateReference(
-                        OrderingAggregateTypes.ORDER, order.getId().toString()),
-                new PublicationTarget(
-                        OrderingChannels.ORDER_EVENTS,
-                        partitionKeyResolver.resolve(
-                                order.getId(),
-                                order.getOwnerId(),
-                                order.getDeliveryTerms().facilityId())),
-                command.cancelledAt());
+        orderCancelledPublisher.publish(new OrderCancelled(
+                order.getId(), order.getOwnerId(), order.getDeliveryTerms().facilityId(), command.cancelledAt()));
         return result;
     }
 }

@@ -5,9 +5,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.position.application.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.position.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
+import com.flowzati.archone.inventory.position.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.position.application.store.StockReceiptRequestStore;
 import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;

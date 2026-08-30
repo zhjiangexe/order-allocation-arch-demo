@@ -5,12 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.messaging.events.IntegrationEventPublication;
-import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
-import com.flowzati.archone.ordering.application.event.OrderingPartitionKeyResolver;
+import com.flowzati.archone.ordering.application.event.OrderPlaced;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
@@ -31,10 +28,8 @@ class PlaceOrderUsecaseTest {
     @DisplayName("下單時應儲存訂單並發布下單 Integration Event")
     void shouldPersistOrderAndPublishIntegrationEvent() {
         OrderRepository repository = mock(OrderRepository.class);
-        List<IntegrationEventPublication> publications = new ArrayList<>();
-        IntegrationEventPublisher publisher = publications::add;
-        PlaceOrderUsecase usecase = new PlaceOrderUsecase(
-                repository, fixedClock(), publisher, new OrderingPartitionKeyResolver("order-id"));
+        List<OrderPlaced> events = new ArrayList<>();
+        PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, fixedClock(), events::add);
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
 
         Order returnedOrder = usecase.placeOrder(new PlaceOrderCommand(
@@ -53,13 +48,12 @@ class PlaceOrderUsecaseTest {
         Order persistedOrder = orderCaptor.getValue();
         assertThat(returnedOrder).isSameAs(persistedOrder);
         assertThat(returnedOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
-        assertThat(publications).singleElement().satisfies(publication -> {
-            assertThat(publication.event()).isInstanceOf(OrderPlacedIntegrationEvent.class);
-            assertThat(((OrderPlacedIntegrationEvent) publication.event()).getOrderId())
-                    .isEqualTo(returnedOrder.getId());
-            assertThat(publication.target().partitionKey())
-                    .isEqualTo(returnedOrder.getId().toString());
-            assertThat(publication.occurredAt()).isEqualTo(RECEIVED_AT);
+        assertThat(events).singleElement().satisfies(event -> {
+            assertThat(event.orderId()).isEqualTo(returnedOrder.getId());
+            assertThat(event.ownerId()).isEqualTo(returnedOrder.getOwnerId());
+            assertThat(event.facilityId())
+                    .isEqualTo(returnedOrder.getDeliveryTerms().facilityId());
+            assertThat(event.receivedAt()).isEqualTo(RECEIVED_AT);
         });
         verifyNoMoreInteractions(repository);
 
@@ -73,9 +67,7 @@ class PlaceOrderUsecaseTest {
     @DisplayName("命令帶上游下單時刻時原樣保留，且與收單時刻各自獨立")
     void shouldPreserveUpstreamPlacedTime() {
         OrderRepository repository = mock(OrderRepository.class);
-        IntegrationEventPublisher publisher = publication -> {};
-        PlaceOrderUsecase usecase = new PlaceOrderUsecase(
-                repository, fixedClock(), publisher, new OrderingPartitionKeyResolver("order-id"));
+        PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, fixedClock(), event -> {});
         Instant upstreamPlacedAt = Instant.parse("2026-07-26T06:30:00Z");
 
         Order order = usecase.placeOrder(new PlaceOrderCommand(

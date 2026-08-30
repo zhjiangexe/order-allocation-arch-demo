@@ -5,17 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.outbound.application.command.SimulateWarehouseOperationsCommand;
+import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
+import com.flowzati.archone.wms.outbound.application.store.WaveStore;
 import com.flowzati.archone.wms.outbound.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.outbound.domain.repository.ShipmentRepository;
+import com.flowzati.archone.wms.outbound.domain.aggregate.Wave;
+import com.flowzati.archone.wms.outbound.domain.service.impl.PriorityCapacityWavePlanner;
 import com.flowzati.archone.wms.outbound.domain.type.PickTaskStatus;
 import com.flowzati.archone.wms.outbound.domain.type.ShipmentStatus;
 import com.flowzati.archone.wms.outbound.domain.valueobject.ShipmentLine;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.CompleteWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.PlanWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.application.usecase.ReleaseWaveUsecase;
-import com.flowzati.archone.wms.outbound.wave.domain.aggregate.Wave;
-import com.flowzati.archone.wms.outbound.wave.domain.repository.WaveRepository;
-import com.flowzati.archone.wms.outbound.wave.domain.service.PriorityCapacityWavePlanner;
+import com.flowzati.archone.wms.outbound.infrastructure.messaging.ShipmentHandedOverIntegrationEventAdapter;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -32,8 +30,8 @@ class SimulateWarehouseOperationsUsecaseTest {
     private static final Instant PROCESSED_AT = CREATED_AT.plusSeconds(10);
 
     private final AtomicLong sequence = new AtomicLong(100);
-    private final InMemoryShipmentRepository shipmentRepository = new InMemoryShipmentRepository();
-    private final InMemoryWaveRepository waveRepository = new InMemoryWaveRepository();
+    private final InMemoryShipmentStore shipmentRepository = new InMemoryShipmentStore();
+    private final InMemoryWaveStore waveRepository = new InMemoryWaveStore();
     private final List<IntegrationEventPublication> publications = new java.util.ArrayList<>();
     private final PlanWaveUsecase planWaveUsecase =
             new PlanWaveUsecase(waveRepository, shipmentRepository, new PriorityCapacityWavePlanner());
@@ -42,8 +40,8 @@ class SimulateWarehouseOperationsUsecaseTest {
     private final CompleteWaveUsecase completeWaveUsecase = new CompleteWaveUsecase(waveRepository, shipmentRepository);
     private final PackShipmentUsecase packShipmentUsecase = new PackShipmentUsecase(shipmentRepository);
     private final StageShipmentUsecase stageShipmentUsecase = new StageShipmentUsecase(shipmentRepository);
-    private final HandOverShipmentUsecase handOverShipmentUsecase =
-            new HandOverShipmentUsecase(shipmentRepository, publications::add);
+    private final HandOverShipmentUsecase handOverShipmentUsecase = new HandOverShipmentUsecase(
+            shipmentRepository, new ShipmentHandedOverIntegrationEventAdapter(publications::add));
     private final SimulateWarehouseOperationsUsecase usecase = new SimulateWarehouseOperationsUsecase(
             shipmentRepository,
             planWaveUsecase,
@@ -114,7 +112,7 @@ class SimulateWarehouseOperationsUsecaseTest {
         return new UUID(0, sequence.incrementAndGet());
     }
 
-    private static final class InMemoryShipmentRepository implements ShipmentRepository {
+    private static final class InMemoryShipmentStore implements ShipmentStore {
 
         private final Map<UUID, Shipment> shipments = new LinkedHashMap<>();
 
@@ -186,7 +184,7 @@ class SimulateWarehouseOperationsUsecaseTest {
         }
     }
 
-    private static final class InMemoryWaveRepository implements WaveRepository {
+    private static final class InMemoryWaveStore implements WaveStore {
 
         private final Map<UUID, Wave> waves = new LinkedHashMap<>();
 

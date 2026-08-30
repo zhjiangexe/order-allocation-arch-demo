@@ -2,8 +2,8 @@ package com.flowzati.archone.inventory.reservation.entrypoint.consumer;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.AssignmentQueueKey;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;

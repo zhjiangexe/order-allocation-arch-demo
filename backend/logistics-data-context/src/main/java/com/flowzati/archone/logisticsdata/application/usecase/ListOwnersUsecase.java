@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.application.usecase;
 
+import com.flowzati.archone.logisticsdata.application.store.OwnerRepository;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
-import com.flowzati.archone.logisticsdata.domain.repository.OwnerRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 

@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.domain.aggregate;
 
-import com.flowzati.archone.inventory.movement.domain.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -11,9 +11,9 @@ import java.util.UUID;
  * <p>兩端都必須有。少了目的地，這一列就退回舊 {@code StockReservation} 的處境——記了鎖住
  * 多少，沒記要去哪，而那正是出貨時要補、補了就得重新詮釋既有資料的那一半。
  *
- * <p>Inbound and stock-consuming outbound movements both begin in {@link com.flowzati.archone.inventory.movement.domain.MoveState#CONFIRMED}. An
+ * <p>Inbound and stock-consuming outbound movements both begin in {@link com.flowzati.archone.inventory.movement.domain.valueobject.MoveState#CONFIRMED}. An
  * outbound move stays there while it waits for stock, then the assignment transaction adds move lines
- * and changes the existing move to {@link com.flowzati.archone.inventory.movement.domain.MoveState#ASSIGNED}.
+ * and changes the existing move to {@link com.flowzati.archone.inventory.movement.domain.valueobject.MoveState#ASSIGNED}.
  *
  * <p>來源文件的行只留下 source-neutral {@code sourceLineId + lineSequence} trace；Inventory core
  * 不知道 order line。Inbound move 沒有 source line，但所有 moves 都屬於一張 operation，讓群組狀態與

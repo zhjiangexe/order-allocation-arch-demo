@@ -2,8 +2,8 @@ package com.flowzati.archone.inventory.movement.visibility.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JdbcStockOperationViewStore;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jdbc.store.JdbcStockOperationViewStore;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;

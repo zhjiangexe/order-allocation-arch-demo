@@ -8,28 +8,30 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.allocation.application.AssignmentQueueKey;
-import com.flowzati.archone.inventory.allocation.application.StockOperationAssignmentCandidate;
-import com.flowzati.archone.inventory.allocation.application.StockOperationPredecessor;
-import com.flowzati.archone.inventory.allocation.application.repo.StockAllocationSupplyStore;
-import com.flowzati.archone.inventory.allocation.application.repo.StockOperationAssignmentCandidateStore;
-import com.flowzati.archone.inventory.allocation.domain.ProposedMoveLine;
-import com.flowzati.archone.inventory.allocation.domain.SkuQuantities;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationPlanner;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationProposal;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationSupply;
-import com.flowzati.archone.inventory.allocation.domain.StockQuantSupply;
+import com.flowzati.archone.inventory.allocation.application.projection.StockOperationAssignmentCandidate;
+import com.flowzati.archone.inventory.allocation.application.projection.StockOperationPredecessor;
+import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationPlanner;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.SkuQuantities;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationSupply;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentResult;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
+import com.flowzati.archone.inventory.reservation.application.result.AssignedMove;
+import com.flowzati.archone.inventory.reservation.application.result.AssignedMoveLine;
+import com.flowzati.archone.inventory.reservation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.reservation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;
 import java.time.Instant;
@@ -207,13 +209,8 @@ class StockOperationAssignmentCoordinatorTest {
                 NOW.plusSeconds(3600),
                 50,
                 NOW,
-                List.of(new StockOperationAssignmentResult.AssignedMove(
-                        MOVE_ID,
-                        "LINE-1",
-                        1,
-                        "SKU-A",
-                        2,
-                        List.of(new StockOperationAssignmentResult.AssignedMoveLine(QUANT_ID, 2)))));
+                List.of(new AssignedMove(
+                        MOVE_ID, "LINE-1", 1, "SKU-A", 2, List.of(new AssignedMoveLine(QUANT_ID, 2)))));
     }
 
     private static UUID uuid(long value) {

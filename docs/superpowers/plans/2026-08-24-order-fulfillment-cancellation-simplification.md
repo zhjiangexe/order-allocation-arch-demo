@@ -125,8 +125,8 @@ ownership 較清楚。
 
 ### 預計異動
 
-- `ShipmentRepository` 新增只回傳 ID 的 `findCancelling(int limit)`。
-- `JpaWmsShipmentRepository`／`JpaShipmentRepositoryAdapter` 以 `status = CANCELLING`、穩定排序與 limit 實作。
+- `ShipmentStore` 新增只回傳 ID 的 `findCancelling(int limit)`。
+- `JpaWmsShipmentRepository`／`JpaShipmentStoreAdapter` 以 `status = CANCELLING`、穩定排序與 limit 實作。
 - 保留 `ProcessDueShipmentsUsecase` 專門處理 CREATED Shipment simulation。
 - 新增 `ProcessCancellingShipmentsUsecase`，專門掃描 CANCELLING backlog。
 - 每張 Shipment 透過 `CompleteShipmentCancellationUsecase` 在獨立 transaction 完成。

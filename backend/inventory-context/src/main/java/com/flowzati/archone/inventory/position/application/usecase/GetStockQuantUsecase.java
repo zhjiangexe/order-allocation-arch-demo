@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.position.application.usecase;
 
-import com.flowzati.archone.inventory.position.application.StockQuantView;
 import com.flowzati.archone.inventory.position.application.store.StockQuantViewStore;
+import com.flowzati.archone.inventory.position.application.view.StockQuantView;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;

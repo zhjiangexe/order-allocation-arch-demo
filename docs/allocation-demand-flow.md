@@ -80,8 +80,8 @@ flowchart LR
   回到 `CONFIRMED` → audit Outbox。
 - `CancelStockOperationUsecase`：confirmed 可本地取消；assigned 必須先取得 WMS durable reversible decision，之後
   release 並取消 → audit Outbox。拒絕或不確定不改 Inventory。
-- `CompleteStockOperationUsecase`：驗證 exact retained detail → consume on-hand/reserved → moves/operation `DONE`，保留
-  move lines → audit Outbox。
+- `CompleteOutboundMovementsUsecase`：驗證 source、canonical operation 與 exact retained detail → consume
+  on-hand/reserved → moves/operation `DONE`，保留 move lines → lifecycle 與 fulfillment Outbox。
 
 ## 建議閱讀順序
 
@@ -91,7 +91,7 @@ flowchart LR
 4. `StockOperationAssignmentCandidateStore`
 5. `MovementAssignmentPlanner`
 6. `StockAllocationCommitter` / `StockOperationComposite`
-7. `ReleaseStockOperationUsecase` / `CancelStockOperationUsecase` / `CompleteStockOperationUsecase`
+7. `ReleaseStockOperationUsecase` / `CancelStockOperationUsecase` / `CompleteOutboundMovementsUsecase`
 8. `StockOperationViewStore` / `StockOperationReconciliationStore`
 
 若新程式需要 `allocationDemandId`、`allocationSliceId`、另一張 reservation history table，或在 assignment

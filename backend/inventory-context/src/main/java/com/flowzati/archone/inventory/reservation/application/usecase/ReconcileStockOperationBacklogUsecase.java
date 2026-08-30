@@ -1,9 +1,9 @@
 package com.flowzati.archone.inventory.reservation.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.AssignmentQueueKey;
-import com.flowzati.archone.inventory.allocation.application.repo.StockOperationAssignmentBacklogStore;
-import com.flowzati.archone.inventory.reservation.application.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
+import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;

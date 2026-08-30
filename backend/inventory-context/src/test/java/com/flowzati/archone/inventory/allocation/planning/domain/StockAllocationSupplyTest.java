@@ -3,8 +3,8 @@ package com.flowzati.archone.inventory.allocation.planning.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationSupply;
-import com.flowzati.archone.inventory.allocation.domain.StockQuantSupply;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationSupply;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;

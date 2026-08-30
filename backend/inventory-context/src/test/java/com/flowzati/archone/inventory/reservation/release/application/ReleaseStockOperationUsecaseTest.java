@@ -3,30 +3,29 @@ package com.flowzati.archone.inventory.reservation.release.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.application.StockOperationLifecycleSnapshot;
-import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecyclePublisher;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.StockOperationLifecycleAction;
-import com.flowzati.archone.inventory.movement.domain.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleAction;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
+import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecycleChangedPublisher;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.reservation.domain.StockMoveLine;
+import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -55,7 +54,7 @@ class ReleaseStockOperationUsecaseTest {
     private StockMoveStore stockMoveStore;
     private StockMoveLineStore stockMoveLineStore;
     private StockQuantStore stockQuantStore;
-    private StockOperationLifecyclePublisher lifecyclePublisher;
+    private StockOperationLifecycleChangedPublisher lifecyclePublisher;
     private ReleaseStockOperationUsecase usecase;
 
     @BeforeEach
@@ -64,7 +63,7 @@ class ReleaseStockOperationUsecaseTest {
         stockMoveStore = mock(StockMoveStore.class);
         stockMoveLineStore = mock(StockMoveLineStore.class);
         stockQuantStore = mock(StockQuantStore.class);
-        lifecyclePublisher = mock(StockOperationLifecyclePublisher.class);
+        lifecyclePublisher = mock(StockOperationLifecycleChangedPublisher.class);
         usecase = new ReleaseStockOperationUsecase(
                 stockOperationStore, stockMoveStore, stockMoveLineStore, stockQuantStore, lifecyclePublisher);
     }
@@ -87,10 +86,17 @@ class ReleaseStockOperationUsecaseTest {
         verify(stockMoveLineStore).deleteByMoveIds(List.of(MOVE_ID));
         verify(stockMoveStore).saveAll(List.of(move));
         verify(stockOperationStore).save(operation);
-        ArgumentCaptor<StockOperationLifecycleSnapshot> snapshot =
-                ArgumentCaptor.forClass(StockOperationLifecycleSnapshot.class);
-        verify(lifecyclePublisher).publish(snapshot.capture(), eq(StockOperationLifecycleAction.RELEASED));
-        assertThat(snapshot.getValue().moves().getFirst().moveLines().getFirst().stockQuantId())
+        ArgumentCaptor<StockOperationLifecycleChanged> event =
+                ArgumentCaptor.forClass(StockOperationLifecycleChanged.class);
+        verify(lifecyclePublisher).publish(event.capture());
+        assertThat(event.getValue().action()).isEqualTo(StockOperationLifecycleAction.RELEASED);
+        assertThat(event.getValue()
+                        .snapshot()
+                        .moves()
+                        .getFirst()
+                        .moveLines()
+                        .getFirst()
+                        .stockQuantId())
                 .isEqualTo(QUANT_ID);
         var lockOrder = inOrder(stockOperationStore, stockMoveStore, stockMoveLineStore, stockQuantStore);
         lockOrder.verify(stockOperationStore).lockById(STOCK_OPERATION_ID);
@@ -108,7 +114,7 @@ class ReleaseStockOperationUsecaseTest {
 
         verify(stockQuantStore, never()).lockByIds(any());
         verify(stockMoveLineStore, never()).deleteByMoveIds(any());
-        verify(lifecyclePublisher, never()).publish(any(), any());
+        verify(lifecyclePublisher, never()).publish(any());
     }
 
     @Test

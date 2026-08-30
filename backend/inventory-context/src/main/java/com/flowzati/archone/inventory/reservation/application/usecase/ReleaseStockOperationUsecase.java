@@ -1,19 +1,19 @@
 package com.flowzati.archone.inventory.reservation.application.usecase;
 
 import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
-import com.flowzati.archone.inventory.movement.application.StockOperationLifecycleSnapshot;
-import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecyclePublisher;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationLifecycleAction;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
+import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecycleChangedPublisher;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.StockQuant;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.reservation.application.MoveQuantAllocationSet;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.List;
@@ -29,14 +29,14 @@ public class ReleaseStockOperationUsecase {
     private final StockMoveStore stockMoveStore;
     private final StockMoveLineStore stockMoveLineStore;
     private final StockQuantStore stockQuantStore;
-    private final StockOperationLifecyclePublisher lifecyclePublisher;
+    private final StockOperationLifecycleChangedPublisher lifecyclePublisher;
 
     public ReleaseStockOperationUsecase(
             StockOperationStore stockOperationStore,
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockQuantStore stockQuantStore,
-            StockOperationLifecyclePublisher lifecyclePublisher) {
+            StockOperationLifecycleChangedPublisher lifecyclePublisher) {
         this.stockOperationStore = stockOperationStore;
         this.stockMoveStore = stockMoveStore;
         this.stockMoveLineStore = stockMoveLineStore;
@@ -51,7 +51,7 @@ public class ReleaseStockOperationUsecase {
     @Transactional
     public boolean execute(UUID stockOperationId, Instant occurredAt) {
         Optional<StockOperationLifecycleSnapshot> released = releaseForCancellation(stockOperationId, occurredAt);
-        released.ifPresent(snapshot -> lifecyclePublisher.publish(snapshot, StockOperationLifecycleAction.RELEASED));
+        released.ifPresent(snapshot -> lifecyclePublisher.publish(StockOperationLifecycleChanged.released(snapshot)));
         return released.isPresent();
     }
 

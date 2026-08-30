@@ -3,8 +3,8 @@ package com.flowzati.archone.inventory.movement.operation.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationReconciliationStore;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JdbcStockOperationReconciliationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationReconciliationStore;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jdbc.store.JdbcStockOperationReconciliationStore;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.sql.Date;
 import java.sql.Timestamp;

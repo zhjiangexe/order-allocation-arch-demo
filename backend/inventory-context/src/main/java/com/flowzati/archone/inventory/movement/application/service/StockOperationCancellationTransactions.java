@@ -1,22 +1,24 @@
 package com.flowzati.archone.inventory.movement.application.service;
 
 import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
-import com.flowzati.archone.inventory.movement.application.StockOperationLifecycleSnapshot;
-import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecyclePublisher;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator.Decision;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator.Target;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationCancellationStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.domain.MoveState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationState;
-import com.flowzati.archone.inventory.movement.domain.StockOperationCancellationStatus;
-import com.flowzati.archone.inventory.movement.domain.StockOperationLifecycleAction;
-import com.flowzati.archone.inventory.movement.domain.StockOperationState;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
+import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
+import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecycleChangedPublisher;
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
+import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationTarget;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationCancellationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.reservation.application.repo.StockMoveLineStore;
+import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
+import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
+import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
@@ -33,7 +35,7 @@ public class StockOperationCancellationTransactions {
     private final StockMoveLineStore stockMoveLineStore;
     private final StockOperationCancellationStore stockOperationCancellationStore;
     private final ReleaseStockOperationUsecase releaseStockOperation;
-    private final StockOperationLifecyclePublisher lifecyclePublisher;
+    private final StockOperationLifecycleChangedPublisher lifecyclePublisher;
 
     public StockOperationCancellationTransactions(
             StockOperationStore stockOperationStore,
@@ -41,7 +43,7 @@ public class StockOperationCancellationTransactions {
             StockMoveLineStore stockMoveLineStore,
             StockOperationCancellationStore stockOperationCancellationStore,
             ReleaseStockOperationUsecase releaseStockOperation,
-            StockOperationLifecyclePublisher lifecyclePublisher) {
+            StockOperationLifecycleChangedPublisher lifecyclePublisher) {
         this.stockOperationStore = stockOperationStore;
         this.stockMoveStore = stockMoveStore;
         this.stockMoveLineStore = stockMoveLineStore;
@@ -51,7 +53,8 @@ public class StockOperationCancellationTransactions {
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
-    public Preparation prepare(UUID stockOperationId, UUID cancellationOperationId, Instant now) {
+    public StockOperationCancellationPreparation prepare(
+            UUID stockOperationId, UUID cancellationOperationId, Instant now) {
         StockOperationComposite operationComposite = loadOperationCompositeForUpdate(stockOperationId);
         StockOperation stockOperation = operationComposite.operation();
 
@@ -61,14 +64,14 @@ public class StockOperationCancellationTransactions {
                     MoveState.CANCELLED,
                     "Cancelled stock operation requires every stock move to be cancelled");
             operationComposite.requireNoMoveLines("Cancelled stock operation must not retain move lines");
-            return new Preparation.Terminal(StockOperationCancellationStatus.COMPLETED);
+            return new StockOperationCancellationPreparation.Terminal(StockOperationCancellationStatus.COMPLETED);
         }
         if (stockOperation.state() == StockOperationState.DONE) {
             operationComposite.requireHomogeneous(
                     StockOperationState.DONE,
                     MoveState.DONE,
                     "Completed stock operation requires every stock move to be done");
-            return new Preparation.Terminal(StockOperationCancellationStatus.NOT_CANCELLABLE);
+            return new StockOperationCancellationPreparation.Terminal(StockOperationCancellationStatus.NOT_CANCELLABLE);
         }
         if (stockOperation.state() == StockOperationState.CONFIRMED) {
             operationComposite.requireHomogeneous(
@@ -82,7 +85,7 @@ public class StockOperationCancellationTransactions {
             stockOperation.cancel();
             stockOperationStore.save(stockOperation);
             publishCancellation(snapshot);
-            return new Preparation.Terminal(StockOperationCancellationStatus.COMPLETED);
+            return new StockOperationCancellationPreparation.Terminal(StockOperationCancellationStatus.COMPLETED);
         }
 
         operationComposite.requireHomogeneous(
@@ -94,24 +97,26 @@ public class StockOperationCancellationTransactions {
                 .find(stockOperationId, cancellationOperationId)
                 .orElseGet(() -> stockOperationCancellationStore.save(
                         StockOperationCancellation.start(stockOperationId, cancellationOperationId, now)));
-        return new Preparation.Continue(new Checkpoint(new Target(stockOperationId), cancellation.state()));
+        return new StockOperationCancellationPreparation.Continue(new StockOperationCancellationCheckpoint(
+                new WarehouseCancellationTarget(stockOperationId), cancellation.state()));
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
-    public Checkpoint recordExternalDecision(
-            UUID stockOperationId, UUID cancellationOperationId, Decision decision, Instant now) {
+    public StockOperationCancellationCheckpoint recordExternalDecision(
+            UUID stockOperationId, UUID cancellationOperationId, WarehouseCancellationDecision decision, Instant now) {
         StockOperationCancellation cancellation = stockOperationCancellationStore
                 .find(stockOperationId, cancellationOperationId)
                 .orElseThrow(() -> new IllegalStateException("Stock operation cancellation was not started"));
         if (cancellation.state() == StockOperationCancellationState.STARTED) {
-            if (decision == Decision.CONFIRMED) {
+            if (decision == WarehouseCancellationDecision.CONFIRMED) {
                 cancellation.confirmExternally(now);
             } else {
                 cancellation.rejectExternally(now);
             }
             cancellation = stockOperationCancellationStore.save(cancellation);
         }
-        return new Checkpoint(new Target(stockOperationId), cancellation.state());
+        return new StockOperationCancellationCheckpoint(
+                new WarehouseCancellationTarget(stockOperationId), cancellation.state());
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
@@ -175,36 +180,6 @@ public class StockOperationCancellationTransactions {
     }
 
     private void publishCancellation(StockOperationLifecycleSnapshot snapshot) {
-        lifecyclePublisher.publish(snapshot, StockOperationLifecycleAction.CANCELLED);
-    }
-
-    public sealed interface Preparation {
-
-        record Terminal(StockOperationCancellationStatus status) implements Preparation {
-
-            public Terminal {
-                if (status == null) {
-                    throw new IllegalArgumentException("Cancellation status is required");
-                }
-            }
-        }
-
-        record Continue(Checkpoint checkpoint) implements Preparation {
-
-            public Continue {
-                if (checkpoint == null) {
-                    throw new IllegalArgumentException("Cancellation checkpoint is required");
-                }
-            }
-        }
-    }
-
-    public record Checkpoint(Target target, StockOperationCancellationState state) {
-
-        public Checkpoint {
-            if (target == null || state == null) {
-                throw new IllegalArgumentException("Cancellation target and state are required");
-            }
-        }
+        lifecyclePublisher.publish(StockOperationLifecycleChanged.cancelled(snapshot));
     }
 }

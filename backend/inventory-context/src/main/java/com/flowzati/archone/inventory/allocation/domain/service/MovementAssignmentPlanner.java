@@ -1,14 +1,13 @@
 package com.flowzati.archone.inventory.allocation.domain.service;
 
-import com.flowzati.archone.inventory.allocation.domain.ProposedMoveLine;
-import com.flowzati.archone.inventory.allocation.domain.SkuQuantities;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationPlanner;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationProposal;
-import com.flowzati.archone.inventory.allocation.domain.StockAllocationSupply;
-import com.flowzati.archone.inventory.allocation.domain.StockMoveDemand;
-import com.flowzati.archone.inventory.allocation.domain.StockOperationDemand;
-import com.flowzati.archone.inventory.allocation.domain.StockQuantSupply;
-import com.flowzati.archone.inventory.movement.domain.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.SkuQuantities;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationSupply;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockMoveDemand;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
+import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;

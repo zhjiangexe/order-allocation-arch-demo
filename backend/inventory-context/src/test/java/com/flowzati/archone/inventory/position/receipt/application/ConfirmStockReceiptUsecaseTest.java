@@ -9,11 +9,12 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.position.application.StockAvailabilityIncrease;
 import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.position.application.messaging.StockAvailabilityPublisher;
+import com.flowzati.archone.inventory.position.application.event.StockAvailabilityIncreased;
+import com.flowzati.archone.inventory.position.application.port.StockAvailabilityIncreasedPublisher;
 import com.flowzati.archone.inventory.position.application.service.InboundReceiptCompleter;
 import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.inventory.position.domain.valueobject.ReceivingBatchIdentity;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;
@@ -35,14 +36,14 @@ class ConfirmStockReceiptUsecaseTest {
 
     private InboundReceiptRegistrar inboundReceiptRegistrar;
     private InboundReceiptCompleter inboundReceiptCompleter;
-    private StockAvailabilityPublisher availabilityPublisher;
+    private StockAvailabilityIncreasedPublisher availabilityPublisher;
     private ConfirmStockReceiptUsecase usecase;
 
     @BeforeEach
     void setUp() {
         inboundReceiptRegistrar = mock(InboundReceiptRegistrar.class);
         inboundReceiptCompleter = mock(InboundReceiptCompleter.class);
-        availabilityPublisher = mock(StockAvailabilityPublisher.class);
+        availabilityPublisher = mock(StockAvailabilityIncreasedPublisher.class);
         usecase = new ConfirmStockReceiptUsecase(
                 InventoryFixtures.businessClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"),
                 inboundReceiptRegistrar,
@@ -76,14 +77,11 @@ class ConfirmStockReceiptUsecaseTest {
                         command.quantity(),
                         NOW);
         order.verify(inboundReceiptCompleter)
-                .complete(
-                        List.of(move),
-                        new InboundReceiptCompleter.BatchIdentity(command.inDate(), command.expiryDate()),
-                        NOW);
-        ArgumentCaptor<StockAvailabilityIncrease> increase = ArgumentCaptor.forClass(StockAvailabilityIncrease.class);
+                .complete(List.of(move), new ReceivingBatchIdentity(command.inDate(), command.expiryDate()), NOW);
+        ArgumentCaptor<StockAvailabilityIncreased> increase = ArgumentCaptor.forClass(StockAvailabilityIncreased.class);
         order.verify(availabilityPublisher).publish(increase.capture());
         assertThat(increase.getValue())
-                .isEqualTo(new StockAvailabilityIncrease(
+                .isEqualTo(new StockAvailabilityIncreased(
                         command.ownerId(),
                         command.facilityId(),
                         InventoryFixtures.LOCATION_ID,

@@ -4,29 +4,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.inventory.allocation.application.repo.StockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
-import com.flowzati.archone.inventory.allocation.infrastructure.repo.jdbc.JdbcStockAllocationSupplyStore;
-import com.flowzati.archone.inventory.allocation.infrastructure.repo.jdbc.JdbcStockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStore;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
-import com.flowzati.archone.inventory.movement.application.repo.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.repo.StockOperationStore;
-import com.flowzati.archone.inventory.movement.application.usecase.CompleteStockOperationUsecase;
-import com.flowzati.archone.inventory.movement.infrastructure.messaging.StockOperationLifecyclePublisherAdapter;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockMoveRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockOperationRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.JpaStockOperationTypeRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockMovePersistenceAdapter;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockOperationPersistenceAdapter;
-import com.flowzati.archone.inventory.movement.infrastructure.repo.StockOperationTypePersistenceAdapter;
-import com.flowzati.archone.inventory.position.infrastructure.repo.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.position.infrastructure.repo.StockQuantStoreImpl;
+import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
+import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
+import com.flowzati.archone.inventory.movement.infrastructure.messaging.StockOperationCompletedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.messaging.StockOperationLifecycleChangedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationTypeRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationTypeStoreImpl;
+import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
+import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
 import com.flowzati.archone.inventory.reservation.application.service.StockAllocationCommitter;
 import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentResultFactory;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.reservation.infrastructure.messaging.StockOperationAssignmentPublisherAdapter;
-import com.flowzati.archone.inventory.reservation.infrastructure.repo.StockMoveLineStoreImpl;
-import com.flowzati.archone.inventory.reservation.infrastructure.repo.jpa.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.reservation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.store.StockMoveLineStoreImpl;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.testsupport.MovementFixtures;
@@ -59,19 +61,20 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    StockOperationPersistenceAdapter.class,
-    StockMovePersistenceAdapter.class,
+    StockOperationStoreImpl.class,
+    StockMoveStoreImpl.class,
     StockMoveLineStoreImpl.class,
     StockQuantStoreImpl.class,
     JdbcStockAllocationSupplyStore.class,
-    StockOperationTypePersistenceAdapter.class,
+    StockOperationTypeStoreImpl.class,
     JdbcStockOperationAssignmentCandidateStore.class,
     StockAllocationCommitter.class,
     StockOperationAssignmentResultFactory.class,
-    StockOperationAssignmentPublisherAdapter.class,
-    StockOperationLifecyclePublisherAdapter.class,
+    StockOperationAssignedIntegrationEventAdapter.class,
+    StockOperationLifecycleChangedIntegrationEventAdapter.class,
+    StockOperationCompletedIntegrationEventAdapter.class,
     ReleaseStockOperationUsecase.class,
-    CompleteStockOperationUsecase.class,
+    CompleteOutboundMovementsUsecase.class,
     StockOperationAssignmentPersistenceIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("Assign operation PostgreSQL transaction")
@@ -82,6 +85,8 @@ class StockOperationAssignmentPersistenceIntegrationTest {
     private static final UUID MOVE_2 = uuid(12);
     private static final UUID QUANT_1 = uuid(21);
     private static final UUID QUANT_2 = uuid(22);
+    private static final UUID ORDER_ID = uuid(50);
+    private static final UUID SHIPMENT_ID = uuid(60);
     private static final Instant ENQUEUED_AT = Instant.parse("2026-08-27T01:00:00Z");
     private static final Instant ASSIGNED_AT = Instant.parse("2026-08-27T02:00:00Z");
     private static final LocalDate TODAY = LocalDate.parse("2026-08-27");
@@ -93,7 +98,7 @@ class StockOperationAssignmentPersistenceIntegrationTest {
     private ReleaseStockOperationUsecase releaseOperation;
 
     @Autowired
-    private CompleteStockOperationUsecase completeOperation;
+    private CompleteOutboundMovementsUsecase completeOperation;
 
     @Autowired
     private StockOperationStore stockOperationStore;
@@ -127,7 +132,7 @@ class StockOperationAssignmentPersistenceIntegrationTest {
                 STOCK_OPERATION_ID,
                 MovementFixtures.OUTBOUND_TYPE_ID,
                 OrderFixtures.OWNER_ID,
-                uuid(50).toString(),
+                ORDER_ID.toString(),
                 Timestamp.from(ENQUEUED_AT),
                 OrderFixtures.LOCATION_ID,
                 MovementFixtures.CUSTOMERS_LOCATION_ID,
@@ -246,7 +251,12 @@ class StockOperationAssignmentPersistenceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(completeOperation.execute(STOCK_OPERATION_ID, ASSIGNED_AT.plusSeconds(60)))
+        assertThat(completeOperation.execute(new CompleteOutboundMovementsCommand(
+                        ORDER_ID,
+                        SHIPMENT_ID,
+                        STOCK_OPERATION_ID,
+                        java.util.List.of(MOVE_1, MOVE_2),
+                        ASSIGNED_AT.plusSeconds(60))))
                 .isTrue();
         entityManager.flush();
         jdbcTemplate.execute("SET CONSTRAINTS ALL IMMEDIATE");
@@ -274,7 +284,12 @@ class StockOperationAssignmentPersistenceIntegrationTest {
                 .isEqualTo(2);
 
         entityManager.clear();
-        assertThat(completeOperation.execute(STOCK_OPERATION_ID, ASSIGNED_AT.plusSeconds(120)))
+        assertThat(completeOperation.execute(new CompleteOutboundMovementsCommand(
+                        ORDER_ID,
+                        SHIPMENT_ID,
+                        STOCK_OPERATION_ID,
+                        java.util.List.of(MOVE_1, MOVE_2),
+                        ASSIGNED_AT.plusSeconds(120))))
                 .isFalse();
     }
 

@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.position.application.store;
 
-import com.flowzati.archone.inventory.position.domain.StockQuant;
+import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;

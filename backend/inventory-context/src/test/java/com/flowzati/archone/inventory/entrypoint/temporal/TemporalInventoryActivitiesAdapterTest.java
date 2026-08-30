@@ -4,7 +4,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.inventory.adapter.TemporalInventoryActivitiesAdapter;
-import com.flowzati.archone.inventory.movement.application.usecase.CompleteStockOperationUsecase;
+import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.inventory.reservation.application.command.AllocateOrderCommand;
 import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.orderfulfillment.contract.activity.inventory.CompleteOutboundMovementsActivityInput;
@@ -17,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class TemporalInventoryActivitiesAdapterTest {
 
     private final AllocateOrderUsecase allocateOrderUsecase = mock(AllocateOrderUsecase.class);
-    private final CompleteStockOperationUsecase completeOperation = mock(CompleteStockOperationUsecase.class);
+    private final CompleteOutboundMovementsUsecase completeOperation = mock(CompleteOutboundMovementsUsecase.class);
     private final TemporalInventoryActivitiesAdapter activities =
             new TemporalInventoryActivitiesAdapter(allocateOrderUsecase, completeOperation);
 
@@ -34,6 +35,8 @@ class TemporalInventoryActivitiesAdapterTest {
                 "process-1", orderId, stockOperationId, shipmentId, List.of(movementId), occurredAt));
 
         verify(allocateOrderUsecase).execute(new AllocateOrderCommand(orderId));
-        verify(completeOperation).execute(stockOperationId, occurredAt);
+        verify(completeOperation)
+                .execute(new CompleteOutboundMovementsCommand(
+                        orderId, shipmentId, stockOperationId, List.of(movementId), occurredAt));
     }
 }
