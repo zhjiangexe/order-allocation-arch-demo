@@ -85,7 +85,7 @@ flowchart LR
 
 ## 建議閱讀順序
 
-1. `OrderStockMovementStoreImpl`
+1. `OrderStockMovementStoreAdapter`
 2. `StockOperationRegistrar`
 3. `StockOperationAssignmentCoordinator`
 4. `StockOperationAssignmentCandidateStore`

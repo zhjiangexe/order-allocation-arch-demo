@@ -63,7 +63,7 @@ Domain `StockLocationRepository`, `StockQuantRepository`, `StockOperationTypeRep
 
 ### 3. Rename custom adapters after their ports, but retain Spring Data vocabulary
 
-Custom implementations become `StockOperationStoreImpl`, `StockMoveStoreImpl`, `StockMoveLineStoreImpl`,
+Custom implementations become `StockOperationStoreAdapter`, `StockMoveStoreAdapter`, `StockMoveLineStoreAdapter`,
 `JdbcStockReceiptRequestStore` and `Jdbc*Finder`. Spring Data types such as `JpaStockOperationRepository` remain
 unchanged because `Repository` there names the framework implementation mechanism rather than an Inventory port.
 
