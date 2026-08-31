@@ -68,7 +68,7 @@ R3 把生命週期事件瘦成只帶識別碼與時間戳。那個時間戳描�
 | `V2__create_ordering_tables.sql` | `placed_at` 更名 `received_at`；新增可空 `placed_at`；index 隨之改名 |
 | `Order` | `placedAt` → `receivedAt`；新增 `placedAt`（可空）與容忍窗驗證 |
 | `PlaceOrderCommand`、`PlaceOrderUsecase` | 接受可選的下單時間 |
-| `OrderEntity`、`OrderMapper`、`OrderRepositoryImpl` | 兩個欄位 |
+| `OrderEntity`、`OrderMapper`、`OrderStoreAdapter` | 兩個欄位 |
 | `PlaceOrderRequest` | 新增可選欄位 |
 | `OrderStatusResponse` | `placedAt` → `receivedAt`；新增 `placedAt` |
 | 前端 `types.ts`、`OrderTable` | 兩個欄位與標題 |

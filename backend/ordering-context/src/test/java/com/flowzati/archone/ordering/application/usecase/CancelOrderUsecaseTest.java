@@ -7,12 +7,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.ordering.application.command.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.event.OrderCancelled;
+import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.port.OrderCancelledPublisher;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
@@ -33,7 +33,7 @@ class CancelOrderUsecaseTest {
     @Test
     @DisplayName("取消訂單時應儲存狀態並發布取消 Integration Event")
     void shouldPersistCancelledOrderAndPublishIntegrationEvent() {
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         List<OrderCancelled> events = new ArrayList<>();
         Order order = OrderingFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
         when(repository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -59,7 +59,7 @@ class CancelOrderUsecaseTest {
     @Test
     @DisplayName("訂單已取消時應為合法 no-op")
     void shouldDoNothingWhenOrderIsAlreadyCancelled() {
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         OrderCancelledPublisher publisher = mock(OrderCancelledPublisher.class);
         Order order = OrderingFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
         order.cancel(requestId, cancelledAt, reason);
@@ -76,7 +76,7 @@ class CancelOrderUsecaseTest {
     @Test
     @DisplayName("訂單已由另一筆 immutable request 取消時應拒絕")
     void shouldRejectAnotherCancellationRequest() {
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         OrderCancelledPublisher publisher = mock(OrderCancelledPublisher.class);
         Order order = OrderingFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
         order.cancel(requestId, cancelledAt, reason);
@@ -93,7 +93,7 @@ class CancelOrderUsecaseTest {
     @Test
     @DisplayName("找不到訂單時取消應失敗")
     void shouldFailWhenOrderDoesNotExist() {
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         OrderCancelledPublisher publisher = mock(OrderCancelledPublisher.class);
         UUID orderId = UUID.randomUUID();
         when(repository.findById(orderId)).thenReturn(Optional.empty());

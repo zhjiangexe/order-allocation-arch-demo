@@ -7,9 +7,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
+import com.flowzati.archone.ordering.application.invocation.RecordOrderAllocationCommand;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
@@ -27,7 +27,7 @@ class RecordOrderAllocationUsecaseTest {
         Instant allocatedAt = receivedAt.plusSeconds(20);
         UUID orderId = IdGenerator.nextId();
         Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         when(repository.findById(orderId)).thenReturn(Optional.of(order));
         RecordOrderAllocationUsecase usecase = new RecordOrderAllocationUsecase(repository);
 
@@ -45,7 +45,7 @@ class RecordOrderAllocationUsecaseTest {
         Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
         order.markAllocated(receivedAt.plusSeconds(10));
         order.markFulfilled(UUID.randomUUID(), receivedAt.plusSeconds(20));
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         when(repository.findById(orderId)).thenReturn(Optional.of(order));
         RecordOrderAllocationUsecase usecase = new RecordOrderAllocationUsecase(repository);
 

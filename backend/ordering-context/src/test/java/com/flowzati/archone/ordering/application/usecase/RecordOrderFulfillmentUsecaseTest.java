@@ -7,10 +7,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.ordering.application.command.RecordOrderFulfillmentCommand;
+import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
@@ -31,7 +31,7 @@ class RecordOrderFulfillmentUsecaseTest {
         UUID shipmentId = UUID.randomUUID();
         Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
         order.markAllocated(allocatedAt);
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         when(repository.findById(orderId)).thenReturn(Optional.of(order));
         RecordOrderFulfillmentUsecase usecase = new RecordOrderFulfillmentUsecase(repository);
 
@@ -53,7 +53,7 @@ class RecordOrderFulfillmentUsecaseTest {
         Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt);
         order.markAllocated(receivedAt.plusSeconds(10));
         order.markFulfilled(UUID.randomUUID(), fulfilledAt);
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         when(repository.findById(orderId)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() -> new RecordOrderFulfillmentUsecase(repository)
@@ -66,7 +66,7 @@ class RecordOrderFulfillmentUsecaseTest {
     @DisplayName("找不到訂單時應失敗，避免 Workflow 誤判已記錄完成")
     void failsWhenOrderDoesNotExist() {
         UUID orderId = UUID.randomUUID();
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         when(repository.findById(orderId)).thenReturn(Optional.empty());
         RecordOrderFulfillmentUsecase usecase = new RecordOrderFulfillmentUsecase(repository);
 

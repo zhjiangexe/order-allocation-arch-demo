@@ -222,7 +222,7 @@ header 欄位加到六個之後位置參數的呼叫端可讀性崩潰，而且 
 問題而在契約裡加欄位。
 
 拿掉之後的實際差異：每次列表少一次主檔查詢；不需要 `OwnerRepository.findByIds`；而且
-`OrderController` 回到與 repo 其他 controller 一致的純轉換——先前為了填名稱，它得跨兩個
+`OrderRest` 回到與 repo 其他 controller 一致的純轉換——先前為了填名稱，它得跨兩個
 來源組資料，那是 application 層的職責，是這個 repo 裡唯一一個在 controller 做組合的地方。
 
 代價是 API 不自足：非前端的消費者要自己解析名稱。目前沒有這種消費者；真的出現時，加一個

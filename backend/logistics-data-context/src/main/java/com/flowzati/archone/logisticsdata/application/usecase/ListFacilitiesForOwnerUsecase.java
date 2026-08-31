@@ -1,6 +1,6 @@
 package com.flowzati.archone.logisticsdata.application.usecase;
 
-import com.flowzati.archone.logisticsdata.application.store.FacilityRepository;
+import com.flowzati.archone.logisticsdata.application.store.FacilityStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
 import java.util.List;
 import java.util.UUID;
@@ -9,10 +9,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class ListFacilitiesForOwnerUsecase {
 
-    private final FacilityRepository facilityRepository;
+    private final FacilityStore facilityStore;
 
-    public ListFacilitiesForOwnerUsecase(FacilityRepository facilityRepository) {
-        this.facilityRepository = facilityRepository;
+    public ListFacilitiesForOwnerUsecase(FacilityStore facilityStore) {
+        this.facilityStore = facilityStore;
     }
 
     /**
@@ -23,6 +23,6 @@ public class ListFacilitiesForOwnerUsecase {
      * 換來一次沒有必要的往返。
      */
     public List<Facility> listByOwner(UUID ownerId) {
-        return facilityRepository.findByOwner(ownerId);
+        return facilityStore.findByOwner(ownerId);
     }
 }

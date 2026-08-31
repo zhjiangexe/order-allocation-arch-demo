@@ -5,8 +5,8 @@ import com.flowzati.archone.orderfulfillment.contract.activity.ordering.CancelOr
 import com.flowzati.archone.orderfulfillment.contract.activity.ordering.CancelOrderActivityStatus;
 import com.flowzati.archone.orderfulfillment.contract.activity.ordering.OrderingActivities;
 import com.flowzati.archone.orderfulfillment.contract.activity.ordering.RecordOrderFulfillmentActivityInput;
-import com.flowzati.archone.ordering.application.command.CancelOrderCommand;
-import com.flowzati.archone.ordering.application.command.RecordOrderFulfillmentCommand;
+import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
+import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;

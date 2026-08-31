@@ -4,7 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
-import com.flowzati.archone.ordering.application.command.RecordOrderFulfillmentCommand;
+import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import java.time.Instant;
 import java.util.List;

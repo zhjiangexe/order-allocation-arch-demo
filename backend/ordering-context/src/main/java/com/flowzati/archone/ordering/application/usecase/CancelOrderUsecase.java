@@ -1,10 +1,10 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.ordering.application.command.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.event.OrderCancelled;
+import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.port.OrderCancelledPublisher;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -26,17 +26,17 @@ import org.springframework.stereotype.Service;
 @Service
 public class CancelOrderUsecase {
 
-    private final OrderRepository orderRepository;
+    private final OrderStore orderStore;
     private final OrderCancelledPublisher orderCancelledPublisher;
 
-    public CancelOrderUsecase(OrderRepository orderRepository, OrderCancelledPublisher orderCancelledPublisher) {
-        this.orderRepository = orderRepository;
+    public CancelOrderUsecase(OrderStore orderStore, OrderCancelledPublisher orderCancelledPublisher) {
+        this.orderStore = orderStore;
         this.orderCancelledPublisher = orderCancelledPublisher;
     }
 
     @Transactional
     public Order.CancellationStatus cancel(CancelOrderCommand command) {
-        Order order = orderRepository
+        Order order = orderStore
                 .findById(command.orderId())
                 .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
         Order.CancellationStatus result = order.cancel(command.requestId(), command.cancelledAt(), command.reason());
@@ -44,7 +44,7 @@ public class CancelOrderUsecase {
             return result;
         }
 
-        orderRepository.save(order);
+        orderStore.save(order);
         orderCancelledPublisher.publish(new OrderCancelled(
                 order.getId(), order.getOwnerId(), order.getDeliveryTerms().facilityId(), command.cancelledAt()));
         return result;

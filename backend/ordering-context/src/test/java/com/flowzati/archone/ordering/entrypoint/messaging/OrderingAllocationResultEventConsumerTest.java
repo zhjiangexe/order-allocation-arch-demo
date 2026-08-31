@@ -4,7 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
-import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
+import com.flowzati.archone.ordering.application.invocation.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
 import java.time.Instant;
 import java.util.List;

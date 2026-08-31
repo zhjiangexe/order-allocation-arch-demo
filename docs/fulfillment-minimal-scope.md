@@ -338,7 +338,7 @@ PickTask    PENDING ──▶ PICKED           實揀 = 應揀
 不直接 import `Order`、`StockQuant` 或其 repository。
 
 此規則由 Gradle module 邊界在編譯期強制。**本專案有過那個反例**：配貨曾經注入
-`OrderRepository`、由 domain service 直接呼叫 `order.markAllocated()`——皆因同在一個
+`OrderStore`、由 domain service 直接呼叫 `order.markAllocated()`——皆因同在一個
 module，package 邊界擋不住。後來以事件斷開，並補了一支架構測試守著；但那支測試是**事後
 檢查**，而 module 邊界是編譯期就擋下來。
 

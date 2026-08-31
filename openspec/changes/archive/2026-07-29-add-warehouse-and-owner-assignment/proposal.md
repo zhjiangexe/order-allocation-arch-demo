@@ -60,7 +60,7 @@ Postgres volume 必須 `./e2e/perf/run.sh down` 移除後重建。
 `Owner` 移除 `allowSplitShipment`；新增 `FulfillmentNode` 與其 repository。
 
 **編譯失敗點**：`Order.place()`／`rehydrate()` 的簽章、`OrderPlaced` 事件、`DevSeedDataInitializer`、
-`OrderFixtures`、`PlaceOrderRequest`／`OrderController`，以及所有讀 `allowSplitShipment` 的地方。
+`OrderFixtures`、`PlaceOrderRequest`／`OrderRest`，以及所有讀 `allowSplitShipment` 的地方。
 
 **壓測**：`e2e/perf/k6/hot-sku-burst.js` 的下單 payload 要加倉別；`run.sh seed` 要一併種倉庫
 與貨主倉庫配對，否則壓測訂單的外鍵無處可指——這與 R1 時 `HOT-SKU` 需要主檔是同一個問題。

@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
-import com.flowzati.archone.ordering.application.command.CancelOrderCommand;
+import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import java.time.Instant;

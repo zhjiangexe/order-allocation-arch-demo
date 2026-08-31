@@ -126,7 +126,7 @@ ALTER 疊加」的「逐檔的改動」。
 
 ## 4. 護欄與驗證
 
-- [x] 4.1 依 `stock-locations` 的 **An order names a warehouse and never a location**，以及 design 的決策「`orders` 不碰位置」，確認 `orders`、`order_lines`、`Order`、`DeliveryTerms`、`OrderEntity`、`OrderMapper`、`PlaceOrderUsecase`、`OrderController`、`OrderStatusResponse` **一個字都沒改**，且 `orders` 上的複合外鍵 `fk_orders_owner_node` 原封不動。以既有的 `order-intake` 測試全綠驗證。
+- [x] 4.1 依 `stock-locations` 的 **An order names a warehouse and never a location**，以及 design 的決策「`orders` 不碰位置」，確認 `orders`、`order_lines`、`Order`、`DeliveryTerms`、`OrderEntity`、`OrderMapper`、`PlaceOrderUsecase`、`OrderRest`、`OrderStatusResponse` **一個字都沒改**，且 `orders` 上的複合外鍵 `fk_orders_owner_node` 原封不動。以既有的 `order-intake` 測試全綠驗證。
 
   這是這個 change 邊界的核心。訂單是需求不是搬運單據，位置屬於下一個 change 才出現的執行層。而那條複合外鍵是「倉存在但這個貨主沒掛這個倉」的唯一防線——`PlaceOrderUsecase` 的 javadoc 明說本系統刻意不做應用層預檢查。
 

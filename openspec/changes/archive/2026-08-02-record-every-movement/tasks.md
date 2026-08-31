@@ -134,7 +134,7 @@
 > | `DevSeedDataIntegrationTest` | 預留的斷言改為搬運與明細 |
 > | `AllocationWorkflowEndToEndIntegrationTest` / `AllocationConcurrencyEndToEndIntegrationTest` / `InboundCommandTransactionIntegrationTest` | 清表語句與斷言由 `stock_reservations` 換成 `stock_moves` / `stock_move_lines` |
 >
-> **收單即建搬運改變了端到端測試的前提**：先前直接以 `orderRepository.save(backorderedOrder(...))` 造出的缺貨單，現在不會有搬運，因此不在佇列裡。那些 fixture 要一併建 picking 與 `CONFIRMED` 的搬運（種子的 `picking()` / `waitingMove()` 是同一個形狀）。
+> **收單即建搬運改變了端到端測試的前提**：先前直接以 `orderStore.save(backorderedOrder(...))` 造出的缺貨單，現在不會有搬運，因此不在佇列裡。那些 fixture 要一併建 picking 與 `CONFIRMED` 的搬運（種子的 `picking()` / `waitingMove()` 是同一個形狀）。
 
 
 - [x] 5.1 依 design 的決策「那條邊界護欄要換，不是開例外」，改寫 `AllocationBoundaryArchitectureTest` 的 `ORDERING_TABLE_NAME` 規則：allocation 可以出現 `order_line_id`，但不得出現 `order_lines` 的**其他欄位名**，也不得 join 它。

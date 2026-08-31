@@ -128,7 +128,7 @@ line 時間戳的聚合規則。
 6. Application：`PlaceOrderUsecase` 接受 line；`GetOrderUsecase`、`ListRecentOrdersUsecase`、`OrderDetail` 回傳 line
 7. **修正 `AllocateOrderUsecase:53`**：`order.getSku()` 改為讀 line 的 `sku_code`
 8. 事件：`OrderPlacedIntegrationEvent` 加 `ownerId`、`shipToZone`、`promisedDeliveryDate`；連帶 allocation 端的 handler
-9. Entrypoint：`PlaceOrderRequest`、`OrderStatusResponse`、`OrderController`
+9. Entrypoint：`PlaceOrderRequest`、`OrderStatusResponse`、`OrderRest`
 10. Seed：一至兩個貨主（原以 `allow_split_shipment` 作對比，該欄位於 R2 砍除）；常溫與冷凍各一款商品，**其中一款帶兩個規格**以顯示款／規格兩層
 11. 前端：下單表單加貨主、目的地、承諾到貨日；訂單列表加貨主欄；SKU 顯示為「品名 · 規格」
 12. 測試：既有 ordering 七支測試的簽章調整
@@ -509,7 +509,7 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
    - view **刻意不含 `order_lines.status`**——ordering 的配貨狀態落後於 allocation 的決策，拿它當閘門會重複預留。「還欠什麼」由 view 裡對 `stock_reservations` 的 `NOT EXISTS` 決定
    - 「已滿足」的謂詞是 `status IN ('ACTIVE','CONSUMED')`，**不只是 `ACTIVE`**
    - ship-complete 的整籃判斷：以 `order_id` 對 `demand_lines` 自我 join，**不得 join `order_lines`**
-5. 拆 `OrderAllocationCoordinator`：移除 `OrderRepository` 注入、移除 `order.markBackOrdered()`、移除代發 domain event
+5. 拆 `OrderAllocationCoordinator`：移除 `OrderStore` 注入、移除 `order.markBackOrdered()`、移除代發 domain event
 6. `AllocationService`：移除 `order.markAllocated()`
 7. `AllocationSelector`、`AllocationPolicy`、兩個 policy：`List<Order>` 改為 `List<DemandLine>`
 8. 移除 `OrderRepository.findBackordersBySkuInFifoOrder()`
@@ -540,8 +540,8 @@ SKU 代碼跨貨主撞號——用不同解法沒有道理。
 ### 目標已經達成
 
 R5 的驗收條件是「同一 `(owner_id, external_order_no)` 重送 N 次，訂單表只有一列，庫存只扣
-一次」。**現況完全滿足**：`uq_orders_owner_external_no` 擋下第二次寫入，`OrderController` 把
-它轉成 `409`，沒有第二列，也沒有第二次配貨。`OrderControllerTest` 有一支測試蓋著這個行為。
+一次」。**現況完全滿足**：`uq_orders_owner_external_no` 擋下第二次寫入，`OrderRest` 把
+它轉成 `409`，沒有第二列，也沒有第二次配貨。`OrderRestTest` 有一支測試蓋著這個行為。
 
 欄位與 constraint 在 R1 就建好了，而 R3 期間又把「靜默建立重複訂單」改成了「明確報錯」。剩下
 的只有「要不要把報錯換成回傳既有訂單」——而那個換法被否決了。

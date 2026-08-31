@@ -6,10 +6,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.event.OrderPlaced;
+import com.flowzati.archone.ordering.application.invocation.PlaceOrderCommand;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
@@ -27,7 +27,7 @@ class PlaceOrderUsecaseTest {
     @Test
     @DisplayName("下單時應儲存訂單並發布下單 Integration Event")
     void shouldPersistOrderAndPublishIntegrationEvent() {
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         List<OrderPlaced> events = new ArrayList<>();
         PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, fixedClock(), events::add);
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
@@ -66,7 +66,7 @@ class PlaceOrderUsecaseTest {
     @Test
     @DisplayName("命令帶上游下單時刻時原樣保留，且與收單時刻各自獨立")
     void shouldPreserveUpstreamPlacedTime() {
-        OrderRepository repository = mock(OrderRepository.class);
+        OrderStore repository = mock(OrderStore.class);
         PlaceOrderUsecase usecase = new PlaceOrderUsecase(repository, fixedClock(), event -> {});
         Instant upstreamPlacedAt = Instant.parse("2026-07-26T06:30:00Z");
 

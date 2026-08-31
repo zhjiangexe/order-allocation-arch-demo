@@ -4,10 +4,10 @@
 
 ```text
 OrderAllocationCoordinator   order.markAllocated() / markBackOrdered()
-                             orderRepository.save(order)
-AllocateOrderUsecase         orderRepository.findById(orderId)
-ReleaseReservationUsecase    orderRepository.findById(orderId)
-ReplenishmentUsecase         orderRepository.findBackordersBySkuInFifoOrder(...)
+                             orderStore.save(order)
+AllocateOrderUsecase         orderStore.findById(orderId)
+ReleaseReservationUsecase    orderStore.findById(orderId)
+ReplenishmentUsecase         orderStore.findBackordersBySkuInFifoOrder(...)
 ```
 
 三個問題，第一個與 module 邊界無關：
@@ -28,7 +28,7 @@ ReplenishmentUsecase         orderRepository.findBackordersBySkuInFifoOrder(...)
 `NOT EXISTS` 決定，不看 `order_lines.status`——ordering 的配貨狀態落後於 allocation 的決策，
 拿它當閘門會重複預留。
 
-**寫**：`OrderAllocationCoordinator` 不再注入 `OrderRepository`、不再呼叫 `markAllocated()`
+**寫**：`OrderAllocationCoordinator` 不再注入 `OrderStore`、不再呼叫 `markAllocated()`
 與 `markBackOrdered()`。ordering 新增 Kafka 入口消費 `promising.allocation-events`，由
 `ConfirmOrderUsecase` 推進 `Order` 的狀態。那個 topic 因此第一次有了 consumer。
 

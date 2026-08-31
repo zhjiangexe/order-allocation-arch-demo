@@ -358,7 +358,7 @@ integration aggregate type `StockPool` 暫時維持相容；Java domain 與 pers
 | 邊界強制力 | 靠慣例與 review | **編譯期強制** |
 | 能否防止履約層直接 import `Order` | 否 | 是 |
 
-本專案有過那個前例：配貨曾經注入 `OrderRepository`、由 domain service 直接呼叫
+本專案有過那個前例：配貨曾經注入 `OrderStore`、由 domain service 直接呼叫
 `order.markAllocated()`——兩者都是因為 `ordering` 與執行層同在一個 module，package 邊界
 擋不住。後來以事件斷開並補了架構測試，但那是**事後檢查**；module 邊界在編譯期就擋下來。
 履約層量級更大，同樣的錯誤更難回頭。`bootstrap` 只是技術組裝層，不是可以容納任意 domain model 的共用業務 module；履約仍應擁有自己的 module 邊界。

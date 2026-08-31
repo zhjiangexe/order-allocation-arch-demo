@@ -31,7 +31,7 @@
 
 ## 5. 訂單的持久化
 
-- [x] 5.1 新增 `OrderLineEntity` 並擴充 `OrderEntity`、`OrderMapper`、`OrderRepositoryImpl`，使 `Order` 連同其 lines 一併寫入與載入。行為上：一張含 N 筆 line 的訂單經 mapper 往返後 line 的順序、`lineNo` 與各自欄位皆不變。以 `OrderMapperTest` 的 N=1 與 N=2 往返測試驗證。
+- [x] 5.1 新增 `OrderLineEntity` 並擴充 `OrderEntity`、`OrderMapper`、`OrderStoreAdapter`，使 `Order` 連同其 lines 一併寫入與載入。行為上：一張含 N 筆 line 的訂單經 mapper 往返後 line 的順序、`lineNo` 與各自欄位皆不變。以 `OrderMapperTest` 的 N=1 與 N=2 往返測試驗證。
 - [x] 5.2 實作 **An order line references an existing catalog entry**：line 的 `(owner_id, sku_code)` 由資料庫 FK 擋住，**不在應用層預先檢查**。行為上：以該貨主不存在的 `sku_code` 下單失敗，且訂單與 line 都不留下。以 persistence 測試斷言 FK 違反且交易回滾驗證。
 - [x] 5.3 實作 **An upstream order number is unique within its owner**：`UNIQUE (owner_id, external_order_no)` 生效。行為上：同一貨主的同一上游單號送第二次會明確失敗，而不是靜默建立第二筆訂單；此時回傳的是錯誤而非既有訂單（冪等行為屬 R5）。以 persistence 測試斷言第二次寫入失敗且該對組合只存在一列驗證。
 - [x] 5.4 實作 **Backorder queues are scoped to one owner and one SKU**：`OrderRepository.findBackordersBySkuInFifoOrder` 加上 `ownerId` 參數。**與 7.5 綁定，必須一起做**——這個查詢在本 change 只有一個呼叫端（`ReplenishmentUsecase`），而它的輸入來自只帶 SKU 的補貨事件，因此參數加了也沒有人拿得出值。先做 7.5 讓事件帶貨主，再回頭加參數；分開做的話中間會有一段「參數存在但恆為 null」的狀態，那比不加更糟。此方法屬 allocation 卻長在 ordering 的 repository 上，那是 R4 的耦合，本 change 只加參數、不搬家。行為上：兩個貨主使用同一 `sku_code` 時，讀某貨主的佇列不會回傳另一貨主的訂單，也不受其排序影響。以 `OrderPersistenceIntegrationTest` 的跨貨主 fixture 驗證。
@@ -55,7 +55,7 @@
 
 ## 8. line 數量無關性的三項防護
 
-- [x] 8.1 依「三項 line 數量無關性的防護」第一項，以 `Order.rehydrate()` 建立 N=2 的 fixture，驗讀取路徑、`OrderMapper` 往返與訂單回應序列化。行為上：兩行訂單在讀取與序列化的每一段都完整呈現兩條 line，不會只出現第一條。以 `OrderMapperTest` 與 `OrderControllerTest` 的 N=2 案例驗證。
+- [x] 8.1 依「三項 line 數量無關性的防護」第一項，以 `Order.rehydrate()` 建立 N=2 的 fixture，驗讀取路徑、`OrderMapper` 往返與訂單回應序列化。行為上：兩行訂單在讀取與序列化的每一段都完整呈現兩條 line，不會只出現第一條。以 `OrderMapperTest` 與 `OrderRestTest` 的 N=2 案例驗證。
 - [x] 8.2 實作 **An allocation outcome applies to a whole order, never to part of it**：**先改實作再寫測試**——把配貨時用的數量從「訂單的 quantity」改為 `getDemand()` 的加總（4.6），這是本項成立的前提，不是只加一支測試。測試限定**同一個 SKU 的兩行**，因為現況一次配貨只取一個 `StockPool`，跨 SKU 屬 R8（見 design.md 的 Non-Goals）。行為上：ATP 為 5、兩行各要 5 時整單配不到、`stock_reservations` 對該訂單零筆；若有人寫成逐行獨立配貨，第一行會配到而測試看到一筆不該存在的預留。以 N=2 同 SKU 的 fixture 測 `AllocationService` 與 `StrictFifoAllocationPolicy` 驗證。
 - [x] 8.3 實作 **Order handling does not depend on the number of lines**：新增架構測試，斷言**除 `Order.requireSingleLine()` 本身外**，production code 不以位置存取 line，手法與 roadmap R4 任務 9 相同。**不採字串黑名單**——`stream().findFirst()` 與「for 迴圈第一圈就 break」都繞得過，理由見 design.md。行為上：在 `requireSingleLine()` 之外以位置取 line 會讓建置失敗並指出來源，而搜尋該方法的呼叫點即可得到 R8 要拆的完整清單。以刻意在該方法外加入一處位置存取確認測試會失敗、移除後通過驗證。
 

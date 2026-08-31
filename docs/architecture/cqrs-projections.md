@@ -25,7 +25,7 @@ Projection 不一定需要新資料表、不一定使用事件，也不等於把
 最簡單的 Projection 是查詢時才組裝：
 
 ```java
-Order order = orderRepository.findById(orderId);
+Order order = orderStore.findById(orderId);
 return new OrderView(order.id(), order.status(), order.totalAmount());
 ```
 

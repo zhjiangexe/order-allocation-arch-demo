@@ -1,8 +1,8 @@
 package com.flowzati.archone.ordering.application.usecase;
 
-import com.flowzati.archone.ordering.application.command.RecordOrderAllocationCommand;
+import com.flowzati.archone.ordering.application.invocation.RecordOrderAllocationCommand;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -18,10 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RecordOrderAllocationUsecase {
 
-    private final OrderRepository orderRepository;
+    private final OrderStore orderStore;
 
-    public RecordOrderAllocationUsecase(OrderRepository orderRepository) {
-        this.orderRepository = orderRepository;
+    public RecordOrderAllocationUsecase(OrderStore orderStore) {
+        this.orderStore = orderStore;
     }
 
     /** Transport-neutral application entrypoint; inbound idempotency belongs to the caller boundary. */
@@ -31,7 +31,7 @@ public class RecordOrderAllocationUsecase {
     }
 
     private void record(RecordOrderAllocationCommand command) {
-        Optional<Order> orderOpt = orderRepository.findById(command.orderId());
+        Optional<Order> orderOpt = orderStore.findById(command.orderId());
         if (orderOpt.isEmpty()) {
             return;
         }
@@ -44,6 +44,6 @@ public class RecordOrderAllocationUsecase {
         }
 
         order.markAllocated(command.allocatedAt());
-        orderRepository.save(order);
+        orderStore.save(order);
     }
 }

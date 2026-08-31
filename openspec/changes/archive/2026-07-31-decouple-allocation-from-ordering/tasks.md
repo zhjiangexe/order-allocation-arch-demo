@@ -52,7 +52,7 @@
 
 - [x] 4.2 `OrderAllocation` 由 `(Order, List<BatchPick>)` 改為 `(Demand, List<BatchPick>)`。行為上：配貨結果不再持有 aggregate。以編譯與既有測試驗證。
 
-- [x] 4.3 依 `stock-allocation` 的 **Allocation publishes its outcome and writes only its own tables**，`OrderAllocationCoordinator` 移除 `OrderRepository` 注入、移除 `order.markAllocated()` 與 `order.markBackOrdered()`、移除代 `Order` 發 domain event。`AllocationService` 移除 `order.markAllocated()`。行為上：一個交易只改 `stock_pools` 與 `stock_reservations`。以 SIT 斷言配貨交易中 `orders` 的 `version` 不變驗證。
+- [x] 4.3 依 `stock-allocation` 的 **Allocation publishes its outcome and writes only its own tables**，`OrderAllocationCoordinator` 移除 `OrderStore` 注入、移除 `order.markAllocated()` 與 `order.markBackOrdered()`、移除代 `Order` 發 domain event。`AllocationService` 移除 `order.markAllocated()`。行為上：一個交易只改 `stock_pools` 與 `stock_reservations`。以 SIT 斷言配貨交易中 `orders` 的 `version` 不變驗證。
 
 - [x] 4.4 `AllocateOrderUsecase` 改用 `DemandRepository` 依 `orderId` 取單筆。行為上：不再 `findById` 一個 `Order`；查無需求是正常結果（重送或已取消），不再拋錯。以單元測試驗證。
 

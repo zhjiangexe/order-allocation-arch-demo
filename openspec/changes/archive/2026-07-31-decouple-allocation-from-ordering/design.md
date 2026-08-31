@@ -182,7 +182,7 @@ policy 與畫面能說出「這張單等了多久」，那是一個值得顯示�
 | `AllocationSelector`、`AllocationPolicy`、兩個 policy | `List<Order>` → `List<Demand>` |
 | `OrderAllocation` | `(Order, List<BatchPick>)` → `(Demand, List<BatchPick>)` |
 | `AllocateOrderUsecase`、`ReleaseReservationUsecase`、`ReplenishmentUsecase` | 改注入 `DemandRepository` |
-| `OrderAllocationCoordinator` | 移除 `OrderRepository`、`markAllocated()`、`markBackOrdered()`、代發 domain event |
+| `OrderAllocationCoordinator` | 移除 `OrderStore`、`markAllocated()`、`markBackOrdered()`、代發 domain event |
 | `AllocationService` | 移除 `order.markAllocated()` |
 | `OrderRepository.findBackordersBySkuInFifoOrder` | 移除 |
 | `ordering/entrypoint/kafka/` | 新增 consumer、兩個 handler、error handling config |

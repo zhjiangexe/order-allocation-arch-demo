@@ -26,7 +26,7 @@
 
 - [x] 3.1 `PlaceOrderCommand` 與 `PlaceOrderUsecase` 接受可選的下單時間；`receivedAt` 仍由 usecase 以 `Instant.now()` 寫入，**不接受呼叫端提供**。行為上：收單時刻永遠是我們的事實。以單元測試驗證。
 
-- [x] 3.2 `OrderEntity`、`OrderMapper`、`OrderRepositoryImpl` 兩個欄位；最近訂單查詢的排序改為 `received_at DESC, id DESC`。行為上：列表順序與改動前完全一致。以 SIT 驗證。
+- [x] 3.2 `OrderEntity`、`OrderMapper`、`OrderStoreAdapter` 兩個欄位；最近訂單查詢的排序改為 `received_at DESC, id DESC`。行為上：列表順序與改動前完全一致。以 SIT 驗證。
 
 ## 4. HTTP 契約
 

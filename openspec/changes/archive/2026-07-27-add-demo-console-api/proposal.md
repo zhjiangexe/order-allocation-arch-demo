@@ -1,7 +1,7 @@
 ## Why
 
 v1 明確決定不做前端 UI，因此 `order-promising` 目前只有兩支 HTTP 端點
-（`OrderController` 的下單與單筆查詢），且兩支都是為了 k6 壓測而存在，不是為人使用
+（`OrderRest` 的下單與單筆查詢），且兩支都是為了 k6 壓測而存在，不是為人使用
 而設計。要讓這個系統能被互動式操作與觀察——下一張單、查一次庫存、觸發一次補貨、
 看訂單狀態如何隨之改變——現有 HTTP 表面不足。
 
@@ -46,14 +46,14 @@ v1 明確決定不做前端 UI，因此 `order-promising` 目前只有兩支 HTT
 
 ## Impact
 
-- Production code：`OrderController`、`PlaceOrderUsecase`（回傳型別）、
-  `OrderRepository` 與其實作（新增查詢）、allocation 模組新增 REST entrypoint 與
+- Production code：`OrderRest`、`PlaceOrderUsecase`（回傳型別）、
+  `OrderStore` 與其實作（新增查詢）、allocation 模組新增 REST entrypoint 與
   查詢 usecase、新增 `demo` package。
 - Schema：`orders` 新增一個查詢 index（改 `V3__create_orders.sql`）。
 - 基礎設施：`demo` 探針使 application 首次直接作為 Kafka producer；既有對外發布
   全部走 Debezium。此處不經 outbox 是正確的——探針不變更任何本地狀態，沒有需要與
   事件發布對齊的 transaction。
-- 測試：`OrderController` 的 web 層測試、新增查詢的 repository 測試、探針的
+- 測試：`OrderRest` 的 web 層測試、新增查詢的 repository 測試、探針的
   Kafka 發布測試。
 - 文件：`e2e/perf/README.md` 的 baseline 數字；`docs/stock-reservation-design.md`
   新增 HTTP 表面的說明。

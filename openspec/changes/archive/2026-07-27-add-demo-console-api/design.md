@@ -1,6 +1,6 @@
 ## Context
 
-`order-promising` 目前的 HTTP 表面只有 `OrderController` 兩支端點，兩支都是為
+`order-promising` 目前的 HTTP 表面只有 `OrderRest` 兩支端點，兩支都是為
 `e2e/perf/k6/hot-sku-burst.js` 而生：下單那支用 query string 傳參數、回傳裸 UUID，
 單筆查詢那支的 `OrderStatusResponse` Javadoc 明說它的用途是讓 k6 量「time to
 allocation decision」。v1 決定不做前端 UI，所以這個表面從來不需要為人服務。
@@ -135,7 +135,7 @@ available-to-promise 是正當的業務查詢能力，與探針性質不同；�
 
 - 訂單表示沿用既有 `OrderStatusResponse` 的欄位，由下單、列表與單筆查詢三處共用。
 - 庫存回應欄位以領域語彙命名：on-hand、reserved、available-to-promise，不使用縮寫。
-- `OrderRepository` 新增「取最近 N 筆」查詢。
+- `OrderStore` 新增「取最近 N 筆」查詢。
 - `PlaceOrderUsecase.placeOrder` 回傳型別由 `UUID` 改為 `Order`。
 - 不新增、不修改任何 Integration Event 型別、Kafka topic 名稱或 payload 欄位。
 
@@ -178,7 +178,7 @@ available-to-promise 是正當的業務查詢能力，與探針性質不同；�
   限定，讓它無法出現在非 dev 環境。
 - [`allocation` 首次出現 REST entrypoint，模組邊界可能被逐步侵蝕] → 本次僅新增
   唯讀的單一 SKU 查詢；命令類操作仍只從 Kafka entrypoint 進入。
-- [`PlaceOrderUsecase` 回傳型別變更影響既有呼叫端] → 呼叫端僅 `OrderController`
+- [`PlaceOrderUsecase` 回傳型別變更影響既有呼叫端] → 呼叫端僅 `OrderRest`
   一處，編譯期即可暴露。
 
 ## Migration Plan

@@ -283,15 +283,15 @@ order_lines
 
 | 檔案 : 行 | 現在做的事 |
 | --- | --- |
-| 配貨的協調者（當時的 `OrderAllocationCoordinator`） | 注入 `OrderRepository`，持有他層的 repository |
+| 配貨的協調者（當時的 `OrderAllocationCoordinator`） | 注入 `OrderStore`，持有他層的 repository |
 | 同上 | `order.markBackOrdered(now)` |
 | 同上 | `publishDomainEvents(orders)`，代發他層的 domain event |
 | `AllocationService:58` | `order.markAllocated(now)`，domain service 跨層改他層 aggregate |
 | `AllocateOrderUsecase:47-54` | 載入 `Order` 後由 `order.getSku()` 反查 `StockQuant` |
-| `ConfirmStockReceiptUsecase:54` | `orderRepository.findBackordersBySkuInFifoOrder(sku)` |
+| `ConfirmStockReceiptUsecase:54` | `orderStore.findBackordersBySkuInFifoOrder(sku)` |
 | `AllocationSelector:14`、`AllocationPolicy:8`、兩個 Policy | 排序邏輯建立在 `List<Order>` 上 |
 
-`OrderRepository` 上的 `findBackordersBySkuInFifoOrder()` 是耦合最直接的證據——一個
+`OrderStore` 上的 `findBackordersBySkuInFifoOrder()` 是耦合最直接的證據——一個
 純為 allocation 服務的查詢方法長在 ordering 的 repository 上。
 
 要新增的檔案：
@@ -492,7 +492,7 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 | --- | --- |
 | 加 `external_order_no` | `Order`、`OrderEntity`、新 migration |
 | 建 `UNIQUE (owner_id, external_order_no)` | 新 migration |
-| 重送時回傳既有訂單 | `PlaceOrderUsecase`、`OrderController` |
+| 重送時回傳既有訂單 | `PlaceOrderUsecase`、`OrderRest` |
 | 接受上游單號 | `PlaceOrderRequest` |
 
 冪等鍵含 `owner_id` 的理由見「資料模型」。因此**段 D 依賴段 E**——沒有貨主就無法建
@@ -530,7 +530,7 @@ allocation 查的是 `demand_lines` view，因此這條規則不需要為讀取�
 | application | `PlaceOrderUsecase`、`GetOrderUsecase`、`ListRecentOrdersUsecase`、`OrderDetail`、`OrderingDomainEventPublisher` port |
 | outbound adapter | `OrderingIntegrationEventPublisher`（domain event → Integration Event → transactional Outbox） |
 | 契約 | `OrderPlacedIntegrationEvent`、`OrderCancelledIntegrationEvent` → 連帶 allocation 的 `OrderPlacedIntegrationEventHandler`、`OrderCancelledIntegrationEventHandler`，以及 `e2e/perf/k6/*` |
-| entrypoint | `OrderController`、`PlaceOrderRequest`、`OrderStatusResponse` |
+| entrypoint | `OrderRest`、`PlaceOrderRequest`、`OrderStatusResponse` |
 | index | `idx_orders_backorder_fifo` 重建於 `order_lines`，含 `owner_id` |
 
 整單狀態變成各 line 狀態的聚合函數。**但採 ship-complete 之後不會有

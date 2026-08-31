@@ -290,7 +290,7 @@ R4 之後待配佇列的查詢**不能依 status 過濾**——ordering 的配�
 | --- | --- |
 | `OrderRepository.save/findById/findRecent` | 簽章不變，`Order` 內含 lines |
 | `OrderRepository.findBackordersBySkuInFifoOrder(String sku)` | **加 `ownerId` 參數**：`findBackordersBySkuInFifoOrder(UUID ownerId, String skuCode)`。不同貨主的 backorder 隊列必須分開 |
-| `OwnerRepository`、`ProductRepository`、`SkuRepository` | **新增**，各含 `save` 與查詢 |
+| `OwnerStore`、`ProductStore`、`SkuStore` | **新增**，各含 `save` 與查詢 |
 
 `findBackordersBySkuInFifoOrder` 這個方法本身屬於 allocation 卻長在 ordering 的
 repository 上——那是 R4 要處理的耦合，R1 只加參數，不搬家。
@@ -351,7 +351,7 @@ repository 上——那是 R4 要處理的耦合，R1 只加參數，不搬家�
 | 測試 | 變更性質 |
 | --- | --- |
 | `PlaceOrderUsecaseTest` | 簽章調整 |
-| `GetOrderUsecaseTest`、`OrderControllerTest` | 簽章調整 |
+| `GetOrderUsecaseTest`、`OrderRestTest` | 簽章調整 |
 | `CancelOrderUsecaseTest` | 簽章調整 |
 | `OrderTest` | 加 line 相關斷言；**加一支斷言「lines 為空或多於一筆時 `place()` 拒絕」** |
 | `OrderMapperTest` | 加 lines 的映射 |

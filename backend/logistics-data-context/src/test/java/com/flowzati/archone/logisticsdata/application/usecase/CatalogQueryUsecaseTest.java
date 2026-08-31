@@ -3,9 +3,9 @@ package com.flowzati.archone.logisticsdata.application.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.logisticsdata.application.store.OwnerRepository;
-import com.flowzati.archone.logisticsdata.application.store.ProductRepository;
-import com.flowzati.archone.logisticsdata.application.store.SkuRepository;
+import com.flowzati.archone.logisticsdata.application.store.OwnerStore;
+import com.flowzati.archone.logisticsdata.application.store.ProductStore;
+import com.flowzati.archone.logisticsdata.application.store.SkuStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
@@ -27,13 +27,13 @@ class CatalogQueryUsecaseTest {
     private static final UUID OWNER_B = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     @Mock
-    private OwnerRepository ownerRepository;
+    private OwnerStore ownerStore;
 
     @Mock
-    private ProductRepository productRepository;
+    private ProductStore productStore;
 
     @Mock
-    private SkuRepository skuRepository;
+    private SkuStore skuStore;
 
     @Nested
     @DisplayName("ListOwnersUsecase")
@@ -44,9 +44,9 @@ class CatalogQueryUsecaseTest {
         void returnsOwnersInRepositoryOrder() {
             Owner first = new Owner(OWNER_A, "OWNER-A", "甲貨主");
             Owner second = new Owner(OWNER_B, "OWNER-B", "乙貨主");
-            when(ownerRepository.findAll()).thenReturn(List.of(first, second));
+            when(ownerStore.findAll()).thenReturn(List.of(first, second));
 
-            List<Owner> owners = new ListOwnersUsecase(ownerRepository).listAll();
+            List<Owner> owners = new ListOwnersUsecase(ownerStore).listAll();
 
             assertThat(owners).extracting(Owner::getCode).containsExactly("OWNER-A", "OWNER-B");
         }
@@ -60,9 +60,9 @@ class CatalogQueryUsecaseTest {
         @DisplayName("應以呼叫端指定的貨主查詢，不會漏掉貨主而查到全部")
         void queriesWithTheGivenOwner() {
             Product product = new Product(UUID.randomUUID(), OWNER_B, "P-1", "冷凍水餃", TemperatureZoneType.FROZEN);
-            when(productRepository.findByOwner(OWNER_B)).thenReturn(List.of(product));
+            when(productStore.findByOwner(OWNER_B)).thenReturn(List.of(product));
 
-            List<Product> products = new ListProductsUsecase(productRepository).listByOwner(OWNER_B);
+            List<Product> products = new ListProductsUsecase(productStore).listByOwner(OWNER_B);
 
             assertThat(products)
                     .singleElement()
@@ -79,9 +79,9 @@ class CatalogQueryUsecaseTest {
         void queriesWithBothOwnerAndProductCode() {
             Sku sku = new Sku(UUID.randomUUID(), OWNER_A, "SKU-A", "P-1", "500ml", 520);
             // 只在收到 (OWNER_A, "P-1") 這個順序時才回傳；參數互換會得到空清單。
-            when(skuRepository.findByProduct(OWNER_A, "P-1")).thenReturn(List.of(sku));
+            when(skuStore.findByProduct(OWNER_A, "P-1")).thenReturn(List.of(sku));
 
-            List<Sku> skus = new ListSkusUsecase(skuRepository).listByProduct(OWNER_A, "P-1");
+            List<Sku> skus = new ListSkusUsecase(skuStore).listByProduct(OWNER_A, "P-1");
 
             assertThat(skus).singleElement().satisfies(found -> {
                 assertThat(found.getOwnerId()).isEqualTo(OWNER_A);

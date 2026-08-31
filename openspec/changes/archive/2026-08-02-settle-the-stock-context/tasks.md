@@ -54,7 +54,7 @@
 
   `OrderLine` 那三個方法帶走的測試：`OrderTest` 的「配置後所有行一起成為 ALLOCATED」與「取消後所有行一起成為 CANCELLED」（各驗一個已不存在的欄位），「缺貨後⋯⋯」那支保留但拿掉逐行斷言。
 
-  **性質沒有消失，是搬家了**：新增 `OrderControllerTest`「逐行的狀態由 header 導出」，刻意用 `BACKORDERED` 而不是 `PENDING`——後者是新建的行本來就會有的值，拿它驗導出等於什麼都沒驗。
+  **性質沒有消失，是搬家了**：新增 `OrderRestTest`「逐行的狀態由 header 導出」，刻意用 `BACKORDERED` 而不是 `PENDING`——後者是新建的行本來就會有的值，拿它驗導出等於什麼都沒驗。
 
   淨變化 −2 +1 = **−1**（288 → 287）。
 

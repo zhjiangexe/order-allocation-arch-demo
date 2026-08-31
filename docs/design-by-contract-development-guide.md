@@ -244,9 +244,9 @@ Application Layer 可以有少量自己擁有的 orchestration contract，例如
 
 ```java
 public AllocateOrderResult handle(AllocateOrderCommand command) {
-    Order order = orderRepository.get(command.orderId());
+    Order order = orderStore.get(command.orderId());
     AllocateOrderResult result = order.allocate(command.lines());
-    orderRepository.save(order);
+    orderStore.save(order);
 
     ensure(
             () -> result.orderId().equals(command.orderId()),

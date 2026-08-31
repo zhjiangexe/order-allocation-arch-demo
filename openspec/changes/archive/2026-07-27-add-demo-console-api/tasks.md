@@ -1,12 +1,12 @@
 ## 1. 下單合約修正
 
-- [x] 1.1 實作 **Placing an order accepts a JSON command and returns the created order**：依「`POST /orders` 的三個缺陷一次修正，狀態碼維持 200」，將 `OrderController` 的下單 mapping 限定為 POST、command payload 改由 JSON request body 取得、狀態碼維持 `200`。行為上：以 JSON body 送出 SKU 與正整數數量會建立訂單，`/orders` 上的非 POST 請求不再建立訂單。以 web 層測試驗證 POST 建立成功、且 `GET /orders` 不產生新訂單。
+- [x] 1.1 實作 **Placing an order accepts a JSON command and returns the created order**：依「`POST /orders` 的三個缺陷一次修正，狀態碼維持 200」，將 `OrderRest` 的下單 mapping 限定為 POST、command payload 改由 JSON request body 取得、狀態碼維持 `200`。行為上：以 JSON body 送出 SKU 與正整數數量會建立訂單，`/orders` 上的非 POST 請求不再建立訂單。以 web 層測試驗證 POST 建立成功、且 `GET /orders` 不產生新訂單。
 - [x] 1.2 實作「`PlaceOrderUsecase` 回傳 `Order`，POST 與 GET 共用同一個回應型別」：`placeOrder` 由回傳 `UUID` 改為回傳 `Order`，controller 沿用既有 `OrderStatusResponse.from(...)` 組出回應。行為上：POST 的回應 body 與單筆查詢同型別，含訂單識別碼、SKU、數量、狀態 `PENDING` 與下單時間，客戶端只需一個訂單模型。以 web 層測試斷言 POST 回應欄位與單筆查詢一致驗證。
 - [x] 1.3 更新 `e2e/perf/k6/hot-sku-burst.js` 的下單請求與回傳解析，使其符合修正後的合約。行為上：壓測腳本能正確取得 orderId 並完成後續輪詢，`checks_total` 不因合約變更而失敗。以 `./e2e/perf/run.sh up` 通過既有 thresholds 驗證（baseline 數字的更新見 5.1）。
 
 ## 2. 訂單查詢端點
 
-- [x] 2.1 實作 **Recent orders are listed in stable descending order**：新增 `GET /orders`，`OrderRepository` 新增取最近 N 筆的查詢。依「最近訂單排序需要 tie-breaker 與專屬 index」以 `placed_at DESC, id DESC` 排序，並依「查詢 index 併入既有 migration，不新增檔案」把方向一致的 index 併入 `V3__create_orders.sql`，沿用該檔以註解說明欄位順序理由的慣例。行為上：多筆訂單共用同一 `placed_at` 時，連續兩次查詢回傳相同序列。以排序穩定性測試與 repository 測試驗證。
+- [x] 2.1 實作 **Recent orders are listed in stable descending order**：新增 `GET /orders`，`OrderStore` 新增取最近 N 筆的查詢。依「最近訂單排序需要 tie-breaker 與專屬 index」以 `placed_at DESC, id DESC` 排序，並依「查詢 index 併入既有 migration，不新增檔案」把方向一致的 index 併入 `V3__create_orders.sql`，沿用該檔以註解說明欄位順序理由的慣例。行為上：多筆訂單共用同一 `placed_at` 時，連續兩次查詢回傳相同序列。以排序穩定性測試與 repository 測試驗證。
 - [x] 2.2 實作「`limit` 超出範圍回 400，不靜默截斷」：`limit` 預設 20、有效範圍 1..100，超出範圍回 `400`。行為上：呼叫方能分辨「回了 100 筆是因為只有 100 筆」與「因為被截斷」。以 web 層測試涵蓋 `limit` 為 0、101、-1 回 `400`，以及 1、100、省略時成功驗證。
 
 ## 3. 庫存查詢端點

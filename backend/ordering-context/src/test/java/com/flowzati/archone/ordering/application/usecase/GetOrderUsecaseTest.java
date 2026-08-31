@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
 import java.util.NoSuchElementException;
@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class GetOrderUsecaseTest {
 
-    private final OrderRepository repository = mock(OrderRepository.class);
+    private final OrderStore repository = mock(OrderStore.class);
     private final GetOrderUsecase usecase = new GetOrderUsecase(repository);
 
     @Test
