@@ -7,7 +7,7 @@ import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancella
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationResult;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationStatus;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationUnavailableException;
-import com.flowzati.archone.wms.outbound.domain.exception.ShipmentCancellationRequestConflictException;
+import com.flowzati.archone.wms.shipment.domain.exception.ShipmentCancellationRequestConflictException;
 import jakarta.validation.Valid;
 import java.util.NoSuchElementException;
 import java.util.UUID;

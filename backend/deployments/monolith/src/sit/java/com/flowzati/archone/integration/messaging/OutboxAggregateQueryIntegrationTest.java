@@ -9,10 +9,10 @@ import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedInteg
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
-import com.flowzati.archone.ordering.application.command.PlaceOrderCommand;
+import com.flowzati.archone.ordering.application.invocation.PlaceOrderCommand;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -64,7 +64,7 @@ class OutboxAggregateQueryIntegrationTest {
     private AllocationOrderLifecycleEventDriver consumer;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -93,7 +93,7 @@ class OutboxAggregateQueryIntegrationTest {
         confirmStockReceipt();
 
         outcomeDrain().drain();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
 
         assertThat(eventTypesFor(orderId))
@@ -134,10 +134,10 @@ class OutboxAggregateQueryIntegrationTest {
     }
 
     private void attemptAllocation(UUID orderId) throws Exception {
-        Order currentOrder = orderRepository.findById(orderId).orElseThrow();
+        Order currentOrder = orderStore.findById(orderId).orElseThrow();
         consumer.consume(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, currentOrder.getReceivedAt()));
         outcomeDrain().drain();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
     }
 

@@ -17,18 +17,18 @@ import com.flowzati.archone.inventory.position.application.store.StockQuantStore
 import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
-import com.flowzati.archone.logisticsdata.application.store.FacilityRepository;
-import com.flowzati.archone.logisticsdata.application.store.OwnerRepository;
-import com.flowzati.archone.logisticsdata.application.store.ProductRepository;
-import com.flowzati.archone.logisticsdata.application.store.SkuRepository;
+import com.flowzati.archone.logisticsdata.application.store.FacilityStore;
+import com.flowzati.archone.logisticsdata.application.store.OwnerStore;
+import com.flowzati.archone.logisticsdata.application.store.ProductStore;
+import com.flowzati.archone.logisticsdata.application.store.SkuStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
 import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import jakarta.transaction.Transactional;
@@ -169,13 +169,13 @@ public class DevSeedDataInitializer implements ApplicationRunner {
      */
     private static final Instant UPSTREAM_PLACED_AT = Instant.parse("2025-12-31T22:29:59Z");
 
-    private final OwnerRepository ownerRepository;
-    private final ProductRepository productRepository;
-    private final SkuRepository skuRepository;
-    private final FacilityRepository facilityRepository;
+    private final OwnerStore ownerStore;
+    private final ProductStore productStore;
+    private final SkuStore skuStore;
+    private final FacilityStore facilityStore;
     private final StockLocationStore stockLocationStore;
     private final StockQuantStore stockQuantStore;
-    private final OrderRepository orderRepository;
+    private final OrderStore orderStore;
     private final StockOperationStore stockOperationStore;
     private final StockMoveStore stockMoveStore;
     private final StockMoveLineStore stockMoveLineStore;
@@ -183,25 +183,25 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     private final BusinessClock appClock;
 
     public DevSeedDataInitializer(
-            OwnerRepository ownerRepository,
-            ProductRepository productRepository,
-            SkuRepository skuRepository,
-            FacilityRepository facilityRepository,
+            OwnerStore ownerStore,
+            ProductStore productStore,
+            SkuStore skuStore,
+            FacilityStore facilityStore,
             StockLocationStore stockLocationStore,
             StockQuantStore stockQuantStore,
-            OrderRepository orderRepository,
+            OrderStore orderStore,
             StockOperationStore stockOperationStore,
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockOperationTypeStore stockOperationTypeStore,
             BusinessClock appClock) {
-        this.ownerRepository = ownerRepository;
-        this.productRepository = productRepository;
-        this.skuRepository = skuRepository;
-        this.facilityRepository = facilityRepository;
+        this.ownerStore = ownerStore;
+        this.productStore = productStore;
+        this.skuStore = skuStore;
+        this.facilityStore = facilityStore;
         this.stockLocationStore = stockLocationStore;
         this.stockQuantStore = stockQuantStore;
-        this.orderRepository = orderRepository;
+        this.orderStore = orderStore;
         this.stockOperationStore = stockOperationStore;
         this.stockMoveStore = stockMoveStore;
         this.stockMoveLineStore = stockMoveLineStore;
@@ -226,12 +226,12 @@ public class DevSeedDataInitializer implements ApplicationRunner {
      * 不會報錯，只會讓訂單配不到貨。三個庫存池用到的 SKU 因此必須在這裡都建出來。
      */
     private void seedCatalog() {
-        if (ownerRepository.findById(FIRST_OWNER_ID).isPresent()) {
+        if (ownerStore.findById(FIRST_OWNER_ID).isPresent()) {
             return;
         }
 
-        ownerRepository.save(new Owner(FIRST_OWNER_ID, "OWNER-A", "甲貨主"));
-        ownerRepository.save(new Owner(SECOND_OWNER_ID, "OWNER-B", "乙貨主"));
+        ownerStore.save(new Owner(FIRST_OWNER_ID, "OWNER-A", "甲貨主"));
+        ownerStore.save(new Owner(SECOND_OWNER_ID, "OWNER-B", "乙貨主"));
 
         // 甲貨主：常溫一款帶兩個規格（重量不同），冷凍一款
         product(FIRST_OWNER_ID, 11, AMBIENT_PRODUCT_CODE, "烏龍茶", TemperatureZoneType.AMBIENT);
@@ -251,17 +251,17 @@ public class DevSeedDataInitializer implements ApplicationRunner {
      * {@code (owner_id, facility_id)} 有複合外鍵指向 {@code owner_facilities}。
      */
     private void seedFacilities() {
-        if (facilityRepository.findById(NORTH_FACILITY_ID).isPresent()) {
+        if (facilityStore.findById(NORTH_FACILITY_ID).isPresent()) {
             return;
         }
-        facilityRepository.save(new Facility(NORTH_FACILITY_ID, "WH-NORTH", "北部倉"));
-        facilityRepository.save(new Facility(CENTRAL_FACILITY_ID, "WH-CENTRAL", "中部倉"));
-        facilityRepository.save(new Facility(SOUTH_FACILITY_ID, "WH-SOUTH", "南部倉"));
+        facilityStore.save(new Facility(NORTH_FACILITY_ID, "WH-NORTH", "北部倉"));
+        facilityStore.save(new Facility(CENTRAL_FACILITY_ID, "WH-CENTRAL", "中部倉"));
+        facilityStore.save(new Facility(SOUTH_FACILITY_ID, "WH-SOUTH", "南部倉"));
 
-        facilityRepository.assign(FIRST_OWNER_ID, NORTH_FACILITY_ID);
-        facilityRepository.assign(FIRST_OWNER_ID, CENTRAL_FACILITY_ID);
-        facilityRepository.assign(SECOND_OWNER_ID, CENTRAL_FACILITY_ID);
-        facilityRepository.assign(SECOND_OWNER_ID, SOUTH_FACILITY_ID);
+        facilityStore.assign(FIRST_OWNER_ID, NORTH_FACILITY_ID);
+        facilityStore.assign(FIRST_OWNER_ID, CENTRAL_FACILITY_ID);
+        facilityStore.assign(SECOND_OWNER_ID, CENTRAL_FACILITY_ID);
+        facilityStore.assign(SECOND_OWNER_ID, SOUTH_FACILITY_ID);
 
         seedLocations();
         seedStockOperationTypes();
@@ -401,7 +401,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     }
 
     private void seedOrders() {
-        if (orderRepository.findById(PARTIALLY_RESERVED_ORDER_ID).isPresent()) {
+        if (orderStore.findById(PARTIALLY_RESERVED_ORDER_ID).isPresent()) {
             return;
         }
 
@@ -414,7 +414,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
                 "SEED-A-0001",
                 PARTIALLY_RESERVED_SKU,
                 5);
-        orderRepository.save(partiallyReservedOrder);
+        orderStore.save(partiallyReservedOrder);
         seedMovementGroup(
                 uuid(501), 411, partiallyReservedOrder, NORTH_OUTBOUND_TYPE_ID, NORTH_STOCK_LOCATION_ID, true);
         UUID partiallyReservedMove = uuid(411);
@@ -431,7 +431,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
                 "SEED-A-0002",
                 AVAILABLE_SKU,
                 80);
-        orderRepository.save(spanningOrder);
+        orderStore.save(spanningOrder);
         seedMovementGroup(uuid(502), 412, spanningOrder, NORTH_OUTBOUND_TYPE_ID, NORTH_STOCK_LOCATION_ID, true);
         // **一條行對兩條明細**——「多批取用」在種子裡唯一的證據。少了它，跨批那條路徑只有
         // 測試看得到，畫面上看不到。
@@ -453,7 +453,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
                 "SEED-B-0001",
                 EMPTY_SKU,
                 2);
-        orderRepository.save(backordered);
+        orderStore.save(backordered);
         seedMovementGroup(uuid(503), 413, backordered, SOUTH_OUTBOUND_TYPE_ID, SOUTH_STOCK_LOCATION_ID, false);
 
         // 乙貨主：一張跨兩個 SKU 的缺貨單。SKU-AVAILABLE 在同一個倉有 50 件、要 5 件；
@@ -468,7 +468,7 @@ public class DevSeedDataInitializer implements ApplicationRunner {
                 List.of(
                         OrderLine.create(BASKET_PLENTIFUL_LINE_ID, 1, SECOND_OWNER_ID, AVAILABLE_SKU, 5),
                         OrderLine.create(BASKET_SHORT_LINE_ID, 2, SECOND_OWNER_ID, EMPTY_SKU, 3)));
-        orderRepository.save(basket);
+        orderStore.save(basket);
         seedMovementGroup(uuid(504), 414, basket, SOUTH_OUTBOUND_TYPE_ID, SOUTH_STOCK_LOCATION_ID, false);
         // 兩條 moves 都維持 CONFIRMED 且沒有 move lines：任一行不足時，充足行也不會先被預留。
     }
@@ -584,11 +584,11 @@ public class DevSeedDataInitializer implements ApplicationRunner {
     }
 
     private void product(UUID ownerId, int idSuffix, String productCode, String name, TemperatureZoneType zone) {
-        productRepository.save(new Product(uuid(idSuffix), ownerId, productCode, name, zone));
+        productStore.save(new Product(uuid(idSuffix), ownerId, productCode, name, zone));
     }
 
     private void sku(UUID ownerId, int idSuffix, String skuCode, String productCode, String specName, int weight) {
-        skuRepository.save(new Sku(uuid(idSuffix), ownerId, skuCode, productCode, specName, weight));
+        skuStore.save(new Sku(uuid(idSuffix), ownerId, skuCode, productCode, specName, weight));
     }
 
     private void batch(

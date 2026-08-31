@@ -22,7 +22,7 @@ import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -69,7 +69,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
     private ControllableMessageConsumerImplementation transport;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -96,7 +96,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
         Instant allocatedAt = Instant.now().minusSeconds(2);
         Instant handedOverAt = allocatedAt.plusSeconds(1);
         var order = OrderFixtures.allocatedOrder(orderId, "SKU-OUTBOUND", 3, allocatedAt.minusSeconds(1), allocatedAt);
-        orderRepository.save(order);
+        orderStore.save(order);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-OUTBOUND", 10, 0));
         var scenario = MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockQuantId, 3);
         UUID movementId = scenario.movementId();
@@ -145,7 +145,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
 
         assertThat(inboxClaimExists(OrderingEventSubscriptions.FULFILLMENT_COMPLETION, completionEventId))
                 .isTrue();
-        assertThat(orderRepository.findById(orderId)).hasValueSatisfying(fulfilled -> {
+        assertThat(orderStore.findById(orderId)).hasValueSatisfying(fulfilled -> {
             assertThat(fulfilled.getStatus()).isEqualTo(OrderStatus.FULFILLED);
             assertThat(fulfilled.getFulfilledAt()).isEqualTo(handedOverAt);
         });

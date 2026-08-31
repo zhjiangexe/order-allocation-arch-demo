@@ -9,7 +9,7 @@ import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryExhaustedException;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.SitDatabase;
@@ -70,7 +70,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
     private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -106,7 +106,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
         List<OrderPlacedIntegrationEvent> events = new ArrayList<>(TOTAL_ORDERS);
         for (int i = 0; i < TOTAL_ORDERS; i++) {
             UUID orderId = IdGenerator.nextId();
-            orderRepository.save(OrderFixtures.pendingOrder(orderId, HOT_SKU, 1, receivedAt));
+            orderStore.save(OrderFixtures.pendingOrder(orderId, HOT_SKU, 1, receivedAt));
             events.add(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt));
         }
 

@@ -8,10 +8,10 @@ import com.flowzati.archone.inventory.allocation.application.store.StockAllocati
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
 import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
-import com.flowzati.archone.logisticsdata.application.store.FacilityRepository;
-import com.flowzati.archone.logisticsdata.application.store.OwnerRepository;
+import com.flowzati.archone.logisticsdata.application.store.FacilityStore;
+import com.flowzati.archone.logisticsdata.application.store.OwnerStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -48,7 +48,7 @@ class DevSeedDataIntegrationTest {
     private StockAllocationSupplyStore stockAllocationSupplyStore;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -57,10 +57,10 @@ class DevSeedDataIntegrationTest {
     private BusinessClock appClock;
 
     @Autowired
-    private OwnerRepository ownerRepository;
+    private OwnerStore ownerStore;
 
     @Autowired
-    private FacilityRepository facilityRepository;
+    private FacilityStore facilityStore;
 
     /**
      * 每支測試前重新 seed。
@@ -102,7 +102,7 @@ class DevSeedDataIntegrationTest {
                     assertThat(pool.getOnHandQuantity()).isEqualTo(20);
                     assertThat(pool.getReservedQuantity()).isEqualTo(5);
                 });
-        assertThat(orderRepository.findById(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
+        assertThat(orderStore.findById(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
         assertThat(heldBy(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
                 .singleElement()
@@ -159,7 +159,7 @@ class DevSeedDataIntegrationTest {
     @Test
     @DisplayName("種子必須一張帶上游下單時刻、一張不帶——「上游沒送」在畫面上要有一列是空的")
     void seedsOneOrderWithAnUpstreamPlacedTimeAndOneWithout() {
-        assertThat(orderRepository.findById(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
+        assertThat(orderStore.findById(DevSeedDataInitializer.PARTIALLY_RESERVED_ORDER_ID))
                 .hasValueSatisfying(order -> {
                     assertThat(order.getReceivedAt()).isNotNull();
                     assertThat(order.getPlacedAt()).isNotNull();
@@ -167,7 +167,7 @@ class DevSeedDataIntegrationTest {
                     assertThat(order.getPlacedAt()).isBefore(order.getReceivedAt());
                 });
 
-        assertThat(orderRepository.findById(DevSeedDataInitializer.BACKORDERED_ORDER_ID))
+        assertThat(orderStore.findById(DevSeedDataInitializer.BACKORDERED_ORDER_ID))
                 .hasValueSatisfying(order -> {
                     assertThat(order.getReceivedAt()).isNotNull();
                     assertThat(order.getPlacedAt()).isNull();
@@ -177,7 +177,7 @@ class DevSeedDataIntegrationTest {
     @Test
     @DisplayName("種子必須有一張需求跨兩批的訂單——多批取用與多筆預留唯一的資料來源")
     void seedsAnOrderWhoseDemandSpansTwoBatches() {
-        assertThat(orderRepository.findById(DevSeedDataInitializer.SPANNING_ORDER_ID))
+        assertThat(orderStore.findById(DevSeedDataInitializer.SPANNING_ORDER_ID))
                 .hasValueSatisfying(order -> {
                     assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED);
                     assertThat(order.getDemandFor(DevSeedDataInitializer.AVAILABLE_SKU))
@@ -235,12 +235,11 @@ class DevSeedDataIntegrationTest {
     @Test
     @DisplayName("種子必須有一張「有貨卻不配」的多 SKU 單——ship-complete 在畫面上唯一的證據")
     void seedsAMultiSkuOrderBlockedByOneOfItsSkus() {
-        assertThat(orderRepository.findById(DevSeedDataInitializer.BASKET_ORDER_ID))
-                .hasValueSatisfying(order -> {
-                    assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
-                    assertThat(order.getDemand())
-                            .containsOnlyKeys(DevSeedDataInitializer.AVAILABLE_SKU, DevSeedDataInitializer.EMPTY_SKU);
-                });
+        assertThat(orderStore.findById(DevSeedDataInitializer.BASKET_ORDER_ID)).hasValueSatisfying(order -> {
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+            assertThat(order.getDemand())
+                    .containsOnlyKeys(DevSeedDataInitializer.AVAILABLE_SKU, DevSeedDataInitializer.EMPTY_SKU);
+        });
 
         // 這一條才是重點：充足的那一行**一件都沒被鎖住**。整張配或整張不配，所以卡在 SKU-EMPTY
         // 的這張單不會為自己留下 SKU-AVAILABLE 的 5 件——那 5 件留給後面配得出去的單。
@@ -288,9 +287,7 @@ class DevSeedDataIntegrationTest {
     }
 
     private List<UUID> facilityIdsOf(UUID ownerId) {
-        return facilityRepository.findByOwner(ownerId).stream()
-                .map(Facility::getId)
-                .toList();
+        return facilityStore.findByOwner(ownerId).stream().map(Facility::getId).toList();
     }
 
     @Test

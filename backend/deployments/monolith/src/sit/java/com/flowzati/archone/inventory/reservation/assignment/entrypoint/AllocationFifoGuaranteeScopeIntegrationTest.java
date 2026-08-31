@@ -8,7 +8,7 @@ import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -68,7 +68,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -124,7 +124,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         Instant backorderedAt = Instant.now().minusSeconds(3600);
         MovementFixtures.saveConfirmedPickingOrder(
-                orderRepository,
+                orderStore,
                 jdbcTemplate,
                 OrderFixtures.backorderedOrder(
                         orderId, SKU, QUEUED_ORDER_QUANTITY, backorderedAt.minusSeconds(1), backorderedAt));
@@ -134,7 +134,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     private UUID placeNewOrder() throws Exception {
         UUID orderId = IdGenerator.nextId();
         Instant receivedAt = Instant.now();
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
         OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
         consumer.consume(event);
         return orderId;
@@ -150,7 +150,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
         // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
         outcomeDrain().drain();
 
-        return orderRepository.findById(orderId).orElseThrow().getStatus();
+        return orderStore.findById(orderId).orElseThrow().getStatus();
     }
 
     private int availableToPromise(UUID stockQuantId) {

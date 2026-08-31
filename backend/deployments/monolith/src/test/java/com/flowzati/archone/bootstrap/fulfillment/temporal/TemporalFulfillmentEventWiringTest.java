@@ -14,8 +14,8 @@ import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEv
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
-import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
-import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
+import com.flowzati.archone.wms.shipment.application.service.LegacyAllocationPickingResolver;
+import com.flowzati.archone.wms.shipment.entrypoint.messaging.WmsEventSubscriptions;
 import io.temporal.client.WorkflowClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

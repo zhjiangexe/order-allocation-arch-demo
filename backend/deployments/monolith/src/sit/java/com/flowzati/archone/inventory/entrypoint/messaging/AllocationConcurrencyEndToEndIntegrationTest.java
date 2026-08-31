@@ -11,7 +11,7 @@ import com.flowzati.archone.inventory.position.application.store.StockQuantStore
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryExhaustedException;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -59,7 +59,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
     private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -93,8 +93,8 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         UUID secondOrderId = IdGenerator.nextId();
         Instant receivedAt = Instant.now().minusSeconds(1);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-CONCURRENT", 3, 0));
-        orderRepository.save(OrderFixtures.pendingOrder(firstOrderId, "SKU-CONCURRENT", 3, receivedAt));
-        orderRepository.save(OrderFixtures.pendingOrder(secondOrderId, "SKU-CONCURRENT", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(firstOrderId, "SKU-CONCURRENT", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(secondOrderId, "SKU-CONCURRENT", 3, receivedAt));
 
         OrderPlacedIntegrationEvent firstEvent =
                 new OrderPlacedIntegrationEvent(UUID.randomUUID(), firstOrderId, receivedAt);
@@ -116,8 +116,8 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         outcomeDrain().drain();
 
         List<OrderStatus> statuses = List.of(
-                orderRepository.findById(firstOrderId).orElseThrow().getStatus(),
-                orderRepository.findById(secondOrderId).orElseThrow().getStatus());
+                orderStore.findById(firstOrderId).orElseThrow().getStatus(),
+                orderStore.findById(secondOrderId).orElseThrow().getStatus());
         assertThat(statuses).containsExactlyInAnyOrder(OrderStatus.ALLOCATED, OrderStatus.PENDING);
         assertThat(stockQuantStore.findById(stockQuantId)).hasValueSatisfying(pool -> {
             assertThat(pool.getReservedQuantity()).isEqualTo(3);
@@ -159,7 +159,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         Instant receivedAt = Instant.now().minusSeconds(1);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-EXHAUSTED", 3, 0));
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-EXHAUSTED", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-EXHAUSTED", 3, receivedAt));
         OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
         double metricBefore = exhaustedMetricCount();
         conflictInjector.failFirstAllocationAttempts(3);
@@ -169,7 +169,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         assertThat(conflictInjector.invocations()).isEqualTo(3);
         assertThat(conflictInjector.transactionIds()).hasSize(3).doesNotHaveDuplicates();
         outcomeDrain().drain();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
         assertThat(stockQuantStore.findById(stockQuantId))
                 .hasValueSatisfying(

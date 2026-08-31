@@ -6,8 +6,8 @@ import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.wms.outbound.application.result.ShipmentView;
-import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
+import com.flowzati.archone.wms.shipment.application.result.ShipmentView;
+import com.flowzati.archone.wms.shipment.application.usecase.GetOrderShipmentsUsecase;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;

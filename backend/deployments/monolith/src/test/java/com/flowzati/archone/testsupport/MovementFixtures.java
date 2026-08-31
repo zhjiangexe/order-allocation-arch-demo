@@ -5,8 +5,8 @@ import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
 import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
 import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.ConnectionCallback;
@@ -95,9 +95,8 @@ public final class MovementFixtures {
     }
 
     /** 一張已進入 assignment queue 的單：訂單 source 與 canonical confirmed movements。 */
-    public static Order saveConfirmedPickingOrder(
-            OrderRepository orderRepository, JdbcTemplate jdbcTemplate, Order order) {
-        orderRepository.save(order);
+    public static Order saveConfirmedPickingOrder(OrderStore orderStore, JdbcTemplate jdbcTemplate, Order order) {
+        orderStore.save(order);
         seedConfirmedPicking(jdbcTemplate, order);
         return order;
     }

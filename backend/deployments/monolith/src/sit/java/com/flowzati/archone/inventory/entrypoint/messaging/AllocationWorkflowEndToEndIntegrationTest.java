@@ -23,8 +23,8 @@ import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -65,7 +65,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     private com.flowzati.archone.testsupport.InventoryEventDrainFactory inventoryEventDrainFactory;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -105,7 +105,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(1);
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-AVAILABLE", 10, 0));
 
         OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
@@ -135,7 +135,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
                         OrderingEventSubscriptions.ALLOCATION_RESULTS,
                         allocationOutcomeEventId))
                 .isOne();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
         assertThat(stockQuantStore.findById(stockQuantId))
                 .hasValueSatisfying(
@@ -163,7 +163,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         Instant reservedAt = Instant.now().minusSeconds(1);
         Order order = OrderFixtures.allocatedOrder(
                 orderId, "SKU-PARTIALLY-RESERVED", 4, reservedAt.minusSeconds(1), reservedAt);
-        orderRepository.save(order);
+        orderStore.save(order);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-PARTIALLY-RESERVED", 10, 0));
         var scenario = MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockQuantId, 4);
 
@@ -216,7 +216,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(2);
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-AVAILABLE", 10, 0));
 
         consumer.consume(new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt));
@@ -268,18 +268,18 @@ class AllocationWorkflowEndToEndIntegrationTest {
         Instant secondBackorderedAt = firstBackorderedAt.plusSeconds(1);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-FIFO", 0, 0));
         MovementFixtures.saveConfirmedPickingOrder(
-                orderRepository, jdbcTemplate, backorderedOrder(firstOrderId, "SKU-FIFO", 3, firstBackorderedAt));
+                orderStore, jdbcTemplate, backorderedOrder(firstOrderId, "SKU-FIFO", 3, firstBackorderedAt));
         MovementFixtures.saveConfirmedPickingOrder(
-                orderRepository, jdbcTemplate, backorderedOrder(secondOrderId, "SKU-FIFO", 3, secondBackorderedAt));
+                orderStore, jdbcTemplate, backorderedOrder(secondOrderId, "SKU-FIFO", 3, secondBackorderedAt));
 
         receive("SKU-FIFO", 5);
         outcomeDrain().drain();
 
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM stock_receipt_requests", Integer.class))
                 .isEqualTo(1);
-        assertThat(orderRepository.findById(firstOrderId))
+        assertThat(orderStore.findById(firstOrderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
-        assertThat(orderRepository.findById(secondOrderId))
+        assertThat(orderStore.findById(secondOrderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
         assertThat(stockQuantStore.findById(stockQuantId)).hasValueSatisfying(pool -> {
             assertThat(pool.getOnHandQuantity()).isEqualTo(5);
@@ -321,21 +321,21 @@ class AllocationWorkflowEndToEndIntegrationTest {
         // 最終狀態與「先排隊、後取消」完全相同——搬運存在、訂單已取消、取消事件尚未被消費。
         Order cancelled = backorderedOrder(cancelledOrderId, "SKU-FIFO", 3, earlier);
         cancelled.cancel(UUID.randomUUID(), Instant.now().minusSeconds(2), "Integration test cancellation");
-        MovementFixtures.saveConfirmedPickingOrder(orderRepository, jdbcTemplate, cancelled);
+        MovementFixtures.saveConfirmedPickingOrder(orderStore, jdbcTemplate, cancelled);
         consumer.consume(new OrderCancelledIntegrationEvent(
                 UUID.randomUUID(), cancelledOrderId, Instant.now().minusSeconds(2)));
 
         MovementFixtures.saveConfirmedPickingOrder(
-                orderRepository, jdbcTemplate, backorderedOrder(liveOrderId, "SKU-FIFO", 3, earlier.plusSeconds(1)));
+                orderStore, jdbcTemplate, backorderedOrder(liveOrderId, "SKU-FIFO", 3, earlier.plusSeconds(1)));
 
         receive("SKU-FIFO", 3);
         outcomeDrain().drain();
 
-        assertThat(orderRepository.findById(cancelledOrderId))
+        assertThat(orderStore.findById(cancelledOrderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED));
         assertThat(heldBy(cancelledOrderId)).isEmpty();
 
-        assertThat(orderRepository.findById(liveOrderId))
+        assertThat(orderStore.findById(liveOrderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
         assertThat(heldBy(liveOrderId)).isNotEmpty();
 
@@ -351,7 +351,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID plentifulId = UUID.randomUUID();
         UUID scarceId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(1);
-        orderRepository.save(OrderFixtures.pendingMultiSkuOrder(
+        orderStore.save(OrderFixtures.pendingMultiSkuOrder(
                 orderId,
                 receivedAt,
                 new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 10, "SKU-BASKET-B", 5))));
@@ -364,7 +364,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
         // 「有貨卻不配」正是 ship-complete 的內容：為一張出不去的單鎖住 A 的 10 件，只會讓後面
         // 一張本來出得了的單拿不到。整籃原子性必須在真實的資料庫路徑上成立，不只在領域測試裡。
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
         assertThat(heldBy(orderId)).isEmpty();
         assertThat(stockQuantStore.findById(plentifulId))
@@ -382,7 +382,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID firstPoolId = UUID.randomUUID();
         UUID secondPoolId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(1);
-        orderRepository.save(OrderFixtures.pendingMultiSkuOrder(
+        orderStore.save(OrderFixtures.pendingMultiSkuOrder(
                 orderId,
                 receivedAt,
                 new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 10, "SKU-BASKET-B", 5))));
@@ -393,7 +393,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         consumer.consume(event);
         assertThat(outcomeDrain().drain()).isPositive();
 
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
         // 預留的粒度是行 × 批：兩條行各自有一筆，摺成一筆就丟掉了出貨時要的「哪一批為哪一行鎖」。
         assertThat(heldBy(orderId)).hasSize(2);
@@ -428,7 +428,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
                 null,
                 null,
                 null);
-        orderRepository.save(order);
+        orderStore.save(order);
         stockQuantStore.save(StockFixtures.unexpiredBatch(poolId, "SKU-BASKET-A", 10, 0));
 
         OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
@@ -437,7 +437,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
 
         // roadmap 曾記載一支缺 DISTINCT 的佇列查詢，會讓同一張單出現兩次而扣兩次量。取代它的
         // 兩段式查詢在結構上排除了這件事——但那是副作用而非目標，所以要有一支測試明確守著。
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(
                         allocated -> assertThat(allocated.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
         assertThat(stockQuantStore.findById(poolId))
@@ -457,14 +457,14 @@ class AllocationWorkflowEndToEndIntegrationTest {
                 orderId,
                 backorderedAt.minusSeconds(1),
                 new java.util.LinkedHashMap<>(java.util.Map.of("SKU-BASKET-A", 1, "SKU-BASKET-B", 1)));
-        MovementFixtures.saveConfirmedPickingOrder(orderRepository, jdbcTemplate, order);
+        MovementFixtures.saveConfirmedPickingOrder(orderStore, jdbcTemplate, order);
 
         receive("SKU-BASKET-A", 5);
         outcomeDrain().drain();
 
         // 喚醒是由 A 觸發的，但候選單還要 B——而 B 一批都沒有。只看被補的那個 SKU 的實作會在
         // 這裡把整張單配掉。
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(woken -> assertThat(woken.getStatus()).isEqualTo(OrderStatus.PENDING));
         assertThat(heldBy(orderId)).isEmpty();
         assertThat(stockQuantStore.findById(poolId)).hasValueSatisfying(pool -> {

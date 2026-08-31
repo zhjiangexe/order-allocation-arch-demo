@@ -12,8 +12,8 @@ import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockR
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.reservation.application.usecase.ReconcileStockOperationBacklogUsecase;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -86,7 +86,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     private BusinessClock appClock;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -229,7 +229,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         for (int i = 0; i < MAX_ATTEMPTS_PER_RUN; i++) {
             UUID orderId = IdGenerator.nextId();
             MovementFixtures.saveConfirmedPickingOrder(
-                    orderRepository,
+                    orderStore,
                     jdbcTemplate,
                     OrderFixtures.backorderedOrderAt(
                             OrderFixtures.OTHER_FACILITY_ID,
@@ -275,7 +275,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         Order order = OrderFixtures.backorderedOrder(
                 orderId, FIFO_SKU, quantity, backorderedAt.minusSeconds(1), backorderedAt);
         // 訂單與 canonical confirmed operation/moves 一起寫；moves 本身就是 queue。
-        MovementFixtures.saveConfirmedPickingOrder(orderRepository, jdbcTemplate, order);
+        MovementFixtures.saveConfirmedPickingOrder(orderStore, jdbcTemplate, order);
         return orderId;
     }
 
@@ -284,7 +284,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         // Debezium，所以先自己把 outbox 的配貨結果餵回去——production 裡是 Kafka 做這件事。
         outcomeDrain().drain();
 
-        return orderRepository.findById(orderId).orElseThrow().getStatus();
+        return orderStore.findById(orderId).orElseThrow().getStatus();
     }
 
     private void assertReconciledState(UUID stockQuantId, ExpectedSnapshot expected) {

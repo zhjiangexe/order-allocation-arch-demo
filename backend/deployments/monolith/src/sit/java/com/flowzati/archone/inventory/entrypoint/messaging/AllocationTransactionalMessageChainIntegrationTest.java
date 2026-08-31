@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
-import com.flowzati.archone.logisticsdata.application.store.OwnerRepository;
+import com.flowzati.archone.logisticsdata.application.store.OwnerStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
@@ -51,7 +51,7 @@ class AllocationTransactionalMessageChainIntegrationTest {
     private TransactionalIdempotencyMessageHandlerDecorator transactionalDecorator;
 
     @Autowired
-    private OwnerRepository ownerRepository;
+    private OwnerStore ownerStore;
 
     @Autowired
     private MessageProducer messageProducer;
@@ -138,7 +138,7 @@ class AllocationTransactionalMessageChainIntegrationTest {
     }
 
     private void persistBusinessAndOutbox(UUID ownerId, UUID outboxMessageId) {
-        ownerRepository.save(new Owner(ownerId, "GATE-E-" + ownerId, "Gate E retry owner"));
+        ownerStore.save(new Owner(ownerId, "GATE-E-" + ownerId, "Gate E retry owner"));
         messageProducer.send(
                 "gate-e.retry-probes",
                 MessageBuilder.withPayload("{}")

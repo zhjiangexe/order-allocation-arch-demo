@@ -15,7 +15,7 @@ import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentCancelled
 import com.flowzati.archone.orderfulfillment.contract.workflow.ShipmentHandedOverToCarrierSignal;
 import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshot;
 import com.flowzati.archone.orderfulfillment.contract.workflow.StockOperationAssignmentSnapshotLine;
-import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
+import com.flowzati.archone.wms.shipment.application.service.LegacyAllocationPickingResolver;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import java.time.Instant;

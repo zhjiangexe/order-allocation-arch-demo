@@ -7,8 +7,11 @@ import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
 import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
-import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaOwnerRepository;
-import com.flowzati.archone.logisticsdata.infrastructure.repository.jpa.JpaSkuRepository;
+import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.repository.JpaOwnerRepository;
+import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.repository.JpaSkuRepository;
+import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.store.OwnerStoreAdapter;
+import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.store.ProductStoreAdapter;
+import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.store.SkuStoreAdapter;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import jakarta.persistence.EntityManager;
 import java.util.List;
@@ -33,9 +36,9 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    OwnerRepositoryImpl.class,
-    ProductRepositoryImpl.class,
-    SkuRepositoryImpl.class,
+    OwnerStoreAdapter.class,
+    ProductStoreAdapter.class,
+    SkuStoreAdapter.class,
     CatalogPersistenceIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("Catalog PostgreSQL persistence adapter")
@@ -45,13 +48,13 @@ class CatalogPersistenceIntegrationTest {
     private static final UUID OWNER_B = uuid(2);
 
     @Autowired
-    private OwnerRepositoryImpl ownerRepository;
+    private OwnerStoreAdapter ownerRepository;
 
     @Autowired
-    private ProductRepositoryImpl productRepository;
+    private ProductStoreAdapter productRepository;
 
     @Autowired
-    private SkuRepositoryImpl skuRepository;
+    private SkuStoreAdapter skuRepository;
 
     @Autowired
     private JpaSkuRepository jpaSkuRepository;

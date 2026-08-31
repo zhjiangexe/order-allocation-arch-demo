@@ -47,10 +47,10 @@ import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentU
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResultEventConsumer;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingFulfillmentCompletionEventConsumer;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingShipmentCancellationEventConsumer;
-import com.flowzati.archone.wms.outbound.application.service.LegacyAllocationPickingResolver;
-import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsEventSubscriptions;
-import com.flowzati.archone.wms.outbound.entrypoint.messaging.WmsFulfillmentHandoffEventConsumer;
+import com.flowzati.archone.wms.shipment.application.service.LegacyAllocationPickingResolver;
+import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
+import com.flowzati.archone.wms.shipment.entrypoint.messaging.WmsEventSubscriptions;
+import com.flowzati.archone.wms.shipment.entrypoint.messaging.WmsFulfillmentHandoffEventConsumer;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

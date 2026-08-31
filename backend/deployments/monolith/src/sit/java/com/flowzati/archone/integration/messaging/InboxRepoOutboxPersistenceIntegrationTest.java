@@ -7,7 +7,7 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.logisticsdata.infrastructure.entity.OwnerEntity;
+import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.model.OwnerEntity;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.api.MessageHeaders;

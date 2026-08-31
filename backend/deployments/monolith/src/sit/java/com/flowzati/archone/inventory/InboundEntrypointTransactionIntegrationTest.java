@@ -21,8 +21,8 @@ import com.flowzati.archone.inventory.position.application.store.StockQuantStore
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver;
 import com.flowzati.archone.testsupport.MovementFixtures;
@@ -66,7 +66,7 @@ class InboundEntrypointTransactionIntegrationTest {
     private StockReceiptApplicationFacade stockReceiptApplicationFacade;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -97,7 +97,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(1);
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
 
         consumeOrderingEvent(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
@@ -105,7 +105,7 @@ class InboundEntrypointTransactionIntegrationTest {
         assertThat(inboxClaimExists(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, eventId))
                 .isTrue();
         outcomeDrain().drain();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
         // Canonical operation、move 與 reservation 必須在 assignment transaction 後一致。
         assertThat(count("stock_operations")).isOne();
@@ -121,7 +121,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(1);
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
 
         // **失敗來源換過三次了，而這一次的理由與前兩次不同。**
@@ -144,7 +144,7 @@ class InboundEntrypointTransactionIntegrationTest {
         assertThat(inboxClaimExists(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, eventId))
                 .isFalse();
         outcomeDrain().drain();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
         assertThat(count("stock_operations")).isZero();
         assertThat(count("stock_moves")).isZero();
@@ -158,7 +158,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID eventId = UUID.randomUUID();
         Instant allocatedAt = Instant.now().minusSeconds(1);
         Order order = OrderFixtures.allocatedOrder(orderId, "SKU-1", 3, allocatedAt.minusSeconds(1), allocatedAt);
-        orderRepository.save(order);
+        orderStore.save(order);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockQuantId, 3);
 
@@ -193,9 +193,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID eventId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(60);
         MovementFixtures.saveConfirmedPickingOrder(
-                orderRepository,
-                jdbcTemplate,
-                OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
+                orderStore, jdbcTemplate, OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 0, 0));
 
         StockReceiptRequest request = receiptRequest(eventId, 3);
@@ -237,7 +235,7 @@ class InboundEntrypointTransactionIntegrationTest {
                         OrderAllocationCommittedIntegrationEvent.EVENT_TYPE))
                 .isOne();
         outcomeDrain().drain();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATED));
     }
 
@@ -249,9 +247,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID eventId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(60);
         MovementFixtures.saveConfirmedPickingOrder(
-                orderRepository,
-                jdbcTemplate,
-                OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
+                orderStore, jdbcTemplate, OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 0, 0));
 
         stockReceiptApplicationFacade.confirm(receiptRequest(eventId, 3));
@@ -281,7 +277,7 @@ class InboundEntrypointTransactionIntegrationTest {
             assertThat(pool.getReservedQuantity()).isZero();
         });
         outcomeDrain().drain();
-        assertThat(orderRepository.findById(orderId))
+        assertThat(orderStore.findById(orderId))
                 .hasValueSatisfying(order -> assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING));
         // Assignment 失敗不得改掉已登記的 movement intent，也不得留下部分 reservation。
         assertThat(MovementFixtures.moveStatesOf(jdbcTemplate, orderId)).containsExactly("CONFIRMED");

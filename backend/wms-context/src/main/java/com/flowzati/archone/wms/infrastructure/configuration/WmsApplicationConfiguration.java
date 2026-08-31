@@ -1,31 +1,36 @@
 package com.flowzati.archone.wms.infrastructure.configuration;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.wms.inbound.application.store.InboundOperationStore;
-import com.flowzati.archone.wms.inbound.application.usecase.ConfirmArrivalUsecase;
-import com.flowzati.archone.wms.inbound.application.usecase.ConfirmPutawayUsecase;
-import com.flowzati.archone.wms.inbound.application.usecase.RecordInspectionUsecase;
-import com.flowzati.archone.wms.inbound.application.usecase.RegisterInboundOperationUsecase;
-import com.flowzati.archone.wms.outbound.application.port.ShipmentCancelledPublisher;
-import com.flowzati.archone.wms.outbound.application.port.ShipmentHandedOverPublisher;
-import com.flowzati.archone.wms.outbound.application.store.ShipmentStore;
-import com.flowzati.archone.wms.outbound.application.store.WaveStore;
-import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.CompleteShipmentCancellationUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.CompleteWaveUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.ConfirmPickUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.GetOrderShipmentsUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.HandOverShipmentUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.PackShipmentUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.PlanWaveUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.ProcessCancellingShipmentsUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.ProcessDueShipmentsUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.ReleaseWaveUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.SimulateWarehouseOperationsUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.StageShipmentUsecase;
-import com.flowzati.archone.wms.outbound.domain.service.WavePlanner;
-import com.flowzati.archone.wms.outbound.domain.service.impl.PriorityCapacityWavePlanner;
+import com.flowzati.archone.wms.dispatch.application.port.ShipmentDispatchStatusChangedPublisher;
+import com.flowzati.archone.wms.dispatch.application.store.ShipmentDispatchStore;
+import com.flowzati.archone.wms.dispatch.application.usecase.HandOverShipmentUsecase;
+import com.flowzati.archone.wms.dispatch.application.usecase.PackShipmentUsecase;
+import com.flowzati.archone.wms.dispatch.application.usecase.StageShipmentUsecase;
+import com.flowzati.archone.wms.picking.application.port.PickingWorkStatusChangedPublisher;
+import com.flowzati.archone.wms.picking.application.store.PickingWorkStore;
+import com.flowzati.archone.wms.picking.application.usecase.ConfirmPickUsecase;
+import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsUsecase;
+import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsUsecase;
+import com.flowzati.archone.wms.process.application.usecase.SimulateWarehouseOperationsUsecase;
+import com.flowzati.archone.wms.receiving.application.store.InboundOperationStore;
+import com.flowzati.archone.wms.receiving.application.usecase.ConfirmArrivalUsecase;
+import com.flowzati.archone.wms.receiving.application.usecase.ConfirmPutawayUsecase;
+import com.flowzati.archone.wms.receiving.application.usecase.RecordInspectionUsecase;
+import com.flowzati.archone.wms.receiving.application.usecase.RegisterInboundOperationUsecase;
+import com.flowzati.archone.wms.shipment.application.port.ShipmentCancellationCompletedPublisher;
+import com.flowzati.archone.wms.shipment.application.port.ShipmentCancelledPublisher;
+import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
+import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
+import com.flowzati.archone.wms.shipment.application.usecase.CompleteShipmentCancellationUsecase;
+import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
+import com.flowzati.archone.wms.shipment.application.usecase.GetOrderShipmentsUsecase;
+import com.flowzati.archone.wms.wave.application.port.WaveReleasedPublisher;
+import com.flowzati.archone.wms.wave.application.store.WaveStore;
+import com.flowzati.archone.wms.wave.application.usecase.CompleteWaveUsecase;
+import com.flowzati.archone.wms.wave.application.usecase.PlanWaveUsecase;
+import com.flowzati.archone.wms.wave.application.usecase.ReleaseWaveUsecase;
+import com.flowzati.archone.wms.wave.domain.service.WavePlanner;
+import com.flowzati.archone.wms.wave.domain.service.impl.PriorityCapacityWavePlanner;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +45,7 @@ public class WmsApplicationConfiguration {
     private static final Logger log = LoggerFactory.getLogger(WmsApplicationConfiguration.class);
 
     public WmsApplicationConfiguration() {
-        log.info("WMS use cases enabled: inbound registration/arrival/inspection/putaway and "
-                + "outbound wave/pick/pack/stage/handover checkpoints");
+        log.info("WMS capabilities enabled: receiving, shipment, wave, picking and dispatch");
     }
 
     @Bean
@@ -73,25 +77,31 @@ public class WmsApplicationConfiguration {
     CancelShipmentUsecase cancelShipmentUsecase(
             ShipmentStore shipmentStore,
             ShipmentCancelledPublisher shipmentCancelledPublisher,
+            ShipmentCancellationCompletedPublisher shipmentCancellationCompletedPublisher,
             BusinessClock appClock) {
-        return new CancelShipmentUsecase(shipmentStore, shipmentCancelledPublisher, appClock);
+        return new CancelShipmentUsecase(
+                shipmentStore, shipmentCancelledPublisher, shipmentCancellationCompletedPublisher, appClock);
     }
 
     @Bean
     CompleteShipmentCancellationUsecase completeShipmentCancellationUsecase(
-            ShipmentStore shipmentStore, ShipmentCancelledPublisher shipmentCancelledPublisher) {
-        return new CompleteShipmentCancellationUsecase(shipmentStore, shipmentCancelledPublisher);
+            ShipmentStore shipmentStore,
+            ShipmentCancelledPublisher shipmentCancelledPublisher,
+            ShipmentCancellationCompletedPublisher shipmentCancellationCompletedPublisher) {
+        return new CompleteShipmentCancellationUsecase(
+                shipmentStore, shipmentCancelledPublisher, shipmentCancellationCompletedPublisher);
     }
 
     @Bean
     HandOverShipmentUsecase handOverShipmentUsecase(
-            ShipmentStore shipmentStore, ShipmentHandedOverPublisher shipmentHandedOverPublisher) {
-        return new HandOverShipmentUsecase(shipmentStore, shipmentHandedOverPublisher);
+            ShipmentDispatchStore shipmentDispatchStore,
+            ShipmentDispatchStatusChangedPublisher shipmentDispatchStatusChangedPublisher) {
+        return new HandOverShipmentUsecase(shipmentDispatchStore, shipmentDispatchStatusChangedPublisher);
     }
 
     @Bean
-    GetOrderShipmentsUsecase getOrderShipmentsUsecase(ShipmentStore shipmentStore) {
-        return new GetOrderShipmentsUsecase(shipmentStore);
+    GetOrderShipmentsUsecase getOrderShipmentsUsecase(ShipmentStore shipmentStore, PickingWorkStore pickingWorkStore) {
+        return new GetOrderShipmentsUsecase(shipmentStore, pickingWorkStore);
     }
 
     @Bean
@@ -105,33 +115,42 @@ public class WmsApplicationConfiguration {
     }
 
     @Bean
-    ReleaseWaveUsecase releaseWaveUsecase(WaveStore waveStore, ShipmentStore shipmentStore) {
-        return new ReleaseWaveUsecase(waveStore, shipmentStore);
+    ReleaseWaveUsecase releaseWaveUsecase(
+            WaveStore waveStore, ShipmentStore shipmentStore, WaveReleasedPublisher waveReleasedPublisher) {
+        return new ReleaseWaveUsecase(waveStore, shipmentStore, waveReleasedPublisher);
     }
 
     @Bean
-    CompleteWaveUsecase completeWaveUsecase(WaveStore waveStore, ShipmentStore shipmentStore) {
-        return new CompleteWaveUsecase(waveStore, shipmentStore);
+    CompleteWaveUsecase completeWaveUsecase(
+            WaveStore waveStore, ShipmentStore shipmentStore, PickingWorkStore pickingWorkStore) {
+        return new CompleteWaveUsecase(waveStore, shipmentStore, pickingWorkStore);
     }
 
     @Bean
-    ConfirmPickUsecase confirmPickUsecase(ShipmentStore shipmentStore) {
-        return new ConfirmPickUsecase(shipmentStore);
+    ConfirmPickUsecase confirmPickUsecase(
+            PickingWorkStore pickingWorkStore, PickingWorkStatusChangedPublisher pickingStatusChangedPublisher) {
+        return new ConfirmPickUsecase(pickingWorkStore, pickingStatusChangedPublisher);
     }
 
     @Bean
-    PackShipmentUsecase packShipmentUsecase(ShipmentStore shipmentStore) {
-        return new PackShipmentUsecase(shipmentStore);
+    PackShipmentUsecase packShipmentUsecase(
+            ShipmentStore shipmentStore,
+            ShipmentDispatchStore shipmentDispatchStore,
+            ShipmentDispatchStatusChangedPublisher shipmentDispatchStatusChangedPublisher) {
+        return new PackShipmentUsecase(shipmentStore, shipmentDispatchStore, shipmentDispatchStatusChangedPublisher);
     }
 
     @Bean
-    StageShipmentUsecase stageShipmentUsecase(ShipmentStore shipmentStore) {
-        return new StageShipmentUsecase(shipmentStore);
+    StageShipmentUsecase stageShipmentUsecase(
+            ShipmentDispatchStore shipmentDispatchStore,
+            ShipmentDispatchStatusChangedPublisher shipmentDispatchStatusChangedPublisher) {
+        return new StageShipmentUsecase(shipmentDispatchStore, shipmentDispatchStatusChangedPublisher);
     }
 
     @Bean
     SimulateWarehouseOperationsUsecase simulateWarehouseOperationsUsecase(
             ShipmentStore shipmentStore,
+            PickingWorkStore pickingWorkStore,
             PlanWaveUsecase planWaveUsecase,
             ReleaseWaveUsecase releaseWaveUsecase,
             ConfirmPickUsecase confirmPickUsecase,
@@ -141,6 +160,7 @@ public class WmsApplicationConfiguration {
             HandOverShipmentUsecase handOverShipmentUsecase) {
         return new SimulateWarehouseOperationsUsecase(
                 shipmentStore,
+                pickingWorkStore,
                 planWaveUsecase,
                 releaseWaveUsecase,
                 confirmPickUsecase,

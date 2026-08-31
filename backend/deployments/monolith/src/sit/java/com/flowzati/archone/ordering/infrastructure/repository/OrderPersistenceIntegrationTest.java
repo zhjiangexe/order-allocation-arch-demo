@@ -6,9 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
-import com.flowzati.archone.ordering.infrastructure.entity.OrderEntity;
-import com.flowzati.archone.ordering.infrastructure.entity.OrderLineEntity;
-import com.flowzati.archone.ordering.infrastructure.repository.jpa.JpaOrderRepository;
+import com.flowzati.archone.ordering.infrastructure.persistence.jpa.model.OrderEntity;
+import com.flowzati.archone.ordering.infrastructure.persistence.jpa.model.OrderLineEntity;
+import com.flowzati.archone.ordering.infrastructure.persistence.jpa.repository.JpaOrderRepository;
+import com.flowzati.archone.ordering.infrastructure.persistence.jpa.store.OrderStoreAdapter;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import jakarta.persistence.EntityManager;
@@ -41,7 +42,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    OrderRepositoryImpl.class,
+    OrderStoreAdapter.class,
     OrderPersistenceIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("Order PostgreSQL persistence adapter")
@@ -54,7 +55,7 @@ class OrderPersistenceIntegrationTest {
     private JpaOrderRepository jpaRepository;
 
     @Autowired
-    private OrderRepositoryImpl repositoryAdapter;
+    private OrderStoreAdapter repositoryAdapter;
 
     @Autowired
     private EntityManager entityManager;

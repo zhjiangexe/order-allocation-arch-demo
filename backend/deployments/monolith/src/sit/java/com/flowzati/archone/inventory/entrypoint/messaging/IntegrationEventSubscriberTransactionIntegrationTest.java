@@ -24,7 +24,7 @@ import com.flowzati.archone.messaging.observation.MessagingObservationNames;
 import com.flowzati.archone.messaging.observation.MessagingObservationTags;
 import com.flowzati.archone.messaging.producer.jdbc.MessageHeadersCodec;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
-import com.flowzati.archone.ordering.domain.repository.OrderRepository;
+import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.SitDatabase;
@@ -76,7 +76,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
     private KafkaMessageMapper kafkaMessageMapper;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderStore orderStore;
 
     @Autowired
     private StockQuantStore stockQuantStore;
@@ -119,7 +119,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(1);
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         ConsumerRecord<String, String> record =
                 record(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
@@ -151,7 +151,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         Instant receivedAt = Instant.now().minusSeconds(1);
-        orderRepository.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
+        orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         jdbcTemplate.update("DELETE FROM stock_operation_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
         assertThatThrownBy(() -> emit(

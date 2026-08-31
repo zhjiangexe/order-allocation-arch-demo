@@ -10,9 +10,9 @@ import com.flowzati.archone.orderfulfillment.workflow.OrderFulfillmentWorkflowIm
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import com.flowzati.archone.ordering.entrypoint.temporal.TemporalOrderingActivitiesAdapter;
-import com.flowzati.archone.wms.outbound.application.usecase.CancelShipmentUsecase;
-import com.flowzati.archone.wms.outbound.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.outbound.entrypoint.temporal.TemporalWmsActivitiesAdapter;
+import com.flowzati.archone.wms.process.entrypoint.temporal.TemporalWmsActivitiesAdapter;
+import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
+import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
