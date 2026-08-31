@@ -9,8 +9,8 @@ import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedI
 import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.inventory.v2.StockOperationLifecycleIntegrationEvent;
+import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
-import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.events.AggregateReference;

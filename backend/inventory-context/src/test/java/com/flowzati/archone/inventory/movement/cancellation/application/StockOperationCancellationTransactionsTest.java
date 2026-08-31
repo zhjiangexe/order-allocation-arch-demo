@@ -7,11 +7,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
+import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleAction;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
 import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecycleChangedPublisher;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationTarget;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions;
@@ -27,9 +29,6 @@ import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperation
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
-import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
-import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -104,7 +103,6 @@ class StockOperationCancellationTransactionsTest {
         var result = (StockOperationCancellationPreparation.Continue)
                 transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW);
 
-        assertThat(result.checkpoint().target()).isEqualTo(new WarehouseCancellationTarget(STOCK_OPERATION_ID));
         assertThat(result.checkpoint().state()).isEqualTo(StockOperationCancellationState.STARTED);
         assertThat(operation.state()).isEqualTo(StockOperationState.ASSIGNED);
         assertThat(move.getState()).isEqualTo(MoveState.ASSIGNED);

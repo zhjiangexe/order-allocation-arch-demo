@@ -36,7 +36,7 @@ public class AllocationOrderCancellationEventConsumer {
     }
 
     void onOrderCancelled(OrderCancelledIntegrationEvent event) {
-        cancelMovementsUsecase.execute(CancelSourceStockMovementsCommand.afterWarehouseConfirmation(
+        cancelMovementsUsecase.execute(new CancelSourceStockMovementsCommand(
                 StockOperationSource.primaryOrder(event.getOrderId().toString()), event.getEventId()));
     }
 }

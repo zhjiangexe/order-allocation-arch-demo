@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.position.application.store.StockQuantViewStore;
-import com.flowzati.archone.inventory.position.application.usecase.GetStockQuantUsecase;
-import com.flowzati.archone.inventory.position.application.view.StockQuantView;
+import com.flowzati.archone.inventory.balance.application.result.StockQuantView;
+import com.flowzati.archone.inventory.balance.application.store.StockQuantViewStore;
+import com.flowzati.archone.inventory.balance.application.usecase.GetStockQuantUsecase;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;

@@ -4,11 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStore;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
 import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
@@ -18,17 +26,9 @@ import com.flowzati.archone.inventory.movement.infrastructure.messaging.StockOpe
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationTypeRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreImpl;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreImpl;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationTypeStoreImpl;
-import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
-import com.flowzati.archone.inventory.reservation.application.service.StockAllocationCommitter;
-import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentResultFactory;
-import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.reservation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
-import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
-import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.store.StockMoveLineStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationTypeStoreAdapter;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.testsupport.MovementFixtures;
@@ -61,13 +61,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    StockOperationStoreImpl.class,
-    StockMoveStoreImpl.class,
-    StockMoveLineStoreImpl.class,
+    StockOperationStoreAdapter.class,
+    StockMoveStoreAdapter.class,
+    StockMoveLineStoreAdapter.class,
     StockQuantStoreImpl.class,
-    JdbcStockAllocationSupplyStore.class,
-    StockOperationTypeStoreImpl.class,
-    JdbcStockOperationAssignmentCandidateStore.class,
+    JdbcStockAllocationSupplyStoreAdapter.class,
+    StockOperationTypeStoreAdapter.class,
+    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
     StockAllocationCommitter.class,
     StockOperationAssignmentResultFactory.class,
     StockOperationAssignedIntegrationEventAdapter.class,

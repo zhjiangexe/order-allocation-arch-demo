@@ -8,9 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationTarget;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
@@ -31,107 +28,73 @@ class CancelStockOperationUsecaseTest {
     private static final UUID OPERATION_ID = new UUID(0, 2);
 
     private StockOperationCancellationTransactions transactions;
-    private WarehouseExecutionCancellationCoordinator coordinator;
     private CancelStockOperationUsecase usecase;
 
     @BeforeEach
     void setUp() {
         transactions = mock(StockOperationCancellationTransactions.class);
-        coordinator = mock(WarehouseExecutionCancellationCoordinator.class);
-        usecase = new CancelStockOperationUsecase(transactions, coordinator, Clock.fixed(NOW, ZoneOffset.UTC));
+        usecase = new CancelStockOperationUsecase(transactions, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
-    void cancelsConfirmedPickingLocallyWithoutCallingWarehouse() {
-        CancelStockOperationCommand command =
-                CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
+    void returnsTerminalPreparationWithoutCompletingAgain() {
+        CancelStockOperationCommand command = new CancelStockOperationCommand(STOCK_OPERATION_ID, OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(
                         new StockOperationCancellationPreparation.Terminal(StockOperationCancellationStatus.COMPLETED));
 
         assertThat(usecase.execute(command)).isEqualTo(StockOperationCancellationStatus.COMPLETED);
 
-        verify(coordinator, never()).cancelExecution(any(), any());
+        verify(transactions, never()).confirmWarehouseCancellation(any(), any(), any());
         verify(transactions, never()).complete(any(), any(), any());
     }
 
     @Test
-    void persistsWarehouseConfirmationBeforeLocalCancellation() {
-        CancelStockOperationCommand command =
-                CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
+    void persistsTrustedWarehouseConfirmationBeforeLocalCancellation() {
+        CancelStockOperationCommand command = new CancelStockOperationCommand(STOCK_OPERATION_ID, OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(new StockOperationCancellationPreparation.Continue(
-                        checkpoint(target, StockOperationCancellationState.STARTED)));
-        when(coordinator.cancelExecution(target, OPERATION_ID)).thenReturn(WarehouseCancellationDecision.CONFIRMED);
-        when(transactions.recordExternalDecision(
-                        STOCK_OPERATION_ID, OPERATION_ID, WarehouseCancellationDecision.CONFIRMED, NOW))
-                .thenReturn(checkpoint(target, StockOperationCancellationState.EXTERNAL_CONFIRMED));
+                        checkpoint(StockOperationCancellationState.STARTED)));
+        when(transactions.confirmWarehouseCancellation(STOCK_OPERATION_ID, OPERATION_ID, NOW))
+                .thenReturn(checkpoint(StockOperationCancellationState.EXTERNAL_CONFIRMED));
         when(transactions.complete(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(StockOperationCancellationStatus.COMPLETED);
 
         assertThat(usecase.execute(command)).isEqualTo(StockOperationCancellationStatus.COMPLETED);
 
-        verify(coordinator).cancelExecution(target, OPERATION_ID);
+        verify(transactions).confirmWarehouseCancellation(STOCK_OPERATION_ID, OPERATION_ID, NOW);
         verify(transactions).complete(STOCK_OPERATION_ID, OPERATION_ID, NOW);
     }
 
     @Test
-    void trustedTerminalFactPersistsConfirmationWithoutCallingWarehouseAgain() {
-        CancelStockOperationCommand command =
-                CancelStockOperationCommand.afterWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
+    void persistedRejectionDoesNotRunLocalChanges() {
+        CancelStockOperationCommand command = new CancelStockOperationCommand(STOCK_OPERATION_ID, OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(new StockOperationCancellationPreparation.Continue(
-                        checkpoint(target, StockOperationCancellationState.STARTED)));
-        when(transactions.recordExternalDecision(
-                        STOCK_OPERATION_ID, OPERATION_ID, WarehouseCancellationDecision.CONFIRMED, NOW))
-                .thenReturn(checkpoint(target, StockOperationCancellationState.EXTERNAL_CONFIRMED));
-        when(transactions.complete(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .thenReturn(StockOperationCancellationStatus.COMPLETED);
-
-        assertThat(usecase.execute(command)).isEqualTo(StockOperationCancellationStatus.COMPLETED);
-
-        verify(coordinator, never()).cancelExecution(any(), any());
-        verify(transactions).complete(STOCK_OPERATION_ID, OPERATION_ID, NOW);
-    }
-
-    @Test
-    void rejectedWarehouseCancellationDoesNotRunLocalChanges() {
-        CancelStockOperationCommand command =
-                CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
-        when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
-                .thenReturn(new StockOperationCancellationPreparation.Continue(
-                        checkpoint(target, StockOperationCancellationState.STARTED)));
-        when(coordinator.cancelExecution(target, OPERATION_ID)).thenReturn(WarehouseCancellationDecision.REJECTED);
-        when(transactions.recordExternalDecision(
-                        STOCK_OPERATION_ID, OPERATION_ID, WarehouseCancellationDecision.REJECTED, NOW))
-                .thenReturn(checkpoint(target, StockOperationCancellationState.EXTERNAL_REJECTED));
+                        checkpoint(StockOperationCancellationState.EXTERNAL_REJECTED)));
 
         assertThat(usecase.execute(command)).isEqualTo(StockOperationCancellationStatus.NOT_CANCELLABLE);
 
+        verify(transactions, never()).confirmWarehouseCancellation(any(), any(), any());
         verify(transactions, never()).complete(any(), any(), any());
     }
 
     @Test
-    void resumesLocalWorkWithoutCallingWarehouseAgain() {
-        CancelStockOperationCommand command =
-                CancelStockOperationCommand.requiringWarehouseConfirmation(STOCK_OPERATION_ID, OPERATION_ID);
-        WarehouseCancellationTarget target = new WarehouseCancellationTarget(STOCK_OPERATION_ID);
+    void resumesLocalWorkFromPersistedConfirmation() {
+        CancelStockOperationCommand command = new CancelStockOperationCommand(STOCK_OPERATION_ID, OPERATION_ID);
         when(transactions.prepare(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(new StockOperationCancellationPreparation.Continue(
-                        checkpoint(target, StockOperationCancellationState.EXTERNAL_CONFIRMED)));
+                        checkpoint(StockOperationCancellationState.EXTERNAL_CONFIRMED)));
         when(transactions.complete(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .thenReturn(StockOperationCancellationStatus.COMPLETED);
 
         assertThat(usecase.execute(command)).isEqualTo(StockOperationCancellationStatus.COMPLETED);
 
-        verify(coordinator, never()).cancelExecution(any(), any());
+        verify(transactions, never()).confirmWarehouseCancellation(any(), any(), any());
+        verify(transactions).complete(STOCK_OPERATION_ID, OPERATION_ID, NOW);
     }
 
-    private static StockOperationCancellationCheckpoint checkpoint(
-            WarehouseCancellationTarget target, StockOperationCancellationState state) {
-        return new StockOperationCancellationCheckpoint(target, state);
+    private static StockOperationCancellationCheckpoint checkpoint(StockOperationCancellationState state) {
+        return new StockOperationCancellationCheckpoint(state);
     }
 }

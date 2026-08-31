@@ -2,8 +2,6 @@ package com.flowzati.archone.inventory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
@@ -11,16 +9,14 @@ import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator;
-import com.flowzati.archone.inventory.position.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.position.application.exception.StockReceiptRequestConflictException;
-import com.flowzati.archone.inventory.position.application.service.StockReceiptApplicationFacade;
-import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
+import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
+import com.flowzati.archone.inventory.balance.application.exception.StockReceiptRequestConflictException;
+import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
+import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
+import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
-import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
-import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
@@ -43,7 +39,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(
         classes = ArchoneApplication.class,
@@ -74,9 +69,6 @@ class InboundEntrypointTransactionIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @MockitoBean
-    private WarehouseExecutionCancellationCoordinator warehouseCancellationCoordinator;
-
     @AfterEach
     void clearDatabase() {
         SitDatabase.clear(jdbcTemplate);
@@ -86,8 +78,6 @@ class InboundEntrypointTransactionIntegrationTest {
     @BeforeEach
     void seedCatalogForOrders() {
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-1", "MISSING-SKU");
-        when(warehouseCancellationCoordinator.cancelExecution(any(), any()))
-                .thenReturn(WarehouseCancellationDecision.CONFIRMED);
     }
 
     @Test

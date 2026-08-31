@@ -1,6 +1,10 @@
 package com.flowzati.archone.bootstrap;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
+import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
+import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.location.application.store.StockLocationStore;
 import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
 import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
@@ -13,10 +17,6 @@ import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
 import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
-import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
-import com.flowzati.archone.inventory.reservation.domain.entity.StockMoveLine;
 import com.flowzati.archone.logisticsdata.application.store.FacilityStore;
 import com.flowzati.archone.logisticsdata.application.store.OwnerStore;
 import com.flowzati.archone.logisticsdata.application.store.ProductStore;

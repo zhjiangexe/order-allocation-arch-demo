@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.position.application.usecase.GetStockQuantUsecase;
-import com.flowzati.archone.inventory.position.application.view.StockQuantView;
-import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.position.entrypoint.rest.StockQuantRest;
+import com.flowzati.archone.inventory.balance.application.result.StockQuantView;
+import com.flowzati.archone.inventory.balance.application.usecase.GetStockQuantUsecase;
+import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
+import com.flowzati.archone.inventory.balance.rest.StockQuantRest;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;

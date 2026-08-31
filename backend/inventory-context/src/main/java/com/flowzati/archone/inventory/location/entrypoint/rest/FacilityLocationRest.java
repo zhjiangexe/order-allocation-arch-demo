@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.location.entrypoint.rest;
 
 import com.flowzati.archone.inventory.location.application.usecase.ListStockLocationsUsecase;
-import com.flowzati.archone.inventory.location.entrypoint.response.StockLocationResponse;
+import com.flowzati.archone.inventory.location.entrypoint.rest.response.StockLocationResponse;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;

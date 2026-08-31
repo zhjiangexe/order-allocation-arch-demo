@@ -1,5 +1,9 @@
 package com.flowzati.archone.inventory.movement.application.usecase;
 
+import com.flowzati.archone.inventory.allocation.application.MoveQuantAllocationSet;
+import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
+import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationCompleted;
@@ -12,10 +16,6 @@ import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
-import com.flowzati.archone.inventory.position.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.position.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.reservation.application.MoveQuantAllocationSet;
-import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
 import jakarta.transaction.Transactional;
 import java.util.HashSet;
 import java.util.List;

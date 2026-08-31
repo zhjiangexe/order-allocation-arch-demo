@@ -6,10 +6,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.inventory.position.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.position.application.exception.StockReceiptRequestConflictException;
-import com.flowzati.archone.inventory.position.application.service.StockReceiptApplicationFacade;
-import com.flowzati.archone.inventory.position.entrypoint.rest.StockReceiptRest;
+import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
+import com.flowzati.archone.inventory.balance.application.exception.StockReceiptRequestConflictException;
+import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
+import com.flowzati.archone.inventory.balance.rest.StockReceiptRest;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.util.Locale;
 import java.util.UUID;

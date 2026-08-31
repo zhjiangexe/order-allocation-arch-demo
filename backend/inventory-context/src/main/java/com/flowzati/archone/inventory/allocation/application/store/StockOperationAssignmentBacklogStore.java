@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.application.store;
 
-import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import java.time.LocalDate;
 import java.util.List;
 

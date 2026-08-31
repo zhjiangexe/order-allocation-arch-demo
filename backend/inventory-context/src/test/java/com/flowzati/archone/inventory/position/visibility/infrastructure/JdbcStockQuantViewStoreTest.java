@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.position.visibility.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.inventory.position.infrastructure.persistence.jdbc.store.JdbcStockQuantViewStore;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jdbc.store.JdbcStockQuantViewStore;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;

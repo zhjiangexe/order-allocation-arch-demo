@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.allocation.application.store;
 
-import com.flowzati.archone.inventory.allocation.application.projection.StockOperationAssignmentCandidate;
-import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.application.state.StockOperationAssignmentCandidate;
 import java.util.Optional;
 import java.util.UUID;
 

@@ -1,9 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.usecase;
 
 import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
-import com.flowzati.archone.inventory.movement.application.command.WarehouseCancellationCheckpoint;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseExecutionCancellationCoordinator;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
@@ -12,20 +9,15 @@ import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperation
 import java.time.Clock;
 import org.springframework.stereotype.Service;
 
-/** Coordinates an assigned operation cancellation without holding Inventory locks during the WMS call. */
+/** Completes an Inventory cancellation after warehouse execution has reached a safe terminal state. */
 @Service
 public class CancelStockOperationUsecase {
 
     private final StockOperationCancellationTransactions transactions;
-    private final WarehouseExecutionCancellationCoordinator warehouseCoordinator;
     private final Clock clock;
 
-    public CancelStockOperationUsecase(
-            StockOperationCancellationTransactions transactions,
-            WarehouseExecutionCancellationCoordinator warehouseCoordinator,
-            Clock clock) {
+    public CancelStockOperationUsecase(StockOperationCancellationTransactions transactions, Clock clock) {
         this.transactions = transactions;
-        this.warehouseCoordinator = warehouseCoordinator;
         this.clock = clock;
     }
 
@@ -45,12 +37,8 @@ public class CancelStockOperationUsecase {
         }
 
         if (checkpoint.state() == StockOperationCancellationState.STARTED) {
-            WarehouseCancellationDecision decision = command.warehouseCancellationCheckpoint()
-                            == WarehouseCancellationCheckpoint.CONFIRMED
-                    ? WarehouseCancellationDecision.CONFIRMED
-                    : warehouseCoordinator.cancelExecution(checkpoint.target(), command.cancellationOperationId());
-            checkpoint = transactions.recordExternalDecision(
-                    command.stockOperationId(), command.cancellationOperationId(), decision, clock.instant());
+            checkpoint = transactions.confirmWarehouseCancellation(
+                    command.stockOperationId(), command.cancellationOperationId(), clock.instant());
         }
         if (checkpoint.state() == StockOperationCancellationState.EXTERNAL_REJECTED) {
             return StockOperationCancellationStatus.NOT_CANCELLABLE;

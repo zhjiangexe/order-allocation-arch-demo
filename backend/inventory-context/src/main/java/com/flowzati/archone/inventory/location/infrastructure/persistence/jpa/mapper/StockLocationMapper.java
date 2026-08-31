@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.location.infrastructure.persistence.jpa.mapper;
 
 import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
-import com.flowzati.archone.inventory.location.infrastructure.persistence.jpa.entity.StockLocationEntity;
+import com.flowzati.archone.inventory.location.infrastructure.persistence.jpa.model.StockLocationEntity;
 
 public final class StockLocationMapper {
 

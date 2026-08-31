@@ -1,7 +1,7 @@
 package com.flowzati.archone.testsupport;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.inventory.reservation.entrypoint.ReservationAssignmentEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import java.nio.charset.StandardCharsets;

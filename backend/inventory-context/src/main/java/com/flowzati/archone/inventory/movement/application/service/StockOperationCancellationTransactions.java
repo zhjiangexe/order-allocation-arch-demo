@@ -1,11 +1,11 @@
 package com.flowzati.archone.inventory.movement.application.service;
 
+import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
+import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
 import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecycleChangedPublisher;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationDecision;
-import com.flowzati.archone.inventory.movement.application.port.WarehouseCancellationTarget;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
@@ -18,15 +18,13 @@ import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCa
 import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
-import com.flowzati.archone.inventory.reservation.application.store.StockMoveLineStore;
-import com.flowzati.archone.inventory.reservation.application.usecase.ReleaseStockOperationUsecase;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
-/** Short local transactions before and after warehouse cancellation coordination. */
+/** Durable local transactions for an externally confirmed stock-operation cancellation. */
 @Component
 public class StockOperationCancellationTransactions {
 
@@ -97,26 +95,21 @@ public class StockOperationCancellationTransactions {
                 .find(stockOperationId, cancellationOperationId)
                 .orElseGet(() -> stockOperationCancellationStore.save(
                         StockOperationCancellation.start(stockOperationId, cancellationOperationId, now)));
-        return new StockOperationCancellationPreparation.Continue(new StockOperationCancellationCheckpoint(
-                new WarehouseCancellationTarget(stockOperationId), cancellation.state()));
+        return new StockOperationCancellationPreparation.Continue(
+                new StockOperationCancellationCheckpoint(cancellation.state()));
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
-    public StockOperationCancellationCheckpoint recordExternalDecision(
-            UUID stockOperationId, UUID cancellationOperationId, WarehouseCancellationDecision decision, Instant now) {
+    public StockOperationCancellationCheckpoint confirmWarehouseCancellation(
+            UUID stockOperationId, UUID cancellationOperationId, Instant now) {
         StockOperationCancellation cancellation = stockOperationCancellationStore
                 .find(stockOperationId, cancellationOperationId)
                 .orElseThrow(() -> new IllegalStateException("Stock operation cancellation was not started"));
         if (cancellation.state() == StockOperationCancellationState.STARTED) {
-            if (decision == WarehouseCancellationDecision.CONFIRMED) {
-                cancellation.confirmExternally(now);
-            } else {
-                cancellation.rejectExternally(now);
-            }
+            cancellation.confirmExternally(now);
             cancellation = stockOperationCancellationStore.save(cancellation);
         }
-        return new StockOperationCancellationCheckpoint(
-                new WarehouseCancellationTarget(stockOperationId), cancellation.state());
+        return new StockOperationCancellationCheckpoint(cancellation.state());
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)

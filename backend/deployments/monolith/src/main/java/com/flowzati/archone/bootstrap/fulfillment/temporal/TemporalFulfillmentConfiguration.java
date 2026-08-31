@@ -1,8 +1,8 @@
 package com.flowzati.archone.bootstrap.fulfillment.temporal;
 
 import com.flowzati.archone.inventory.adapter.TemporalInventoryActivitiesAdapter;
+import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
-import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.orderfulfillment.contract.activity.inventory.InventoryActivities;
 import com.flowzati.archone.orderfulfillment.contract.activity.wms.WmsActivities;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;

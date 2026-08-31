@@ -25,7 +25,7 @@ class AllocationOrderCancellationEventConsumerTest {
                 cancellationEventId, orderId, Instant.parse("2026-08-10T02:00:00Z")));
 
         verify(cancelMovementsUsecase)
-                .execute(CancelSourceStockMovementsCommand.afterWarehouseConfirmation(
+                .execute(new CancelSourceStockMovementsCommand(
                         StockOperationSource.primaryOrder(orderId.toString()), cancellationEventId));
     }
 }

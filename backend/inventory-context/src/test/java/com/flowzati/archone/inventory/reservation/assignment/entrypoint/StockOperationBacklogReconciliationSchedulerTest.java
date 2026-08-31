@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.inventory.reservation.application.usecase.ReconcileStockOperationBacklogUsecase;
-import com.flowzati.archone.inventory.reservation.entrypoint.schedule.StockOperationBacklogReconciliationScheduler;
+import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileStockOperationBacklogUsecase;
+import com.flowzati.archone.inventory.allocation.entrypoint.schedule.StockOperationBacklogReconciliationScheduler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

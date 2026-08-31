@@ -5,11 +5,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.position.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.position.application.command.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.position.application.service.StockReceiptApplicationFacade;
-import com.flowzati.archone.inventory.position.application.store.StockReceiptRequestStore;
-import com.flowzati.archone.inventory.position.application.usecase.ConfirmStockReceiptUsecase;
+import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
+import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
+import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
+import com.flowzati.archone.inventory.balance.application.store.StockReceiptRequestStore;
+import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.util.UUID;

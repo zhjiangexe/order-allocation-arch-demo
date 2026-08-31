@@ -22,8 +22,8 @@ public class CancelSourceStockMovementsUsecase {
     public StockOperationCancellationStatus execute(CancelSourceStockMovementsCommand command) {
         return stockOperationStore
                 .findBySource(command.source())
-                .map(operation -> cancelStockOperation.execute(new CancelStockOperationCommand(
-                        operation.id(), command.cancellationOperationId(), command.warehouseCancellationCheckpoint())))
+                .map(operation -> cancelStockOperation.execute(
+                        new CancelStockOperationCommand(operation.id(), command.cancellationOperationId())))
                 .orElse(StockOperationCancellationStatus.COMPLETED);
     }
 }

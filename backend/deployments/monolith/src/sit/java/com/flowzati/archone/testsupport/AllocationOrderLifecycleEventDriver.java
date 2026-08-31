@@ -4,8 +4,8 @@ import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
-import com.flowzati.archone.inventory.reservation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEvent;

@@ -5,9 +5,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStore;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaOrderAllocationSourceRepository;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.OrderStockMovementStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
 import com.flowzati.archone.inventory.movement.application.exception.SourceMovementConflictException;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
@@ -18,22 +30,10 @@ import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.re
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationCancellationRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationTypeRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreImpl;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationCancellationStoreImpl;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreImpl;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationTypeStoreImpl;
-import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.position.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
-import com.flowzati.archone.inventory.reservation.application.command.AllocateOrderCommand;
-import com.flowzati.archone.inventory.reservation.application.service.StockAllocationCommitter;
-import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentCoordinator;
-import com.flowzati.archone.inventory.reservation.application.service.StockOperationAssignmentResultFactory;
-import com.flowzati.archone.inventory.reservation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.reservation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
-import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaOrderAllocationSourceRepository;
-import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
-import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.store.OrderStockMovementStoreImpl;
-import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.store.StockMoveLineStoreImpl;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationCancellationStoreAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationTypeStoreAdapter;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -65,22 +65,22 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    StockOperationStoreImpl.class,
-    StockMoveStoreImpl.class,
-    StockMoveLineStoreImpl.class,
+    StockOperationStoreAdapter.class,
+    StockMoveStoreAdapter.class,
+    StockMoveLineStoreAdapter.class,
     StockQuantStoreImpl.class,
-    StockOperationTypeStoreImpl.class,
-    OrderStockMovementStoreImpl.class,
+    StockOperationTypeStoreAdapter.class,
+    OrderStockMovementStoreAdapter.class,
     StockOperationRegistrar.class,
-    JdbcStockOperationAssignmentCandidateStore.class,
-    JdbcStockAllocationSupplyStore.class,
+    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
+    JdbcStockAllocationSupplyStoreAdapter.class,
     MovementAssignmentPlanner.class,
     StockAllocationCommitter.class,
     StockOperationAssignmentResultFactory.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentCoordinator.class,
     AllocateOrderUsecase.class,
-    StockOperationCancellationStoreImpl.class,
+    StockOperationCancellationStoreAdapter.class,
     StockMovementRegistrationPersistenceIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("Stock movement registration PostgreSQL transaction")
@@ -94,7 +94,7 @@ class StockMovementRegistrationPersistenceIntegrationTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-08-27");
 
     @Autowired
-    private OrderStockMovementStoreImpl orderSource;
+    private OrderStockMovementStoreAdapter orderSource;
 
     @Autowired
     private StockOperationRegistrar registrar;
@@ -103,7 +103,7 @@ class StockMovementRegistrationPersistenceIntegrationTest {
     private AllocateOrderUsecase allocateOrder;
 
     @Autowired
-    private StockOperationCancellationStoreImpl stockOperationCancellationStoreImpl;
+    private StockOperationCancellationStoreAdapter stockOperationCancellationStoreAdapter;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -238,11 +238,11 @@ class StockMovementRegistrationPersistenceIntegrationTest {
                 StockOperationCancellation.start(stockOperationId, operationId, RECEIVED_AT.plusSeconds(2));
         operation.confirmExternally(RECEIVED_AT.plusSeconds(3));
 
-        stockOperationCancellationStoreImpl.save(operation);
+        stockOperationCancellationStoreAdapter.save(operation);
         entityManager.flush();
         entityManager.clear();
 
-        StockOperationCancellation restored = stockOperationCancellationStoreImpl
+        StockOperationCancellation restored = stockOperationCancellationStoreAdapter
                 .find(stockOperationId, operationId)
                 .orElseThrow();
         assertThat(restored.stockOperationId()).isEqualTo(stockOperationId);

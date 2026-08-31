@@ -2,14 +2,14 @@ package com.flowzati.archone.inventory.allocation.planning.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.inventory.allocation.application.valueobject.AssignmentQueueKey;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentBacklogStore;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentBacklogStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreImpl;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreImpl;
-import com.flowzati.archone.inventory.reservation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockMoveStoreAdapter;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreAdapter;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -39,10 +39,10 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    StockOperationStoreImpl.class,
-    StockMoveStoreImpl.class,
-    JdbcStockOperationAssignmentCandidateStore.class,
-    JdbcStockOperationAssignmentBacklogStore.class,
+    StockOperationStoreAdapter.class,
+    StockMoveStoreAdapter.class,
+    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
+    JdbcStockOperationAssignmentBacklogStoreAdapter.class,
     StockOperationAssignmentCandidateStoreIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("Pending operation PostgreSQL selection")
@@ -56,10 +56,10 @@ class StockOperationAssignmentCandidateStoreIntegrationTest {
     private static final UUID CANDIDATE_ID = uuid(30);
 
     @Autowired
-    private JdbcStockOperationAssignmentCandidateStore jdbcStockOperationAssignmentCandidateStore;
+    private JdbcStockOperationAssignmentCandidateStoreAdapter jdbcStockOperationAssignmentCandidateStoreAdapter;
 
     @Autowired
-    private JdbcStockOperationAssignmentBacklogStore jdbcStockOperationAssignmentBacklogStore;
+    private JdbcStockOperationAssignmentBacklogStoreAdapter jdbcStockOperationAssignmentBacklogStoreAdapter;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -83,7 +83,7 @@ class StockOperationAssignmentCandidateStoreIntegrationTest {
     @Test
     @DisplayName("earlier disjoint operation is independent while an unavailable shared-SKU operation still blocks")
     void appliesTheExactSharedSkuPredecessorRelation() {
-        var queueHead = jdbcStockOperationAssignmentCandidateStore
+        var queueHead = jdbcStockOperationAssignmentCandidateStoreAdapter
                 .findNext(new AssignmentQueueKey(OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, "SKU-A"))
                 .orElseThrow();
 
@@ -103,7 +103,7 @@ class StockOperationAssignmentCandidateStoreIntegrationTest {
         insertQuant(101, "SKU-B");
         insertQuant(102, "SKU-C");
 
-        assertThat(jdbcStockOperationAssignmentBacklogStore.findQueueKeysWithAvailableStock(
+        assertThat(jdbcStockOperationAssignmentBacklogStoreAdapter.findQueueKeysWithAvailableStock(
                         LocalDate.parse("2026-08-27"), 2))
                 .extracting(AssignmentQueueKey::skuCode)
                 .containsExactly("SKU-C", "SKU-B");
