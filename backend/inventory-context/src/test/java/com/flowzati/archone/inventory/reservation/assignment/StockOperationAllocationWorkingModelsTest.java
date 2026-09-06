@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.foundation.error.StaleStateException;
+import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.application.state.MoveQuantAllocationSet;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
@@ -100,7 +102,10 @@ class StockOperationAllocationWorkingModelsTest {
         StockQuant insufficient = quant(QUANT_A, "SKU-A", OWNER_ID, LOCATION_ID, 10, 9);
         assertThatThrownBy(() ->
                         allocationSet.validateAndOrder(List.of(insufficient, quantB), operationComposite, TODAY, true))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOfSatisfying(
+                        StaleStateException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(StockAllocationErrorCode.ALLOCATION_SET_STALE))
                 .hasMessageContaining("available-to-promise");
     }
 

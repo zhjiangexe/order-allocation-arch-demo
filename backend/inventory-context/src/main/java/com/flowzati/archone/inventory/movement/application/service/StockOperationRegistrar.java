@@ -1,7 +1,8 @@
 package com.flowzati.archone.inventory.movement.application.service;
 
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.movement.application.exception.SourceMovementConflictException;
+import com.flowzati.archone.inventory.movement.application.exception.StockMovementErrorCode;
 import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationRegistrationResult;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
@@ -79,7 +80,9 @@ public class StockOperationRegistrar {
                 || existingMoves.size() != requestedMoves.size()
                 || !sameMoveContent(existingMoves, requestedMoves)) {
             // 禁止同一 source 在重送時悄悄改寫已註冊的 movement intent。
-            throw new SourceMovementConflictException(command.source());
+            throw new ApplicationConflictException(
+                    StockMovementErrorCode.SOURCE_MOVEMENT_CONFLICT,
+                    "Stock operation source was already registered with different content: " + command.source());
         }
 
         // created=false 表示安全回放；不新增 Operation／Move，也不改變目前生命週期狀態。

@@ -1,6 +1,7 @@
 package com.flowzati.archone.wms.shipment.domain.aggregate;
 
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentCancellationRequestConflictException;
+import com.flowzati.archone.foundation.error.DomainConflictException;
+import com.flowzati.archone.wms.shipment.domain.exception.ShipmentErrorCode;
 import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.shipment.domain.type.ShipmentCancellationState;
 import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
@@ -235,7 +236,8 @@ public class Shipment {
             if (!requestId.equals(cancellationRequestId)
                     || !requestedAt.equals(cancellationRequestedAt)
                     || !reason.equals(cancellationReason)) {
-                throw new ShipmentCancellationRequestConflictException(
+                throw new DomainConflictException(
+                        ShipmentErrorCode.CANCELLATION_REQUEST_CONFLICT,
                         "Shipment already has a different immutable cancellation request: " + id);
             }
             return cancellationState == ShipmentCancellationState.REJECTED

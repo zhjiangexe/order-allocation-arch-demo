@@ -7,10 +7,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
+import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
@@ -58,7 +59,9 @@ class RecordOrderFulfillmentUsecaseTest {
 
         assertThatThrownBy(() -> new RecordOrderFulfillmentUsecase(repository)
                         .execute(new RecordOrderFulfillmentCommand(orderId, UUID.randomUUID(), fulfilledAt)))
-                .isInstanceOf(OrderFulfillmentConflictException.class)
+                .isInstanceOfSatisfying(
+                        DomainConflictException.class,
+                        exception -> assertThat(exception.errorCode()).isEqualTo(OrderErrorCode.FULFILLMENT_CONFLICT))
                 .hasMessageContaining("different immutable fact");
     }
 

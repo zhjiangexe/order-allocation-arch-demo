@@ -1,8 +1,8 @@
 package com.flowzati.archone.ordering.domain.aggregate;
 
+import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
-import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
+import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import java.time.Instant;
@@ -305,10 +305,12 @@ public class Order {
 
     private void requireSameFulfillment(UUID shipmentId, Instant fulfilledAt) {
         if (fulfilledByShipmentId == null) {
-            throw new OrderFulfillmentConflictException("Fulfilled order has no Shipment correlation: " + id);
+            throw new DomainConflictException(
+                    OrderErrorCode.FULFILLMENT_CONFLICT, "Fulfilled order has no Shipment correlation: " + id);
         }
         if (!fulfilledByShipmentId.equals(shipmentId) || !this.fulfilledAt.equals(fulfilledAt)) {
-            throw new OrderFulfillmentConflictException(
+            throw new DomainConflictException(
+                    OrderErrorCode.FULFILLMENT_CONFLICT,
                     "Order was already fulfilled by a different immutable fact: " + id);
         }
     }
@@ -370,12 +372,14 @@ public class Order {
 
     private void requireSameCancellation(UUID requestId, Instant cancelledAt, String reason) {
         if (cancellationRequestId == null || cancellationReason == null) {
-            throw new OrderCancellationRequestConflictException("Cancelled order has no request correlation: " + id);
+            throw new DomainConflictException(
+                    OrderErrorCode.CANCELLATION_REQUEST_CONFLICT, "Cancelled order has no request correlation: " + id);
         }
         if (!cancellationRequestId.equals(requestId)
                 || !this.cancelledAt.equals(cancelledAt)
                 || !cancellationReason.equals(reason)) {
-            throw new OrderCancellationRequestConflictException(
+            throw new DomainConflictException(
+                    OrderErrorCode.CANCELLATION_REQUEST_CONFLICT,
                     "Order was already cancelled by a different immutable request: " + id);
         }
     }

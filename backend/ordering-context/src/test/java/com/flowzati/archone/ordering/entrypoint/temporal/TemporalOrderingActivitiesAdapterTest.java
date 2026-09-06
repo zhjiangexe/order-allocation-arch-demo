@@ -15,7 +15,6 @@ import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillme
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
 import io.temporal.failure.ApplicationFailure;
 import java.time.Instant;
 import java.util.UUID;
@@ -55,7 +54,9 @@ class TemporalOrderingActivitiesAdapterTest {
         UUID shipmentId = UUID.randomUUID();
         Instant fulfilledAt = Instant.parse("2026-08-19T10:00:00Z");
         RecordOrderFulfillmentCommand command = new RecordOrderFulfillmentCommand(orderId, shipmentId, fulfilledAt);
-        doThrow(new OrderFulfillmentConflictException("different fulfillment"))
+        doThrow(new com.flowzati.archone.foundation.error.DomainConflictException(
+                        com.flowzati.archone.ordering.domain.error.OrderErrorCode.FULFILLMENT_CONFLICT,
+                        "different fulfillment"))
                 .when(recordOrderFulfillmentUsecase)
                 .execute(command);
 

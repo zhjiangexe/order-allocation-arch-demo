@@ -1,10 +1,11 @@
 package com.flowzati.archone.wms.shipment.application.usecase;
 
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
+import com.flowzati.archone.wms.shipment.application.exception.ShipmentApplicationErrorCode;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentStockOperationSnapshotConflictException;
 import com.flowzati.archone.wms.shipment.domain.valueobject.ShipmentLine;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,7 @@ public class CreateShipmentUsecase {
     }
 
     /**
-     * 建立或依 picking ID 冪等讀回 Shipment，並只回傳 application-layer result。
+     * 建立或依 stock operation ID 冪等讀回 Shipment，並只回傳 application-layer result。
      * 呼叫端若需要後續操作 aggregate，應透過對應 use case，而不是持有這裡回傳的 domain object。
      */
     @Transactional
@@ -34,10 +35,7 @@ public class CreateShipmentUsecase {
     }
 
     private Shipment requireSameSnapshot(Shipment existing, CreateShipmentCommand command) {
-        List<ShipmentLine> expectedLines = command.lines().stream()
-                .map(line -> new ShipmentLine(
-                        line.orderLineId(), line.moveId(), line.skuCode(), line.sourceLocationId(), line.quantity()))
-                .toList();
+        List<ShipmentLine> expectedLines = shipmentLines(command);
         boolean same = existing.orderId().equals(command.orderId())
                 && existing.ownerId().equals(command.ownerId())
                 && existing.facilityId().equals(command.facilityId())
@@ -46,17 +44,15 @@ public class CreateShipmentUsecase {
                 && existing.releasePriority() == command.releasePriority()
                 && existing.createdAt().equals(command.createdAt());
         if (!same) {
-            throw new ShipmentStockOperationSnapshotConflictException(
+            throw new ApplicationConflictException(
+                    ShipmentApplicationErrorCode.STOCK_OPERATION_SNAPSHOT_CONFLICT,
                     "Stock operation was already handed off with a different snapshot: " + command.stockOperationId());
         }
         return existing;
     }
 
     private Shipment create(CreateShipmentCommand command) {
-        List<ShipmentLine> lines = command.lines().stream()
-                .map(line -> new ShipmentLine(
-                        line.orderLineId(), line.moveId(), line.skuCode(), line.sourceLocationId(), line.quantity()))
-                .toList();
+        List<ShipmentLine> lines = shipmentLines(command);
 
         Shipment shipment = Shipment.create(
                 command.shipmentId(),
@@ -70,5 +66,12 @@ public class CreateShipmentUsecase {
                 command.createdAt());
         shipmentStore.save(shipment);
         return shipment;
+    }
+
+    private static List<ShipmentLine> shipmentLines(CreateShipmentCommand command) {
+        return command.lines().stream()
+                .map(line -> new ShipmentLine(
+                        line.orderLineId(), line.moveId(), line.skuCode(), line.sourceLocationId(), line.quantity()))
+                .toList();
     }
 }

@@ -8,11 +8,12 @@ import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedInt
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.balance.application.exception.StockReceiptRequestConflictException;
+import com.flowzati.archone.inventory.balance.application.error.StockBalanceErrorCode;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
@@ -289,7 +290,10 @@ class InboundEntrypointTransactionIntegrationTest {
         stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 3));
 
         assertThatThrownBy(() -> stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 4)))
-                .isInstanceOf(StockReceiptRequestConflictException.class)
+                .isInstanceOfSatisfying(
+                        ApplicationConflictException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(StockBalanceErrorCode.STOCK_RECEIPT_REQUEST_CONFLICT))
                 .hasMessageContaining(receiptId.toString());
 
         assertThat(countReceiptRequests(receiptId)).isEqualTo(1);

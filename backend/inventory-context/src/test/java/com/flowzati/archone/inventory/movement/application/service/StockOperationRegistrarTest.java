@@ -8,7 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.application.exception.SourceMovementConflictException;
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
+import com.flowzati.archone.inventory.movement.application.exception.StockMovementErrorCode;
 import com.flowzati.archone.inventory.movement.application.invocation.MovementLine;
 import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
@@ -119,7 +120,11 @@ class StockOperationRegistrarTest {
         when(stockOperationStore.findBySource(drifted.source())).thenReturn(Optional.of(existingPicking(accepted)));
         when(stockMoveStore.findOrderedByStockOperationId(STOCK_OPERATION_ID)).thenReturn(existingMoves(accepted, 1));
 
-        assertThatThrownBy(() -> registrar.register(drifted)).isInstanceOf(SourceMovementConflictException.class);
+        assertThatThrownBy(() -> registrar.register(drifted))
+                .isInstanceOfSatisfying(
+                        ApplicationConflictException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(StockMovementErrorCode.SOURCE_MOVEMENT_CONFLICT));
 
         verify(stockOperationStore, never()).save(org.mockito.ArgumentMatchers.any());
         verify(stockMoveStore, never()).saveAll(anyCollection());

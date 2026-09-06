@@ -12,7 +12,6 @@ import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationReque
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import io.temporal.client.WorkflowClient;
 import java.time.Instant;
@@ -84,6 +83,6 @@ class TemporalFulfillmentCancellationCoordinatorTest {
 
         assertThatThrownBy(() -> coordinator.request(new FulfillmentCancellationRequest(
                         UUID.randomUUID(), ORDER_ID, Instant.parse("2026-08-20T08:00:00Z"), "Customer changed mind")))
-                .isInstanceOf(OrderCancellationRequestConflictException.class);
+                .isInstanceOf(com.flowzati.archone.foundation.error.DomainConflictException.class);
     }
 }

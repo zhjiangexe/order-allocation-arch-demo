@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.balance.application.exception.StockReceiptRequestConflictException;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import jakarta.validation.Valid;
@@ -48,8 +48,8 @@ public class StockReceiptRest {
         return ResponseEntity.badRequest().body(exception.getMessage());
     }
 
-    @ExceptionHandler(StockReceiptRequestConflictException.class)
-    public ResponseEntity<String> handleIdempotencyConflict(StockReceiptRequestConflictException exception) {
+    @ExceptionHandler(ApplicationConflictException.class)
+    public ResponseEntity<String> handleIdempotencyConflict(ApplicationConflictException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
     }
 }

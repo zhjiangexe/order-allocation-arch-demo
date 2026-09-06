@@ -1,9 +1,9 @@
 package com.flowzati.archone.inventory.allocation.application.service;
 
+import com.flowzati.archone.foundation.error.StaleStateException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
-import com.flowzati.archone.inventory.allocation.application.exception.StaleAllocationSetException;
-import com.flowzati.archone.inventory.allocation.application.exception.StaleStockAllocationProposalException;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.allocation.application.state.MoveQuantAllocationSet;
@@ -174,7 +174,7 @@ public class StockAllocationCommitter {
         try {
             return allocationSet.validateAndOrder(
                     stockQuantStore.lockByIds(allocationSet.stockQuantIds()), operationComposite, today, true);
-        } catch (StaleAllocationSetException staleAllocation) {
+        } catch (StaleStateException staleAllocation) {
             throw staleProposal(staleAllocation.getMessage(), staleAllocation);
         }
     }
@@ -223,11 +223,11 @@ public class StockAllocationCommitter {
                 assignedTimes.iterator().next());
     }
 
-    private static StaleStockAllocationProposalException staleProposal(String message) {
-        return new StaleStockAllocationProposalException(message);
+    private static StaleStateException staleProposal(String message) {
+        return new StaleStateException(StockAllocationErrorCode.STOCK_ALLOCATION_PROPOSAL_STALE, message);
     }
 
-    private static StaleStockAllocationProposalException staleProposal(String message, Throwable cause) {
-        return new StaleStockAllocationProposalException(message, cause);
+    private static StaleStateException staleProposal(String message, Throwable cause) {
+        return new StaleStateException(StockAllocationErrorCode.STOCK_ALLOCATION_PROPOSAL_STALE, message, cause);
     }
 }

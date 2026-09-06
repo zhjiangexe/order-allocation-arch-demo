@@ -1,13 +1,11 @@
 package com.flowzati.archone.bootstrap.fulfillment.rest;
 
-import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationConflictException;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationCoordinator;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationRequest;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationResult;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationStatus;
 import com.flowzati.archone.process.fulfillment.cancellation.FulfillmentCancellationUnavailableException;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentCancellationRequestConflictException;
 import jakarta.validation.Valid;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -59,8 +57,8 @@ public class OrderCancellationController {
     @ExceptionHandler({
         FulfillmentCancellationConflictException.class,
         FulfillmentCancellationUnavailableException.class,
-        OrderCancellationRequestConflictException.class,
-        ShipmentCancellationRequestConflictException.class
+        com.flowzati.archone.foundation.error.DomainConflictException.class,
+        com.flowzati.archone.foundation.error.DomainConflictException.class
     })
     public ResponseEntity<String> handleConflict(RuntimeException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());

@@ -10,8 +10,6 @@ import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCo
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentCancellationRequestConflictException;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentStockOperationSnapshotConflictException;
 import io.temporal.failure.ApplicationFailure;
 
 /** Temporal Activity contract 到 WMS application use cases 的 inbound adapter。 */
@@ -48,7 +46,7 @@ public final class TemporalWmsActivitiesAdapter implements WmsActivities {
                     assignment.dispatchBy(),
                     assignment.releasePriority(),
                     assignment.assignedAt()));
-        } catch (ShipmentStockOperationSnapshotConflictException exception) {
+        } catch (com.flowzati.archone.foundation.error.ApplicationConflictException exception) {
             throw nonRetryable(exception, "WMS_SHIPMENT_STOCK_OPERATION_SNAPSHOT_CONFLICT");
         }
         return new CreateShipmentActivityResult(result.shipmentId());
@@ -59,7 +57,7 @@ public final class TemporalWmsActivitiesAdapter implements WmsActivities {
         try {
             cancelShipmentUsecase.handle(new CancelShipmentCommand(
                     input.requestId(), input.shipmentId(), input.requestedAt(), input.reason()));
-        } catch (ShipmentCancellationRequestConflictException exception) {
+        } catch (com.flowzati.archone.foundation.error.DomainConflictException exception) {
             throw nonRetryable(exception, "WMS_SHIPMENT_CANCELLATION_REQUEST_CONFLICT");
         }
     }

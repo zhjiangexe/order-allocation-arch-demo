@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.wms.dispatch.application.invocation.HandOverShipmentCommand;
@@ -27,7 +28,7 @@ import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUseca
 import com.flowzati.archone.wms.shipment.application.usecase.CompleteShipmentCancellationUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentCancellationRequestConflictException;
+import com.flowzati.archone.wms.shipment.domain.exception.ShipmentErrorCode;
 import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.shipment.domain.type.ShipmentCancellationState;
 import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
@@ -179,11 +180,17 @@ class ShipmentProcessTest {
 
         assertThatThrownBy(() -> cancelShipment.handle(
                         new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(8), "another request")))
-                .isInstanceOf(ShipmentCancellationRequestConflictException.class)
+                .isInstanceOfSatisfying(
+                        DomainConflictException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(ShipmentErrorCode.CANCELLATION_REQUEST_CONFLICT))
                 .hasMessageContaining("immutable cancellation request");
         assertThatThrownBy(() -> cancelShipment.handle(new CancelShipmentCommand(
                         first.requestId(), first.shipmentId(), first.requestedAt(), "another reason")))
-                .isInstanceOf(ShipmentCancellationRequestConflictException.class)
+                .isInstanceOfSatisfying(
+                        DomainConflictException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(ShipmentErrorCode.CANCELLATION_REQUEST_CONFLICT))
                 .hasMessageContaining("immutable cancellation request");
     }
 

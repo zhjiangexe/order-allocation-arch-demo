@@ -1,6 +1,7 @@
 package com.flowzati.archone.inventory.allocation.application.state;
 
-import com.flowzati.archone.inventory.allocation.application.exception.StaleAllocationSetException;
+import com.flowzati.archone.foundation.error.StaleStateException;
+import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.balance.application.policy.StockWriteOrder;
@@ -81,7 +82,9 @@ public final class MoveQuantAllocationSet {
         Map<UUID, StockQuant> stockQuantsById =
                 loadedStockQuants.stream().collect(Collectors.toMap(StockQuant::getId, Function.identity()));
         if (!stockQuantsById.keySet().equals(stockQuantIds)) {
-            throw new StaleAllocationSetException("One or more allocated stock quants no longer exist");
+            throw new StaleStateException(
+                    StockAllocationErrorCode.ALLOCATION_SET_STALE,
+                    "One or more allocated stock quants no longer exist");
         }
 
         for (MoveQuantAllocation allocation : allocations) {
@@ -94,12 +97,15 @@ public final class MoveQuantAllocationSet {
             }
         }
         if (today != null && loadedStockQuants.stream().anyMatch(stockQuant -> stockQuant.isExpired(today))) {
-            throw new StaleAllocationSetException("Move-to-quant allocation contains an expired stock quant");
+            throw new StaleStateException(
+                    StockAllocationErrorCode.ALLOCATION_SET_STALE,
+                    "Move-to-quant allocation contains an expired stock quant");
         }
         if (requireAvailableToPromise
                 && quantitiesByStockQuant.entrySet().stream()
                         .anyMatch(entry -> !stockQuantsById.get(entry.getKey()).canReserve(entry.getValue()))) {
-            throw new StaleAllocationSetException(
+            throw new StaleStateException(
+                    StockAllocationErrorCode.ALLOCATION_SET_STALE,
                     "Move-to-quant allocation exceeds current available-to-promise quantity");
         }
         return loadedStockQuants.stream()

@@ -10,8 +10,6 @@ import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillme
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
-import com.flowzati.archone.ordering.domain.exception.OrderFulfillmentConflictException;
 import io.temporal.failure.ApplicationFailure;
 
 /** Temporal Activity contract 到 Ordering application use cases 的 inbound adapter。 */
@@ -31,7 +29,7 @@ public final class TemporalOrderingActivitiesAdapter implements OrderingActiviti
         try {
             recordOrderFulfillmentUsecase.execute(
                     new RecordOrderFulfillmentCommand(input.orderId(), input.shipmentId(), input.fulfilledAt()));
-        } catch (OrderFulfillmentConflictException exception) {
+        } catch (com.flowzati.archone.foundation.error.DomainConflictException exception) {
             throw nonRetryable(exception, "ORDER_FULFILLMENT_CONFLICT");
         }
     }
@@ -42,7 +40,7 @@ public final class TemporalOrderingActivitiesAdapter implements OrderingActiviti
         try {
             result = cancelOrderUsecase.cancel(
                     new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
-        } catch (OrderCancellationRequestConflictException exception) {
+        } catch (com.flowzati.archone.foundation.error.DomainConflictException exception) {
             throw nonRetryable(exception, "ORDER_CANCELLATION_REQUEST_CONFLICT");
         }
         CancelOrderActivityStatus status =

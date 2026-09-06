@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
@@ -20,7 +21,7 @@ import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
-import com.flowzati.archone.inventory.movement.application.exception.SourceMovementConflictException;
+import com.flowzati.archone.inventory.movement.application.exception.StockMovementErrorCode;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
 import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
@@ -186,7 +187,10 @@ class StockMovementRegistrationPersistenceIntegrationTest {
         entityManager.clear();
 
         assertThatThrownBy(() -> registrar.register(orderSource.find(ORDER_ID).orElseThrow()))
-                .isInstanceOf(SourceMovementConflictException.class);
+                .isInstanceOfSatisfying(
+                        ApplicationConflictException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(StockMovementErrorCode.SOURCE_MOVEMENT_CONFLICT));
 
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM stock_moves WHERE stock_operation_id = ?",

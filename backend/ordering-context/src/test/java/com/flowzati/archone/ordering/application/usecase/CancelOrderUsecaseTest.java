@@ -7,12 +7,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.ordering.application.event.OrderCancelled;
 import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.port.OrderCancelledPublisher;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
+import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
@@ -85,7 +86,10 @@ class CancelOrderUsecaseTest {
         CancelOrderCommand conflicting = new CancelOrderCommand(UUID.randomUUID(), order.getId(), cancelledAt, reason);
 
         assertThatThrownBy(() -> new CancelOrderUsecase(repository, publisher).cancel(conflicting))
-                .isInstanceOf(OrderCancellationRequestConflictException.class)
+                .isInstanceOfSatisfying(
+                        DomainConflictException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(OrderErrorCode.CANCELLATION_REQUEST_CONFLICT))
                 .hasMessageContaining("different immutable request");
         verifyNoInteractions(publisher);
     }

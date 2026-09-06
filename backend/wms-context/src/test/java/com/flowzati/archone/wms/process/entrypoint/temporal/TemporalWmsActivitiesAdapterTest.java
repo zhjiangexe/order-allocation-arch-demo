@@ -16,7 +16,6 @@ import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCo
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentCancellationRequestConflictException;
 import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
 import io.temporal.failure.ApplicationFailure;
 import java.time.Instant;
@@ -88,7 +87,10 @@ class TemporalWmsActivitiesAdapterTest {
         CancelShipmentCommand command =
                 new CancelShipmentCommand(requestId, shipmentId, requestedAt, "customer request");
         when(cancelShipmentUsecase.handle(command))
-                .thenThrow(new ShipmentCancellationRequestConflictException("different cancellation request"));
+                .thenThrow(new com.flowzati.archone.foundation.error.DomainConflictException(
+                        com.flowzati.archone.wms.shipment.domain.exception.ShipmentErrorCode
+                                .CANCELLATION_REQUEST_CONFLICT,
+                        "different cancellation request"));
 
         assertThatThrownBy(() -> activities.requestShipmentCancellation(new CancelShipmentActivityInput(
                         "process-1", requestId, UUID.randomUUID(), shipmentId, requestedAt, "customer request")))

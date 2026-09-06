@@ -6,8 +6,9 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.balance.application.exception.StockReceiptRequestConflictException;
+import com.flowzati.archone.inventory.balance.application.error.StockBalanceErrorCode;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.entrypoint.rest.StockReceiptRest;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
@@ -96,7 +97,9 @@ class StockReceiptRestTest {
     @Test
     @DisplayName("同一 receiptId 改送不同內容時回 409")
     void shouldRejectAConflictingIdempotencyKey() {
-        doThrow(new StockReceiptRequestConflictException(RECEIPT_ID))
+        doThrow(new ApplicationConflictException(
+                        StockBalanceErrorCode.STOCK_RECEIPT_REQUEST_CONFLICT,
+                        "Receipt ID is already bound to a different request: " + RECEIPT_ID))
                 .when(facade)
                 .confirm(any());
 

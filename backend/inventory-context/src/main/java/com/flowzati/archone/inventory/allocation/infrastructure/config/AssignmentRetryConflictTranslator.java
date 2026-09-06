@@ -1,6 +1,7 @@
 package com.flowzati.archone.inventory.allocation.infrastructure.config;
 
-import com.flowzati.archone.inventory.allocation.application.exception.StaleStockAllocationProposalException;
+import com.flowzati.archone.foundation.error.StaleStateException;
+import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -17,7 +18,10 @@ public class AssignmentRetryConflictTranslator {
     public Object translate(ProceedingJoinPoint invocation) throws Throwable {
         try {
             return invocation.proceed();
-        } catch (StaleStockAllocationProposalException staleProposal) {
+        } catch (StaleStateException staleProposal) {
+            if (staleProposal.errorCode() != StockAllocationErrorCode.STOCK_ALLOCATION_PROPOSAL_STALE) {
+                throw staleProposal;
+            }
             throw new OptimisticLockingFailureException(staleProposal.getMessage(), staleProposal);
         }
     }

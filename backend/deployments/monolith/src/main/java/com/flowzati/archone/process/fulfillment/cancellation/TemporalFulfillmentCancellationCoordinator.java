@@ -5,7 +5,6 @@ import com.flowzati.archone.orderfulfillment.contract.workflow.CancellationReque
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflow;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.exception.OrderCancellationRequestConflictException;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
@@ -69,7 +68,8 @@ public class TemporalFulfillmentCancellationCoordinator implements FulfillmentCa
     private static void requireSameCommittedRequest(Order order, FulfillmentCancellationRequest request) {
         if (!request.requestId().equals(order.getCancellationRequestId())
                 || !request.reason().equals(order.getCancellationReason())) {
-            throw new OrderCancellationRequestConflictException(
+            throw new com.flowzati.archone.foundation.error.DomainConflictException(
+                    com.flowzati.archone.ordering.domain.error.OrderErrorCode.CANCELLATION_REQUEST_CONFLICT,
                     "Order was already cancelled by a different immutable request: " + order.getId());
         }
     }

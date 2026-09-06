@@ -1,7 +1,8 @@
 package com.flowzati.archone.inventory.balance.infrastructure.persistence.jdbc.store;
 
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.balance.application.exception.StockReceiptRequestConflictException;
+import com.flowzati.archone.inventory.balance.application.error.StockBalanceErrorCode;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.store.StockReceiptRequestStore;
 import java.util.Objects;
@@ -68,7 +69,9 @@ public class JdbcStockReceiptRequestStore implements StockReceiptRequestStore {
                                 resultSet.getInt("quantity"))),
                 request.receiptId());
         if (!request.equals(existing)) {
-            throw new StockReceiptRequestConflictException(request.receiptId());
+            throw new ApplicationConflictException(
+                    StockBalanceErrorCode.STOCK_RECEIPT_REQUEST_CONFLICT,
+                    "Receipt ID is already bound to a different request: " + request.receiptId());
         }
         return false;
     }

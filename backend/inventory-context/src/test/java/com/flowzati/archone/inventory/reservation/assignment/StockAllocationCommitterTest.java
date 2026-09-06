@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.foundation.error.StaleStateException;
+import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
@@ -205,7 +207,10 @@ class StockAllocationCommitterTest {
                                 uuid(99), ENQUEUED_AT.minusSeconds(1), Set.of("SKU-A")))));
 
         assertThatThrownBy(() -> committer().commit(proposal, TODAY, ASSIGNED_AT))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOfSatisfying(
+                        StaleStateException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(StockAllocationErrorCode.STOCK_ALLOCATION_PROPOSAL_STALE))
                 .hasMessageContaining("blocked by earlier shared-SKU operation");
 
         verify(stockQuantStore, never()).lockByIds(any());
