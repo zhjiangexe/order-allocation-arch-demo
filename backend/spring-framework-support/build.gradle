@@ -6,6 +6,7 @@ description = 'shared Spring Framework infrastructure'
 
 dependencies {
     api project(':domain-contract')
+    api project(':foundation')
     api libs.spring.boot.starter.webmvc
 
     implementation libs.spring.boot.starter.validation

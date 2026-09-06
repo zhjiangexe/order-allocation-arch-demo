@@ -1,9 +1,12 @@
 package com.flowzati.archone.support.spring.web.validation;
 
 import com.flowzati.archone.contract.ContractViolationException;
+import com.flowzati.archone.foundation.error.BusinessErrorKind;
+import com.flowzati.archone.foundation.error.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +28,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-/** 將 Spring MVC request validation 與內部 Contract violation 統一轉為 RFC 9457 ProblemDetail。 */
+/** 將 request validation、預期的 business rejection 與內部 Contract violation 統一轉為 RFC 9457 ProblemDetail。 */
 @RestControllerAdvice
 @Import(RequestValidationMessageConfiguration.class)
 public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
@@ -33,6 +36,7 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalRestExceptionHandler.class);
     private static final URI REQUEST_VALIDATION_TYPE = URI.create("urn:archone:problem:request-validation");
     private static final URI CONTRACT_VIOLATION_TYPE = URI.create("urn:archone:problem:internal-contract-violation");
+    private static final String BUSINESS_ERROR_TYPE_PREFIX = "urn:archone:problem:";
     private static final String DEFAULT_ERROR_CODE = "Invalid";
     private static final String INTERNAL_ERROR_CODE = "INTERNAL_ERROR";
     private static final String INTERNAL_ERROR_TITLE = "Internal server error";
@@ -90,6 +94,18 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
     }
 
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ProblemDetail> handleBusinessException(
+            BusinessException exception, HttpServletRequest request) {
+        HttpStatus status = businessStatus(exception.kind());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, exception.getMessage());
+        problem.setType(businessErrorType(exception));
+        problem.setTitle(businessTitle(exception.kind()));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", exception.errorCode().value());
+        return ResponseEntity.status(status).body(problem);
+    }
+
     private ProblemDetail requestValidationProblem(
             HttpStatusCode status, WebRequest request, List<RequestValidationError> errors) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
@@ -121,5 +137,31 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
     private static String constraintCode(MessageSourceResolvable error) {
         String[] codes = error.getCodes();
         return codes == null || codes.length == 0 ? DEFAULT_ERROR_CODE : codes[codes.length - 1];
+    }
+
+    private static HttpStatus businessStatus(BusinessErrorKind kind) {
+        return switch (kind) {
+            case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case ACCESS_DENIED -> HttpStatus.FORBIDDEN;
+            case RULE_VIOLATION -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case ALREADY_EXISTS, INVALID_STATE, CONFLICT, STALE_STATE -> HttpStatus.CONFLICT;
+        };
+    }
+
+    private static String businessTitle(BusinessErrorKind kind) {
+        return switch (kind) {
+            case NOT_FOUND -> "Business object not found";
+            case ALREADY_EXISTS -> "Business object already exists";
+            case RULE_VIOLATION -> "Business rule violation";
+            case INVALID_STATE -> "Invalid business state";
+            case CONFLICT -> "Business conflict";
+            case STALE_STATE -> "Business state is stale";
+            case ACCESS_DENIED -> "Business operation denied";
+        };
+    }
+
+    private static URI businessErrorType(BusinessException exception) {
+        String type = exception.errorCode().value().toLowerCase(Locale.ROOT).replace('_', '-');
+        return URI.create(BUSINESS_ERROR_TYPE_PREFIX + type);
     }
 }

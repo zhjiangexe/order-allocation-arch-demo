@@ -526,6 +526,64 @@ method 擴張成另一套 Validation framework。
 `domain-contract` 因此只保留 `Contract` 作為 contract 撰寫入口。Phase-specific exception 與
 `ContractViolationException` 是執行期及 Global Exception Handler 所需的支援型別，不是另一套撰寫 API。
 
+### 9.3 Business exception 與 ErrorCode
+
+正常可能發生的業務拒絕使用 `foundation` 提供的 framework-neutral error hierarchy，不得繼承
+`ContractViolationException`：
+
+```text
+BusinessException
+├── DomainException
+│   ├── DomainRuleViolationException
+│   ├── DomainConflictException
+│   └── InvalidStateTransitionException
+└── ApplicationException
+    ├── ApplicationRuleViolationException
+    ├── NotFoundException
+    ├── AlreadyExistsException
+    ├── ApplicationConflictException
+    ├── StaleStateException
+    └── BusinessAccessDeniedException
+```
+
+`NotFoundException` 是 Application exception。Aggregate 不查 Store，也不判斷資料是否存在；Application use case
+取得空的 `Optional` 後才決定該次操作缺少必要物件。Domain rule、狀態轉換與 immutable facts 衝突才是
+`DomainException`。
+
+`ApplicationRuleViolationException` 只用於需要 Store、跨 Aggregate 或外部 port 組合資訊才能判定的 application
+policy rejection。若單一 Domain object 已有足夠事實，應使用 `DomainRuleViolationException`；若是當前資料互斥或
+snapshot 已改變，則分別使用 `ApplicationConflictException` 或 `StaleStateException`。
+
+共用型別放在 `com.flowzati.archone.foundation.error`，而具體 `ErrorCode` enum 必須由 owning capability 持有：
+
+```text
+foundation.error.ErrorCode                         # 共用 contract
+ordering.application.exception.OrderApplicationErrorCode
+ordering.domain.exception.OrderErrorCode
+inventory.allocation.application.exception.StockAllocationErrorCode
+wms.shipment.domain.exception.ShipmentErrorCode
+```
+
+禁止建立跨系統的 `CommonErrorCode` enum。Foundation exception class 表達處理大類，context `ErrorCode` 表達穩定且
+精確的機器識別；message 只供人員閱讀，不是 API contract。業務程式必須直接使用 foundation 已提供的具體 exception，
+不得為單一 ErrorCode 再建立一層只轉送建構參數的 context-specific exception：
+
+```java
+throw new DomainConflictException(
+        OrderErrorCode.FULFILLMENT_CONFLICT,
+        "Order was already fulfilled by a different immutable fact: " + orderId);
+```
+
+Adapter、retry policy 與測試若需要辨識精確錯誤，應檢查 `errorCode()`，不能依賴 context-specific exception class。
+Foundation 的具體 exception 為 `final`，以防止重新產生薄包裝類別。只有現有分類無法表達新的處理語意時，才先提出
+新 exception kind、預期 adapter 行為與 HTTP／retry mapping，經設計討論後加入 foundation；不能自行在 context
+繼承一個近似類型。
+
+HTTP status、Temporal failure type 與 Kafka retry policy 都是 adapter 決策，不得放進 Domain exception。REST 由
+`GlobalRestExceptionHandler` 根據 `BusinessErrorKind` 產生 RFC 9457 `ProblemDetail`；Temporal adapter 可使用
+`exception.errorCode().value()` 作為穩定 failure type。框架直接拋出的 validation、JPA、JDBC、optimistic locking
+或 security exception 仍先在適當 boundary 翻譯，不能假裝成 Domain exception。
+
 ## 10. Contract 撰寫準則
 
 ### 10.1 先選對責任與 phase
@@ -985,8 +1043,8 @@ message=Reserved quantity must stay between zero and on-hand quantity
   violation；應保留明確的 exception taxonomy。
 - Public response 使用固定的通用訊息，不回傳 Contract 的 diagnostic message。
 - Contract message 使用固定文字，不應拼接 password、token、未遮罩個資或其他動態 request context。
-- `spring-framework-support` 以 `api project(':domain-contract')` 取得公開 handler method 使用的 exception type；
-  `domain-contract` 仍維持 framework-neutral，不反向依賴 Spring。
+- `spring-framework-support` 以 `api project(':domain-contract')` 與 `api project(':foundation')` 取得公開 handler
+  method 使用的 exception type；兩個底層 module 都維持 framework-neutral，不反向依賴 Spring。
 - 若 tracing 系統已有 trace ID，可以在 response 與 log 中使用 trace ID，或將它和 incident ID 一起記錄；重點是
   client 提供的識別碼必須能查回同一筆錯誤。
 - Message consumer 沒有 HTTP response 時採相同分類：記錄完整 violation、觸發 retry／dead-letter policy 與告警，
