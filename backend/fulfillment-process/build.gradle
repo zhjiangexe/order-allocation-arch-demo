@@ -1,0 +1,26 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'cross-context order fulfillment process'
+
+dependencies {
+    implementation project(':foundation')
+    implementation project(':orchestration-temporal-contract')
+    implementation project(':integration-contracts')
+    implementation project(':inventory-context')
+    implementation project(':ordering-context')
+    implementation project(':wms-context')
+    implementation project(':messaging:messaging-events')
+    implementation project(':messaging:messaging-spring-boot-autoconfigure')
+    implementation libs.temporal.sdk
+    implementation libs.spring.boot.starter.validation
+    implementation libs.spring.boot.starter.webmvc
+    implementation libs.spring.tx
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.webmvc.test
+    testImplementation libs.spring.modulith.starter.test
+    testImplementation project(':spring-framework-support')
+    testRuntimeOnly libs.junit.platform.launcher
+}

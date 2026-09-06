@@ -3,10 +3,10 @@ package com.flowzati.archone.wms.shipment.entrypoint.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
-import com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
@@ -181,7 +181,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                         WHERE aggregateid = ?
                         """, shipmentId.toString()))
                 .containsEntry("type", ShipmentCancelledIntegrationEvent.EVENT_TYPE)
-                .containsEntry("route", FulfillmentChannels.SHIPMENT_EVENTS)
+                .containsEntry("route", FulfillmentEventDestinations.SHIPMENT_EVENTS)
                 .containsEntry("partition_key", orderId.toString())
                 .containsEntry("shipment_id", shipmentId.toString())
                 .containsEntry("stock_operation_id", stockOperationId.toString())
@@ -194,7 +194,10 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
 
     private void emit(OrderAllocationCommittedIntegrationEvent event) {
         transport.emit(
-                WmsEventSubscriptions.FULFILLMENT_HANDOFF, AllocationChannels.ALLOCATION_EVENTS, message(event), 1);
+                WmsEventSubscriptions.FULFILLMENT_HANDOFF,
+                AllocationEventDestinations.ALLOCATION_EVENTS,
+                message(event),
+                1);
     }
 
     private Message message(OrderAllocationCommittedIntegrationEvent event) {
@@ -208,7 +211,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                 .withHeader(
                         EventMessageHeaders.EVENT_AGGREGATE_ID,
                         event.getOrderId().toString())
-                .withHeader(EventMessageHeaders.EVENT_CONTRACT_VERSION, "2")
+                .withHeader(EventMessageHeaders.EVENT_CONTRACT_VERSION, "1")
                 .build();
     }
 
@@ -238,11 +241,11 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
             OrderAllocationCommittedIntegrationEvent event, UUID eventId) {
         return new OrderAllocationCommittedIntegrationEvent(
                 eventId,
-                event.getPickingId(),
+                event.getStockOperationId(),
                 event.getOrderId(),
                 event.getOwnerId(),
                 event.getFacilityId(),
-                event.getPickingTypeId(),
+                event.getStockOperationTypeId(),
                 event.getSourceLocationId(),
                 event.getDestinationLocationId(),
                 event.getMoves(),

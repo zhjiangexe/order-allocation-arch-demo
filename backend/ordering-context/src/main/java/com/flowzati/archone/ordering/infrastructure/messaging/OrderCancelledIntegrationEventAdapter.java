@@ -2,7 +2,7 @@ package com.flowzati.archone.ordering.infrastructure.messaging;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -31,7 +31,7 @@ public class OrderCancelledIntegrationEventAdapter implements OrderCancelledPubl
                 new AggregateReference(
                         OrderingAggregateTypes.ORDER, event.orderId().toString()),
                 new PublicationTarget(
-                        OrderingChannels.ORDER_EVENTS,
+                        OrderingEventDestinations.ORDER_EVENTS,
                         partitionKeyResolver.resolve(event.orderId(), event.ownerId(), event.facilityId())),
                 event.cancelledAt());
     }

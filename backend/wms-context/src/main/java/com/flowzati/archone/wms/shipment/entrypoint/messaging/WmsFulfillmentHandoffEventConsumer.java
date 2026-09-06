@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.shipment.entrypoint.messaging;
 
-import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
@@ -9,7 +9,6 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
-import com.flowzati.archone.wms.shipment.application.service.LegacyAllocationPickingResolver;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
 import java.time.Instant;
 import java.util.List;
@@ -25,53 +24,24 @@ import org.springframework.context.annotation.Configuration;
 public class WmsFulfillmentHandoffEventConsumer {
 
     private final CreateShipmentUsecase createShipmentUsecase;
-    private final LegacyAllocationPickingResolver legacyPickingResolver;
 
-    public WmsFulfillmentHandoffEventConsumer(
-            CreateShipmentUsecase createShipmentUsecase, LegacyAllocationPickingResolver legacyPickingResolver) {
+    public WmsFulfillmentHandoffEventConsumer(CreateShipmentUsecase createShipmentUsecase) {
         this.createShipmentUsecase = createShipmentUsecase;
-        this.legacyPickingResolver = legacyPickingResolver;
     }
 
     @Bean
     IntegrationEventDispatcher wmsFulfillmentHandoffIntegrationEventDispatcher(
             IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
-                        AllocationChannels.ALLOCATION_EVENTS)
+                        AllocationEventDestinations.ALLOCATION_EVENTS)
                 .onEvent(
                         OrderAllocationCommittedIntegrationEvent.class,
-                        envelope -> onLegacyAllocationCommitted(envelope.event()))
-                .onEvent(
-                        com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent.class,
-                        envelope -> onPickingAssigned(envelope.event()))
-                .onEvent(
-                        com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent.class,
                         envelope -> onStockOperationAssigned(envelope.event()))
                 .build();
         return factory.make(WmsEventSubscriptions.FULFILLMENT_HANDOFF, handlers);
     }
 
-    void onPickingAssigned(com.flowzati.archone.contracts.promising.v2.OrderAllocationCommittedIntegrationEvent event) {
-        accept(new StockOperationAssignment(
-                event.getPickingId(),
-                event.getOrderId(),
-                event.getOwnerId(),
-                event.getFacilityId(),
-                event.getMoves().stream()
-                        .map(line -> new AssignedMovement(
-                                line.orderLineId(),
-                                line.moveId(),
-                                line.skuCode(),
-                                event.getSourceLocationId(),
-                                line.quantity()))
-                        .toList(),
-                event.getDispatchBy(),
-                event.getReleasePriority(),
-                event.getAssignedAt()));
-    }
-
-    void onStockOperationAssigned(
-            com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent event) {
+    void onStockOperationAssigned(OrderAllocationCommittedIntegrationEvent event) {
         accept(new StockOperationAssignment(
                 event.getStockOperationId(),
                 event.getOrderId(),
@@ -108,29 +78,6 @@ public class WmsFulfillmentHandoffEventConsumer {
                 assignment.dispatchBy(),
                 assignment.releasePriority(),
                 assignment.assignedAt()));
-    }
-
-    /** Compatibility reader for retained V1 records; no new producer emits this contract. */
-    void onLegacyAllocationCommitted(OrderAllocationCommittedIntegrationEvent event) {
-        var moveIds = event.getLines().stream()
-                .map(OrderAllocationCommittedIntegrationEvent.AllocationLine::moveId)
-                .toList();
-        accept(new StockOperationAssignment(
-                legacyPickingResolver.resolve(event.getAllocationId(), moveIds),
-                event.getOrderId(),
-                event.getOwnerId(),
-                event.getFacilityId(),
-                event.getLines().stream()
-                        .map(line -> new AssignedMovement(
-                                line.orderLineId(),
-                                line.moveId(),
-                                line.skuCode(),
-                                line.sourceLocationId(),
-                                line.quantity()))
-                        .toList(),
-                event.getDispatchBy(),
-                event.getReleasePriority(),
-                event.getCommittedAt()));
     }
 
     private record StockOperationAssignment(

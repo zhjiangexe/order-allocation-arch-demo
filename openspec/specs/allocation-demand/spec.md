@@ -3,7 +3,7 @@
 ## Purpose
 
 Define how stock-consuming source units become canonical Inventory movement intent without introducing a duplicate demand aggregate,
-and where legacy picking vocabulary is permitted during compatibility cutovers.
+and ensure public boundaries start with stock-operation vocabulary.
 
 ## Requirements
 
@@ -63,22 +63,17 @@ to Outbox.
 - **WHEN** cancellation is attempted
 - **THEN** the operation remains assigned and its move lines and quant counters remain unchanged
 
-### Requirement: Legacy picking vocabulary is confined to compatibility adapters
+### Requirement: Public boundaries use stock-operation vocabulary from V1
 
-During the declared compatibility window, an ingress adapter SHALL accept a supported legacy `pickingId`, signal or contract and SHALL
-normalize it immediately to `stockOperationId`. Inventory source registration, allocation selection, planning, assignment, cancellation
-and completion SHALL expose no `AllocationDemand` identity and no picking-named alias in their canonical domain or application APIs.
+Inventory source registration, allocation selection, planning, assignment, cancellation and completion SHALL expose no
+`AllocationDemand` identity and no picking-named alias in their domain, application or integration-contract APIs. Because these
+contracts have not been released, V1 SHALL use `stockOperationId` directly and SHALL NOT include a pre-release compatibility reader.
 
-Legacy readers SHALL remain only until the applicable source-topic retention, Outbox re-snapshot, DLT replay and Temporal workflow
-windows have expired. Their removal SHALL be performed by a later cleanup change using the recorded deployment-specific retention
-thresholds.
+#### Scenario: V1 enters through the canonical identifier
 
-#### Scenario: A legacy identifier stops at ingress
-
-- **GIVEN** a supported legacy boundary payload contains `pickingId`
-- **WHEN** its compatibility adapter accepts the payload
-- **THEN** the adapter invokes the canonical application API with `stockOperationId`
-- **AND** no picking-named field enters the canonical command
+- **WHEN** an assignment, lifecycle, handover, cancellation or completion payload crosses a public boundary
+- **THEN** it identifies the Inventory operation as `stockOperationId`
+- **AND** no picking-named or allocation-demand compatibility field enters the canonical command
 
 #### Scenario: Canonical APIs contain no demand aggregate identity
 

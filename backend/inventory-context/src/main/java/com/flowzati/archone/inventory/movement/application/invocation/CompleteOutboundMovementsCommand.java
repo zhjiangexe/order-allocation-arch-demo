@@ -16,7 +16,7 @@ public record CompleteOutboundMovementsCommand(
         Objects.requireNonNull(movementIds, "Outbound completion movement IDs are required");
         Objects.requireNonNull(completedAt, "Outbound completion time is required");
         movementIds = List.copyOf(movementIds);
-        if (movementIds.isEmpty() || movementIds.stream().anyMatch(Objects::isNull)) {
+        if (movementIds.isEmpty()) {
             throw new IllegalArgumentException("Outbound completion requires at least one movement ID");
         }
         if (new HashSet<>(movementIds).size() != movementIds.size()) {

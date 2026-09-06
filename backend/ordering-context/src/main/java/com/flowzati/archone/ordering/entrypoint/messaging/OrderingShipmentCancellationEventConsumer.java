@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.entrypoint.messaging;
 
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
@@ -31,37 +31,13 @@ public class OrderingShipmentCancellationEventConsumer {
     IntegrationEventDispatcher orderingShipmentCancellationIntegrationEventDispatcher(
             IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
-                        FulfillmentChannels.SHIPMENT_EVENTS)
+                        FulfillmentEventDestinations.SHIPMENT_EVENTS)
                 .onEvent(ShipmentCancelledIntegrationEvent.class, envelope -> onShipmentCancelled(envelope.event()))
-                .onEvent(
-                        com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent.class,
-                        envelope -> onShipmentCancelled(envelope.event()))
-                .onEvent(
-                        com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent.class,
-                        envelope -> onShipmentCancelled(envelope.event()))
                 .build();
         return factory.make(OrderingEventSubscriptions.SHIPMENT_CANCELLATIONS, handlers);
     }
 
     void onShipmentCancelled(ShipmentCancelledIntegrationEvent event) {
-        applyCancellation(
-                event.getShipmentId(),
-                event.getCancellationRequestId(),
-                event.getOrderId(),
-                event.getCancelledAt(),
-                event.getCancellationReason());
-    }
-
-    void onShipmentCancelled(com.flowzati.archone.contracts.fulfillment.v2.ShipmentCancelledIntegrationEvent event) {
-        applyCancellation(
-                event.getShipmentId(),
-                event.getCancellationRequestId(),
-                event.getOrderId(),
-                event.getCancelledAt(),
-                event.getCancellationReason());
-    }
-
-    void onShipmentCancelled(com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent event) {
         applyCancellation(
                 event.getShipmentId(),
                 event.getCancellationRequestId(),

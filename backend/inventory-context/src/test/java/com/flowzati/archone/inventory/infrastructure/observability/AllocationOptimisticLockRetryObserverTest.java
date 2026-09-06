@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.inventory.adapter.AllocationOptimisticLockRetryObserver;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.messaging.api.MessageBuilder;
 import com.flowzati.archone.messaging.api.MessageContext;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
@@ -23,8 +22,8 @@ class AllocationOptimisticLockRetryObserverTest {
 
     @Test
     void recordsAllocationRetryAndExhaustionWithBusinessOperationNames() {
-        MessageHandlerInvocation invocation = invocation(
-                ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, OrderPlacedIntegrationEvent.EVENT_TYPE);
+        MessageHandlerInvocation invocation =
+                invocation(AllocationSubscriberIds.ORDER_PLACEMENT, OrderPlacedIntegrationEvent.EVENT_TYPE);
 
         observer.onRetry(invocation, 2);
         observer.onRetry(invocation, 3);
@@ -48,7 +47,7 @@ class AllocationOptimisticLockRetryObserverTest {
     void keepsInventoryAvailabilityOperationClassification() {
         observer.onRetry(
                 invocation(
-                        ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY,
+                        AllocationSubscriberIds.INVENTORY_AVAILABILITY,
                         StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE),
                 2);
 

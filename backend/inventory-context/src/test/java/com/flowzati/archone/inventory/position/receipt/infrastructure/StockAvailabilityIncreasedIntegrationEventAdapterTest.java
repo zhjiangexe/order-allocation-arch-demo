@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.stock.v1.StockContentionKey;
 import com.flowzati.archone.inventory.balance.application.event.StockAvailabilityIncreased;
@@ -45,7 +45,8 @@ class StockAvailabilityIncreasedIntegrationEventAdapterTest {
         String contentionKey = StockContentionKey.of(uuid(1), uuid(2));
         assertThat(aggregate.getValue())
                 .isEqualTo(new AggregateReference(InventoryAggregateTypes.STOCK_POOL, contentionKey));
-        assertThat(target.getValue()).isEqualTo(new PublicationTarget(InventoryChannels.STOCK_EVENTS, contentionKey));
+        assertThat(target.getValue())
+                .isEqualTo(new PublicationTarget(InventoryEventDestinations.STOCK_EVENTS, contentionKey));
     }
 
     private static UUID uuid(long value) {

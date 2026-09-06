@@ -29,10 +29,10 @@ modules, but their implemented capabilities were retained.
 
 - Removed holder: `AllocationEventSubscriptions`
 - Replacements:
-  - `ReservationIntakeEventSubscriptions`
-  - `ReservationAssignmentEventSubscriptions`
+  - `AllocationSubscriberIds`
   - `MovementCancellationEventSubscriptions`
-- Meaning: each subscriber identity is owned by its consuming entrypoint instead of a mixed Allocation holder.
+- Meaning: Allocation groups its order-placement and inventory-availability subscriber identities, while Movement's
+  entrypoint continues to own the cancellation subscriber identity.
 - Preservation: `allocation-ordering-events`, `allocation-inventory-events` and `allocation-order-cancellations` are
   unchanged.
 

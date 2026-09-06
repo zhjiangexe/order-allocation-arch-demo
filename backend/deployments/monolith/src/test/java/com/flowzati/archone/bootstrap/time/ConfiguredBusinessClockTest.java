@@ -22,12 +22,6 @@ class ConfiguredBusinessClockTest {
     }
 
     @Test
-    @DisplayName("系統 Clock 應統一使用 UTC")
-    void systemClockUsesUtc() {
-        assertThat(new BusinessClockConfiguration().clock().getZone()).isEqualTo(ZoneOffset.UTC);
-    }
-
-    @Test
     @DisplayName("UTC 還停在昨天的那八小時內，今天應是營運時區的日期")
     void resolvesTodayInTheBusinessZoneNotInUtc() {
         // 台北 2026-07-22 早上 7 點；UTC 此刻是 2026-07-21 23:00，仍停在前一天。

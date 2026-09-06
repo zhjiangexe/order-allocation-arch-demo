@@ -7,8 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
-import com.flowzati.archone.contracts.promising.v3.OrderAllocationCommittedIntegrationEvent;
+import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
+import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.result.AssignedMove;
 import com.flowzati.archone.inventory.allocation.application.result.AssignedMoveLine;
@@ -30,7 +30,7 @@ class StockOperationAssignedIntegrationEventAdapterTest {
     private static final Instant ASSIGNED_AT = Instant.parse("2026-08-27T02:00:00Z");
 
     @Test
-    void mapsOrderAssignmentToExistingV3ContractAndRouting() {
+    void mapsOrderAssignmentToV1ContractAndRouting() {
         IntegrationEventPublisher integrationEventPublisher = mock(IntegrationEventPublisher.class);
         var adapter = new StockOperationAssignedIntegrationEventAdapter(integrationEventPublisher);
         StockOperationAssignmentResult result = result(MovementSourceType.ORDER, uuid(2).toString());
@@ -54,7 +54,8 @@ class StockOperationAssignedIntegrationEventAdapterTest {
                 });
         assertThat(publication.getValue().aggregate().type()).isEqualTo(OrderingAggregateTypes.ORDER);
         assertThat(publication.getValue().aggregate().id()).isEqualTo(uuid(2).toString());
-        assertThat(publication.getValue().target().destination()).isEqualTo(AllocationChannels.ALLOCATION_EVENTS);
+        assertThat(publication.getValue().target().destination())
+                .isEqualTo(AllocationEventDestinations.ALLOCATION_EVENTS);
         assertThat(publication.getValue().target().partitionKey()).isEqualTo(uuid(2).toString());
         assertThat(publication.getValue().occurredAt()).isEqualTo(ASSIGNED_AT);
     }

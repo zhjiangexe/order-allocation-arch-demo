@@ -3,15 +3,13 @@ package com.flowzati.archone.inventory.adapter;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.inventory.movement.entrypoint.consumer.MovementCancellationEventSubscriptions;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryObserver;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Objects;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -23,11 +21,6 @@ public final class AllocationOptimisticLockRetryObserver implements OptimisticLo
     public static final String RETRY_EXHAUSTED_METRIC = "order_allocation_retry_exhausted_total";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AllocationOptimisticLockRetryObserver.class);
-    private static final Set<String> ALLOCATION_SUBSCRIBERS = Set.of(
-            ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER,
-            MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS,
-            ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY);
-
     private final MeterRegistry meterRegistry;
 
     public AllocationOptimisticLockRetryObserver(MeterRegistry meterRegistry) {
@@ -67,7 +60,9 @@ public final class AllocationOptimisticLockRetryObserver implements OptimisticLo
     }
 
     private boolean observes(MessageHandlerInvocation invocation) {
-        return ALLOCATION_SUBSCRIBERS.contains(invocation.context().subscriberId());
+        String subscriberId = invocation.context().subscriberId();
+        return AllocationSubscriberIds.ALL.contains(subscriberId)
+                || MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS.equals(subscriberId);
     }
 
     private String operation(String messageType) {

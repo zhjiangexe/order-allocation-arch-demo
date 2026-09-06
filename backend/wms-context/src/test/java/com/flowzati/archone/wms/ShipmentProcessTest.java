@@ -3,8 +3,8 @@ package com.flowzati.archone.wms;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;

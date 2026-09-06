@@ -1,8 +1,8 @@
 package com.flowzati.archone.inventory.movement.infrastructure.messaging;
 
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes;
-import com.flowzati.archone.contracts.inventory.v2.StockOperationLifecycleIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
+import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationCompleted;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleAction;
@@ -54,7 +54,7 @@ public final class StockOperationLifecycleTranslator {
                         InventoryAggregateTypes.STOCK_OPERATION,
                         snapshot.stockOperationId().toString()),
                 new PublicationTarget(
-                        InventoryChannels.STOCK_OPERATION_EVENTS,
+                        InventoryEventDestinations.STOCK_OPERATION_EVENTS,
                         snapshot.stockOperationId().toString()),
                 snapshot.occurredAt());
     }

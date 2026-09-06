@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.balance.infrastructure.messaging;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.stock.v1.StockContentionKey;
 import com.flowzati.archone.foundation.identity.IdGenerator;
@@ -34,7 +34,7 @@ public class StockAvailabilityIncreasedIntegrationEventAdapter implements StockA
                         event.sku(),
                         event.quantity()),
                 new AggregateReference(InventoryAggregateTypes.STOCK_POOL, contentionKey),
-                new PublicationTarget(InventoryChannels.STOCK_EVENTS, contentionKey),
+                new PublicationTarget(InventoryEventDestinations.STOCK_EVENTS, contentionKey),
                 event.occurredAt());
     }
 }

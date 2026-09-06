@@ -19,7 +19,7 @@ start
 
 partition "A. 共用 HTTP 入口" {
   :POST /orders/{orderId}/cancellation-requests; <<#E8F1FF>>
-  :OrderCancellationController
+  :OrderCancellationRest
   建立 immutable request
   requestId + requestedAt + reason; <<#E8F1FF>>
   :依 archone.fulfillment.orchestration-mode
@@ -73,7 +73,7 @@ else (temporal)
       outbound movements 與 Order; <<#E2F0D9>>
       stop
     else (否)
-      :保存第一筆 immutable CancellationRequest; <<#FDECEC>>
+      :保存第一筆 immutable CancellationRequestInput; <<#FDECEC>>
       :回 ACK
       ACCEPTED／ALREADY_REQUESTED／ALREADY_CANCELLED; <<#E8F1FF>>
     endif

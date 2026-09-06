@@ -20,7 +20,6 @@ import com.flowzati.archone.wms.receiving.application.usecase.ConfirmPutawayUsec
 import com.flowzati.archone.wms.receiving.application.usecase.RecordInspectionUsecase;
 import com.flowzati.archone.wms.receiving.application.usecase.RegisterInboundOperationUsecase;
 import com.flowzati.archone.wms.receiving.infrastructure.persistence.jpa.repository.JpaInboundOperationRepository;
-import com.flowzati.archone.wms.shipment.application.service.LegacyAllocationPickingResolver;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CompleteShipmentCancellationUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
@@ -40,7 +39,6 @@ class WmsApplicationConfigurationTest {
             .withInitializer(context ->
                     context.getBeanFactory().setConversionService(ApplicationConversionService.getSharedInstance()))
             .withUserConfiguration(WmsApplicationConfiguration.class)
-            .withBean(LegacyAllocationPickingResolver.class, () -> mock(LegacyAllocationPickingResolver.class))
             .withBean(JpaInboundOperationRepository.class, () -> mock(JpaInboundOperationRepository.class))
             .withBean(JpaShipmentRepository.class, () -> mock(JpaShipmentRepository.class))
             .withBean(JpaWaveRepository.class, () -> mock(JpaWaveRepository.class))

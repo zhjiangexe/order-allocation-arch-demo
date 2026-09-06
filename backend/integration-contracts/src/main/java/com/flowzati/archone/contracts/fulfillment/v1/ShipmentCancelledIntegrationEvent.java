@@ -7,14 +7,14 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/** WMS 已完成停止作業與必要 recovery，Shipment 已不可再出貨。 */
+/** WMS completed cancellation and recovery for a stock-operation-backed Shipment. */
 public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
 
     public static final String EVENT_TYPE = "ShipmentCancelledIntegrationEvent";
+    public static final int CONTRACT_VERSION = 1;
 
     private final UUID shipmentId;
-    private final UUID allocationId;
-    private final UUID allocationDemandId;
+    private final UUID stockOperationId;
     private final UUID orderId;
     private final UUID cancellationRequestId;
     private final Instant cancellationRequestedAt;
@@ -25,8 +25,7 @@ public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
     public ShipmentCancelledIntegrationEvent(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("shipmentId") UUID shipmentId,
-            @JsonProperty("allocationId") UUID allocationId,
-            @JsonProperty("allocationDemandId") UUID allocationDemandId,
+            @JsonProperty("stockOperationId") UUID stockOperationId,
             @JsonProperty("orderId") UUID orderId,
             @JsonProperty("cancellationRequestId") UUID cancellationRequestId,
             @JsonProperty("cancellationRequestedAt") Instant cancellationRequestedAt,
@@ -34,8 +33,7 @@ public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
             @JsonProperty("cancelledAt") Instant cancelledAt) {
         super(eventId);
         this.shipmentId = Objects.requireNonNull(shipmentId, "Shipment ID is required");
-        this.allocationId = Objects.requireNonNull(allocationId, "Allocation ID is required");
-        this.allocationDemandId = Objects.requireNonNull(allocationDemandId, "Allocation demand ID is required");
+        this.stockOperationId = Objects.requireNonNull(stockOperationId, "Stock operation ID is required");
         this.orderId = Objects.requireNonNull(orderId, "Order ID is required");
         this.cancellationRequestId =
                 Objects.requireNonNull(cancellationRequestId, "Cancellation request ID is required");
@@ -55,12 +53,8 @@ public final class ShipmentCancelledIntegrationEvent extends IntegrationEvent {
         return shipmentId;
     }
 
-    public UUID getAllocationId() {
-        return allocationId;
-    }
-
-    public UUID getAllocationDemandId() {
-        return allocationDemandId;
+    public UUID getStockOperationId() {
+        return stockOperationId;
     }
 
     public UUID getOrderId() {

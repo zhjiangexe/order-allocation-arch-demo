@@ -27,8 +27,8 @@ import java.util.UUID;
  */
 public final class OrderPlacedIntegrationEvent extends IntegrationEvent {
 
-    /** Kept equal to the existing wire value so this change is backward compatible. */
     public static final String EVENT_TYPE = "OrderPlacedIntegrationEvent";
+    public static final int CONTRACT_VERSION = 1;
 
     private final UUID orderId;
     private final Instant receivedAt;

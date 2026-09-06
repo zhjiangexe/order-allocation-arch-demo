@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.model.OwnerEntity;
 import com.flowzati.archone.messaging.api.MessageBuilder;
@@ -206,7 +206,7 @@ class JdbcMessagingPersistenceIntegrationTest {
             integrationEventPublisher.publish(
                     new OrderPlacedIntegrationEvent(IdGenerator.nextId(), orderId, receivedAt),
                     new AggregateReference(OrderingAggregateTypes.ORDER, orderId.toString()),
-                    new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId.toString()),
+                    new PublicationTarget(OrderingEventDestinations.ORDER_EVENTS, orderId.toString()),
                     receivedAt);
             status.setRollbackOnly();
         });
@@ -227,7 +227,7 @@ class JdbcMessagingPersistenceIntegrationTest {
         integrationEventPublisher.publish(
                 event,
                 new AggregateReference(OrderingAggregateTypes.ORDER, orderId.toString()),
-                new PublicationTarget(OrderingChannels.ORDER_EVENTS, "HOT-SKU"),
+                new PublicationTarget(OrderingEventDestinations.ORDER_EVENTS, "HOT-SKU"),
                 occurredAt);
 
         Map<String, Object> row = jdbcTemplate.queryForMap("""
@@ -240,7 +240,7 @@ class JdbcMessagingPersistenceIntegrationTest {
                 .containsEntry("aggregatetype", OrderingAggregateTypes.ORDER)
                 .containsEntry("aggregateid", orderId.toString())
                 .containsEntry("type", OrderPlacedIntegrationEvent.EVENT_TYPE)
-                .containsEntry("route", OrderingChannels.ORDER_EVENTS)
+                .containsEntry("route", OrderingEventDestinations.ORDER_EVENTS)
                 .containsEntry("partition_key", "HOT-SKU");
         assertThat(((Timestamp) row.get("timestamp")).toInstant()).isEqualTo(occurredAt);
         JsonNode payload = objectMapper.readTree(row.get("payload").toString());
@@ -267,12 +267,12 @@ class JdbcMessagingPersistenceIntegrationTest {
                     integrationEventPublisher.publish(
                             event,
                             new AggregateReference(OrderingAggregateTypes.ORDER, orderId.toString()),
-                            new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId.toString()),
+                            new PublicationTarget(OrderingEventDestinations.ORDER_EVENTS, orderId.toString()),
                             occurredAt);
                     integrationEventPublisher.publish(
                             event,
                             new AggregateReference(OrderingAggregateTypes.ORDER, orderId.toString()),
-                            new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId.toString()),
+                            new PublicationTarget(OrderingEventDestinations.ORDER_EVENTS, orderId.toString()),
                             occurredAt);
                 }))
                 .isInstanceOf(DataIntegrityViolationException.class);

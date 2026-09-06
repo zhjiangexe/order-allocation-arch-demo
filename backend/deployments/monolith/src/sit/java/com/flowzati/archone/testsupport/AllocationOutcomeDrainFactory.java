@@ -1,6 +1,6 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
@@ -25,7 +25,7 @@ public class AllocationOutcomeDrainFactory {
         this.jdbcTemplate = jdbcTemplate;
         this.messageMapper = messageMapper;
         this.transport = transport;
-        this.physicalDestination = channelMapping.transform(AllocationChannels.ALLOCATION_EVENTS);
+        this.physicalDestination = channelMapping.transform(AllocationEventDestinations.ALLOCATION_EVENTS);
     }
 
     public AllocationOutcomeDrain create() {

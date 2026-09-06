@@ -107,7 +107,7 @@ WMS 內部的 `PUTBACK_REQUIRED`、停止作業或回庫細節；同時讓 Event
   - `cancellationRequestedAt`
   - `cancellationReason`
   - `cancelledAt`
-- 在 `FulfillmentChannels` 新增獨立 destination，例如 `SHIPMENT_EVENTS = "wms.shipment-events"`。
+- 在 `FulfillmentEventDestinations` 新增獨立 destination，例如 `SHIPMENT_EVENTS = "wms.shipment-events"`。
 - 新增 `ShipmentCancelledPublicationFactory`。
 - `CancelShipmentUsecase` 在直接進入 `CANCELLED` 時，與 aggregate save 同 transaction 發布事件。
 - 新增 `CompleteShipmentCancellationUsecase`；deferred recovery 完成時發布相同事件。

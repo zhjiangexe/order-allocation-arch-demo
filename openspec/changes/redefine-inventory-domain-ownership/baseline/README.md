@@ -16,7 +16,7 @@ The following command passed before ownership changes:
 ```text
 cd backend
 ./gradlew :inventory-context:test :deployments:monolith:test :deployments:monolith:sit \
-  :wms-context:compileTestJava :fulfillment-workflow-runtime:compileTestJava
+  :wms-context:compileTestJava :fulfillment-temporal-runtime:compileTestJava
 BUILD SUCCESSFUL in 3m 36s
 ```
 

@@ -14,11 +14,11 @@ skinparam ActivityStartColor #2563EB
 skinparam ActivityEndColor #2563EB
 
 start
-:execute(OrderFulfillmentWorkflowInput);
+:execute(OrderFulfillmentInput);
 :取得 processId;
 
 partition "1. Shipment 建立前：配貨" {
-  :AllocationCheckpoint.waiting();
+  :assignmentCheckpoint.markRequested();
   :enterPhase(ALLOCATION);
   :RequestAllocation Activity; <<#E8F1FF>>
   :Workflow.await(isCommitted()\n或 cancellation.isRequested()); <<#FFF7D6>>
@@ -29,41 +29,43 @@ partition "1. Shipment 建立前：配貨" {
     :finishCancellation(); <<#FDECEC>>
     stop
   else (否)
-    :requireCommittedSnapshot();
+    :assignmentCheckpoint.assignmentSnapshot();
   endif
 }
 
-partition "2. WMS 建立 Shipment" {
-  :enterPhase(WMS_SHIPMENT_CREATION);
-  :CreateShipment Activity; <<#E8F1FF>>
+partition "2. 下達倉庫出庫需求" {
+  :enterPhase(WAREHOUSE_RELEASE);
+  :releaseToWarehouse Activity; <<#E8F1FF>>
   :CreateShipmentUsecase
-  以 allocationId 冪等建立／讀回; <<#E2F0D9>>
+  以 stockOperationId 冪等建立／讀回; <<#E2F0D9>>
   :ShipmentCheckpoint.recordCreated(shipmentId);
 }
 
 partition "3. Shipment 已建立：等待 handover，可被取消中斷" {
-  :enterPhase(SHIPMENT_HANDOVER);
+  :enterPhase(WAREHOUSE_EXECUTION);
   :Workflow.await(shipment.hasTerminal()\n或 cancellation.isRequested()); <<#FFF7D6>>
   note right
     等待期間由 WMS 可設定延遲的模擬 runtime 獨立執行：
     Wave -> Release -> Pick -> Pack -> Stage -> Handover
   end note
 
-  if (cancellation.isRequested() 且
-  尚無 correlated terminal？) then (是)
-    :requestShipmentCancellation(); <<#FDECEC>>
-    note right
-      詳細展開於 cancellation-flow 圖：
-      Activity 只確認 command 已提交；
-      終態由 canonical event Signal 決定。
-    end note
-    :Workflow.await(shipment.hasTerminal()); <<#FFF7D6>>
+  if (cancellation.isRequested()？) then (是)
+    :enterPhase(CANCELLATION); <<#FDECEC>>
+    if (尚無 correlated terminal？) then (是)
+      :requestShipmentCancellation(); <<#FDECEC>>
+      note right
+        詳細展開於 cancellation-flow 圖：
+        Activity 只確認 command 已提交；
+        終態由 canonical event Signal 決定。
+      end note
+      :Workflow.await(shipment.hasTerminal()); <<#FFF7D6>>
+    endif
   else (否)
     :既有 terminal 直接決定路線；
     handover 先到時不再提交取消 command; <<#FFF7D6>>
   endif
 
-  :terminal = shipment.requireTerminal();
+  :terminal = shipment.terminalOutcome();
 
   if (terminal = CANCELLED？) then (是)
     :以 ShipmentCancelled.cancelledAt
@@ -76,8 +78,8 @@ partition "3. Shipment 已建立：等待 handover，可被取消中斷" {
   endif
 }
 
-partition "4. 出庫完成" {
-  :enterPhase(OUTBOUND_COMPLETION);
+partition "4. Inventory 庫存與移動紀錄收尾" {
+  :enterPhase(INVENTORY_FINALIZATION);
   :CompleteOutboundMovements Activity; <<#E8F1FF>>
   :依 MoveLine 正式扣 reserved + on-hand；
   Move／Operation = DONE; <<#E2F0D9>>

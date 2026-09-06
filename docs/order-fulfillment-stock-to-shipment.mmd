@@ -18,17 +18,17 @@ flowchart TB
     WAIT[Same moves remain CONFIRMED]
     WAKE[Availability event or backlog scheduler]
     ASSIGN[Assign existing moves atomically]
-    FACT[Order assignment v3<br/>stockOperationId + moves + batches]
+    FACT[Order assignment v1<br/>stockOperationId + moves + batches]
     COMPLETE[Complete operation<br/>Moves = DONE / Quant consumed]
     AUDIT[Lifecycle audit Outbox]
-    OC[Outbound completion v3]
+    OC[Outbound completion v1]
   end
 
   subgraph W[WMS]
     CREATE[Create Shipment by stockOperationId]
     OPS[Wave → Pick → Pack → Stage]
     HAND[Hand over to carrier]
-    SH[ShipmentHandedOver v3]
+    SH[ShipmentHandedOver v1]
   end
 
   PLACE --> OP --> MODE

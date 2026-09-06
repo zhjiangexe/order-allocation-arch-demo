@@ -5,7 +5,7 @@
 > 範圍：WMS 與未來跨系統 fulfillment orchestration
 
 現行決策見 [`order-fulfillment-temporal-hybrid-architecture.md`](order-fulfillment-temporal-hybrid-architecture.md)：
-專案保留 Kafka-only profile，同時以 `fulfillment-workflow-runtime` 內的 order-level workflow 比較一條粗粒度、跨
+專案保留 Kafka-only profile，同時以 `orchestration-temporal-runtime` 內的 order-level workflow 比較一條粗粒度、跨
 Order Promising／WMS／Stock 的 Temporal orchestration。Temporal 不接管 Pick／Pack／Stage
 等 WMS 內部流程，而且同一環境只能啟用一個 command driver。
 
@@ -14,7 +14,7 @@ Temporal。
 
 ## 原始決策
 
-目前不在專案導入 Temporal，並移除 `fulfillment-workflow`、`fulfillment-workflow-wms-adapter`、`fulfillment-workflow-runtime` prototype modules。
+目前不在專案導入 Temporal，並移除 `fulfillment-workflow`、`fulfillment-workflow-wms-adapter`、`fulfillment-temporal-runtime` prototype modules。
 
 現階段 fulfillment 業務只保留 `wms` module。另有 `foundation`、`integration-contracts`、`messaging:*` 與 `platform-infrastructure` 提供共用技術與整合契約，但它們不是 workflow／orchestration modules。Pick、Pack、Stage、Loading、Cancellation／Putback 等倉內行為，由 WMS application use case、domain model、process state 與 committed domain event 表達；跨 bounded context 的通知沿用 Outbox／Kafka。高頻掃碼、task、排程與設備控制不放入外部 workflow engine。
 

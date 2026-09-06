@@ -1,7 +1,8 @@
 package com.flowzati.archone.wms.shipment.infrastructure.messaging;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentAggregateTypes;
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -23,7 +24,7 @@ public class ShipmentCancelledIntegrationEventAdapter implements ShipmentCancell
     @Override
     public void publish(ShipmentCancelled event) {
         integrationEventPublisher.publish(
-                new com.flowzati.archone.contracts.fulfillment.v3.ShipmentCancelledIntegrationEvent(
+                new ShipmentCancelledIntegrationEvent(
                         IdGenerator.nextId(),
                         event.shipmentId(),
                         event.stockOperationId(),
@@ -33,10 +34,10 @@ public class ShipmentCancelledIntegrationEventAdapter implements ShipmentCancell
                         event.cancellationReason(),
                         event.cancelledAt()),
                 new AggregateReference(
-                        FulfillmentAggregateTypes.WMS_SHIPMENT,
-                        event.shipmentId().toString()),
+                        FulfillmentAggregateTypes.SHIPMENT, event.shipmentId().toString()),
                 new PublicationTarget(
-                        FulfillmentChannels.SHIPMENT_EVENTS, event.orderId().toString()),
+                        FulfillmentEventDestinations.SHIPMENT_EVENTS,
+                        event.orderId().toString()),
                 event.cancelledAt());
     }
 }

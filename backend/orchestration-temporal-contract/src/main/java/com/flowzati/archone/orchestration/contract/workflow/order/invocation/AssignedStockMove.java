@@ -1,0 +1,17 @@
+package com.flowzati.archone.orchestration.contract.workflow.order.invocation;
+
+import java.util.Objects;
+import java.util.UUID;
+
+/** One assigned Inventory movement needed by WMS execution. */
+public record AssignedStockMove(UUID orderLineId, UUID moveId, String skuCode, UUID sourceLocationId, int quantity) {
+
+    public AssignedStockMove {
+        Objects.requireNonNull(orderLineId, "Order line ID is required");
+        Objects.requireNonNull(moveId, "Move ID is required");
+        Objects.requireNonNull(sourceLocationId, "Source location ID is required");
+        if (skuCode == null || skuCode.isBlank() || quantity <= 0) {
+            throw new IllegalArgumentException("Assigned movement requires SKU and positive quantity");
+        }
+    }
+}

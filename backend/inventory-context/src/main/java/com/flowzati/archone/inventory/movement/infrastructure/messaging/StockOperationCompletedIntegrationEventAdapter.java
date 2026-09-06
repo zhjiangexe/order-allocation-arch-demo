@@ -1,7 +1,8 @@
 package com.flowzati.archone.inventory.movement.infrastructure.messaging;
 
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationCompleted;
 import com.flowzati.archone.inventory.movement.application.port.StockOperationCompletedPublisher;
@@ -25,21 +26,20 @@ public class StockOperationCompletedIntegrationEventAdapter implements StockOper
     @Override
     public void publish(StockOperationCompleted event) {
         var snapshot = event.snapshot();
-        var fulfillmentEvent =
-                new com.flowzati.archone.contracts.fulfillment.v3.OutboundMovementsCompletedIntegrationEvent(
-                        IdGenerator.nextId(),
-                        snapshot.stockOperationId(),
-                        event.orderId(),
-                        event.shipmentId(),
-                        snapshot.moves().stream().map(move -> move.moveId()).toList(),
-                        snapshot.occurredAt());
+        var fulfillmentEvent = new OutboundMovementsCompletedIntegrationEvent(
+                IdGenerator.nextId(),
+                snapshot.stockOperationId(),
+                event.orderId(),
+                event.shipmentId(),
+                snapshot.moves().stream().map(move -> move.moveId()).toList(),
+                snapshot.occurredAt());
         var fulfillmentPublication = new IntegrationEventPublication(
                 fulfillmentEvent,
                 new AggregateReference(
                         InventoryAggregateTypes.STOCK_OPERATION,
                         snapshot.stockOperationId().toString()),
                 new PublicationTarget(
-                        FulfillmentChannels.FULFILLMENT_HANDOFFS,
+                        FulfillmentEventDestinations.FULFILLMENT_HANDOFFS,
                         event.orderId().toString()),
                 snapshot.occurredAt());
 

@@ -15,7 +15,7 @@ Recorded on 2026-08-27 (Asia/Taipei) before the stock-operation rename.
 
 | Scope | Command | Result |
 | --- | --- | --- |
-| Integration contracts, workflow contracts/runtime, Inventory, WMS, monolith unit and architecture tests | `cd backend && ./gradlew :integration-contracts:test :fulfillment-workflow-contract:test :fulfillment-workflow-runtime:test :inventory-context:test :wms-context:test :deployments:monolith:test --rerun-tasks` | PASS; 78 Gradle tasks executed |
+| Integration contracts, workflow contracts/runtime, Inventory, WMS, monolith unit and architecture tests | `cd backend && ./gradlew :integration-contracts:test :fulfillment-temporal-contract:test :fulfillment-temporal-runtime:test :inventory-context:test :wms-context:test :deployments:monolith:test --rerun-tasks` | PASS; 78 Gradle tasks executed |
 | PostgreSQL migrations, persistence, concurrency, FIFO/FEFO, Outbox, Inventory/WMS event chain | `cd backend && ./gradlew :deployments:monolith:sit --rerun-tasks` | PASS; 71 Gradle tasks executed |
 | Events and Temporal order-to-allocation-to-WMS flows | `make e2e` | PASS; all Karate suites passed |
 

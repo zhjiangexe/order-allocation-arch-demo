@@ -19,9 +19,9 @@ processing delay 的 scheduler 模擬（預設 10 秒；E2E 使用 0 秒／30 �
 ```text
 Order accepted
   -> Request stock-operation assignment Activity
-  -> wait StockOperationAssigned / CancellationRequest
+  -> wait StockOperationAssigned / CancellationRequestInput
   -> Create shipment Activity (returns shipmentId)
-  -> wait ShipmentHandedOverToCarrierSignal / CancellationRequest
+  -> wait ShipmentHandedOverToCarrierInput / CancellationRequestInput
   -> Complete outbound movements Activity
   -> Record order fulfilled Activity
   -> FULFILLMENT_COMPLETED
@@ -170,7 +170,7 @@ PlaceOrder transaction
   -> Order + OrderPlaced Outbox commit
   -> Debezium / Kafka
   -> Temporal starter
-  -> WorkflowClient.start(execute, OrderFulfillmentWorkflowInput(orderId, orderReceivedAt))
+  -> WorkflowClient.start(execute, OrderFulfillmentInput(orderId, orderReceivedAt))
 ```
 
 Workflow ID 固定為 `order-fulfillment/{orderId}`，task queue 為
@@ -188,16 +188,16 @@ adapter 應 retry／告警；若取消命令不能依賴呼叫端重試，先把
 adapter 投遞。一次 HTTP RPC 成功與否不能成為取消命令唯一的 durable storage。
 
 只有未來出現明確的「取消必須立即同步受理」SLA，而且取消 client 能可靠取得完整、權威的
-`OrderFulfillmentWorkflowInput`，才重新評估 Update-With-Start。本階段不為尚未選定的 client initiation policy 保留
+`OrderFulfillmentInput`，才重新評估 Update-With-Start。本階段不為尚未選定的 client initiation policy 保留
 production contract 或專用測試。
 
-`StockOperationAssignmentSnapshot`、`ShipmentCancelledSignal` 與 `ShipmentHandedOverToCarrierSignal` 是由既有 Integration Event
+`StockOperationAssignedInput`、`ShipmentCancelledInput` 與 `ShipmentHandedOverToCarrierInput` 是由既有 Integration Event
 轉入 Workflow 的 business facts，只能 Signal existing Workflow。
 它們不得使用 Signal-With-Start 取得建立流程的權限；找不到 execution 時由 adapter retry／告警。
 
 `stockOperationAssigned` 必須由本 Workflow 的 `RequestOrderAllocation` Activity 所觸發，因此因果順序固定為
-`WAITING_FOR_COMMITMENT -> RequestOrderAllocation -> stockOperationAssigned`。legacy `pickingAssigned` 只供
-既有 Temporal history replay，兩者立即 normalize 到同一 checkpoint。若 fact 在 checkpoint 尚未開始前
+`REQUESTED -> RequestOrderAllocation -> stockOperationAssigned`。由於 workflow 尚未發布，不保留
+pre-release `pickingAssigned` signal。若 fact 在 checkpoint 尚未開始前
 抵達，代表 driver 互斥或 adapter routing invariant 被破壞，應由 adapter retry／告警，而不是在每個
 Workflow handler 建立通用 early-message buffer。
 
@@ -205,16 +205,17 @@ Workflow handler 建立通用 early-message buffer。
 
 | Contract | Owner / worker | Task queue | 工作 |
 | --- | --- | --- | --- |
-| `InventoryActivities` | `inventory-context` 的 `TemporalInventoryActivitiesAdapter` | `order-promising-activities` | 要求配貨、完成 outbound movements |
-| `OrderingActivities` | `ordering-context` 的 `TemporalOrderingActivitiesAdapter` | `order-promising-activities` | 將 Order 記為 fulfilled／cancelled |
-| `WmsActivities` | `wms-context` 的 `TemporalWmsActivitiesAdapter` | `wms-activities` | 冪等建立 Shipment；提交 cancellation command，終態另由 canonical event 回報 |
+| `InventoryAllocationActivities` | `inventory-context` 的 `TemporalInventoryAllocationActivitiesAdapter` | `order-promising-activities` | 要求配貨 |
+| `InventoryMovementActivities` | `inventory-context` 的 `TemporalInventoryMovementActivitiesAdapter` | `order-promising-activities` | 完成 outbound movements |
+| `OrderActivities` | `ordering-context` 的 `TemporalOrderActivitiesAdapter` | `order-promising-activities` | 將 Order 記為 fulfilled／cancelled |
+| `ShipmentActivities` | `wms-context` 的 `TemporalShipmentActivitiesAdapter` | `wms-activities` | 冪等建立 Shipment；提交 cancellation command，終態另由 canonical event 回報 |
 
-所有 interfaces 與 transport DTOs 位於 `fulfillment-workflow-contract`；
-`OrderFulfillmentWorkflowImpl` 留在 `fulfillment-workflow-runtime`。Activity adapters 由各 bounded
+所有 interfaces 與 transport DTOs 位於 `orchestration-temporal-contract`；
+`OrderFulfillmentWorkflowImpl` 留在 `orchestration-temporal-runtime`。Activity adapters 由各 bounded
 context 擁有，`deployments:monolith` 只負責建立 client／workers 並註冊 adapters。
 
-目前 Ordering 與 Inventory 都部署在 monolith，所以為了保持既有 Workflow history 相容性，
-兩個 contracts 仍共用 `order-promising-activities` task queue。未來拆成不同服務時，要透過
+目前 Ordering 與 Inventory 都部署在 monolith，所以兩個 contracts 共用 `order-promising-activities`
+task queue。未來拆成不同服務時，要透過
 Workflow versioning 切換 task queue，不能直接改掉進行中 execution 的命令屬性。
 
 ### Event-driven 與 Temporal 共用 WMS use case
@@ -222,10 +223,10 @@ Workflow versioning 切換 task queue，不能直接改掉進行中 execution �
 兩種 driver 都委派同一個 `CreateShipmentUsecase`，但 entrypoint 對輸出的使用不同：
 
 ```text
-OrderAllocationCommittedIntegrationEvent v3 (stock-operation/move identity)
+OrderAllocationCommittedIntegrationEvent v1 (stock-operation/move identity)
   -> event driver: WMS consumer -> CreateShipmentUsecase -> ignore CreateShipmentResult
   -> temporal driver: Workflow Signal -> CreateShipment Activity -> CreateShipmentUsecase
-                                         -> map CreateShipmentResult to CreateShipmentActivityResult
+                                         -> map CreateShipmentResult to ReleaseToWarehouseActivityResult
 ```
 
 `CreateShipmentUsecase` 回傳 application-layer `CreateShipmentResult(shipmentId)`，不再把 domain
@@ -257,10 +258,10 @@ void，canonical assignment fact 同時也是 Events mode 與其他 subscribers 
 
 ```text
 requestAllocation() returns void
-OrderAllocationCommitted v3 -> stockOperationAssigned Signal
+OrderAllocationCommitted v1 -> stockOperationAssigned Signal
 ```
 
-若未來希望 Activity 直接回傳 `StockOperationAssignmentSnapshot`，必須連同 Events/Temporal command ownership 與
+若未來希望 Activity 直接回傳 `StockOperationAssignedInput`，必須連同 Events/Temporal command ownership 與
 Workflow history versioning 一起變更；不能只在其中一條 driver 捷徑同步讀 Inventory。
 
 ### Workflow checkpoint 不鏡像 Order 狀態
@@ -268,12 +269,12 @@ Workflow history versioning 一起變更；不能只在其中一條 driver 捷�
 Ordering 的 `OrderStatus` 是業務真相；Workflow 只保存是否具備進入 WMS 的條件：
 
 ```text
-NOT_REQUESTED -> WAITING_FOR_COMMITMENT -> COMMITTED
+NOT_REQUESTED -> REQUESTED -> COMMITTED
 ```
 
 等待補貨的 confirmed `StockOperation`、`StockMove` 與 queue position 仍由 Inventory domain model
 與 read model 呈現；它們不會改變跨服務協調路徑，因此不送進 Workflow，也不發布第二種
-backorder result event。只有 assignment 真正完成時，adapter 才將帶完整 snapshot 的 v3 fact 映射為
+backorder result event。只有 assignment 真正完成時，adapter 才將帶完整 snapshot 的 V1 fact 映射為
 `stockOperationAssigned` Signal。Workflow 因而不維護第二套 `CONFIRMED／ASSIGNED` Inventory 狀態機。
 
 目前沒有「配貨等待超過 N 小時就失敗或告警」的真實業務政策，所以 Workflow
@@ -306,10 +307,10 @@ WMS 的 `CancelShipmentUsecase` 只回傳 command 結果：`ACCEPTED`、`ALREADY
 `CANCELLED／COMPLETED`。兩種路徑都只在終態成立後發布 `ShipmentCancelledIntegrationEvent`。
 
 Temporal Activity 使用 void return，只確認 cancellation command transaction 已提交。Workflow 隨後等待
-`ShipmentCancelledSignal` 或 `ShipmentHandedOverToCarrierSignal`；Events mode 則由
+`ShipmentCancelledInput` 或 `ShipmentHandedOverToCarrierInput`；Events mode 則由
 `OrderingShipmentCancellationEventConsumer` 消費同一個 `ShipmentCancelledIntegrationEvent`。因此
 `cancellationRequestedAt` 始終是原始請求時間，而 Order 與 Shipment 的 `cancelledAt` 是真正完成時間。
-`ShipmentCancelledSignal` 同時保留 `cancellationRequestId`，Signal handler 必須先與 Update 記錄的 request
+`ShipmentCancelledInput` 同時保留 `cancellationRequestId`，Signal handler 必須先與 Update 記錄的 request
 完成 correlation，才可寫入 `ShipmentCheckpoint` 的 terminal fact。
 Workflow Query snapshot 以 `shipmentTerminalStatus` 與 `shipmentTerminalAt` 明確呈現同一個結果；前者在終態前為
 `null`，終態後只能是 `CANCELLED` 或 `HANDED_OVER`。
@@ -337,16 +338,25 @@ Ordering cancellation transaction／Outbox 已提交。由 `OrderCancelledIntegr
 WMS command 會回 `REJECTED`，但 Order 已是 `CANCELLED`，會產生無法自癒的跨邊界不一致。因此 Shipment
 階段的取消必須等 WMS 的 cancellation terminal fact；handover 若勝出，後續是 Return flow，不是 cancellation compensation。
 
-## 為何 WMS 使用具體 terminal Signal
+## 下達倉庫出庫需求與 terminal Signal
+
+Java Activity 方法使用 `releaseToWarehouse`，input／result 為 `ReleaseToWarehouseActivityInput`／
+`ReleaseToWarehouseActivityResult`。此處的 release 表示上游下達倉庫需求，不是 WMS 的 Wave Release。
+WMS 內部繼續使用 `CreateShipmentUsecase`；Activity 返回只代表需求建單已提交。
+Temporal Activity type 保留 `CreateWmsShipment`，Activity payload 欄位不變。
+Query phase 使用 `WAREHOUSE_RELEASE`、`WAREHOUSE_EXECUTION`、`INVENTORY_FINALIZATION`；
+配貨狀態使用 `NOT_REQUESTED -> REQUESTED -> COMMITTED`。`REQUESTED` 表示 Workflow 已發起請求，
+不保證 Activity 已成功返回，也不代表取消結束後仍在等待。這些 enum 名稱是公開 Query contract，
+使用舊名稱的呼叫端需同步更新。
 
 `CreateShipmentUsecase` 已以 `stockOperationId` 作 business idempotency key：第一次建立，重試時讀回
-既有 Shipment。因此 Activity 能可靠回傳 `CreateShipmentActivityResult(shipmentId)`。這個結果只表示建單
+既有 Shipment。因此 Activity 能可靠回傳 `ReleaseToWarehouseActivityResult(shipmentId)`。這個結果只表示建單
 transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已完成。
 
 目前 WMS 沒有「建單接單／拒單」這個真實 domain policy。保留 `wmsFulfillmentResponded`、
 `WMS_REJECTED`、`WMS_RESPONSE_TIMED_OUT` 只會把 Activity 技術失敗偽裝成業務狀態，故移除。
 但 cancellation 與 handover 是稍後可能由人員、設備或 recovery 產生的互斥物理事實，因此分別保留
-`ShipmentCancelledSignal` 與 `ShipmentHandedOverToCarrierSignal`，而不是重新引入模糊的 response Signal。
+`ShipmentCancelledInput` 與 `ShipmentHandedOverToCarrierInput`，而不是重新引入模糊的 response Signal。
 
 ## 一致性與失敗語意
 
@@ -356,14 +366,14 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 - `CancelShipmentStatus.ACCEPTED／ALREADY_ACCEPTED／REJECTED` 等 command 結果使用 typed result，不用例外控制流程。
 - Activity implementation 必須呼叫完整 transaction-boundary use case，不直接操作 repository。
 - `CreateShipment`、`CancelShipment`、`CancelOrder`、`CompleteOutboundMovements`、`RecordOrderFulfillment` 都必須可冪等。
-- `ShipmentHandedOverIntegrationEvent` 進入 Temporal 後轉成 `ShipmentHandedOverToCarrierSignal`；這是物理世界稍後發生的事實，因此保留 Signal。
+- `ShipmentHandedOverIntegrationEvent` 進入 Temporal 後轉成 `ShipmentHandedOverToCarrierInput`；這是物理世界稍後發生的事實，因此保留 Signal。
 - `CancelShipment` Activity 只確認 command 已提交；`ShipmentCancelled`／`ShipmentHandedOver` canonical event 轉成具體 terminal Signal。
 - `requestCancellation` 是 Temporal profile 唯一取消 command，使用 Update；`OrderCancelledIntegrationEvent` 不回送同一個 Workflow。
 - `requestCancellation` 以 Update validator 在寫入 History 前拒絕不屬於此 Order 的請求；已 handover 等業務結果仍由 handler 回傳明確 ACK。
 - Update-With-Start 尚未採用；正常建立權威是 `OrderPlaced` -> ordinary start，取消只 Update existing Workflow。
 - `ORDER_CANCELLED` 不等待 Stock 的 event-driven movement release；若未來要求 end-to-end cleanup，再新增明確完成 fact，不以名稱暗示已完成。
 - `CancellationCheckpoint` 只收納 replay 所需欄位，不封裝另一套 aggregate/state-machine API；流程轉換留在具名方法。
-- `OrderFulfillmentWorkflowCancellationState` 只記錄 `NONE／REQUESTED／ORDER_CANCELLED`；正常履約與取消是由
+- `OrderFulfillmentCancellationState` 只記錄 `NONE／REQUESTED／ORDER_CANCELLED`；正常履約與取消是由
   Shipment terminal fact 決定的兩條路線，不另建 Workflow `REJECTED` 路線。nullable request／timestamp 只表示
   payload 尚未產生，並集中由 correlation 或 `require...` invariant 檢查處理。
 - Order 只有在 outbound movements 已完成後才進入 `FULFILLED`。
@@ -375,7 +385,7 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 ### Gate A：契約與 Workflow 主線
 
 - [x] 依 worker ownership 拆分 Activity contract 與 task queue。
-- [x] WMS Activity 直接回傳非 null 的 `CreateShipmentActivityResult`；Workflow 以 `ShipmentCheckpoint`
+- [x] WMS Activity 直接回傳非 null 的 `ReleaseToWarehouseActivityResult`；Workflow 以 `ShipmentCheckpoint`
       一併保存權威 `shipmentId` 與 correlated terminal fact。
 - [x] 移除虛構的 WMS response Signal、timeout 與 rejection outcome。
 - [x] 移除 allocation／dispatch deadline outcome 與告警 Activity；逾期政策改走正常取消入口。
@@ -397,15 +407,15 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 ### Gate C：Activity adapters
 
 - [x] 新增 outbound-only 的 `CompleteOutboundMovementsUsecase`。
-- [x] 將 Workflow／Activity interfaces 抽到 `fulfillment-workflow-contract`，Workflow implementation 留在 runtime。
+- [x] 將 Workflow／Activity interfaces 抽到 `orchestration-temporal-contract`，Workflow implementation 留在 runtime。
 - [x] 將混合 Inventory／Ordering 的 Activity implementation 拆成 context-owned Temporal adapters。
-- [x] `TemporalWmsActivitiesAdapter` 位於 `wms-context`，委派 `CreateShipmentUsecase`、`CancelShipmentUsecase`；取消 Activity 不回傳物理終態。
+- [x] `TemporalShipmentActivitiesAdapter` 位於 `wms-context` 的 Shipment capability，委派 `CreateShipmentUsecase`、`CancelShipmentUsecase`；取消 Activity 不回傳物理終態。
 - [x] `CreateShipmentUsecase` 以 transaction 包住 repository、domain event／Outbox，並在 Activity
       boundary 強制 non-null receipt；資料庫對 `stock_operation_id` 建立 unique constraint。
 - [ ] 接通逾期／人工取消 entrypoint；只呼叫 existing Workflow Update，找不到 execution 時 retry／告警，不直接 cancel Temporal execution。
 - [x] Activity adapters 將 `CancelWmsShipment`、`CancelOrder` 委派給對應 use case，並將 immutable request conflict 映射為 non-retryable failure。
 - [x] WMS 內部以 `CANCELLING` backlog 模擬 recovery completion，完成後發布 canonical `ShipmentCancelledIntegrationEvent`。
-- [x] Workflow、Inventory／Ordering Activities、WMS Activities 由 monolith 組裝並 poll 對應 task queue。
+- [x] Workflow、Inventory Allocation／Movement、Order、Shipment Activities 由 monolith 組裝並 poll 對應 task queue。
 
 ### Gate D：runtime 與雙 driver 比較
 
@@ -419,14 +429,14 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 ### Gate E：演進條件（延後）
 
 - [ ] 若要讓 assignment 改由 Activity return，需先設計 driver ownership、contract 與 Workflow history versioning。
-- [ ] 只有出現立即取消 SLA 且 client 能取得權威 `OrderFulfillmentWorkflowInput` 時，才評估 Update-With-Start。
+- [ ] 只有出現立即取消 SLA 且 client 能取得權威 `OrderFulfillmentInput` 時，才評估 Update-With-Start。
 - [ ] 真實 WMS rejection／reroute policy 出現後，引入 fulfillment attempt model。
 - [ ] 支援一張 Order 多 Shipment 時，以「全部 Shipment 已離倉」決定 `FULFILLED`。
 - [ ] 依 event history 大小決定是否使用 Continue-As-New。
 
 ## 本階段驗證
 
-- `cd backend && ./gradlew :fulfillment-workflow-runtime:check`
+- `cd backend && ./gradlew :orchestration-temporal-runtime:check`
 - `cd backend && ./gradlew :deployments:monolith:test`
 - `cd backend && ./gradlew :deployments:monolith:sit`（包含 PostgreSQL／Flyway／JPA）
 - `cd backend && ./gradlew test`

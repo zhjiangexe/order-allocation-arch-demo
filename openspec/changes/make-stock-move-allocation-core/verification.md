@@ -28,7 +28,7 @@ evidence; every removed requirement is covered by source/schema absence checks o
 | Pure planning and exact shared-SKU precedence | `MovementAssignmentPlanner`, `PendingPickingSelectionImpl` | `MovementAssignmentPlannerTest`, `PendingPickingSelectionImplTest`, `PendingPickingSelectionPersistenceIntegrationTest` |
 | Atomic assignment and deterministic locks | `AssignPickingUsecase`, move-id ordered repository locks, globally ordered quant locks | `AssignPickingUsecaseTest`, `AllocationWorkflowEndToEndIntegrationTest`, concurrency SIT |
 | Release, cancellation and completion | `ReleasePickingUsecase`, `PickingCancellationTransactions`, `CompletePickingUsecase` | focused lifecycle unit tests and PostgreSQL workflow SIT |
-| V2 boundary and retained V1 replay | move-centric contracts, WMS/Temporal tolerant consumers, `MoveBackedLegacyAllocationPickingResolver` | JSON contract tests and focused WMS/Temporal compatibility tests |
+| V2 boundary and retained V1 replay | move-centric contracts, WMS/Temporal tolerant consumers, `MoveBackedLegacyAllocationStockOperationResolver` | JSON contract tests and focused WMS/Temporal compatibility tests |
 | Migration and removal of parallel persistence | V21–V29 expand/backfill/validate/contract chain | `MigrationChecksumGuardTest`, `DatabaseFoundationIntegrationTest`, schema SIT and architecture tests |
 | Runtime convergence and cross-context ownership | backlog scheduler, lifecycle Outbox facts, WMS shipment keyed by `pickingId` | complete backend suite and 17-scenario Events/Temporal E2E |
 

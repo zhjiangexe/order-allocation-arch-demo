@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.entrypoint.consumer;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.inventory.movement.application.invocation.CancelSourceStockMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelSourceStockMovementsUsecase;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
@@ -28,7 +28,7 @@ public class AllocationOrderCancellationEventConsumer {
     IntegrationEventDispatcher allocationOrderCancellationIntegrationEventDispatcher(
             IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
-                        OrderingChannels.ORDER_EVENTS)
+                        OrderingEventDestinations.ORDER_EVENTS)
                 .onEvent(OrderCancelledIntegrationEvent.class, envelope -> onOrderCancelled(envelope.event()))
                 .build();
         return factory.make(MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS, handlers);

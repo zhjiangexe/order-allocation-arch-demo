@@ -1,10 +1,9 @@
 package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -30,10 +29,10 @@ public class AllocationOrderPlacedEventConsumer {
     IntegrationEventDispatcher allocationOrderPlacedIntegrationEventDispatcher(
             IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
-                        OrderingChannels.ORDER_EVENTS)
+                        OrderingEventDestinations.ORDER_EVENTS)
                 .onEvent(OrderPlacedIntegrationEvent.class, envelope -> onOrderPlaced(envelope.event()))
                 .build();
-        return factory.make(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, handlers);
+        return factory.make(AllocationSubscriberIds.ORDER_PLACEMENT, handlers);
     }
 
     void onOrderPlaced(OrderPlacedIntegrationEvent event) {

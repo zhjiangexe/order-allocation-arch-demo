@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.logisticsdata.application.store.OwnerStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.messaging.api.Message;
@@ -132,9 +132,7 @@ class AllocationTransactionalMessageChainIntegrationTest {
                 .withPartitionId("order-1")
                 .build();
         return new MessageHandlerInvocation(
-                message,
-                new MessageContext(
-                        ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, "ordering.order-events", 1));
+                message, new MessageContext(AllocationSubscriberIds.ORDER_PLACEMENT, "ordering.order-events", 1));
     }
 
     private void persistBusinessAndOutbox(UUID ownerId, UUID outboxMessageId) {

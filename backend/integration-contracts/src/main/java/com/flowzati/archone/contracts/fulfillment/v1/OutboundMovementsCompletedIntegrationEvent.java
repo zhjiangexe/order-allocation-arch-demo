@@ -9,13 +9,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Inventory 已扣除實體庫存並完成 outbound movements。 */
+/** Inventory completed one stock operation's physical outbound movements. */
 public final class OutboundMovementsCompletedIntegrationEvent extends IntegrationEvent {
 
     public static final String EVENT_TYPE = "OutboundMovementsCompletedIntegrationEvent";
+    public static final int CONTRACT_VERSION = 1;
 
-    private final UUID allocationId;
-    private final UUID allocationDemandId;
+    private final UUID stockOperationId;
     private final UUID orderId;
     private final UUID shipmentId;
     private final List<UUID> movementIds;
@@ -24,15 +24,13 @@ public final class OutboundMovementsCompletedIntegrationEvent extends Integratio
     @JsonCreator
     public OutboundMovementsCompletedIntegrationEvent(
             @JsonProperty("eventId") UUID eventId,
-            @JsonProperty("allocationId") UUID allocationId,
-            @JsonProperty("allocationDemandId") UUID allocationDemandId,
+            @JsonProperty("stockOperationId") UUID stockOperationId,
             @JsonProperty("orderId") UUID orderId,
             @JsonProperty("shipmentId") UUID shipmentId,
             @JsonProperty("movementIds") List<UUID> movementIds,
             @JsonProperty("completedAt") Instant completedAt) {
         super(eventId);
-        this.allocationId = Objects.requireNonNull(allocationId, "Allocation ID is required");
-        this.allocationDemandId = Objects.requireNonNull(allocationDemandId, "Allocation demand ID is required");
+        this.stockOperationId = Objects.requireNonNull(stockOperationId, "Stock operation ID is required");
         this.orderId = Objects.requireNonNull(orderId, "Order ID is required");
         this.shipmentId = Objects.requireNonNull(shipmentId, "Shipment ID is required");
         this.movementIds = List.copyOf(Objects.requireNonNull(movementIds, "Movement IDs are required"));
@@ -45,12 +43,8 @@ public final class OutboundMovementsCompletedIntegrationEvent extends Integratio
         }
     }
 
-    public UUID getAllocationId() {
-        return allocationId;
-    }
-
-    public UUID getAllocationDemandId() {
-        return allocationDemandId;
+    public UUID getStockOperationId() {
+        return stockOperationId;
     }
 
     public UUID getOrderId() {

@@ -6,7 +6,6 @@ import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -82,18 +81,6 @@ public class OrderRest {
     @GetMapping("/{orderId}")
     public OrderStatusResponse getOrder(@PathVariable(name = "orderId") UUID orderId) {
         return OrderStatusResponse.from(getOrderUsecase.getOrder(orderId));
-    }
-
-    /**
-     * 是否為 404 是 HTTP 轉譯層的決定，「找不到」這件事本身由 {@link GetOrderUsecase} 判斷並丟出
-     * JDK 原生的 {@link NoSuchElementException}。這裡直接攔截這個泛用型別而不是自訂例外類型，
-     * 是因為目前這個 controller 只有 {@code placeOrder} 跟 {@code getOrder} 兩個 endpoint，前者
-     * 沒有任何路徑會拋出這個例外；未來若這個 controller 長出其他也可能拋 `NoSuchElementException`
-     * 但語意不是「找不到」的 endpoint，要重新評估這個攔截範圍。
-     */
-    @ExceptionHandler(NoSuchElementException.class)
-    public ResponseEntity<String> handleNotFound(NoSuchElementException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
     }
 
     /**

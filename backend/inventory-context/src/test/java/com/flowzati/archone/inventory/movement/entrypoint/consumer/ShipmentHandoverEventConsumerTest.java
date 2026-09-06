@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import java.time.Instant;
@@ -23,7 +24,7 @@ class ShipmentHandoverEventConsumerTest {
         UUID stockOperationId = UUID.randomUUID();
         UUID movementId = UUID.randomUUID();
         Instant handedOverAt = Instant.parse("2026-08-19T10:00:00Z");
-        var event = new com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent(
+        var event = new ShipmentHandedOverIntegrationEvent(
                 UUID.randomUUID(), shipmentId, stockOperationId, orderId, List.of(movementId), handedOverAt);
         consumer.onShipmentHandedOver(event);
 

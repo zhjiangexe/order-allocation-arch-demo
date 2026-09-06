@@ -1204,9 +1204,8 @@ The Inventory `stockOperationId` SHALL be the stable operation-group identity ac
 The result SHALL include source-unit trace, move identities and current batch-pick details. For an order-backed stock operation, exactly one
 order-allocation committed fact SHALL be written to Outbox; Ordering and WMS SHALL consume it under separate subscription identities.
 
-The breaking move-centric payload SHALL use a new contract version. Consumers SHALL accept both legacy and move-centric versions before
-the producer switches. Legacy readers SHALL remain until source-topic retention, Outbox re-snapshot exposure and DLT replay windows have
-expired; removing legacy readers SHALL require a later change.
+Because this contract has not been released, its initial V1 schema SHALL be the stock-operation-centric payload. Producers and consumers
+SHALL support only that V1 schema and SHALL NOT retain pre-release allocation-demand compatibility readers.
 
 #### Scenario: Stock operation identity crosses the assignment boundary
 
@@ -1224,18 +1223,10 @@ expired; removing legacy readers SHALL require a later change.
 - **WHEN** a transfer-backed stock operation is assigned
 - **THEN** the core result remains source-addressable and no order-specific fact is required
 
-#### Scenario: A retained legacy event remains consumable
+#### Scenario: Producers emit only the canonical V1 schema
 
-- **GIVEN** a legacy allocation event is replayed during the compatibility window
-- **WHEN** a deployed consumer receives it
-- **THEN** the consumer resolves the canonical stock operation from the event's retained move identities and applies the legacy contract
-  idempotently without treating its allocation identity as a stock operation identity
-
-#### Scenario: New producers emit only the move-centric version
-
-- **GIVEN** tolerant consumers are deployed
-- **WHEN** the producer cutover completes
-- **THEN** new assignment facts use the move-centric contract version and stock operation identity
+- **WHEN** an assignment fact is published
+- **THEN** it uses contract version 1 with stock operation identity and no allocation-demand compatibility fields
 
 ### Requirement: A SHIP_COMPLETE stock operation is satisfiable only when every move is covered
 
@@ -1369,14 +1360,10 @@ move confirmed and SHALL reserve no stock. FEFO drafts SHALL continue to identif
 
 ### Requirement: Assignment outcomes publish the canonical stock-operation identity
 
-An assignment result and every new move-centric integration contract SHALL identify the Inventory operation by `stockOperationId` and
-SHALL include source-unit trace, move identities and current batch-pick details. A new producer SHALL emit only the new contract version
-after tolerant consumers are deployed; it SHALL NOT dual-publish old and new facts for one assignment.
-
-During the declared compatibility window, consumers SHALL accept both the legacy contract containing `pickingId` and the new version
-containing `stockOperationId`, normalize either at ingress to one stock-operation command, and apply it idempotently. Historical Outbox
-or DLT payloads SHALL NOT be rewritten. New audit publication SHALL use aggregate type `StockOperation`; history readers that span the
-window SHALL normalize legacy aggregate type `StockPicking` to the same identity.
+An assignment result and every integration contract SHALL identify the Inventory operation by `stockOperationId` and SHALL include
+source-unit trace, move identities and current batch-pick details. Because no prior contract has been released, producers and consumers
+SHALL use only the canonical V1 schema and SHALL NOT dual-publish or normalize pre-release schemas. Audit publication SHALL use aggregate
+type `StockOperation`.
 
 #### Scenario: A new outcome crosses contexts with one identity
 
@@ -1384,38 +1371,21 @@ window SHALL normalize legacy aggregate type `StockPicking` to the same identity
 - **WHEN** its assignment fact is published
 - **THEN** Ordering and WMS receive `stockOperationId` with that UUID and the move-centric batch snapshot
 
-#### Scenario: A legacy assignment fact remains consumable
+#### Scenario: One V1 fact creates one warehouse execution
 
-- **GIVEN** a retained legacy fact containing `pickingId` is replayed during the compatibility window
-- **WHEN** a tolerant consumer receives it
-- **THEN** the consumer normalizes the value to `stockOperationId` at ingress and applies the fact idempotently
+- **WHEN** a stock operation is assigned
+- **THEN** the producer publishes exactly one V1 fact and WMS applies it idempotently by `stockOperationId`
 
-#### Scenario: Producer cutover does not duplicate warehouse execution
+### Requirement: Workflow history starts with the canonical assignment signal
 
-- **GIVEN** consumers accept both contract versions
-- **WHEN** the producer switches to the stock-operation version
-- **THEN** it publishes exactly one version for each new assignment
-
-### Requirement: In-flight workflow history survives the terminology cutover
-
-The canonical Temporal assignment signal SHALL be `stockOperationAssigned` with a `StockOperationAssignmentSnapshot`. During the
-compatibility window, the workflow contract SHALL retain the history-visible `pickingAssigned` signal and its legacy snapshot and SHALL
-convert it inside the workflow to the same stock-operation checkpoint.
-
-New adapters SHALL send only the canonical signal. A legacy DTO or field alias SHALL remain confined to the workflow compatibility
-boundary and SHALL NOT appear in Inventory or WMS domain/application APIs. Pure payload normalization SHALL NOT change workflow command
-sequence, activity names, timers or branching.
+The Temporal assignment signal SHALL be `stockOperationAssigned` with a `StockOperationAssignmentSnapshot`. Because no workflow history
+has been released, the workflow contract SHALL NOT retain the pre-release `pickingAssigned` signal or its snapshot. Adapters SHALL send
+only the canonical signal, and Inventory or WMS domain/application APIs SHALL contain no legacy field alias.
 
 #### Scenario: A new workflow receives the canonical signal
 
 - **WHEN** a new assignment reaches an active workflow
 - **THEN** the adapter sends `stockOperationAssigned` with `stockOperationId`
-
-#### Scenario: An old workflow history can replay
-
-- **GIVEN** a workflow history contains `pickingAssigned` and a legacy assignment snapshot
-- **WHEN** the renamed workflow implementation replays that history
-- **THEN** it converts the legacy snapshot to the canonical checkpoint without changing emitted commands
 
 ### Requirement: StockOperationAssigner is the canonical assignment application entry
 

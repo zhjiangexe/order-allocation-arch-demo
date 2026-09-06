@@ -112,7 +112,7 @@ important groups are:
 - `backend/inventory-context/.../inventory/balance/**`: retain physical stock and quant counter behavior; redirect reservation,
   release, and completion to canonical move lines.
 - `backend/integration-contracts/**`, `backend/ordering-context/**`, `backend/wms-context/**`,
-  `backend/fulfillment-workflow-contract/**`, `backend/fulfillment-workflow-runtime/**`, and bootstrap wiring: preserve the useful
+  `backend/fulfillment-temporal-contract/**`, `backend/fulfillment-temporal-runtime/**`, and bootstrap wiring: preserve the useful
   completion/cancellation/Temporal work, but introduce tolerant legacy/new readers and change the canonical new identity to
   `pickingId`.
 - `backend/deployments/monolith/src/{test,sit}/**` and `e2e/spec/features/**`: rewrite assertions and fixtures; these tests are

@@ -1,10 +1,9 @@
 package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -35,7 +34,7 @@ public class AllocationInventoryAvailabilityEventConsumer {
         // StockOperationAssignmentCoordinator 負責，scheduler 也會共用同一個 transaction operation。
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
                 // STOCK_EVENTS 是 Inventory／StockQuant 發布實際庫存增加事實的 destination。
-                .forDestination(InventoryChannels.STOCK_EVENTS)
+                .forDestination(InventoryEventDestinations.STOCK_EVENTS)
                 // 入庫完成後只對同一個 owner、facility、location、SKU 重新掃描等待中的 StockMove。
                 // envelope 在這裡被拆開，usecase 只收到 transport-neutral 的 integration event 欄位。
                 .onEvent(
@@ -45,7 +44,7 @@ public class AllocationInventoryAvailabilityEventConsumer {
 
         // 使用固定 subscription name 讓 Inbox／consumer idempotency 能辨識這個訂閱者；
         // factory 會把 handlers 包裝成實際的 IntegrationEventDispatcher。
-        return factory.make(ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY, handlers);
+        return factory.make(AllocationSubscriberIds.INVENTORY_AVAILABILITY, handlers);
     }
 
     void onStockAvailabilityIncreased(StockAvailabilityIncreasedIntegrationEvent event) {

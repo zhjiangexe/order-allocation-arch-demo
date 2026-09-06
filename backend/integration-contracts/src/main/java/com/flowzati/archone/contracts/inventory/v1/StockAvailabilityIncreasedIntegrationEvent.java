@@ -8,8 +8,8 @@ import java.util.UUID;
 /** Physical stock became available and waiting stock movements may be retried. */
 public final class StockAvailabilityIncreasedIntegrationEvent extends IntegrationEvent {
 
-    /** Kept equal to the existing wire value so this change is backward compatible. */
     public static final String EVENT_TYPE = "StockAvailabilityIncreasedIntegrationEvent";
+    public static final int CONTRACT_VERSION = 1;
 
     private final UUID ownerId;
     private final UUID facilityId;

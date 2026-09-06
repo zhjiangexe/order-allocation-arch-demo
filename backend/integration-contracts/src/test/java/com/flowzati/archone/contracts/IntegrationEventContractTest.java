@@ -7,6 +7,7 @@ import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedI
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
@@ -22,10 +23,10 @@ class IntegrationEventContractTest {
     private static final UUID ALLOCATION_ID = new UUID(0, 6);
     private static final UUID ORDER_LINE_ID = new UUID(0, 7);
     private static final UUID MOVE_ID = new UUID(0, 8);
-    private static final UUID ALLOCATION_DEMAND_ID = new UUID(0, 9);
-    private static final UUID ALLOCATION_DEMAND_LINE_ID = new UUID(0, 10);
-    private static final UUID ALLOCATION_SLICE_ID = new UUID(0, 11);
     private static final UUID STOCK_QUANT_ID = new UUID(0, 12);
+    private static final UUID STOCK_OPERATION_TYPE_ID = new UUID(0, 13);
+    private static final UUID SOURCE_LOCATION_ID = new UUID(0, 14);
+    private static final UUID DESTINATION_LOCATION_ID = new UUID(0, 15);
     private static final Instant OCCURRED_AT = Instant.parse("2026-08-07T00:00:00Z");
 
     @Test
@@ -61,42 +62,41 @@ class IntegrationEventContractTest {
     void providesACompleteStandaloneFulfillmentHandoff() {
         UUID ownerId = new UUID(0, 3);
         UUID facilityId = new UUID(0, 4);
-        UUID locationId = new UUID(0, 5);
         Instant dispatchBy = OCCURRED_AT.plusSeconds(3600);
         var event = new OrderAllocationCommittedIntegrationEvent(
                 EVENT_ID,
                 ALLOCATION_ID,
-                ALLOCATION_DEMAND_ID,
                 ORDER_ID,
                 ownerId,
                 facilityId,
-                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
+                STOCK_OPERATION_TYPE_ID,
+                SOURCE_LOCATION_ID,
+                DESTINATION_LOCATION_ID,
+                List.of(new OrderAllocationCommittedIntegrationEvent.AssignedMove(
                         ORDER_LINE_ID,
-                        ALLOCATION_DEMAND_LINE_ID,
                         MOVE_ID,
                         "SKU-1",
-                        locationId,
                         3,
-                        List.of(new OrderAllocationCommittedIntegrationEvent.AllocationSlice(
-                                ALLOCATION_SLICE_ID, STOCK_QUANT_ID, 3)))),
+                        List.of(new OrderAllocationCommittedIntegrationEvent.BatchPick(STOCK_QUANT_ID, 3)))),
                 dispatchBy,
                 80,
                 OCCURRED_AT);
 
-        assertThat(event.getAllocationId()).isEqualTo(ALLOCATION_ID);
-        assertThat(event.getAllocationDemandId()).isEqualTo(ALLOCATION_DEMAND_ID);
+        assertThat(event.getStockOperationId()).isEqualTo(ALLOCATION_ID);
         assertThat(event.getOrderId()).isEqualTo(ORDER_ID);
-        assertThat(event.getLines()).hasSize(1);
+        assertThat(event.getMoves()).hasSize(1);
         assertThat(event.getDispatchBy()).isEqualTo(dispatchBy);
         assertThat(event.getReleasePriority()).isEqualTo(80);
         assertThatThrownBy(() -> new OrderAllocationCommittedIntegrationEvent(
                         EVENT_ID,
                         ALLOCATION_ID,
-                        ALLOCATION_DEMAND_ID,
                         ORDER_ID,
                         ownerId,
                         facilityId,
-                        event.getLines(),
+                        STOCK_OPERATION_TYPE_ID,
+                        SOURCE_LOCATION_ID,
+                        DESTINATION_LOCATION_ID,
+                        event.getMoves(),
                         dispatchBy,
                         101,
                         OCCURRED_AT))
@@ -110,6 +110,7 @@ class IntegrationEventContractTest {
                 OrderCancelledIntegrationEvent.EVENT_TYPE,
                 OrderAllocationCommittedIntegrationEvent.EVENT_TYPE,
                 StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
+                StockOperationLifecycleIntegrationEvent.EVENT_TYPE,
                 ShipmentCancelledIntegrationEvent.EVENT_TYPE,
                 ShipmentHandedOverIntegrationEvent.EVENT_TYPE,
                 OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE);
@@ -120,22 +121,20 @@ class IntegrationEventContractTest {
                         "OrderCancelledIntegrationEvent",
                         "OrderAllocationCommittedIntegrationEvent",
                         "StockAvailabilityIncreasedIntegrationEvent",
+                        "StockOperationLifecycleIntegrationEvent",
                         "ShipmentCancelledIntegrationEvent",
                         "ShipmentHandedOverIntegrationEvent",
                         "OutboundMovementsCompletedIntegrationEvent");
         assertThat(eventTypes).doesNotHaveDuplicates();
-    }
-
-    @Test
-    void normalizesLegacyAndCanonicalAggregateReferencesToOneStockOperationIdentity() {
-        var legacy = com.flowzati.archone.contracts.inventory.v2.StockOperationAggregateIdentity.from(
-                com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes.LEGACY_STOCK_PICKING,
-                ALLOCATION_ID.toString());
-        var canonical = com.flowzati.archone.contracts.inventory.v2.StockOperationAggregateIdentity.from(
-                com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes.STOCK_OPERATION,
-                ALLOCATION_ID.toString());
-
-        assertThat(legacy).isEqualTo(canonical);
-        assertThat(canonical.stockOperationId()).isEqualTo(ALLOCATION_ID);
+        assertThat(List.of(
+                        OrderPlacedIntegrationEvent.CONTRACT_VERSION,
+                        OrderCancelledIntegrationEvent.CONTRACT_VERSION,
+                        OrderAllocationCommittedIntegrationEvent.CONTRACT_VERSION,
+                        StockAvailabilityIncreasedIntegrationEvent.CONTRACT_VERSION,
+                        StockOperationLifecycleIntegrationEvent.CONTRACT_VERSION,
+                        ShipmentCancelledIntegrationEvent.CONTRACT_VERSION,
+                        ShipmentHandedOverIntegrationEvent.CONTRACT_VERSION,
+                        OutboundMovementsCompletedIntegrationEvent.CONTRACT_VERSION))
+                .containsOnly(1);
     }
 }

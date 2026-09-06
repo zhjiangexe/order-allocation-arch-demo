@@ -34,8 +34,8 @@ wbsDiagram {
 
 * OrderFulfillmentWorkflowImpl
 ** Temporal boundary methods <<boundary>>
-*** @WorkflowInit constructor(OrderFulfillmentWorkflowInput)
-*** @WorkflowMethod execute(OrderFulfillmentWorkflowInput)
+*** @WorkflowInit constructor(OrderFulfillmentInput)
+*** @WorkflowMethod execute(OrderFulfillmentInput)
 *** @SignalMethod allocationCommitted()
 *** @SignalMethod shipmentHandedOverToCarrier()
 *** @SignalMethod shipmentCancelled()
@@ -44,13 +44,13 @@ wbsDiagram {
 *** @QueryMethod state()
 ** execute 主線 helpers
 *** Typed Activity stubs
-**** InventoryActivities / OrderingActivities / WmsActivities
+**** InventoryAllocationActivities / InventoryMovementActivities / OrderActivities / ShipmentActivities
 **** 共用 retry policy；各 use case 自己保證業務冪等
 *** Allocation checkpoint
-**** AllocationCheckpoint.notRequested() / waiting()
-**** isWaiting() / isCommitted()
-**** committed() / requireCommittedSnapshot()
-**** allocationId() / requireWaiting()
+**** StockOperationAssignmentCheckpoint.markRequested()
+**** isRequested() / isCommitted()
+**** recordAssigned() / assignmentSnapshot()
+**** stockOperationId() / requireRequested()
 *** Shipment checkpoint
 **** ShipmentCheckpoint.recordCreated()
 **** recordHandover() / recordCancelled()

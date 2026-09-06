@@ -78,7 +78,7 @@
 
 - [x] 9.1 更新 Inventory unit tests，證明 SHIP_COMPLETE、strict shared-SKU FIFO、FEFO、release、completion、cancellation、reservation counters 與 retry idempotency 在 topology/rename 前後等價
 - [x] 9.2 執行 `cd backend && ./gradlew spotlessApply`，確認所有 Java rename 與 refactor 都符合 Palantir Java Format 120-column 設定
-- [x] 9.3 執行受影響 modules 的 unit tests：`integration-contracts`、`fulfillment-workflow-contract`、`fulfillment-workflow-runtime`、`inventory-context`、`wms-context` 與 `deployments:monolith`
+- [x] 9.3 執行受影響 modules 的 unit tests：`integration-contracts`、`fulfillment-temporal-contract`、`fulfillment-temporal-runtime`、`inventory-context`、`wms-context` 與 `deployments:monolith`
 - [x] 9.4 執行 `cd backend && ./gradlew :deployments:monolith:sit`，確認 migration、native SQL、transaction rollback、concurrency、FIFO/FEFO、bounded projection、WMS handoff 與 event-chain SIT 全數通過
 - [x] 9.5 執行 Temporal legacy replay 與新 signal workflow tests，確認 history compatibility 與 canonical path 都通過
 - [x] 9.6 執行 integration JSON fixtures 與 dual-version/DLT replay tests，確認 producer 只發新版、consumer 在 compatibility window 可讀新舊版

@@ -1,7 +1,7 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import java.nio.charset.StandardCharsets;
@@ -43,9 +43,7 @@ public final class InventoryEventDrain {
                       AND i.event_id = o.id
                  )
            ORDER BY o.timestamp, o.id
-          """,
-                    InventoryChannels.STOCK_EVENTS,
-                    ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY);
+          """, InventoryEventDestinations.STOCK_EVENTS, AllocationSubscriberIds.INVENTORY_AVAILABILITY);
             if (rows.isEmpty()) {
                 return delivered;
             }
@@ -60,12 +58,13 @@ public final class InventoryEventDrain {
 
     /** Replays one physical Outbox message to verify subscriber-scoped Inbox idempotency. */
     public void redeliver(UUID eventId) {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+        List<Map<String, Object>> rows =
+                jdbcTemplate.queryForList("""
         SELECT id, type, partition_key, payload, headers
           FROM event_outbox
          WHERE id = ?
            AND route = ?
-        """, eventId, InventoryChannels.STOCK_EVENTS);
+        """, eventId, InventoryEventDestinations.STOCK_EVENTS);
         if (rows.size() != 1) {
             throw new IllegalArgumentException("Inventory Outbox event not found: " + eventId);
         }
@@ -76,7 +75,7 @@ public final class InventoryEventDrain {
         UUID eventId = UUID.fromString(row.get("id").toString());
         String eventType = row.get("type").toString();
         ConsumerRecord<String, String> record = new ConsumerRecord<>(
-                InventoryChannels.STOCK_EVENTS,
+                InventoryEventDestinations.STOCK_EVENTS,
                 0,
                 0,
                 row.get("partition_key").toString(),

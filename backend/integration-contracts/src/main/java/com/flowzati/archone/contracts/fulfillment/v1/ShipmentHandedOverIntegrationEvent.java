@@ -9,14 +9,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** WMS 已將 Shipment custody 交給承運人。 */
+/** WMS handed one stock-operation-backed Shipment to a carrier. */
 public final class ShipmentHandedOverIntegrationEvent extends IntegrationEvent {
 
     public static final String EVENT_TYPE = "ShipmentHandedOverIntegrationEvent";
+    public static final int CONTRACT_VERSION = 1;
 
     private final UUID shipmentId;
-    private final UUID allocationId;
-    private final UUID allocationDemandId;
+    private final UUID stockOperationId;
     private final UUID orderId;
     private final List<UUID> movementIds;
     private final Instant handedOverAt;
@@ -25,15 +25,13 @@ public final class ShipmentHandedOverIntegrationEvent extends IntegrationEvent {
     public ShipmentHandedOverIntegrationEvent(
             @JsonProperty("eventId") UUID eventId,
             @JsonProperty("shipmentId") UUID shipmentId,
-            @JsonProperty("allocationId") UUID allocationId,
-            @JsonProperty("allocationDemandId") UUID allocationDemandId,
+            @JsonProperty("stockOperationId") UUID stockOperationId,
             @JsonProperty("orderId") UUID orderId,
             @JsonProperty("movementIds") List<UUID> movementIds,
             @JsonProperty("handedOverAt") Instant handedOverAt) {
         super(eventId);
         this.shipmentId = Objects.requireNonNull(shipmentId, "Shipment ID is required");
-        this.allocationId = Objects.requireNonNull(allocationId, "Allocation ID is required");
-        this.allocationDemandId = Objects.requireNonNull(allocationDemandId, "Allocation demand ID is required");
+        this.stockOperationId = Objects.requireNonNull(stockOperationId, "Stock operation ID is required");
         this.orderId = Objects.requireNonNull(orderId, "Order ID is required");
         this.movementIds = List.copyOf(Objects.requireNonNull(movementIds, "Movement IDs are required"));
         this.handedOverAt = Objects.requireNonNull(handedOverAt, "Handover time is required");
@@ -49,12 +47,8 @@ public final class ShipmentHandedOverIntegrationEvent extends IntegrationEvent {
         return shipmentId;
     }
 
-    public UUID getAllocationId() {
-        return allocationId;
-    }
-
-    public UUID getAllocationDemandId() {
-        return allocationDemandId;
+    public UUID getStockOperationId() {
+        return stockOperationId;
     }
 
     public UUID getOrderId() {

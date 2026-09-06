@@ -2,11 +2,11 @@ package com.flowzati.archone.inventory.movement.operation.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
-import com.flowzati.archone.contracts.fulfillment.v3.OutboundMovementsCompletedIntegrationEvent;
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes;
-import com.flowzati.archone.contracts.inventory.v2.StockOperationLifecycleIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
+import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
+import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationCompleted;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot.MoveLineSnapshot;
@@ -57,7 +57,7 @@ class StockOperationCompletedIntegrationEventAdapterTest {
                     });
             assertThat(publication.aggregate().type()).isEqualTo(InventoryAggregateTypes.STOCK_OPERATION);
             assertThat(publication.aggregate().id()).isEqualTo(stockOperationId.toString());
-            assertThat(publication.target().destination()).isEqualTo(InventoryChannels.STOCK_OPERATION_EVENTS);
+            assertThat(publication.target().destination()).isEqualTo(InventoryEventDestinations.STOCK_OPERATION_EVENTS);
             assertThat(publication.occurredAt()).isEqualTo(completedAt);
         });
         assertThat(publications.get(1)).satisfies(publication -> {
@@ -70,7 +70,7 @@ class StockOperationCompletedIntegrationEventAdapterTest {
                     });
             assertThat(publication.aggregate().type()).isEqualTo(InventoryAggregateTypes.STOCK_OPERATION);
             assertThat(publication.aggregate().id()).isEqualTo(stockOperationId.toString());
-            assertThat(publication.target().destination()).isEqualTo(FulfillmentChannels.FULFILLMENT_HANDOFFS);
+            assertThat(publication.target().destination()).isEqualTo(FulfillmentEventDestinations.FULFILLMENT_HANDOFFS);
             assertThat(publication.target().partitionKey()).isEqualTo(orderId.toString());
             assertThat(publication.occurredAt()).isEqualTo(completedAt);
         });

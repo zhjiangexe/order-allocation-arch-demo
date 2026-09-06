@@ -42,6 +42,7 @@ inventory/
   allocation/
     application/{projection,store,valueobject}
     domain/{service,valueobject}
+    entrypoint/temporal
     infrastructure/persistence/jdbc/store
   location/
     application/{store,usecase,view}
@@ -51,7 +52,7 @@ inventory/
   movement/
     application/{command,event,exception,port,result,service,store,usecase,view}
     domain/{aggregate,entity,policy,valueobject}
-    entrypoint
+    entrypoint/{consumer,rest,temporal}
     infrastructure/persistence/{jdbc/store,jpa/{entity,mapper,repository,store}}
   position/
     application/{command,event,exception,policy,port,service,store,usecase,view}
@@ -63,12 +64,16 @@ inventory/
     domain/{entity}
     entrypoint
     infrastructure/persistence/jpa/{entity,mapper,repository,store}
-  adapter  # 暫時保留既有 Temporal 與 retry observer
+  adapter  # 暫時只保留 retry observer
 ```
 
 目前採 module-first、layer-second，再依既有 Application 技術角色分包。這項決策優先追求穩定且可由
 自動化工具遵守的 package grammar；除非另開架構變更，不把現有 `service`、`usecase`、`command`
 改成 feature-first package。
+
+Temporal Activity contract 依穩定業務能力切分。Allocation 的配貨請求與 Movement 的 outbound completion
+分別由自己的 `entrypoint.temporal` adapter 轉成 application invocation；不建立橫跨兩個 module 的
+context-wide Activity adapter。兩者目前仍可由同一 Worker 與 Task Queue 執行，contract 邊界不等同部署邊界。
 
 Application 型別依主要責任分包：`command` 是狀態變更輸入，`projection` 是內部 selection/planning
 讀取模型，`view` 是 visibility/diagnostic read model，`result` 是 use case 或 transaction 結果，`event`
@@ -98,7 +103,7 @@ Application Event
   → IntegrationEventPublisher
 ```
 
-`StockOperationLifecycleTranslator` 與 `OrderAllocationCommittedTranslator` 負責跨版本／bounded context 的純語意
+`StockOperationLifecycleTranslator` 與 `OrderAllocationCommittedTranslator` 負責跨 bounded context 的純語意
 轉換，不查 DB、不修改 Domain，也不直接發布。Availability 目前是一對一 mapping，因此留在
 `StockAvailabilityIncreasedIntegrationEventAdapter`，不為形式增加 Translator。Adapter 名稱描述目前直接銜接的
 Integration Event boundary，不以 Outbox、Kafka 或 JDBC 等可替換的下層機制命名。
@@ -107,7 +112,7 @@ Application Event 與 Integration Event 不要求一對一。當同一個已提�
 由一個 Adapter 在原 transaction 內同步建立全部 publication；不要讓 Usecase 為 audit 與跨 context notification
 各發布一次語意重複的 Application Event，也不要用非同步 Application listener 隱藏 fan-out。
 
-`ShipmentHandoverEventConsumer` 只把 v1／v2／v3 contract 與 shipment correlation 正規化為
+`ShipmentHandoverEventConsumer` 只把 V1 contract 與 shipment correlation 映射為
 `CompleteOutboundMovementsCommand`；Temporal Activity 也轉成同一個 command。`CompleteOutboundMovementsUsecase`
 在單一 transaction 內驗證完整 movement proof、完成 Stock Operation，並只發布一個完整的
 `StockOperationCompleted` Application Event。`StockOperationCompletedIntegrationEventAdapter` 從同一事實原子產生

@@ -3,15 +3,15 @@ package com.flowzati.archone.inventory.entrypoint.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.contracts.inventory.v2.StockOperationLifecycleIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
+import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
@@ -112,7 +112,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         // 這一步不只是為了讓斷言通過：它同時驗證 ordering 的 consumer 真的消費得了那些事件。
         assertThat(outcomeDrain().drain()).isPositive();
 
-        assertThat(inboxClaimExists(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, event.getEventId()))
+        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, event.getEventId()))
                 .isTrue();
         assertThat(inboxClaimExists(OrderingEventSubscriptions.ALLOCATION_RESULTS, allocationOutcomeEventId))
                 .isTrue();
@@ -141,7 +141,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
                 OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
         assertThat(outbox)
                 .containsEntry("type", OrderAllocationCommittedIntegrationEvent.EVENT_TYPE)
-                .containsEntry("route", AllocationChannels.ALLOCATION_EVENTS)
+                .containsEntry("route", AllocationEventDestinations.ALLOCATION_EVENTS)
                 .containsEntry("aggregateid", orderId.toString());
     }
 
@@ -193,7 +193,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
                           FROM event_outbox
                          WHERE type = ?
                         """, StockOperationLifecycleIntegrationEvent.EVENT_TYPE))
-                .containsEntry("route", InventoryChannels.STOCK_OPERATION_EVENTS)
+                .containsEntry("route", InventoryEventDestinations.STOCK_OPERATION_EVENTS)
                 .containsEntry("aggregateid", scenario.stockOperationId().toString())
                 .containsEntry("action", "CANCELLED")
                 .containsEntry("stock_quant_id", stockQuantId.toString())

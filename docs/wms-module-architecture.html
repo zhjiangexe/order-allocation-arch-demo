@@ -303,7 +303,7 @@
         <tr><td>Short-pick resolution／真實 Putback tasks</td><td><span class="tag missing">部分模擬</span></td><td>目前已有 durable <code>CANCELLING</code> backlog 與 cancellation completion event；但尚未建立 PutbackTask、庫位建議與人工確認模型。</td></tr>
         <tr><td>Wave planning／release</td><td><span class="tag">Core + persistence 已建立</span></td><td>目前 simulation 在單一 transaction 內規劃、release 並完成一張 Shipment；真實 Wave scheduler／operator entrypoint 尚未接入。</td></tr>
         <tr><td>Replenishment、Pick route、Container／LPN、Loading</td><td><span class="tag missing">未建立</span></td><td>依真實倉庫需求逐一形成 process；不要預先建立空殼。</td></tr>
-        <tr><td>Temporal orchestration</td><td><span class="tag">可選模式</span></td><td><code>TemporalWmsActivitiesAdapter</code> 委派既有 WMS use cases；Workflow 只保存跨 context checkpoints，不接管 Pick／Pack／Stage 內部狀態。</td></tr>
+        <tr><td>Temporal orchestration</td><td><span class="tag">可選模式</span></td><td><code>TemporalShipmentActivitiesAdapter</code> 委派既有 Shipment use cases；Workflow 只保存跨 context checkpoints，不接管 Pick／Pack／Stage 內部狀態。</td></tr>
       </tbody>
     </table>
   </section>

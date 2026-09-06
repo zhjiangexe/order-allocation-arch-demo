@@ -4,12 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.messaging.api.ChannelMapping;
@@ -124,16 +123,14 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         ConsumerRecord<String, String> record =
                 record(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
 
-        emit(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, record);
-        emit(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, record);
+        emit(AllocationSubscriberIds.ORDER_PLACEMENT, record);
+        emit(AllocationSubscriberIds.ORDER_PLACEMENT, record);
 
-        ResolvedMessageSubscription subscription =
-                subscription(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER);
-        assertThat(subscription.subscriberId()).isEqualTo(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER);
-        assertThat(subscription.consumerGroupId())
-                .isEqualTo(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER);
+        ResolvedMessageSubscription subscription = subscription(AllocationSubscriberIds.ORDER_PLACEMENT);
+        assertThat(subscription.subscriberId()).isEqualTo(AllocationSubscriberIds.ORDER_PLACEMENT);
+        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationSubscriberIds.ORDER_PLACEMENT);
         assertThat(subscription.destinationToLogicalChannel())
-                .containsEntry(OrderingChannels.ORDER_EVENTS, OrderingChannels.ORDER_EVENTS);
+                .containsEntry(OrderingEventDestinations.ORDER_EVENTS, OrderingEventDestinations.ORDER_EVENTS);
         assertThat(inboxCount(eventId)).isOne();
         assertThat(count("stock_operations")).isOne();
         assertThat(count("stock_moves")).isOne();
@@ -155,7 +152,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         jdbcTemplate.update("DELETE FROM stock_operation_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
         assertThatThrownBy(() -> emit(
-                        ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER,
+                        AllocationSubscriberIds.ORDER_PLACEMENT,
                         record(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("has no outbound operation type");
@@ -175,7 +172,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
     void shouldObserveAndAcknowledgeAnUnhandledSharedChannelEvent() {
         UUID eventId = UUID.randomUUID();
         ConsumerRecord<String, String> record =
-                new ConsumerRecord<>(OrderingChannels.ORDER_EVENTS, 0, 0, "order-ignored", "{}");
+                new ConsumerRecord<>(OrderingEventDestinations.ORDER_EVENTS, 0, 0, "order-ignored", "{}");
         record.headers()
                 .add(KafkaMessageMapper.LEGACY_ID_HEADER, eventId.toString().getBytes(StandardCharsets.UTF_8));
         record.headers()
@@ -187,14 +184,14 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
                         KafkaMessageMapper.SERIALIZED_HEADERS,
                         headersCodec.encode(Map.of()).getBytes(StandardCharsets.UTF_8));
 
-        emit(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, record);
+        emit(AllocationSubscriberIds.ORDER_PLACEMENT, record);
 
         assertThat(inboxCount(eventId)).isOne();
         assertThat(count("stock_operations")).isZero();
         assertThat(count("event_outbox")).isZero();
         Timer ignoredTimer = meterRegistry
                 .find(MessagingObservationNames.CONSUMER)
-                .tag(MessagingObservationTags.SUBSCRIBER_ID, ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER)
+                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationSubscriberIds.ORDER_PLACEMENT)
                 .tag(MessagingObservationTags.OUTCOME, "ignored_unhandled")
                 .timer();
         assertThat(ignoredTimer).isNotNull();
@@ -206,7 +203,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
     void shouldObserveAndAcknowledgeAnUnhandledInventoryEvent() {
         UUID eventId = UUID.randomUUID();
         ConsumerRecord<String, String> record =
-                new ConsumerRecord<>(InventoryChannels.STOCK_EVENTS, 0, 0, "inventory-scope-ignored", "{}");
+                new ConsumerRecord<>(InventoryEventDestinations.STOCK_EVENTS, 0, 0, "inventory-scope-ignored", "{}");
         record.headers()
                 .add(KafkaMessageMapper.LEGACY_ID_HEADER, eventId.toString().getBytes(StandardCharsets.UTF_8));
         record.headers()
@@ -218,23 +215,18 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
                         KafkaMessageMapper.SERIALIZED_HEADERS,
                         headersCodec.encode(Map.of()).getBytes(StandardCharsets.UTF_8));
 
-        emit(ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY, record);
+        emit(AllocationSubscriberIds.INVENTORY_AVAILABILITY, record);
 
-        ResolvedMessageSubscription subscription =
-                subscription(ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY);
-        assertThat(subscription.subscriberId())
-                .isEqualTo(ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY);
-        assertThat(subscription.consumerGroupId())
-                .isEqualTo(ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY);
-        assertThat(inboxCount(ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY, eventId))
+        ResolvedMessageSubscription subscription = subscription(AllocationSubscriberIds.INVENTORY_AVAILABILITY);
+        assertThat(subscription.subscriberId()).isEqualTo(AllocationSubscriberIds.INVENTORY_AVAILABILITY);
+        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationSubscriberIds.INVENTORY_AVAILABILITY);
+        assertThat(inboxCount(AllocationSubscriberIds.INVENTORY_AVAILABILITY, eventId))
                 .isOne();
         assertThat(count("stock_move_lines")).isZero();
         assertThat(count("event_outbox")).isZero();
         Timer ignoredTimer = meterRegistry
                 .find(MessagingObservationNames.CONSUMER)
-                .tag(
-                        MessagingObservationTags.SUBSCRIBER_ID,
-                        ReservationAssignmentEventSubscriptions.INVENTORY_AVAILABILITY)
+                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationSubscriberIds.INVENTORY_AVAILABILITY)
                 .tag(MessagingObservationTags.OUTCOME, "ignored_unhandled")
                 .timer();
         assertThat(ignoredTimer).isNotNull();
@@ -255,7 +247,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
 
     private ConsumerRecord<String, String> record(OrderPlacedIntegrationEvent event, UUID orderId) {
         ConsumerRecord<String, String> record = new ConsumerRecord<>(
-                OrderingChannels.ORDER_EVENTS, 0, 0, orderId.toString(), eventSerializer.serialize(event));
+                OrderingEventDestinations.ORDER_EVENTS, 0, 0, orderId.toString(), eventSerializer.serialize(event));
         record.headers()
                 .add(
                         KafkaMessageMapper.LEGACY_ID_HEADER,
@@ -277,7 +269,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
     }
 
     private int inboxCount(UUID eventId) {
-        return inboxCount(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, eventId);
+        return inboxCount(AllocationSubscriberIds.ORDER_PLACEMENT, eventId);
     }
 
     private int inboxCount(String subscriberId, UUID eventId) {

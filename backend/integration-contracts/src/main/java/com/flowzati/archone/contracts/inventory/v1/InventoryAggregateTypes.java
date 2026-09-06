@@ -4,7 +4,7 @@ package com.flowzati.archone.contracts.inventory.v1;
 public final class InventoryAggregateTypes {
 
     public static final String STOCK_POOL = "StockPool";
-    public static final String STOCK_PICKING = "StockPicking";
+    public static final String STOCK_OPERATION = "StockOperation";
 
     private InventoryAggregateTypes() {}
 }

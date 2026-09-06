@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.contracts.inventory.v2.InventoryAggregateTypes;
-import com.flowzati.archone.contracts.inventory.v2.StockOperationLifecycleIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.InventoryAggregateTypes;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
+import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot.MoveLineSnapshot;
@@ -50,7 +50,8 @@ class StockOperationLifecycleChangedIntegrationEventAdapterTest {
                 });
         assertThat(publication.getValue().aggregate().type()).isEqualTo(InventoryAggregateTypes.STOCK_OPERATION);
         assertThat(publication.getValue().aggregate().id()).isEqualTo(uuid(1).toString());
-        assertThat(publication.getValue().target().destination()).isEqualTo(InventoryChannels.STOCK_OPERATION_EVENTS);
+        assertThat(publication.getValue().target().destination())
+                .isEqualTo(InventoryEventDestinations.STOCK_OPERATION_EVENTS);
         assertThat(publication.getValue().target().partitionKey()).isEqualTo(uuid(1).toString());
         assertThat(publication.getValue().occurredAt()).isEqualTo(occurredAt);
     }

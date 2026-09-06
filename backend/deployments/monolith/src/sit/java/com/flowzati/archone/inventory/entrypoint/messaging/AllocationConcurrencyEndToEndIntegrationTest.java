@@ -7,7 +7,7 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryExhaustedException;
@@ -141,11 +141,9 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         // 恰好一張拿到預留：兩張都拿到代表超賣，都沒拿到代表兩張都白白重試到耗盡。
         assertThat(!heldBy(firstOrderId).isEmpty() ^ !heldBy(secondOrderId).isEmpty())
                 .isTrue();
-        assertThat(inboxClaimExists(
-                        ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, firstEvent.getEventId()))
+        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, firstEvent.getEventId()))
                 .isTrue();
-        assertThat(inboxClaimExists(
-                        ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, secondEvent.getEventId()))
+        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, secondEvent.getEventId()))
                 .isTrue();
         assertThat(jdbcTemplate.queryForList("SELECT type FROM event_outbox", String.class))
                 .contains(OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
@@ -175,7 +173,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
                 .hasValueSatisfying(
                         pool -> assertThat(pool.getReservedQuantity()).isZero());
         assertThat(heldBy(orderId)).isEmpty();
-        assertThat(inboxClaimExists(ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER, event.getEventId()))
+        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, event.getEventId()))
                 .isFalse();
         assertThat(tableCount("event_outbox")).isZero();
         assertThat(exhaustedMetricCount()).isEqualTo(metricBefore + 1.0);

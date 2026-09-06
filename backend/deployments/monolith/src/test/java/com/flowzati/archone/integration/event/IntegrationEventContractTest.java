@@ -51,7 +51,7 @@ class IntegrationEventContractTest {
         OrderAllocationCommittedIntegrationEvent allocated = allocationCommitted(occurredAt);
 
         assertThat(allocated.getOrderId()).isEqualTo(orderId);
-        assertThat(allocated.getCommittedAt()).isEqualTo(occurredAt);
+        assertThat(allocated.getAssignedAt()).isEqualTo(occurredAt);
     }
 
     @Test
@@ -66,19 +66,18 @@ class IntegrationEventContractTest {
         return new OrderAllocationCommittedIntegrationEvent(
                 eventId,
                 UUID.randomUUID(),
-                UUID.randomUUID(),
                 orderId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                List.of(new OrderAllocationCommittedIntegrationEvent.AllocationLine(
-                        UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                List.of(new OrderAllocationCommittedIntegrationEvent.AssignedMove(
                         UUID.randomUUID(),
                         UUID.randomUUID(),
                         "SKU-1",
-                        UUID.randomUUID(),
                         1,
-                        List.of(new OrderAllocationCommittedIntegrationEvent.AllocationSlice(
-                                UUID.randomUUID(), UUID.randomUUID(), 1)))),
+                        List.of(new OrderAllocationCommittedIntegrationEvent.BatchPick(UUID.randomUUID(), 1)))),
                 occurredAt.plusSeconds(3600),
                 50,
                 committedAt);

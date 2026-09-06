@@ -1,7 +1,8 @@
 package com.flowzati.archone.wms.dispatch.infrastructure.messaging;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentAggregateTypes;
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -23,7 +24,7 @@ public class ShipmentHandedOverIntegrationEventAdapter implements ShipmentHanded
     @Override
     public void publish(ShipmentHandedOver event) {
         integrationEventPublisher.publish(
-                new com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent(
+                new ShipmentHandedOverIntegrationEvent(
                         IdGenerator.nextId(),
                         event.shipmentId(),
                         event.stockOperationId(),
@@ -31,10 +32,9 @@ public class ShipmentHandedOverIntegrationEventAdapter implements ShipmentHanded
                         event.movementIds(),
                         event.handedOverAt()),
                 new AggregateReference(
-                        FulfillmentAggregateTypes.WMS_SHIPMENT,
-                        event.shipmentId().toString()),
+                        FulfillmentAggregateTypes.SHIPMENT, event.shipmentId().toString()),
                 new PublicationTarget(
-                        FulfillmentChannels.FULFILLMENT_HANDOFFS,
+                        FulfillmentEventDestinations.FULFILLMENT_HANDOFFS,
                         event.orderId().toString()),
                 event.handedOverAt());
     }

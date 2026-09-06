@@ -11,7 +11,7 @@ repository query、移除 WMS 的 lazy-loading N+1，並讓取消流程不再載
   與 Workflow progress。
 - 新增各 Context 自己擁有的 read query／read repository，直接產生 application view，不經過 domain aggregate。
 - `OrderFulfillmentView` 的 JSON 契約保持不變。
-- `FulfillmentWorkflowStateReader` 保持不變：EVENTS 模式不查 Temporal，TEMPORAL 模式仍執行一次 Workflow Query。
+- `TemporalWorkflowStateReader` 只在 TEMPORAL 模式建立；EVENTS 模式不查 Temporal，TEMPORAL 模式仍執行一次 Workflow Query。
 - 不改動 allocation scheduler 使用的 `findPendingQueueHeadId`、`findRequiredQueueHeads` 與
   `findPendingQueueKeysWithAvailableStock`。
 
@@ -173,7 +173,7 @@ SQL 回傳 facts，`AllocationDemandQueryService` 或獨立 assembler 負責計�
 ### 預計異動
 
 - 修改：`OrderFulfillmentQueryService`
-- 修改：`OrderFulfillmentDemoControllerTest`
+- 修改：`OrderFulfillmentDemoRestTest`
 - 視命名調整更新 Spring configuration／wiring tests
 
 新的 composition 仍維持四個清楚的來源：
@@ -186,7 +186,7 @@ Temporal Workflow Query（僅 TEMPORAL mode）
 ```
 
 Ordering 目前只讀一筆 `Order`，不是主要效能問題，本次先保留 `GetOrderUsecase` 與
-`FulfillmentOrderView.from(order)`。若未來要完全分離 command/query model，再另開任務新增 Ordering read view。
+`OrderView.from(order)`。若未來要完全分離 command/query model，再另開任務新增 Ordering read view。
 
 ### 驗收
 

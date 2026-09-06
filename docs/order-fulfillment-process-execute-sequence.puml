@@ -24,7 +24,7 @@ participant "WMS\nActivities" as WMS
 participant "可設定延遲的模擬 WMS\nScheduler" as SimWms
 participant "Integration Event\nAdapter" as EventAdapter
 
-Starter -> WF: start execute(OrderFulfillmentWorkflowInput)
+Starter -> WF: start execute(OrderFulfillmentInput)
 activate WF
 note right of WF
   Workflow 先送出 RequestAllocation，
@@ -34,7 +34,7 @@ end note
 group Shipment 建立前：配貨
   WF -> INV: requestAllocation(RequestAllocationActivityInput)
   INV --> WF: command committed
-  note over WF: await AllocationCommitted\n或 CancellationRequest
+  note over WF: await AllocationCommitted\n或 CancellationRequestInput
 
   alt Shipment 建立前收到取消
     CancelClient -> WF: requestCancellation(Update)
@@ -49,18 +49,18 @@ group Shipment 建立前：配貨
   end
 end
 
-group 建立 WMS Shipment
-  WF -> WMS: createShipment(CreateShipmentActivityInput)
+group 下達倉庫出庫需求（WMS 建立 Shipment）
+  WF -> WMS: releaseToWarehouse(ReleaseToWarehouseActivityInput)
   opt Activity 尚未回傳時，handover fact 已先到
     SimWms ->> EventAdapter: ShipmentHandedOver Outbox -> Kafka
     EventAdapter ->> WF: shipmentHandedOverToCarrier(Signal)
     note over WF: Signal 可先記入 checkpoint；取得 shipmentId 後再做 correlation
   end
-  WMS --> WF: CreateShipmentActivityResult(shipmentId)
+  WMS --> WF: ReleaseToWarehouseActivityResult(shipmentId)
 end
 
 group Shipment 已建立：等待 handover，可被取消中斷
-  note over WF: await Shipment terminal Signal\n或 CancellationRequest
+  note over WF: await Shipment terminal Signal\n或 CancellationRequestInput
 
   alt correlated handover 已先成立
     CancelClient -> WF: requestCancellation(Update)
@@ -80,7 +80,7 @@ group Shipment 已建立：等待 handover，可被取消中斷
       已開始作業則進入 CANCELLING，
       由 WMS recovery backlog 稍後完成。
     end note
-    note over WF: await ShipmentCancelledSignal\n或 ShipmentHandedOverToCarrierSignal
+    note over WF: await ShipmentCancelledInput\n或 ShipmentHandedOverToCarrierInput
 
     alt cancellation terminal 先提交
       WMS ->> EventAdapter: ShipmentCancelled Outbox -> Kafka

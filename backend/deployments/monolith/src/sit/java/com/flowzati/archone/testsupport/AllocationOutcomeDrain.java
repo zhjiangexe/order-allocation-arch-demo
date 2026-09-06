@@ -1,6 +1,6 @@
 package com.flowzati.archone.testsupport;
 
-import com.flowzati.archone.contracts.promising.v1.AllocationChannels;
+import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import java.nio.charset.StandardCharsets;
@@ -50,7 +50,7 @@ public final class AllocationOutcomeDrain {
         SELECT id, type, partition_key, payload, headers FROM event_outbox
          WHERE route = ?
          ORDER BY timestamp, id
-        """, AllocationChannels.ALLOCATION_EVENTS);
+        """, AllocationEventDestinations.ALLOCATION_EVENTS);
 
         int delivered = 0;
         for (Map<String, Object> row : rows) {
@@ -72,7 +72,7 @@ public final class AllocationOutcomeDrain {
     private void dispatch(
             UUID eventId, String eventType, String partitionKey, String payload, String serializedHeaders) {
         ConsumerRecord<String, String> record =
-                new ConsumerRecord<>(AllocationChannels.ALLOCATION_EVENTS, 0, 0, partitionKey, payload);
+                new ConsumerRecord<>(AllocationEventDestinations.ALLOCATION_EVENTS, 0, 0, partitionKey, payload);
         record.headers()
                 .add(KafkaMessageMapper.LEGACY_ID_HEADER, eventId.toString().getBytes(StandardCharsets.UTF_8));
         record.headers().add(KafkaMessageMapper.LEGACY_EVENT_TYPE_HEADER, eventType.getBytes(StandardCharsets.UTF_8));

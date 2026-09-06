@@ -12,8 +12,9 @@
             <option value="$PROJECT_DIR$/backend/deployments/monolith" />
             <option value="$PROJECT_DIR$/backend/domain-contract" />
             <option value="$PROJECT_DIR$/backend/foundation" />
-            <option value="$PROJECT_DIR$/backend/fulfillment-workflow-contract" />
-            <option value="$PROJECT_DIR$/backend/fulfillment-workflow-runtime" />
+            <option value="$PROJECT_DIR$/backend/fulfillment-process" />
+            <option value="$PROJECT_DIR$/backend/orchestration-temporal-contract" />
+            <option value="$PROJECT_DIR$/backend/orchestration-temporal-runtime" />
             <option value="$PROJECT_DIR$/backend/integration-contracts" />
             <option value="$PROJECT_DIR$/backend/inventory-context" />
             <option value="$PROJECT_DIR$/backend/logistics-data-context" />

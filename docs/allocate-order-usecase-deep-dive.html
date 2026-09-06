@@ -541,7 +541,7 @@
             </tr>
             <tr>
               <td>Temporal</td>
-              <td><code>TemporalInventoryActivitiesAdapter</code></td>
+              <td><code>TemporalInventoryAllocationActivitiesAdapter</code></td>
               <td><code>requestAllocation</code> → <code>execute</code></td>
               <td>沒有訊息 Inbox；由 <code>AllocateOrderUsecase.execute</code> 的 <code>@Transactional</code> 建立本地 transaction。</td>
             </tr>
@@ -623,7 +623,7 @@
           <div class="step-no">0</div>
           <div class="step-body card">
             <h3>收到 OrderPlaced 或 Temporal Activity</h3>
-            <div class="signature">AllocationOrderPlacedEventConsumer.onOrderPlaced(event) ｜ TemporalInventoryActivitiesAdapter.requestAllocation(input)</div>
+            <div class="signature">AllocationOrderPlacedEventConsumer.onOrderPlaced(event) ｜ TemporalInventoryAllocationActivitiesAdapter.requestAllocation(input)</div>
             <p>Inbound adapter 不傳整個 Order，只建立 <code>AllocateOrderCommand(orderId)</code>。事件模式先由 messaging decorator 用 <code>(subscriberId, eventId)</code> 對 <code>event_inbox</code> 做 insert-if-absent。</p>
             <div class="effect"><strong>寫入</strong><span>事件模式先 provisional 寫入 <code>event_inbox</code>；若後面 rollback，claim 也 rollback。</span></div>
           </div>
@@ -798,7 +798,7 @@ void onOrderPlaced(OrderPlacedIntegrationEvent event) {
     allocateOrderUsecase.execute(
             new AllocateOrderCommand(event.getOrderId()));
 }</code></pre>
-          <p class="method-note">Temporal 模式對應的是 <code>TemporalInventoryActivitiesAdapter.requestAllocation()</code>，同樣只建立 <code>AllocateOrderCommand</code>；差別是沒有 Inbox claim。</p>
+          <p class="method-note">Temporal 模式對應的是 <code>TemporalInventoryAllocationActivitiesAdapter.requestAllocation()</code>，同樣只建立 <code>AllocateOrderCommand</code>；差別是沒有 Inbox claim。</p>
         </article>
 
         <article class="method-card card">
@@ -1289,7 +1289,7 @@ messageProducer.send(destination, mappedMessage);
       <div class="source-list">
         <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/application/AllocateOrderUsecase.java"><code>AllocateOrderUsecase</code></a><p>頂層 transaction 與三段 application orchestration。</p></article>
         <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/entrypoint/AllocationOrderPlacedEventConsumer.java"><code>AllocationOrderPlacedEventConsumer</code></a><p>OrderPlaced event inbound adapter。</p></article>
-        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/entrypoint/temporal/TemporalInventoryActivitiesAdapter.java"><code>TemporalInventoryActivitiesAdapter</code></a><p>Temporal Activity inbound adapter。</p></article>
+        <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/entrypoint/temporal/TemporalInventoryAllocationActivitiesAdapter.java"><code>TemporalInventoryAllocationActivitiesAdapter</code></a><p>Allocation Temporal Activity inbound adapter。</p></article>
         <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/application/port/OrderStockMovementSource.java"><code>OrderStockMovementSource</code></a><p>Order source port。</p></article>
         <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/reservation/intake/infrastructure/OrderStockMovementAdapter.java"><code>OrderStockMovementAdapter</code></a><p>Order → source-neutral command adapter。</p></article>
         <article class="source-item card"><a href="../backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/registration/application/StockOperationRegistrar.java"><code>StockOperationRegistrar</code></a><p>冪等註冊 Operation／Moves。</p></article>

@@ -105,12 +105,12 @@ Reservation、Position、Location 的唯一 owner。
   collaborator；
   collaborator 自己的 private row buffers 可以繼續 nested。
 
-## Temporary adapter exception
+## Adapter ownership
 
-- 現有 `inventory.adapter` 暫時保留 `TemporalInventoryActivitiesAdapter` 與
-  `AllocationOptimisticLockRetryObserver`。
-- 不得把新的 Domain 或 Application business type 放入 `inventory.adapter`；新增 adapter 時仍應先尋找明確
-  owner，除非另有架構決策。
+- Temporal Activity adapter 依穩定業務能力歸入 owner 的 `entrypoint.temporal`；Allocation 與 Movement 使用
+  獨立 contract／adapter，不建立 context-wide `TemporalInventoryActivitiesAdapter`。
+- `inventory.adapter` 暫時只保留 `AllocationOptimisticLockRetryObserver`。不得把新的 Domain 或 Application
+  business type 放入 `inventory.adapter`；新增 adapter 時仍應先尋找明確 owner，除非另有架構決策。
 
 ## Verification
 

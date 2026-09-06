@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Temporal orchestration workflow runtime'
+
+dependencies {
+    api project(':orchestration-temporal-contract')
+    implementation libs.temporal.sdk
+
+    testImplementation libs.temporal.testing
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

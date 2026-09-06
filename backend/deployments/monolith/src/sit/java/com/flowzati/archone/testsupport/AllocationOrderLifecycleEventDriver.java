@@ -3,8 +3,8 @@ package com.flowzati.archone.testsupport;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
-import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
 import com.flowzati.archone.inventory.movement.entrypoint.consumer.MovementCancellationEventSubscriptions;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.events.AggregateReference;
@@ -38,7 +38,7 @@ public class AllocationOrderLifecycleEventDriver {
             ControllableMessageConsumerImplementation transport) {
         this.messageMapper = new IntegrationEventMessageMapper(serializer, nameMapping);
         this.transport = transport;
-        this.physicalDestination = channelMapping.transform(OrderingChannels.ORDER_EVENTS);
+        this.physicalDestination = channelMapping.transform(OrderingEventDestinations.ORDER_EVENTS);
     }
 
     public void consume(OrderPlacedIntegrationEvent event) {
@@ -53,11 +53,11 @@ public class AllocationOrderLifecycleEventDriver {
         IntegrationEventPublication publication = new IntegrationEventPublication(
                 event,
                 new AggregateReference(OrderingAggregateTypes.ORDER, orderId),
-                new PublicationTarget(OrderingChannels.ORDER_EVENTS, orderId),
+                new PublicationTarget(OrderingEventDestinations.ORDER_EVENTS, orderId),
                 occurredAt);
         String subscriberId = event instanceof OrderCancelledIntegrationEvent
                 ? MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS
-                : ReservationIntakeEventSubscriptions.ORDER_PLACEMENT_DRIVER;
+                : AllocationSubscriberIds.ORDER_PLACEMENT;
         transport.emit(subscriberId, physicalDestination, messageMapper.toMessage(publication), 1);
     }
 }

@@ -76,7 +76,7 @@
 - [x] 9.2 同步更新 Ordering consumer，只使用 source／demand trace更新 ordering lifecycle，不把 allocation id誤當 order或 demand identity
 - [x] 9.3 更新 WMS create-shipment command、aggregate、persistence與 Inbox idempotency，使用 allocation id作 Shipment execution grouping且保存 demand trace
 - [x] 9.4 更新 shipment handover／completion／cancellation events與 Inventory consumers，所有 commitment操作使用 allocation id並驗證完整 movement set
-- [x] 9.5 更新 Events orchestration與 `fulfillment-workflow-contract`／runtime／Temporal adapters，讓 Workflow／Activity payload在 replay時保留 allocation與demand兩種 identity
+- [x] 9.5 更新 Events orchestration與 `fulfillment-temporal-contract`／runtime／Temporal adapters，讓 Workflow／Activity payload在 replay時保留 allocation與demand兩種 identity
 - [x] 9.6 更新 bootstrap event registration、serialization fixtures、seed data與所有 event factories，移除 demand-id-as-allocation-id assumptions
 - [x] 9.7 建立 contract、WMS unit、Inbox transaction及 Temporal replay tests，驗證 duplicate committed event只建立一個 Shipment且 completion／cancellation回到正確 allocation
 
@@ -98,7 +98,7 @@
 - [x] 11.4 加入 single-writer configuration與startup validation，禁止 demand-id writer與allocation-id writer同時啟用，並測試新 event發布後不得熱切回legacy
 - [x] 11.5 建立 rollback rehearsal tests：writer切換前可回退、切換後未發布event可由slices重建refs、已發布後必須pause／drain／reconcile再forward-fix或reverse-migrate
 - [x] 11.6 執行 `cd backend && ./gradlew spotlessApply`，檢查格式diff後執行 `./gradlew spotlessCheck`
-- [x] 11.7 執行 `cd backend && ./gradlew :inventory-context:test :integration-contracts:test :ordering-context:test :wms-context:test :fulfillment-workflow-contract:test :fulfillment-workflow-runtime:test`
+- [x] 11.7 執行 `cd backend && ./gradlew :inventory-context:test :integration-contracts:test :ordering-context:test :wms-context:test :fulfillment-temporal-contract:test :fulfillment-temporal-runtime:test`
 - [x] 11.8 執行 `cd backend && ./gradlew :deployments:monolith:test :deployments:monolith:sit`，涵蓋migration、rollback、FIFO／FEFO、hot-SKU concurrency、Events chain、WMS transaction與Temporal wiring
 - [x] 11.9 執行 `make check`，確認完整backend checks與SIT通過且沒有architecture／format／schema regression
 - [x] 11.10 執行 `make e2e`，確認隔離的Karate v2 Events與Temporal E2E全部通過並自動清理containers、networks與runtime artifacts

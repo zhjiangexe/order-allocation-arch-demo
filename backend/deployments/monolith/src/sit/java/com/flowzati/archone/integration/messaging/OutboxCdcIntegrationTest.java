@@ -3,7 +3,7 @@ package com.flowzati.archone.integration.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
-import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.messaging.api.Message;
 import com.flowzati.archone.messaging.api.MessageHeaders;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
@@ -46,7 +46,7 @@ import tools.jackson.databind.ObjectMapper;
 
 class OutboxCdcIntegrationTest {
 
-    private static final String ORDER_EVENTS_TOPIC = OrderingChannels.ORDER_EVENTS;
+    private static final String ORDER_EVENTS_TOPIC = OrderingEventDestinations.ORDER_EVENTS;
     private static final String PRIMARY_CONNECTOR = "order-promising-outbox";
     private static final String GENERIC_HEADERS_CONNECTOR = "gate-a-generic-headers-outbox";
     private static final String GENERIC_HEADERS_TOPIC = "gate-a." + ORDER_EVENTS_TOPIC;

@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 由已指派的 picking snapshot 映射而來，不要求 WMS 直接讀 Inventory repository。
+ * 由已指派的 stock-operation snapshot 映射而來，不要求 WMS 直接讀 Inventory repository。
  *
  * <p>Inventory 以 move-centric {@code OrderAllocationCommittedIntegrationEvent} 提供完整配置快照；
  * Event-driven WMS 與 Temporal workflow 共用相同的已指派事實。
@@ -22,9 +22,9 @@ public record CreateShipmentCommand(
         /** Inventory StockOperation ID，是跨 context 唯一共享的 operation-group identity。 */
         UUID stockOperationId,
         UUID orderId,
-        /** 由 assigned picking snapshot 提供。 */
+        /** 由 assigned stock-operation snapshot 提供。 */
         UUID ownerId,
-        /** 由 assigned picking snapshot 提供履約 Facility。 */
+        /** 由 assigned stock-operation snapshot 提供履約 Facility。 */
         UUID facilityId,
         /**
          * assigned move lines；只通知 orderId 無法產生 WMS work。
@@ -34,7 +34,7 @@ public record CreateShipmentCommand(
         Instant dispatchBy,
         /** 上游明確提供的 0..100 release priority，不由 WMS 反推。 */
         int releasePriority,
-        /** 可直接使用 picking assignment snapshot 的 occurred time。 */
+        /** 可直接使用 stock-operation assignment snapshot 的 occurred time。 */
         Instant createdAt) {
 
     public CreateShipmentCommand {

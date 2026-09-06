@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentAggregateTypes;
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v3.ShipmentHandedOverIntegrationEvent;
-import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
-import com.flowzati.archone.contracts.inventory.v2.StockOperationLifecycleIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
+import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
@@ -133,7 +133,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
                           FROM event_outbox
                          WHERE type = ?
                         """, StockOperationLifecycleIntegrationEvent.EVENT_TYPE))
-                .containsEntry("route", InventoryChannels.STOCK_OPERATION_EVENTS)
+                .containsEntry("route", InventoryEventDestinations.STOCK_OPERATION_EVENTS)
                 .containsEntry("aggregateid", scenario.stockOperationId().toString())
                 .containsEntry("action", "COMPLETED")
                 .containsEntry("stock_quant_id", stockQuantId.toString())
@@ -155,15 +155,15 @@ class OutboundFulfillmentEventChainIntegrationTest {
         IntegrationEventPublication publication = new IntegrationEventPublication(
                 event,
                 new AggregateReference(
-                        FulfillmentAggregateTypes.WMS_SHIPMENT,
+                        FulfillmentAggregateTypes.SHIPMENT,
                         event.getShipmentId().toString()),
                 new PublicationTarget(
-                        FulfillmentChannels.FULFILLMENT_HANDOFFS,
+                        FulfillmentEventDestinations.FULFILLMENT_HANDOFFS,
                         event.getOrderId().toString()),
                 event.getHandedOverAt());
         transport.emit(
                 OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER,
-                channelMapping.transform(FulfillmentChannels.FULFILLMENT_HANDOFFS),
+                channelMapping.transform(FulfillmentEventDestinations.FULFILLMENT_HANDOFFS),
                 new IntegrationEventMessageMapper(eventSerializer, eventNameMapping).toMessage(publication),
                 1);
     }
@@ -175,7 +175,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
         """, OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE);
         UUID eventId = UUID.fromString(row.get("id").toString());
         ConsumerRecord<String, String> record = new ConsumerRecord<>(
-                FulfillmentChannels.FULFILLMENT_HANDOFFS,
+                FulfillmentEventDestinations.FULFILLMENT_HANDOFFS,
                 0,
                 0,
                 row.get("partition_key").toString(),
@@ -192,7 +192,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
                         row.get("headers").toString().getBytes(StandardCharsets.UTF_8));
         transport.emit(
                 OrderingEventSubscriptions.FULFILLMENT_COMPLETION,
-                channelMapping.transform(FulfillmentChannels.FULFILLMENT_HANDOFFS),
+                channelMapping.transform(FulfillmentEventDestinations.FULFILLMENT_HANDOFFS),
                 kafkaMessageMapper.map(record),
                 1);
         return eventId;

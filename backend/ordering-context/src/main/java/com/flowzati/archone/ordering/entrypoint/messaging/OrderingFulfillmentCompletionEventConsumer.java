@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.entrypoint.messaging;
 
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
+import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
@@ -10,8 +10,6 @@ import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
-import java.time.Instant;
-import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,38 +30,16 @@ public class OrderingFulfillmentCompletionEventConsumer {
     IntegrationEventDispatcher orderingFulfillmentCompletionIntegrationEventDispatcher(
             IntegrationEventDispatcherFactory factory) {
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder.forDestination(
-                        FulfillmentChannels.FULFILLMENT_HANDOFFS)
+                        FulfillmentEventDestinations.FULFILLMENT_HANDOFFS)
                 .onEvent(
                         OutboundMovementsCompletedIntegrationEvent.class,
-                        envelope -> onOutboundMovementsCompleted(envelope.event()))
-                .onEvent(
-                        com.flowzati.archone.contracts.fulfillment.v2.OutboundMovementsCompletedIntegrationEvent.class,
-                        envelope -> onOutboundMovementsCompleted(envelope.event()))
-                .onEvent(
-                        com.flowzati.archone.contracts.fulfillment.v3.OutboundMovementsCompletedIntegrationEvent.class,
                         envelope -> onOutboundMovementsCompleted(envelope.event()))
                 .build();
         return factory.make(OrderingEventSubscriptions.FULFILLMENT_COMPLETION, handlers);
     }
 
     void onOutboundMovementsCompleted(OutboundMovementsCompletedIntegrationEvent event) {
-        accept(new OrderCompletion(event.getOrderId(), event.getShipmentId(), event.getCompletedAt()));
+        recordOrderFulfillmentUsecase.execute(
+                new RecordOrderFulfillmentCommand(event.getOrderId(), event.getShipmentId(), event.getCompletedAt()));
     }
-
-    void onOutboundMovementsCompleted(
-            com.flowzati.archone.contracts.fulfillment.v2.OutboundMovementsCompletedIntegrationEvent event) {
-        accept(new OrderCompletion(event.getOrderId(), event.getShipmentId(), event.getCompletedAt()));
-    }
-
-    void onOutboundMovementsCompleted(
-            com.flowzati.archone.contracts.fulfillment.v3.OutboundMovementsCompletedIntegrationEvent event) {
-        accept(new OrderCompletion(event.getOrderId(), event.getShipmentId(), event.getCompletedAt()));
-    }
-
-    private void accept(OrderCompletion completion) {
-        recordOrderFulfillmentUsecase.execute(new RecordOrderFulfillmentCommand(
-                completion.orderId(), completion.shipmentId(), completion.completedAt()));
-    }
-
-    private record OrderCompletion(UUID orderId, UUID shipmentId, Instant completedAt) {}
 }

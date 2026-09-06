@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Temporal orchestration workflow and activity contracts'
+
+dependencies {
+    api libs.jackson.annotations
+    api libs.temporal.sdk
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}
