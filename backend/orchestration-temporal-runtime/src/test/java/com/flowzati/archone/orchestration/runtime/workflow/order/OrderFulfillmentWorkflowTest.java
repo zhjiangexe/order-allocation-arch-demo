@@ -19,6 +19,7 @@ import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrder
 import com.flowzati.archone.orchestration.contract.activity.ordering.OrderActivities;
 import com.flowzati.archone.orchestration.contract.activity.ordering.RecordOrderFulfillmentActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityInput;
+import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityResult;
 import com.flowzati.archone.orchestration.contract.activity.wms.ShipmentActivities;
@@ -819,6 +820,8 @@ public class OrderFulfillmentWorkflowTest {
         private final AtomicBoolean failFirstAllocationRequest = new AtomicBoolean();
         private final AtomicBoolean failFirstShipmentCreation = new AtomicBoolean();
         private volatile CancelOrderActivityStatus orderCancellationStatus = CancelOrderActivityStatus.CANCELLED;
+        private volatile CancelShipmentActivityStatus shipmentCancellationStatus =
+                CancelShipmentActivityStatus.ACCEPTED;
     }
 
     private record RecordingInventoryAllocationActivities(WorkflowRecording recording)
@@ -922,10 +925,11 @@ public class OrderFulfillmentWorkflowTest {
         }
 
         @Override
-        public void requestShipmentCancellation(CancelShipmentActivityInput input) {
+        public CancelShipmentActivityStatus requestShipmentCancellation(CancelShipmentActivityInput input) {
             recording.calls.add("requestShipmentCancellation");
             recording.shipmentCancellations.add(input);
             recording.shipmentCancellationDecided.countDown();
+            return recording.shipmentCancellationStatus;
         }
     }
 }

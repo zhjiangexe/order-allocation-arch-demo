@@ -10,6 +10,7 @@ import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrder
 import com.flowzati.archone.orchestration.contract.activity.ordering.OrderActivities;
 import com.flowzati.archone.orchestration.contract.activity.ordering.RecordOrderFulfillmentActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityInput;
+import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityResult;
 import com.flowzati.archone.orchestration.contract.activity.wms.ShipmentActivities;
@@ -184,7 +185,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
             return new CancellationRequestResult(
                     CancellationRequestStatus.ALREADY_CANCELLED, cancellationCheckpoint.requestIdOrNull());
         }
-        if (shipmentCheckpoint.hasHandover()) {
+        if (shipmentCheckpoint.hasHandover() || cancellationCheckpoint.isRejected()) {
             UUID effectiveRequestId = cancellationCheckpoint.effectiveRequestId(request.requestId());
             return new CancellationRequestResult(CancellationRequestStatus.REJECTED, effectiveRequestId);
         }
@@ -216,16 +217,22 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
     }
 
     /**
-     * 提交 WMS cancellation command；實際终態仍由 Signal 決定。
+     * WMS 拒絕取消不代表 Shipment 已交接；回到履約等待，實際終態仍由 Signal 決定。
      */
     private void requestShipmentCancellation(String processId, UUID shipmentId, CancellationRequestInput request) {
-        shipmentActivities.requestShipmentCancellation(new CancelShipmentActivityInput(
-                processId,
-                request.requestId(),
-                workflowInput.orderId(),
-                shipmentId,
-                request.requestedAt(),
-                request.reason()));
+        CancelShipmentActivityStatus status =
+                shipmentActivities.requestShipmentCancellation(new CancelShipmentActivityInput(
+                        processId,
+                        request.requestId(),
+                        workflowInput.orderId(),
+                        shipmentId,
+                        request.requestedAt(),
+                        request.reason()));
+        // 舊版 void Activity 的空結果不代表拒絕，仍等待原本的 terminal Signal。
+        if (status == CancelShipmentActivityStatus.REJECTED) {
+            cancellationCheckpoint.markRejected();
+            enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
+        }
     }
 
     private void cancelOrderInOrdering(String processId, CancellationRequestInput request, Instant cancelledAt) {

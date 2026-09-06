@@ -18,6 +18,31 @@ class CancellationCheckpointTest {
             new CancellationRequestInput(UUID.randomUUID(), UUID.randomUUID(), REQUESTED_AT, "Customer request");
 
     @Test
+    void retainsTheRequestAfterRejectionWithoutTreatingItAsPendingOrCancelled() {
+        CancellationCheckpoint checkpoint = new CancellationCheckpoint();
+        checkpoint.recordRequest(REQUEST);
+
+        checkpoint.markRejected();
+
+        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.REJECTED);
+        assertThat(checkpoint.hasRequest()).isTrue();
+        assertThat(checkpoint.isRequested()).isFalse();
+        assertThat(checkpoint.isRejected()).isTrue();
+        assertThat(checkpoint.isOrderCancelled()).isFalse();
+        assertThat(checkpoint.request()).isSameAs(REQUEST);
+        assertThat(checkpoint.cancelledAt()).isNull();
+        assertThatThrownBy(() -> checkpoint.markOrderCancelled(REQUESTED_AT)).isInstanceOf(ApplicationFailure.class);
+    }
+
+    @Test
+    void cannotRejectCancellationWithoutARequest() {
+        CancellationCheckpoint checkpoint = new CancellationCheckpoint();
+
+        assertThatThrownBy(checkpoint::markRejected).isInstanceOf(ApplicationFailure.class);
+        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.NONE);
+    }
+
+    @Test
     void distinguishesAnAcceptedRequestFromPendingAndCompletedCancellation() {
         CancellationCheckpoint checkpoint = new CancellationCheckpoint();
 

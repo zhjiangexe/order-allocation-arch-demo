@@ -5,6 +5,7 @@ import com.flowzati.archone.foundation.error.BusinessException;
 import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityInput;
+import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityResult;
 import com.flowzati.archone.orchestration.contract.activity.wms.ShipmentActivities;
@@ -13,6 +14,7 @@ import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCo
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
+import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
 import io.temporal.failure.ApplicationFailure;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -60,10 +62,13 @@ public final class TemporalShipmentActivitiesAdapter implements ShipmentActiviti
     }
 
     @Override
-    public void requestShipmentCancellation(CancelShipmentActivityInput input) {
+    public CancelShipmentActivityStatus requestShipmentCancellation(CancelShipmentActivityInput input) {
         try {
-            cancelShipmentUsecase.handle(new CancelShipmentCommand(
+            CancelShipmentStatus status = cancelShipmentUsecase.handle(new CancelShipmentCommand(
                     input.requestId(), input.shipmentId(), input.requestedAt(), input.reason()));
+            return status == CancelShipmentStatus.REJECTED
+                    ? CancelShipmentActivityStatus.REJECTED
+                    : CancelShipmentActivityStatus.ACCEPTED;
         } catch (DomainConflictException exception) {
             throw nonRetryable(exception);
         }

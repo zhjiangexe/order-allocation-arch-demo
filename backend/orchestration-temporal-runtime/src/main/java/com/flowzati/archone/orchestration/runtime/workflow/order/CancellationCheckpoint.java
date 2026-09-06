@@ -33,6 +33,17 @@ final class CancellationCheckpoint {
         return state == OrderFulfillmentCancellationState.ORDER_CANCELLED;
     }
 
+    boolean isRejected() {
+        return state == OrderFulfillmentCancellationState.REJECTED;
+    }
+
+    void markRejected() {
+        if (!isRequested()) {
+            throw WorkflowFailures.invariantViolation("Cancellation rejection requires a requested cancellation");
+        }
+        state = OrderFulfillmentCancellationState.REJECTED;
+    }
+
     /** 已接受請求但未記錄 Order 取消完成；正常履約勝出時仍可能為 true，不代表最終取消結果。 */
     boolean isRequested() {
         return state == OrderFulfillmentCancellationState.REQUESTED;

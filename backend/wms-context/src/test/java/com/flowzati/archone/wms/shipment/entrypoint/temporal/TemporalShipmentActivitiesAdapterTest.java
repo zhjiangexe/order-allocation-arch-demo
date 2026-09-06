@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityInput;
+import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityInput;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.AssignedStockMove;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.StockOperationAssignedInput;
@@ -26,9 +27,31 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 
 class TemporalShipmentActivitiesAdapterTest {
+
+    @ParameterizedTest
+    @EnumSource(CancelShipmentStatus.class)
+    void exposesRejectionAndAcknowledgesBothNewAndRepeatedAcceptedCommands(CancelShipmentStatus status) {
+        when(cancelShipmentUsecase.handle(any())).thenReturn(status);
+
+        var result = activities.requestShipmentCancellation(new CancelShipmentActivityInput(
+                "process-1",
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                Instant.parse("2026-08-19T10:00:00Z"),
+                "Customer request"));
+
+        assertThat(result)
+                .isEqualTo(
+                        status == CancelShipmentStatus.REJECTED
+                                ? CancelShipmentActivityStatus.REJECTED
+                                : CancelShipmentActivityStatus.ACCEPTED);
+    }
 
     private final CreateShipmentUsecase createShipmentUsecase = mock(CreateShipmentUsecase.class);
     private final CancelShipmentUsecase cancelShipmentUsecase = mock(CancelShipmentUsecase.class);

@@ -4,5 +4,6 @@ package com.flowzati.archone.orchestration.contract.workflow.order.result;
 public enum OrderFulfillmentCancellationState {
     NONE,
     REQUESTED,
+    REJECTED,
     ORDER_CANCELLED
 }

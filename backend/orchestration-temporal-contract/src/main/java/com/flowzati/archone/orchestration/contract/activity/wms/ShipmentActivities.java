@@ -20,8 +20,9 @@ public interface ShipmentActivities {
 
     /**
      * 冪等提交 WMS cancellation command；相同 request ID、請求時間與原因可安全重播，不同 immutable
-     * request 必須拒絕。Activity 只確認 command 已處理，不等待實體 recovery。
+     * request 必須拒絕。Activity 回傳受理或拒絕結果，不等待實體 recovery。
+     * 舊版 void Activity history 沒有回傳值，重播時仍依既有行為等待 Shipment terminal Signal。
      */
     @ActivityMethod(name = "CancelWmsShipment")
-    void requestShipmentCancellation(CancelShipmentActivityInput input);
+    CancelShipmentActivityStatus requestShipmentCancellation(CancelShipmentActivityInput input);
 }

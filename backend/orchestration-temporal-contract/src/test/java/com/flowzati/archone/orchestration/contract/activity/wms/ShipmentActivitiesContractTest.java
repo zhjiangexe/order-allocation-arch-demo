@@ -11,10 +11,21 @@ import io.temporal.api.common.v1.Payload;
 import io.temporal.common.converter.DefaultDataConverter;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ShipmentActivitiesContractTest {
+
+    @Test
+    void keepsCancellationActivityTypeAndReadsAnAbsentLegacyVoidResult() throws Exception {
+        var method =
+                ShipmentActivities.class.getMethod("requestShipmentCancellation", CancelShipmentActivityInput.class);
+        assertThat(method.getAnnotation(ActivityMethod.class).name()).isEqualTo("CancelWmsShipment");
+        assertThat(DefaultDataConverter.STANDARD_INSTANCE.fromPayloads(
+                        0, Optional.empty(), CancelShipmentActivityStatus.class, CancelShipmentActivityStatus.class))
+                .isNull();
+    }
 
     private static final UUID ID = UUID.fromString("00000000-0000-7000-8000-000000000001");
     private static final String LEGACY_INPUT_JSON = """
