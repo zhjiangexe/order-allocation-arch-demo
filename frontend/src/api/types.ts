@@ -180,7 +180,3 @@ export interface StockReceiptConfirmed {
   sku: string;
   quantity: number;
 }
-
-export interface DemoConfig {
-  partitionKeyStrategy: string;
-}

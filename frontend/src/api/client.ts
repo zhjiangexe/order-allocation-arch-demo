@@ -1,5 +1,4 @@
 import type {
-  DemoConfig,
   FacilityView,
   OrderView,
   OwnerView,
@@ -99,8 +98,4 @@ export function confirmStockReceipt(command: ConfirmStockReceiptRequest): Promis
     method: 'POST',
     body: JSON.stringify(command),
   });
-}
-
-export function getDemoConfig(): Promise<DemoConfig> {
-  return request<DemoConfig>('/demo/config');
 }

@@ -5,8 +5,7 @@
 
 ## 啟動
 
-收貨使用正式的同步 `POST /stock-receipts`，不受 profile 限制。只有 `/demo/config` 需要後端
-以 dev profile 註冊；其他 profile 下仍可收貨，但不顯示 demo 分區策略。
+收貨使用正式的同步 `POST /stock-receipts`，不受 profile 限制。
 
 最省事的方式是用 `e2e/perf` 那套（PostgreSQL + Kafka + Debezium 都會一起起來）：
 

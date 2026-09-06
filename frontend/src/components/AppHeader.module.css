@@ -33,14 +33,3 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-
-.strategy {
-  margin-left: auto;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.strategyValue {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: inherit;
-}
