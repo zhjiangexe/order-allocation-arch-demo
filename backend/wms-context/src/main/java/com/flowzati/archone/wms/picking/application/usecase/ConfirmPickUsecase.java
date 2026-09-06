@@ -7,8 +7,10 @@ import com.flowzati.archone.wms.picking.application.store.PickingWorkStore;
 import com.flowzati.archone.wms.picking.domain.aggregate.PickingWork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Service
 public class ConfirmPickUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(ConfirmPickUsecase.class);

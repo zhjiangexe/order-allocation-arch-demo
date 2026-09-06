@@ -7,9 +7,11 @@ import com.flowzati.archone.wms.dispatch.application.store.ShipmentDispatchStore
 import com.flowzati.archone.wms.dispatch.domain.aggregate.ShipmentDispatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 完成 WMS 對承運人的 custody handover；運輸離站後續由 TMS 負責。 */
+@Service
 public class HandOverShipmentUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(HandOverShipmentUsecase.class);

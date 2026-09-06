@@ -5,9 +5,11 @@ import com.flowzati.archone.wms.shipment.application.result.ShipmentView;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 依 Order correlation 讀取 WMS Shipment；不回查 Ordering。 */
+@Service
 public class GetOrderShipmentsUsecase {
 
     private final ShipmentStore shipmentStore;

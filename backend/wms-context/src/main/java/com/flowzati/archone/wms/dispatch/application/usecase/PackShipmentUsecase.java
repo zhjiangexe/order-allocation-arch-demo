@@ -11,8 +11,10 @@ import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Service
 public class PackShipmentUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(PackShipmentUsecase.class);

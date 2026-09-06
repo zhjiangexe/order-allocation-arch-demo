@@ -9,9 +9,11 @@ import com.flowzati.archone.wms.wave.application.store.WaveStore;
 import com.flowzati.archone.wms.wave.domain.aggregate.Wave;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Wave 的所有 Shipment picking work 都完成或取消後，關閉 Wave；Pack／Stage 不屬於 Wave completion。 */
+@Service
 public class CompleteWaveUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(CompleteWaveUsecase.class);

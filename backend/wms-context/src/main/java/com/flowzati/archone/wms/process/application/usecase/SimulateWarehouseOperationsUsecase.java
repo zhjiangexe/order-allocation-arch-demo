@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>這個 adapter 刻意串接正式的細粒度 use cases，讓模擬環境與真實操作入口共享相同的 transaction、
  * persistence 與 invariant。整段在單一 transaction 內提交，服務失敗時不會留下只完成一半的模擬作業。
  */
+@Service
 public class SimulateWarehouseOperationsUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(SimulateWarehouseOperationsUsecase.class);

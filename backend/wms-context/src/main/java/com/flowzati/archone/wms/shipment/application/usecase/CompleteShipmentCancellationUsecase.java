@@ -9,9 +9,11 @@ import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 完成一張 Shipment 的停止作業與必要 recovery，並發布唯一的取消終態。 */
+@Service
 public class CompleteShipmentCancellationUsecase {
 
     private final ShipmentStore shipmentStore;

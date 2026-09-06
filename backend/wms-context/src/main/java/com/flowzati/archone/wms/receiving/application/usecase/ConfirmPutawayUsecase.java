@@ -6,8 +6,10 @@ import com.flowzati.archone.wms.receiving.domain.aggregate.InboundOperation;
 import com.flowzati.archone.wms.receiving.domain.valueobject.PutawayLine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Service
 public class ConfirmPutawayUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(ConfirmPutawayUsecase.class);

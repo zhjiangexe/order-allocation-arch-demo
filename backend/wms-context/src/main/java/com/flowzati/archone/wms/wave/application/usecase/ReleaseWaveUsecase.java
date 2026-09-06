@@ -12,6 +12,7 @@ import com.flowzati.archone.wms.wave.domain.type.WaveStatus;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 第一版每張尚未取消的 Shipment 建一個 PickingWork；Wave 規劃後、release 前取消的 Shipment
  * 會保留 assignment audit trail，但不再建立現場工作。
  */
+@Service
 public class ReleaseWaveUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(ReleaseWaveUsecase.class);

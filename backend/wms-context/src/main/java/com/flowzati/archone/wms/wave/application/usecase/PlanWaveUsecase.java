@@ -16,6 +16,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Composition layer 必須在同一交易內保存 Wave 與 Shipment claims；Shipment optimistic lock
  * 是避免兩個 Wave 同時選到同一 Shipment 的最後防線。
  */
+@Service
 public class PlanWaveUsecase {
 
     private static final Logger log = LoggerFactory.getLogger(PlanWaveUsecase.class);

@@ -10,8 +10,10 @@ import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
 import com.flowzati.archone.wms.shipment.domain.type.ShipmentCancellationState;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Service
 public class CancelShipmentUsecase {
 
     private final ShipmentStore shipmentStore;

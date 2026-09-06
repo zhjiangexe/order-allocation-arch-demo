@@ -7,9 +7,11 @@ import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
 import com.flowzati.archone.wms.shipment.domain.exception.ShipmentStockOperationSnapshotConflictException;
 import com.flowzati.archone.wms.shipment.domain.valueobject.ShipmentLine;
 import java.util.List;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 建立尚未 release 的 Shipment demand；PickTask 必須等 Wave Release 才建立。 */
+@Service
 public class CreateShipmentUsecase {
 
     private final ShipmentStore shipmentStore;
