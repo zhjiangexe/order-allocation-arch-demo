@@ -1,4 +1,4 @@
-package com.flowzati.archone.bootstrap;
+package com.flowzati.archone.bootstrap.dev;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;

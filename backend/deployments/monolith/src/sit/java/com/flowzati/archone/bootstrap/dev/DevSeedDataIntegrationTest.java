@@ -1,4 +1,4 @@
-package com.flowzati.archone.bootstrap;
+package com.flowzati.archone.bootstrap.dev;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
