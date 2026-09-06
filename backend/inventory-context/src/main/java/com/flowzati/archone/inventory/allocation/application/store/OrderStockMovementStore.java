@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.application.store;
 
-import com.flowzati.archone.inventory.movement.application.command.RegisterStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import java.util.Optional;
 import java.util.UUID;
 

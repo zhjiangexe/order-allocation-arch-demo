@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.movement.application.command;
+package com.flowzati.archone.inventory.movement.application.invocation;
 
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.UUID;

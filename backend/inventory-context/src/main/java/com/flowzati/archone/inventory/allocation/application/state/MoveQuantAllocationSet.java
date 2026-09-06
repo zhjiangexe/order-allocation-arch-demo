@@ -1,11 +1,11 @@
-package com.flowzati.archone.inventory.allocation.application;
+package com.flowzati.archone.inventory.allocation.application.state;
 
 import com.flowzati.archone.inventory.allocation.application.exception.StaleAllocationSetException;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.balance.application.policy.StockWriteOrder;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
+import com.flowzati.archone.inventory.movement.application.state.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import java.time.LocalDate;
 import java.util.Collection;

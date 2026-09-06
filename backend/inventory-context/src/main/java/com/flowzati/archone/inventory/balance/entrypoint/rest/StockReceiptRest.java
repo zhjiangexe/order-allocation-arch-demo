@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.balance.rest;
+package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.exception.StockReceiptRequestConflictException;

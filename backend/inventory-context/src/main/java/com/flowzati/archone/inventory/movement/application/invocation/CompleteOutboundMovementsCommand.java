@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.movement.application.command;
+package com.flowzati.archone.inventory.movement.application.invocation;
 
 import java.time.Instant;
 import java.util.HashSet;

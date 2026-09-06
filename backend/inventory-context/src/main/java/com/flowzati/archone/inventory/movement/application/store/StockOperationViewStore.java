@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.store;
 
-import com.flowzati.archone.inventory.movement.application.view.StockOperationView;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.List;
 import java.util.Optional;

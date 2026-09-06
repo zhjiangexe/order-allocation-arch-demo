@@ -1,8 +1,8 @@
-package com.flowzati.archone.inventory.movement.entrypoint;
+package com.flowzati.archone.inventory.movement.entrypoint.rest;
 
-import com.flowzati.archone.inventory.movement.application.view.StockMoveLineView;
-import com.flowzati.archone.inventory.movement.application.view.StockMoveView;
-import com.flowzati.archone.inventory.movement.application.view.StockOperationView;
+import com.flowzati.archone.inventory.movement.application.result.StockMoveLineView;
+import com.flowzati.archone.inventory.movement.application.result.StockMoveView;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
 import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;

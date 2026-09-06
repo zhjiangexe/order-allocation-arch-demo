@@ -8,9 +8,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.application.command.MovementLine;
-import com.flowzati.archone.inventory.movement.application.command.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.exception.SourceMovementConflictException;
+import com.flowzati.archone.inventory.movement.application.invocation.MovementLine;
+import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;

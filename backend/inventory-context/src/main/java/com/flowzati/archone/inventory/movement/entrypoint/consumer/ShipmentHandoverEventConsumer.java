@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.movement.entrypoint.consumer;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentChannels;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
-import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;

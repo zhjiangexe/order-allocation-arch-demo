@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.movement.application.view;
+package com.flowzati.archone.inventory.movement.application.result;
 
 import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import java.time.Instant;

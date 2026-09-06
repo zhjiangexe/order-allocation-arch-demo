@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.infrastructure.persistence.jdbc.store;
 
+import com.flowzati.archone.inventory.movement.application.result.StockOperationReconciliationReport;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationReconciliationStore;
-import com.flowzati.archone.inventory.movement.application.view.StockOperationReconciliationReport;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;

@@ -1,19 +1,19 @@
 package com.flowzati.archone.inventory.allocation.application.service;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.application.MoveQuantAllocationSet;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.exception.StaleAllocationSetException;
 import com.flowzati.archone.inventory.allocation.application.exception.StaleStockAllocationProposalException;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
+import com.flowzati.archone.inventory.allocation.application.state.MoveQuantAllocationSet;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
+import com.flowzati.archone.inventory.movement.application.state.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;

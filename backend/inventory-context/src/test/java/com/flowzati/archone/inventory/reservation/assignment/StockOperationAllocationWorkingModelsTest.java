@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.flowzati.archone.inventory.allocation.application.MoveQuantAllocationSet;
+import com.flowzati.archone.inventory.allocation.application.state.MoveQuantAllocationSet;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
+import com.flowzati.archone.inventory.movement.application.state.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
 import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;

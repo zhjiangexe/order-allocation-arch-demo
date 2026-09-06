@@ -7,7 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.CancelStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;

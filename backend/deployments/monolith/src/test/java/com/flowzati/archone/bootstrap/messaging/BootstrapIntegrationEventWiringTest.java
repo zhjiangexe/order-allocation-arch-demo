@@ -25,13 +25,13 @@ import com.flowzati.archone.inventory.allocation.application.service.StockOperat
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
-import com.flowzati.archone.inventory.allocation.entrypoint.consumer.AllocationInventoryAvailabilityEventConsumer;
-import com.flowzati.archone.inventory.allocation.entrypoint.consumer.AllocationOrderPlacedEventConsumer;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationOrderPlacedEventConsumer;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelSourceStockMovementsUsecase;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
-import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
 import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
 import com.flowzati.archone.inventory.movement.entrypoint.consumer.AllocationOrderCancellationEventConsumer;
+import com.flowzati.archone.inventory.movement.entrypoint.consumer.MovementCancellationEventSubscriptions;
 import com.flowzati.archone.inventory.movement.entrypoint.consumer.ShipmentHandoverEventConsumer;
 import com.flowzati.archone.messaging.events.EventMessageHeaders;
 import com.flowzati.archone.messaging.events.IntegrationEventDeserializer;

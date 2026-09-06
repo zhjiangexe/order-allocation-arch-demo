@@ -5,9 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationViewStore;
-import com.flowzati.archone.inventory.movement.application.view.StockOperationView;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.Optional;
 import java.util.UUID;

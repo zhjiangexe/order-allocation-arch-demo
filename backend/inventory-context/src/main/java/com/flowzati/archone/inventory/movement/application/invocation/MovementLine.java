@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.movement.application.command;
+package com.flowzati.archone.inventory.movement.application.invocation;
 
 /** One source line normalized for Stock Operation registration. */
 public record MovementLine(String sourceLineId, String skuCode, int quantity) {

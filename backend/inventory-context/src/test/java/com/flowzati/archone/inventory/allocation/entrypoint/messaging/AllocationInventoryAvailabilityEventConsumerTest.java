@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.entrypoint.consumer;
+package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;

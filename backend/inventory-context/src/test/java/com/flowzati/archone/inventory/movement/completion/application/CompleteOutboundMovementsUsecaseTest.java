@@ -13,8 +13,8 @@ import com.flowzati.archone.inventory.allocation.application.store.StockMoveLine
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationCompleted;
+import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.port.StockOperationCompletedPublisher;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;

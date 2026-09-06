@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.balance.rest;
+package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;

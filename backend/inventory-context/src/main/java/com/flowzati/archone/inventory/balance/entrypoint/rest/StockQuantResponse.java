@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.balance.rest;
+package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flowzati.archone.inventory.balance.application.result.StockQuantView;

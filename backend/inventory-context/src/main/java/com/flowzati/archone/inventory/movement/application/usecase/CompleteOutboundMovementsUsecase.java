@@ -1,14 +1,14 @@
 package com.flowzati.archone.inventory.movement.application.usecase;
 
-import com.flowzati.archone.inventory.allocation.application.MoveQuantAllocationSet;
+import com.flowzati.archone.inventory.allocation.application.state.MoveQuantAllocationSet;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.movement.application.StockOperationComposite;
-import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationCompleted;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
+import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.port.StockOperationCompletedPublisher;
+import com.flowzati.archone.inventory.movement.application.state.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;

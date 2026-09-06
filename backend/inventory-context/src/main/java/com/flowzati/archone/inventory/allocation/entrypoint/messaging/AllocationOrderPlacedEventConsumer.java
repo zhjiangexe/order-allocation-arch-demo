@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.entrypoint.consumer;
+package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingChannels;

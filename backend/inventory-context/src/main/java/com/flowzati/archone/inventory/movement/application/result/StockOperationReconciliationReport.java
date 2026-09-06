@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.movement.application.view;
+package com.flowzati.archone.inventory.movement.application.result;
 
 import java.util.List;
 import java.util.UUID;

@@ -8,7 +8,7 @@ import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
-import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
+import com.flowzati.archone.inventory.movement.entrypoint.rest.StockOperationResponse;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

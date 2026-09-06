@@ -1,6 +1,6 @@
 package com.flowzati.archone.demo.fulfillment;
 
-import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
+import com.flowzati.archone.inventory.movement.entrypoint.rest.StockOperationResponse;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.wms.shipment.application.result.ShipmentView;
 import java.util.List;

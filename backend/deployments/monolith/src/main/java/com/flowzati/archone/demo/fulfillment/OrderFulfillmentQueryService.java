@@ -2,7 +2,7 @@ package com.flowzati.archone.demo.fulfillment;
 
 import com.flowzati.archone.bootstrap.fulfillment.FulfillmentOrchestrationMode;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
-import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
+import com.flowzati.archone.inventory.movement.entrypoint.rest.StockOperationResponse;
 import com.flowzati.archone.orderfulfillment.contract.workflow.OrderFulfillmentWorkflowSnapshot;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;

@@ -1,7 +1,6 @@
 package com.flowzati.archone.inventory.movement.entrypoint.rest;
 
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
-import com.flowzati.archone.inventory.movement.entrypoint.StockOperationResponse;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

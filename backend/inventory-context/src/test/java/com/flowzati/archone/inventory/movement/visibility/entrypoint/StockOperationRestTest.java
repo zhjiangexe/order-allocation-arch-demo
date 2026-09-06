@@ -5,12 +5,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.movement.application.result.StockMoveLineView;
+import com.flowzati.archone.inventory.movement.application.result.StockMoveView;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationHeaderView;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationSourceView;
+import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
-import com.flowzati.archone.inventory.movement.application.view.StockMoveLineView;
-import com.flowzati.archone.inventory.movement.application.view.StockMoveView;
-import com.flowzati.archone.inventory.movement.application.view.StockOperationHeaderView;
-import com.flowzati.archone.inventory.movement.application.view.StockOperationSourceView;
-import com.flowzati.archone.inventory.movement.application.view.StockOperationView;
 import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;

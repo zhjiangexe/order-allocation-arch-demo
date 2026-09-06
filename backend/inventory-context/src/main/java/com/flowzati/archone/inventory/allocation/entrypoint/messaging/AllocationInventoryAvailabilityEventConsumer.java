@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.entrypoint.consumer;
+package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryChannels;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;

@@ -5,7 +5,7 @@ import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.inventory.allocation.entrypoint.ReservationAssignmentEventSubscriptions;
 import com.flowzati.archone.inventory.allocation.entrypoint.ReservationIntakeEventSubscriptions;
-import com.flowzati.archone.inventory.movement.entrypoint.MovementCancellationEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.consumer.MovementCancellationEventSubscriptions;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryObserver;
 import io.micrometer.core.instrument.Counter;

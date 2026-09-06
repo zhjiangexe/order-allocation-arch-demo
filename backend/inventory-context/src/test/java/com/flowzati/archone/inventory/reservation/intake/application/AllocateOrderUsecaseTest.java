@@ -10,8 +10,8 @@ import com.flowzati.archone.inventory.allocation.application.invocation.Allocate
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.store.OrderStockMovementStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.movement.application.command.MovementLine;
-import com.flowzati.archone.inventory.movement.application.command.RegisterStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.MovementLine;
+import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationRegistrationResult;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;

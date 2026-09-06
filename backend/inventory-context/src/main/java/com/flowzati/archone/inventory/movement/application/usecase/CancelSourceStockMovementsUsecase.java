@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.application.usecase;
 
-import com.flowzati.archone.inventory.movement.application.command.CancelSourceStockMovementsCommand;
-import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.CancelSourceStockMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.CancelStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import org.springframework.stereotype.Service;

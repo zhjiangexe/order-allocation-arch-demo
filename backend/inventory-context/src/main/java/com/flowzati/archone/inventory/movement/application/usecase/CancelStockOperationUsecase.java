@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.usecase;
 
-import com.flowzati.archone.inventory.movement.application.command.CancelStockOperationCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.CancelStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;

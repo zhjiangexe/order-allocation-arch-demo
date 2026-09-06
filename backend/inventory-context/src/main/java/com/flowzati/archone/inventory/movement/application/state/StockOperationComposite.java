@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.movement.application;
+package com.flowzati.archone.inventory.movement.application.state;
 
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;

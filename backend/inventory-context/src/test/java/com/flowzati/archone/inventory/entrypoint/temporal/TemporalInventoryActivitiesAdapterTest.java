@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import com.flowzati.archone.inventory.adapter.TemporalInventoryActivitiesAdapter;
 import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.movement.application.command.CompleteOutboundMovementsCommand;
+import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.orderfulfillment.contract.activity.inventory.CompleteOutboundMovementsActivityInput;
 import com.flowzati.archone.orderfulfillment.contract.activity.inventory.RequestAllocationActivityInput;

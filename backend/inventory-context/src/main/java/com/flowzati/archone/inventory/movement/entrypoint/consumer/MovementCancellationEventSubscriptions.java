@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.movement.entrypoint;
+package com.flowzati.archone.inventory.movement.entrypoint.consumer;
 
 /** Stable Inbox identity for Movement cancellation. */
 public final class MovementCancellationEventSubscriptions {
