@@ -1,0 +1,56 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 15
+skinparam shadowing false
+skinparam activityBackgroundColor #EAF2FA
+skinparam activityBorderColor #365A7C
+skinparam activityDiamondBackgroundColor #FFF3D6
+skinparam activityDiamondBorderColor #94732C
+skinparam noteBackgroundColor #F4F6F8
+skinparam noteBorderColor #A4AFBA
+skinparam ArrowColor #43576B
+skinparam dpi 140
+
+title Order fulfillment\nSimplified activity diagram
+
+start
+:Request inventory allocation;
+:Wait for assignment or cancellation request;
+if (Cancellation requested?) then (yes)
+  :Cancel order in Ordering;\nFinish: ORDER_CANCELLED;
+  stop
+else (no)
+  :Release Shipment to WMS;
+endif
+:Wait for Shipment outcome\nor cancellation request;
+if (Cancellation requested\nand Shipment not yet terminal?) then (yes)
+  :Request Shipment cancellation;
+  note right
+    Accepted: wait for cancellation or handover.
+    Rejected: continue waiting for handover.
+    The Activity reply alone is not a terminal fact.
+  end note
+else (no)
+endif
+:Wait for Shipment terminal Signal;
+if (Shipment outcome?) then (cancelled)
+  :Cancel order in Ordering;\nFinish: ORDER_CANCELLED;
+  stop
+else (handed over)
+  :Complete outbound inventory movements;
+  :Record order fulfillment;\nFinish: FULFILLMENT_COMPLETED;
+  stop
+endif
+
+legend bottom
+  Cancellation Updates record intent; the main flow performs the work.
+  In-flight Activities must return before cancellation can proceed.
+  Ordering must confirm cancellation before ORDER_CANCELLED.
+  Inventory release after cancellation continues asynchronously.
+
+  Failure paths omitted: contradictory facts or Ordering rejection fail the Workflow.
+  Activities use the configured retry policy; non-retryable failures fail the Workflow.
+endlegend
+@enduml

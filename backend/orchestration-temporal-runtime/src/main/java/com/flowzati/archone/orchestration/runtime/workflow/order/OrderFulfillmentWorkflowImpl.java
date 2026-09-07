@@ -33,14 +33,16 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 協調 Inventory、Ordering 與 WMS 的粗粒度履約流程。
+ * Coordinates coarse-grained fulfillment across Inventory, Ordering, and WMS.
  *
- * <p>Activity 可重試的技術失敗交給 Temporal 持續重試；不可重試的失敗讓 Workflow failure 保持可見。
- * 取消 Update 只記錄意圖，必須等進行中的 Activity 成功返回，主線才能協調取消；Activity 未返回不代表
- * 外部業務尚未提交。業務內部的 Pick／Pack／Stage 不在此鏡像，只有稍後才由人員、設備或外部系統產生的事實使用 Signal。
+ * <p>Temporal retries retryable Activity failures; non-retryable failures remain visible as Workflow failures.
+ * Cancellation Updates only record intent. The main flow must wait for an in-flight Activity to return successfully
+ * before coordinating cancellation; a pending response does not imply that the external transaction has not committed.
+ * Internal Pick, Pack, and Stage operations are not mirrored here. Signals carry facts produced later by people,
+ * equipment, or external systems.
  *
- * <p>目前一個 execution 明確限制一個 assigned stock operation 與一個 Shipment。若要拆單或改派
- * 倉庫，先引入 fulfillment attempt／多 Shipment completion policy，不能擴充成覆蓋欄位。
+ * <p>Each execution supports one assigned stock operation and one Shipment. Split shipments or warehouse reassignment
+ * require an explicit fulfillment attempt or multi-Shipment completion policy, rather than overwriting stored state.
  */
 public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkflow {
 
@@ -64,7 +66,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
     private final CancellationCheckpoint cancellationCheckpoint;
 
     /**
-     * 在任何 Workflow method／Signal handler 執行前完成身分與查詢狀態初始化。
+     * Initializes identity and query state before any Workflow method or Signal handler runs.
      */
     @WorkflowInit
     public OrderFulfillmentWorkflowImpl(OrderFulfillmentInput input) {
@@ -219,7 +221,10 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                 progress.phaseEnteredAt());
     }
 
-    /** WMS 拒絕取消不代表 Shipment 已交接；回到履約等待，實際終態仍由 Signal 決定。 */
+    /**
+     * WMS rejection alone does not establish Shipment handover. Resume fulfillment waiting until a Signal establishes
+     * the actual terminal outcome.
+     */
     private void requestShipmentCancellation(String processId, UUID shipmentId, CancellationRequestInput request) {
         CancelShipmentActivityStatus status =
                 shipmentActivities.requestShipmentCancellation(new CancelShipmentActivityInput(
@@ -238,7 +243,10 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         }
     }
 
-    /** 確認訂單取消後結束；不等待 OrderCancelled 事件驅動的 Inventory 資源釋放。 */
+    /**
+     * Finishes after Ordering confirms cancellation, without waiting for Inventory resource release driven by the
+     * OrderCancelled event.
+     */
     private void cancelOrderAndFinish(String processId, CancellationRequestInput request, Instant cancelledAt) {
         enterPhase(OrderFulfillmentPhase.CANCELLING);
         CancelOrderActivityResult result = orderActivities.cancelOrder(new CancelOrderActivityInput(
