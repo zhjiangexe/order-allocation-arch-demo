@@ -8,7 +8,7 @@ import java.util.UUID;
  * Workflow 已觀察到的配貨進度與交給 WMS 的 immutable assignment，與目前執行中的 Workflow phase 分開保存。
  * 已接受的 assignment 不會被後續訊息覆寫，因此主流程可在等待期間持有該事實。
  */
-final class StockOperationAssignmentCheckpoint {
+final class StockOperationAssignmentState {
 
     private OrderFulfillmentAllocationState state = OrderFulfillmentAllocationState.NOT_REQUESTED;
     private StockOperationAssignedInput assignmentSnapshot;

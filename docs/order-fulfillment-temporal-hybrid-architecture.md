@@ -87,7 +87,7 @@ correlation predicate 與一般狀態轉換只是同一個 Workflow Task 內的 
 | --- | --- | --- |
 | `requestShipmentCancellation` | 提交 WMS cancellation command，不宣稱實體作業已完成 | `CancelShipment` Activity 只確認 transaction 已提交 |
 | `cancelOrderInOrdering` | 在 WMS 已安全後，以同一 request 與實際 `cancelledAt` 提交 Ordering cancellation | 其中的 `CancelOrder` Activity 會 |
-| `ShipmentCheckpoint` | 將 `CreateShipment` 回傳的權威 `shipmentId` 與 `ShipmentCancelled`／`ShipmentHandedOver` terminal fact 放在同一個 correlation state；Signal 可早於 Activity response 抵達 | 不會；已知身分後不相干 Signal 被安全忽略，早到但身分矛盾或互斥 terminal fact 形成 invariant failure |
+| `ShipmentState` | 將 `CreateShipment` 回傳的權威 `shipmentId` 與 `ShipmentCancelled`／`ShipmentHandedOver` terminal fact 放在同一個 correlation state；Signal 可早於 Activity response 抵達 | 不會；已知身分後不相干 Signal 被安全忽略，早到但身分矛盾或互斥 terminal fact 形成 invariant failure |
 | checkpoint 的 `require...` | 檢查程式或跨邊界 contract 不可能矛盾 | 正常時不會；違反時以 `ApplicationFailure` 結束 execution |
 | `WorkflowProgress.enter`／`update` 與 `finish` | 建立 Query 可見的 progress 與 terminal result | 前兩者不會；`finish` 隨 Workflow return 寫入 completion |
 
@@ -123,7 +123,7 @@ requestShipmentCancellation Activity
        -> ShipmentHandedOver Signal: normal fulfillment wins
 ```
 
-這個邊界也涵蓋 Activity 尚未回傳時 terminal fact 已先抵達的競爭：Signal 可以先寫入 `ShipmentCheckpoint`；
+這個邊界也涵蓋 Activity 尚未回傳時 terminal fact 已先抵達的競爭：Signal 可以先寫入 `ShipmentState`；
 Activity 回傳後再以權威 `shipmentId` 完成 correlation。若兩者身分矛盾，Workflow 明確形成 invariant
 failure，避免永遠等待；若 correlated handover 已成立，後到的
 `requestCancellation` Update 直接回 `REJECTED`，不保存新 request，也不再送 WMS cancellation command。
@@ -311,7 +311,7 @@ Temporal Activity 使用 void return，只確認 cancellation command transactio
 `OrderingShipmentCancellationEventConsumer` 消費同一個 `ShipmentCancelledIntegrationEvent`。因此
 `cancellationRequestedAt` 始終是原始請求時間，而 Order 與 Shipment 的 `cancelledAt` 是真正完成時間。
 `ShipmentCancelledInput` 同時保留 `cancellationRequestId`，Signal handler 必須先與 Update 記錄的 request
-完成 correlation，才可寫入 `ShipmentCheckpoint` 的 terminal fact。
+完成 correlation，才可寫入 `ShipmentState` 的 terminal fact。
 Workflow Query snapshot 以 `shipmentTerminalStatus` 與 `shipmentTerminalAt` 明確呈現同一個結果；前者在終態前為
 `null`，終態後只能是 `CANCELLED` 或 `HANDED_OVER`。
 
@@ -373,7 +373,7 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 - `requestCancellation` 以 Update validator 在寫入 History 前拒絕不屬於此 Order 的請求；已 handover 等業務結果仍由 handler 回傳明確 ACK。
 - Update-With-Start 尚未採用；正常建立權威是 `OrderPlaced` -> ordinary start，取消只 Update existing Workflow。
 - `ORDER_CANCELLED` 不等待 Stock 的 event-driven movement release；若未來要求 end-to-end cleanup，再新增明確完成 fact，不以名稱暗示已完成。
-- `CancellationCheckpoint` 只收納 replay 所需欄位，不封裝另一套 aggregate/state-machine API；流程轉換留在具名方法。
+- `CancellationState` 只收納 replay 所需欄位，不封裝另一套 aggregate/state-machine API；流程轉換留在具名方法。
 - `OrderFulfillmentCancellationState` 只記錄 `NONE／REQUESTED／ORDER_CANCELLED`；正常履約與取消是由
   Shipment terminal fact 決定的兩條路線，不另建 Workflow `REJECTED` 路線。nullable request／timestamp 只表示
   payload 尚未產生，並集中由 correlation 或 `require...` invariant 檢查處理。
@@ -386,7 +386,7 @@ transaction 已提交，不代表 Pick／Pack／Stage 或 carrier handover 已�
 ### Gate A：契約與 Workflow 主線
 
 - [x] 依 worker ownership 拆分 Activity contract 與 task queue。
-- [x] WMS Activity 直接回傳非 null 的 `ReleaseToWarehouseActivityResult`；Workflow 以 `ShipmentCheckpoint`
+- [x] WMS Activity 直接回傳非 null 的 `ReleaseToWarehouseActivityResult`；Workflow 以 `ShipmentState`
       一併保存權威 `shipmentId` 與 correlated terminal fact。
 - [x] 移除虛構的 WMS response Signal、timeout 與 rejection outcome。
 - [x] 移除 allocation／dispatch deadline outcome 與告警 Activity；逾期政策改走正常取消入口。

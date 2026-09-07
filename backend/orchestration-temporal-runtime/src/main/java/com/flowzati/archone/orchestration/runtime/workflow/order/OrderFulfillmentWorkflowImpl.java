@@ -61,9 +61,9 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
 
     private final OrderFulfillmentInput workflowInput;
     private final WorkflowProgress progress;
-    private final StockOperationAssignmentCheckpoint assignmentCheckpoint;
-    private final ShipmentCheckpoint shipmentCheckpoint;
-    private final CancellationCheckpoint cancellationCheckpoint;
+    private final StockOperationAssignmentState assignmentState;
+    private final ShipmentState shipmentState;
+    private final CancellationState cancellationState;
 
     /**
      * Initializes identity and query state before any Workflow method or Signal handler runs.
@@ -71,84 +71,87 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
     @WorkflowInit
     public OrderFulfillmentWorkflowImpl(OrderFulfillmentInput input) {
         this.workflowInput = input;
-        this.assignmentCheckpoint = new StockOperationAssignmentCheckpoint();
-        this.shipmentCheckpoint = new ShipmentCheckpoint();
-        this.cancellationCheckpoint = new CancellationCheckpoint();
+        this.assignmentState = new StockOperationAssignmentState();
+        this.shipmentState = new ShipmentState();
+        this.cancellationState = new CancellationState();
         this.progress = new WorkflowProgress();
     }
 
     @Override
     public void execute(OrderFulfillmentInput input) {
         String processId = Workflow.getInfo().getWorkflowId();
-        assignmentCheckpoint.markRequested();
+        assignmentState.markRequested();
 
         // Stage 1 - Request allocation and wait for a committed assignment or a cancellation request.
         enterPhase(OrderFulfillmentPhase.ALLOCATION);
         inventoryAllocationActivities.requestAllocation(new RequestAllocationActivityInput(
                 processId, workflowInput.orderId(), workflowInput.orderReceivedAt()));
 
-        Workflow.await(() -> assignmentCheckpoint.isCommitted() || cancellationCheckpoint.isRequested());
+        Workflow.await(() -> assignmentState.isCommitted() || cancellationState.isRequested());
 
-        if (cancellationCheckpoint.isRequested()) {
-            CancellationRequestInput request = cancellationCheckpoint.request();
+        if (cancellationState.isRequested()) {
+            CancellationRequestInput request = cancellationState.request();
             cancelOrderActivityAndFinish(processId, request, Instant.ofEpochMilli(Workflow.currentTimeMillis()));
             return;
         }
 
-        StockOperationAssignedInput assignment = assignmentCheckpoint.assignmentSnapshot();
+        StockOperationAssignedInput assignment = assignmentState.assignmentSnapshot();
 
-        // Stage 2 - Begin warehouse execution by creating or retrieving the Shipment.
+        // Stage 2 - Coordinate warehouse execution through a confirmed Shipment outcome.
         enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
-        ReleaseToWarehouseActivityResult shipmentResult =
+
+        // Create or retrieve the Shipment and correlate any Signals received before the Activity response.
+        ReleaseToWarehouseActivityResult released =
                 shipmentActivities.releaseToWarehouse(new ReleaseToWarehouseActivityInput(processId, assignment));
-        shipmentCheckpoint.recordCreated(shipmentResult.shipmentId());
+        shipmentState.recordCreated(released.shipmentId());
 
-        // Stage 2.1 - Wait for a cancellation request or confirmed carrier handover.
-        Workflow.await(() -> cancellationCheckpoint.isRequested() || shipmentCheckpoint.hasHandover());
+        // Wait for a cancellation request that needs action or a Signal confirming carrier handover.
+        Workflow.await(() -> cancellationState.isRequested() || shipmentState.hasHandover());
 
-        // Stage 2.2 - Request WMS cancellation if requested and handover is not yet confirmed.
-        if (cancellationCheckpoint.isRequested() && !shipmentCheckpoint.hasHandover()) {
-            requestShipmentCancellationActivity(
-                    processId, shipmentResult.shipmentId(), cancellationCheckpoint.request());
+        // Request WMS cancellation only while handover remains unconfirmed.
+        if (cancellationState.isRequested() && !shipmentState.hasHandover()) {
+            requestShipmentCancellationActivity(processId, released.shipmentId(), cancellationState.request());
         }
 
-        // Stage 2.3 - Wait for confirmed carrier handover or completed Shipment cancellation.
-        Workflow.await(() -> shipmentCheckpoint.hasHandover() || shipmentCheckpoint.hasCancellation());
+        // Wait for a Signal confirming cancellation or handover.
+        Workflow.await(() -> shipmentState.hasCancellation() || shipmentState.hasHandover());
 
-        // Stage 3 - Finalize fulfillment or cancel the order based on the Shipment outcome.
-        if (shipmentCheckpoint.hasHandover()) {
-            enterPhase(OrderFulfillmentPhase.INVENTORY_FINALIZATION);
-            inventoryMovementActivities.completeOutboundMovements(new CompleteOutboundMovementsActivityInput(
-                    processId,
-                    workflowInput.orderId(),
-                    assignment.stockOperationId(),
-                    shipmentCheckpoint.shipmentIdOrNull(),
-                    assignment.moves().stream().map(AssignedStockMove::moveId).toList(),
-                    shipmentCheckpoint.terminalAtOrNull()));
-
-            enterPhase(OrderFulfillmentPhase.ORDER_COMPLETION);
-            orderActivities.recordOrderFulfillment(new RecordOrderFulfillmentActivityInput(
-                    processId,
-                    workflowInput.orderId(),
-                    shipmentCheckpoint.shipmentIdOrNull(),
-                    shipmentCheckpoint.terminalAtOrNull()));
-
-            markFinished(OrderFulfillmentOutcome.FULFILLMENT_COMPLETED);
-
-        } else if (shipmentCheckpoint.hasCancellation()) {
-            cancelOrderActivityAndFinish(
-                    processId, cancellationCheckpoint.request(), shipmentCheckpoint.terminalAtOrNull());
+        // Stage 3 - Finalize fulfillment based on the Shipment outcome.
+        // Shipment cancellation is confirmed; finalize Order cancellation.
+        if (shipmentState.hasCancellation()) {
+            cancelOrderActivityAndFinish(processId, cancellationState.request(), shipmentState.terminalAtOrNull());
+            return;
         }
+
+        // Stage 4 - Complete outbound movements
+        enterPhase(OrderFulfillmentPhase.INVENTORY_FINALIZATION);
+        inventoryMovementActivities.completeOutboundMovements(new CompleteOutboundMovementsActivityInput(
+                processId,
+                workflowInput.orderId(),
+                assignment.stockOperationId(),
+                shipmentState.shipmentIdOrNull(),
+                assignment.moves().stream().map(AssignedStockMove::moveId).toList(),
+                shipmentState.terminalAtOrNull()));
+
+        // Stage 5 - Record Order fulfillment and mark Workflow finished.
+        enterPhase(OrderFulfillmentPhase.ORDER_COMPLETION);
+        orderActivities.recordOrderFulfillment(new RecordOrderFulfillmentActivityInput(
+                processId,
+                workflowInput.orderId(),
+                shipmentState.shipmentIdOrNull(),
+                shipmentState.terminalAtOrNull()));
+
+        markFinished(OrderFulfillmentOutcome.FULFILLMENT_COMPLETED);
     }
 
     @Override
     public void stockOperationAssigned(StockOperationAssignedInput assignment) {
         if (!workflowInput.orderId().equals(assignment.orderId())
-                || cancellationCheckpoint.hasRequest()
-                || !assignmentCheckpoint.canReceiveAssignment()) {
+                || cancellationState.hasRequest()
+                || !assignmentState.canReceiveAssignment()) {
             return;
         }
-        assignmentCheckpoint.recordAssigned(assignment);
+        assignmentState.recordAssigned(assignment);
     }
 
     @Override
@@ -163,46 +166,48 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         if (!workflowInput.orderId().equals(reportedCarrierHandover.orderId())) {
             return;
         }
-        shipmentCheckpoint.recordHandover(reportedCarrierHandover.shipmentId(), reportedCarrierHandover.handedOverAt());
+        shipmentState.recordHandover(reportedCarrierHandover.shipmentId(), reportedCarrierHandover.handedOverAt());
     }
 
     @Override
     public void shipmentCancelled(ShipmentCancelledInput reportedCancellation) {
         if (!workflowInput.orderId().equals(reportedCancellation.orderId())
-                || !shipmentCheckpoint.canAcceptTerminalFor(reportedCancellation.shipmentId())) {
+                || !shipmentState.canAcceptTerminalFor(reportedCancellation.shipmentId())) {
             return;
         }
-        if (!cancellationCheckpoint.matchesRequest(reportedCancellation.cancellationRequestId())) {
+        if (!cancellationState.matchesRequest(reportedCancellation.cancellationRequestId())) {
             throw WorkflowFailures.invariantViolation(
                     "Shipment cancellation belongs to an unknown Workflow cancellation request");
         }
-        if (cancellationCheckpoint.isRejected()) {
+        if (cancellationState.isRejected()) {
             throw WorkflowFailures.invariantViolation("Shipment cancellation conflicts with WMS rejection");
         }
-        shipmentCheckpoint.recordCancelled(reportedCancellation.shipmentId(), reportedCancellation.cancelledAt());
+        shipmentState.recordCancelled(reportedCancellation.shipmentId(), reportedCancellation.cancelledAt());
     }
 
-    /** Accepts or rejects cancellation intent without performing cancellation. */
+    /**
+     * Accepts or rejects cancellation intent without performing cancellation.
+     */
     @Override
     public CancellationRequestResult requestCancellation(CancellationRequestInput request) {
-        if (cancellationCheckpoint.conflictsWith(request)) {
+        if (cancellationState.conflictsWith(request)) {
             return new CancellationRequestResult(
-                    CancellationRequestStatus.CONFLICT, cancellationCheckpoint.requestIdOrNull());
+                    CancellationRequestStatus.CONFLICT, cancellationState.requestIdOrNull());
         }
-        if (cancellationCheckpoint.isOrderCancelled()) {
+        if (cancellationState.isOrderCancelled()) {
             return new CancellationRequestResult(
-                    CancellationRequestStatus.ALREADY_CANCELLED, cancellationCheckpoint.requestIdOrNull());
+                    CancellationRequestStatus.ALREADY_CANCELLED, cancellationState.requestIdOrNull());
         }
-        if (shipmentCheckpoint.hasHandover() || cancellationCheckpoint.isRejected()) {
-            UUID effectiveRequestId = cancellationCheckpoint.effectiveRequestId(request.requestId());
+        if (shipmentState.hasHandover() || cancellationState.isRejected()) {
+            UUID effectiveRequestId = cancellationState.effectiveRequestId(request.requestId());
             return new CancellationRequestResult(CancellationRequestStatus.REJECTED, effectiveRequestId);
         }
-        if (cancellationCheckpoint.hasRequest()) {
+        if (cancellationState.hasRequest()) {
             return new CancellationRequestResult(
-                    CancellationRequestStatus.ALREADY_REQUESTED, cancellationCheckpoint.requestIdOrNull());
+                    CancellationRequestStatus.ALREADY_REQUESTED, cancellationState.requestIdOrNull());
         }
 
-        cancellationCheckpoint.recordRequest(request);
+        cancellationState.recordRequest(request);
         return new CancellationRequestResult(CancellationRequestStatus.ACCEPTED, request.requestId());
     }
 
@@ -211,16 +216,16 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         return new OrderFulfillmentSnapshot(
                 workflowInput.orderId(),
                 progress.phase(),
-                assignmentCheckpoint.state(),
-                cancellationCheckpoint.state(),
-                cancellationCheckpoint.requestIdOrNull(),
-                cancellationCheckpoint.requestedAtOrNull(),
+                assignmentState.state(),
+                cancellationState.state(),
+                cancellationState.requestIdOrNull(),
+                cancellationState.requestedAtOrNull(),
                 progress.outcome(),
-                assignmentCheckpoint.stockOperationId(),
-                shipmentCheckpoint.shipmentIdOrNull(),
-                shipmentCheckpoint.terminalStatusOrNull(),
-                shipmentCheckpoint.terminalAtOrNull(),
-                cancellationCheckpoint.cancelledAt(),
+                assignmentState.stockOperationId(),
+                shipmentState.shipmentIdOrNull(),
+                shipmentState.terminalStatusOrNull(),
+                shipmentState.terminalAtOrNull(),
+                cancellationState.cancelledAt(),
                 progress.phaseEnteredAt());
     }
 
@@ -240,10 +245,10 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                         request.requestedAt(),
                         request.reason()));
         if (status == CancelShipmentActivityStatus.REJECTED) {
-            if (shipmentCheckpoint.hasCancellation()) {
+            if (shipmentState.hasCancellation()) {
                 throw WorkflowFailures.invariantViolation("Shipment cancellation conflicts with WMS rejection");
             }
-            cancellationCheckpoint.markRejected();
+            cancellationState.markRejected();
             enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
         }
     }
@@ -261,11 +266,13 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                     "Ordering rejected cancellation for Order: " + workflowInput.orderId(),
                     ORDER_CANCELLATION_REJECTED);
         }
-        cancellationCheckpoint.markOrderCancelled(cancelledAt);
+        cancellationState.markOrderCancelled(cancelledAt);
         markFinished(OrderFulfillmentOutcome.ORDER_CANCELLED);
     }
 
-    /** Records the final phase and outcome; does not stop execution of the calling method. */
+    /**
+     * Records the final phase and outcome; does not stop execution of the calling method.
+     */
     private void markFinished(OrderFulfillmentOutcome outcome) {
         progress.enterPhase(
                 OrderFulfillmentPhase.FINISHED, outcome, Instant.ofEpochMilli(Workflow.currentTimeMillis()));

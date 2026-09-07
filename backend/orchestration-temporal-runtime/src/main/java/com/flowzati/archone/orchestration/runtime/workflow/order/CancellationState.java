@@ -5,8 +5,8 @@ import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFu
 import java.time.Instant;
 import java.util.UUID;
 
-/** 由單一 Workflow 持有的取消狀態；由 Workflow 協調轉移與取消請求的接收。 */
-final class CancellationCheckpoint {
+/** Workflow 已觀察到的取消請求與處理結果；由 Workflow 協調狀態轉移。 */
+final class CancellationState {
 
     private OrderFulfillmentCancellationState state = OrderFulfillmentCancellationState.NONE;
     private CancellationRequestInput request;

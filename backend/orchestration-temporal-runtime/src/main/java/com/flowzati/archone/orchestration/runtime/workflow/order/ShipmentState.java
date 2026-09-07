@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 由單一 Workflow 持有的 Shipment correlation 狀態。
+ * Workflow 已觀察到的 Shipment 身分與終態，用於關聯 Activity 回應與 Signal。
  *
  * <p>{@code createdShipmentId} 是 CreateShipment Activity 回傳的權威身分；terminal outcome 是稍後由
  * WMS Integration Event 映射而來的業務事實。Signal 可能在 Activity response 前抵達，因此 outcome
@@ -13,7 +13,7 @@ import java.util.UUID;
  *
  * <p>在同一物件內累積事實；更新前完成身分與衝突檢查，不覆寫已接受的 terminal outcome。
  */
-final class ShipmentCheckpoint {
+final class ShipmentState {
 
     private UUID createdShipmentId;
     private ShipmentTerminalOutcome terminalOutcome;

@@ -36,7 +36,7 @@ wbsDiagram {
 ** Temporal boundary methods <<boundary>>
 *** @WorkflowInit constructor(OrderFulfillmentInput)
 *** @WorkflowMethod execute(OrderFulfillmentInput)
-*** @SignalMethod allocationCommitted()
+*** @SignalMethod stockOperationAssigned()
 *** @SignalMethod shipmentHandedOverToCarrier()
 *** @SignalMethod shipmentCancelled()
 *** @UpdateValidatorMethod validateCancellationRequest()
@@ -46,32 +46,29 @@ wbsDiagram {
 *** Typed Activity stubs
 **** InventoryAllocationActivities / InventoryMovementActivities / OrderActivities / ShipmentActivities
 **** 共用 retry policy；各 use case 自己保證業務冪等
-*** Allocation checkpoint
-**** StockOperationAssignmentCheckpoint.markRequested()
+*** Allocation state
+**** StockOperationAssignmentState.markRequested()
 **** isRequested() / isCommitted()
 **** recordAssigned() / assignmentSnapshot()
-**** stockOperationId() / requireRequested()
-*** Shipment checkpoint
-**** ShipmentCheckpoint.recordCreated()
+**** stockOperationId() / canReceiveAssignment()
+*** Shipment state
+**** ShipmentState.recordCreated()
 **** recordHandover() / recordCancelled()
 **** canAcceptTerminalFor() <<guard>>
-**** hasTerminal() / hasHandover()
-**** requireShipmentId() / requireTerminal() <<guard>>
+**** hasCancellation() / hasHandover()
 **** shipmentIdOrNull() / terminalStatusOrNull() / terminalAtOrNull()
-*** Cancellation checkpoint
-**** CancellationCheckpoint.isRequested()
-**** requireRequest() <<guard>>
+*** Cancellation state
+**** CancellationState.isRequested()
+**** request() / conflictsWith() <<guard>>
 **** requestIdOrNull() / requestedAtOrNull()
 *** Mainline helpers
-**** finish()
+**** markFinished()
 ** 取消協調 helpers <<cancellation>>
-*** requestShipmentCancellation()：command ACK，不代表 terminal
-*** cancelOrderInOrdering(cancelledAt)
-*** finishCancellation()
+*** requestShipmentCancellationActivity()：command ACK，不代表 terminal
+*** cancelOrderActivityAndFinish(cancelledAt)
 ** Query／progress helpers <<projection>>
-*** WorkflowProgress.enter() / update()
-*** workflowNow()
-*** activityOptions()
+*** WorkflowProgress.enterPhase()
+*** enterPhase()
 
 legend bottom
   |<#E8F1FF>| Temporal boundary |

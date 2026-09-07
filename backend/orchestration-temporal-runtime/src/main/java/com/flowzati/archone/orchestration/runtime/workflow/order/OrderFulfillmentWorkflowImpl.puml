@@ -26,10 +26,11 @@ partition "Stage 1 - Allocation" {
   endif
 }
 partition "Stage 2 - Warehouse execution" {
-  :WAREHOUSE_EXECUTION\nreleaseToWarehouse Activity;\nRecord Shipment identity;
-  :Stage 2.1\nWait for cancellation request or carrier handover;
+  :WAREHOUSE_EXECUTION\nreleaseToWarehouse Activity;
+  :Record Shipment identity\nand correlate early Signals;
+  :Wait for cancellation request or carrier handover;
   if (Cancellation requested\nand no confirmed handover?) then (yes)
-    :Stage 2.2\nrequestShipmentCancellationActivity();
+    :requestShipmentCancellationActivity();
     note right
       Enters CANCELLING and calls the WMS Activity.
       REJECTED: return to WAREHOUSE_EXECUTION.
@@ -37,18 +38,22 @@ partition "Stage 2 - Warehouse execution" {
     end note
   else (no)
   endif
-  :Stage 2.3\nWait for carrier handover or Shipment cancellation;
+  :Wait for carrier handover or Shipment cancellation;
 }
-partition "Stage 3 - Finalize the Order" {
-  if (Shipment outcome?) then (handed over)
-    :INVENTORY_FINALIZATION\ncompleteOutboundMovements Activity;
-    :ORDER_COMPLETION\nrecordOrderFulfillment Activity;
-    :markFinished(FULFILLMENT_COMPLETED);
-    stop
-  else (cancelled)
+partition "Stage 3 - Resolve Shipment outcome" {
+  if (Shipment cancellation confirmed?) then (yes)
     :cancelOrderActivityAndFinish()\nUse Shipment cancellation time;
     stop
+  else (no: handover confirmed)
   endif
+}
+partition "Stage 4 - Complete outbound movements" {
+  :INVENTORY_FINALIZATION\ncompleteOutboundMovements Activity;
+}
+partition "Stage 5 - Complete the Order" {
+  :ORDER_COMPLETION\nrecordOrderFulfillment Activity;
+  :markFinished(FULFILLMENT_COMPLETED);
+  stop
 }
 legend bottom
   cancelOrderActivityAndFinish(): CANCELLING -> cancelOrder Activity
