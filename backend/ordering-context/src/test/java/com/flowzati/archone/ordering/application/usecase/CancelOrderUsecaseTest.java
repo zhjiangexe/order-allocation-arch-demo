@@ -108,4 +108,49 @@ class CancelOrderUsecaseTest {
                 .hasMessage("Order not found: " + orderId);
         verifyNoInteractions(publisher);
     }
+
+    @Test
+    void cancelsAllocatedOrderOnceAndPreservesItsImmutableFact() {
+        OrderStore repository = mock(OrderStore.class);
+        Order order = OrderingFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
+        order.markAllocated(receivedAt.plusSeconds(10));
+        when(repository.findById(order.getId())).thenReturn(Optional.of(order));
+        List<OrderCancelled> events = new ArrayList<>();
+        var usecase = new CancelOrderUsecase(repository, events::add);
+        var command = new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason);
+
+        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.CANCELLED);
+        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
+        assertThat(order.getCancellationRequestId()).isEqualTo(requestId);
+        assertThat(order.getCancellationReason()).isEqualTo(reason);
+        verify(repository).save(order);
+        assertThat(events)
+                .singleElement()
+                .satisfies(event -> assertThat(event.cancelledAt()).isEqualTo(cancelledAt));
+        assertThatThrownBy(() -> usecase.cancel(
+                        new CancelOrderCommand(requestId, order.getId(), cancelledAt.plusSeconds(1), reason)))
+                .isInstanceOf(DomainConflictException.class);
+        assertThat(events).hasSize(1);
+        assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
+    }
+
+    @Test
+    void rejectsFulfilledOrderWithoutChangingState() {
+        OrderStore repository = mock(OrderStore.class);
+        OrderCancelledPublisher publisher = mock(OrderCancelledPublisher.class);
+        Order order = OrderingFixtures.pendingOrder(UUID.randomUUID(), "SKU-1", 3, receivedAt);
+        order.markAllocated(receivedAt.plusSeconds(10));
+        order.markFulfilled(UUID.randomUUID(), receivedAt.plusSeconds(20));
+        when(repository.findById(order.getId())).thenReturn(Optional.of(order));
+        var usecase = new CancelOrderUsecase(repository, publisher);
+        var command = new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason);
+
+        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.REJECTED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.FULFILLED);
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).save(order);
+        verifyNoInteractions(publisher);
+    }
 }

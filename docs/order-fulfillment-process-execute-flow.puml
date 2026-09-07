@@ -1,105 +1,64 @@
 @startuml
-title OrderFulfillmentWorkflow.execute 流程圖
-
-skinparam defaultFontName "Heiti TC"
-skinparam dpi 150
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 15
 skinparam shadowing false
-skinparam backgroundColor white
-skinparam ArrowColor #475569
-skinparam ActivityBorderColor #475569
-skinparam ActivityBackgroundColor #F8FAFC
-skinparam ActivityDiamondBackgroundColor #FFF7D6
-skinparam ActivityDiamondBorderColor #B7791F
-skinparam ActivityStartColor #2563EB
-skinparam ActivityEndColor #2563EB
+skinparam activityBackgroundColor #EAF2FA
+skinparam activityBorderColor #365A7C
+skinparam activityDiamondBackgroundColor #FFF3D6
+skinparam activityDiamondBorderColor #94732C
+skinparam noteBackgroundColor #F4F6F8
+skinparam noteBorderColor #A4AFBA
+skinparam ArrowColor #43576B
+skinparam dpi 140
+
+title OrderFulfillmentWorkflowImpl.execute\nStage overview
 
 start
-:execute(OrderFulfillmentInput);
-:取得 processId;
-
-partition "1. Shipment 建立前：配貨" {
-  :assignmentCheckpoint.markRequested();
-  :enterPhase(ALLOCATION);
-  :RequestAllocation Activity; <<#E8F1FF>>
-  :Workflow.await(isCommitted()\n或 cancellation.isRequested()); <<#FFF7D6>>
-
-  if (cancellation.isRequested()？) then (是)
-    :enterPhase(CANCELLATION); <<#FDECEC>>
-    :cancelOrderInOrdering(); <<#FDECEC>>
-    :finishCancellation(); <<#FDECEC>>
+partition "Stage 1 - Allocation" {
+  :ALLOCATION\nrequestAllocation Activity;
+  :Wait for committed assignment\nor cancellation request;
+  if (Cancellation requested?) then (yes)
+    :cancelOrderActivityAndFinish()\nUse Workflow.currentTimeMillis();
     stop
-  else (否)
-    :assignmentCheckpoint.assignmentSnapshot();
+  else (no)
   endif
 }
-
-partition "2. 下達倉庫出庫需求" {
-  :enterPhase(WAREHOUSE_RELEASE);
-  :releaseToWarehouse Activity; <<#E8F1FF>>
-  :CreateShipmentUsecase
-  以 stockOperationId 冪等建立／讀回; <<#E2F0D9>>
-  :ShipmentCheckpoint.recordCreated(shipmentId);
-}
-
-partition "3. Shipment 已建立：等待 handover，可被取消中斷" {
-  :enterPhase(WAREHOUSE_EXECUTION);
-  :Workflow.await(shipment.hasTerminal()\n或 cancellation.isRequested()); <<#FFF7D6>>
-  note right
-    等待期間由 WMS 可設定延遲的模擬 runtime 獨立執行：
-    Wave -> Release -> Pick -> Pack -> Stage -> Handover
-  end note
-
-  if (cancellation.isRequested()？) then (是)
-    :enterPhase(CANCELLATION); <<#FDECEC>>
-    if (尚無 correlated terminal？) then (是)
-      :requestShipmentCancellation(); <<#FDECEC>>
-      note right
-        詳細展開於 cancellation-flow 圖：
-        Activity 只確認 command 已提交；
-        終態由 canonical event Signal 決定。
-      end note
-      :Workflow.await(shipment.hasTerminal()); <<#FFF7D6>>
-    endif
-  else (否)
-    :既有 terminal 直接決定路線；
-    handover 先到時不再提交取消 command; <<#FFF7D6>>
+partition "Stage 2 - Warehouse execution" {
+  :WAREHOUSE_EXECUTION\nreleaseToWarehouse Activity;\nRecord Shipment identity;
+  :Stage 2.1\nWait for cancellation request or carrier handover;
+  if (Cancellation requested\nand no confirmed handover?) then (yes)
+    :Stage 2.2\nrequestShipmentCancellationActivity();
+    note right
+      Enters CANCELLING and calls the WMS Activity.
+      REJECTED: return to WAREHOUSE_EXECUTION.
+      An acknowledgement is not cancellation completion.
+    end note
+  else (no)
   endif
-
-  :terminal = shipment.terminalOutcome();
-
-  if (terminal = CANCELLED？) then (是)
-    :以 ShipmentCancelled.cancelledAt
-    cancelOrderInOrdering(); <<#FDECEC>>
-    :finishCancellation(); <<#FDECEC>>
+  :Stage 2.3\nWait for carrier handover or Shipment cancellation;
+}
+partition "Stage 3 - Finalize the Order" {
+  if (Shipment outcome?) then (handed over)
+    :INVENTORY_FINALIZATION\ncompleteOutboundMovements Activity;
+    :ORDER_COMPLETION\nrecordOrderFulfillment Activity;
+    :markFinished(FULFILLMENT_COMPLETED);
     stop
-  else (否：HANDED_OVER)
-    :正常履約路線勝出；
-    若曾受理取消，保留 request 作為事實; <<#FFF7D6>>
+  else (cancelled)
+    :cancelOrderActivityAndFinish()\nUse Shipment cancellation time;
+    stop
   endif
 }
-
-partition "4. Inventory 庫存與移動紀錄收尾" {
-  :enterPhase(INVENTORY_FINALIZATION);
-  :CompleteOutboundMovements Activity; <<#E8F1FF>>
-  :依 MoveLine 正式扣 reserved + on-hand；
-  Move／Operation = DONE; <<#E2F0D9>>
-}
-
-partition "5. 訂單完成" {
-  :enterPhase(ORDER_COMPLETION);
-  :RecordOrderFulfillment Activity; <<#E8F1FF>>
-  :核對 orderId + shipmentId + fulfilledAt；
-  fulfilledAt 沿用 handoverAt; <<#E2F0D9>>
-  :finish(FULFILLMENT_COMPLETED);
-}
-
-stop
-
 legend bottom
-  |<#E8F1FF>| Activity 呼叫 |
-  |<#E2F0D9>| Usecase／Domain 狀態變更 |
-  |<#DCEEFF>| 現階段 WMS 可設定延遲的模擬 runtime |
-  |<#FFF7D6>| Durable wait／判斷 |
-  |<#FDECEC>| 取消分支 |
+  cancelOrderActivityAndFinish(): CANCELLING -> cancelOrder Activity
+  -> record cancellation -> markFinished(ORDER_CANCELLED).
+  Ordering REJECTED fails the Workflow; it does not mark cancellation complete.
+
+  Updates record cancellation intent. Signals report WMS outcomes.
+  Only this Workflow requests WMS cancellation; its Signal follows that Activity invocation.
+  Signals can arrive before Activity replies. An already-satisfied wait returns immediately.
+  Inventory release after Order cancellation continues asynchronously.
+  Retry policy and contradictory-fact failure paths are omitted for clarity.
 endlegend
 @enduml

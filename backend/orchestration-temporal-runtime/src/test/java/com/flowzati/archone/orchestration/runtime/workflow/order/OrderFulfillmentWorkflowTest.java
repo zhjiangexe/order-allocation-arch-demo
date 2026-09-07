@@ -145,11 +145,11 @@ public class OrderFulfillmentWorkflowTest {
             awaitAllocationRequest();
             workflow.stockOperationAssigned(stockOperationAssignment(orderId, now, now.plus(Duration.ofDays(1))));
             awaitShipmentCreation();
-            assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_RELEASE);
+            assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
             assertThat(workflow.state().allocationState()).isEqualTo(OrderFulfillmentAllocationState.COMMITTED);
             workflow.shipmentHandedOverToCarrier(
                     new ShipmentHandedOverToCarrierInput(orderId, recording.shipmentId, now.plusSeconds(3)));
-            assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_RELEASE);
+            assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
             assertThat(workflow.state().shipmentTerminalStatus()).isNull();
             assertThat(recording.outboundCompletions).isEmpty();
             recording.shipmentCreationGate.countDown();
@@ -462,7 +462,7 @@ public class OrderFulfillmentWorkflowTest {
 
             assertThat(acknowledgement.status()).isEqualTo(CancellationRequestStatus.ACCEPTED);
             assertThat(workflow.state().cancellationState()).isEqualTo(OrderFulfillmentCancellationState.REQUESTED);
-            assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_RELEASE);
+            assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
             assertThat(result).isNotDone();
             assertThat(recording.shipmentCancellations).isEmpty();
             assertThat(recording.orderCancellations).isEmpty();
@@ -506,6 +506,43 @@ public class OrderFulfillmentWorkflowTest {
                 .hasStackTraceContaining("ORDER_CANCELLATION_REJECTED");
         assertThat(recording.orderCancellations).hasSize(1);
         assertThat(recording.shipmentCreations).isEmpty();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void cancellationAfterWmsRetriesLostResponsesButFailsOnRejection(boolean conflict) throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Instant now = now();
+        recording.orderCancellationStatus =
+                conflict ? CancelOrderActivityStatus.REJECTED : CancelOrderActivityStatus.CANCELLED;
+        recording.loseFirstCancellationResponse.set(!conflict);
+        OrderFulfillmentWorkflow workflow = newWorkflow(orderId);
+        var result = WorkflowClient.execute(workflow::execute, new OrderFulfillmentInput(orderId, now));
+        awaitAllocationRequest();
+        workflow.stockOperationAssigned(stockOperationAssignment(orderId, now, now.plus(Duration.ofDays(1))));
+        awaitShipmentCreation();
+        workflow.requestCancellation(
+                new CancellationRequestInput(requestId, orderId, now.plusSeconds(1), "Customer request"));
+        awaitShipmentCancellationRequest();
+        Instant cancelledAt = now.plusSeconds(2);
+        workflow.shipmentCancelled(new ShipmentCancelledInput(orderId, recording.shipmentId, requestId, cancelledAt));
+
+        if (conflict) {
+            assertThatThrownBy(() -> result.get(5, TimeUnit.SECONDS))
+                    .hasStackTraceContaining("ORDER_CANCELLATION_REJECTED");
+            assertThat(recording.orderCancellations).hasSize(1);
+            assertThat(workflow.state().outcome()).isNull();
+            assertThat(workflow.state().cancellationState()).isEqualTo(OrderFulfillmentCancellationState.REQUESTED);
+        } else {
+            result.get(5, TimeUnit.SECONDS);
+            assertThat(recording.orderCancellations).hasSize(2);
+            assertThat(recording.orderCancellations.get(1)).isEqualTo(recording.orderCancellations.getFirst());
+            assertThat(workflow.state().outcome()).isEqualTo(ORDER_CANCELLED);
+            assertThat(workflow.state().cancelledAt()).isEqualTo(cancelledAt);
+        }
+        assertThat(recording.calls).doesNotContain("completeOutboundMovements", "recordOrderFulfillment");
+        replay(orderId);
     }
 
     @Test

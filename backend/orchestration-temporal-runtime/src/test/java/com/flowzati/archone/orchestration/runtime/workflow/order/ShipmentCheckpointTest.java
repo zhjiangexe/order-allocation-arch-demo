@@ -43,12 +43,14 @@ class ShipmentCheckpointTest {
         ShipmentCheckpoint checkpoint = new ShipmentCheckpoint();
         checkpoint.recordHandover(SHIPMENT_ID, OCCURRED_AT);
 
-        assertThat(checkpoint.hasTerminal()).isFalse();
+        assertThat(checkpoint.hasHandover()).isFalse();
+        assertThat(checkpoint.hasCancellation()).isFalse();
         assertThat(checkpoint.terminalStatusOrNull()).isNull();
 
         checkpoint.recordCreated(SHIPMENT_ID);
 
-        assertThat(checkpoint.hasTerminal()).isTrue();
+        assertThat(checkpoint.hasHandover()).isTrue();
+        assertThat(checkpoint.hasCancellation()).isFalse();
         assertThat(checkpoint.terminalOutcome().status()).isEqualTo(ShipmentTerminalStatus.HANDED_OVER);
     }
 
@@ -65,7 +67,8 @@ class ShipmentCheckpointTest {
 
         assertThat(checkpoint.shipmentIdOrNull()).isNull();
         assertThat(checkpoint.terminalOutcome()).isSameAs(accepted);
-        assertThat(checkpoint.hasTerminal()).isFalse();
+        assertThat(checkpoint.hasHandover()).isFalse();
+        assertThat(checkpoint.hasCancellation()).isFalse();
     }
 
     @Test
@@ -75,7 +78,8 @@ class ShipmentCheckpointTest {
 
         checkpoint.recordHandover(UUID.randomUUID(), OCCURRED_AT);
 
-        assertThat(checkpoint.hasTerminal()).isFalse();
+        assertThat(checkpoint.hasHandover()).isFalse();
+        assertThat(checkpoint.hasCancellation()).isFalse();
     }
 
     @Test

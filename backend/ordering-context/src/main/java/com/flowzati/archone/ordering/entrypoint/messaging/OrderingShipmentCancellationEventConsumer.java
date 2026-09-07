@@ -2,6 +2,7 @@ package com.flowzati.archone.ordering.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -11,6 +12,7 @@ import com.flowzati.archone.ordering.application.event.OrderingEventSubscription
 import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,25 +40,15 @@ public class OrderingShipmentCancellationEventConsumer {
     }
 
     void onShipmentCancelled(ShipmentCancelledIntegrationEvent event) {
-        applyCancellation(
-                event.getShipmentId(),
+        Order.CancellationStatus result = cancelOrderUsecase.cancel(new CancelOrderCommand(
                 event.getCancellationRequestId(),
                 event.getOrderId(),
                 event.getCancelledAt(),
-                event.getCancellationReason());
-    }
-
-    private void applyCancellation(
-            java.util.UUID shipmentId,
-            java.util.UUID requestId,
-            java.util.UUID orderId,
-            java.time.Instant cancelledAt,
-            String reason) {
-        Order.CancellationStatus status =
-                cancelOrderUsecase.cancel(new CancelOrderCommand(requestId, orderId, cancelledAt, reason));
-        if (status == Order.CancellationStatus.REJECTED) {
-            throw new IllegalStateException(
-                    "Ordering rejected cancellation after WMS cancelled Shipment: " + shipmentId);
+                event.getCancellationReason()));
+        if (result == Order.CancellationStatus.REJECTED) {
+            throw new DomainConflictException(
+                    OrderErrorCode.FULFILLMENT_CONFLICT,
+                    "Ordering rejected cancellation after WMS cancelled Shipment: " + event.getShipmentId());
         }
     }
 }

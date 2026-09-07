@@ -344,7 +344,8 @@ Java Activity 方法使用 `releaseToWarehouse`，input／result 為 `ReleaseToW
 `ReleaseToWarehouseActivityResult`。此處的 release 表示上游下達倉庫需求，不是 WMS 的 Wave Release。
 WMS 內部繼續使用 `CreateShipmentUsecase`；Activity 返回只代表需求建單已提交。
 Temporal Activity type 保留 `CreateWmsShipment`，Activity payload 欄位不變。
-Query phase 使用 `WAREHOUSE_RELEASE`、`WAREHOUSE_EXECUTION`、`INVENTORY_FINALIZATION`；
+Query phase 以 `WAREHOUSE_EXECUTION` 統一表示下達倉庫需求與等待倉內結果，並在呼叫 Activity 前進入；
+確認交接後才進入 `INVENTORY_FINALIZATION`。
 配貨狀態使用 `NOT_REQUESTED -> REQUESTED -> COMMITTED`。`REQUESTED` 表示 Workflow 已發起請求，
 不保證 Activity 已成功返回，也不代表取消結束後仍在等待。這些 enum 名稱是公開 Query contract，
 使用舊名稱的呼叫端需同步更新。

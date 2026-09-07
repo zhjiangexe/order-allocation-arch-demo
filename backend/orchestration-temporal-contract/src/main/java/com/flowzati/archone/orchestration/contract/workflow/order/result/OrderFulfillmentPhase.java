@@ -8,10 +8,7 @@ public enum OrderFulfillmentPhase {
     /** 正在要求配貨，或等待可交給 WMS 的 committed stock-operation assignment。 */
     ALLOCATION,
 
-    /** 正在向 WMS 下達出庫需求並確認 Shipment 身分；不是 WMS 內部的 Wave Release。 */
-    WAREHOUSE_RELEASE,
-
-    /** Shipment 身分已確認，等待倉內作業與承運商交接結果；取消請求可中斷此等待。 */
+    /** 正在向 WMS 下達出庫需求、確認 Shipment 身分，或等待倉內作業與承運商交接結果。 */
     WAREHOUSE_EXECUTION,
 
     /** 已確認承運商交接事實，正在由 Inventory 完成庫存扣減與 movement／operation 紀錄。 */

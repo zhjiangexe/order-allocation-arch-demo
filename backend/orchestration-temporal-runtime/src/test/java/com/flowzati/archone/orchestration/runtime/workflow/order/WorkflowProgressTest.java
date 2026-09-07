@@ -79,9 +79,9 @@ class WorkflowProgressTest {
         WorkflowProgress progress = new WorkflowProgress();
         progress.enterPhase(OrderFulfillmentPhase.ALLOCATION, OCCURRED_AT);
 
-        progress.enterPhase(OrderFulfillmentPhase.WAREHOUSE_RELEASE, OCCURRED_AT.plusSeconds(1));
+        progress.enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION, OCCURRED_AT.plusSeconds(1));
 
-        assertThat(progress.phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_RELEASE);
+        assertThat(progress.phase()).isEqualTo(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
         assertThat(progress.outcome()).isNull();
         assertThat(progress.phaseEnteredAt()).isEqualTo(OCCURRED_AT.plusSeconds(1));
     }

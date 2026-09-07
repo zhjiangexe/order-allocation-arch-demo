@@ -50,7 +50,7 @@ final class ShipmentCheckpoint {
     }
 
     /** 終態已與 Activity 回傳的 Shipment 身分完成關聯；只有提前暫存的 terminal outcome 時仍為 false。 */
-    boolean hasTerminal() {
+    private boolean hasTerminal() {
         return createdShipmentId != null && terminalOutcome != null;
     }
 

@@ -11,9 +11,9 @@ import org.springframework.stereotype.Service;
 /**
  * 取消一張訂單。
  *
- * <p>目前由 Temporal 的 {@code CancelOrder} Activity 或 Events consumer 在 WMS cancellation
- * 終態成立後呼叫。REST／操作台應提交 cancellation request 給 fulfillment coordinator；不得直接繞過協調
- * 呼叫本 Usecase，否則可能取消 Order 卻留下仍在作業的 Shipment。
+ * <p>尚未建立 Shipment，或 WMS 已完成取消後，由 fulfillment coordinator／consumer 呼叫。
+ * WMS 已取消後若回傳 REJECTED，由呼叫端判定為跨系統狀態矛盾。
+ * REST／操作台應經由 fulfillment coordinator 提交請求，不得繞過協調直接取消 Order。
  *
  * <p>{@link CancelOrderCommand#requestId()} 與 immutable payload 會保存於 Order。完全相同的重播是
  * no-op；同一張 Order 收到另一筆 request 則明確衝突，避免「終態剛好相同」被誤認成同一件事。
