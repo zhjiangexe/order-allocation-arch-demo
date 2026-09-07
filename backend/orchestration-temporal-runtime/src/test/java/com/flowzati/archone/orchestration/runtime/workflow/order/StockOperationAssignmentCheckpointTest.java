@@ -62,19 +62,6 @@ class StockOperationAssignmentCheckpointTest {
     }
 
     @Test
-    void rejectsAssignmentBeforeWaitingWithoutChangingState() {
-        StockOperationAssignmentCheckpoint checkpoint = new StockOperationAssignmentCheckpoint();
-
-        assertThatThrownBy(() -> checkpoint.recordAssigned(ASSIGNMENT))
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("checkpoint has not been requested");
-
-        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentAllocationState.NOT_REQUESTED);
-        assertThat(checkpoint.assignmentSnapshot()).isNull();
-        assertThat(checkpoint.stockOperationId()).isNull();
-    }
-
-    @Test
     void acceptsIdenticalAssignmentWithoutReplacingTheAcceptedFact() {
         StockOperationAssignmentCheckpoint checkpoint = new StockOperationAssignmentCheckpoint();
         checkpoint.markRequested();
@@ -100,28 +87,6 @@ class StockOperationAssignmentCheckpointTest {
         assertThat(checkpoint.isCommitted()).isTrue();
         assertThat(checkpoint.assignmentSnapshot()).isSameAs(ASSIGNMENT);
         assertThat(checkpoint.stockOperationId()).isEqualTo(ASSIGNMENT.stockOperationId());
-    }
-
-    @Test
-    void rejectsRestartingWaitingWithoutResettingProgressOrTheAcceptedFact() {
-        StockOperationAssignmentCheckpoint checkpoint = new StockOperationAssignmentCheckpoint();
-        checkpoint.markRequested();
-
-        assertThatThrownBy(checkpoint::markRequested)
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("already been requested");
-
-        assertThat(checkpoint.isRequested()).isTrue();
-        assertThat(checkpoint.assignmentSnapshot()).isNull();
-
-        checkpoint.recordAssigned(ASSIGNMENT);
-
-        assertThatThrownBy(checkpoint::markRequested)
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("already been requested");
-
-        assertThat(checkpoint.isCommitted()).isTrue();
-        assertThat(checkpoint.assignmentSnapshot()).isSameAs(ASSIGNMENT);
     }
 
     private StockOperationAssignedInput assignmentWithId(UUID stockOperationId) {

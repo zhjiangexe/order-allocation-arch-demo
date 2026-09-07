@@ -33,16 +33,15 @@ class TemporalFulfillmentCancellationCoordinatorTest {
 
     @ParameterizedTest
     @CsvSource({
-        "ACCEPTED, ACCEPTED, Cancellation request accepted",
-        "ALREADY_REQUESTED, ALREADY_REQUESTED, A cancellation request is already being coordinated",
-        "ALREADY_CANCELLED, ALREADY_CANCELLED, Order cancellation is already committed",
-        "REJECTED, REJECTED, Shipment cancellation is no longer available"
+        "ACCEPTED, ACCEPTED",
+        "ALREADY_REQUESTED, ALREADY_REQUESTED",
+        "ALREADY_CANCELLED, ALREADY_CANCELLED",
+        "REJECTED, REJECTED",
+        "CONFLICT, CONFLICT"
     })
     @DisplayName("temporal mode 應把 HTTP request 送進既有 Workflow Update，而不是直接改 context")
-    void shouldDelegateToWorkflowUpdateAndPreserveResponseDetails(
-            CancellationRequestStatus workflowStatus,
-            FulfillmentCancellationStatus expectedStatus,
-            String expectedDetail) {
+    void shouldDelegateToWorkflowUpdateAndPreserveResult(
+            CancellationRequestStatus workflowStatus, FulfillmentCancellationStatus expectedStatus) {
         UUID effectiveRequestId = UUID.fromString("00000000-0000-7000-8000-000000000003");
         GetOrderUsecase getOrderUsecase = mock(GetOrderUsecase.class);
         WorkflowClient workflowClient = mock(WorkflowClient.class);
@@ -63,7 +62,6 @@ class TemporalFulfillmentCancellationCoordinatorTest {
 
         assertThat(result.status()).isEqualTo(expectedStatus);
         assertThat(result.effectiveRequestId()).isEqualTo(effectiveRequestId);
-        assertThat(result.detail()).isEqualTo(expectedDetail);
     }
 
     @Test

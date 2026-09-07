@@ -5,7 +5,6 @@ import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.CancellationRequestInput;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestResult;
-import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestStatus;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
@@ -16,7 +15,6 @@ import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
-import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -39,15 +37,10 @@ public class TemporalFulfillmentCancellationCoordinator implements FulfillmentCa
         if (order.getStatus() == OrderStatus.CANCELLED) {
             requireSameCommittedRequest(order, request);
             return new FulfillmentCancellationResult(
-                    FulfillmentCancellationStatus.ALREADY_CANCELLED,
-                    request.requestId(),
-                    "The same cancellation request was already committed");
+                    FulfillmentCancellationStatus.ALREADY_CANCELLED, request.requestId());
         }
         if (order.getStatus() == OrderStatus.FULFILLED) {
-            return new FulfillmentCancellationResult(
-                    FulfillmentCancellationStatus.REJECTED,
-                    request.requestId(),
-                    "Order is already fulfilled and requires a return flow");
+            return new FulfillmentCancellationResult(FulfillmentCancellationStatus.REJECTED, request.requestId());
         }
 
         OrderFulfillmentWorkflow workflow = workflowClient.newWorkflowStub(
@@ -65,27 +58,15 @@ public class TemporalFulfillmentCancellationCoordinator implements FulfillmentCa
     }
 
     private static FulfillmentCancellationResult map(CancellationRequestResult acknowledgement) {
-        UUID effectiveRequestId = acknowledgement.effectiveRequestId();
-        if (acknowledgement.status() == CancellationRequestStatus.ACCEPTED) {
-            return new FulfillmentCancellationResult(
-                    FulfillmentCancellationStatus.ACCEPTED, effectiveRequestId, "Cancellation request accepted");
-        }
-        if (acknowledgement.status() == CancellationRequestStatus.ALREADY_REQUESTED) {
-            return new FulfillmentCancellationResult(
-                    FulfillmentCancellationStatus.ALREADY_REQUESTED,
-                    effectiveRequestId,
-                    "A cancellation request is already being coordinated");
-        }
-        if (acknowledgement.status() == CancellationRequestStatus.ALREADY_CANCELLED) {
-            return new FulfillmentCancellationResult(
-                    FulfillmentCancellationStatus.ALREADY_CANCELLED,
-                    effectiveRequestId,
-                    "Order cancellation is already committed");
-        }
-        return new FulfillmentCancellationResult(
-                FulfillmentCancellationStatus.REJECTED,
-                effectiveRequestId,
-                "Shipment cancellation is no longer available");
+        FulfillmentCancellationStatus status =
+                switch (acknowledgement.status()) {
+                    case ACCEPTED -> FulfillmentCancellationStatus.ACCEPTED;
+                    case ALREADY_REQUESTED -> FulfillmentCancellationStatus.ALREADY_REQUESTED;
+                    case ALREADY_CANCELLED -> FulfillmentCancellationStatus.ALREADY_CANCELLED;
+                    case REJECTED -> FulfillmentCancellationStatus.REJECTED;
+                    case CONFLICT -> FulfillmentCancellationStatus.CONFLICT;
+                };
+        return new FulfillmentCancellationResult(status, acknowledgement.effectiveRequestId());
     }
 
     private static void requireSameCommittedRequest(Order order, FulfillmentCancellationRequest request) {

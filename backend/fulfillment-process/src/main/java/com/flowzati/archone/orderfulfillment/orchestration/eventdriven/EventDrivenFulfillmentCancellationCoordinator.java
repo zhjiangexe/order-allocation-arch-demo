@@ -49,7 +49,7 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
             return cancelOrder(request);
         }
         if (order.getStatus() == OrderStatus.FULFILLED) {
-            return rejected(request, "Order is already fulfilled and requires a return flow");
+            return rejected(request);
         }
 
         List<ShipmentView> shipments = getOrderShipmentsUsecase.query(request.orderId());
@@ -62,12 +62,9 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
             CancelShipmentStatus status = cancelShipmentUsecase.handle(new CancelShipmentCommand(
                     request.requestId(), shipments.getFirst().shipmentId(), request.requestedAt(), request.reason()));
             if (status == CancelShipmentStatus.REJECTED) {
-                return rejected(request, "Shipment was already handed over to the carrier");
+                return rejected(request);
             }
-            return new FulfillmentCancellationResult(
-                    FulfillmentCancellationStatus.ACCEPTED,
-                    request.requestId(),
-                    "WMS cancellation was accepted; Order cancellation awaits the Shipment terminal fact");
+            return new FulfillmentCancellationResult(FulfillmentCancellationStatus.ACCEPTED, request.requestId());
         }
         return cancelOrder(request);
     }
@@ -77,20 +74,14 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
                 request.requestId(), request.orderId(), request.requestedAt(), request.reason()));
         return switch (result) {
             case CANCELLED ->
-                new FulfillmentCancellationResult(
-                        FulfillmentCancellationStatus.ACCEPTED,
-                        request.requestId(),
-                        "WMS execution is safe; Order cancellation was committed");
+                new FulfillmentCancellationResult(FulfillmentCancellationStatus.ACCEPTED, request.requestId());
             case ALREADY_CANCELLED ->
-                new FulfillmentCancellationResult(
-                        FulfillmentCancellationStatus.ALREADY_CANCELLED,
-                        request.requestId(),
-                        "The same cancellation request was already committed");
-            case REJECTED -> rejected(request, "Ordering rejected cancellation after fulfillment");
+                new FulfillmentCancellationResult(FulfillmentCancellationStatus.ALREADY_CANCELLED, request.requestId());
+            case REJECTED -> rejected(request);
         };
     }
 
-    private static FulfillmentCancellationResult rejected(FulfillmentCancellationRequest request, String detail) {
-        return new FulfillmentCancellationResult(FulfillmentCancellationStatus.REJECTED, request.requestId(), detail);
+    private static FulfillmentCancellationResult rejected(FulfillmentCancellationRequest request) {
+        return new FulfillmentCancellationResult(FulfillmentCancellationStatus.REJECTED, request.requestId());
     }
 }

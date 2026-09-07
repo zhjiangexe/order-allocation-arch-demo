@@ -1,5 +1,7 @@
 package com.flowzati.archone.orchestration.runtime.workflow.order;
 
+import com.flowzati.archone.foundation.error.ApplicationConflictException;
+import com.flowzati.archone.foundation.error.DomainConflictException;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
 import java.time.Duration;
@@ -11,6 +13,11 @@ import java.time.Duration;
 public final class FulfillmentActivityOptions {
 
     private static final RetryOptions RETRY_OPTIONS = RetryOptions.newBuilder()
+            // SDK failure types use exact class names; subclasses are not matched automatically.
+            .setDoNotRetry(
+                    IllegalArgumentException.class.getName(),
+                    ApplicationConflictException.class.getName(),
+                    DomainConflictException.class.getName())
             .setInitialInterval(Duration.ofSeconds(1))
             .setBackoffCoefficient(2.0)
             .setMaximumInterval(Duration.ofSeconds(30))

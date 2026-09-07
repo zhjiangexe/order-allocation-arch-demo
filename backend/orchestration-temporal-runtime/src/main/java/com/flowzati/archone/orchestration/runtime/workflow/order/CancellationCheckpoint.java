@@ -5,7 +5,7 @@ import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFu
 import java.time.Instant;
 import java.util.UUID;
 
-/** 由單一 Workflow 持有的取消狀態；轉移前完成檢查，已接受的取消請求不會被覆寫。 */
+/** 由單一 Workflow 持有的取消狀態；由 Workflow 協調轉移與取消請求的接收。 */
 final class CancellationCheckpoint {
 
     private OrderFulfillmentCancellationState state = OrderFulfillmentCancellationState.NONE;
@@ -38,9 +38,6 @@ final class CancellationCheckpoint {
     }
 
     void markRejected() {
-        if (!isRequested()) {
-            throw WorkflowFailures.invariantViolation("Cancellation rejection requires a requested cancellation");
-        }
         state = OrderFulfillmentCancellationState.REJECTED;
     }
 
@@ -53,10 +50,8 @@ final class CancellationCheckpoint {
         return request != null && request.requestId().equals(requestId);
     }
 
-    void validateRepeatedRequest(CancellationRequestInput candidate) {
-        if (matchesRequest(candidate.requestId()) && !request.equals(candidate)) {
-            throw new IllegalArgumentException("Cancellation request content conflicts with the accepted request");
-        }
+    boolean conflictsWith(CancellationRequestInput candidate) {
+        return matchesRequest(candidate.requestId()) && !request.equals(candidate);
     }
 
     UUID requestIdOrNull() {
@@ -72,18 +67,12 @@ final class CancellationCheckpoint {
     }
 
     void recordRequest(CancellationRequestInput acceptedRequest) {
-        if (state != OrderFulfillmentCancellationState.NONE) {
-            throw WorkflowFailures.invariantViolation("Cancellation request has already been recorded");
-        }
         request = acceptedRequest;
         state = OrderFulfillmentCancellationState.REQUESTED;
     }
 
     /** 僅在 Ordering 取消 Activity 成功返回且結果未拒絕取消後，記錄 Order 取消完成事實。 */
     void markOrderCancelled(Instant occurredAt) {
-        if (state != OrderFulfillmentCancellationState.REQUESTED) {
-            throw WorkflowFailures.invariantViolation("Order cancellation requires a requested cancellation");
-        }
         cancelledAt = occurredAt;
         state = OrderFulfillmentCancellationState.ORDER_CANCELLED;
     }

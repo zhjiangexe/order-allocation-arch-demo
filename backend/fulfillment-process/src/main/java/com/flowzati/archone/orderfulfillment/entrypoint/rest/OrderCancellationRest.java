@@ -38,7 +38,8 @@ public class OrderCancellationRest {
         if (result.status() == FulfillmentCancellationStatus.ACCEPTED) {
             return ResponseEntity.accepted().body(response);
         }
-        if (result.status() == FulfillmentCancellationStatus.REJECTED) {
+        if (result.status() == FulfillmentCancellationStatus.REJECTED
+                || result.status() == FulfillmentCancellationStatus.CONFLICT) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
         }
         return ResponseEntity.ok(response);

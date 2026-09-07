@@ -15,6 +15,8 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -47,8 +49,7 @@ class OrderCancellationRestTest {
     @DisplayName("協調者受理取消時 HTTP 應回 202，而不是假裝補償已全部完成")
     void shouldAcceptCancellationRequest() {
         when(coordinator.request(any()))
-                .thenReturn(new FulfillmentCancellationResult(
-                        FulfillmentCancellationStatus.ACCEPTED, REQUEST_ID, "Order cancellation was committed"));
+                .thenReturn(new FulfillmentCancellationResult(FulfillmentCancellationStatus.ACCEPTED, REQUEST_ID));
 
         MvcTestResultAssert response = assertThat(mvc.post()
                 .uri("/orders/{orderId}/cancellation-requests", ORDER_ID)
@@ -58,17 +59,18 @@ class OrderCancellationRestTest {
         response.hasStatus(202);
         response.bodyJson().extractingPath("$.status").isEqualTo("ACCEPTED");
         response.bodyJson().extractingPath("$.effectiveRequestId").isEqualTo(REQUEST_ID.toString());
+        response.bodyJson().doesNotHavePath("$.detail");
         verify(coordinator)
                 .request(new FulfillmentCancellationRequest(
                         REQUEST_ID, ORDER_ID, REQUESTED_AT, "Customer changed mind"));
     }
 
-    @Test
-    @DisplayName("倉內作業已開始而拒絕取消時應回 409 與可解釋結果")
-    void shouldReportRejectedCancellationAsConflict() {
-        when(coordinator.request(any()))
-                .thenReturn(new FulfillmentCancellationResult(
-                        FulfillmentCancellationStatus.REJECTED, REQUEST_ID, "Physical putback is required"));
+    @ParameterizedTest
+    @EnumSource(
+            value = FulfillmentCancellationStatus.class,
+            names = {"REJECTED", "CONFLICT"})
+    void shouldReportRejectedOrConflictingCancellationAsHttp409(FulfillmentCancellationStatus status) {
+        when(coordinator.request(any())).thenReturn(new FulfillmentCancellationResult(status, REQUEST_ID));
 
         MvcTestResultAssert response = assertThat(mvc.post()
                 .uri("/orders/{orderId}/cancellation-requests", ORDER_ID)
@@ -76,8 +78,9 @@ class OrderCancellationRestTest {
                 .content(requestBody()));
 
         response.hasStatus(409);
-        response.bodyJson().extractingPath("$.status").isEqualTo("REJECTED");
-        response.bodyJson().extractingPath("$.detail").isEqualTo("Physical putback is required");
+        response.bodyJson().extractingPath("$.status").isEqualTo(status.name());
+        response.bodyJson().extractingPath("$.effectiveRequestId").isEqualTo(REQUEST_ID.toString());
+        response.bodyJson().doesNotHavePath("$.detail");
     }
 
     @Test

@@ -28,19 +28,6 @@ class ShipmentCheckpointTest {
     }
 
     @Test
-    void rejectsCreatingAnotherShipment() {
-        ShipmentCheckpoint checkpoint = new ShipmentCheckpoint();
-        checkpoint.recordCreated(SHIPMENT_ID);
-
-        assertThatThrownBy(() -> checkpoint.recordCreated(UUID.randomUUID()))
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("Workflow created more than one Shipment");
-
-        assertThat(checkpoint.shipmentIdOrNull()).isEqualTo(SHIPMENT_ID);
-        assertThat(checkpoint.terminalOutcome()).isNull();
-    }
-
-    @Test
     void correlatesATerminalFactReportedAfterShipmentCreation() {
         ShipmentCheckpoint checkpoint = new ShipmentCheckpoint();
         checkpoint.recordCreated(SHIPMENT_ID);

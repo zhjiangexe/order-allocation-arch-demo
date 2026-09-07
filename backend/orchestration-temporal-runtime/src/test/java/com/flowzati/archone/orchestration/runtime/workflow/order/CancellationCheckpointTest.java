@@ -1,11 +1,9 @@
 package com.flowzati.archone.orchestration.runtime.workflow.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.CancellationRequestInput;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentCancellationState;
-import io.temporal.failure.ApplicationFailure;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -31,15 +29,6 @@ class CancellationCheckpointTest {
         assertThat(checkpoint.isOrderCancelled()).isFalse();
         assertThat(checkpoint.request()).isSameAs(REQUEST);
         assertThat(checkpoint.cancelledAt()).isNull();
-        assertThatThrownBy(() -> checkpoint.markOrderCancelled(REQUESTED_AT)).isInstanceOf(ApplicationFailure.class);
-    }
-
-    @Test
-    void cannotRejectCancellationWithoutARequest() {
-        CancellationCheckpoint checkpoint = new CancellationCheckpoint();
-
-        assertThatThrownBy(checkpoint::markRejected).isInstanceOf(ApplicationFailure.class);
-        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.NONE);
     }
 
     @Test
@@ -108,64 +97,10 @@ class CancellationCheckpointTest {
     }
 
     @Test
-    void rejectsOrderCancellationBeforeARequestExistsWithoutChangingState() {
-        CancellationCheckpoint checkpoint = new CancellationCheckpoint();
-
-        assertThatThrownBy(() -> checkpoint.markOrderCancelled(REQUESTED_AT))
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("requires a requested cancellation");
-
-        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.NONE);
-        assertThat(checkpoint.request()).isNull();
-        assertThat(checkpoint.cancelledAt()).isNull();
-    }
-
-    @Test
-    void rejectsRecordingAnotherRequestWithoutChangingState() {
-        CancellationCheckpoint checkpoint = new CancellationCheckpoint();
-        checkpoint.recordRequest(REQUEST);
-        CancellationRequestInput anotherRequest = new CancellationRequestInput(
-                UUID.randomUUID(), REQUEST.orderId(), REQUESTED_AT.plusSeconds(1), "Another request");
-
-        assertThatThrownBy(() -> checkpoint.recordRequest(anotherRequest))
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("already been recorded");
-
-        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.REQUESTED);
-        assertThat(checkpoint.request()).isSameAs(REQUEST);
-        assertThat(checkpoint.cancelledAt()).isNull();
-
-        checkpoint.markOrderCancelled(REQUESTED_AT.plusSeconds(2));
-
-        assertThatThrownBy(() -> checkpoint.recordRequest(anotherRequest))
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("already been recorded");
-
-        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.ORDER_CANCELLED);
-        assertThat(checkpoint.request()).isSameAs(REQUEST);
-        assertThat(checkpoint.cancelledAt()).isEqualTo(REQUESTED_AT.plusSeconds(2));
-    }
-
-    @Test
-    void rejectsRepeatedOrderCancellationWithoutReplacingTheCompletionTime() {
-        CancellationCheckpoint checkpoint = new CancellationCheckpoint();
-        checkpoint.recordRequest(REQUEST);
-        checkpoint.markOrderCancelled(REQUESTED_AT.plusSeconds(1));
-
-        assertThatThrownBy(() -> checkpoint.markOrderCancelled(REQUESTED_AT.plusSeconds(2)))
-                .isInstanceOf(ApplicationFailure.class)
-                .hasMessageContaining("requires a requested cancellation");
-
-        assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.ORDER_CANCELLED);
-        assertThat(checkpoint.request()).isSameAs(REQUEST);
-        assertThat(checkpoint.cancelledAt()).isEqualTo(REQUESTED_AT.plusSeconds(1));
-    }
-
-    @Test
     void validatesTheFirstRequestWithoutRecordingIt() {
         CancellationCheckpoint checkpoint = new CancellationCheckpoint();
 
-        checkpoint.validateRepeatedRequest(REQUEST);
+        assertThat(checkpoint.conflictsWith(REQUEST)).isFalse();
 
         assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.NONE);
         assertThat(checkpoint.request()).isNull();
@@ -179,14 +114,14 @@ class CancellationCheckpointTest {
         CancellationRequestInput replay = new CancellationRequestInput(
                 REQUEST.requestId(), REQUEST.orderId(), REQUEST.requestedAt(), REQUEST.reason());
 
-        checkpoint.validateRepeatedRequest(replay);
+        assertThat(checkpoint.conflictsWith(replay)).isFalse();
 
         assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.REQUESTED);
         assertThat(checkpoint.request()).isSameAs(REQUEST);
         assertThat(checkpoint.cancelledAt()).isNull();
 
         checkpoint.markOrderCancelled(REQUESTED_AT.plusSeconds(1));
-        checkpoint.validateRepeatedRequest(replay);
+        assertThat(checkpoint.conflictsWith(replay)).isFalse();
 
         assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.ORDER_CANCELLED);
         assertThat(checkpoint.request()).isSameAs(REQUEST);
@@ -209,9 +144,7 @@ class CancellationCheckpointTest {
             OrderFulfillmentCancellationState originalState = checkpoint.state();
             Instant originalCancelledAt = checkpoint.cancelledAt();
             for (CancellationRequestInput conflicting : List.of(changedReason, changedTime)) {
-                assertThatThrownBy(() -> checkpoint.validateRepeatedRequest(conflicting))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage("Cancellation request content conflicts with the accepted request");
+                assertThat(checkpoint.conflictsWith(conflicting)).isTrue();
                 assertThat(checkpoint.state()).isEqualTo(originalState);
                 assertThat(checkpoint.request()).isSameAs(REQUEST);
                 assertThat(checkpoint.cancelledAt()).isEqualTo(originalCancelledAt);
@@ -226,7 +159,7 @@ class CancellationCheckpointTest {
         CancellationRequestInput anotherRequest = new CancellationRequestInput(
                 UUID.randomUUID(), REQUEST.orderId(), REQUESTED_AT.plusSeconds(1), "Another request");
 
-        checkpoint.validateRepeatedRequest(anotherRequest);
+        assertThat(checkpoint.conflictsWith(anotherRequest)).isFalse();
 
         assertThat(checkpoint.state()).isEqualTo(OrderFulfillmentCancellationState.REQUESTED);
         assertThat(checkpoint.request()).isSameAs(REQUEST);

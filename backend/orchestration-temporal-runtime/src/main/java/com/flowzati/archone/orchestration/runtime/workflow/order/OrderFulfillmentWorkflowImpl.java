@@ -89,8 +89,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
 
         if (cancellationCheckpoint.isRequested()) {
             CancellationRequestInput request = cancellationCheckpoint.request();
-            enterPhase(OrderFulfillmentPhase.CANCELLATION);
-            cancelOrderAndFinish(processId, request, request.requestedAt());
+            cancelOrderAndFinish(processId, request, Instant.ofEpochMilli(Workflow.currentTimeMillis()));
             return;
         }
 
@@ -105,11 +104,9 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
         Workflow.await(() -> shipmentCheckpoint.hasTerminal() || cancellationCheckpoint.isRequested());
 
-        if (cancellationCheckpoint.isRequested()) {
-            enterPhase(OrderFulfillmentPhase.CANCELLATION);
-            if (!shipmentCheckpoint.hasTerminal()) {
-                requestShipmentCancellation(processId, shipmentResult.shipmentId(), cancellationCheckpoint.request());
-            }
+        if (cancellationCheckpoint.isRequested() && !shipmentCheckpoint.hasTerminal()) {
+            enterPhase(OrderFulfillmentPhase.CANCELLING);
+            requestShipmentCancellation(processId, shipmentResult.shipmentId(), cancellationCheckpoint.request());
         }
 
         Workflow.await(() -> shipmentCheckpoint.hasTerminal());
@@ -155,7 +152,6 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         if (!workflowInput.orderId().equals(request.orderId())) {
             throw new IllegalArgumentException("Cancellation request belongs to another order");
         }
-        cancellationCheckpoint.validateRepeatedRequest(request);
     }
 
     @Override
@@ -176,11 +172,18 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
             throw WorkflowFailures.invariantViolation(
                     "Shipment cancellation belongs to an unknown Workflow cancellation request");
         }
+        if (cancellationCheckpoint.isRejected()) {
+            throw WorkflowFailures.invariantViolation("Shipment cancellation conflicts with WMS rejection");
+        }
         shipmentCheckpoint.recordCancelled(reportedCancellation.shipmentId(), reportedCancellation.cancelledAt());
     }
 
     @Override
     public CancellationRequestResult requestCancellation(CancellationRequestInput request) {
+        if (cancellationCheckpoint.conflictsWith(request)) {
+            return new CancellationRequestResult(
+                    CancellationRequestStatus.CONFLICT, cancellationCheckpoint.requestIdOrNull());
+        }
         if (cancellationCheckpoint.isOrderCancelled()) {
             return new CancellationRequestResult(
                     CancellationRequestStatus.ALREADY_CANCELLED, cancellationCheckpoint.requestIdOrNull());
@@ -216,9 +219,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                 progress.phaseEnteredAt());
     }
 
-    /**
-     * WMS 拒絕取消不代表 Shipment 已交接；回到履約等待，實際終態仍由 Signal 決定。
-     */
+    /** WMS 拒絕取消不代表 Shipment 已交接；回到履約等待，實際終態仍由 Signal 決定。 */
     private void requestShipmentCancellation(String processId, UUID shipmentId, CancellationRequestInput request) {
         CancelShipmentActivityStatus status =
                 shipmentActivities.requestShipmentCancellation(new CancelShipmentActivityInput(
@@ -228,29 +229,25 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                         shipmentId,
                         request.requestedAt(),
                         request.reason()));
-        // 舊版 void Activity 的空結果不代表拒絕，仍等待原本的 terminal Signal。
         if (status == CancelShipmentActivityStatus.REJECTED) {
+            if (shipmentCheckpoint.hasCancellation()) {
+                throw WorkflowFailures.invariantViolation("Shipment cancellation conflicts with WMS rejection");
+            }
             cancellationCheckpoint.markRejected();
             enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
         }
     }
 
-    private void cancelOrderInOrdering(String processId, CancellationRequestInput request, Instant cancelledAt) {
+    /** 確認訂單取消後結束；不等待 OrderCancelled 事件驅動的 Inventory 資源釋放。 */
+    private void cancelOrderAndFinish(String processId, CancellationRequestInput request, Instant cancelledAt) {
+        enterPhase(OrderFulfillmentPhase.CANCELLING);
         CancelOrderActivityResult result = orderActivities.cancelOrder(new CancelOrderActivityInput(
                 processId, request.requestId(), workflowInput.orderId(), cancelledAt, request.reason()));
-        if (!workflowInput.orderId().equals(result.orderId())) {
-            throw ApplicationFailure.newNonRetryableFailure(
-                    "CancelOrder Activity returned an uncorrelated result", ORDER_CANCELLATION_REJECTED);
-        }
         if (result.status() == CancelOrderActivityStatus.REJECTED) {
             throw ApplicationFailure.newNonRetryableFailure(
                     "Ordering rejected cancellation for Order: " + workflowInput.orderId(),
                     ORDER_CANCELLATION_REJECTED);
         }
-    }
-
-    private void cancelOrderAndFinish(String processId, CancellationRequestInput request, Instant cancelledAt) {
-        cancelOrderInOrdering(processId, request, cancelledAt);
         cancellationCheckpoint.markOrderCancelled(cancelledAt);
         finishWorkflow(OrderFulfillmentOutcome.ORDER_CANCELLED);
     }

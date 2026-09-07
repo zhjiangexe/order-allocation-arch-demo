@@ -1,7 +1,5 @@
 package com.flowzati.archone.ordering.entrypoint.temporal;
 
-import com.flowzati.archone.foundation.error.BusinessException;
-import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityResult;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityStatus;
@@ -12,7 +10,6 @@ import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillme
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import io.temporal.failure.ApplicationFailure;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -32,23 +29,14 @@ public final class TemporalOrderActivitiesAdapter implements OrderActivities {
 
     @Override
     public void recordOrderFulfillment(RecordOrderFulfillmentActivityInput input) {
-        try {
-            recordOrderFulfillmentUsecase.execute(
-                    new RecordOrderFulfillmentCommand(input.orderId(), input.shipmentId(), input.fulfilledAt()));
-        } catch (DomainConflictException exception) {
-            throw nonRetryable(exception);
-        }
+        recordOrderFulfillmentUsecase.execute(
+                new RecordOrderFulfillmentCommand(input.orderId(), input.shipmentId(), input.fulfilledAt()));
     }
 
     @Override
     public CancelOrderActivityResult cancelOrder(CancelOrderActivityInput input) {
-        Order.CancellationStatus result;
-        try {
-            result = cancelOrderUsecase.cancel(
-                    new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
-        } catch (DomainConflictException exception) {
-            throw nonRetryable(exception);
-        }
+        Order.CancellationStatus result = cancelOrderUsecase.cancel(
+                new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
         CancelOrderActivityStatus status =
                 switch (result) {
                     case CANCELLED -> CancelOrderActivityStatus.CANCELLED;
@@ -56,10 +44,5 @@ public final class TemporalOrderActivitiesAdapter implements OrderActivities {
                     case REJECTED -> CancelOrderActivityStatus.REJECTED;
                 };
         return new CancelOrderActivityResult(input.orderId(), status);
-    }
-
-    private static ApplicationFailure nonRetryable(BusinessException exception) {
-        return ApplicationFailure.newNonRetryableFailure(
-                exception.getMessage(), exception.errorCode().value());
     }
 }

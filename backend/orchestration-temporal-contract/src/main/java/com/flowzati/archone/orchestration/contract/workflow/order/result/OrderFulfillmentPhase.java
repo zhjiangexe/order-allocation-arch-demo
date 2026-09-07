@@ -21,7 +21,7 @@ public enum OrderFulfillmentPhase {
     ORDER_COMPLETION,
 
     /** 正在取得 WMS 取消決策、等待必要的最終結果，或提交 Ordering cancellation。 */
-    CANCELLATION,
+    CANCELLING,
 
     /** Workflow 已產生不可再變動的最終 OrderFulfillmentOutcome。 */
     FINISHED

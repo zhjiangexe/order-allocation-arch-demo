@@ -1,28 +1,22 @@
 package com.flowzati.archone.wms.shipment.entrypoint.temporal;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.foundation.error.ApplicationConflictException;
-import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityInput;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.AssignedStockMove;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.StockOperationAssignedInput;
-import com.flowzati.archone.wms.shipment.application.exception.ShipmentApplicationErrorCode;
 import com.flowzati.archone.wms.shipment.application.invocation.CancelShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentErrorCode;
 import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
-import io.temporal.failure.ApplicationFailure;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -112,50 +106,5 @@ class TemporalShipmentActivitiesAdapterTest {
 
         verify(cancelShipmentUsecase)
                 .handle(new CancelShipmentCommand(requestId, shipmentId, requestedAt, "customer request"));
-    }
-
-    @Test
-    void marksCancellationRequestConflictsAsNonRetryable() {
-        UUID requestId = UUID.randomUUID();
-        UUID shipmentId = UUID.randomUUID();
-        Instant requestedAt = Instant.parse("2026-08-19T10:00:00Z");
-        CancelShipmentCommand command =
-                new CancelShipmentCommand(requestId, shipmentId, requestedAt, "customer request");
-        when(cancelShipmentUsecase.handle(command))
-                .thenThrow(new DomainConflictException(
-                        ShipmentErrorCode.CANCELLATION_REQUEST_CONFLICT, "different cancellation request"));
-
-        assertThatThrownBy(() -> activities.requestShipmentCancellation(new CancelShipmentActivityInput(
-                        "process-1", requestId, UUID.randomUUID(), shipmentId, requestedAt, "customer request")))
-                .isInstanceOfSatisfying(ApplicationFailure.class, failure -> {
-                    assertThat(failure.isNonRetryable()).isTrue();
-                    assertThat(failure.getType()).isEqualTo(ShipmentErrorCode.CANCELLATION_REQUEST_CONFLICT.value());
-                });
-    }
-
-    @Test
-    void marksShipmentSnapshotConflictsAsNonRetryable() {
-        Instant assignedAt = Instant.parse("2026-08-19T10:00:00Z");
-        var assignment = new StockOperationAssignedInput(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                List.of(new AssignedStockMove(UUID.randomUUID(), UUID.randomUUID(), "SKU-1", UUID.randomUUID(), 3)),
-                assignedAt.plusSeconds(3600),
-                80,
-                assignedAt);
-        when(createShipmentUsecase.handle(any()))
-                .thenThrow(new ApplicationConflictException(
-                        ShipmentApplicationErrorCode.STOCK_OPERATION_SNAPSHOT_CONFLICT,
-                        "different assignment snapshot"));
-
-        assertThatThrownBy(() ->
-                        activities.releaseToWarehouse(new ReleaseToWarehouseActivityInput("process-1", assignment)))
-                .isInstanceOfSatisfying(ApplicationFailure.class, failure -> {
-                    assertThat(failure.isNonRetryable()).isTrue();
-                    assertThat(failure.getType())
-                            .isEqualTo(ShipmentApplicationErrorCode.STOCK_OPERATION_SNAPSHOT_CONFLICT.value());
-                });
     }
 }

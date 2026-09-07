@@ -3,6 +3,7 @@ package com.flowzati.archone.orchestration.runtime.workflow.order;
 import static com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentPhase.NOT_STARTED;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentOutcome;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentPhase;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,42 @@ class WorkflowProgressTest {
         assertThat(progress.phase()).isEqualTo(phase);
         assertThat(progress.outcome()).isNull();
         assertThat(progress.phaseEnteredAt()).isEqualTo(OCCURRED_AT);
+    }
+
+    @Test
+    void preservesEntryTimeWhileRemainingInCancellation() {
+        WorkflowProgress progress = new WorkflowProgress();
+        progress.enterPhase(OrderFulfillmentPhase.CANCELLING, OCCURRED_AT);
+
+        progress.enterPhase(OrderFulfillmentPhase.CANCELLING, OCCURRED_AT.plusSeconds(1));
+
+        assertThat(progress.phase()).isEqualTo(OrderFulfillmentPhase.CANCELLING);
+        assertThat(progress.phaseEnteredAt()).isEqualTo(OCCURRED_AT);
+        assertThat(progress.outcome()).isNull();
+    }
+
+    @Test
+    void recordsANewEntryTimeWhenReturningToAPhase() {
+        WorkflowProgress progress = new WorkflowProgress();
+        progress.enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION, OCCURRED_AT);
+        progress.enterPhase(OrderFulfillmentPhase.CANCELLING, OCCURRED_AT.plusSeconds(1));
+
+        progress.enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION, OCCURRED_AT.plusSeconds(2));
+
+        assertThat(progress.phaseEnteredAt()).isEqualTo(OCCURRED_AT.plusSeconds(2));
+    }
+
+    @Test
+    void recordsCompletionWithItsOutcomeAndEntryTime() {
+        WorkflowProgress progress = new WorkflowProgress();
+        progress.enterPhase(OrderFulfillmentPhase.CANCELLING, OCCURRED_AT);
+
+        progress.enterPhase(
+                OrderFulfillmentPhase.FINISHED, OrderFulfillmentOutcome.ORDER_CANCELLED, OCCURRED_AT.plusSeconds(1));
+
+        assertThat(progress.phase()).isEqualTo(OrderFulfillmentPhase.FINISHED);
+        assertThat(progress.outcome()).isEqualTo(OrderFulfillmentOutcome.ORDER_CANCELLED);
+        assertThat(progress.phaseEnteredAt()).isEqualTo(OCCURRED_AT.plusSeconds(1));
     }
 
     @Test

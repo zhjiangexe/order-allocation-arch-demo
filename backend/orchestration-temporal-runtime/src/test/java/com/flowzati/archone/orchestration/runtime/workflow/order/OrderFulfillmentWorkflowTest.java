@@ -331,7 +331,8 @@ public class OrderFulfillmentWorkflowTest {
         assertThat(workflow.state().allocationState()).isEqualTo(OrderFulfillmentAllocationState.REQUESTED);
         assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.FINISHED);
         assertThat(workflow.state().cancellationRequestId()).isEqualTo(requestId);
-        assertThat(workflow.state().cancelledAt()).isEqualTo(requestedAt);
+        assertThat(workflow.state().cancelledAt()).isAfterOrEqualTo(now);
+        assertThat(workflow.state().cancellationRequestedAt()).isEqualTo(requestedAt);
         assertThat(recording.orderCancellations).singleElement().satisfies(cancellation -> {
             assertThat(cancellation.requestId()).isEqualTo(requestId);
             assertThat(cancellation.orderId()).isEqualTo(orderId);
@@ -377,6 +378,70 @@ public class OrderFulfillmentWorkflowTest {
     }
 
     @Test
+    protected void rejectsConflictingCancellationContentAndPreservesTheAcceptedRequest() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        Instant now = now();
+        recording.allocationRequestGate = new CountDownLatch(1);
+        OrderFulfillmentWorkflow workflow = newWorkflow(orderId);
+        var result = WorkflowClient.execute(workflow::execute, new OrderFulfillmentInput(orderId, now));
+        awaitAllocationRequest();
+        UUID requestId = UUID.randomUUID();
+        try {
+            var request = new CancellationRequestInput(requestId, orderId, now, "Customer request");
+            assertThat(workflow.requestCancellation(request).status()).isEqualTo(CancellationRequestStatus.ACCEPTED);
+            for (var conflicting : List.of(
+                    new CancellationRequestInput(requestId, orderId, now, "changed"),
+                    new CancellationRequestInput(requestId, orderId, now.plusSeconds(1), request.reason()))) {
+                var conflict = workflow.requestCancellation(conflicting);
+                assertThat(conflict.status()).isEqualTo(CancellationRequestStatus.CONFLICT);
+                assertThat(conflict.effectiveRequestId()).isEqualTo(requestId);
+                assertThat(workflow.state().cancellationState()).isEqualTo(OrderFulfillmentCancellationState.REQUESTED);
+                assertThat(workflow.state().cancellationRequestedAt()).isEqualTo(now);
+                assertThat(recording.orderCancellations).isEmpty();
+            }
+            assertThat(workflow.requestCancellation(request).status())
+                    .isEqualTo(CancellationRequestStatus.ALREADY_REQUESTED);
+        } finally {
+            recording.allocationRequestGate.countDown();
+        }
+        result.get(5, TimeUnit.SECONDS);
+        replay(orderId);
+    }
+
+    @Test
+    protected void cancellationAfterDelayedAllocationUsesAStableEffectiveTimeOnRetry() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        Instant receivedAt = now().minusSeconds(120);
+        Instant requestedAt = receivedAt.plusSeconds(1);
+        recording.allocationRequestGate = new CountDownLatch(1);
+        recording.loseFirstCancellationResponse.set(true);
+        OrderFulfillmentWorkflow workflow = newWorkflow(orderId);
+        var result = WorkflowClient.execute(workflow::execute, new OrderFulfillmentInput(orderId, receivedAt));
+        awaitAllocationRequest();
+        Instant allocationCompletedAt;
+        try {
+            workflow.requestCancellation(
+                    new CancellationRequestInput(UUID.randomUUID(), orderId, requestedAt, "Customer request"));
+            allocationCompletedAt = now();
+            // This fact can reach Ordering while the allocation Activity response is still pending.
+            workflow.stockOperationAssigned(
+                    stockOperationAssignment(orderId, allocationCompletedAt, allocationCompletedAt.plusSeconds(3600)));
+        } finally {
+            recording.allocationRequestGate.countDown();
+        }
+        result.get(5, TimeUnit.SECONDS);
+        assertThat(recording.orderCancellations).hasSize(2);
+        var cancellation = recording.orderCancellations.getFirst();
+        assertThat(cancellation.cancelledAt())
+                .isAfterOrEqualTo(allocationCompletedAt)
+                .isAfter(requestedAt);
+        assertThat(recording.orderCancellations.get(1)).isEqualTo(cancellation);
+        assertThat(workflow.state().cancelledAt()).isEqualTo(cancellation.cancelledAt());
+        assertThat(recording.shipmentCreations).isEmpty();
+        replay(orderId);
+    }
+
+    @Test
     protected void acceptsCancellationDuringShipmentCreationRetryAndWaitsForWmsTerminalFact() throws Exception {
         UUID orderId = UUID.randomUUID();
         UUID requestId = UUID.randomUUID();
@@ -407,7 +472,7 @@ public class OrderFulfillmentWorkflowTest {
 
         awaitShipmentCancellationRequest();
         assertThat(result).isNotDone();
-        assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.CANCELLATION);
+        assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.CANCELLING);
         assertThat(recording.orderCancellations).isEmpty();
         workflow.shipmentCancelled(
                 new ShipmentCancelledInput(orderId, recording.shipmentId, requestId, now.plusSeconds(5)));
@@ -462,6 +527,9 @@ public class OrderFulfillmentWorkflowTest {
                 new CancellationRequestInput(requestId, orderId, now.plusSeconds(2), "Dispatch deadline policy"));
         awaitShipmentCancellationRequest();
         assertThat(result).isNotDone();
+        assertThat(workflow.state().phase()).isEqualTo(OrderFulfillmentPhase.CANCELLING);
+        assertThat(recording.orderCancellations).isEmpty();
+        assertThat(recording.outboundCompletions).isEmpty();
         Instant cancelledAt = now.plusSeconds(5);
         workflow.shipmentCancelled(new ShipmentCancelledInput(orderId, shipmentId, requestId, cancelledAt));
         result.get(5, TimeUnit.SECONDS);
@@ -474,6 +542,7 @@ public class OrderFulfillmentWorkflowTest {
         assertThat(workflow.state().shipmentTerminalStatus()).isEqualTo(ShipmentTerminalStatus.CANCELLED);
         assertThat(workflow.state().shipmentTerminalAt()).isEqualTo(cancelledAt);
         assertThat(recording.outboundCompletions).isEmpty();
+        replay(orderId);
     }
 
     @Test
@@ -495,9 +564,10 @@ public class OrderFulfillmentWorkflowTest {
                 new CancellationRequestInput(requestId, orderId, now.plusSeconds(2), "Customer requested cancellation");
         CancellationRequestResult first = workflow.requestCancellation(request);
         CancellationRequestResult replay = workflow.requestCancellation(request);
-        assertThatThrownBy(() -> workflow.requestCancellation(new CancellationRequestInput(
-                        requestId, orderId, request.requestedAt(), "Changed cancellation reason")))
-                .hasStackTraceContaining("Cancellation request content conflicts with the accepted request");
+        CancellationRequestResult conflict = workflow.requestCancellation(
+                new CancellationRequestInput(requestId, orderId, request.requestedAt(), "Changed cancellation reason"));
+        assertThat(conflict.status()).isEqualTo(CancellationRequestStatus.CONFLICT);
+        assertThat(conflict.effectiveRequestId()).isEqualTo(requestId);
         awaitShipmentCancellationRequest();
 
         assertThat(first.status()).isEqualTo(CancellationRequestStatus.ACCEPTED);
@@ -816,6 +886,7 @@ public class OrderFulfillmentWorkflowTest {
         private final List<CancelOrderActivityInput> orderCancellations = new CopyOnWriteArrayList<>();
         private final AtomicInteger orderCompletionAttempts = new AtomicInteger();
         private final AtomicBoolean orderCompletionCommitted = new AtomicBoolean();
+        private final AtomicBoolean loseFirstCancellationResponse = new AtomicBoolean();
         private final AtomicBoolean loseFirstOrderCompletionResponse = new AtomicBoolean();
         private final AtomicBoolean failFirstAllocationRequest = new AtomicBoolean();
         private final AtomicBoolean failFirstShipmentCreation = new AtomicBoolean();
@@ -896,6 +967,9 @@ public class OrderFulfillmentWorkflowTest {
         public CancelOrderActivityResult cancelOrder(CancelOrderActivityInput input) {
             recording.calls.add("cancelOrder");
             recording.orderCancellations.add(input);
+            if (recording.loseFirstCancellationResponse.compareAndSet(true, false)) {
+                throw new IllegalStateException("Cancellation response lost after commit");
+            }
             return new CancelOrderActivityResult(input.orderId(), recording.orderCancellationStatus);
         }
     }

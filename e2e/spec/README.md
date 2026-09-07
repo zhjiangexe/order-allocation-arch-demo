@@ -48,7 +48,7 @@ Karate 只從 HTTP 與 Connect 管理契約觀察系統，涵蓋下列使用者�
 | Events 配貨 | 立即配貨、缺貨等待與補貨喚醒、ship-complete、同 SKU 多行加總、嚴格 FIFO |
 | Events 取消 | 待配貨取消、取消後不再被喚醒、Shipment 建立後取消、交運後拒絕取消 |
 | Messaging | Connect 暫停時提交 outbox，恢復後從 WAL 追趕 |
-| Temporal | 成功履約、缺貨等待後恢復、無 Shipment 取消、Shipment 建立後取消、交運後拒絕取消 |
+| Temporal | 成功履約、缺貨等待後恢復、無 Shipment 取消、Shipment 建立後取消、取消請求內容衝突回 409 與原請求冪等重送、交運後拒絕取消 |
 
 Feature 與 Scenario 都使用中文名稱，重要步驟旁也說明該斷言保護的業務規則。
 
@@ -67,3 +67,7 @@ consumer failure。這些不是外部使用者流程，因此不搬進 Karate �
 
 這樣的邊界讓 E2E 專注回答「一個真實業務流程能不能從入口走到可觀察結果」，而不為了注入內部
 故障，替 production application 增加測試專用 API。
+
+Temporal 取消請求衝突案例會暫停 Connect，讓 Workflow 等待 Shipment terminal event，再驗證修改
+reason／requestedAt 的 HTTP 請求回 409。恢復 Connect 後再驗證取消完成。`fulfillment-process`
+只 mock Workflow client 驗證結果映射，不依賴 runtime；runtime 自己保留狀態轉換、重試與 replay 測試。

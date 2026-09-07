@@ -23,9 +23,6 @@ final class StockOperationAssignmentCheckpoint {
 
     /** 僅在 execution 開始配貨時初始化；不是清除既有 assignment 或重新改派的操作。 */
     void markRequested() {
-        if (state != OrderFulfillmentAllocationState.NOT_REQUESTED) {
-            throw WorkflowFailures.invariantViolation("Stock operation assignment has already been requested");
-        }
         state = OrderFulfillmentAllocationState.REQUESTED;
     }
 
@@ -36,7 +33,6 @@ final class StockOperationAssignmentCheckpoint {
             }
             throw WorkflowFailures.invariantViolation("Workflow received conflicting stock operation assignment facts");
         }
-        requireRequested();
         assignmentSnapshot = snapshot;
         state = OrderFulfillmentAllocationState.COMMITTED;
     }
@@ -56,11 +52,5 @@ final class StockOperationAssignmentCheckpoint {
 
     UUID stockOperationId() {
         return assignmentSnapshot == null ? null : assignmentSnapshot.stockOperationId();
-    }
-
-    private void requireRequested() {
-        if (!isRequested()) {
-            throw WorkflowFailures.invariantViolation("Stock operation assignment checkpoint has not been requested");
-        }
     }
 }

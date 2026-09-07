@@ -24,14 +24,14 @@ final class WorkflowProgress {
     }
 
     void enterPhase(OrderFulfillmentPhase phase, Instant enteredAt) {
-        this.phase = phase;
-        this.outcome = null;
-        this.phaseEnteredAt = enteredAt;
+        enterPhase(phase, null, enteredAt);
     }
 
     void enterPhase(OrderFulfillmentPhase phase, OrderFulfillmentOutcome outcome, Instant enteredAt) {
+        if (this.phase != phase) {
+            this.phaseEnteredAt = enteredAt;
+        }
         this.phase = phase;
         this.outcome = outcome;
-        this.phaseEnteredAt = enteredAt;
     }
 }

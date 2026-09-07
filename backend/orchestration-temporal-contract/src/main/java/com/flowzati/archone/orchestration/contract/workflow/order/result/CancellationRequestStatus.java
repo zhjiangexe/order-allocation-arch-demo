@@ -5,5 +5,6 @@ public enum CancellationRequestStatus {
     ACCEPTED,
     ALREADY_REQUESTED,
     ALREADY_CANCELLED,
-    REJECTED
+    REJECTED,
+    CONFLICT
 }

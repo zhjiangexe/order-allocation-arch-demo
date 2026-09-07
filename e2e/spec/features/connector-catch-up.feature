@@ -56,7 +56,7 @@ Feature: Debezium connector 暫停後追趕
     And retry until response.order.status == 'FULFILLED'
     When method get
     Then status 200
-    And match response.orchestrationMode == 'EVENTS'
+    And match response.temporalWorkflow == null
     And match response.order.status == 'FULFILLED'
     And match response.stockOperation.source == { type: 'ORDER', sourceId: '#(orderId)', operationUnitKey: 'PRIMARY' }
     And match response.stockOperation.operation.state == 'DONE'

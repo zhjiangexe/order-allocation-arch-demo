@@ -1,10 +1,12 @@
 package com.flowzati.archone.wms.shipment.entrypoint.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.api.Message;
@@ -15,7 +17,9 @@ import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImp
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.wms.picking.application.store.PickingWorkStore;
 import com.flowzati.archone.wms.picking.domain.type.PickTaskStatus;
+import com.flowzati.archone.wms.process.application.invocation.SimulateWarehouseOperationsCommand;
 import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsUsecase;
+import com.flowzati.archone.wms.process.application.usecase.SimulateWarehouseOperationsUsecase;
 import com.flowzati.archone.wms.shipment.application.invocation.CancelShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
@@ -25,13 +29,21 @@ import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest(
         classes = ArchoneApplication.class,
@@ -61,6 +73,12 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private SimulateWarehouseOperationsUsecase simulateWarehouseOperations;
 
     @AfterEach
     void clearDatabase() {
@@ -190,6 +208,110 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                 .containsEntry("cancellation_requested_at", requestedAt.toString())
                 .containsEntry("cancellation_reason", reason)
                 .containsKey("cancelled_at");
+    }
+
+    @Test
+    void rollsBackCancellationAndOutboxTogether() {
+        UUID shipmentId = createShipment();
+        var command = cancellationCommand(shipmentId);
+        var transaction = new TransactionTemplate(transactionManager);
+
+        transaction.executeWithoutResult(status -> {
+            assertThat(cancelShipmentUsecase.handle(command)).isEqualTo(CancelShipmentStatus.ACCEPTED);
+            assertThat(cancellationEventCount(shipmentId)).isOne();
+            status.setRollbackOnly();
+        });
+
+        assertThat(shipmentStore.findById(shipmentId)).hasValueSatisfying(shipment -> {
+            assertThat(shipment.status()).isEqualTo(ShipmentStatus.CREATED);
+            assertThat(shipment.cancellationStateValue()).isEmpty();
+        });
+        assertThat(cancellationEventCount(shipmentId)).isZero();
+        assertThat(cancelShipmentUsecase.handle(command)).isEqualTo(CancelShipmentStatus.ACCEPTED);
+        assertThat(cancelShipmentUsecase.handle(command)).isEqualTo(CancelShipmentStatus.ALREADY_ACCEPTED);
+        assertThat(cancellationEventCount(shipmentId)).isOne();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void concurrentCancellationAndHandoverCommitOnlyOneOutcome(boolean cancellationWins) throws Exception {
+        UUID shipmentId = createShipment();
+        var cancellation = cancellationCommand(shipmentId);
+        var handover = new SimulateWarehouseOperationsCommand(shipmentId, Instant.now());
+        var staleRead = new CountDownLatch(1);
+        var winnerCommitted = new CountDownLatch(1);
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var loser = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                // Hold the original managed entity while the competing transaction commits a newer version.
+                assertThat(shipmentStore.findById(shipmentId)).isPresent();
+                staleRead.countDown();
+                try {
+                    assertThat(winnerCommitted.await(10, TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+                if (cancellationWins) {
+                    simulateWarehouseOperations.handle(handover);
+                } else {
+                    cancelShipmentUsecase.handle(cancellation);
+                }
+            }));
+            try {
+                assertThat(staleRead.await(10, TimeUnit.SECONDS)).isTrue();
+                if (cancellationWins) {
+                    assertThat(cancelShipmentUsecase.handle(cancellation)).isEqualTo(CancelShipmentStatus.ACCEPTED);
+                } else {
+                    assertThat(simulateWarehouseOperations.handle(handover)).isTrue();
+                }
+            } finally {
+                winnerCommitted.countDown();
+            }
+            if (cancellationWins) {
+                assertThatThrownBy(() -> loser.get(10, TimeUnit.SECONDS))
+                        .hasCauseInstanceOf(OptimisticLockingFailureException.class);
+            } else {
+                // Dispatch already reflects handover and rejects cancellation before the stale Shipment is flushed.
+                assertThatThrownBy(() -> loser.get(10, TimeUnit.SECONDS))
+                        .hasCauseInstanceOf(IllegalStateException.class)
+                        .hasRootCauseMessage("A handed-over ShipmentDispatch cannot be cancelled");
+            }
+        }
+
+        assertThat(shipmentStore.findById(shipmentId))
+                .hasValueSatisfying(shipment -> assertThat(shipment.status())
+                        .isEqualTo(
+                                cancellationWins ? ShipmentStatus.CANCELLED : ShipmentStatus.HANDED_OVER_TO_CARRIER));
+        assertThat(cancelShipmentUsecase.handle(cancellation))
+                .isEqualTo(cancellationWins ? CancelShipmentStatus.ALREADY_ACCEPTED : CancelShipmentStatus.REJECTED);
+        assertThat(jdbcTemplate.queryForList(
+                        "SELECT type FROM event_outbox WHERE aggregateid = ?", String.class, shipmentId.toString()))
+                .containsExactly(
+                        cancellationWins
+                                ? ShipmentCancelledIntegrationEvent.EVENT_TYPE
+                                : ShipmentHandedOverIntegrationEvent.EVENT_TYPE);
+    }
+
+    private UUID createShipment() {
+        UUID stockOperationId = UUID.randomUUID();
+        emit(event(UUID.randomUUID(), stockOperationId, UUID.randomUUID()));
+        return shipmentStore
+                .findByStockOperationId(stockOperationId)
+                .orElseThrow()
+                .id();
+    }
+
+    private CancelShipmentCommand cancellationCommand(UUID shipmentId) {
+        return new CancelShipmentCommand(UUID.randomUUID(), shipmentId, Instant.now(), "Customer changed mind");
+    }
+
+    private int cancellationEventCount(UUID shipmentId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM event_outbox WHERE aggregateid = ? AND type = ?",
+                Integer.class,
+                shipmentId.toString(),
+                ShipmentCancelledIntegrationEvent.EVENT_TYPE);
     }
 
     private void emit(OrderAllocationCommittedIntegrationEvent event) {

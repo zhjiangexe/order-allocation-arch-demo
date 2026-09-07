@@ -23,9 +23,6 @@ final class ShipmentCheckpoint {
     }
 
     void recordCreated(UUID shipmentId) {
-        if (createdShipmentId != null && !createdShipmentId.equals(shipmentId)) {
-            throw WorkflowFailures.invariantViolation("Workflow created more than one Shipment");
-        }
         if (terminalOutcome != null && !terminalOutcome.shipmentId().equals(shipmentId)) {
             throw WorkflowFailures.invariantViolation(
                     "Shipment terminal fact arrived for a different Shipment before creation completed");

@@ -92,7 +92,7 @@ class EventDrivenFulfillmentCancellationCoordinatorTest {
         FulfillmentCancellationResult result = coordinator.request(request());
 
         assertThat(result.status()).isEqualTo(FulfillmentCancellationStatus.REJECTED);
-        assertThat(result.detail()).contains("handed over");
+        assertThat(result.effectiveRequestId()).isEqualTo(REQUEST_ID);
         verifyNoInteractions(cancelOrderUsecase);
     }
 

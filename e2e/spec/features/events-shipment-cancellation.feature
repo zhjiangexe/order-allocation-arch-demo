@@ -45,4 +45,4 @@ Feature: Events 模式在倉內作業前取消 Shipment
     And match response.shipments[0].cancellationRequestedAt == cancellation.requestedAt
     And match response.shipments[0].cancellationReason == cancellation.reason
     And match response.shipments[0].cancelledAt == '#string'
-    And match response.workflow == null
+    And match response.temporalWorkflow == null
