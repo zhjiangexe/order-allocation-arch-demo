@@ -1,4 +1,4 @@
-package com.flowzati.archone.wms.bootstrap;
+package com.flowzati.archone.wms.infrastructure.configuration;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsUsecase;

@@ -10,6 +10,7 @@ import com.flowzati.archone.wms.dispatch.application.usecase.HandOverShipmentUse
 import com.flowzati.archone.wms.dispatch.application.usecase.PackShipmentUsecase;
 import com.flowzati.archone.wms.dispatch.application.usecase.StageShipmentUsecase;
 import com.flowzati.archone.wms.dispatch.infrastructure.persistence.jpa.repository.JpaShipmentDispatchRepository;
+import com.flowzati.archone.wms.infrastructure.configuration.WmsApplicationConfiguration;
 import com.flowzati.archone.wms.picking.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.picking.infrastructure.persistence.jpa.repository.JpaPickingWorkRepository;
 import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsUsecase;

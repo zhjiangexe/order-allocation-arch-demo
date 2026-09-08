@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.infrastructure.config;
+package com.flowzati.archone.inventory.allocation.infrastructure.configuration;
 
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
 import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationPlanner;

@@ -6,6 +6,11 @@ Reservation、Position、Location 的唯一 owner。
 
 ## Package grammar
 
+- 模組的 Spring Bean 組裝設定放在 `<module>.infrastructure.configuration`；Application／Domain
+  不得反向依賴 Infrastructure 的組裝設定。
+- 執行期技術行為依職責留在 Infrastructure，例如 AOP 例外轉換放在 `infrastructure.aop`，不放 configuration。
+- 跨模組的部署組裝保留在 deployment 的 `bootstrap.configuration`。
+
 - 維持目前 module-first、layer-second 的 package 結構；未經明確架構變更，不要自行改成 feature-first。
 - Application orchestration 依既有角色收納：
   - `application.command`：改變狀態的 command 與其專屬輸入明細。
@@ -109,8 +114,8 @@ Reservation、Position、Location 的唯一 owner。
 
 - Temporal Activity adapter 依穩定業務能力歸入 owner 的 `entrypoint.temporal`；Allocation 與 Movement 使用
   獨立 contract／adapter，不建立 context-wide `TemporalInventoryActivitiesAdapter`。
-- `inventory.adapter` 暫時只保留 `AllocationOptimisticLockRetryObserver`。不得把新的 Domain 或 Application
-  business type 放入 `inventory.adapter`；新增 adapter 時仍應先尋找明確 owner，除非另有架構決策。
+- `AllocationOptimisticLockRetryObserver` 放在 `inventory.bootstrap.observability`，負責跨 Allocation／
+  Movement 的重試監測。新增 adapter 仍應先尋找明確 owner，不建立通用 `inventory.adapter`。
 
 ## Verification
 

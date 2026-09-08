@@ -12,11 +12,9 @@ import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationP
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationSupply;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
-
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -37,12 +35,12 @@ public class StockOperationAssignmentCoordinator {
     private final BusinessClock businessClock;
 
     public StockOperationAssignmentCoordinator(
-        StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore,
-        OwnerAllocationPolicyStore ownerAllocationPolicyStore,
-        StockAllocationSupplyStore stockAllocationSupplyStore,
-        StockAllocationPlanner planner,
-        StockAllocationCommitter allocationCommitter,
-        BusinessClock businessClock) {
+            StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore,
+            OwnerAllocationPolicyStore ownerAllocationPolicyStore,
+            StockAllocationSupplyStore stockAllocationSupplyStore,
+            StockAllocationPlanner planner,
+            StockAllocationCommitter allocationCommitter,
+            BusinessClock businessClock) {
         this.stockOperationAssignmentCandidateStore = stockOperationAssignmentCandidateStore;
         this.ownerAllocationPolicyStore = ownerAllocationPolicyStore;
         this.stockAllocationSupplyStore = stockAllocationSupplyStore;
@@ -74,23 +72,23 @@ public class StockOperationAssignmentCoordinator {
         // 先選隊首，再依同一策略檢查前序需求；沒有候選時，不查前序需求或進入規劃。
         AllocationSequencePolicy policy = ownerAllocationPolicyStore.find(queueKey.ownerId());
         return stockOperationAssignmentCandidateStore
-            .findNext(queueKey, policy)
-            .flatMap(demand -> assignIfEligible(demand, policy));
+                .findNext(queueKey, policy)
+                .flatMap(demand -> assignIfEligible(demand, policy));
     }
 
     /**
      * 兩種入口共用的單張配貨流程；空結果表示這次沒有新增配貨。
      */
     private Optional<StockOperationAssignmentResult> assignIfEligible(
-        StockOperationDemand demand, AllocationSequencePolicy policy) {
+            StockOperationDemand demand, AllocationSequencePolicy policy) {
         // 規劃前先檢查順位，避免替被阻擋的需求查庫存、計算分配。
         Optional<StockOperationPredecessor> predecessor =
-            stockOperationAssignmentCandidateStore.findPredecessor(demand, policy);
+                stockOperationAssignmentCandidateStore.findPredecessor(demand, policy);
         if (predecessor.isPresent()) {
             log.atDebug()
-                .addKeyValue("stockOperationId", demand.stockOperationId())
-                .addKeyValue("predecessor", predecessor.orElseThrow())
-                .log("Assignment blocked by earlier operation");
+                    .addKeyValue("stockOperationId", demand.stockOperationId())
+                    .addKeyValue("predecessor", predecessor.orElseThrow())
+                    .log("Assignment blocked by earlier operation");
             // 優先需求即使缺貨，後單也不能因為需求量較小而先取用共享庫存。
             return Optional.empty();
         }
@@ -98,15 +96,15 @@ public class StockOperationAssignmentCoordinator {
 
         // 一次讀取整張需求涉及的 SKU 供給，不在這裡鎖庫存或預留數量。
         // Planner 依 FEFO 計算分配；這份供給可能在提交前被其他交易改變。
-        StockAllocationSupply supply =
-            stockAllocationSupplyStore.findBySku(demand.ownerId(), demand.fromLocationId(), demand.skuCodes(), today);
+        StockAllocationSupply supply = stockAllocationSupplyStore.findBySku(
+                demand.ownerId(), demand.fromLocationId(), demand.skuCodes(), today);
         StockAllocationProposal proposal = planner.plan(demand, supply);
         if (!proposal.isReady()) {
             log.atDebug()
-                .addKeyValue("stockOperationId", demand.stockOperationId())
-                .addKeyValue(
-                    "missingQuantities", proposal.missingQuantities().asMap())
-                .log("Assignment deferred due to insufficient stock");
+                    .addKeyValue("stockOperationId", demand.stockOperationId())
+                    .addKeyValue(
+                            "missingQuantities", proposal.missingQuantities().asMap())
+                    .log("Assignment deferred due to insufficient stock");
             // SHIP_COMPLETE 缺貨時不做部分預留，保留 CONFIRMED 等待喚醒。
             return Optional.empty();
         }

@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.allocation.infrastructure.config;
+package com.flowzati.archone.inventory.allocation.infrastructure.aop;
 
 import com.flowzati.archone.foundation.error.StaleStateException;
 import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;

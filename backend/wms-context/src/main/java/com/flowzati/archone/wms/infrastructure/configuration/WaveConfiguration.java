@@ -1,4 +1,4 @@
-package com.flowzati.archone.wms.bootstrap;
+package com.flowzati.archone.wms.infrastructure.configuration;
 
 import com.flowzati.archone.wms.wave.domain.service.WavePlanner;
 import com.flowzati.archone.wms.wave.domain.service.impl.PriorityCapacityWavePlanner;

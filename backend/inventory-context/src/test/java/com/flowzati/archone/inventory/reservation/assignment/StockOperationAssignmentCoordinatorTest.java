@@ -26,6 +26,7 @@ import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocat
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationSupply;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
+import com.flowzati.archone.inventory.allocation.infrastructure.aop.AssignmentRetryConflictTranslator;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
@@ -218,9 +219,7 @@ class StockOperationAssignmentCoordinatorTest {
     @Test
     void retryAdviceMatchesTheActualCoordinatorAndOnlyTranslatesStaleProposals() {
         var factory = new org.springframework.aop.aspectj.annotation.AspectJProxyFactory(coordinator);
-        factory.addAspect(
-                new com.flowzati.archone.inventory.allocation.infrastructure.config
-                        .AssignmentRetryConflictTranslator());
+        factory.addAspect(new AssignmentRetryConflictTranslator());
         StockOperationAssignmentCoordinator proxy = factory.getProxy();
         var stale = new com.flowzati.archone.foundation.error.StaleStateException(
                 com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode

@@ -1,4 +1,4 @@
-package com.flowzati.archone.inventory.adapter;
+package com.flowzati.archone.inventory.bootstrap.observability;
 
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;

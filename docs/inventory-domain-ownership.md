@@ -47,7 +47,7 @@ inventory/
     application/{projection,store,valueobject}
     domain/{service,valueobject}
     entrypoint/temporal
-    infrastructure/persistence/jdbc/store
+    infrastructure/{configuration,aop,persistence/jdbc/store}
   location/
     application/{store,usecase,view}
     domain/{entity,valueobject}
@@ -68,12 +68,19 @@ inventory/
     domain/{entity}
     entrypoint
     infrastructure/persistence/jpa/{entity,mapper,repository,store}
-  adapter  # 暫時只保留 retry observer
+  bootstrap/observability  # 跨模組重試監測
 ```
 
 目前採 module-first、layer-second，再依既有 Application 技術角色分包。這項決策優先追求穩定且可由
 自動化工具遵守的 package grammar；除非另開架構變更，不把現有 `service`、`usecase`、`command`
 改成 feature-first package。
+
+模組的 Spring Bean 組裝設定放在 `<module>.infrastructure.configuration`；Application／Domain
+不反向依賴 Infrastructure 的組裝設定。`StockAllocationDomainConfiguration` 位於
+`allocation.infrastructure.configuration`；執行期的 AOP 例外轉換 `AssignmentRetryConflictTranslator`
+位於 `allocation.infrastructure.aop`。跨 Allocation／Movement 的重試監測器
+`AllocationOptimisticLockRetryObserver` 位於 `inventory.bootstrap.observability`。
+跨 bounded context 的部署組裝仍保留在 `bootstrap.configuration`。
 
 Temporal Activity contract 依穩定業務能力切分。Allocation 的配貨請求與 Movement 的 outbound completion
 分別由自己的 `entrypoint.temporal` adapter 轉成 application invocation；不建立橫跨兩個 module 的
