@@ -8,10 +8,13 @@ import static org.mockito.Mockito.verify;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
@@ -75,6 +78,7 @@ import org.springframework.transaction.support.TransactionTemplate;
     JdbcStockAllocationSupplyStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
+    JdbcOwnerAllocationPolicyStoreAdapter.class,
     StockAllocationCommitter.class,
     StockOperationAssignmentResultFactory.class,
     StockOperationAssignedIntegrationEventAdapter.class,
@@ -115,10 +119,14 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
     @MockitoBean
     private IntegrationEventPublisher eventPublisher;
 
+    @Autowired
+    private OwnerAllocationPolicyStore ownerAllocationPolicyStore;
+
     @BeforeEach
     void prepareDatabase() {
         clearScenario();
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-HOT");
+        ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO);
     }
 
     @AfterEach
@@ -148,8 +156,8 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
     }
 
     @Test
-    @DisplayName("two hot-SKU operations preserve FIFO and only one can reserve scarce stock")
-    void givesScarceHotSkuStockOnlyToTheEarlierOperation() throws Exception {
+    @DisplayName("two planned hot-SKU operations cannot reserve the same scarce stock twice")
+    void allowsOnlyOnePlannedOperationToReserveScarceStock() throws Exception {
         seedGroup(EARLIER_OPERATION, EARLIER_MOVE, uuid(51), EARLIER_TIME);
         seedGroup(LATER_OPERATION, LATER_MOVE, uuid(52), LATER_TIME);
         seedQuant(3);
@@ -160,19 +168,84 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
                 () -> allocationCommitter.commit(earlierProposal, TODAY, ASSIGNED_AT),
                 () -> allocationCommitter.commit(laterProposal, TODAY, ASSIGNED_AT));
 
-        assertThat(attempts.getFirst().failure()).isNull();
-        assertThat(attempts.getFirst().result().stockOperationId()).isEqualTo(EARLIER_OPERATION);
-        assertThat(attempts.get(1).failure()).isNotNull();
-        assertAssignedExactlyOnce(EARLIER_OPERATION, 3);
-        assertThat(jdbcTemplate.queryForObject(
-                        "SELECT state FROM stock_operations WHERE id = ?", String.class, LATER_OPERATION))
+        var successful =
+                attempts.stream().filter(attempt -> attempt.failure() == null).toList();
+        assertThat(successful).hasSize(1);
+        var winner = successful.getFirst().result().stockOperationId();
+        var loser = winner.equals(EARLIER_OPERATION) ? LATER_OPERATION : EARLIER_OPERATION;
+        assertAssignedExactlyOnce(winner, 3);
+        assertThat(jdbcTemplate.queryForObject("SELECT state FROM stock_operations WHERE id = ?", String.class, loser))
                 .isEqualTo("CONFIRMED");
-        assertThat(jdbcTemplate.queryForObject("SELECT state FROM stock_moves WHERE id = ?", String.class, LATER_MOVE))
+        assertThat(jdbcTemplate.queryForObject(
+                        "SELECT state FROM stock_moves WHERE stock_operation_id = ?", String.class, loser))
                 .isEqualTo("CONFIRMED");
         assertThat(jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM stock_move_lines WHERE move_id = ?", Integer.class, LATER_MOVE))
+                        "SELECT count(*) FROM stock_move_lines line JOIN stock_moves move ON move.id = line.move_id WHERE move.stock_operation_id = ?",
+                        Integer.class,
+                        loser))
                 .isZero();
         verify(eventPublisher, times(1)).publish(org.mockito.ArgumentMatchers.any(IntegrationEventPublication.class));
+    }
+
+    @Test
+    @DisplayName("locking an operation loaded before another transaction commits detects a stale managed entity")
+    void rejectsAnOperationLoadedBeforeConcurrentAssignment() throws Exception {
+        seedGroup(EARLIER_OPERATION, EARLIER_MOVE, uuid(51), EARLIER_TIME);
+        seedQuant(3);
+        var proposal = proposalFor(EARLIER_OPERATION);
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            Throwable failure = catchThrowable(() -> transactionTemplate.executeWithoutResult(ignored -> {
+                var before = stockOperationStore.findById(EARLIER_OPERATION).orElseThrow();
+                assertThat(before.state())
+                        .isEqualTo(
+                                com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState
+                                        .CONFIRMED);
+                try {
+                    // This future returns only after the other thread's transaction has committed.
+                    executor.submit(() -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT))
+                            .get(10, TimeUnit.SECONDS);
+                } catch (Exception exception) {
+                    throw new AssertionError("Concurrent assignment did not commit", exception);
+                }
+                allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(1));
+            }));
+            assertThat(failure).isInstanceOf(org.springframework.dao.OptimisticLockingFailureException.class);
+            // Once A has rolled back, a fresh transaction can reconstruct B's committed assignment.
+            var replay = allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(2));
+            assertThat(replay.stockOperationId()).isEqualTo(EARLIER_OPERATION);
+            assertThat(replay.assignedAt()).isEqualTo(ASSIGNED_AT);
+            assertAssignedExactlyOnce(EARLIER_OPERATION, 3);
+            verify(eventPublisher, times(1))
+                    .publish(org.mockito.ArgumentMatchers.any(IntegrationEventPublication.class));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void commitsPlannedOperationDespiteNewUrgentDemandAndSettingChange() throws Exception {
+        ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.DISPATCH_DATE_FIRST);
+        seedGroup(EARLIER_OPERATION, EARLIER_MOVE, uuid(51), EARLIER_TIME);
+        seedQuant(3);
+        var proposal = proposalFor(EARLIER_OPERATION);
+        seedGroup(LATER_OPERATION, LATER_MOVE, uuid(52), LATER_TIME);
+        jdbcTemplate.update(
+                "UPDATE stock_operations SET dispatch_by = ? WHERE id = ?",
+                Timestamp.from(EARLIER_TIME),
+                LATER_OPERATION);
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            executor.submit(() ->
+                            ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO))
+                    .get(10, TimeUnit.SECONDS);
+            assertThat(ownerAllocationPolicyStore.find(OrderFixtures.OWNER_ID))
+                    .isEqualTo(AllocationSequencePolicy.FIFO);
+            allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT);
+            assertAssignedExactlyOnce(EARLIER_OPERATION, 3);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private StockAllocationProposal proposalFor(UUID stockOperationId) {
@@ -279,6 +352,7 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
 
     private void clearScenario() {
         jdbcTemplate.execute("DELETE FROM event_outbox");
+        jdbcTemplate.execute("DELETE FROM owner_allocation_policies");
         transactionTemplate.executeWithoutResult(ignored -> {
             jdbcTemplate.execute("DELETE FROM stock_move_lines");
             jdbcTemplate.execute("DELETE FROM stock_moves");

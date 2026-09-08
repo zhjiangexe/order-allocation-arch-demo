@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
+import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
@@ -82,9 +84,13 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
     }
 
     /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔，寫入訂單前主檔必須先存在。 */
+    @Autowired
+    private OwnerAllocationPolicyStore ownerAllocationPolicyStore;
+
     @BeforeEach
     void seedCatalogForOrders() {
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, SKU);
+        ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO);
     }
 
     @Test

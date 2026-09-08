@@ -7,9 +7,12 @@ import static org.mockito.Mockito.doThrow;
 
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
@@ -68,6 +71,7 @@ import org.springframework.transaction.support.TransactionTemplate;
     JdbcStockAllocationSupplyStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
+    JdbcOwnerAllocationPolicyStoreAdapter.class,
     StockAllocationCommitter.class,
     StockOperationAssignmentResultFactory.class,
     StockOperationAssignedIntegrationEventAdapter.class,
@@ -105,11 +109,15 @@ class StockOperationAssignmentRollbackIntegrationTest {
     @MockitoBean
     private IntegrationEventPublisher eventPublisher;
 
+    @Autowired
+    private OwnerAllocationPolicyStore ownerAllocationPolicyStore;
+
     @BeforeEach
     void seedConfirmedGroupAndStock() {
         removeFailureConstraints();
         clearScenario();
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-A");
+        ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO);
         transactionTemplate.executeWithoutResult(ignored -> {
             jdbcTemplate.update(
                     """

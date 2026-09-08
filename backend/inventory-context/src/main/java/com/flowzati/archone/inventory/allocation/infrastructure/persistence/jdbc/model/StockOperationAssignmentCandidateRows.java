@@ -5,7 +5,6 @@ import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperati
 import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -19,7 +18,6 @@ public final class StockOperationAssignmentCandidateRows {
     private UUID ownerId;
     private UUID fromLocationId;
     private MovementAssignmentPolicy policy;
-    private Instant enqueuedAt;
     private final List<StockMoveDemand> moves = new ArrayList<>();
 
     public void add(ResultSet row) throws SQLException {
@@ -30,7 +28,6 @@ public final class StockOperationAssignmentCandidateRows {
             ownerId = row.getObject("owner_id", UUID.class);
             fromLocationId = row.getObject("from_location_id", UUID.class);
             policy = MovementAssignmentPolicy.valueOf(row.getString("assignment_policy"));
-            enqueuedAt = row.getTimestamp("enqueued_at").toInstant();
         } else if (!operationId.equals(rowOperationId)) {
             throw new IllegalStateException("Candidate query returned more than one operation");
         }
@@ -43,14 +40,14 @@ public final class StockOperationAssignmentCandidateRows {
                 row.getInt("demand_quantity")));
     }
 
-    public StockOperationDemand demand(UUID requestedId) {
-        if (operationId == null || moves.isEmpty()) {
-            throw new NoSuchElementException("Confirmed stock operation not found: " + requestedId);
-        }
-        return new StockOperationDemand(operationId, operationVersion, ownerId, fromLocationId, policy, moves);
+    public boolean isEmpty() {
+        return operationId == null;
     }
 
-    public Instant enqueuedAt() {
-        return enqueuedAt;
+    public StockOperationDemand demand() {
+        if (operationId == null || moves.isEmpty()) {
+            throw new NoSuchElementException("Confirmed stock operation not found: " + operationId);
+        }
+        return new StockOperationDemand(operationId, operationVersion, ownerId, fromLocationId, policy, moves);
     }
 }

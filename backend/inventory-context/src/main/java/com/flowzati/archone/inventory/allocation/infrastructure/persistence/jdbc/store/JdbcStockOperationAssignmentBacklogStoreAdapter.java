@@ -18,11 +18,15 @@ public class JdbcStockOperationAssignmentBacklogStoreAdapter implements StockOpe
     }
 
     @Override
-    public List<AssignmentQueueKey> findQueueKeysWithAvailableStock(LocalDate today, int limit) {
+    public List<AssignmentQueueKey> findQueueKeysWithAvailableStock(
+            LocalDate today, int limit, AssignmentQueueKey after) {
         if (today == null || limit <= 0) {
             throw new IllegalArgumentException("Pending operation queue date and positive limit are required");
         }
-        return jdbcClient
+        String cursorCondition = after == null
+                ? ""
+                : "AND (operation.owner_id, operation.from_location_id, move.sku_code) > (:afterOwner, :afterLocation, :afterSku)";
+        var query = jdbcClient
                 .sql("""
                 SELECT operation.owner_id,
                        operation.from_location_id,
@@ -38,16 +42,22 @@ public class JdbcStockOperationAssignmentBacklogStoreAdapter implements StockOpe
                           WHERE quant.owner_id = operation.owner_id
                             AND quant.location_id = operation.from_location_id
                             AND quant.sku_code = move.sku_code
-                            AND quant.expiry_date >= ?
+                            AND quant.expiry_date >= :today
                             AND quant.on_hand_quantity > quant.reserved_quantity
                        )
+                 %s
                  GROUP BY operation.owner_id, operation.from_location_id, move.sku_code
-                 ORDER BY MIN(operation.enqueued_at), MIN(operation.id::text), move.sku_code
-                 LIMIT ?
-                """)
-                .param(today)
-                .param(limit)
-                .query((row, ignored) -> new AssignmentQueueKey(
+                 ORDER BY operation.owner_id, operation.from_location_id, move.sku_code
+                 LIMIT :limit
+                """.formatted(cursorCondition))
+                .param("today", today)
+                .param("limit", limit);
+        if (after != null) {
+            query.param("afterOwner", after.ownerId())
+                    .param("afterLocation", after.fromLocationId())
+                    .param("afterSku", after.skuCode());
+        }
+        return query.query((row, ignored) -> new AssignmentQueueKey(
                         row.getObject("owner_id", java.util.UUID.class),
                         row.getObject("from_location_id", java.util.UUID.class),
                         row.getString("sku_code")))

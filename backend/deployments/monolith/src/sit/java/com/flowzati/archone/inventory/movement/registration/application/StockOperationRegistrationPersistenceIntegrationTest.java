@@ -13,6 +13,7 @@ import com.flowzati.archone.inventory.allocation.application.service.StockOperat
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaOrderAllocationSourceRepository;
@@ -74,6 +75,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     OrderStockMovementStoreAdapter.class,
     StockOperationRegistrar.class,
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
+    JdbcOwnerAllocationPolicyStoreAdapter.class,
     JdbcStockAllocationSupplyStoreAdapter.class,
     MovementAssignmentPlanner.class,
     StockAllocationCommitter.class,
@@ -258,6 +260,36 @@ class StockMovementRegistrationPersistenceIntegrationTest {
                         stockOperationId,
                         operationId))
                 .isEqualTo(1);
+    }
+
+    @Test
+    void replaysAllocationEntrypointWithoutReservingOrPublishingTwice() {
+        for (String sku : java.util.List.of("SKU-A", "SKU-B")) {
+            jdbcTemplate.update(
+                    """
+                INSERT INTO stock_pools (id, owner_id, location_id, sku_code, in_date, expiry_date, on_hand_quantity, reserved_quantity, version)
+                VALUES (?, ?, ?, ?, ?, ?, 10, 0, 0)
+                """,
+                    UUID.randomUUID(),
+                    OrderFixtures.OWNER_ID,
+                    OrderFixtures.LOCATION_ID,
+                    sku,
+                    Date.valueOf(TODAY.minusDays(1)),
+                    Date.valueOf(TODAY.plusDays(30)));
+        }
+        allocateOrder.execute(new AllocateOrderCommand(ORDER_ID));
+        entityManager.flush();
+        entityManager.clear();
+        allocateOrder.execute(new AllocateOrderCommand(ORDER_ID));
+        entityManager.flush();
+        assertThat(jdbcTemplate.queryForObject(
+                        "SELECT SUM(reserved_quantity) FROM stock_pools WHERE owner_id = ?",
+                        Integer.class,
+                        OrderFixtures.OWNER_ID))
+                .isEqualTo(5);
+        org.mockito.Mockito.verify(eventPublisher, org.mockito.Mockito.times(1))
+                .publish(org.mockito.ArgumentMatchers.any(
+                        com.flowzati.archone.messaging.events.IntegrationEventPublication.class));
     }
 
     private void insertOrderLine(UUID lineId, int lineNumber, String skuCode, int quantity) {

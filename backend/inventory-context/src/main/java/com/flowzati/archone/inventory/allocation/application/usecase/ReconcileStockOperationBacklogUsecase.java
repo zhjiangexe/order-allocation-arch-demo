@@ -4,16 +4,13 @@ import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/** Periodic bounded anti-entropy over confirmed operation queues. */
+/** Periodic paged sweep over confirmed operation queues. */
 @Service
 public class ReconcileStockOperationBacklogUsecase {
 
@@ -22,45 +19,37 @@ public class ReconcileStockOperationBacklogUsecase {
     private final StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore;
     private final StockOperationAssignmentCoordinator coordinator;
     private final BusinessClock appClock;
-    private final int maxAttemptsPerRun;
-    private final Duration maxRunDuration;
+    private static final int PAGE_SIZE = 200;
 
     public ReconcileStockOperationBacklogUsecase(
             StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore,
             StockOperationAssignmentCoordinator coordinator,
-            BusinessClock appClock,
-            @Value("${archone.allocation.reconciliation-scheduler-max-attempts-per-run:"
-                            + "${archone.allocation.reconciliation-scheduler-scope-limit:200}}")
-                    int maxAttemptsPerRun,
-            @Value("${archone.allocation.reconciliation-scheduler-max-run-duration-ms:45000}") long maxRunDurationMs) {
-        if (maxAttemptsPerRun <= 0 || maxRunDurationMs <= 0) {
-            throw new IllegalArgumentException(
-                    "Stock operation reconciliation requires positive work and time budgets");
-        }
+            BusinessClock appClock) {
         this.stockOperationAssignmentBacklogStore = stockOperationAssignmentBacklogStore;
         this.coordinator = coordinator;
         this.appClock = appClock;
-        this.maxAttemptsPerRun = maxAttemptsPerRun;
-        this.maxRunDuration = Duration.ofMillis(maxRunDurationMs);
     }
 
     public void execute() {
-        Instant deadline = appClock.instant().plus(maxRunDuration);
-        List<AssignmentQueueKey> queueKeys = stockOperationAssignmentBacklogStore.findQueueKeysWithAvailableStock(
-                appClock.today(), maxAttemptsPerRun);
-        assignInFairRounds(queueKeys, deadline);
+        AssignmentQueueKey cursor = null;
+        var today = appClock.today();
+        while (true) {
+            List<AssignmentQueueKey> queueKeys =
+                    stockOperationAssignmentBacklogStore.findQueueKeysWithAvailableStock(today, PAGE_SIZE, cursor);
+            if (queueKeys.isEmpty()) {
+                return;
+            }
+            assignInFairRounds(queueKeys);
+            // Keyset pagination remains valid even when successful queues disappear.
+            cursor = queueKeys.getLast();
+        }
     }
 
-    private void assignInFairRounds(List<AssignmentQueueKey> initialQueueKeys, Instant deadline) {
+    private void assignInFairRounds(List<AssignmentQueueKey> initialQueueKeys) {
         List<AssignmentQueueKey> activeQueueKeys = initialQueueKeys;
-        int remainingAttempts = maxAttemptsPerRun;
-        while (!activeQueueKeys.isEmpty() && remainingAttempts > 0) {
+        while (!activeQueueKeys.isEmpty()) {
             List<AssignmentQueueKey> nextRound = new ArrayList<>(activeQueueKeys.size());
             for (AssignmentQueueKey queueKey : activeQueueKeys) {
-                if (remainingAttempts == 0 || !appClock.instant().isBefore(deadline)) {
-                    return;
-                }
-                remainingAttempts--;
                 if (tryAssign(queueKey)) {
                     nextRound.add(queueKey);
                 }

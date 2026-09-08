@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class AssignmentRetryConflictTranslator {
 
-    @Around("execution(* com.flowzati.archone.inventory.reservation.application.service."
+    @Around("execution(* com.flowzati.archone.inventory.allocation.application.service."
             + "StockOperationAssignmentCoordinator.tryAssign*(..))")
     public Object translate(ProceedingJoinPoint invocation) throws Throwable {
         try {

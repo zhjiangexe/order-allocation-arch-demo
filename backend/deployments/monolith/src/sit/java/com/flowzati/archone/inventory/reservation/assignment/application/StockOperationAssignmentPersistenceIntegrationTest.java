@@ -6,10 +6,13 @@ import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
+import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
@@ -68,6 +71,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     JdbcStockAllocationSupplyStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
+    JdbcOwnerAllocationPolicyStoreAdapter.class,
     StockAllocationCommitter.class,
     StockOperationAssignmentResultFactory.class,
     StockOperationAssignedIntegrationEventAdapter.class,
@@ -118,9 +122,13 @@ class StockOperationAssignmentPersistenceIntegrationTest {
     @MockitoBean
     private IntegrationEventPublisher eventPublisher;
 
+    @Autowired
+    private OwnerAllocationPolicyStore ownerAllocationPolicyStore;
+
     @BeforeEach
     void seedConfirmedGroupAndStock() {
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-A");
+        ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO);
         jdbcTemplate.update(
                 """
         INSERT INTO stock_operations
@@ -178,6 +186,7 @@ class StockOperationAssignmentPersistenceIntegrationTest {
                 .isEqualTo(6);
         assertThat(reservedQuantity()).isEqualTo(6);
 
+        ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.DISPATCH_DATE_FIRST);
         var replay = allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(30));
         entityManager.flush();
 

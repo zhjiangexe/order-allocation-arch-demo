@@ -10,15 +10,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.error.StaleStateException;
-import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
-import com.flowzati.archone.inventory.allocation.application.state.StockOperationAssignmentCandidate;
-import com.flowzati.archone.inventory.allocation.application.state.StockOperationPredecessor;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
-import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
@@ -73,7 +69,6 @@ class StockAllocationCommitterTest {
     private StockMoveLineStore stockMoveLineStore;
     private StockQuantStore stockQuantStore;
     private StockOperationTypeStore stockOperationTypeStore;
-    private StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore;
     private StockOperationAssignedPublisher assignmentPublisher;
 
     @BeforeEach
@@ -83,7 +78,6 @@ class StockAllocationCommitterTest {
         stockMoveLineStore = mock(StockMoveLineStore.class);
         stockQuantStore = mock(StockQuantStore.class);
         stockOperationTypeStore = mock(StockOperationTypeStore.class);
-        stockOperationAssignmentCandidateStore = mock(StockOperationAssignmentCandidateStore.class);
         assignmentPublisher = mock(StockOperationAssignedPublisher.class);
         when(stockOperationTypeStore.findById(STOCK_OPERATION_TYPE_ID))
                 .thenReturn(Optional.of(new StockOperationType(
@@ -111,8 +105,6 @@ class StockAllocationCommitterTest {
         StockQuant second = quant(QUANT_2, 5);
         when(stockOperationStore.lockById(STOCK_OPERATION_ID)).thenReturn(Optional.of(operation));
         when(stockMoveStore.lockByStockOperationIdInIdOrder(STOCK_OPERATION_ID)).thenReturn(moves);
-        when(stockOperationAssignmentCandidateStore.findByOperationId(STOCK_OPERATION_ID))
-                .thenReturn(new StockOperationAssignmentCandidate(demand, Optional.empty()));
         when(stockQuantStore.lockByIds(Set.of(QUANT_1, QUANT_2))).thenReturn(List.of(first, second));
         when(stockMoveStore.saveAll(moves)).thenReturn(moves);
         StockAllocationCommitter committer = committer(uuid(101), uuid(102), uuid(103));
@@ -157,11 +149,9 @@ class StockAllocationCommitterTest {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(MOVE_1, 2), org.assertj.core.groups.Tuple.tuple(MOVE_2, 4));
 
-        var locks =
-                inOrder(stockOperationStore, stockMoveStore, stockOperationAssignmentCandidateStore, stockQuantStore);
+        var locks = inOrder(stockOperationStore, stockMoveStore, stockQuantStore);
         locks.verify(stockOperationStore).lockById(STOCK_OPERATION_ID);
         locks.verify(stockMoveStore).lockByStockOperationIdInIdOrder(STOCK_OPERATION_ID);
-        locks.verify(stockOperationAssignmentCandidateStore).findByOperationId(STOCK_OPERATION_ID);
         locks.verify(stockQuantStore).lockByIds(Set.of(QUANT_1, QUANT_2));
     }
 
@@ -191,29 +181,37 @@ class StockAllocationCommitterTest {
     }
 
     @Test
-    @DisplayName("the final predecessor check rejects a stale eligible proposal before quant locking")
-    void rejectsAProposalBlockedAfterPlanning() {
-        StockOperation operation = confirmedOperation();
-        List<StockMove> moves = confirmedMoves();
-        StockOperationDemand demand = StockOperationDemandFactory.from(operation, moves);
-        StockAllocationProposal proposal = StockAllocationProposal.ready(
-                demand, List.of(new ProposedMoveLine(MOVE_1, QUANT_1, 2), new ProposedMoveLine(MOVE_2, QUANT_2, 4)));
-        when(stockOperationStore.lockById(STOCK_OPERATION_ID)).thenReturn(Optional.of(operation));
+    void completionAfterPlanningInvalidatesProposalWithoutTouchingStock() {
+        var proposal = StockAllocationProposal.ready(
+                StockOperationDemandFactory.from(confirmedOperation(), confirmedMoves()),
+                List.of(new ProposedMoveLine(MOVE_1, QUANT_1, 2), new ProposedMoveLine(MOVE_2, QUANT_2, 4)));
+        var moves = assignedMoves();
+        moves.forEach(move -> move.complete(ASSIGNED_AT.plusSeconds(1)));
+        when(stockOperationStore.lockById(STOCK_OPERATION_ID))
+                .thenReturn(Optional.of(operation(StockOperationState.DONE, 2L)));
         when(stockMoveStore.lockByStockOperationIdInIdOrder(STOCK_OPERATION_ID)).thenReturn(moves);
-        when(stockOperationAssignmentCandidateStore.findByOperationId(STOCK_OPERATION_ID))
-                .thenReturn(new StockOperationAssignmentCandidate(
-                        demand,
-                        Optional.of(new StockOperationPredecessor(
-                                uuid(99), ENQUEUED_AT.minusSeconds(1), Set.of("SKU-A")))));
+        when(stockMoveLineStore.findByMoveIds(List.of(MOVE_1, MOVE_2)))
+                .thenReturn(List.of(
+                        new StockMoveLine(uuid(201), MOVE_1, QUANT_1, 2),
+                        new StockMoveLine(uuid(202), MOVE_2, QUANT_2, 4)));
+        assertThatThrownBy(() -> committer().commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(2)))
+                .isInstanceOf(StaleStateException.class);
+        org.mockito.Mockito.verifyNoInteractions(stockQuantStore, assignmentPublisher);
+    }
 
+    @Test
+    void cancellationAfterPlanningInvalidatesProposalWithoutTouchingStock() {
+        var proposal = StockAllocationProposal.ready(
+                StockOperationDemandFactory.from(confirmedOperation(), confirmedMoves()),
+                List.of(new ProposedMoveLine(MOVE_1, QUANT_1, 2), new ProposedMoveLine(MOVE_2, QUANT_2, 4)));
+        var moves = confirmedMoves();
+        moves.forEach(StockMove::cancel);
+        when(stockOperationStore.lockById(STOCK_OPERATION_ID))
+                .thenReturn(Optional.of(operation(StockOperationState.CANCELLED, 1L)));
+        when(stockMoveStore.lockByStockOperationIdInIdOrder(STOCK_OPERATION_ID)).thenReturn(moves);
         assertThatThrownBy(() -> committer().commit(proposal, TODAY, ASSIGNED_AT))
-                .isInstanceOfSatisfying(
-                        StaleStateException.class,
-                        exception -> assertThat(exception.errorCode())
-                                .isEqualTo(StockAllocationErrorCode.STOCK_ALLOCATION_PROPOSAL_STALE))
-                .hasMessageContaining("blocked by earlier shared-SKU operation");
-
-        verify(stockQuantStore, never()).lockByIds(any());
+                .isInstanceOf(StaleStateException.class);
+        org.mockito.Mockito.verifyNoInteractions(stockQuantStore, assignmentPublisher);
     }
 
     private StockAllocationCommitter committer(UUID... lineIds) {
@@ -223,7 +221,6 @@ class StockAllocationCommitterTest {
                 stockMoveStore,
                 stockMoveLineStore,
                 stockQuantStore,
-                stockOperationAssignmentCandidateStore,
                 new StockOperationAssignmentResultFactory(stockOperationTypeStore),
                 assignmentPublisher,
                 () -> {

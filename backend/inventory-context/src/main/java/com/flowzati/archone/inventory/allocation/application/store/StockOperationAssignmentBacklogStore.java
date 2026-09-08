@@ -7,5 +7,6 @@ import java.util.List;
 /** Discovers bounded confirmed-operation queues and the enqueue time used for backlog-age reporting. */
 public interface StockOperationAssignmentBacklogStore {
 
-    List<AssignmentQueueKey> findQueueKeysWithAvailableStock(LocalDate today, int limit);
+    /** Scans queue identities after an exclusive cursor; null starts a new sweep. FIFO within each queue is unchanged. */
+    List<AssignmentQueueKey> findQueueKeysWithAvailableStock(LocalDate today, int limit, AssignmentQueueKey after);
 }

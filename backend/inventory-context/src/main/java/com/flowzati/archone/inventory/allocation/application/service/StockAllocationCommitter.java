@@ -8,7 +8,6 @@ import com.flowzati.archone.inventory.allocation.application.port.StockOperation
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.allocation.application.state.MoveQuantAllocationSet;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
-import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
@@ -41,7 +40,6 @@ public class StockAllocationCommitter {
     private final StockMoveStore stockMoveStore;
     private final StockMoveLineStore stockMoveLineStore;
     private final StockQuantStore stockQuantStore;
-    private final StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore;
     private final StockOperationAssignmentResultFactory resultFactory;
     private final StockOperationAssignedPublisher assignmentPublisher;
     private final Supplier<UUID> idSupplier;
@@ -52,7 +50,6 @@ public class StockAllocationCommitter {
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockQuantStore stockQuantStore,
-            StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore,
             StockOperationAssignmentResultFactory resultFactory,
             StockOperationAssignedPublisher assignmentPublisher) {
         this(
@@ -60,7 +57,6 @@ public class StockAllocationCommitter {
                 stockMoveStore,
                 stockMoveLineStore,
                 stockQuantStore,
-                stockOperationAssignmentCandidateStore,
                 resultFactory,
                 assignmentPublisher,
                 IdGenerator::nextId);
@@ -71,7 +67,6 @@ public class StockAllocationCommitter {
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockQuantStore stockQuantStore,
-            StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore,
             StockOperationAssignmentResultFactory resultFactory,
             StockOperationAssignedPublisher assignmentPublisher,
             Supplier<UUID> idSupplier) {
@@ -79,7 +74,6 @@ public class StockAllocationCommitter {
         this.stockMoveStore = stockMoveStore;
         this.stockMoveLineStore = stockMoveLineStore;
         this.stockQuantStore = stockQuantStore;
-        this.stockOperationAssignmentCandidateStore = stockOperationAssignmentCandidateStore;
         this.resultFactory = resultFactory;
         this.assignmentPublisher = assignmentPublisher;
         this.idSupplier = idSupplier;
@@ -99,9 +93,8 @@ public class StockAllocationCommitter {
             return reconstructCommittedResult(operationComposite);
         }
 
-        // 4. 在鎖內比對版本、狀態、需求覆蓋與最終 FIFO predecessor，排除過期 Proposal。
+        // 4. 在鎖內比對版本、狀態、需求覆蓋，排除過期 Proposal。
         validateProposalAgainstComposite(operationComposite, proposal);
-        requireNoPredecessor(operationComposite.operation().id());
 
         // 5. 依固定順序鎖定 Proposal 選中的 Quants，並以目前 ATP、scope 與效期再次驗證。
         MoveQuantAllocationSet allocationSet = MoveQuantAllocationSet.fromProposal(proposal);
@@ -140,15 +133,19 @@ public class StockAllocationCommitter {
     private static void validateProposalAgainstComposite(
             StockOperationComposite operationComposite, StockAllocationProposal proposal) {
         StockOperation operation = operationComposite.operation();
-        if (operation.state() != StockOperationState.CONFIRMED || operation.source() == null) {
+        if (operation.state() != StockOperationState.CONFIRMED) {
+            throw staleProposal("Stock operation is no longer confirmed; reload before retry");
+        }
+        if (operation.source() == null) {
             throw new IllegalStateException("Only a confirmed stock-consuming operation can commit an allocation");
         }
         if (!Objects.equals(operation.version(), proposal.stockOperationVersion())
                 || operation.assignmentPolicy() != proposal.policy()) {
             throw staleProposal("Stock operation changed after the allocation was planned");
         }
-        operationComposite.requireHomogeneous(
-                StockOperationState.CONFIRMED, MoveState.CONFIRMED, "Every stock move must still be confirmed");
+        if (operationComposite.moves().stream().anyMatch(move -> move.getState() != MoveState.CONFIRMED)) {
+            throw new IllegalStateException("Every stock move must still be confirmed");
+        }
         operationComposite.requireNoMoveLines("Confirmed stock operation must not retain move lines");
         Map<UUID, Long> currentMoveVersions =
                 operationComposite.moves().stream().collect(Collectors.toMap(StockMove::getId, StockMove::getVersion));
@@ -157,16 +154,6 @@ public class StockAllocationCommitter {
         }
         operationComposite.requireExactProposalCoverage(
                 proposal.proposedMoveLines(), "Stock allocation proposal no longer exactly covers every stock move");
-    }
-
-    private void requireNoPredecessor(UUID stockOperationId) {
-        stockOperationAssignmentCandidateStore
-                .findByOperationId(stockOperationId)
-                .predecessor()
-                .ifPresent(predecessor -> {
-                    throw staleProposal("Stock operation is blocked by earlier shared-SKU operation "
-                            + predecessor.stockOperationId());
-                });
     }
 
     private List<StockQuant> lockAndValidateStockQuants(

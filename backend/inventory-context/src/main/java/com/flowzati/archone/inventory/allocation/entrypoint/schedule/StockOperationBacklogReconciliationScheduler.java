@@ -29,7 +29,7 @@ public class StockOperationBacklogReconciliationScheduler {
 
     @Scheduled(
             initialDelayString = "${archone.allocation.reconciliation-scheduler-initial-delay-ms:30000}",
-            fixedDelayString = "${archone.allocation.reconciliation-scheduler-delay-ms:60000}")
+            fixedDelayString = "${archone.allocation.reconciliation-scheduler-delay-ms:900000}")
     public void reconcileAssignmentBacklog() {
         stockOperationBacklogUsecase.execute();
     }

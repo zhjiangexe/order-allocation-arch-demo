@@ -7,8 +7,10 @@ import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedInteg
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
+import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileStockOperationBacklogUsecase;
+import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
@@ -52,10 +54,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Import(PostgreSQLTestConfiguration.class)
 class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
 
-    private static final int MAX_ATTEMPTS_PER_RUN = 200;
-    private static final long MAX_RECONCILIATION_RUN_DURATION_MS = 45_000;
-    /** Scheduler reconciliation 的測試硬上限，避免錯誤的收斂條件讓測試一直執行。 */
-    private static final int MAX_RECONCILIATION_ROUNDS = 1_000 / MAX_ATTEMPTS_PER_RUN + 2;
+    private static final int QUEUED_ORDER_SAMPLE_SIZE = 200;
 
     private static final String FIFO_SKU = "FIFO-SKU";
     private static final int FITTING_ORDERS_BEFORE_BLOCKER = 500;
@@ -99,18 +98,18 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         SitDatabase.clear(jdbcTemplate);
     }
 
+    @Autowired
+    private OwnerAllocationPolicyStore ownerAllocationPolicyStore;
+
     /** 訂單行的 (owner_id, sku_code) 有外鍵指向主檔,寫入訂單前主檔必須先存在。 */
     @BeforeEach
     void seedCatalogForOrders() {
         // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
         // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
         reconcileStockOperationBacklogUsecase = new ReconcileStockOperationBacklogUsecase(
-                stockOperationAssignmentBacklogStore,
-                stockOperationAssignmentCoordinator,
-                appClock,
-                MAX_ATTEMPTS_PER_RUN,
-                MAX_RECONCILIATION_RUN_DURATION_MS);
+                stockOperationAssignmentBacklogStore, stockOperationAssignmentCoordinator, appClock);
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
+        ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO);
     }
 
     @Test
@@ -130,16 +129,10 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         // Step 2：第一次補貨，數量精準等於前 500 張的總和，逼出「blocker 之後全部停止」的
         // 批次決策，而不是靠隨機數量碰運氣。
         //
-        // **一次 availability 事件不再喚醒整個佇列。** 它只做首輪；超過張數上限的剩餘工作由
-        // Scheduler 後續掃描同一個 scope。SIT 關閉自動排程，所以在這裡直接驅動 scheduler method。
+        // Availability 事件先嘗試一張，scheduler 在單輪巡檢中配完其餘可配需求。
         receive(FIRST_AVAILABILITY_INCREASE);
         int firstPhaseRounds = reconcileWithSchedulerUntilStable();
-
-        // 分多輪是這個 change 的重點之一：如果只跑了一輪，代表上限沒有生效，而後面那些
-        // 「收斂後的狀態」斷言就退化成了舊行為的斷言。
-        assertThat(firstPhaseRounds)
-                .withFailMessage("第一波補貨應由 Scheduler 分多輪收斂，實際只有 %d 輪", firstPhaseRounds)
-                .isGreaterThan(0);
+        assertThat(firstPhaseRounds).isEqualTo(1);
 
         // Step 3：對帳第一階段——前 500 張應該已配置，blocker 與其後 499 張仍應卡在 BACKORDERED。
         assertReconciledState(
@@ -185,19 +178,13 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     @Timeout(value = 60, unit = TimeUnit.SECONDS)
     @DisplayName("blocker 卡在隊首且庫存還有量時 Scheduler 應在無進展後停止本次測試收斂")
     void stopsInsteadOfLoopingWhenTheHeadOfLineIsBlockedWithStockRemaining() {
-        // 這個情境是「讀到幾張」與「配到幾張」唯一會分歧的地方，也是唯一能分辨終止條件寫對沒有
-        // 的地方：
-        //
-        //   讀到 = 上限（每輪都讀滿），配到 = 0（FIFO 停在隊首那張配不滿的單）
-        //
-        // Scheduler 每次 tick 仍會重新看到這個 scope，但單次交易必須安全地零進展返回，不能跳過
-        // blocker 去配後面的單。上一支測試碰不到這件事，因為那裡庫存剛好用完。
+        // 有可用庫存但不足以滿足隊首：本次巡檢應停止此 queue，不跳過 blocker 配後面的單。
         UUID stockQuantId = UUID.randomUUID();
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, FIFO_SKU, 0, 0));
         Instant backorderedAt = Instant.now().minusSeconds(3600);
         int position = 0;
         UUID blockerOrderId = seedBackorderedOrder(BLOCKER_QUANTITY, backorderedAt, position++);
-        for (int i = 0; i < MAX_ATTEMPTS_PER_RUN * 2; i++) {
+        for (int i = 0; i < QUEUED_ORDER_SAMPLE_SIZE * 2; i++) {
             seedBackorderedOrder(1, backorderedAt, position++);
         }
 
@@ -226,7 +213,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         // 會排在最前面被讀進來，然後因為查不到自己那個倉的批次而一張張被跳過——不會出錯，
         // 但整個上限就這樣被用光，真正配得到的單一張都輪不到。
         List<UUID> otherWarehouseOrders = new java.util.ArrayList<>();
-        for (int i = 0; i < MAX_ATTEMPTS_PER_RUN; i++) {
+        for (int i = 0; i < QUEUED_ORDER_SAMPLE_SIZE; i++) {
             UUID orderId = IdGenerator.nextId();
             MovementFixtures.saveConfirmedPickingOrder(
                     orderStore,
@@ -383,20 +370,14 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         inventoryEventDrainFactory.create().drain();
     }
 
-    /** 直接驅動 SIT 中停用的 scheduler，直到一輪沒有新增 allocation outcome。 */
+    /** 一次巡檢配完可配需求；再跑一次應沒有新增 outcome。 */
     private int reconcileWithSchedulerUntilStable() {
-        int productiveRounds = 0;
-        for (int attempt = 0; attempt < MAX_RECONCILIATION_ROUNDS; attempt++) {
-            int before = allocatedOutcomeCount();
-            reconcileStockOperationBacklogUsecase.execute();
-            int after = allocatedOutcomeCount();
-            if (after == before) {
-                return productiveRounds;
-            }
-            productiveRounds++;
-        }
-        throw new AssertionError(
-                "Scheduler reconciliation did not stabilize within " + MAX_RECONCILIATION_ROUNDS + " rounds");
+        int before = allocatedOutcomeCount();
+        reconcileStockOperationBacklogUsecase.execute();
+        int after = allocatedOutcomeCount();
+        reconcileStockOperationBacklogUsecase.execute();
+        assertThat(allocatedOutcomeCount()).isEqualTo(after);
+        return after > before ? 1 : 0;
     }
 
     private int allocatedOutcomeCount() {

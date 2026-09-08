@@ -68,6 +68,7 @@ public final class SitDatabase {
         "skus",
         "products",
         "owner_facilities",
+        "owner_allocation_policies",
         "owners",
         // 位置在最後，倉再最後：作業類型、單據、搬運、庫存全都指向位置。
         "stock_locations",

@@ -24,116 +24,78 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.InOrder;
 
 @DisplayName("Pending operation backlog assignment")
 class ReconcileStockOperationBacklogUsecaseTest {
-
-    private static final int MAX_ATTEMPTS_PER_RUN = 5;
-    private static final long MAX_RUN_DURATION_MS = 45_000;
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 27);
     private static final UUID OWNER_ID = uuid(1);
     private static final UUID LOCATION_ID = uuid(2);
+    private final StockOperationAssignmentBacklogStore backlog = mock(StockOperationAssignmentBacklogStore.class);
+    private final StockOperationAssignmentCoordinator coordinator = mock(StockOperationAssignmentCoordinator.class);
+    private final ReconcileStockOperationBacklogUsecase usecase =
+            new ReconcileStockOperationBacklogUsecase(backlog, coordinator, appClock());
 
     @Test
-    @DisplayName("successful queues advance in fair rounds under one global attempt budget")
-    void advancesSuccessfulQueuesInRoundRobinOrder() {
-        StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore =
-                mock(StockOperationAssignmentBacklogStore.class);
-        StockOperationAssignmentCoordinator coordinator = mock(StockOperationAssignmentCoordinator.class);
-        AssignmentQueueKey first = queueKey("SKU-1");
-        AssignmentQueueKey second = queueKey("SKU-2");
-        when(stockOperationAssignmentBacklogStore.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
-                .thenReturn(List.of(first, second));
-        when(coordinator.tryAssignNext(first)).thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)));
-        when(coordinator.tryAssignNext(second)).thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)));
-
-        new ReconcileStockOperationBacklogUsecase(
-                        stockOperationAssignmentBacklogStore,
-                        coordinator,
-                        appClock(),
-                        MAX_ATTEMPTS_PER_RUN,
-                        MAX_RUN_DURATION_MS)
-                .execute();
-
-        InOrder order = inOrder(coordinator);
+    void drainsSuccessfulQueuesInFairRounds() {
+        var first = queueKey("SKU-1");
+        var second = queueKey("SKU-2");
+        when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(List.of(first, second));
+        when(coordinator.tryAssignNext(first))
+                .thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)), Optional.empty());
+        when(coordinator.tryAssignNext(second))
+                .thenReturn(
+                        Optional.of(mock(StockOperationAssignmentResult.class)),
+                        Optional.of(mock(StockOperationAssignmentResult.class)),
+                        Optional.empty());
+        usecase.execute();
+        var order = inOrder(coordinator);
         order.verify(coordinator).tryAssignNext(first);
         order.verify(coordinator).tryAssignNext(second);
         order.verify(coordinator).tryAssignNext(first);
-        order.verify(coordinator).tryAssignNext(second);
-        order.verify(coordinator).tryAssignNext(first);
+        order.verify(coordinator, times(2)).tryAssignNext(second);
+        verify(backlog).findQueueKeysWithAvailableStock(TODAY, 200, second);
         verifyNoMoreInteractions(coordinator);
     }
 
     @Test
-    @DisplayName("a queue without an assignment is deferred while following queues continue")
-    void defersInactiveQueueAndContinues() {
-        StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore =
-                mock(StockOperationAssignmentBacklogStore.class);
-        StockOperationAssignmentCoordinator coordinator = mock(StockOperationAssignmentCoordinator.class);
-        AssignmentQueueKey first = queueKey("SKU-1");
-        AssignmentQueueKey second = queueKey("SKU-2");
-        when(stockOperationAssignmentBacklogStore.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
-                .thenReturn(List.of(first, second));
-        when(coordinator.tryAssignNext(first)).thenReturn(Optional.empty());
-        when(coordinator.tryAssignNext(second)).thenReturn(Optional.empty());
-
-        new ReconcileStockOperationBacklogUsecase(
-                        stockOperationAssignmentBacklogStore,
-                        coordinator,
-                        appClock(),
-                        MAX_ATTEMPTS_PER_RUN,
-                        MAX_RUN_DURATION_MS)
-                .execute();
-
-        verify(coordinator, times(1)).tryAssignNext(first);
-        verify(coordinator, times(1)).tryAssignNext(second);
-        verifyNoMoreInteractions(coordinator);
+    void scansPastTwoHundredShortageQueuesWithinOneRunAndStartsFreshNextRun() {
+        var shortages = java.util.stream.IntStream.range(0, 200)
+                .mapToObj(i -> queueKey(String.format("SKU-%03d", i)))
+                .toList();
+        var ready = queueKey("SKU-200");
+        when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(shortages);
+        when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, shortages.getLast()))
+                .thenReturn(List.of(ready));
+        when(coordinator.tryAssignNext(ready))
+                .thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)), Optional.empty());
+        usecase.execute();
+        verify(coordinator, times(2)).tryAssignNext(ready);
+        for (var queue : shortages) {
+            verify(coordinator).tryAssignNext(queue);
+        }
+        usecase.execute();
+        verify(backlog, times(2)).findQueueKeysWithAvailableStock(TODAY, 200, null);
+        verify(coordinator, times(3)).tryAssignNext(ready);
     }
 
     @Test
-    @DisplayName("one queue failure is isolated and following queues continue")
-    void isolatesQueueFailure() {
-        StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore =
-                mock(StockOperationAssignmentBacklogStore.class);
-        StockOperationAssignmentCoordinator coordinator = mock(StockOperationAssignmentCoordinator.class);
-        AssignmentQueueKey failed = queueKey("SKU-1");
-        AssignmentQueueKey following = queueKey("SKU-2");
-        when(stockOperationAssignmentBacklogStore.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
-                .thenReturn(List.of(failed, following));
+    void isolatesQueueFailureAndContinuesToNextPage() {
+        var failed = queueKey("SKU-1");
+        var following = queueKey("SKU-2");
+        when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(List.of(failed));
+        when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, failed)).thenReturn(List.of(following));
         when(coordinator.tryAssignNext(failed)).thenThrow(new IllegalStateException("unexpected"));
-        when(coordinator.tryAssignNext(following)).thenReturn(Optional.empty());
-
-        new ReconcileStockOperationBacklogUsecase(
-                        stockOperationAssignmentBacklogStore,
-                        coordinator,
-                        appClock(),
-                        MAX_ATTEMPTS_PER_RUN,
-                        MAX_RUN_DURATION_MS)
-                .execute();
-
-        InOrder order = inOrder(coordinator);
+        usecase.execute();
+        var order = inOrder(coordinator);
         order.verify(coordinator).tryAssignNext(failed);
         order.verify(coordinator).tryAssignNext(following);
         verifyNoMoreInteractions(coordinator);
     }
 
     @Test
-    @DisplayName("queue discovery failure aborts the reconciliation run")
     void propagatesQueueDiscoveryFailure() {
-        StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore =
-                mock(StockOperationAssignmentBacklogStore.class);
-        StockOperationAssignmentCoordinator coordinator = mock(StockOperationAssignmentCoordinator.class);
-        IllegalStateException failure = new IllegalStateException("scan failed");
-        when(stockOperationAssignmentBacklogStore.findQueueKeysWithAvailableStock(TODAY, MAX_ATTEMPTS_PER_RUN))
-                .thenThrow(failure);
-        var usecase = new ReconcileStockOperationBacklogUsecase(
-                stockOperationAssignmentBacklogStore,
-                coordinator,
-                appClock(),
-                MAX_ATTEMPTS_PER_RUN,
-                MAX_RUN_DURATION_MS);
-
+        var failure = new IllegalStateException("scan failed");
+        when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenThrow(failure);
         assertThatThrownBy(usecase::execute).isSameAs(failure);
         verifyNoMoreInteractions(coordinator);
     }

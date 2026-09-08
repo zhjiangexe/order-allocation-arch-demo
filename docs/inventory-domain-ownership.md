@@ -13,6 +13,10 @@ Inventory 是一個 bounded context，不是五個 bounded contexts。內部用�
 | Position | 目前 materialized stock position 與收貨 | `StockQuant`, receipt/visibility | 訂單流程、搬運生命週期 |
 | Location | 庫位身分與 usage | `StockLocation`, `LocationUsageType` | WMS 執行策略 |
 
+貨主配貨順序由 Allocation 擁有：`AllocationSequencePolicy` 是純 Domain policy，
+`OwnerAllocationPolicyStore` 保存貨主覆寫並協調設定讀寫。它不屬於 Logistics Data 的 Owner lifecycle，
+也不取代 Movement 的 `SHIP_COMPLETE` assignment policy。排序 SQL 與設定鎖留在 Infrastructure。
+
 ## Source、Target 與過程
 
 ```text
@@ -171,7 +175,7 @@ JDBC support 真正形成獨立責任時，才新增相應技術 package；不�
 | `ReceivingBatchIdentity` | Application → `position.domain.valueobject` | 入庫日與效期共同定義 StockQuant 批次身分，跨 receipt use case 仍成立 |
 | `StockWriteOrder` | Domain → `position.application.policy` | 它統一 DB lock/write order 以避免 deadlock，是 transaction coordination，不是倉儲業務事實 |
 | `AssignmentQueueKey` | 保留 `allocation.application.valueobject` | 它是 backlog wake/selection 的 coordination partition，不是權威庫存事實 |
-| `StockOperationAssignmentCandidate`、`StockOperationPredecessor` | 保留 `allocation.application.projection` | 它們是 Store 選出的 immutable planning projection，Domain input 是其中的 `StockOperationDemand` |
+| `StockOperationPredecessor` | Allocation 的 Application 查詢模型 | Store 以 `Optional` 回傳前序需求，Coordinator 當場判斷；選單直接回傳 `StockOperationDemand`，不再建立 Candidate 包裝 |
 
 目前只有下列型別允許留在 Application root；這不是預設收納位置：
 

@@ -14,15 +14,17 @@ import com.flowzati.archone.inventory.allocation.application.result.StockOperati
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
-import com.flowzati.archone.inventory.allocation.application.state.StockOperationAssignmentCandidate;
 import com.flowzati.archone.inventory.allocation.application.state.StockOperationPredecessor;
+import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
+import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SkuQuantities;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationSupply;
+import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
@@ -64,7 +66,8 @@ class StockOperationAssignmentCoordinatorTest {
     private StockAllocationPlanner planner;
     private StockAllocationCommitter allocationCommitter;
     private StockOperationAssignmentCoordinator coordinator;
-    private StockOperationAssignmentCandidate candidate;
+    private final OwnerAllocationPolicyStore ownerAllocationPolicyStore = mock(OwnerAllocationPolicyStore.class);
+    private StockOperationDemand demand;
     private StockAllocationSupply supply;
 
     @BeforeEach
@@ -75,11 +78,13 @@ class StockOperationAssignmentCoordinatorTest {
         allocationCommitter = mock(StockAllocationCommitter.class);
         coordinator = new StockOperationAssignmentCoordinator(
                 stockOperationAssignmentCandidateStore,
+                ownerAllocationPolicyStore,
                 stockAllocationSupplyStore,
                 planner,
                 allocationCommitter,
                 InventoryFixtures.businessClock(Clock.fixed(NOW, ZoneId.of("UTC")), "UTC"));
-        candidate = candidate(Optional.empty());
+        when(ownerAllocationPolicyStore.find(OWNER_ID)).thenReturn(AllocationSequencePolicy.FIFO);
+        demand = demand();
         supply =
                 StockAllocationSupply.of(OWNER_ID, LOCATION_ID, Map.of("SKU-A", List.of(supply(QUANT_ID, "SKU-A", 3))));
     }
@@ -88,22 +93,28 @@ class StockOperationAssignmentCoordinatorTest {
     @DisplayName("initial assignment selects, plans and commits through one shared pipeline")
     void assignsReadyInitialOperationThroughSharedPipeline() {
         StockAllocationProposal proposal =
-                StockAllocationProposal.ready(candidate.demand(), List.of(new ProposedMoveLine(MOVE_ID, QUANT_ID, 2)));
+                StockAllocationProposal.ready(demand, List.of(new ProposedMoveLine(MOVE_ID, QUANT_ID, 2)));
         StockOperationAssignmentResult result = assignmentResult();
-        when(stockOperationAssignmentCandidateStore.findByOperationId(STOCK_OPERATION_ID))
-                .thenReturn(candidate);
+        when(stockOperationAssignmentCandidateStore.findDemand(STOCK_OPERATION_ID))
+                .thenReturn(Optional.of(demand));
         when(stockAllocationSupplyStore.findBySku(OWNER_ID, LOCATION_ID, Set.of("SKU-A"), TODAY))
                 .thenReturn(supply);
-        when(planner.plan(candidate.demand(), supply)).thenReturn(proposal);
+        when(planner.plan(demand, supply)).thenReturn(proposal);
         when(allocationCommitter.commit(proposal, TODAY, NOW)).thenReturn(result);
 
         assertThat(coordinator.tryAssign(STOCK_OPERATION_ID)).containsSame(result);
 
         InOrder order = inOrder(
-                stockOperationAssignmentCandidateStore, stockAllocationSupplyStore, planner, allocationCommitter);
-        order.verify(stockOperationAssignmentCandidateStore).findByOperationId(STOCK_OPERATION_ID);
+                stockOperationAssignmentCandidateStore,
+                ownerAllocationPolicyStore,
+                stockAllocationSupplyStore,
+                planner,
+                allocationCommitter);
+        order.verify(stockOperationAssignmentCandidateStore).findDemand(STOCK_OPERATION_ID);
+        order.verify(ownerAllocationPolicyStore).find(OWNER_ID);
+        order.verify(stockOperationAssignmentCandidateStore).findPredecessor(demand, AllocationSequencePolicy.FIFO);
         order.verify(stockAllocationSupplyStore).findBySku(OWNER_ID, LOCATION_ID, Set.of("SKU-A"), TODAY);
-        order.verify(planner).plan(candidate.demand(), supply);
+        order.verify(planner).plan(demand, supply);
         order.verify(allocationCommitter).commit(proposal, TODAY, NOW);
     }
 
@@ -112,12 +123,13 @@ class StockOperationAssignmentCoordinatorTest {
     void assignsQueueHeadThroughTheSamePipeline() {
         AssignmentQueueKey queueKey = new AssignmentQueueKey(OWNER_ID, LOCATION_ID, "SKU-A");
         StockAllocationProposal proposal =
-                StockAllocationProposal.ready(candidate.demand(), List.of(new ProposedMoveLine(MOVE_ID, QUANT_ID, 2)));
+                StockAllocationProposal.ready(demand, List.of(new ProposedMoveLine(MOVE_ID, QUANT_ID, 2)));
         StockOperationAssignmentResult result = assignmentResult();
-        when(stockOperationAssignmentCandidateStore.findNext(queueKey)).thenReturn(Optional.of(candidate));
+        when(stockOperationAssignmentCandidateStore.findNext(queueKey, AllocationSequencePolicy.FIFO))
+                .thenReturn(Optional.of(demand));
         when(stockAllocationSupplyStore.findBySku(OWNER_ID, LOCATION_ID, Set.of("SKU-A"), TODAY))
                 .thenReturn(supply);
-        when(planner.plan(candidate.demand(), supply)).thenReturn(proposal);
+        when(planner.plan(demand, supply)).thenReturn(proposal);
         when(allocationCommitter.commit(proposal, TODAY, NOW)).thenReturn(result);
 
         assertThat(coordinator.tryAssignNext(queueKey)).containsSame(result);
@@ -128,10 +140,11 @@ class StockOperationAssignmentCoordinatorTest {
     @Test
     @DisplayName("an earlier shared-SKU operation blocks before supply is read")
     void stopsAtPredecessorBeforeReadingSupply() {
-        var blocked =
-                candidate(Optional.of(new StockOperationPredecessor(uuid(99), NOW.minusSeconds(1), Set.of("SKU-A"))));
-        when(stockOperationAssignmentCandidateStore.findByOperationId(STOCK_OPERATION_ID))
-                .thenReturn(blocked);
+        var predecessor = new StockOperationPredecessor(uuid(99), NOW.minusSeconds(1), Set.of("SKU-A"));
+        when(stockOperationAssignmentCandidateStore.findDemand(STOCK_OPERATION_ID))
+                .thenReturn(Optional.of(demand));
+        when(stockOperationAssignmentCandidateStore.findPredecessor(demand, AllocationSequencePolicy.FIFO))
+                .thenReturn(Optional.of(predecessor));
 
         assertThat(coordinator.tryAssign(STOCK_OPERATION_ID)).isEmpty();
 
@@ -139,15 +152,40 @@ class StockOperationAssignmentCoordinatorTest {
     }
 
     @Test
+    void stopsQueueHeadAtPredecessorBeforeReadingSupply() {
+        var queue = new AssignmentQueueKey(OWNER_ID, LOCATION_ID, "SKU-A");
+        var predecessor = new StockOperationPredecessor(uuid(99), NOW.minusSeconds(1), Set.of("SKU-B"));
+        when(stockOperationAssignmentCandidateStore.findNext(queue, AllocationSequencePolicy.FIFO))
+                .thenReturn(Optional.of(demand));
+        when(stockOperationAssignmentCandidateStore.findPredecessor(demand, AllocationSequencePolicy.FIFO))
+                .thenReturn(Optional.of(predecessor));
+
+        assertThat(coordinator.tryAssignNext(queue)).isEmpty();
+
+        verifyNoInteractions(stockAllocationSupplyStore, planner, allocationCommitter);
+    }
+
+    @Test
+    void emptyQueueSkipsPredecessorAndPlanning() {
+        var queue = new AssignmentQueueKey(OWNER_ID, LOCATION_ID, "SKU-A");
+
+        assertThat(coordinator.tryAssignNext(queue)).isEmpty();
+
+        verify(stockOperationAssignmentCandidateStore, never())
+                .findPredecessor(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verifyNoInteractions(stockAllocationSupplyStore, planner, allocationCommitter);
+    }
+
+    @Test
     @DisplayName("SHIP_COMPLETE shortage emits no partial atomic assignment")
     void doesNotCommitAnInsufficientPlan() {
         StockAllocationProposal insufficient =
-                StockAllocationProposal.insufficient(candidate.demand(), SkuQuantities.of(Map.of("SKU-A", 1)));
-        when(stockOperationAssignmentCandidateStore.findByOperationId(STOCK_OPERATION_ID))
-                .thenReturn(candidate);
+                StockAllocationProposal.insufficient(demand, SkuQuantities.of(Map.of("SKU-A", 1)));
+        when(stockOperationAssignmentCandidateStore.findDemand(STOCK_OPERATION_ID))
+                .thenReturn(Optional.of(demand));
         when(stockAllocationSupplyStore.findBySku(OWNER_ID, LOCATION_ID, Set.of("SKU-A"), TODAY))
                 .thenReturn(supply);
-        when(planner.plan(candidate.demand(), supply)).thenReturn(insufficient);
+        when(planner.plan(demand, supply)).thenReturn(insufficient);
 
         assertThat(coordinator.tryAssign(STOCK_OPERATION_ID)).isEmpty();
 
@@ -158,7 +196,56 @@ class StockOperationAssignmentCoordinatorTest {
                         org.mockito.ArgumentMatchers.any());
     }
 
-    private static StockOperationAssignmentCandidate candidate(Optional<StockOperationPredecessor> predecessor) {
+    @Test
+    void skipsMissingDemandWithoutFurtherLookupsOrPlanning() {
+        when(stockOperationAssignmentCandidateStore.findDemand(STOCK_OPERATION_ID))
+                .thenReturn(Optional.empty());
+
+        assertThat(coordinator.tryAssign(STOCK_OPERATION_ID)).isEmpty();
+
+        verify(stockOperationAssignmentCandidateStore).findDemand(STOCK_OPERATION_ID);
+        org.mockito.Mockito.verifyNoMoreInteractions(stockOperationAssignmentCandidateStore);
+        verifyNoInteractions(ownerAllocationPolicyStore, stockAllocationSupplyStore, planner, allocationCommitter);
+    }
+
+    @Test
+    void queueHeadThatDisappearedBeforeProjectionIsNotAnError() {
+        assertThat(coordinator.tryAssignNext(new AssignmentQueueKey(OWNER_ID, LOCATION_ID, "SKU-A")))
+                .isEmpty();
+        verifyNoInteractions(stockAllocationSupplyStore, planner, allocationCommitter);
+    }
+
+    @Test
+    void retryAdviceMatchesTheActualCoordinatorAndOnlyTranslatesStaleProposals() {
+        var factory = new org.springframework.aop.aspectj.annotation.AspectJProxyFactory(coordinator);
+        factory.addAspect(
+                new com.flowzati.archone.inventory.allocation.infrastructure.config
+                        .AssignmentRetryConflictTranslator());
+        StockOperationAssignmentCoordinator proxy = factory.getProxy();
+        var stale = new com.flowzati.archone.foundation.error.StaleStateException(
+                com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode
+                        .STOCK_ALLOCATION_PROPOSAL_STALE,
+                "planned stock changed");
+        when(stockOperationAssignmentCandidateStore.findDemand(STOCK_OPERATION_ID))
+                .thenThrow(stale);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> proxy.tryAssign(STOCK_OPERATION_ID))
+                .isInstanceOf(org.springframework.dao.OptimisticLockingFailureException.class)
+                .hasCause(stale);
+        var queue = new AssignmentQueueKey(OWNER_ID, LOCATION_ID, "SKU-A");
+        when(stockOperationAssignmentCandidateStore.findNext(queue, AllocationSequencePolicy.FIFO))
+                .thenThrow(stale);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> proxy.tryAssignNext(queue))
+                .isInstanceOf(org.springframework.dao.OptimisticLockingFailureException.class)
+                .hasCause(stale);
+        var invalid = new IllegalArgumentException("invalid candidate");
+        org.mockito.Mockito.doThrow(invalid)
+                .when(stockOperationAssignmentCandidateStore)
+                .findNext(queue, AllocationSequencePolicy.FIFO);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> proxy.tryAssignNext(queue))
+                .isSameAs(invalid);
+    }
+
+    private static StockOperationDemand demand() {
         StockOperation operation = new StockOperation(
                 STOCK_OPERATION_ID,
                 uuid(10),
@@ -187,8 +274,7 @@ class StockOperationAssignmentCoordinatorTest {
                 NOW,
                 null,
                 0L);
-        return new StockOperationAssignmentCandidate(
-                StockOperationDemandFactory.from(operation, List.of(move)), predecessor);
+        return StockOperationDemandFactory.from(operation, List.of(move));
     }
 
     private static StockQuantSupply supply(UUID id, String skuCode, int availableToPromise) {
