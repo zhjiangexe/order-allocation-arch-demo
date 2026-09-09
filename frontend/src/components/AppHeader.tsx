@@ -10,6 +10,9 @@ export function AppHeader() {
         <NavLink to="/orders" className={linkClass}>
           訂單
         </NavLink>
+        <NavLink to="/allocations" className={linkClass}>
+          配貨佇列
+        </NavLink>
         <NavLink to="/stock" className={linkClass}>
           庫存
         </NavLink>
