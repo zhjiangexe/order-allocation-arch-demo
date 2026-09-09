@@ -19,8 +19,10 @@ import {
  * 的資料量下這是可接受的；主檔若成長到這個 fan-out 會痛，就該由後端提供一支扁平的主檔查詢，
  * 而不是在前端拼（取捨見 frontend/README.md 的「主檔載入的代價」）。
  */
-export function useCatalog(): Catalog {
+export function useCatalogState() {
   const [catalog, setCatalog] = useState(() => new Catalog([]));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,11 +53,19 @@ export function useCatalog(): Catalog {
       }
     }
 
-    void load();
+    void load().catch((cause: unknown) => {
+      if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return catalog;
+  return { catalog, loading, error };
+}
+
+export function useCatalog(): Catalog {
+  return useCatalogState().catalog;
 }

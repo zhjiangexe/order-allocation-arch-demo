@@ -15,6 +15,8 @@ import styles from './StockPanel.module.css';
 
 interface StockPanelProps {
   /** 已經與主檔 join 過的列表：該貨主的每一個規格各一列，這個倉沒有的四個數字都是 0。 */
+  initialScope?: { ownerId: string; facilityId: string; locationId: string; sku: string } | undefined;
+  receiptLocked?: boolean;
   lines: AsyncState<StockLine[]>;
   receiptConfirmation: AsyncState<StockReceiptConfirmed>;
   owners: OwnerView[];
@@ -46,6 +48,8 @@ interface StockPanelProps {
  * 到得了每一個規格。只列有貨的會讓這個倉從未放過的貨品再也進不去。
  */
 export function StockPanel({
+  initialScope,
+  receiptLocked = false,
   lines,
   receiptConfirmation,
   owners,
@@ -58,9 +62,9 @@ export function StockPanel({
   const ownerFieldId = useId();
   const facilityFieldId = useId();
   const locationFieldId = useId();
-  const [selectedOwner, setSelectedOwner] = useState('');
-  const [selectedFacility, setSelectedFacility] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedOwner, setSelectedOwner] = useState(initialScope?.ownerId ?? '');
+  const [selectedFacility, setSelectedFacility] = useState(initialScope?.facilityId ?? '');
+  const [selectedLocation, setSelectedLocation] = useState(initialScope?.locationId ?? '');
   const [receiving, setReceiving] = useState<StockLine | null>(null);
 
   const canQuery =
@@ -84,7 +88,7 @@ export function StockPanel({
         貨主、設施與庫位都要選——同碼 SKU 在兩個貨主名下是兩批不同的貨，而每個庫位也是
         獨立的實際庫存端點。
       </p>
-      <div className={styles.controls}>
+      <fieldset className={styles.controls} disabled={receiptLocked} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor={ownerFieldId}>貨主</label>
           <select
@@ -147,7 +151,7 @@ export function StockPanel({
         >
           查詢庫存
         </button>
-      </div>
+      </fieldset>
 
       {/*
         收貨完成後不自動覆寫上面的查詢快照。使用者可以明確重查；同一交易也可能已把新量配置
@@ -161,7 +165,7 @@ export function StockPanel({
           <p className={styles.accepted}>
             <span className={styles.skuValue}>{confirmed.sku}</span> 已完成收貨{' '}
             <span className={styles.eventId}>{confirmed.quantity}</span> 件。
-            訂單配置結果請由訂單列表確認。{' '}
+            訂單配置結果請由訂單列表確認。收貨成功後，availability 事件會推進後續分配，不代表原訂單已完成配貨。{' '}
             <button
               type="button"
               className={styles.requery}
@@ -176,7 +180,7 @@ export function StockPanel({
 
       <ActionState state={lines} pendingLabel="查詢中…">
         {(stockLines) => (
-          <StockTable lines={stockLines} onConfirmReceipt={(line) => setReceiving(line)} />
+          <StockTable lines={stockLines} receiptLocked={receiptLocked} targetSku={selectedOwner === initialScope?.ownerId && selectedFacility === initialScope.facilityId && selectedLocation === initialScope.locationId ? initialScope.sku : undefined} onConfirmReceipt={(line) => setReceiving(line)} />
         )}
       </ActionState>
 
@@ -217,8 +221,12 @@ function labelOf(named: { name: string; code: string } | undefined): string {
  */
 function StockTable({
   lines,
+  receiptLocked,
+  targetSku,
   onConfirmReceipt,
 }: {
+  receiptLocked?: boolean;
+  targetSku?: string | undefined;
   lines: StockLine[];
   onConfirmReceipt: (line: StockLine) => void;
 }) {
@@ -251,7 +259,7 @@ function StockTable({
           </tr>
         </thead>
         {lines.map((line) => (
-          <tbody key={line.skuCode}>
+          <tbody key={line.skuCode} data-target-sku={line.skuCode === targetSku || undefined}>
             <tr>
               <td>
                 <button
@@ -279,7 +287,8 @@ function StockTable({
                 {line.expiredQuantity}
               </td>
               <td>
-                <button type="button" onClick={() => onConfirmReceipt(line)}>
+                {line.skuCode === targetSku ? <span>本次補貨品項 </span> : null}
+                <button type="button" disabled={receiptLocked} onClick={() => onConfirmReceipt(line)}>
                   收貨
                 </button>
               </td>

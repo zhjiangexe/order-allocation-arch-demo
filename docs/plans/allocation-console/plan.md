@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Plan
 
 - 日期：2026-09-09
-- 狀態：T1～T4 已驗收確認；T5 配貨佇列完成、使用者已確認提交；T6～T7 尚未實作
+- 狀態：T1～T6 已驗收確認；T7 尚未實作
 - 任務清單：[tasks.md](tasks.md)
 
 ## 目標與範圍
@@ -284,3 +284,19 @@ ORDER／PRIMARY 且來源 ID 合法時可開啟共用履約抽屜；補貨需能
 帶入 T3 URL context。非訂單或不可解析資料不產生無效導航。T6 才處理庫存頁自動定位與返回。
 未改動後端、分配規則或排程；T5 不提供精確缺口、全量搜尋或排序名次。
 詳見 [t5-allocation-queue-review.md](t5-allocation-queue-review.md)。
+
+
+## T6 實作結果
+
+庫存頁沿用 T3 補貨 context，主檔完成載入及歸屬驗證後才預選並查詢指定庫位，
+標示本次補貨 SKU。非法參數不查詢、不猜測庫位、不建立返回訂單；主檔失敗明確提示。
+提供返回履約與返回原列表，保留篩選；返回詳情重新取得快照。
+
+首次送出建立 receiptId，同一操作的重試保留完整原 payload／ID。收貨結果未確認或成功後，
+均需明確另起操作才可新增收貨；結果未確認時另起操作提示重複入帳風險。
+使用 React Router data router 與 useBlocker 處理站內導航，beforeunload 處理重新載入／關閉。
+不持久化未確認命令，不承諾離頁後恢復。收貨成功保留實收結果，庫存仍手動重查。
+
+未改後端、分配政策或排程。170 個前端測試與 build 通過，Events 實際瀏覽器
+驗證 1 件缺貨訂單收貨後返回 FULFILLED／DONE／HANDED_OVER_TO_CARRIER。
+完整雙模式矩陣留於 T7。詳見 [t6-stock-receipt-review.md](t6-stock-receipt-review.md)。
