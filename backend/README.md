@@ -25,3 +25,14 @@ Common commands:
 ```
 
 所有 Gradle 指令均從此目錄執行；repository root 不再放置 Gradle build 或 wrapper。
+
+## Activity 演示延遲
+
+Temporal Activity adapters 在 use case 成功返回後呼叫 `SimulationUtil.sleep(3_000)`，
+額外等待約 3 秒才回報 Activity 完成；業務交易與 outbound event 已先完成，不會延後實際資料寫入。
+正常啟動時此延遲套用於正常與取消 Activity，Events driver 不經過這些 adapters。
+Gradle 的所有 `Test` 任務（含 Unit test 與 `sit`）統一設定
+`archone.simulation.sleep-enabled=false`，直接略過延遲。
+從 IDE 或其他腳本執行測試時，也可在 JVM options 加上 `-Darchone.simulation.sleep-enabled=false`。
+`SimulationUtil.sleep` 的單位是毫秒，非正數直接返回；中斷時提前返回並恢復中斷旗標，不向外拋例外。
+這是阻塞 Activity worker thread 的演示工具，不可放進 Workflow；Workflow 的計時等待使用 `Workflow.sleep`。

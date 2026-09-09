@@ -1,5 +1,6 @@
 package com.flowzati.archone.inventory.allocation.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.orchestration.contract.activity.inventory.InventoryAllocationActivities;
@@ -22,5 +23,6 @@ public final class TemporalInventoryAllocationActivitiesAdapter implements Inven
     public void requestAllocation(RequestAllocationActivityInput input) {
         // Temporal 與事件模式共用同一個 Inventory application flow。
         allocateOrderUsecase.execute(new AllocateOrderCommand(input.orderId()));
+        SimulationUtil.sleep(3_000);
     }
 }

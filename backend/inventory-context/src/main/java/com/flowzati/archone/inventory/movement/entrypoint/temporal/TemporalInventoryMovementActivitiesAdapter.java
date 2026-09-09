@@ -1,5 +1,6 @@
 package com.flowzati.archone.inventory.movement.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.orchestration.contract.activity.inventory.CompleteOutboundMovementsActivityInput;
@@ -27,5 +28,6 @@ public final class TemporalInventoryMovementActivitiesAdapter implements Invento
                 input.stockOperationId(),
                 input.movementIds(),
                 input.handedOverAt()));
+        SimulationUtil.sleep(3_000);
     }
 }

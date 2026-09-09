@@ -40,8 +40,10 @@ subprojects {
         }
     }
 
-    tasks.named('test') {
+    tasks.withType(Test).configureEach {
         useJUnitPlatform()
+        // Unit test 與 SIT 都略過 Activity 的演示延遲。
+        systemProperty 'archone.simulation.sleep-enabled', 'false'
     }
 
     spotless {

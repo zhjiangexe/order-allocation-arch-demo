@@ -1,6 +1,7 @@
 package com.flowzati.archone.wms.shipment.entrypoint.temporal;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityStatus;
 import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehouseActivityInput;
@@ -49,6 +50,7 @@ public final class TemporalShipmentActivitiesAdapter implements ShipmentActiviti
                 assignment.dispatchBy(),
                 assignment.releasePriority(),
                 assignment.assignedAt()));
+        SimulationUtil.sleep(3_000);
         return new ReleaseToWarehouseActivityResult(result.shipmentId());
     }
 
@@ -56,6 +58,7 @@ public final class TemporalShipmentActivitiesAdapter implements ShipmentActiviti
     public CancelShipmentActivityStatus requestShipmentCancellation(CancelShipmentActivityInput input) {
         CancelShipmentStatus status = cancelShipmentUsecase.handle(
                 new CancelShipmentCommand(input.requestId(), input.shipmentId(), input.requestedAt(), input.reason()));
+        SimulationUtil.sleep(3_000);
         return status == CancelShipmentStatus.REJECTED
                 ? CancelShipmentActivityStatus.REJECTED
                 : CancelShipmentActivityStatus.ACCEPTED;

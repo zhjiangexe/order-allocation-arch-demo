@@ -1,5 +1,6 @@
 package com.flowzati.archone.ordering.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityResult;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityStatus;
@@ -31,12 +32,14 @@ public final class TemporalOrderActivitiesAdapter implements OrderActivities {
     public void recordOrderFulfillment(RecordOrderFulfillmentActivityInput input) {
         recordOrderFulfillmentUsecase.execute(
                 new RecordOrderFulfillmentCommand(input.orderId(), input.shipmentId(), input.fulfilledAt()));
+        SimulationUtil.sleep(3_000);
     }
 
     @Override
     public CancelOrderActivityResult cancelOrder(CancelOrderActivityInput input) {
         Order.CancellationStatus result = cancelOrderUsecase.cancel(
                 new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
+        SimulationUtil.sleep(3_000);
         CancelOrderActivityStatus status =
                 switch (result) {
                     case CANCELLED -> CancelOrderActivityStatus.CANCELLED;
