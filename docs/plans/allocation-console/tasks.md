@@ -9,8 +9,8 @@
 ## 執行與使用者確認規則
 
 依使用者最新指示，執行順序固定為 T1 → 確認 → T2 → 確認 → T3 → 確認 → T4 → 確認
-→ T5 → 確認 → T6 → 確認 → T7 → 最終確認。此規則取代先前四個檢查點的建議。
-同一個 T 的子任務連續完成；下方依賴表只說明技術依賴，不授權跨越檢查點提前實作。
+→ T5 → 確認 → T6 → 確認 → T7.1 Events → 確認 → T7.2 Temporal → 確認 → T7.3 → 最終確認。
+T1～T6 的子任務連續完成；T7 依使用者確認拆成三個檢查點，不跨模式連續驗收；下方依賴表只說明技術依賴，不授權跨越檢查點提前實作。
 
 每個 T 完成必要驗證後，提供成果、檢查步驟、驗證結果與限制，停下等待使用者明確確認。
 使用者要求修正時留在目前 T，修正後再次交付；未回覆不能視為通過。
@@ -22,7 +22,9 @@
 - [x] T4 成果已交付，使用者確認驗收通過（2026-09-09）；前序訂單阻擋議題另案處理。
 - [x] T5 已提交 c6f5ef8，使用者確認可進入 T6（2026-09-09）。
 - [x] T6 成果已交付，使用者驗收通過（2026-09-09）；T7 尚未開始。
-- [ ] T7 驗收證據已交付，使用者完成最終確認。
+- [ ] T7.1 Events 證據已交付，使用者確認。
+- [ ] T7.2 Temporal 證據已交付，使用者確認。
+- [ ] T7.3 文件與雙模式證據已交付，使用者完成最終確認。
 
 ## 依賴與拆分原則
 
@@ -34,7 +36,7 @@
 | T4 訂單與詳情 | T4.1 建單修復、T4.2 唯讀抽屜、T4.3 路由與追蹤串接 | T4.1 依賴 T1.1；T4.2 依賴 T3.1／T3.2；T4.3 依賴 T3／T4.1／T4.2 |
 | T5 佇列 | T5.1 查詢列表、T5.2 導航與篩選 | T5.1 依賴 T3.1；T5.2 依賴 T3.4／T4.3／T5.1 |
 | T6 補貨 | T6.1 定位與往返、T6.2 收貨重試 | T6.1 依賴 T3.4／T4.3；T6.2 依賴 T1.1／T6.1 |
-| T7 驗收 | T7.1 自動化回歸、T7.2 雙模式 UI、T7.3 文件與證據 | T1.2 與 T2～T6 |
+| T7 驗收 | T7.1 Events、T7.2 Temporal、T7.3 文件與證據 | T1.2 與 T2～T6；各子階段須前一階段使用者確認 |
 
 每個子任務應能個別 review，附明確驗收；尚未完成的整合按鈕不以無作用按鈕交付。
 單元／元件／查詢測試隨子任務完成，T7 聚焦完整串接。依賴表不代表要求使用多 agent。
@@ -207,40 +209,46 @@ T6 檢查方式與驗證：[t6-stock-receipt-review.md](t6-stock-receipt-review.
 
 ## T7：完整驗證與文件同步
 
-### T7.1：自動化回歸與 HTTP E2E
+### T7 共用驗證規則
 
-- [ ] 重用 e2e/spec 的 runner／fixtures，補強必要查詢斷言；既有 cancellation 回歸不刪除。
-- [ ] 前端測試、typecheck、build 與後端相關測試在各自目錄執行，記錄確切命令與結果。
-- [ ] 不把 HTTP E2E 當成瀏覽器驗收；不新增測試專用業務 API。
+- 重用 e2e/spec runner 與 T1 UI-EVT-*／UI-TMP-* fixtures；不重複開發 fixture 或新增測試專用業務 API。
+- 各模式使用新隔離資料庫與獨立測試訂單，先核對初始庫存，不沿用已消耗資料。
+- 建單與補貨由真實瀏覽器送出；HTTP E2E 不取代 UI 驗收。
+- 每階段記錄環境、啟動命令、時間、UI 步驟與 Order／Operation／Shipment IDs；Temporal 另記 Workflow 證據。
+- 異常查詢先由查詢／元件測試涵蓋；環境可重現時補瀏覽器證據，不修改 production 注入故障。
+- 若修改 Java，執行 `cd backend && ./gradlew spotlessApply`、相關測試，提交前執行 `spotlessCheck`。
+- 修正共用程式後重跑受影響的前一模式驗證，必要時重新交付確認；不將先前證據當成修改後結果。
 
-- [ ] 執行 `cd frontend && npm test`、`npm run typecheck`、`npm run build`。
-- [ ] 後端改 Java 後執行 `cd backend && ./gradlew spotlessApply`，執行相關查詢／模式測試與必要整合檢查。
-- [ ] 提交 Java 變更前執行 `cd backend && ./gradlew spotlessCheck`。
+### T7.1：Events 回歸與真實 UI 驗收
 
-驗收：已有基礎設施可重現兩模式，契約及元件回歸通過。
+- [ ] 執行前端 `npm test`、`npm run typecheck`、`npm run build` 與後端相關測試，記錄確切命令及結果。
+- [ ] 執行 Events HTTP E2E，補強必要查詢斷言；既有 cancellation 回歸不刪除。
+- [ ] 準備隔離 Events 環境與 UI-EVT-* fixtures，確認模式辨識及不依賴 Temporal。
+- [ ] UI 有貨訂單：建單 → 分配 → 模擬交接 → 出庫 DONE → Order FULFILLED。
+- [ ] UI 缺貨後補貨：CONFIRMED 等待可見，從前端補貨後完成履約。
+- [ ] UI 多 SKU、其中一項不足：不預留部分整單，補齊後整單分配並完成。
+- [ ] UI FEFO 下 4 件：初始在手 17／ATP 10／過期 7，取兩批 2＋2，過期批不參與。
+- [ ] 驗證抽屜深連結、返回佇列保留篩選、補貨返回、時區輸入、完成及關閉後停止追蹤。
+- [ ] 核對業務完成條件與 UI 一致，記錄資料尚未同步的處理與環境限制。
+- [ ] 交付 Events 證據，停下等待使用者確認；尚不切換 Temporal。
 
-### T7.2：雙模式真實 UI 驗收
+驗收：Events 的 HTTP 回歸與真實 UI 情境通過，使用者確認後才進入 T7.2。
 
-- [ ] 使用 T1 已準備的 UI-EVT-*／UI-TMP-* fixtures，在新隔離資料庫驗證初始數量；不沿用已消耗的庫存，也不重複建立另一套 fixture。
-- [ ] 在真實瀏覽器完成下列矩陣，確保建單／補貨由 UI 送出，不以 curl 取代主要操作。
-- [ ] 驗證抽屜深連結、返回佇列、補貨返回、自動追蹤停止及時區輸入。
-- [ ] 異常查詢透過查詢／元件測試涵蓋；若環境可重現，再補瀏覽器證據，不修改 production 注入故障。
+### T7.2：Temporal 回歸與真實 UI 驗收
 
-### 模式 × 業務情境
+- [ ] 切換前確認 Events 測試流程已結束；未完成流程先處理或記錄原因並留在原環境，不交由另一模式接手。
+- [ ] 以啟動 configuration／script 指定 Temporal，使用獨立隔離資料庫與 UI-TMP-* fixtures；不混用 Events 訂單。
+- [ ] 執行 Temporal HTTP E2E 與模式／查詢測試，保留既有 cancellation 回歸。
+- [ ] UI 有貨訂單：前端建單啟動 Workflow，業務完成且 FINISHED／FULFILLMENT_COMPLETED。
+- [ ] UI 缺貨後補貨：觀察 ALLOCATION 等待，補貨後收到分配 Signal，繼續至成功終態。
+- [ ] UI 多 SKU、其中一項不足：ship-complete 成立，補齊後 Workflow 完成。
+- [ ] UI FEFO 下 4 件：初始在手 17／ATP 10／過期 7，取兩批 2＋2，過期批不參與。
+- [ ] 重跑深連結、返回佇列、補貨返回、時區輸入、完成及關閉後停止追蹤。
+- [ ] 驗證 Workflow 尚未啟動、查詢不可用與資料尚未同步的處理，區分測試覆蓋與瀏覽器證據。
+- [ ] 核對 Order／Operation／Shipment 與 Workflow 完成條件一致，記錄 IDs、Workflow 證據與限制。
+- [ ] 交付 Temporal 證據，停下等待使用者確認。
 
-| 模式 | 情境 | 必須觀察到的結果 |
-| --- | --- | --- |
-| Events | 有貨訂單 | 建單 → 分配 → 模擬交接 → 出庫 DONE → Order FULFILLED；不依賴 Temporal |
-| Events | 缺貨後補貨 | CONFIRMED 等待可見；前端補貨後完成履約 |
-| Events | 多 SKU、其中一項不足 | 不預留部分整單；補齊後整單分配並完成 |
-| Temporal | 有貨訂單 | 前端建單啟動 Workflow；業務完成且 FINISHED／FULFILLMENT_COMPLETED |
-| Temporal | 缺貨後補貨 | ALLOCATION 等待；補貨後收到分配 Signal，繼續至成功終態 |
-| Temporal | 多 SKU、其中一項不足 | ship-complete 成立；補齊後 Workflow 完成 |
-
-- [ ] 依矩陣執行雙模式端到端驗證，記錄 Order／Operation／Shipment IDs；Temporal 記錄 Workflow 證據。
-- [ ] 使用各模式 FEFO fixture 下 4 件，驗證取兩批 2＋2、過期批不參與，核對初始在手 17／ATP 10／過期 7；不重寫 allocation 演算法。
-- [ ] 驗證 Workflow 尚未啟動、查詢不可用、未完成資料同步、抽屜關閉停止追蹤。
-- [ ] 確認業務完成條件與 UI 顯示一致，記錄尚未涵蓋的執行環境限制。
+驗收：Temporal 的 HTTP 回歸與真實 UI 情境通過，使用者確認後才進入 T7.3。
 
 ### T7.3：操作文件與驗收證據
 
@@ -253,7 +261,7 @@ T6 檢查方式與驗證：[t6-stock-receipt-review.md](t6-stock-receipt-review.
 
 T1 已完成 72 個既有前端測試與 17 個 HTTP E2E，這些只證明起始狀態。
 T2 初版已完成雙模式回歸；簡化後重新執行 monolith 查詢與架構測試，驗證範圍見 T2 報告。
-T3～T7 的方框維持未完成，T7 額外提供真實 UI 證據。
+T3～T6 已完成並驗收；T7 尚未執行，須依序提供各模式的真實 UI 證據。
 基線發現的問題已編入上述子任務，不另增加里程碑；每 T 完成仍須使用者確認。
 
 ## 完成定義
