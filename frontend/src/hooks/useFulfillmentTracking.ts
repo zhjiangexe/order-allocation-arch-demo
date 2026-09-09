@@ -45,13 +45,7 @@ export function useFulfillmentTracking(orderId: string | null) {
         if (data.order.orderId !== orderId) throw new Error('履約回應與目前訂單不一致');
         const progress = fulfillmentProgress(data);
         stopped = progress.stopTracking;
-        if (progress.state === 'unavailable') {
-          // 保留最後完整快照與時間；首次查詢仍可展示本次業務資料。
-          setState(previous => ({ ...previous, data: previous.data ?? data,
-            fetchedAt: previous.fetchedAt ?? Date.now(), error: progress.message, paused: true }));
-        } else {
-          update({ data, fetchedAt: Date.now(), paused: paused || stopped });
-        }
+        update({ data, fetchedAt: Date.now(), paused: paused || stopped });
       } catch (error) {
         if (disposed || request.signal.aborted) return;
         stopped = true;

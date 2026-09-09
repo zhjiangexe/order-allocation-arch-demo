@@ -32,6 +32,9 @@ export function FulfillmentDrawer({ orderId, list, catalog, onClose }: {
   orderId: string; list: ListContext; catalog: Catalog; onClose: () => void;
 }) {
   const tracking = useFulfillmentTracking(orderId);
+  const workflowUrl = tracking.data?.orchestrationMode === 'temporal'
+    && tracking.data.workflowQueryStatus === 'AVAILABLE'
+    && tracking.data.temporalWorkflow?.orderId === orderId ? temporalWorkflowUrl(orderId) : null;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [copyMessage, setCopyMessage] = useState('');
@@ -79,6 +82,8 @@ export function FulfillmentDrawer({ orderId, list, catalog, onClose }: {
           onClick={tracking.paused ? tracking.resume : tracking.pause}>
           {tracking.paused ? '恢復自動追蹤' : '暫停自動追蹤'}
         </button>
+        {workflowUrl ? <button type="button" title="在 Temporal UI 查看 Workflow（新分頁）"
+          onClick={() => window.open(workflowUrl, '_blank', 'noopener,noreferrer')}>Temporal</button> : null}
         <button onClick={() => void copyIds()}>複製 IDs</button>
       </div>
       <p aria-live="polite">{tracking.loading ? '查詢中…' : tracking.paused ? '自動追蹤已停止' : '自動追蹤中（每次查詢完成後間隔 2 秒）'}</p>
@@ -177,14 +182,18 @@ export function FulfillmentDetails({ data, catalog, list }: {
     {data.orchestrationMode === 'temporal' ? <section><h3>Temporal Workflow</h3>
       {workflowUrl ? <p><a href={workflowUrl} target="_blank" rel="noopener noreferrer">在 Temporal UI 查看 Workflow（新分頁）</a></p>
         : <p>尚未設定有效的 Temporal UI 位址或 namespace。</p>}
+      <details><summary>流程協調技術資訊</summary>
+      <p>此處顯示 Temporal 協調進度；履約狀態與 Events 使用相同的業務資料判斷。</p>
       <p>查詢狀態：{data.workflowQueryStatus}</p>
+      {data.workflowQueryStatus === 'UNAVAILABLE' ? <p>Workflow 查詢暫時不可用；本次取得的業務資料仍會更新。可重新查詢或前往 Temporal UI 核對。</p> : null}
       {workflow ? <dl className={styles.facts}>
-        <dt>目前階段</dt><dd>{workflow.phase ?? '未知'}</dd>
+        <dt>流程協調階段</dt><dd>{workflow.phase ?? '未知'}</dd>
         <dt>Outcome</dt><dd>{workflow.outcome ?? '尚無最終結果'}</dd>
         <dt>目前階段進入時間</dt><dd>{time(workflow.updatedAt)}</dd>
         <dt>分配</dt><dd>{workflow.allocationState ?? '—'}</dd>
         <dt>交接終態</dt><dd>{workflow.shipmentTerminalStatus ?? '—'}</dd>
       </dl> : <p>{data.workflowQueryStatus === 'NOT_FOUND' ? '查無 Workflow，可能尚未建立；不保證稍後一定啟動。' : '目前無可讀的 Workflow 快照。'}</p>}
+      </details>
     </section> : null}
   </>;
 }

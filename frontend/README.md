@@ -78,14 +78,17 @@ npm --prefix frontend run dev -- --port 28495
 
 整體完成會核對 Order `FULFILLED`、ORDER／PRIMARY 出庫作業 `DONE`、對應 Shipment
 `HANDED_OVER_TO_CARRIER`，以及訂單、作業、Shipment 的關聯身分。
-Temporal 還需 Workflow `FINISHED`／`FULFILLMENT_COMPLETED` 與相關 IDs、交運結果一致。
+Events 與 Temporal 共用以上完成條件、提示與停止追蹤規則。
+Temporal 協調階段、Outcome 與查詢狀況收在「流程協調技術資訊」，不覆蓋業務進度；Workflow 連結仍可直接開啟。
+業務完成後即停止自動追蹤，Workflow 後續收尾可手動重新查詢或到 Temporal UI 查看。
 僅有 `ALLOCATED` 表示完成分配，仍須執行出庫與履約回寫。
 
 - 開啟詳情立即查詢，前次請求結束後約 2 秒再次查詢，不重疊請求；列表與佇列不自動輪詢。
 - 「暫停」停止後續排程，在途請求仍可完成。「重新整理」執行一次查詢，不解除手動暫停。
 - 「繼續追蹤」重新查詢並依新結果判斷是否繼續；成功完成、未知狀態或外部取消會停止追蹤。
-- 查詢錯誤或 Workflow `UNAVAILABLE` 會停止並保留最後資料與更新時間；可手動重試。
-- `NOT_FOUND` 不表示流程完成，也不保證稍後一定啟動，會繼續追蹤。
+- 履約 API 查詢錯誤會停止並保留最後資料與更新時間；可手動重試。
+- API 成功回傳但 Workflow `UNAVAILABLE` 時，仍更新本次業務資料，依共同業務條件繼續或停止追蹤。
+- Workflow `NOT_FOUND` 不表示業務未完成，也不保證稍後一定啟動；只在技術資訊提示，追蹤仍依業務條件判斷。
 - 分頁進入背景會取消在途請求並暫停，回前景僅於未手動暫停、未停止時恢復。
   關閉詳情或卸載會取消請求並清除排程。
 

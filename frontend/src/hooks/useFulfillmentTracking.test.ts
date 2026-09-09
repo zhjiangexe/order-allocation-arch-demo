@@ -58,14 +58,13 @@ describe('useFulfillmentTracking', () => {
     expect(get).toHaveBeenCalledTimes(3);
     unmount();
   });
-  it.each(['http', 'unavailable'])('preserves the last snapshot and timestamp after %s; retry resumes', async kind => {
+  it('preserves the last snapshot and timestamp after HTTP failure; retry resumes', async () => {
     get.mockResolvedValueOnce(waiting());
     const { result, unmount } = renderHook(() => useFulfillmentTracking(waiting().order.orderId));
     await flush();
     const previous = result.current.data;
     const fetchedAt = result.current.fetchedAt;
-    if (kind === 'http') get.mockRejectedValueOnce(new Error('HTTP 503'));
-    else get.mockResolvedValueOnce({ ...waiting(), orchestrationMode: 'temporal', workflowQueryStatus: 'UNAVAILABLE' });
+    get.mockRejectedValueOnce(new Error('HTTP 503'));
     await advance(2000);
     expect(result.current.data).toBe(previous);
     expect(result.current.fetchedAt).toBe(fetchedAt);
@@ -158,17 +157,35 @@ it('manual refresh while paused does not restart auto tracking, including backgr
   unmount();
 });
 
-it('shows initial unavailable business data while paused and stops unknown states', async () => {
+it('keeps tracking initial business data with unavailable Workflow and stops unknown business states', async () => {
   const data = { ...waiting(), orchestrationMode: 'temporal', workflowQueryStatus: 'UNAVAILABLE' };
   get.mockResolvedValueOnce(data);
   const { result, unmount } = renderHook(() => useFulfillmentTracking(data.order.orderId));
   await flush();
   expect(result.current.data).toEqual(data);
-  expect(result.current.paused).toBe(true);
+  expect(result.current.paused).toBe(false);
   get.mockResolvedValue({ ...waiting(), order: { ...data.order, status: 'FUTURE_STATE' } });
   act(() => result.current.refresh());
   await flush();
   expect(result.current.progress?.state).toBe('unknown');
+  await advance(10000);
+  expect(get).toHaveBeenCalledTimes(2);
+  unmount();
+});
+
+it('accepts newer business completion while Workflow is unavailable and stops polling', async () => {
+  get.mockResolvedValueOnce(waiting());
+  const { result, unmount } = renderHook(() => useFulfillmentTracking(waiting().order.orderId));
+  await flush();
+  const fetchedAt = result.current.fetchedAt;
+  const data = { ...complete(), orchestrationMode: 'temporal', temporalWorkflow: null, workflowQueryStatus: 'UNAVAILABLE' };
+  get.mockResolvedValue(data);
+  await advance(2000);
+  expect(result.current.data).toEqual(data);
+  expect(result.current.fetchedAt).toBeGreaterThan(fetchedAt!);
+  expect(result.current.error).toBeNull();
+  expect(result.current.progress).toMatchObject({ state: 'completed', message: '履約完成' });
+  expect(result.current.paused).toBe(true);
   await advance(10000);
   expect(get).toHaveBeenCalledTimes(2);
   unmount();

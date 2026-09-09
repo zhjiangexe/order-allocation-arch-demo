@@ -33,27 +33,54 @@ describe('fulfillmentProgress', () => {
     expect(fulfillmentProgress(view).state).toBe('unconfirmed');
   });
   it.each(['orderId', 'stockOperationId', 'shipmentId', 'shipmentTerminalStatus', 'phase', 'outcome'] as const)(
-    'Temporal requires its own %s evidence', field => {
+    'Temporal technical %s does not override business completion', field => {
       const view = fixture('temporal');
       view.temporalWorkflow![field] = 'OTHER';
-      expect(fulfillmentProgress(view).state).not.toBe('completed');
+      expect(fulfillmentProgress(view)).toEqual(fulfillmentProgress({ ...view, orchestrationMode: 'events', temporalWorkflow: null, workflowQueryStatus: 'NOT_APPLICABLE' }));
     },
   );
-  it('waits for Temporal even after business completion', () => {
+  it('completes without waiting for Temporal activity response', () => {
     const view = fixture('temporal');
     view.temporalWorkflow!.phase = 'ORDER_COMPLETION';
     view.temporalWorkflow!.outcome = null;
-    expect(fulfillmentProgress(view)).toMatchObject({ state: 'unconfirmed', stopTracking: false });
+    expect(fulfillmentProgress(view)).toMatchObject({ state: 'completed', stopTracking: true, message: '履約完成' });
     expect(view.temporalWorkflow).toHaveProperty('updatedAt');
   });
-  it('NOT_FOUND remains Temporal and can continue tracking', () => {
+  it.each(['NOT_FOUND', 'UNAVAILABLE'])('%s does not override business progress', status => {
     const view = fixture('temporal');
     view.temporalWorkflow = null;
-    view.workflowQueryStatus = 'NOT_FOUND';
+    view.workflowQueryStatus = status;
+    expect(fulfillmentProgress(view)).toMatchObject({ state: 'completed', stopTracking: true });
+    view.order.status = 'PENDING';
+    view.order.fulfilledByShipmentId = null;
+    view.stockOperation = null;
+    view.shipments = [];
     expect(fulfillmentProgress(view)).toMatchObject({ state: 'waiting', stopTracking: false });
-    view.workflowQueryStatus = 'UNAVAILABLE';
-    expect(fulfillmentProgress(view)).toMatchObject({ state: 'unavailable', stopTracking: true });
   });
+  it.each(['waiting', 'allocated', 'picking', 'handedOver', 'done', 'complete', 'cancelled', 'unknown'])(
+    'both drivers have identical %s progress and polling decisions', stage => {
+      const view = fixture('events');
+      if (stage !== 'complete') {
+        view.order.status = 'ALLOCATED';
+        view.order.fulfilledByShipmentId = null;
+        view.stockOperation!.operation.state = 'ASSIGNED';
+        view.shipments[0]!.status = 'CREATED';
+      }
+      if (stage === 'waiting') {
+        view.order.status = 'PENDING';
+        view.stockOperation!.operation.state = 'CONFIRMED';
+        view.shipments = [];
+      }
+      if (stage === 'picking') view.shipments[0]!.status = 'PICKING';
+      if (stage === 'handedOver' || stage === 'done') view.shipments[0]!.status = 'HANDED_OVER_TO_CARRIER';
+      if (stage === 'done') view.stockOperation!.operation.state = 'DONE';
+      if (stage === 'cancelled') view.order.status = 'CANCELLED';
+      if (stage === 'unknown') view.order.status = 'FUTURE';
+      const temporal = { ...view, orchestrationMode: 'temporal', workflowQueryStatus: 'AVAILABLE',
+        temporalWorkflow: fixture('temporal').temporalWorkflow };
+      expect(fulfillmentProgress(temporal)).toEqual(fulfillmentProgress(view));
+    },
+  );
   it.each(['CANCELLED', 'NEW_STATE', null])('stops safely on order status %s', status => {
     const view = fixture('events');
     view.order.status = status;

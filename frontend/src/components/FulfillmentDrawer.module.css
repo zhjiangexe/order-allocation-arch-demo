@@ -27,7 +27,7 @@
 .scroll { overflow-x: auto; }
 .scroll table { border-collapse: collapse; width: 100%; font-size: var(--font-body); }
 .scroll th, .scroll td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
-.progress { position: relative; padding: 0.75rem; background: var(--accent-surface); border-left: 3px solid var(--accent); }
+.progress { position: relative; padding: 0.75rem; background: var(--accent-surface); border: 1px solid var(--accent); border-radius: 8px; }
 .error { color: var(--danger); }
 @media (max-width: 480px) { .facts { grid-template-columns: 1fr; gap: 0.25rem; } .facts dd { margin-bottom: 0.5rem; } }
 
@@ -40,11 +40,13 @@
 .progressNote { margin: 0.75rem 0 0; }
 
 .content > section, .content > details {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 .content > section > h3 { margin-top: 0; }
+.content > section > :last-child, .content > details > :last-child { margin-bottom: 0; }
 .statusTooltip {
   display: none;
   position: absolute;

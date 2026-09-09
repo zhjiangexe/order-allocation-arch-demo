@@ -23,7 +23,11 @@ it.each(['events', 'temporal'] as const)('renders %s evidence without polling', 
   expect(screen.getByText('庫存作業與分配批次')).toBeVisible();
   expect(screen.getByText(samples[mode].stockOperation.moves[0]!.batches[0]!.stockQuantId)).toBeVisible();
   expect(screen.getByText('訂單履約所屬 Shipment')).toBeVisible();
-  if (mode === 'temporal') expect(screen.getByText('FULFILLMENT_COMPLETED')).toBeVisible();
+  if (mode === 'temporal') {
+    expect(screen.getByText('FULFILLMENT_COMPLETED')).not.toBeVisible();
+    fireEvent.click(screen.getByText('流程協調技術資訊'));
+    expect(screen.getByText('FULFILLMENT_COMPLETED')).toBeVisible();
+  }
   else expect(screen.queryByText('Temporal Workflow')).not.toBeInTheDocument();
 });
 it('renders empty allocation and NOT_FOUND without calling it Events', () => {
@@ -31,6 +35,7 @@ it('renders empty allocation and NOT_FOUND without calling it Events', () => {
     shipments: [], temporalWorkflow: null, workflowQueryStatus: 'NOT_FOUND' }} catalog={catalog} list={list} /></MemoryRouter>);
   expect(screen.getByText('尚無庫存作業或分配資料。')).toBeVisible();
   expect(screen.getByText('尚未建立 Shipment。')).toBeVisible();
+  fireEvent.click(screen.getByText('流程協調技術資訊'));
   expect(screen.getByText(/查無 Workflow，可能尚未建立/)).toBeVisible();
   expect(screen.queryByRole('link', { name: '前往庫存補貨' })).not.toBeInTheDocument();
 });
@@ -72,7 +77,7 @@ it('refresh failure retains prior detail and exposes stale error', async () => {
   const get = vi.spyOn(client, 'getOrderFulfillment').mockResolvedValue(samples.events);
   render(<MemoryRouter initialEntries={[`/orders?orderId=${samples.events.order.orderId}`]}><FulfillmentDrawerRoute catalog={catalog} /></MemoryRouter>);
   await screen.findByText('履約完成');
-  get.mockResolvedValue({ ...samples.events, orchestrationMode: 'temporal', workflowQueryStatus: 'UNAVAILABLE' });
+  get.mockRejectedValue(new Error('HTTP 503'));
   await act(async () => fireEvent.click(screen.getByRole('button', { name: '重新查詢履約' })));
   expect(screen.getByRole('alert')).toHaveTextContent('資料可能過時');
   expect(screen.getByText(samples.events.order.externalOrderNo)).toBeVisible();
@@ -139,4 +144,39 @@ it('outside click closes the drawer and aborts tracking; inside whitespace stays
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(screen.getByTestId('url')).toHaveTextContent('/orders?sku=TEA');
   expect(get.mock.calls[0]![1]!.aborted).toBe(true);
+});
+
+it('keeps the same business status when Temporal query is unavailable, with diagnostics collapsed', async () => {
+  vi.spyOn(client, 'getOrderFulfillment').mockResolvedValue({ ...samples.events,
+    orchestrationMode: 'temporal', workflowQueryStatus: 'UNAVAILABLE', temporalWorkflow: null });
+  render(<MemoryRouter initialEntries={[`/orders?orderId=${samples.events.order.orderId}`]}>
+    <FulfillmentDrawerRoute catalog={catalog} />
+  </MemoryRouter>);
+  await screen.findByText(samples.events.order.externalOrderNo);
+  expect(screen.getByLabelText(/FULFILLED，.*目前狀態/)).toHaveAttribute('aria-current', 'step');
+  expect(screen.getByText('自動追蹤已停止')).toBeVisible();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  const diagnostic = screen.getByText(/Workflow 查詢暫時不可用；/);
+  expect(diagnostic).not.toBeVisible();
+  fireEvent.click(screen.getByText('流程協調技術資訊'));
+  expect(diagnostic).toBeVisible();
+});
+
+it('shows the Temporal shortcut next to tracking only for a confirmed Workflow', async () => {
+  const get = vi.spyOn(client, 'getOrderFulfillment').mockResolvedValue(samples.temporal);
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  render(<MemoryRouter initialEntries={[`/orders?orderId=${samples.temporal.order.orderId}`]}>
+    <FulfillmentDrawerRoute catalog={catalog} />
+  </MemoryRouter>);
+  const button = await screen.findByRole('button', { name: 'Temporal' });
+  expect(button.previousElementSibling).toHaveTextContent('自動追蹤');
+  fireEvent.click(button);
+  expect(open).toHaveBeenCalledWith(screen.getByRole('link', { name: /在 Temporal UI 查看 Workflow/ }).getAttribute('href'),
+    '_blank', 'noopener,noreferrer');
+  get.mockResolvedValue({ ...samples.temporal, temporalWorkflow: null, workflowQueryStatus: 'NOT_FOUND' });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: '重新查詢履約' })));
+  expect(screen.queryByRole('button', { name: 'Temporal' })).not.toBeInTheDocument();
+  get.mockResolvedValue({ ...samples.temporal, orchestrationMode: 'events', temporalWorkflow: null, workflowQueryStatus: 'NOT_APPLICABLE' });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: '重新查詢履約' })));
+  expect(screen.queryByRole('button', { name: 'Temporal' })).not.toBeInTheDocument();
 });
