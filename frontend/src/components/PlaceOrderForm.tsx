@@ -8,6 +8,7 @@ interface PlaceOrderFormProps {
   catalog: Catalog;
   onSubmit: (command: PlaceOrderCommand) => void;
   pending: boolean;
+  blocked?: boolean;
 }
 
 /** 表單裡的一條行：選到一半也是合法的中間狀態，所以三個欄位都可以是空的。 */
@@ -39,7 +40,7 @@ interface DraftLine {
  * 同一個規格出現在兩條行上是允許的，不是被容忍的：收單接受它，需求讀成兩者的加總。在這裡擋
  * 下只會讓操作台拒絕系統處理得了的訂單。
  */
-export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormProps) {
+export function PlaceOrderForm({ catalog, onSubmit, pending, blocked = false }: PlaceOrderFormProps) {
   const ownerId = useId();
   const facilityId = useId();
   const externalOrderNoId = useId();
@@ -47,6 +48,10 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
   const zoneId = useId();
   const addressId = useId();
   const promisedId = useId();
+  const dispatchId = useId();
+  const priorityId = useId();
+  const [dispatchBy, setDispatchBy] = useState('');
+  const [releasePriority, setReleasePriority] = useState('0');
 
   const [selectedOwner, setSelectedOwner] = useState('');
   const [selectedFacility, setSelectedFacility] = useState('');
@@ -88,7 +93,14 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const reason = validate(selectedOwner, selectedFacility, externalOrderNo, lines);
+    if (pending || blocked) return;
+    const reason = validate(selectedOwner, selectedFacility, externalOrderNo, lines)
+      ?? (!shipToZone.trim() ? '配送分區不可為空' : null)
+      ?? (!shipToAddress.trim() ? '收件地址不可為空' : null)
+      ?? (!promisedDeliveryDate ? '請填寫承諾到貨日' : null)
+      ?? (!dispatchBy || Number.isNaN(new Date(dispatchBy).getTime()) ? '請填寫有效的最晚離倉時間' : null)
+      ?? (!releasePriority.trim() || !Number.isInteger(Number(releasePriority))
+        || Number(releasePriority) < 0 || Number(releasePriority) > 100 ? '出庫釋放優先級必須為 0～100 的整數' : null);
     setInvalidReason(reason);
     if (reason !== null) {
       return;
@@ -100,6 +112,8 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
       shipToZone: shipToZone.trim(),
       shipToAddress: shipToAddress.trim(),
       promisedDeliveryDate,
+      dispatchBy: new Date(dispatchBy).toISOString(),
+      releasePriority: Number(releasePriority),
       lines: lines.map((line) => ({
         skuCode: line.skuCode,
         quantity: Number(line.quantity),
@@ -108,7 +122,9 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit} noValidate>
+    <form onSubmit={handleSubmit} noValidate>
+      <fieldset className={styles.form} disabled={pending || blocked}>
+      <legend className={styles.srOnly}>建立訂單</legend>
       <div className={styles.field}>
         <label className={styles.label} htmlFor={ownerId}>貨主</label>
         <select
@@ -258,12 +274,26 @@ export function PlaceOrderForm({ catalog, onSubmit, pending }: PlaceOrderFormPro
         />
       </div>
 
-      <button type="submit" disabled={pending}>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={dispatchId}>最晚離倉時間</label>
+        <input id={dispatchId} className={styles.input} type="datetime-local" required
+          value={dispatchBy} onChange={event => setDispatchBy(event.target.value)} />
+        <small>時區：{Intl.DateTimeFormat().resolvedOptions().timeZone}</small>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={priorityId}>出庫釋放優先級</label>
+        <input id={priorityId} className={`${styles.input} ${styles.quantity}`} type="number"
+          min="0" max="100" step="1" required value={releasePriority}
+          onChange={event => setReleasePriority(event.target.value)} />
+        <small>0～100，預設 0</small>
+      </div>
+      <button type="submit" disabled={pending || blocked}>
         {pending ? '送出中…' : '送出訂單'}
       </button>
       {invalidReason === null ? null : (
         <p className={styles.error} role="alert">{invalidReason}</p>
       )}
+      </fieldset>
     </form>
   );
 }
@@ -309,5 +339,5 @@ function emptyLine(key: number): DraftLine {
 function defaultPromisedDate(): string {
   const inAWeek = new Date();
   inAWeek.setDate(inAWeek.getDate() + 7);
-  return inAWeek.toISOString().slice(0, 10);
+  return `${inAWeek.getFullYear()}-${String(inAWeek.getMonth() + 1).padStart(2, '0')}-${String(inAWeek.getDate()).padStart(2, '0')}`;
 }

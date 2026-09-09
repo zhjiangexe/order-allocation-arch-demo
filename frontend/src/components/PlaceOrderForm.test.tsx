@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -91,6 +91,7 @@ const removeLine = (lineNo: number) =>
 type User = ReturnType<typeof userEvent.setup>;
 
 async function selectDownTo(user: User, owner: OwnerView) {
+  fireEvent.change(screen.getByLabelText('最晚離倉時間'), { target: { value: '2099-01-01T12:00' } });
   await user.selectOptions(screen.getByLabelText('貨主'), owner.ownerId);
   await user.selectOptions(screen.getByLabelText('履約設施'), CENTRAL_FACILITY_ID);
   await user.selectOptions(product(1), 'P-TEA');
@@ -128,6 +129,8 @@ describe('PlaceOrderForm', () => {
         ownerId: OWNER_A.ownerId,
         facilityId: CENTRAL_FACILITY_ID,
         externalOrderNo: 'PO-8891',
+        dispatchBy: new Date('2099-01-01T12:00').toISOString(),
+        releasePriority: 0,
         lines: [{ skuCode: 'SKU-AVAILABLE', quantity: 3 }],
       }),
     );
@@ -332,5 +335,50 @@ describe('PlaceOrderForm', () => {
       expect(onSubmit).not.toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent('第 2 行');
     });
+  });
+});
+
+describe('必填交付欄位', () => {
+  it.each([
+    ['最晚離倉時間', '', '最晚離倉時間'],
+    ['出庫釋放優先級', '', '0～100'],
+    ['出庫釋放優先級', '-1', '0～100'],
+    ['出庫釋放優先級', '101', '0～100'],
+    ['出庫釋放優先級', '1.5', '0～100'],
+    ['配送分區', ' ', '配送分區'],
+    ['收件地址', ' ', '收件地址'],
+    ['承諾到貨日', '', '承諾到貨日'],
+  ])('%s=%s 不送出', async (label, value, message) => {
+    const submit = vi.fn();
+    render(<PlaceOrderForm catalog={catalogOf(OWNER_A)} pending={false} onSubmit={submit} />);
+    const user = userEvent.setup();
+    await selectDownTo(user, OWNER_A);
+    await user.type(screen.getByLabelText('上游單號'), 'T4-VALIDATION');
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    await user.click(screen.getByRole('button', { name: '送出訂單' }));
+    expect(submit).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+  });
+  it('保留日期並將使用者當地時間轉為 instant，接受優先級上界', async () => {
+    const submit = vi.fn();
+    render(<PlaceOrderForm catalog={catalogOf(OWNER_A)} pending={false} onSubmit={submit} />);
+    const user = userEvent.setup();
+    await selectDownTo(user, OWNER_A);
+    await user.type(screen.getByLabelText('上游單號'), 'T4-TIME');
+    fireEvent.change(screen.getByLabelText('最晚離倉時間'), { target: { value: '2099-01-01T00:05' } });
+    fireEvent.change(screen.getByLabelText('承諾到貨日'), { target: { value: '2099-01-02' } });
+    fireEvent.change(screen.getByLabelText('出庫釋放優先級'), { target: { value: '100' } });
+    await user.click(screen.getByRole('button', { name: '送出訂單' }));
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      dispatchBy: new Date(2099, 0, 1, 0, 5).toISOString(), promisedDeliveryDate: '2099-01-02', releasePriority: 100,
+    }));
+  });
+  it('送出中整份表單鎖定', () => {
+    const submit = vi.fn();
+    render(<PlaceOrderForm catalog={catalogOf(OWNER_A)} pending onSubmit={submit} />);
+    expect(screen.getByLabelText('上游單號')).toBeDisabled();
+    expect(screen.getByLabelText('最晚離倉時間')).toBeDisabled();
+    fireEvent.submit(screen.getByRole('button', { name: '送出中…' }).closest('form')!);
+    expect(submit).not.toHaveBeenCalled();
   });
 });

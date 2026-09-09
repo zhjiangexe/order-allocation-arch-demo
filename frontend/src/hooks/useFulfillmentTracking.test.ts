@@ -5,7 +5,9 @@ import type { OrderFulfillmentView } from '../api/types';
 import samples from '../test/fixtures/fulfillment.json';
 import { useFulfillmentTracking } from './useFulfillmentTracking';
 
-vi.mock('../api/client', () => ({ getOrderFulfillment: vi.fn() }));
+vi.mock('../api/client', async importOriginal => ({
+  ...await importOriginal<typeof import('../api/client')>(), getOrderFulfillment: vi.fn(),
+}));
 const get = vi.mocked(getOrderFulfillment);
 const complete = (mode: 'events' | 'temporal' = 'events'): OrderFulfillmentView => structuredClone(samples[mode]);
 const waiting = (): OrderFulfillmentView => {

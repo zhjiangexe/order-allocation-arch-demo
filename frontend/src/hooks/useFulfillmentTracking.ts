@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getOrderFulfillment } from '../api/client';
+import { ApiError, getOrderFulfillment } from '../api/client';
 import type { OrderFulfillmentView } from '../api/types';
 import { fulfillmentProgress } from '../fulfillment/progress';
 
@@ -52,7 +52,7 @@ export function useFulfillmentTracking(orderId: string | null) {
       } catch (error) {
         if (disposed || request.signal.aborted) return;
         stopped = true;
-        update({ error: error instanceof Error ? error.message : String(error), paused: true });
+        update({ error: error instanceof ApiError && error.status === 404 ? '找不到此訂單' : error instanceof Error ? error.message : String(error), paused: true });
       } finally {
         const isCurrent = controller === request;
         if (isCurrent) controller = null;

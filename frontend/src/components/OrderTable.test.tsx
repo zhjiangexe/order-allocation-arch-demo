@@ -176,7 +176,7 @@ describe('OrderTable', () => {
     const cells = within(row).getAllByRole('cell');
     // 收單與上游下單是相鄰的兩欄，值必須不同——相同的話看的人分不出上游是否真的送了。
     expect(cells[5]!.textContent).not.toEqual(cells[6]!.textContent);
-    expect(cells[5]!.textContent).not.toEqual('—');
+    expect(cells[6]!.textContent).not.toEqual('—');
     expect(cells[6]!.textContent).not.toEqual('—');
   });
 
@@ -195,7 +195,7 @@ describe('OrderTable', () => {
 
     const row = screen.getAllByRole('row')[1]!;
     const cells = within(row).getAllByRole('cell');
-    expect(cells[5]!.textContent).not.toEqual('—');
-    expect(cells[6]!.textContent).toEqual('—');
+    expect(cells[6]!.textContent).not.toEqual('—');
+    expect(cells[7]!.textContent).toEqual('—');
   });
 });

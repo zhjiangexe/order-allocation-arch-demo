@@ -5,11 +5,11 @@ import styles from './OrderTable.module.css';
 interface OrderTableProps {
   orders: OrderView[];
   catalog: Catalog;
+  onViewFulfillment?: (orderId: string) => void;
 }
 
 /**
- * 一列攤開訂單表示的全部欄位，包含生命週期各階段時間戳。刻意不做點開的詳細檢視——第二層視圖會是
- * 同一份資料的第二次呈現。
+ * 列表保留訂單摘要；履約入口另開跨 context 詳情。
  *
  * <p>一列對應一張單，行則在同一格內以頓號並列——**每一行的商品與數量都看得到**，不會只顯示
  * 第一行。多行訂單是整張配或整張不配，於是一張單可能在某個 SKU 還很充足時掛帳；看得出是哪
@@ -20,7 +20,7 @@ interface OrderTableProps {
  * 會讓一張「下單→缺貨→收貨後配置」的訂單在畫面上讀起來像時間倒退。這幾欄是階段時間戳
  * 不是狀態，狀態只有 `status` 一欄——表頭加 `at` 就是為了讓這件事不需要解釋。
  */
-export function OrderTable({ orders, catalog }: OrderTableProps) {
+export function OrderTable({ orders, catalog, onViewFulfillment }: OrderTableProps) {
   const ownerNames = new Map(catalog.owners.map((owner) => [owner.ownerId, owner.name]));
 
   /**
@@ -45,6 +45,7 @@ export function OrderTable({ orders, catalog }: OrderTableProps) {
         <thead>
           <tr>
             <th>order</th>
+            <th>履約</th>
             <th>owner</th>
             <th>item</th>
             <th>qty</th>
@@ -59,7 +60,8 @@ export function OrderTable({ orders, catalog }: OrderTableProps) {
         <tbody>
           {orders.map((order) => (
             <tr key={order.orderId}>
-              <td className={styles.id}>{order.orderId.slice(order.orderId.length-12, order.orderId.length)}</td>
+              <td className={styles.id}>{order.externalOrderNo}<br />{order.orderId.slice(-12)}</td>
+              <td>{onViewFulfillment ? <button type="button" onClick={() => onViewFulfillment(order.orderId)}>查看履約</button> : '—'}</td>
               <td>{ownerNames.get(order.ownerId) ?? order.ownerId.slice(-12)}</td>
               <td>
                 {order.lines.map((line) => (

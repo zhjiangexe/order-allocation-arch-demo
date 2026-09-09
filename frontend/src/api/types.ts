@@ -104,6 +104,8 @@ export interface OrderView {
 }
 
 export interface PlaceOrderCommand {
+  dispatchBy: string;
+  releasePriority: number;
   ownerId: string;
   externalOrderNo: string;
   facilityId: string;

@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router';
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -37,7 +38,7 @@ describe('OrdersPage 的請求時機', () => {
   });
 
   it('進場載入完成後靜置五分鐘，不再發出任何請求', async () => {
-    render(<OrdersPage />);
+    render(<MemoryRouter><OrdersPage /></MemoryRouter>);
 
     await elapse(0);
     expect(client.listRecentOrders).toHaveBeenCalledTimes(1);

@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Plan
 
 - 日期：2026-09-09
-- 狀態：T1／T2 已確認；T3 前端基礎完成、使用者同意提交；T4～T7 尚未實作
+- 狀態：T1～T4 已驗收確認；T5～T7 尚未實作
 - 任務清單：[tasks.md](tasks.md)
 
 ## 目標與範圍
@@ -257,3 +257,19 @@ HTTP 錯誤／UNAVAILABLE 保留快照並暫停，自動追蹤不設定缺貨失
 URL context 保留 ownerId／facilityId／sku／source／limit；返回頁面僅允許 orders 或 allocations。
 T3 尚未將 hook 接到頁面，也未修正 T4 的建單欄位；T4～T7 等待後續階段。
 詳細檢查與驗證見 [t3-foundation-review.md](t3-foundation-review.md)。
+
+
+## T4 實作結果
+
+建單已傳 dispatchBy（使用者當地時間轉 ISO instant）與 releasePriority（0..100，預設 0）；
+日期維持日期語意。送出中鎖定表單，409／不明結果保留原內容並提供最近 20 筆查單；查無結果
+不代表未建立，也不自動換單號或重送。成功後開啟對應詳情，下一筆須明確開始另一張訂單。
+
+訂單列表與建單成功均可開啟原生 dialog 履約抽屜，串接 T3 追蹤、資料保留、URL、模式及完成判定。
+提供 Move／批次、Shipment、Temporal phase／outcome／updatedAt、刷新／暫停／恢復與複製 IDs。
+共用抽屜支援 allocations context，實際佇列頁由 T5 接入；補貨連結帶完整 context，T6 才接自動定位與返回。
+
+真實 Events 瀏覽器建單已追蹤至履約完成；Temporal 目前以真實衍生 fixtures 驗證元件，
+完整雙模式瀏覽器情境仍列於 T7。詳細證據見 [t4-order-drawer-review.md](t4-order-drawer-review.md)。
+
+T4 使用者驗收已通過（2026-09-09）。PO-99991 在後端重啟後已完成履約；前序訂單阻擋的規則與改善由使用者決定另案處理，不納入本次 T4 修正。

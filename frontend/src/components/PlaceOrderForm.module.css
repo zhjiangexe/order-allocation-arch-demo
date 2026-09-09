@@ -1,4 +1,8 @@
 .form {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -57,3 +61,5 @@
   color: var(--danger);
   font-size: 0.85rem;
 }
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

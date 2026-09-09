@@ -1,0 +1,126 @@
+{
+  "releasePriority": {
+    "status": 400,
+    "body": "Release priority is required"
+  },
+  "dispatchBy": {
+    "status": 400,
+    "body": "Dispatch deadline is required"
+  },
+  "browserOrder": {
+    "order": {
+      "orderId": "01a0856a-a495-7ed4-ba9e-94d283e1f090",
+      "ownerId": "00000000-0000-0000-0000-000000000001",
+      "externalOrderNo": "UI-T4-EVENTS-20260909-1705",
+      "facilityId": "00000000-0000-0000-0000-000000000011",
+      "shipToZone": "100",
+      "shipToAddress": "台北市中正區重慶南路一段 122 號",
+      "promisedDeliveryDate": "2026-09-16",
+      "dispatchBy": "2099-01-01T04:00:00Z",
+      "releasePriority": 0,
+      "status": "FULFILLED",
+      "receivedAt": "2026-09-09T09:05:53.814198Z",
+      "placedAt": null,
+      "allocatedAt": "2026-09-09T09:05:54.595077Z",
+      "cancelledAt": null,
+      "cancellationRequestId": null,
+      "cancellationReason": null,
+      "fulfilledAt": "2026-09-09T09:06:04.992242Z",
+      "fulfilledByShipmentId": "01a0856a-a940-7995-abd4-f88db8ffaab1",
+      "lines": [
+        {
+          "orderLineId": "01a0856a-a496-7487-b337-0e4d9ea860b7",
+          "lineNo": 1,
+          "skuCode": "SKU-AVAILABLE",
+          "quantity": 1
+        }
+      ]
+    },
+    "stockOperation": {
+      "source": {
+        "type": "ORDER",
+        "sourceId": "01a0856a-a495-7ed4-ba9e-94d283e1f090",
+        "operationUnitKey": "PRIMARY"
+      },
+      "operation": {
+        "stockOperationId": "01a0856a-a795-75df-9100-efa89001567f",
+        "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+        "direction": "OUTBOUND",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "fromLocationId": "00000000-0000-0000-0000-000000000021",
+        "toLocationId": "00000000-0000-0000-0000-000000000025",
+        "assignmentPolicy": "SHIP_COMPLETE",
+        "enqueuedAt": "2026-09-09T09:05:53.814198Z",
+        "dispatchBy": "2099-01-01T04:00:00Z",
+        "releasePriority": 0,
+        "state": "DONE"
+      },
+      "moves": [
+        {
+          "moveId": "01a0856a-a795-7999-9101-388f4de86550",
+          "sourceLineId": "01a0856a-a496-7487-b337-0e4d9ea860b7",
+          "lineSequence": 1,
+          "skuCode": "SKU-AVAILABLE",
+          "quantity": 1,
+          "state": "DONE",
+          "createdAt": "2026-09-09T09:05:53.814198Z",
+          "assignedAt": "2026-09-09T09:05:54.595077Z",
+          "batches": [
+            {
+              "stockQuantId": "00000000-0000-0000-0000-000000000104",
+              "locationId": "00000000-0000-0000-0000-000000000021",
+              "skuCode": "SKU-AVAILABLE",
+              "inDate": "2026-07-09",
+              "expiryDate": "2027-03-09",
+              "quantity": 1
+            }
+          ]
+        }
+      ]
+    },
+    "shipments": [
+      {
+        "shipmentId": "01a0856a-a940-7995-abd4-f88db8ffaab1",
+        "stockOperationId": "01a0856a-a795-75df-9100-efa89001567f",
+        "orderId": "01a0856a-a495-7ed4-ba9e-94d283e1f090",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "status": "HANDED_OVER_TO_CARRIER",
+        "waveId": "01a0856a-d042-7599-98a2-f9e1e87d4a32",
+        "createdAt": "2026-09-09T09:05:54.595077Z",
+        "dispatchBy": "2099-01-01T04:00:00Z",
+        "releasePriority": 0,
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "cancellationReason": null,
+        "cancelledAt": null,
+        "cancellationState": null,
+        "lines": [
+          {
+            "orderLineId": "01a0856a-a496-7487-b337-0e4d9ea860b7",
+            "moveId": "01a0856a-a795-7999-9101-388f4de86550",
+            "skuCode": "SKU-AVAILABLE",
+            "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+            "quantity": 1
+          }
+        ],
+        "pickTasks": [
+          {
+            "pickTaskId": "01a0856a-d050-7e6a-9a7c-ac34ba51150c",
+            "orderLineId": "01a0856a-a496-7487-b337-0e4d9ea860b7",
+            "moveId": "01a0856a-a795-7999-9101-388f4de86550",
+            "skuCode": "SKU-AVAILABLE",
+            "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+            "requestedQuantity": 1,
+            "pickedQuantity": 1,
+            "status": "PICKED",
+            "confirmedAt": "2026-09-09T09:06:04.992242Z"
+          }
+        ]
+      }
+    ],
+    "temporalWorkflow": null,
+    "orchestrationMode": "events",
+    "workflowQueryStatus": "NOT_APPLICABLE"
+  }
+}
