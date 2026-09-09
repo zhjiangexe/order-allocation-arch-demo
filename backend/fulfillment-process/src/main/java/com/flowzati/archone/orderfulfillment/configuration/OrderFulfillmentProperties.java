@@ -1,4 +1,4 @@
-package com.flowzati.archone.bootstrap.configuration;
+package com.flowzati.archone.orderfulfillment.configuration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

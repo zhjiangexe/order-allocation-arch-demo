@@ -23,6 +23,8 @@ Feature: Events 模式的配貨與履約流程
     And retry until response.order.status == 'FULFILLED'
     When method get
     Then status 200
+    And match response.orchestrationMode == 'events'
+    And match response.workflowQueryStatus == 'NOT_APPLICABLE'
     And match response.temporalWorkflow == null
     And match response.order.status == 'FULFILLED'
     And match response.stockOperation.source == { type: 'ORDER', sourceId: '#(orderId)', operationUnitKey: 'PRIMARY' }
@@ -35,6 +37,8 @@ Feature: Events 模式的配貨與履約流程
     And match response.shipments[0].status == 'HANDED_OVER_TO_CARRIER'
     And match response.shipments[0].waveId == '#uuid'
     And match response.shipments[0].lines[0].quantity == 3
+    And match response.orchestrationMode == 'events'
+    And match response.workflowQueryStatus == 'NOT_APPLICABLE'
     And match response.temporalWorkflow == null
 
   Scenario: 缺貨訂單會等待，收貨後由 availability event 喚醒並完成

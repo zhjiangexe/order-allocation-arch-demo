@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Plan
 
 - 日期：2026-09-09
-- 狀態：T1 基線完成且使用者已確認；T2～T7 尚未實作
+- 狀態：T1 已確認；T2 查詢補強完成、待使用者檢查；T3～T7 尚未實作
 - 任務清單：[tasks.md](tasks.md)
 
 ## 目標與範圍
@@ -9,7 +9,7 @@
 以 allocation 為專案核心，完善前端需求輸入、等待配貨、庫存補貨、批次分配與履約結果的操作閉環。
 沿用既有業務 API、事件與 WMS 模擬；以最少後端唯讀補強，讓同一套前端支援 Events 與 Temporal。
 Temporal 模式必須能由前端建單觸發 `OrderFulfillmentWorkflowImpl`，並驗證正常路徑完成。
-目前已完成 T1 契約與基線工作；功能實作依 tasks.md 的逐 T 確認規則執行。
+目前已完成 T1 基線與 T2 查詢補強；後續依 tasks.md 的逐 T 確認規則執行。
 
 ### 依 T1 基線校準的交付目標
 
@@ -124,13 +124,15 @@ Temporal 的 null snapshot 不代表 Events，也不代表 Workflow 失敗。
 
 擴充既有 `OrderFulfillmentView`，保留現有四個欄位，預計新增：
 
-- `orchestrationMode`: `events` 或 `temporal`，取後端生效設定。
+- `orchestrationMode`: `events` 或 `temporal`，沿用 OrderFulfillmentProperties 綁定並驗證 Driver enum，
+  由 demo 的 OrderFulfillmentQueryConfiguration 傳入 Service；API 輸出時轉為小寫字串。
 - `workflowQueryStatus`: `NOT_APPLICABLE`、`AVAILABLE`、`NOT_FOUND`、`UNAVAILABLE`。
 
 Events 回傳 NOT_APPLICABLE，不呼叫 Temporal。Temporal snapshot 存在時為 AVAILABLE；
-查無 execution 為 NOT_FOUND，前端說明可能尚未建立；預期的連線／查詢失敗為 UNAVAILABLE。
+查無 execution 為 NOT_FOUND，前端說明可能尚未建立；連線不可用或逾時為 UNAVAILABLE；其他 Query 錯誤繼續拋出。
 UNAVAILABLE 不等於 Workflow 執行失敗，NOT_FOUND 也不保證之後一定會啟動。
-預期的 Temporal 查詢失敗應保留成功取得的業務資料，並限制查詢等待時間；不可用廣泛捕捉掩蓋程式錯誤。
+預期的 Temporal 查詢失敗應保留成功取得的業務資料；查詢直接沿用 SDK 的 timeout／retry，
+不增加專用期限機制，也不可用廣泛捕捉掩蓋程式錯誤。
 記錄伺服器診斷資訊，但前端不顯示原始 stack trace。完整 Temporal execution history、重試控制與
 failed/timed-out execution 診斷不在本次範圍。
 
@@ -180,8 +182,8 @@ Events 必須確認不依賴 Temporal 服務。驗證使用隔離資料，不能
   關閉抽屜後列表保持原快照並保留刷新入口，避免順便擴張全域快取系統。
 - HTTP 失敗或 workflowQueryStatus=UNAVAILABLE 時保留資料並暫停自動追蹤，明確提供重試；
   HTTP 200 的 UNAVAILABLE 也要處理。NOT_FOUND 可繼續追蹤，但不能無限宣稱「即將啟動」。
-- Temporal Query 採獨立、可設定的等待上限（預設目標 3 秒），不改共用 Activity／Workflow timeout。
-  於 T2 核對現有 SDK 可用設定及例外，並以測試驗證，不額外加 execution history 查詢。
+- 依使用者確認的簡化方向，Temporal Query 直接呼叫 workflow.state()，沿用 SDK 既有 timeout／retry。
+  不新增期限設定、排程器或 gRPC Context；不承諾獨立的 3 秒期限。服務故障時可能等待較久。
 - 建單目前沒有「同鍵重送回傳既有訂單」：相同 ownerId＋externalOrderNo 回 409。
   結果不明時保留原單號與內容，可手動重查最近訂單，以這組鍵比對；最近列表未找到不代表未建立。
   找到才提供查看履約，找不到顯示限制；不自動換新單號重送，也不新增按外部單號搜尋 API。
@@ -236,3 +238,12 @@ Events 必須確認不依賴 Temporal 服務。驗證使用隔離資料，不能
 - Shipment 狀態 HANDED_OVER_TO_CARRIER 與 Workflow shipmentTerminalStatus=HANDED_OVER
   是不同列舉，須明確對應。
 - 共用業務成功條件須使用履約 OrderView 的 fulfilledByShipmentId；一般訂單列表回應沒有此欄。
+
+
+## T2 實作結果
+
+既有履約查詢已加入 orchestrationMode／workflowQueryStatus。依使用者審查意見，Reader 直接查詢
+Temporal，僅捕捉查無 Workflow 與連線不可用／逾時；其餘錯誤繼續拋出。模式由 demo 的
+OrderFulfillmentQueryConfiguration 使用共用的 OrderFulfillmentProperties.Driver 組裝後傳入 Service；已移除專用 properties、configuration、排程器與 gRPC Context。
+沿用 SDK 的既有 timeout／retry，服務故障時可能等待較久，不提供獨立查詢期限。
+詳細範例與驗證見 [t2-query-review.md](t2-query-review.md)。T3 尚未開始，等待使用者確認簡化後的 T2。

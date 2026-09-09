@@ -33,6 +33,8 @@ Feature: Temporal 模式的配貨與履約流程
     And match response.shipments == '#[1]'
     And match response.shipments[0].status == 'HANDED_OVER_TO_CARRIER'
     And match response.shipments[0].waveId == '#uuid'
+    And match response.orchestrationMode == 'temporal'
+    And match response.workflowQueryStatus == 'AVAILABLE'
     And match response.temporalWorkflow.phase == 'FINISHED'
     And match response.temporalWorkflow.allocationState == 'COMMITTED'
     And match response.temporalWorkflow.outcome == 'FULFILLMENT_COMPLETED'
@@ -54,6 +56,8 @@ Feature: Temporal 模式的配貨與履約流程
     And retry until response.stockOperation != null && response.stockOperation.operation.state == 'CONFIRMED' && response.stockOperation.moves[0].batches.length == 0 && response.temporalWorkflow != null
     When method get
     Then status 200
+    And match response.orchestrationMode == 'temporal'
+    And match response.workflowQueryStatus == 'AVAILABLE'
     And match response.temporalWorkflow.phase == 'ALLOCATION'
     And match response.temporalWorkflow.allocationState == 'REQUESTED'
     And match response.temporalWorkflow.outcome == null
@@ -75,6 +79,8 @@ Feature: Temporal 模式的配貨與履約流程
     And match response.stockOperation.operation.state == 'DONE'
     And match response.stockOperation.moves[0].state == 'DONE'
     And match response.stockOperation.moves[0].batches == '#[1]'
+    And match response.orchestrationMode == 'temporal'
+    And match response.workflowQueryStatus == 'AVAILABLE'
     And match response.temporalWorkflow.phase == 'FINISHED'
 
   Scenario: Temporal 已完成交運時同樣拒絕取消

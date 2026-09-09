@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Tasks
 
 - 日期：2026-09-09
-- 狀態：T1 已完成且使用者已確認；T2～T7 待實作
+- 狀態：T1 已確認；T2 已完成、等待使用者確認；T3～T7 待實作
 - 設計與範圍：[plan.md](plan.md)
 - T1～T7 保留為里程碑；實作及勾選單位改為下列子任務。
 - T1 證據：[t1-baseline.md](t1-baseline.md)，含實際雙模式 HTTP 驗證與契約樣本。
@@ -64,19 +64,23 @@
 
 ### T2.1：模式及 additive response 契約
 
-- [ ] 新增 `orchestrationMode` 與 `workflowQueryStatus`；以 T1 實際 JSON 樣本核對既有欄位相容，樣本本身不覆寫。
-- [ ] Events 回傳 NOT_APPLICABLE，驗證不存取 Temporal。
+- [x] 新增 `orchestrationMode` 與 `workflowQueryStatus`；以 T1 實際 JSON 樣本核對既有欄位相容，樣本本身不覆寫。
+- [x] 沿用 OrderFulfillmentProperties 綁定並驗證 Driver enum，由 demo 的 OrderFulfillmentQueryConfiguration 傳入 Service；properties 移至 fulfillment-process configuration，維持 bootstrap 依賴邊界。Service 不使用 @Value 或字串模式解析。
+- [x] Events 回傳 NOT_APPLICABLE，驗證不存取 Temporal。
 
 驗收：兩種模式的 JSON 契約測試通過，既有欄位相容。
 
-### T2.2：Temporal Query 的有界等待與降級
+### T2.2：直接查詢 Temporal 與必要的錯誤分類
 
-- [ ] Temporal 分別處理 AVAILABLE、NOT_FOUND 與預期查詢錯誤 UNAVAILABLE。
-- [ ] 對預期 Temporal 查詢故障保留業務資料，限制等待時間，保留伺服器診斷資訊。
-- [ ] 加入模式、查無 Workflow、Temporal 不可用、訂單不存在的查詢測試；不吞掉非預期程式錯誤。
-- [ ] 不新增資料表、命令 API、事件或業務狀態轉換。
+- [x] Temporal 分別處理 AVAILABLE、NOT_FOUND 與預期查詢錯誤 UNAVAILABLE。
+- [x] 直接呼叫 workflow.state()，沿用 SDK timeout／retry；移除專用期限設定、排程器與 gRPC Context。
+- [x] 僅對連線不可用／逾時保留業務資料並回 UNAVAILABLE；查無 Workflow 回 NOT_FOUND，其他 Query／service 錯誤繼續拋出，不承諾獨立的 3 秒期限。
+- [x] 加入模式、查無 Workflow、Temporal 不可用、訂單不存在的查詢測試；不吞掉非預期程式錯誤。
+- [x] 不新增資料表、命令 API、事件或業務狀態轉換。
 
 驗收：單一查詢可可靠辨識模式與 Workflow 可讀性，Temporal 故障不抹除可讀的業務結果。
+
+T2 驗證與回應範例：[t2-query-review.md](t2-query-review.md)。
 
 ## T3：前端契約、狀態判定與追蹤機制
 
@@ -240,7 +244,8 @@
 ## 基線與最終驗收的區別
 
 T1 已完成 72 個既有前端測試與 17 個 HTTP E2E，這些只證明起始狀態。
-T2～T7 的方框維持未完成；功能變更後執行相關回歸，T7 額外提供真實 UI 證據。
+T2 初版已完成雙模式回歸；簡化後重新執行 monolith 查詢與架構測試，驗證範圍見 T2 報告。
+T3～T7 的方框維持未完成，T7 額外提供真實 UI 證據。
 基線發現的問題已編入上述子任務，不另增加里程碑；每 T 完成仍須使用者確認。
 
 ## 完成定義

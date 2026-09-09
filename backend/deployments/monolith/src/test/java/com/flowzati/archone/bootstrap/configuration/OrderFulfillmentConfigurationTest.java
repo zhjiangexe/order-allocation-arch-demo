@@ -2,6 +2,7 @@ package com.flowzati.archone.bootstrap.configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.orderfulfillment.configuration.OrderFulfillmentProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 

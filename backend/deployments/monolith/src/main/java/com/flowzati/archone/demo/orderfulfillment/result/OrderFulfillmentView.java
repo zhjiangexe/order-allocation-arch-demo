@@ -10,7 +10,9 @@ public record OrderFulfillmentView(
         OrderView order,
         StockOperationResponse stockOperation,
         List<ShipmentView> shipments,
-        OrderFulfillmentSnapshot temporalWorkflow) {
+        OrderFulfillmentSnapshot temporalWorkflow,
+        String orchestrationMode,
+        WorkflowQueryStatus workflowQueryStatus) {
 
     public OrderFulfillmentView {
         shipments = List.copyOf(shipments);
