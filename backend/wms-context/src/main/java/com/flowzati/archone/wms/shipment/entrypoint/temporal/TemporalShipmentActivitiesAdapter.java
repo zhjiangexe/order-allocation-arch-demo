@@ -33,6 +33,7 @@ public final class TemporalShipmentActivitiesAdapter implements ShipmentActiviti
     @Override
     public ReleaseToWarehouseActivityResult releaseToWarehouse(ReleaseToWarehouseActivityInput input) {
         var assignment = input.assignment();
+        SimulationUtil.sleep(3_000);
         CreateShipmentResult result = createShipmentUsecase.handle(new CreateShipmentCommand(
                 IdGenerator.nextId(),
                 assignment.stockOperationId(),
@@ -50,15 +51,14 @@ public final class TemporalShipmentActivitiesAdapter implements ShipmentActiviti
                 assignment.dispatchBy(),
                 assignment.releasePriority(),
                 assignment.assignedAt()));
-        SimulationUtil.sleep(3_000);
         return new ReleaseToWarehouseActivityResult(result.shipmentId());
     }
 
     @Override
     public CancelShipmentActivityStatus requestShipmentCancellation(CancelShipmentActivityInput input) {
+        SimulationUtil.sleep(3_000);
         CancelShipmentStatus status = cancelShipmentUsecase.handle(
                 new CancelShipmentCommand(input.requestId(), input.shipmentId(), input.requestedAt(), input.reason()));
-        SimulationUtil.sleep(3_000);
         return status == CancelShipmentStatus.REJECTED
                 ? CancelShipmentActivityStatus.REJECTED
                 : CancelShipmentActivityStatus.ACCEPTED;

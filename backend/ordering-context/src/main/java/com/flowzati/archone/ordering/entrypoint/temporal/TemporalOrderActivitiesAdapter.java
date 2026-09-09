@@ -30,16 +30,16 @@ public final class TemporalOrderActivitiesAdapter implements OrderActivities {
 
     @Override
     public void recordOrderFulfillment(RecordOrderFulfillmentActivityInput input) {
+        SimulationUtil.sleep(3_000);
         recordOrderFulfillmentUsecase.execute(
                 new RecordOrderFulfillmentCommand(input.orderId(), input.shipmentId(), input.fulfilledAt()));
-        SimulationUtil.sleep(3_000);
     }
 
     @Override
     public CancelOrderActivityResult cancelOrder(CancelOrderActivityInput input) {
+        SimulationUtil.sleep(3_000);
         Order.CancellationStatus result = cancelOrderUsecase.cancel(
                 new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
-        SimulationUtil.sleep(3_000);
         CancelOrderActivityStatus status =
                 switch (result) {
                     case CANCELLED -> CancelOrderActivityStatus.CANCELLED;

@@ -22,7 +22,7 @@ public final class TemporalInventoryAllocationActivitiesAdapter implements Inven
     @Override
     public void requestAllocation(RequestAllocationActivityInput input) {
         // Temporal 與事件模式共用同一個 Inventory application flow。
-        allocateOrderUsecase.execute(new AllocateOrderCommand(input.orderId()));
         SimulationUtil.sleep(3_000);
+        allocateOrderUsecase.execute(new AllocateOrderCommand(input.orderId()));
     }
 }

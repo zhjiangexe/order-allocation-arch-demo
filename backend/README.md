@@ -28,8 +28,8 @@ Common commands:
 
 ## Activity 演示延遲
 
-Temporal Activity adapters 在 use case 成功返回後呼叫 `SimulationUtil.sleep(3_000)`，
-額外等待約 3 秒才回報 Activity 完成；業務交易與 outbound event 已先完成，不會延後實際資料寫入。
+Temporal Activity adapters 在呼叫 use case 之前執行 `SimulationUtil.sleep(3_000)`，
+先等待約 3 秒，再執行業務操作並回報 Activity 完成；等待位於 use case 的業務交易之外。
 正常啟動時此延遲套用於正常與取消 Activity，Events driver 不經過這些 adapters。
 Gradle 的所有 `Test` 任務（含 Unit test 與 `sit`）統一設定
 `archone.simulation.sleep-enabled=false`，直接略過延遲。

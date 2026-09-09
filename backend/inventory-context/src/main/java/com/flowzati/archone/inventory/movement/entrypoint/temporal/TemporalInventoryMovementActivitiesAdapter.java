@@ -22,12 +22,12 @@ public final class TemporalInventoryMovementActivitiesAdapter implements Invento
 
     @Override
     public void completeOutboundMovements(CompleteOutboundMovementsActivityInput input) {
+        SimulationUtil.sleep(3_000);
         completeOutboundMovementsUsecase.execute(new CompleteOutboundMovementsCommand(
                 input.orderId(),
                 input.shipmentId(),
                 input.stockOperationId(),
                 input.movementIds(),
                 input.handedOverAt()));
-        SimulationUtil.sleep(3_000);
     }
 }
