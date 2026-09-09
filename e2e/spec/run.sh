@@ -9,7 +9,12 @@ KARATE_VERSION="2.1.1"
 KARATE_SHA256="5eb0e65a997569fa2b36fb27254e15e13514a024d4fbb0fc353813ac91e398e1"
 KARATE_JAR="${SPEC_DIR}/.cache/karate-${KARATE_VERSION}.jar"
 APP_JAR="${REPO_ROOT}/backend/deployments/monolith/build/libs/archone-monolith.jar"
-BUILD_DIR="${SPEC_DIR}/build"
+BUILD_DIR="${E2E_BUILD_DIR:-${SPEC_DIR}/build}"
+E2E_MODE="${E2E_MODE:-all}"
+case "${E2E_MODE}" in
+  all|events|temporal) ;;
+  *) echo "E2E_MODE 必須為 all、events 或 temporal" >&2; exit 2 ;;
+esac
 APP_PID=""
 JAVA_BIN="${E2E_JAVA_BIN:-}"
 
@@ -145,30 +150,39 @@ download_karate
 echo "建立 monolith executable JAR..."
 "${REPO_ROOT}/backend/gradlew" -p "${REPO_ROOT}/backend" :deployments:monolith:bootJar --console=plain
 
-echo "啟動隔離的 PostgreSQL、Kafka、Debezium Connect 與 Temporal..."
-compose --profile temporal up -d --wait postgres kafka kafka-connect temporal
+echo "啟動隔離的基礎設施（${E2E_MODE}）..."
+if [ "${E2E_MODE}" = "events" ]; then
+  compose up -d --wait postgres kafka kafka-connect
+else
+  compose --profile temporal up -d --wait postgres kafka kafka-connect temporal
+fi
 
-start_app events 0s events
+initial_mode=events
+if [ "${E2E_MODE}" = "temporal" ]; then initial_mode=temporal; fi
+start_app "${initial_mode}" 0s "${initial_mode}"
 seed_e2e_fixtures
 CONNECT_URL="http://localhost:${ARCHONE_CONNECT_PORT}" \
 CONNECTOR_NAME="archone-karate-e2e-outbox" \
 SLOT_NAME="archone_karate_e2e_outbox_slot" \
   "${REPO_ROOT}/e2e/perf/kafka-connect/register-outbox-connector.sh"
 run_feature "catalog-and-idempotency.feature" "catalog-and-idempotency"
-run_feature "events-fulfillment.feature" "events"
-run_feature "events-cancellation.feature" "events-cancellation"
-run_feature "connector-catch-up.feature" "connector-catch-up"
 
-stop_app
-start_app events 30s events-cancellation-window
-run_feature "events-shipment-cancellation.feature" "events-shipment-cancellation"
+if [ "${E2E_MODE}" != "temporal" ]; then
+  run_feature "events-fulfillment.feature" "events"
+  run_feature "events-cancellation.feature" "events-cancellation"
+  run_feature "connector-catch-up.feature" "connector-catch-up"
+  stop_app
+  start_app events 30s events-cancellation-window
+  run_feature "events-shipment-cancellation.feature" "events-shipment-cancellation"
+fi
 
-stop_app
-start_app temporal 0s temporal
-run_feature "temporal-fulfillment.feature" "temporal"
+if [ "${E2E_MODE}" != "events" ]; then
+  stop_app
+  start_app temporal 0s temporal
+  run_feature "temporal-fulfillment.feature" "temporal"
+  stop_app
+  start_app temporal 30s temporal-cancellation-window
+  run_feature "temporal-cancellation.feature" "temporal-cancellation"
+fi
 
-stop_app
-start_app temporal 30s temporal-cancellation-window
-run_feature "temporal-cancellation.feature" "temporal-cancellation"
-
-echo "Karate E2E 全部通過。報告位於 ${BUILD_DIR}/reports"
+echo "Karate E2E ${E2E_MODE} 通過。報告位於 ${BUILD_DIR}/reports"

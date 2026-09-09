@@ -1,0 +1,840 @@
+{
+  "mode": "events",
+  "date": "2026-09-09",
+  "initialStock": [
+    {
+      "sku": "UI-EVT-FEFO",
+      "batches": [
+        {
+          "stockPoolId": "2a6ae2ff-5311-cfe2-4a40-0efe8d11426c",
+          "inDate": "1999-01-01",
+          "expiryDate": "2000-01-01",
+          "onHandQuantity": 7,
+          "reservedQuantity": 0,
+          "availableToPromise": 7,
+          "expired": true
+        },
+        {
+          "stockPoolId": "027b2658-1739-3dcd-d450-950ee5aad1d9",
+          "inDate": "2026-01-01",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 2,
+          "reservedQuantity": 0,
+          "availableToPromise": 2,
+          "expired": false
+        },
+        {
+          "stockPoolId": "da26ed56-3530-a329-7db3-6e37607c4208",
+          "inDate": "2026-01-02",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 3,
+          "reservedQuantity": 0,
+          "availableToPromise": 3,
+          "expired": false
+        },
+        {
+          "stockPoolId": "bec74c69-f358-91c5-9bc9-dac386ab678a",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 5,
+          "reservedQuantity": 0,
+          "availableToPromise": 5,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-HAPPY",
+      "batches": [
+        {
+          "stockPoolId": "5893f67a-a9f3-06a2-8d39-a92625abf3f5",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 20,
+          "reservedQuantity": 0,
+          "availableToPromise": 20,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-MULTI-A",
+      "batches": [
+        {
+          "stockPoolId": "cfdf58fb-2e1b-1e79-74a8-6a0b26b73df9",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 10,
+          "reservedQuantity": 0,
+          "availableToPromise": 10,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-MULTI-B",
+      "batches": [
+        {
+          "stockPoolId": "02ce9c79-01b4-7526-ae4f-61f254fbe2a9",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-WAKE",
+      "batches": [
+        {
+          "stockPoolId": "cbbd18f4-8b60-f058-3d99-e583e0cc9d1e",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    }
+  ],
+  "multiWaiting": {
+    "fulfillment": {
+      "order": {
+        "orderId": "01a085fd-7120-7bae-bb9f-c1935bffafef",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-EVT-MULTI-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "PENDING",
+        "receivedAt": "2026-09-09T11:46:14.432839Z",
+        "placedAt": null,
+        "allocatedAt": null,
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": null,
+        "fulfilledByShipmentId": null,
+        "lines": [
+          {
+            "orderLineId": "01a085fd-7120-7e00-bba0-0322489ec790",
+            "lineNo": 1,
+            "skuCode": "UI-EVT-MULTI-A",
+            "quantity": 2
+          },
+          {
+            "orderLineId": "01a085fd-7120-7e28-bba1-db7d92b82961",
+            "lineNo": 2,
+            "skuCode": "UI-EVT-MULTI-B",
+            "quantity": 3
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a085fd-7120-7bae-bb9f-c1935bffafef",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a085fd-7496-7b0a-879c-066b176fb7e7",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T11:46:14.432839Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "CONFIRMED"
+        },
+        "moves": [
+          {
+            "moveId": "01a085fd-7496-7cc4-879d-cbd2ea115137",
+            "sourceLineId": "01a085fd-7120-7e00-bba0-0322489ec790",
+            "lineSequence": 1,
+            "skuCode": "UI-EVT-MULTI-A",
+            "quantity": 2,
+            "state": "CONFIRMED",
+            "createdAt": "2026-09-09T11:46:14.432839Z",
+            "assignedAt": null,
+            "batches": []
+          },
+          {
+            "moveId": "01a085fd-7496-7d22-879e-ac5f7627bac4",
+            "sourceLineId": "01a085fd-7120-7e28-bba1-db7d92b82961",
+            "lineSequence": 2,
+            "skuCode": "UI-EVT-MULTI-B",
+            "quantity": 3,
+            "state": "CONFIRMED",
+            "createdAt": "2026-09-09T11:46:14.432839Z",
+            "assignedAt": null,
+            "batches": []
+          }
+        ]
+      },
+      "shipments": [],
+      "temporalWorkflow": null,
+      "orchestrationMode": "events",
+      "workflowQueryStatus": "NOT_APPLICABLE"
+    },
+    "stock": [
+      {
+        "sku": "UI-EVT-MULTI-A",
+        "batches": [
+          {
+            "stockPoolId": "cfdf58fb-2e1b-1e79-74a8-6a0b26b73df9",
+            "inDate": "2026-01-01",
+            "expiryDate": "2099-12-31",
+            "onHandQuantity": 10,
+            "reservedQuantity": 0,
+            "availableToPromise": 10,
+            "expired": false
+          }
+        ]
+      },
+      {
+        "sku": "UI-EVT-MULTI-B",
+        "batches": [
+          {
+            "stockPoolId": "02ce9c79-01b4-7526-ae4f-61f254fbe2a9",
+            "inDate": "2026-01-01",
+            "expiryDate": "2099-12-31",
+            "onHandQuantity": 0,
+            "reservedQuantity": 0,
+            "availableToPromise": 0,
+            "expired": false
+          }
+        ]
+      }
+    ]
+  },
+  "completedFulfillments": [
+    {
+      "order": {
+        "orderId": "01a085f9-b40c-78f5-8186-0c44fd992dfe",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-EVT-HAPPY-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T11:42:09.420583Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T11:42:10.581939Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T11:42:20.881188Z",
+        "fulfilledByShipmentId": "01a085f9-bc4a-7ac8-90df-64b2406654d1",
+        "lines": [
+          {
+            "orderLineId": "01a085f9-b40c-7a20-8187-2bfc9b578884",
+            "lineNo": 1,
+            "skuCode": "UI-EVT-HAPPY",
+            "quantity": 4
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a085f9-b40c-78f5-8186-0c44fd992dfe",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a085f9-b847-75e3-aa4f-0da0451caf48",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T11:42:09.420583Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a085f9-b848-73a9-ab40-92f7cfbc82e5",
+            "sourceLineId": "01a085f9-b40c-7a20-8187-2bfc9b578884",
+            "lineSequence": 1,
+            "skuCode": "UI-EVT-HAPPY",
+            "quantity": 4,
+            "state": "DONE",
+            "createdAt": "2026-09-09T11:42:09.420583Z",
+            "assignedAt": "2026-09-09T11:42:10.581939Z",
+            "batches": [
+              {
+                "stockQuantId": "5893f67a-a9f3-06a2-8d39-a92625abf3f5",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-EVT-HAPPY",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 4
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a085f9-bc4a-7ac8-90df-64b2406654d1",
+          "stockOperationId": "01a085f9-b847-75e3-aa4f-0da0451caf48",
+          "orderId": "01a085f9-b40c-78f5-8186-0c44fd992dfe",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a085f9-e0d4-78f5-9073-385eab63afe2",
+          "createdAt": "2026-09-09T11:42:10.581939Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a085f9-b40c-7a20-8187-2bfc9b578884",
+              "moveId": "01a085f9-b848-73a9-ab40-92f7cfbc82e5",
+              "skuCode": "UI-EVT-HAPPY",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 4
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a085f9-e0e4-72d4-9689-ca507a4d9ddd",
+              "orderLineId": "01a085f9-b40c-7a20-8187-2bfc9b578884",
+              "moveId": "01a085f9-b848-73a9-ab40-92f7cfbc82e5",
+              "skuCode": "UI-EVT-HAPPY",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 4,
+              "pickedQuantity": 4,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T11:42:20.881188Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": null,
+      "orchestrationMode": "events",
+      "workflowQueryStatus": "NOT_APPLICABLE"
+    },
+    {
+      "order": {
+        "orderId": "01a085fb-1a44-7a3d-b3d7-589ec8b5b20b",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-EVT-WAKE-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T11:43:41.125878Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T11:44:58.817483Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T11:45:08.943781Z",
+        "fulfilledByShipmentId": "01a085fc-4bab-792b-a5e9-bcdb7c71746c",
+        "lines": [
+          {
+            "orderLineId": "01a085fb-1a46-7083-91d6-889d4da22d15",
+            "lineNo": 1,
+            "skuCode": "UI-EVT-WAKE",
+            "quantity": 3
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a085fb-1a44-7a3d-b3d7-589ec8b5b20b",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a085fb-2116-71d7-97d4-b6a4ef428a3f",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T11:43:41.125878Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a085fb-2116-74f9-97d5-1f52b8a99559",
+            "sourceLineId": "01a085fb-1a46-7083-91d6-889d4da22d15",
+            "lineSequence": 1,
+            "skuCode": "UI-EVT-WAKE",
+            "quantity": 3,
+            "state": "DONE",
+            "createdAt": "2026-09-09T11:43:41.125878Z",
+            "assignedAt": "2026-09-09T11:44:58.817483Z",
+            "batches": [
+              {
+                "stockQuantId": "cbbd18f4-8b60-f058-3d99-e583e0cc9d1e",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-EVT-WAKE",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 3
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a085fc-4bab-792b-a5e9-bcdb7c71746c",
+          "stockOperationId": "01a085fb-2116-71d7-97d4-b6a4ef428a3f",
+          "orderId": "01a085fb-1a44-7a3d-b3d7-589ec8b5b20b",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a085fc-716b-7cb8-8ff3-427748fc0e4d",
+          "createdAt": "2026-09-09T11:44:58.817483Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a085fb-1a46-7083-91d6-889d4da22d15",
+              "moveId": "01a085fb-2116-74f9-97d5-1f52b8a99559",
+              "skuCode": "UI-EVT-WAKE",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 3
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a085fc-7193-7293-af8d-14e066a5641a",
+              "orderLineId": "01a085fb-1a46-7083-91d6-889d4da22d15",
+              "moveId": "01a085fb-2116-74f9-97d5-1f52b8a99559",
+              "skuCode": "UI-EVT-WAKE",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 3,
+              "pickedQuantity": 3,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T11:45:08.943781Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": null,
+      "orchestrationMode": "events",
+      "workflowQueryStatus": "NOT_APPLICABLE"
+    },
+    {
+      "order": {
+        "orderId": "01a085fd-7120-7bae-bb9f-c1935bffafef",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-EVT-MULTI-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T11:46:14.432839Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T11:47:54.095995Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T11:48:05.084905Z",
+        "fulfilledByShipmentId": "01a085fe-f85a-75df-b160-ac905a8059ee",
+        "lines": [
+          {
+            "orderLineId": "01a085fd-7120-7e00-bba0-0322489ec790",
+            "lineNo": 1,
+            "skuCode": "UI-EVT-MULTI-A",
+            "quantity": 2
+          },
+          {
+            "orderLineId": "01a085fd-7120-7e28-bba1-db7d92b82961",
+            "lineNo": 2,
+            "skuCode": "UI-EVT-MULTI-B",
+            "quantity": 3
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a085fd-7120-7bae-bb9f-c1935bffafef",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a085fd-7496-7b0a-879c-066b176fb7e7",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T11:46:14.432839Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a085fd-7496-7cc4-879d-cbd2ea115137",
+            "sourceLineId": "01a085fd-7120-7e00-bba0-0322489ec790",
+            "lineSequence": 1,
+            "skuCode": "UI-EVT-MULTI-A",
+            "quantity": 2,
+            "state": "DONE",
+            "createdAt": "2026-09-09T11:46:14.432839Z",
+            "assignedAt": "2026-09-09T11:47:54.095995Z",
+            "batches": [
+              {
+                "stockQuantId": "cfdf58fb-2e1b-1e79-74a8-6a0b26b73df9",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-EVT-MULTI-A",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 2
+              }
+            ]
+          },
+          {
+            "moveId": "01a085fd-7496-7d22-879e-ac5f7627bac4",
+            "sourceLineId": "01a085fd-7120-7e28-bba1-db7d92b82961",
+            "lineSequence": 2,
+            "skuCode": "UI-EVT-MULTI-B",
+            "quantity": 3,
+            "state": "DONE",
+            "createdAt": "2026-09-09T11:46:14.432839Z",
+            "assignedAt": "2026-09-09T11:47:54.095995Z",
+            "batches": [
+              {
+                "stockQuantId": "02ce9c79-01b4-7526-ae4f-61f254fbe2a9",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-EVT-MULTI-B",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 3
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a085fe-f85a-75df-b160-ac905a8059ee",
+          "stockOperationId": "01a085fd-7496-7b0a-879c-066b176fb7e7",
+          "orderId": "01a085fd-7120-7bae-bb9f-c1935bffafef",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a085ff-2169-7760-a49d-c992da72a931",
+          "createdAt": "2026-09-09T11:47:54.095995Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a085fd-7120-7e00-bba0-0322489ec790",
+              "moveId": "01a085fd-7496-7cc4-879d-cbd2ea115137",
+              "skuCode": "UI-EVT-MULTI-A",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 2
+            },
+            {
+              "orderLineId": "01a085fd-7120-7e28-bba1-db7d92b82961",
+              "moveId": "01a085fd-7496-7d22-879e-ac5f7627bac4",
+              "skuCode": "UI-EVT-MULTI-B",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 3
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a085ff-219f-7208-9baf-f2a1191871d2",
+              "orderLineId": "01a085fd-7120-7e00-bba0-0322489ec790",
+              "moveId": "01a085fd-7496-7cc4-879d-cbd2ea115137",
+              "skuCode": "UI-EVT-MULTI-A",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 2,
+              "pickedQuantity": 2,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T11:48:05.084905Z"
+            },
+            {
+              "pickTaskId": "01a085ff-219f-7220-9bb0-665b94003412",
+              "orderLineId": "01a085fd-7120-7e28-bba1-db7d92b82961",
+              "moveId": "01a085fd-7496-7d22-879e-ac5f7627bac4",
+              "skuCode": "UI-EVT-MULTI-B",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 3,
+              "pickedQuantity": 3,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T11:48:05.084905Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": null,
+      "orchestrationMode": "events",
+      "workflowQueryStatus": "NOT_APPLICABLE"
+    },
+    {
+      "order": {
+        "orderId": "01a08600-af54-7af5-a1a0-53c3d0bf523a",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-EVT-FEFO-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T11:49:46.964817Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T11:49:47.783900Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T11:49:57.929632Z",
+        "fulfilledByShipmentId": "01a08600-bd03-73ca-9f4f-eaaf893f8cab",
+        "lines": [
+          {
+            "orderLineId": "01a08600-af54-7e2d-a1a1-58be9b16822e",
+            "lineNo": 1,
+            "skuCode": "UI-EVT-FEFO",
+            "quantity": 4
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a08600-af54-7af5-a1a0-53c3d0bf523a",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a08600-b162-74f9-8a2c-f7471e44c3d8",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T11:49:46.964817Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a08600-b163-7a7a-a836-8d09188e420e",
+            "sourceLineId": "01a08600-af54-7e2d-a1a1-58be9b16822e",
+            "lineSequence": 1,
+            "skuCode": "UI-EVT-FEFO",
+            "quantity": 4,
+            "state": "DONE",
+            "createdAt": "2026-09-09T11:49:46.964817Z",
+            "assignedAt": "2026-09-09T11:49:47.783900Z",
+            "batches": [
+              {
+                "stockQuantId": "027b2658-1739-3dcd-d450-950ee5aad1d9",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-EVT-FEFO",
+                "inDate": "2026-01-01",
+                "expiryDate": "2098-12-31",
+                "quantity": 2
+              },
+              {
+                "stockQuantId": "da26ed56-3530-a329-7db3-6e37607c4208",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-EVT-FEFO",
+                "inDate": "2026-01-02",
+                "expiryDate": "2098-12-31",
+                "quantity": 2
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a08600-bd03-73ca-9f4f-eaaf893f8cab",
+          "stockOperationId": "01a08600-b162-74f9-8a2c-f7471e44c3d8",
+          "orderId": "01a08600-af54-7af5-a1a0-53c3d0bf523a",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a08600-dae6-7512-8640-eb0a8fd092b0",
+          "createdAt": "2026-09-09T11:49:47.783900Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a08600-af54-7e2d-a1a1-58be9b16822e",
+              "moveId": "01a08600-b163-7a7a-a836-8d09188e420e",
+              "skuCode": "UI-EVT-FEFO",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 4
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a08600-db3f-7f33-9b41-9a6e210869e0",
+              "orderLineId": "01a08600-af54-7e2d-a1a1-58be9b16822e",
+              "moveId": "01a08600-b163-7a7a-a836-8d09188e420e",
+              "skuCode": "UI-EVT-FEFO",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 4,
+              "pickedQuantity": 4,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T11:49:57.929632Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": null,
+      "orchestrationMode": "events",
+      "workflowQueryStatus": "NOT_APPLICABLE"
+    }
+  ],
+  "finalStock": [
+    {
+      "sku": "UI-EVT-FEFO",
+      "batches": [
+        {
+          "stockPoolId": "2a6ae2ff-5311-cfe2-4a40-0efe8d11426c",
+          "inDate": "1999-01-01",
+          "expiryDate": "2000-01-01",
+          "onHandQuantity": 7,
+          "reservedQuantity": 0,
+          "availableToPromise": 7,
+          "expired": true
+        },
+        {
+          "stockPoolId": "027b2658-1739-3dcd-d450-950ee5aad1d9",
+          "inDate": "2026-01-01",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        },
+        {
+          "stockPoolId": "da26ed56-3530-a329-7db3-6e37607c4208",
+          "inDate": "2026-01-02",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 1,
+          "reservedQuantity": 0,
+          "availableToPromise": 1,
+          "expired": false
+        },
+        {
+          "stockPoolId": "bec74c69-f358-91c5-9bc9-dac386ab678a",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 5,
+          "reservedQuantity": 0,
+          "availableToPromise": 5,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-HAPPY",
+      "batches": [
+        {
+          "stockPoolId": "5893f67a-a9f3-06a2-8d39-a92625abf3f5",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 16,
+          "reservedQuantity": 0,
+          "availableToPromise": 16,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-MULTI-A",
+      "batches": [
+        {
+          "stockPoolId": "cfdf58fb-2e1b-1e79-74a8-6a0b26b73df9",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 8,
+          "reservedQuantity": 0,
+          "availableToPromise": 8,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-MULTI-B",
+      "batches": [
+        {
+          "stockPoolId": "02ce9c79-01b4-7526-ae4f-61f254fbe2a9",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-EVT-WAKE",
+      "batches": [
+        {
+          "stockPoolId": "cbbd18f4-8b60-f058-3d99-e583e0cc9d1e",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    }
+  ],
+  "receiptIds": [
+    "811dc626-1d89-4d0e-9e4d-4223f420e217",
+    "b6b99b78-286f-45d5-ac33-97d077a45e61"
+  ]
+}

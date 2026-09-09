@@ -82,3 +82,15 @@ FEFO 每個 SKU 初始四批，在手 17、有效 ATP 10、過期 7。
 fixtures 僅適用新的隔離資料庫；`ON CONFLICT DO NOTHING` 不還原已消耗數量。
 重跑請建立新的隔離環境，不要把同一資料庫當成初始庫存。`KEEP_E2E_STACK=true` 只保留容器，
 runner 結束仍會停止其啟動的 app；瀏覽器驗收須另啟動對應模式的 app 與前端。
+
+
+### 分模式執行
+
+`E2E_MODE=events ./e2e/spec/run.sh` 僅啟動 Events 所需基礎設施並執行共用契約與
+Events 案例（包含 cancellation 與 Connect catch-up）；不啟動 Temporal。
+`E2E_MODE=temporal ./e2e/spec/run.sh` 執行共用契約與 Temporal 案例。
+預設 `E2E_MODE=all` 保留原本雙模式流程。
+
+各次驗收請設定獨立 `COMPOSE_PROJECT_NAME` 與連接埠，使用新的資料庫。
+可用 `E2E_BUILD_DIR` 指定獨立的絕對輸出目錄，避免覆寫前一模式的 log 與報告。
+`KEEP_E2E_STACK=true` 保留基礎設施供後續瀏覽器驗證，runner 結束仍停止 app。

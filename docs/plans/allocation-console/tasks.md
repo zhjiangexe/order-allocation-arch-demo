@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Tasks
 
 - 日期：2026-09-09
-- 狀態：T1～T6 已驗收確認；T7 待實作
+- 狀態：T1～T6 已驗收確認；T7.1 Events 已確認；T7.2 Temporal 完成、等待檢查；T7.3 待執行
 - 設計與範圍：[plan.md](plan.md)
 - T1～T7 保留為里程碑；實作及勾選單位改為下列子任務。
 - T1 證據：[t1-baseline.md](t1-baseline.md)，含實際雙模式 HTTP 驗證與契約樣本。
@@ -22,7 +22,7 @@ T1～T6 的子任務連續完成；T7 依使用者確認拆成三個檢查點，
 - [x] T4 成果已交付，使用者確認驗收通過（2026-09-09）；前序訂單阻擋議題另案處理。
 - [x] T5 已提交 c6f5ef8，使用者確認可進入 T6（2026-09-09）。
 - [x] T6 成果已交付，使用者驗收通過（2026-09-09）；T7 尚未開始。
-- [ ] T7.1 Events 證據已交付，使用者確認。
+- [x] T7.1 Events 證據已交付，使用者確認繼續 T7.2（2026-09-09）。
 - [ ] T7.2 Temporal 證據已交付，使用者確認。
 - [ ] T7.3 文件與雙模式證據已交付，使用者完成最終確認。
 
@@ -221,47 +221,56 @@ T6 檢查方式與驗證：[t6-stock-receipt-review.md](t6-stock-receipt-review.
 
 ### T7.1：Events 回歸與真實 UI 驗收
 
-- [ ] 執行前端 `npm test`、`npm run typecheck`、`npm run build` 與後端相關測試，記錄確切命令及結果。
-- [ ] 執行 Events HTTP E2E，補強必要查詢斷言；既有 cancellation 回歸不刪除。
-- [ ] 準備隔離 Events 環境與 UI-EVT-* fixtures，確認模式辨識及不依賴 Temporal。
-- [ ] UI 有貨訂單：建單 → 分配 → 模擬交接 → 出庫 DONE → Order FULFILLED。
-- [ ] UI 缺貨後補貨：CONFIRMED 等待可見，從前端補貨後完成履約。
-- [ ] UI 多 SKU、其中一項不足：不預留部分整單，補齊後整單分配並完成。
-- [ ] UI FEFO 下 4 件：初始在手 17／ATP 10／過期 7，取兩批 2＋2，過期批不參與。
-- [ ] 驗證抽屜深連結、返回佇列保留篩選、補貨返回、時區輸入、完成及關閉後停止追蹤。
-- [ ] 核對業務完成條件與 UI 一致，記錄資料尚未同步的處理與環境限制。
-- [ ] 交付 Events 證據，停下等待使用者確認；尚不切換 Temporal。
+- [x] 執行前端 `npm test`、`npm run typecheck`、`npm run build` 與後端相關測試，記錄確切命令及結果。
+- [x] 執行 Events HTTP E2E，補強必要查詢斷言；既有 cancellation 回歸不刪除。
+- [x] 準備隔離 Events 環境與 UI-EVT-* fixtures，確認模式辨識及不依賴 Temporal。
+- [x] UI 有貨訂單：建單 → 分配 → 模擬交接 → 出庫 DONE → Order FULFILLED。
+- [x] UI 缺貨後補貨：CONFIRMED 等待可見，從前端補貨後完成履約。
+- [x] UI 多 SKU、其中一項不足：不預留部分整單，補齊後整單分配並完成。
+- [x] UI FEFO 下 4 件：初始在手 17／ATP 10／過期 7，取兩批 2＋2，過期批不參與。
+- [x] 驗證抽屜深連結、返回佇列保留篩選、補貨返回、時區輸入、完成及關閉後停止追蹤。
+- [x] 核對業務完成條件與 UI 一致，記錄資料尚未同步的處理與環境限制。
+- [x] 交付 Events 證據，停下等待使用者確認；尚不切換 Temporal。
 
 驗收：Events 的 HTTP 回歸與真實 UI 情境通過，使用者確認後才進入 T7.2。
 
+證據：[t7-events-review.md](t7-events-review.md)。使用者已確認繼續 T7.2。
+
 ### T7.2：Temporal 回歸與真實 UI 驗收
 
-- [ ] 切換前確認 Events 測試流程已結束；未完成流程先處理或記錄原因並留在原環境，不交由另一模式接手。
-- [ ] 以啟動 configuration／script 指定 Temporal，使用獨立隔離資料庫與 UI-TMP-* fixtures；不混用 Events 訂單。
-- [ ] 執行 Temporal HTTP E2E 與模式／查詢測試，保留既有 cancellation 回歸。
-- [ ] UI 有貨訂單：前端建單啟動 Workflow，業務完成且 FINISHED／FULFILLMENT_COMPLETED。
-- [ ] UI 缺貨後補貨：觀察 ALLOCATION 等待，補貨後收到分配 Signal，繼續至成功終態。
-- [ ] UI 多 SKU、其中一項不足：ship-complete 成立，補齊後 Workflow 完成。
-- [ ] UI FEFO 下 4 件：初始在手 17／ATP 10／過期 7，取兩批 2＋2，過期批不參與。
-- [ ] 重跑深連結、返回佇列、補貨返回、時區輸入、完成及關閉後停止追蹤。
-- [ ] 驗證 Workflow 尚未啟動、查詢不可用與資料尚未同步的處理，區分測試覆蓋與瀏覽器證據。
-- [ ] 核對 Order／Operation／Shipment 與 Workflow 完成條件一致，記錄 IDs、Workflow 證據與限制。
-- [ ] 交付 Temporal 證據，停下等待使用者確認。
+- [x] 切換前確認 Events 測試流程已結束；未完成流程先處理或記錄原因並留在原環境，不交由另一模式接手。
+- [x] 以啟動 configuration／script 指定 Temporal，使用獨立隔離資料庫與 UI-TMP-* fixtures；不混用 Events 訂單。
+- [x] 執行 Temporal HTTP E2E 與模式／查詢測試，保留既有 cancellation 回歸。
+- [x] UI 有貨訂單：前端建單啟動 Workflow，業務完成且 FINISHED／FULFILLMENT_COMPLETED。
+- [x] UI 缺貨後補貨：觀察 ALLOCATION 等待，補貨後收到分配 Signal，繼續至成功終態。
+- [x] UI 多 SKU、其中一項不足：ship-complete 成立，補齊後 Workflow 完成。
+- [x] UI FEFO 下 4 件：初始在手 17／ATP 10／過期 7，取兩批 2＋2，過期批不參與。
+- [x] 重跑深連結、返回佇列、補貨返回、時區輸入、完成及關閉後停止追蹤。
+- [x] 驗證 Workflow 尚未啟動、查詢不可用與資料尚未同步的處理，區分測試覆蓋與瀏覽器證據。
+- [x] 設定隔離環境 VITE_TEMPORAL_UI_URL／VITE_TEMPORAL_NAMESPACE，從履約詳情實際跳轉至對應 Workflow；Events 不顯示入口。
+- [x] 核對 Order／Operation／Shipment 與 Workflow 完成條件一致，記錄 IDs、Workflow 證據與限制。
+- [x] 交付 Temporal 證據，停下等待使用者確認。
 
 驗收：Temporal 的 HTTP 回歸與真實 UI 情境通過，使用者確認後才進入 T7.3。
 
+證據：[t7-temporal-review.md](t7-temporal-review.md)。使用者指示進入 T7.3，Temporal 檢查點已通過。
+
 ### T7.3：操作文件與驗收證據
 
-- [ ] 更新 frontend/README.md：四頁、詳情抽屜、自動追蹤例外與補貨往返。
-- [ ] 更新根 README 的舊查詢端點；核對 docker/README.md 的雙模式啟動與切換限制。
-- [ ] 新增同目錄 validation.md，記錄模式、時間、環境、UI 步驟、IDs、測試命令及未驗證項目。
-- [ ] 記錄實際測試結果；僅在驗收完成後勾選任務，不將計畫當作完成證據。
+- [x] 更新 frontend/README.md：四頁、詳情抽屜、自動追蹤例外與補貨往返。
+- [x] 更新根 README 的舊查詢端點；核對 docker/README.md 的雙模式啟動與切換限制。
+- [x] 新增同目錄 validation.md，記錄模式、時間、環境、UI 步驟、IDs、測試命令及未驗證項目。
+- [x] 記錄實際測試結果；僅在驗收完成後勾選任務，不將計畫當作完成證據。
+
+證據：[validation.md](validation.md)。
+
+- [x] 使用者確認 T7.3 與整體最終成果（2026-09-09 指示 commit）。
 
 ## 基線與最終驗收的區別
 
 T1 已完成 72 個既有前端測試與 17 個 HTTP E2E，這些只證明起始狀態。
 T2 初版已完成雙模式回歸；簡化後重新執行 monolith 查詢與架構測試，驗證範圍見 T2 報告。
-T3～T6 已完成並驗收；T7 尚未執行，須依序提供各模式的真實 UI 證據。
+T3～T6 已完成並驗收；T7.1 Events 已確認；T7.2 Temporal 已確認；T7.3 文件整併完成，使用者已指示 commit，最終檢查點通過。
 基線發現的問題已編入上述子任務，不另增加里程碑；每 T 完成仍須使用者確認。
 
 ## 完成定義

@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Plan
 
 - 日期：2026-09-09
-- 狀態：T1～T6 已驗收確認；T7 尚未實作
+- 狀態：T1～T6 已驗收確認；T7.1 Events 已確認；T7.2 Temporal 已確認；T7.3 文件整併完成並經使用者確認
 - 任務清單：[tasks.md](tasks.md)
 
 ## 目標與範圍
@@ -9,7 +9,7 @@
 以 allocation 為專案核心，完善前端需求輸入、等待配貨、庫存補貨、批次分配與履約結果的操作閉環。
 沿用既有業務 API、事件與 WMS 模擬；以最少後端唯讀補強，讓同一套前端支援 Events 與 Temporal。
 Temporal 模式必須能由前端建單觸發 `OrderFulfillmentWorkflowImpl`，並驗證正常路徑完成。
-目前已完成 T1 基線與 T2 查詢補強；後續依 tasks.md 的逐 T 確認規則執行。
+T1～T7 實作與驗證紀錄見下方各階段結果；最終使用者確認依 tasks.md 記錄。
 
 ### 依 T1 基線校準的交付目標
 
@@ -314,4 +314,37 @@ Temporal 另核對 Workflow 啟動、Signal、成功終態與查詢異常處理�
 重用 T1 fixtures，各模式使用獨立隔離資料庫與訂單並核對初始庫存。
 切換前確認 Events 測試流程已結束，不讓另一模式接手未完成訂單。
 若驗證中修正共用程式，重跑前一模式受影響的情境，必要時重新交付確認。
-具體任務與三個停下檢查點見 tasks.md；本次僅調整規劃，T7 尚未執行。
+具體任務與三個停下檢查點見 tasks.md；執行結果見下文。
+
+
+## T7.1 Events 執行結果
+
+共用前端 170 tests、typecheck／build、monolith 50 tests 與 Events HTTP 12 scenarios 通過。
+全新隔離環境以真實 UI 完成有貨、缺貨補貨、多 SKU 整單、FEFO 四種情境，
+核對時區、深連結、補貨返回及成功停止追蹤。Events 不啟動 Temporal。
+E2E runner 新增 E2E_MODE 與獨立報告目錄選項，預設仍跑原本雙模式流程；未修改產品程式。
+詳細證據：[t7-events-review.md](t7-events-review.md)。Events 檢查點已通過，後續完成 Temporal 驗證。
+
+
+## Temporal UI 跳轉補充（2026-09-09）
+
+依使用者要求，履約詳情僅於後端模式為 temporal 時提供新分頁 Workflow 連結。
+前端 VITE_TEMPORAL_UI_URL／VITE_TEMPORAL_NAMESPACE 預設 localhost:28296／default，
+可在 .env.local 覆寫；不新增後端欄位或模式開關。Workflow ID 沿用 order-fulfillment/{orderId}。
+查詢不可用時仍可跳轉；實際 Temporal UI 跳轉已於 T7.2 驗證。
+
+
+## T7.2 Temporal 執行結果
+
+新隔離環境的 Temporal HTTP 8 scenarios、runtime 66 tests、fulfillment-process 24 tests 通過。
+真實 UI 完成有貨、缺貨補貨、多 SKU 整單、FEFO 四種情境，業務完成與 Workflow 成功終態一致。
+已實際由新增連結開啟正確 Workflow Timeline，另核對四筆 Signal、Activity 與完成歷史，
+以及無 Workflow seed 的 NOT_FOUND 提示。未新增產品修正。
+證據：[t7-temporal-review.md](t7-temporal-review.md)。使用者指示進入 T7.3，Temporal 檢查點已通過。
+
+## T7.3 文件整併結果
+
+更新前端四頁操作、自動追蹤與收貨重試、Temporal 連結設定；修正根 README 舊查詢端點，
+補充 Compose 與前端埠衝突的啟動覆寫方式及模式切換限制。
+[validation.md](validation.md) 整併雙模式八筆 UI 訂單、回歸命令、IDs 與未驗證範圍。
+本階段僅修改文件，沿用 T7.1／T7.2 與連結增補後測試結果；使用者於 2026-09-09 指示 commit，最終檢查點通過。

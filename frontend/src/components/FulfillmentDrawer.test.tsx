@@ -106,3 +106,20 @@ it('each line builds a safe stock navigation context only with matching catalog 
   rerender(<MemoryRouter><FulfillmentDetails data={wrong} catalog={stockCatalog} list={list} /></MemoryRouter>);
   expect(screen.queryByRole('link', { name: '前往庫存補貨' })).not.toBeInTheDocument();
 });
+
+it('links Temporal workflows using configured UI and namespace even when query is unavailable', () => {
+  vi.stubEnv('VITE_TEMPORAL_UI_URL', 'https://temporal.example.test/ui/');
+  vi.stubEnv('VITE_TEMPORAL_NAMESPACE', 'allocation-dev');
+  try {
+    const { rerender } = render(<MemoryRouter><FulfillmentDetails data={{ ...samples.temporal,
+      temporalWorkflow: null, workflowQueryStatus: 'UNAVAILABLE' }} catalog={catalog} list={list} /></MemoryRouter>);
+    const link = screen.getByRole('link', { name: '在 Temporal UI 查看 Workflow（新分頁）' });
+    expect(link).toHaveAttribute('href', `https://temporal.example.test/ui/namespaces/allocation-dev/workflows/${encodeURIComponent(`order-fulfillment/${samples.temporal.order.orderId}`)}`);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    rerender(<MemoryRouter><FulfillmentDetails data={samples.events} catalog={catalog} list={list} /></MemoryRouter>);
+    expect(screen.queryByRole('link', { name: /在 Temporal UI/ })).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});

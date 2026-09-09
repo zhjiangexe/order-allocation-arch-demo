@@ -46,12 +46,17 @@ prod 對應 `docker/env/prod.env.example` 與 `make prod-deploy`。完整變數�
 使用 IntelliJ IDEA 開啟 repository root 時，專案設定會自動將 Gradle project 連結至 `backend/`；
 首次開啟或更新後請執行 Reload All Gradle Projects。
 
-## DEMO 履約查詢與取消
+## Allocation 操作台與履約 API
 
-Monolith 提供三支用來解說跨 Context 流程的 API：
+前端提供訂單、配貨佇列、庫存與主檔四頁，可從建單、補貨追蹤到履約完成。
+Events／Temporal 由後端啟動設定決定，Temporal 詳情可跳轉 Workflow。
+啟動方式與操作見 [frontend/README.md](frontend/README.md)，雙模式驗證見
+[validation.md](docs/plans/allocation-console/validation.md)。
 
-- `GET /allocation-demands?status=PENDING`：列出等待中的 demand、FIFO blocker、當下 ATP 與缺口。
-- `GET /demo/orders/{orderId}/fulfillment`：組合 Order、Allocation reservation／StockQuant 批次、WMS Shipment，Temporal 模式另帶 Workflow state。
+Monolith 的相關 API：
+
+- `GET /stock-operations?state=CONFIRMED&limit=200`：列出等待中的庫存作業；不提供精確缺口或全域佇列排名。
+- `GET /demo/orders/{orderId}/fulfillment`：組合 Order、StockOperation／movement／批次、WMS Shipment，Temporal 模式另帶 Workflow state。
 - `POST /orders/{orderId}/cancellation-requests`：把 immutable cancellation request 送進目前生效的 Events 或 Temporal 協調流程。
 
-取消請求的 `requestId`、`requestedAt` 與 `reason` 是冪等內容；重試同一次請求時必須原樣重送。
+前端未提供取消操作。取消請求的 `requestId`、`requestedAt` 與 `reason` 是冪等內容；重試同一次請求時必須原樣重送。

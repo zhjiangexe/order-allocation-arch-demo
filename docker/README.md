@@ -42,9 +42,21 @@ frontend。`ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE` 若不是 `events` �
 會在啟動時直接失敗，避免兩個 driver 都未啟用。
 
 這個設定是整個 deployment 的 cutover，不是逐筆訂單或可混跑的 feature flag。所有 replicas
-必須使用同一模式；切換時應先停止舊模式、確認既有 fulfillment 已完成，或另行執行 in-flight
-流程遷移，再啟動新模式。不可用同時存在 `events`／`temporal` pods 的一般 rolling update，否則
+必須使用同一模式；切換時先停止接收新履約命令，讓舊模式完成既有 fulfillment，再停止舊 driver
+並啟動新模式。若無法等待完成，須另行設計並執行 in-flight 流程遷移，不能直接由新模式接手。不可用同時存在 `events`／`temporal` pods 的一般 rolling update，否則
 同一組 stable Kafka subscriber 可能把不同 partitions 分給不同 driver。
+
+## 搭配前端
+
+Vite 預設 28295 與 dev management port 相同。搭配前端時，使用
+`ARCHONE_MANAGEMENT_PORT=28298 make dev-up` 或
+`ARCHONE_MANAGEMENT_PORT=28298 make dev-up-temporal`，再啟動前端。
+API 仍使用 28290；後續重建容器時沿用相同覆寫值。
+也可保留後端設定，改用前端 `npm run dev -- --port 其他埠`。
+
+Temporal 跳轉預設 UI `http://localhost:28296`、namespace `default`；隔離環境透過前端
+`VITE_TEMPORAL_UI_URL`／`VITE_TEMPORAL_NAMESPACE` 調整，這不會切換後端模式。
+詳見 [前端操作說明](../frontend/README.md) 與 [雙模式驗收紀錄](../docs/plans/allocation-console/validation.md)。
 
 ## Environment files
 

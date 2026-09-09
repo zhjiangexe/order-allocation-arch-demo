@@ -1,0 +1,3737 @@
+{
+  "mode": "temporal",
+  "date": "2026-09-09",
+  "initialStock": [
+    {
+      "sku": "UI-TMP-FEFO",
+      "batches": [
+        {
+          "stockPoolId": "19876b93-fec6-0051-ed49-1cc579e39abb",
+          "inDate": "1999-01-01",
+          "expiryDate": "2000-01-01",
+          "onHandQuantity": 7,
+          "reservedQuantity": 0,
+          "availableToPromise": 7,
+          "expired": true
+        },
+        {
+          "stockPoolId": "ab013296-ae38-631c-9ea1-0dcab230ce25",
+          "inDate": "2026-01-01",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 2,
+          "reservedQuantity": 0,
+          "availableToPromise": 2,
+          "expired": false
+        },
+        {
+          "stockPoolId": "7af41bba-de5d-c659-cafd-5228a96db04a",
+          "inDate": "2026-01-02",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 3,
+          "reservedQuantity": 0,
+          "availableToPromise": 3,
+          "expired": false
+        },
+        {
+          "stockPoolId": "df31b95c-1df5-0351-265d-85108972deb3",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 5,
+          "reservedQuantity": 0,
+          "availableToPromise": 5,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-HAPPY",
+      "batches": [
+        {
+          "stockPoolId": "241b65fe-59fc-b19c-c117-a43f3f85fc05",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 20,
+          "reservedQuantity": 0,
+          "availableToPromise": 20,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-MULTI-A",
+      "batches": [
+        {
+          "stockPoolId": "e2618a41-c4e3-fbb6-0c63-8b6876d707d2",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 10,
+          "reservedQuantity": 0,
+          "availableToPromise": 10,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-MULTI-B",
+      "batches": [
+        {
+          "stockPoolId": "b1aed6d0-c2d5-2e3b-2ca2-f29ee4806553",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-WAKE",
+      "batches": [
+        {
+          "stockPoolId": "d680cd75-d1b0-df1a-9c28-d8705dc5fc6b",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    }
+  ],
+  "wakeWaiting": {
+    "order": {
+      "orderId": "01a08617-38c7-73be-96f0-422347cca073",
+      "ownerId": "00000000-0000-0000-0000-000000000001",
+      "externalOrderNo": "UI-TMP-WAKE-T7-20260909",
+      "facilityId": "00000000-0000-0000-0000-000000000011",
+      "shipToZone": "100",
+      "shipToAddress": "台北市中正區重慶南路一段 122 號",
+      "promisedDeliveryDate": "2026-09-16",
+      "dispatchBy": "2026-09-10T04:00:00Z",
+      "releasePriority": 0,
+      "status": "PENDING",
+      "receivedAt": "2026-09-09T12:14:23.943922Z",
+      "placedAt": null,
+      "allocatedAt": null,
+      "cancelledAt": null,
+      "cancellationRequestId": null,
+      "cancellationReason": null,
+      "fulfilledAt": null,
+      "fulfilledByShipmentId": null,
+      "lines": [
+        {
+          "orderLineId": "01a08617-38c8-76b8-99f4-87ab221f1e2e",
+          "lineNo": 1,
+          "skuCode": "UI-TMP-WAKE",
+          "quantity": 3
+        }
+      ]
+    },
+    "stockOperation": {
+      "source": {
+        "type": "ORDER",
+        "sourceId": "01a08617-38c7-73be-96f0-422347cca073",
+        "operationUnitKey": "PRIMARY"
+      },
+      "operation": {
+        "stockOperationId": "01a08617-3cbc-798d-905c-86e7ac9a1c4f",
+        "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+        "direction": "OUTBOUND",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "fromLocationId": "00000000-0000-0000-0000-000000000021",
+        "toLocationId": "00000000-0000-0000-0000-000000000025",
+        "assignmentPolicy": "SHIP_COMPLETE",
+        "enqueuedAt": "2026-09-09T12:14:23.943922Z",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "state": "CONFIRMED"
+      },
+      "moves": [
+        {
+          "moveId": "01a08617-3cbc-7c39-905d-df3229c88ea2",
+          "sourceLineId": "01a08617-38c8-76b8-99f4-87ab221f1e2e",
+          "lineSequence": 1,
+          "skuCode": "UI-TMP-WAKE",
+          "quantity": 3,
+          "state": "CONFIRMED",
+          "createdAt": "2026-09-09T12:14:23.943922Z",
+          "assignedAt": null,
+          "batches": []
+        }
+      ]
+    },
+    "shipments": [],
+    "temporalWorkflow": {
+      "orderId": "01a08617-38c7-73be-96f0-422347cca073",
+      "phase": "ALLOCATION",
+      "allocationState": "REQUESTED",
+      "cancellationState": "NONE",
+      "cancellationRequestId": null,
+      "cancellationRequestedAt": null,
+      "outcome": null,
+      "stockOperationId": null,
+      "shipmentId": null,
+      "shipmentTerminalStatus": null,
+      "shipmentTerminalAt": null,
+      "cancelledAt": null,
+      "updatedAt": "2026-09-09T12:14:24.872Z"
+    },
+    "orchestrationMode": "temporal",
+    "workflowQueryStatus": "AVAILABLE"
+  },
+  "multiWaiting": {
+    "fulfillment": {
+      "order": {
+        "orderId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-TMP-MULTI-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "PENDING",
+        "receivedAt": "2026-09-09T12:17:58.561048Z",
+        "placedAt": null,
+        "allocatedAt": null,
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": null,
+        "fulfilledByShipmentId": null,
+        "lines": [
+          {
+            "orderLineId": "01a0861a-7f21-70fd-b575-33e6c7786bfb",
+            "lineNo": 1,
+            "skuCode": "UI-TMP-MULTI-A",
+            "quantity": 2
+          },
+          {
+            "orderLineId": "01a0861a-7f21-7228-b576-1f1eecb173d1",
+            "lineNo": 2,
+            "skuCode": "UI-TMP-MULTI-B",
+            "quantity": 3
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a0861a-8319-794b-b623-706dad2295e5",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T12:17:58.561048Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "CONFIRMED"
+        },
+        "moves": [
+          {
+            "moveId": "01a0861a-831a-7276-aa08-85513de1e7af",
+            "sourceLineId": "01a0861a-7f21-70fd-b575-33e6c7786bfb",
+            "lineSequence": 1,
+            "skuCode": "UI-TMP-MULTI-A",
+            "quantity": 2,
+            "state": "CONFIRMED",
+            "createdAt": "2026-09-09T12:17:58.561048Z",
+            "assignedAt": null,
+            "batches": []
+          },
+          {
+            "moveId": "01a0861a-831a-7599-aa09-c321b30e8c43",
+            "sourceLineId": "01a0861a-7f21-7228-b576-1f1eecb173d1",
+            "lineSequence": 2,
+            "skuCode": "UI-TMP-MULTI-B",
+            "quantity": 3,
+            "state": "CONFIRMED",
+            "createdAt": "2026-09-09T12:17:58.561048Z",
+            "assignedAt": null,
+            "batches": []
+          }
+        ]
+      },
+      "shipments": [],
+      "temporalWorkflow": {
+        "orderId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+        "phase": "ALLOCATION",
+        "allocationState": "REQUESTED",
+        "cancellationState": "NONE",
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "outcome": null,
+        "stockOperationId": null,
+        "shipmentId": null,
+        "shipmentTerminalStatus": null,
+        "shipmentTerminalAt": null,
+        "cancelledAt": null,
+        "updatedAt": "2026-09-09T12:17:59.365Z"
+      },
+      "orchestrationMode": "temporal",
+      "workflowQueryStatus": "AVAILABLE"
+    },
+    "stock": [
+      {
+        "sku": "UI-TMP-MULTI-A",
+        "batches": [
+          {
+            "stockPoolId": "e2618a41-c4e3-fbb6-0c63-8b6876d707d2",
+            "inDate": "2026-01-01",
+            "expiryDate": "2099-12-31",
+            "onHandQuantity": 10,
+            "reservedQuantity": 0,
+            "availableToPromise": 10,
+            "expired": false
+          }
+        ]
+      },
+      {
+        "sku": "UI-TMP-MULTI-B",
+        "batches": [
+          {
+            "stockPoolId": "b1aed6d0-c2d5-2e3b-2ca2-f29ee4806553",
+            "inDate": "2026-01-01",
+            "expiryDate": "2099-12-31",
+            "onHandQuantity": 0,
+            "reservedQuantity": 0,
+            "availableToPromise": 0,
+            "expired": false
+          }
+        ]
+      }
+    ]
+  },
+  "completedFulfillments": [
+    {
+      "order": {
+        "orderId": "01a08615-aef7-7b8d-b74d-9ca6d456cf0f",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-TMP-HAPPY-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T12:12:43.127749Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T12:12:44.109489Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T12:12:55.150262Z",
+        "fulfilledByShipmentId": "01a08615-b56b-7d7c-a19c-fdac84247493",
+        "lines": [
+          {
+            "orderLineId": "01a08615-aef7-7cd0-b74e-fc795078010c",
+            "lineNo": 1,
+            "skuCode": "UI-TMP-HAPPY",
+            "quantity": 4
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a08615-aef7-7b8d-b74d-9ca6d456cf0f",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a08615-b26f-7da9-8050-fae3ed5bf312",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T12:12:43.127749Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a08615-b270-7abc-be88-9824ac9b07bd",
+            "sourceLineId": "01a08615-aef7-7cd0-b74e-fc795078010c",
+            "lineSequence": 1,
+            "skuCode": "UI-TMP-HAPPY",
+            "quantity": 4,
+            "state": "DONE",
+            "createdAt": "2026-09-09T12:12:43.127749Z",
+            "assignedAt": "2026-09-09T12:12:44.109489Z",
+            "batches": [
+              {
+                "stockQuantId": "241b65fe-59fc-b19c-c117-a43f3f85fc05",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-TMP-HAPPY",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 4
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a08615-b56b-7d7c-a19c-fdac84247493",
+          "stockOperationId": "01a08615-b26f-7da9-8050-fae3ed5bf312",
+          "orderId": "01a08615-aef7-7b8d-b74d-9ca6d456cf0f",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a08615-de4b-7570-ba97-4a32caa2815b",
+          "createdAt": "2026-09-09T12:12:44.109489Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a08615-aef7-7cd0-b74e-fc795078010c",
+              "moveId": "01a08615-b270-7abc-be88-9824ac9b07bd",
+              "skuCode": "UI-TMP-HAPPY",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 4
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a08615-deef-7293-8c4e-4a6ee0380215",
+              "orderLineId": "01a08615-aef7-7cd0-b74e-fc795078010c",
+              "moveId": "01a08615-b270-7abc-be88-9824ac9b07bd",
+              "skuCode": "UI-TMP-HAPPY",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 4,
+              "pickedQuantity": 4,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T12:12:55.150262Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": {
+        "orderId": "01a08615-aef7-7b8d-b74d-9ca6d456cf0f",
+        "phase": "FINISHED",
+        "allocationState": "COMMITTED",
+        "cancellationState": "NONE",
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "outcome": "FULFILLMENT_COMPLETED",
+        "stockOperationId": "01a08615-b26f-7da9-8050-fae3ed5bf312",
+        "shipmentId": "01a08615-b56b-7d7c-a19c-fdac84247493",
+        "shipmentTerminalStatus": "HANDED_OVER",
+        "shipmentTerminalAt": "2026-09-09T12:12:55.150262Z",
+        "cancelledAt": null,
+        "updatedAt": "2026-09-09T12:12:56.566Z"
+      },
+      "orchestrationMode": "temporal",
+      "workflowQueryStatus": "AVAILABLE"
+    },
+    {
+      "order": {
+        "orderId": "01a08617-38c7-73be-96f0-422347cca073",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-TMP-WAKE-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T12:14:23.943922Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T12:16:30.364727Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T12:16:40.769350Z",
+        "fulfilledByShipmentId": "01a08619-289d-7f12-a5b3-df9daa529097",
+        "lines": [
+          {
+            "orderLineId": "01a08617-38c8-76b8-99f4-87ab221f1e2e",
+            "lineNo": 1,
+            "skuCode": "UI-TMP-WAKE",
+            "quantity": 3
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a08617-38c7-73be-96f0-422347cca073",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a08617-3cbc-798d-905c-86e7ac9a1c4f",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T12:14:23.943922Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a08617-3cbc-7c39-905d-df3229c88ea2",
+            "sourceLineId": "01a08617-38c8-76b8-99f4-87ab221f1e2e",
+            "lineSequence": 1,
+            "skuCode": "UI-TMP-WAKE",
+            "quantity": 3,
+            "state": "DONE",
+            "createdAt": "2026-09-09T12:14:23.943922Z",
+            "assignedAt": "2026-09-09T12:16:30.364727Z",
+            "batches": [
+              {
+                "stockQuantId": "d680cd75-d1b0-df1a-9c28-d8705dc5fc6b",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-TMP-WAKE",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 3
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a08619-289d-7f12-a5b3-df9daa529097",
+          "stockOperationId": "01a08617-3cbc-798d-905c-86e7ac9a1c4f",
+          "orderId": "01a08617-38c7-73be-96f0-422347cca073",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a08619-4f46-764d-881e-dc26fa7492ab",
+          "createdAt": "2026-09-09T12:16:30.364727Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a08617-38c8-76b8-99f4-87ab221f1e2e",
+              "moveId": "01a08617-3cbc-7c39-905d-df3229c88ea2",
+              "skuCode": "UI-TMP-WAKE",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 3
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a08619-4f4f-7f60-b3d4-c62518fb1563",
+              "orderLineId": "01a08617-38c8-76b8-99f4-87ab221f1e2e",
+              "moveId": "01a08617-3cbc-7c39-905d-df3229c88ea2",
+              "skuCode": "UI-TMP-WAKE",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 3,
+              "pickedQuantity": 3,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T12:16:40.769350Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": {
+        "orderId": "01a08617-38c7-73be-96f0-422347cca073",
+        "phase": "FINISHED",
+        "allocationState": "COMMITTED",
+        "cancellationState": "NONE",
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "outcome": "FULFILLMENT_COMPLETED",
+        "stockOperationId": "01a08617-3cbc-798d-905c-86e7ac9a1c4f",
+        "shipmentId": "01a08619-289d-7f12-a5b3-df9daa529097",
+        "shipmentTerminalStatus": "HANDED_OVER",
+        "shipmentTerminalAt": "2026-09-09T12:16:40.769350Z",
+        "cancelledAt": null,
+        "updatedAt": "2026-09-09T12:16:41.518Z"
+      },
+      "orchestrationMode": "temporal",
+      "workflowQueryStatus": "AVAILABLE"
+    },
+    {
+      "order": {
+        "orderId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-TMP-MULTI-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T12:17:58.561048Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T12:20:17.670168Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T12:20:28.130611Z",
+        "fulfilledByShipmentId": "01a0861c-a10b-729f-8430-43bd48fbd010",
+        "lines": [
+          {
+            "orderLineId": "01a0861a-7f21-70fd-b575-33e6c7786bfb",
+            "lineNo": 1,
+            "skuCode": "UI-TMP-MULTI-A",
+            "quantity": 2
+          },
+          {
+            "orderLineId": "01a0861a-7f21-7228-b576-1f1eecb173d1",
+            "lineNo": 2,
+            "skuCode": "UI-TMP-MULTI-B",
+            "quantity": 3
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a0861a-8319-794b-b623-706dad2295e5",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T12:17:58.561048Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a0861a-831a-7276-aa08-85513de1e7af",
+            "sourceLineId": "01a0861a-7f21-70fd-b575-33e6c7786bfb",
+            "lineSequence": 1,
+            "skuCode": "UI-TMP-MULTI-A",
+            "quantity": 2,
+            "state": "DONE",
+            "createdAt": "2026-09-09T12:17:58.561048Z",
+            "assignedAt": "2026-09-09T12:20:17.670168Z",
+            "batches": [
+              {
+                "stockQuantId": "e2618a41-c4e3-fbb6-0c63-8b6876d707d2",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-TMP-MULTI-A",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 2
+              }
+            ]
+          },
+          {
+            "moveId": "01a0861a-831a-7599-aa09-c321b30e8c43",
+            "sourceLineId": "01a0861a-7f21-7228-b576-1f1eecb173d1",
+            "lineSequence": 2,
+            "skuCode": "UI-TMP-MULTI-B",
+            "quantity": 3,
+            "state": "DONE",
+            "createdAt": "2026-09-09T12:17:58.561048Z",
+            "assignedAt": "2026-09-09T12:20:17.670168Z",
+            "batches": [
+              {
+                "stockQuantId": "b1aed6d0-c2d5-2e3b-2ca2-f29ee4806553",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-TMP-MULTI-B",
+                "inDate": "2026-01-01",
+                "expiryDate": "2099-12-31",
+                "quantity": 3
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a0861c-a10b-729f-8430-43bd48fbd010",
+          "stockOperationId": "01a0861a-8319-794b-b623-706dad2295e5",
+          "orderId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a0861c-c781-7d64-973d-8d82697588dc",
+          "createdAt": "2026-09-09T12:20:17.670168Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a0861a-7f21-70fd-b575-33e6c7786bfb",
+              "moveId": "01a0861a-831a-7276-aa08-85513de1e7af",
+              "skuCode": "UI-TMP-MULTI-A",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 2
+            },
+            {
+              "orderLineId": "01a0861a-7f21-7228-b576-1f1eecb173d1",
+              "moveId": "01a0861a-831a-7599-aa09-c321b30e8c43",
+              "skuCode": "UI-TMP-MULTI-B",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 3
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a0861c-c7a6-76f5-a469-12761679f103",
+              "orderLineId": "01a0861a-7f21-70fd-b575-33e6c7786bfb",
+              "moveId": "01a0861a-831a-7276-aa08-85513de1e7af",
+              "skuCode": "UI-TMP-MULTI-A",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 2,
+              "pickedQuantity": 2,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T12:20:28.130611Z"
+            },
+            {
+              "pickTaskId": "01a0861c-c7a6-7747-a46a-21c1bdb08ea2",
+              "orderLineId": "01a0861a-7f21-7228-b576-1f1eecb173d1",
+              "moveId": "01a0861a-831a-7599-aa09-c321b30e8c43",
+              "skuCode": "UI-TMP-MULTI-B",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 3,
+              "pickedQuantity": 3,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T12:20:28.130611Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": {
+        "orderId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+        "phase": "FINISHED",
+        "allocationState": "COMMITTED",
+        "cancellationState": "NONE",
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "outcome": "FULFILLMENT_COMPLETED",
+        "stockOperationId": "01a0861a-8319-794b-b623-706dad2295e5",
+        "shipmentId": "01a0861c-a10b-729f-8430-43bd48fbd010",
+        "shipmentTerminalStatus": "HANDED_OVER",
+        "shipmentTerminalAt": "2026-09-09T12:20:28.130611Z",
+        "cancelledAt": null,
+        "updatedAt": "2026-09-09T12:20:29.108Z"
+      },
+      "orchestrationMode": "temporal",
+      "workflowQueryStatus": "AVAILABLE"
+    },
+    {
+      "order": {
+        "orderId": "01a0861e-38a3-71c6-8ebb-93afb127a133",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "externalOrderNo": "UI-TMP-FEFO-T7-20260909",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "shipToZone": "100",
+        "shipToAddress": "台北市中正區重慶南路一段 122 號",
+        "promisedDeliveryDate": "2026-09-16",
+        "dispatchBy": "2026-09-10T04:00:00Z",
+        "releasePriority": 0,
+        "status": "FULFILLED",
+        "receivedAt": "2026-09-09T12:22:02.659387Z",
+        "placedAt": null,
+        "allocatedAt": "2026-09-09T12:22:03.447079Z",
+        "cancelledAt": null,
+        "cancellationRequestId": null,
+        "cancellationReason": null,
+        "fulfilledAt": "2026-09-09T12:22:14.272766Z",
+        "fulfilledByShipmentId": "01a0861e-3f25-7287-8ea7-c61ac9356bb9",
+        "lines": [
+          {
+            "orderLineId": "01a0861e-38a3-7862-8ebc-e829a7b04d6a",
+            "lineNo": 1,
+            "skuCode": "UI-TMP-FEFO",
+            "quantity": 4
+          }
+        ]
+      },
+      "stockOperation": {
+        "source": {
+          "type": "ORDER",
+          "sourceId": "01a0861e-38a3-71c6-8ebb-93afb127a133",
+          "operationUnitKey": "PRIMARY"
+        },
+        "operation": {
+          "stockOperationId": "01a0861e-3b7f-7922-af0a-12e1dc82bc55",
+          "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+          "direction": "OUTBOUND",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "fromLocationId": "00000000-0000-0000-0000-000000000021",
+          "toLocationId": "00000000-0000-0000-0000-000000000025",
+          "assignmentPolicy": "SHIP_COMPLETE",
+          "enqueuedAt": "2026-09-09T12:22:02.659387Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "state": "DONE"
+        },
+        "moves": [
+          {
+            "moveId": "01a0861e-3b7f-7bd7-af0b-cd43a9b0f078",
+            "sourceLineId": "01a0861e-38a3-7862-8ebc-e829a7b04d6a",
+            "lineSequence": 1,
+            "skuCode": "UI-TMP-FEFO",
+            "quantity": 4,
+            "state": "DONE",
+            "createdAt": "2026-09-09T12:22:02.659387Z",
+            "assignedAt": "2026-09-09T12:22:03.447079Z",
+            "batches": [
+              {
+                "stockQuantId": "7af41bba-de5d-c659-cafd-5228a96db04a",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-TMP-FEFO",
+                "inDate": "2026-01-02",
+                "expiryDate": "2098-12-31",
+                "quantity": 2
+              },
+              {
+                "stockQuantId": "ab013296-ae38-631c-9ea1-0dcab230ce25",
+                "locationId": "00000000-0000-0000-0000-000000000021",
+                "skuCode": "UI-TMP-FEFO",
+                "inDate": "2026-01-01",
+                "expiryDate": "2098-12-31",
+                "quantity": 2
+              }
+            ]
+          }
+        ]
+      },
+      "shipments": [
+        {
+          "shipmentId": "01a0861e-3f25-7287-8ea7-c61ac9356bb9",
+          "stockOperationId": "01a0861e-3b7f-7922-af0a-12e1dc82bc55",
+          "orderId": "01a0861e-38a3-71c6-8ebb-93afb127a133",
+          "ownerId": "00000000-0000-0000-0000-000000000001",
+          "facilityId": "00000000-0000-0000-0000-000000000011",
+          "status": "HANDED_OVER_TO_CARRIER",
+          "waveId": "01a0861e-6606-7768-88b1-71a86632febb",
+          "createdAt": "2026-09-09T12:22:03.447079Z",
+          "dispatchBy": "2026-09-10T04:00:00Z",
+          "releasePriority": 0,
+          "cancellationRequestId": null,
+          "cancellationRequestedAt": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "cancellationState": null,
+          "lines": [
+            {
+              "orderLineId": "01a0861e-38a3-7862-8ebc-e829a7b04d6a",
+              "moveId": "01a0861e-3b7f-7bd7-af0b-cd43a9b0f078",
+              "skuCode": "UI-TMP-FEFO",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "quantity": 4
+            }
+          ],
+          "pickTasks": [
+            {
+              "pickTaskId": "01a0861e-6625-7bbe-b0a2-6975689a292b",
+              "orderLineId": "01a0861e-38a3-7862-8ebc-e829a7b04d6a",
+              "moveId": "01a0861e-3b7f-7bd7-af0b-cd43a9b0f078",
+              "skuCode": "UI-TMP-FEFO",
+              "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+              "requestedQuantity": 4,
+              "pickedQuantity": 4,
+              "status": "PICKED",
+              "confirmedAt": "2026-09-09T12:22:14.272766Z"
+            }
+          ]
+        }
+      ],
+      "temporalWorkflow": {
+        "orderId": "01a0861e-38a3-71c6-8ebb-93afb127a133",
+        "phase": "FINISHED",
+        "allocationState": "COMMITTED",
+        "cancellationState": "NONE",
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "outcome": "FULFILLMENT_COMPLETED",
+        "stockOperationId": "01a0861e-3b7f-7922-af0a-12e1dc82bc55",
+        "shipmentId": "01a0861e-3f25-7287-8ea7-c61ac9356bb9",
+        "shipmentTerminalStatus": "HANDED_OVER",
+        "shipmentTerminalAt": "2026-09-09T12:22:14.272766Z",
+        "cancelledAt": null,
+        "updatedAt": "2026-09-09T12:22:14.919Z"
+      },
+      "orchestrationMode": "temporal",
+      "workflowQueryStatus": "AVAILABLE"
+    }
+  ],
+  "finalStock": [
+    {
+      "sku": "UI-TMP-FEFO",
+      "batches": [
+        {
+          "stockPoolId": "19876b93-fec6-0051-ed49-1cc579e39abb",
+          "inDate": "1999-01-01",
+          "expiryDate": "2000-01-01",
+          "onHandQuantity": 7,
+          "reservedQuantity": 0,
+          "availableToPromise": 7,
+          "expired": true
+        },
+        {
+          "stockPoolId": "ab013296-ae38-631c-9ea1-0dcab230ce25",
+          "inDate": "2026-01-01",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        },
+        {
+          "stockPoolId": "7af41bba-de5d-c659-cafd-5228a96db04a",
+          "inDate": "2026-01-02",
+          "expiryDate": "2098-12-31",
+          "onHandQuantity": 1,
+          "reservedQuantity": 0,
+          "availableToPromise": 1,
+          "expired": false
+        },
+        {
+          "stockPoolId": "df31b95c-1df5-0351-265d-85108972deb3",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 5,
+          "reservedQuantity": 0,
+          "availableToPromise": 5,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-HAPPY",
+      "batches": [
+        {
+          "stockPoolId": "241b65fe-59fc-b19c-c117-a43f3f85fc05",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 16,
+          "reservedQuantity": 0,
+          "availableToPromise": 16,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-MULTI-A",
+      "batches": [
+        {
+          "stockPoolId": "e2618a41-c4e3-fbb6-0c63-8b6876d707d2",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 8,
+          "reservedQuantity": 0,
+          "availableToPromise": 8,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-MULTI-B",
+      "batches": [
+        {
+          "stockPoolId": "b1aed6d0-c2d5-2e3b-2ca2-f29ee4806553",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    },
+    {
+      "sku": "UI-TMP-WAKE",
+      "batches": [
+        {
+          "stockPoolId": "d680cd75-d1b0-df1a-9c28-d8705dc5fc6b",
+          "inDate": "2026-01-01",
+          "expiryDate": "2099-12-31",
+          "onHandQuantity": 0,
+          "reservedQuantity": 0,
+          "availableToPromise": 0,
+          "expired": false
+        }
+      ]
+    }
+  ],
+  "workflowHistory": [
+    {
+      "orderId": "01a08615-aef7-7b8d-b74d-9ca6d456cf0f",
+      "signals": [
+        "stockOperationAssigned",
+        "shipmentHandedOverToCarrier"
+      ],
+      "activities": [
+        "RequestOrderAllocation",
+        "CreateWmsShipment",
+        "CompleteOutboundMovements",
+        "RecordOrderFulfillment"
+      ],
+      "events": [
+        {
+          "eventId": "1",
+          "eventTime": "2026-09-09T12:12:43.804892517Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+          "taskId": "1049129",
+          "workflowExecutionStartedEventAttributes": {
+            "workflowType": {
+              "name": "OrderFulfillmentWorkflow"
+            },
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MTUtYWVmNy03YjhkLWI3NGQtOWNhNmQ0NTZjZjBmIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoxMjo0My4xMjc3NDlaIn0="
+                }
+              ]
+            },
+            "workflowExecutionTimeout": "0s",
+            "workflowRunTimeout": "0s",
+            "workflowTaskTimeout": "10s",
+            "originalExecutionRunId": "01a08615-b19c-7d98-aed0-5b7102c508d2",
+            "identity": "32021@Jiang-MacBook.local",
+            "firstExecutionRunId": "01a08615-b19c-7d98-aed0-5b7102c508d2",
+            "attempt": 1,
+            "firstWorkflowTaskBackoff": "0s",
+            "header": {},
+            "workflowId": "order-fulfillment/01a08615-aef7-7b8d-b74d-9ca6d456cf0f"
+          }
+        },
+        {
+          "eventId": "2",
+          "eventTime": "2026-09-09T12:12:43.805647608Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049130",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "3",
+          "eventTime": "2026-09-09T12:12:43.818444321Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049135",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "2",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "b39396e8-a150-407e-9f56-a5e2f92f65dd",
+            "historySizeBytes": "460"
+          }
+        },
+        {
+          "eventId": "4",
+          "eventTime": "2026-09-09T12:12:43.912128957Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049139",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "2",
+            "startedEventId": "3",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "langUsedFlags": [
+                1,
+                3
+              ],
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "5",
+          "eventTime": "2026-09-09T12:12:43.913166066Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049140",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "5506100c-ff00-31d5-816b-616abbaabd5b",
+            "activityType": {
+              "name": "RequestOrderAllocation"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNS1hZWY3LTdiOGQtYjc0ZC05Y2E2ZDQ1NmNmMGYiLCJvcmRlcklkIjoiMDFhMDg2MTUtYWVmNy03YjhkLWI3NGQtOWNhNmQ0NTZjZjBmIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoxMjo0My4xMjc3NDlaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "4",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "6",
+          "eventTime": "2026-09-09T12:12:43.922088317Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049146",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "5",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "a16f84f3-b7b7-44d8-b2f6-ccc96fe09c3a",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "7",
+          "eventTime": "2026-09-09T12:12:44.284972541Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049147",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "5",
+            "startedEventId": "6",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "8",
+          "eventTime": "2026-09-09T12:12:44.284995085Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049148",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "9",
+          "eventTime": "2026-09-09T12:12:44.290305807Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049152",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "8",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "549fd367-189b-4c17-ad46-06d589797532",
+            "historySizeBytes": "1456"
+          }
+        },
+        {
+          "eventId": "10",
+          "eventTime": "2026-09-09T12:12:44.298747319Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049156",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "8",
+            "startedEventId": "9",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "11",
+          "eventTime": "2026-09-09T12:12:44.756419500Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049159",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "stockOperationAssigned",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzdG9ja09wZXJhdGlvbklkIjoiMDFhMDg2MTUtYjI2Zi03ZGE5LTgwNTAtZmFlM2VkNWJmMzEyIiwib3JkZXJJZCI6IjAxYTA4NjE1LWFlZjctN2I4ZC1iNzRkLTljYTZkNDU2Y2YwZiIsIm93bmVySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmYWNpbGl0eUlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDExIiwibW92ZXMiOlt7Im9yZGVyTGluZUlkIjoiMDFhMDg2MTUtYWVmNy03Y2QwLWI3NGUtZmM3OTUwNzgwMTBjIiwibW92ZUlkIjoiMDFhMDg2MTUtYjI3MC03YWJjLWJlODgtOTgyNGFjOWIwN2JkIiwic2t1Q29kZSI6IlVJLVRNUC1IQVBQWSIsInNvdXJjZUxvY2F0aW9uSWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMjEiLCJxdWFudGl0eSI6NH1dLCJkaXNwYXRjaEJ5IjoiMjAyNi0wOS0xMFQwNDowMDowMFoiLCJyZWxlYXNlUHJpb3JpdHkiOjAsImFzc2lnbmVkQXQiOiIyMDI2LTA5LTA5VDEyOjEyOjQ0LjEwOTQ4OVoifQ=="
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "12",
+          "eventTime": "2026-09-09T12:12:44.756423917Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049160",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "13",
+          "eventTime": "2026-09-09T12:12:44.758986627Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049164",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "12",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "37b70ff8-dddc-43e9-a671-1d6c4ed6df03",
+            "historySizeBytes": "2399"
+          }
+        },
+        {
+          "eventId": "14",
+          "eventTime": "2026-09-09T12:12:44.765009271Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049168",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "12",
+            "startedEventId": "13",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "15",
+          "eventTime": "2026-09-09T12:12:44.765067400Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049169",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "c393cae9-5bea-314f-8871-ad81426dc60d",
+            "activityType": {
+              "name": "CreateWmsShipment"
+            },
+            "taskQueue": {
+              "name": "wms-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNS1hZWY3LTdiOGQtYjc0ZC05Y2E2ZDQ1NmNmMGYiLCJhc3NpZ25tZW50Ijp7InN0b2NrT3BlcmF0aW9uSWQiOiIwMWEwODYxNS1iMjZmLTdkYTktODA1MC1mYWUzZWQ1YmYzMTIiLCJvcmRlcklkIjoiMDFhMDg2MTUtYWVmNy03YjhkLWI3NGQtOWNhNmQ0NTZjZjBmIiwib3duZXJJZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZhY2lsaXR5SWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMTEiLCJtb3ZlcyI6W3sib3JkZXJMaW5lSWQiOiIwMWEwODYxNS1hZWY3LTdjZDAtYjc0ZS1mYzc5NTA3ODAxMGMiLCJtb3ZlSWQiOiIwMWEwODYxNS1iMjcwLTdhYmMtYmU4OC05ODI0YWM5YjA3YmQiLCJza3VDb2RlIjoiVUktVE1QLUhBUFBZIiwic291cmNlTG9jYXRpb25JZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAyMSIsInF1YW50aXR5Ijo0fV0sImRpc3BhdGNoQnkiOiIyMDI2LTA5LTEwVDA0OjAwOjAwWiIsInJlbGVhc2VQcmlvcml0eSI6MCwiYXNzaWduZWRBdCI6IjIwMjYtMDktMDlUMTI6MTI6NDQuMTA5NDg5WiJ9fQ=="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "14",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "16",
+          "eventTime": "2026-09-09T12:12:44.768627342Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049174",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "15",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "a32d6f8b-718d-43af-a082-209256d11708",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "17",
+          "eventTime": "2026-09-09T12:12:44.789209981Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049175",
+          "activityTaskCompletedEventAttributes": {
+            "result": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzaGlwbWVudElkIjoiMDFhMDg2MTUtYjU2Yi03ZDdjLWExOWMtZmRhYzg0MjQ3NDkzIn0="
+                }
+              ]
+            },
+            "scheduledEventId": "15",
+            "startedEventId": "16",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "18",
+          "eventTime": "2026-09-09T12:12:44.789221315Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049176",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "19",
+          "eventTime": "2026-09-09T12:12:44.791433752Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049180",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "18",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "8192f30d-024b-4d31-9663-10536174ac4b",
+            "historySizeBytes": "3892"
+          }
+        },
+        {
+          "eventId": "20",
+          "eventTime": "2026-09-09T12:12:44.797564195Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049184",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "18",
+            "startedEventId": "19",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "21",
+          "eventTime": "2026-09-09T12:12:56.339436087Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049186",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "shipmentHandedOverToCarrier",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MTUtYWVmNy03YjhkLWI3NGQtOWNhNmQ0NTZjZjBmIiwic2hpcG1lbnRJZCI6IjAxYTA4NjE1LWI1NmItN2Q3Yy1hMTljLWZkYWM4NDI0NzQ5MyIsImhhbmRlZE92ZXJBdCI6IjIwMjYtMDktMDlUMTI6MTI6NTUuMTUwMjYyWiJ9"
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "22",
+          "eventTime": "2026-09-09T12:12:56.339487591Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049187",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "23",
+          "eventTime": "2026-09-09T12:12:56.354197262Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049191",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "22",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "e85f53a1-af7c-4dd7-a1be-26e7bee0b92f",
+            "historySizeBytes": "4470"
+          }
+        },
+        {
+          "eventId": "24",
+          "eventTime": "2026-09-09T12:12:56.383906458Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049195",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "22",
+            "startedEventId": "23",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "25",
+          "eventTime": "2026-09-09T12:12:56.384198394Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049196",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "122d8f5f-eaa0-38c5-8280-bebc131ec841",
+            "activityType": {
+              "name": "CompleteOutboundMovements"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNS1hZWY3LTdiOGQtYjc0ZC05Y2E2ZDQ1NmNmMGYiLCJvcmRlcklkIjoiMDFhMDg2MTUtYWVmNy03YjhkLWI3NGQtOWNhNmQ0NTZjZjBmIiwic3RvY2tPcGVyYXRpb25JZCI6IjAxYTA4NjE1LWIyNmYtN2RhOS04MDUwLWZhZTNlZDViZjMxMiIsInNoaXBtZW50SWQiOiIwMWEwODYxNS1iNTZiLTdkN2MtYTE5Yy1mZGFjODQyNDc0OTMiLCJtb3ZlbWVudElkcyI6WyIwMWEwODYxNS1iMjcwLTdhYmMtYmU4OC05ODI0YWM5YjA3YmQiXSwiaGFuZGVkT3ZlckF0IjoiMjAyNi0wOS0wOVQxMjoxMjo1NS4xNTAyNjJaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "24",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "26",
+          "eventTime": "2026-09-09T12:12:56.390547518Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049201",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "25",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "b78ac67b-fca0-4b65-9749-28d271cc371d",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "27",
+          "eventTime": "2026-09-09T12:12:56.505272490Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049202",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "25",
+            "startedEventId": "26",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "28",
+          "eventTime": "2026-09-09T12:12:56.505306159Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049203",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "29",
+          "eventTime": "2026-09-09T12:12:56.509511309Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049207",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "28",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "249e9fbc-1723-450e-a8e8-c6acdba4a433",
+            "historySizeBytes": "5627"
+          }
+        },
+        {
+          "eventId": "30",
+          "eventTime": "2026-09-09T12:12:56.523476974Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049211",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "28",
+            "startedEventId": "29",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "31",
+          "eventTime": "2026-09-09T12:12:56.523883125Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049212",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "8ada6b48-8ce7-3836-ab2f-995efcf3d535",
+            "activityType": {
+              "name": "RecordOrderFulfillment"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNS1hZWY3LTdiOGQtYjc0ZC05Y2E2ZDQ1NmNmMGYiLCJvcmRlcklkIjoiMDFhMDg2MTUtYWVmNy03YjhkLWI3NGQtOWNhNmQ0NTZjZjBmIiwic2hpcG1lbnRJZCI6IjAxYTA4NjE1LWI1NmItN2Q3Yy1hMTljLWZkYWM4NDI0NzQ5MyIsImZ1bGZpbGxlZEF0IjoiMjAyNi0wOS0wOVQxMjoxMjo1NS4xNTAyNjJaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "30",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "32",
+          "eventTime": "2026-09-09T12:12:56.527461443Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049217",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "31",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "c78a1449-581d-4fd0-8a68-9e4f87195a88",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "33",
+          "eventTime": "2026-09-09T12:12:56.559947654Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049218",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "31",
+            "startedEventId": "32",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "34",
+          "eventTime": "2026-09-09T12:12:56.559955113Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049219",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "35",
+          "eventTime": "2026-09-09T12:12:56.566190813Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049223",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "34",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "8102db58-f9bc-4350-bdde-4aa132ddd697",
+            "historySizeBytes": "6667"
+          }
+        },
+        {
+          "eventId": "36",
+          "eventTime": "2026-09-09T12:12:56.580333197Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049227",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "34",
+            "startedEventId": "35",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "37",
+          "eventTime": "2026-09-09T12:12:56.580453122Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+          "taskId": "1049228",
+          "workflowExecutionCompletedEventAttributes": {
+            "workflowTaskCompletedEventId": "36"
+          }
+        }
+      ]
+    },
+    {
+      "orderId": "01a08617-38c7-73be-96f0-422347cca073",
+      "signals": [
+        "stockOperationAssigned",
+        "shipmentHandedOverToCarrier"
+      ],
+      "activities": [
+        "RequestOrderAllocation",
+        "CreateWmsShipment",
+        "CompleteOutboundMovements",
+        "RecordOrderFulfillment"
+      ],
+      "events": [
+        {
+          "eventId": "1",
+          "eventTime": "2026-09-09T12:14:24.848108306Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+          "taskId": "1049233",
+          "workflowExecutionStartedEventAttributes": {
+            "workflowType": {
+              "name": "OrderFulfillmentWorkflow"
+            },
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MTctMzhjNy03M2JlLTk2ZjAtNDIyMzQ3Y2NhMDczIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoxNDoyMy45NDM5MjJaIn0="
+                }
+              ]
+            },
+            "workflowExecutionTimeout": "0s",
+            "workflowRunTimeout": "0s",
+            "workflowTaskTimeout": "10s",
+            "originalExecutionRunId": "01a08617-3c50-719f-a669-547d8f98978b",
+            "identity": "32021@Jiang-MacBook.local",
+            "firstExecutionRunId": "01a08617-3c50-719f-a669-547d8f98978b",
+            "attempt": 1,
+            "firstWorkflowTaskBackoff": "0s",
+            "header": {},
+            "workflowId": "order-fulfillment/01a08617-38c7-73be-96f0-422347cca073"
+          }
+        },
+        {
+          "eventId": "2",
+          "eventTime": "2026-09-09T12:14:24.848700095Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049234",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "3",
+          "eventTime": "2026-09-09T12:14:24.872748746Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049239",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "2",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "8c2acb14-e397-42eb-beee-290fa988e867",
+            "historySizeBytes": "460"
+          }
+        },
+        {
+          "eventId": "4",
+          "eventTime": "2026-09-09T12:14:24.935740152Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049243",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "2",
+            "startedEventId": "3",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "langUsedFlags": [
+                1,
+                3
+              ],
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "5",
+          "eventTime": "2026-09-09T12:14:24.935919026Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049244",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "fa7b3981-1396-3ee0-8ef5-840dd54954f4",
+            "activityType": {
+              "name": "RequestOrderAllocation"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNy0zOGM3LTczYmUtOTZmMC00MjIzNDdjY2EwNzMiLCJvcmRlcklkIjoiMDFhMDg2MTctMzhjNy03M2JlLTk2ZjAtNDIyMzQ3Y2NhMDczIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoxNDoyMy45NDM5MjJaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "4",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "6",
+          "eventTime": "2026-09-09T12:14:24.940555757Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049250",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "5",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "5cd29934-63de-4f61-a93b-fb8bc07d1a60",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "7",
+          "eventTime": "2026-09-09T12:14:24.968413225Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049251",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "5",
+            "startedEventId": "6",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "8",
+          "eventTime": "2026-09-09T12:14:24.968458016Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049252",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "9",
+          "eventTime": "2026-09-09T12:14:24.971462420Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049256",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "8",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "ef1ed6df-8770-4bd9-8776-3410a88df2d6",
+            "historySizeBytes": "1456"
+          }
+        },
+        {
+          "eventId": "10",
+          "eventTime": "2026-09-09T12:14:24.977605145Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049260",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "8",
+            "startedEventId": "9",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "11",
+          "eventTime": "2026-09-09T12:16:30.846251903Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049263",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "stockOperationAssigned",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzdG9ja09wZXJhdGlvbklkIjoiMDFhMDg2MTctM2NiYy03OThkLTkwNWMtODZlN2FjOWExYzRmIiwib3JkZXJJZCI6IjAxYTA4NjE3LTM4YzctNzNiZS05NmYwLTQyMjM0N2NjYTA3MyIsIm93bmVySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmYWNpbGl0eUlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDExIiwibW92ZXMiOlt7Im9yZGVyTGluZUlkIjoiMDFhMDg2MTctMzhjOC03NmI4LTk5ZjQtODdhYjIyMWYxZTJlIiwibW92ZUlkIjoiMDFhMDg2MTctM2NiYy03YzM5LTkwNWQtZGYzMjI5Yzg4ZWEyIiwic2t1Q29kZSI6IlVJLVRNUC1XQUtFIiwic291cmNlTG9jYXRpb25JZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAyMSIsInF1YW50aXR5IjozfV0sImRpc3BhdGNoQnkiOiIyMDI2LTA5LTEwVDA0OjAwOjAwWiIsInJlbGVhc2VQcmlvcml0eSI6MCwiYXNzaWduZWRBdCI6IjIwMjYtMDktMDlUMTI6MTY6MzAuMzY0NzI3WiJ9"
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "12",
+          "eventTime": "2026-09-09T12:16:30.846431860Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049264",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "13",
+          "eventTime": "2026-09-09T12:16:30.860776301Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049268",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "12",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "9a1fa73e-52a2-4471-b12c-88d4c2139f9c",
+            "historySizeBytes": "2398"
+          }
+        },
+        {
+          "eventId": "14",
+          "eventTime": "2026-09-09T12:16:30.872410711Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049272",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "12",
+            "startedEventId": "13",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "15",
+          "eventTime": "2026-09-09T12:16:30.872607710Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049273",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "253b793e-9556-34fc-9a71-b328f87c145e",
+            "activityType": {
+              "name": "CreateWmsShipment"
+            },
+            "taskQueue": {
+              "name": "wms-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNy0zOGM3LTczYmUtOTZmMC00MjIzNDdjY2EwNzMiLCJhc3NpZ25tZW50Ijp7InN0b2NrT3BlcmF0aW9uSWQiOiIwMWEwODYxNy0zY2JjLTc5OGQtOTA1Yy04NmU3YWM5YTFjNGYiLCJvcmRlcklkIjoiMDFhMDg2MTctMzhjNy03M2JlLTk2ZjAtNDIyMzQ3Y2NhMDczIiwib3duZXJJZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZhY2lsaXR5SWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMTEiLCJtb3ZlcyI6W3sib3JkZXJMaW5lSWQiOiIwMWEwODYxNy0zOGM4LTc2YjgtOTlmNC04N2FiMjIxZjFlMmUiLCJtb3ZlSWQiOiIwMWEwODYxNy0zY2JjLTdjMzktOTA1ZC1kZjMyMjljODhlYTIiLCJza3VDb2RlIjoiVUktVE1QLVdBS0UiLCJzb3VyY2VMb2NhdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDIxIiwicXVhbnRpdHkiOjN9XSwiZGlzcGF0Y2hCeSI6IjIwMjYtMDktMTBUMDQ6MDA6MDBaIiwicmVsZWFzZVByaW9yaXR5IjowLCJhc3NpZ25lZEF0IjoiMjAyNi0wOS0wOVQxMjoxNjozMC4zNjQ3MjdaIn19"
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "14",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "16",
+          "eventTime": "2026-09-09T12:16:30.874924951Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049278",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "15",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "861e851e-f875-40ee-9536-caf17e32bb1e",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "17",
+          "eventTime": "2026-09-09T12:16:30.890644219Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049279",
+          "activityTaskCompletedEventAttributes": {
+            "result": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzaGlwbWVudElkIjoiMDFhMDg2MTktMjg5ZC03ZjEyLWE1YjMtZGY5ZGFhNTI5MDk3In0="
+                }
+              ]
+            },
+            "scheduledEventId": "15",
+            "startedEventId": "16",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "18",
+          "eventTime": "2026-09-09T12:16:30.890656302Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049280",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "19",
+          "eventTime": "2026-09-09T12:16:30.892562211Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049284",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "18",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "274f4829-2982-4a77-8537-49253d07f674",
+            "historySizeBytes": "3890"
+          }
+        },
+        {
+          "eventId": "20",
+          "eventTime": "2026-09-09T12:16:30.896118655Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049288",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "18",
+            "startedEventId": "19",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "21",
+          "eventTime": "2026-09-09T12:16:41.383837215Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049290",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "shipmentHandedOverToCarrier",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MTctMzhjNy03M2JlLTk2ZjAtNDIyMzQ3Y2NhMDczIiwic2hpcG1lbnRJZCI6IjAxYTA4NjE5LTI4OWQtN2YxMi1hNWIzLWRmOWRhYTUyOTA5NyIsImhhbmRlZE92ZXJBdCI6IjIwMjYtMDktMDlUMTI6MTY6NDAuNzY5MzUwWiJ9"
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "22",
+          "eventTime": "2026-09-09T12:16:41.383847798Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049291",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "23",
+          "eventTime": "2026-09-09T12:16:41.387933012Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049295",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "22",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "c729763e-dbf4-4cc3-b933-5d4f7686e3e9",
+            "historySizeBytes": "4468"
+          }
+        },
+        {
+          "eventId": "24",
+          "eventTime": "2026-09-09T12:16:41.395920145Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049299",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "22",
+            "startedEventId": "23",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "25",
+          "eventTime": "2026-09-09T12:16:41.395995479Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049300",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "bc5ce48e-c173-3520-81f0-03c9525f32d2",
+            "activityType": {
+              "name": "CompleteOutboundMovements"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNy0zOGM3LTczYmUtOTZmMC00MjIzNDdjY2EwNzMiLCJvcmRlcklkIjoiMDFhMDg2MTctMzhjNy03M2JlLTk2ZjAtNDIyMzQ3Y2NhMDczIiwic3RvY2tPcGVyYXRpb25JZCI6IjAxYTA4NjE3LTNjYmMtNzk4ZC05MDVjLTg2ZTdhYzlhMWM0ZiIsInNoaXBtZW50SWQiOiIwMWEwODYxOS0yODlkLTdmMTItYTViMy1kZjlkYWE1MjkwOTciLCJtb3ZlbWVudElkcyI6WyIwMWEwODYxNy0zY2JjLTdjMzktOTA1ZC1kZjMyMjljODhlYTIiXSwiaGFuZGVkT3ZlckF0IjoiMjAyNi0wOS0wOVQxMjoxNjo0MC43NjkzNTBaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "24",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "26",
+          "eventTime": "2026-09-09T12:16:41.398069503Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049305",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "25",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "22c2ab41-b618-4b22-9153-e92303c1ca18",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "27",
+          "eventTime": "2026-09-09T12:16:41.475365306Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049306",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "25",
+            "startedEventId": "26",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "28",
+          "eventTime": "2026-09-09T12:16:41.475427056Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049307",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "29",
+          "eventTime": "2026-09-09T12:16:41.478077295Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049311",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "28",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "b2a04f69-f651-46ba-ac7f-ffdb020846c0",
+            "historySizeBytes": "5625"
+          }
+        },
+        {
+          "eventId": "30",
+          "eventTime": "2026-09-09T12:16:41.486668477Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049315",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "28",
+            "startedEventId": "29",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "31",
+          "eventTime": "2026-09-09T12:16:41.486739186Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049316",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "964055aa-ff9c-330e-81f8-47e7901648bd",
+            "activityType": {
+              "name": "RecordOrderFulfillment"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxNy0zOGM3LTczYmUtOTZmMC00MjIzNDdjY2EwNzMiLCJvcmRlcklkIjoiMDFhMDg2MTctMzhjNy03M2JlLTk2ZjAtNDIyMzQ3Y2NhMDczIiwic2hpcG1lbnRJZCI6IjAxYTA4NjE5LTI4OWQtN2YxMi1hNWIzLWRmOWRhYTUyOTA5NyIsImZ1bGZpbGxlZEF0IjoiMjAyNi0wOS0wOVQxMjoxNjo0MC43NjkzNTBaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "30",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "32",
+          "eventTime": "2026-09-09T12:16:41.491983121Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049321",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "31",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "bd4cbe13-ccd3-4b86-b81c-35899535b87e",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "33",
+          "eventTime": "2026-09-09T12:16:41.515813603Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049322",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "31",
+            "startedEventId": "32",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "34",
+          "eventTime": "2026-09-09T12:16:41.515820145Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049323",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "35",
+          "eventTime": "2026-09-09T12:16:41.518111004Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049327",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "34",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "aa7635b8-0c62-4cea-8038-1e3e9d3f040b",
+            "historySizeBytes": "6665"
+          }
+        },
+        {
+          "eventId": "36",
+          "eventTime": "2026-09-09T12:16:41.529345466Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049331",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "34",
+            "startedEventId": "35",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "37",
+          "eventTime": "2026-09-09T12:16:41.529495510Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+          "taskId": "1049332",
+          "workflowExecutionCompletedEventAttributes": {
+            "workflowTaskCompletedEventId": "36"
+          }
+        }
+      ]
+    },
+    {
+      "orderId": "01a0861a-7f20-7e97-abf6-e257bb25b063",
+      "signals": [
+        "stockOperationAssigned",
+        "shipmentHandedOverToCarrier"
+      ],
+      "activities": [
+        "RequestOrderAllocation",
+        "CreateWmsShipment",
+        "CompleteOutboundMovements",
+        "RecordOrderFulfillment"
+      ],
+      "events": [
+        {
+          "eventId": "1",
+          "eventTime": "2026-09-09T12:17:59.358925576Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+          "taskId": "1049337",
+          "workflowExecutionStartedEventAttributes": {
+            "workflowType": {
+              "name": "OrderFulfillmentWorkflow"
+            },
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MWEtN2YyMC03ZTk3LWFiZjYtZTI1N2JiMjViMDYzIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoxNzo1OC41NjEwNDhaIn0="
+                }
+              ]
+            },
+            "workflowExecutionTimeout": "0s",
+            "workflowRunTimeout": "0s",
+            "workflowTaskTimeout": "10s",
+            "originalExecutionRunId": "01a0861a-823e-7e1c-ad0f-67ff26658061",
+            "identity": "32021@Jiang-MacBook.local",
+            "firstExecutionRunId": "01a0861a-823e-7e1c-ad0f-67ff26658061",
+            "attempt": 1,
+            "firstWorkflowTaskBackoff": "0s",
+            "header": {},
+            "workflowId": "order-fulfillment/01a0861a-7f20-7e97-abf6-e257bb25b063"
+          }
+        },
+        {
+          "eventId": "2",
+          "eventTime": "2026-09-09T12:17:59.359354081Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049338",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "3",
+          "eventTime": "2026-09-09T12:17:59.365953365Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049343",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "2",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "8bd3d2f8-f1d2-486a-99a7-790f2357b278",
+            "historySizeBytes": "460"
+          }
+        },
+        {
+          "eventId": "4",
+          "eventTime": "2026-09-09T12:17:59.379219017Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049347",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "2",
+            "startedEventId": "3",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "langUsedFlags": [
+                1,
+                3
+              ],
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "5",
+          "eventTime": "2026-09-09T12:17:59.379315684Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049348",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "fd8eb106-8c3d-3992-aa54-975a40e44668",
+            "activityType": {
+              "name": "RequestOrderAllocation"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxYS03ZjIwLTdlOTctYWJmNi1lMjU3YmIyNWIwNjMiLCJvcmRlcklkIjoiMDFhMDg2MWEtN2YyMC03ZTk3LWFiZjYtZTI1N2JiMjViMDYzIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoxNzo1OC41NjEwNDhaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "4",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "6",
+          "eventTime": "2026-09-09T12:17:59.483036874Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049354",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "5",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "203beb4a-3912-469d-8acb-405168a4542d",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "7",
+          "eventTime": "2026-09-09T12:17:59.651876435Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049355",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "5",
+            "startedEventId": "6",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "8",
+          "eventTime": "2026-09-09T12:17:59.651901352Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049356",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "9",
+          "eventTime": "2026-09-09T12:17:59.657526333Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049360",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "8",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "1b6c8034-e6fa-4a4f-a4ae-01c69142fd59",
+            "historySizeBytes": "1456"
+          }
+        },
+        {
+          "eventId": "10",
+          "eventTime": "2026-09-09T12:17:59.664505121Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049364",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "8",
+            "startedEventId": "9",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "11",
+          "eventTime": "2026-09-09T12:20:18.204305958Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049367",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "stockOperationAssigned",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzdG9ja09wZXJhdGlvbklkIjoiMDFhMDg2MWEtODMxOS03OTRiLWI2MjMtNzA2ZGFkMjI5NWU1Iiwib3JkZXJJZCI6IjAxYTA4NjFhLTdmMjAtN2U5Ny1hYmY2LWUyNTdiYjI1YjA2MyIsIm93bmVySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmYWNpbGl0eUlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDExIiwibW92ZXMiOlt7Im9yZGVyTGluZUlkIjoiMDFhMDg2MWEtN2YyMS03MGZkLWI1NzUtMzNlNmM3Nzg2YmZiIiwibW92ZUlkIjoiMDFhMDg2MWEtODMxYS03Mjc2LWFhMDgtODU1MTNkZTFlN2FmIiwic2t1Q29kZSI6IlVJLVRNUC1NVUxUSS1BIiwic291cmNlTG9jYXRpb25JZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAyMSIsInF1YW50aXR5IjoyfSx7Im9yZGVyTGluZUlkIjoiMDFhMDg2MWEtN2YyMS03MjI4LWI1NzYtMWYxZWVjYjE3M2QxIiwibW92ZUlkIjoiMDFhMDg2MWEtODMxYS03NTk5LWFhMDktYzMyMWIzMGU4YzQzIiwic2t1Q29kZSI6IlVJLVRNUC1NVUxUSS1CIiwic291cmNlTG9jYXRpb25JZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAyMSIsInF1YW50aXR5IjozfV0sImRpc3BhdGNoQnkiOiIyMDI2LTA5LTEwVDA0OjAwOjAwWiIsInJlbGVhc2VQcmlvcml0eSI6MCwiYXNzaWduZWRBdCI6IjIwMjYtMDktMDlUMTI6MjA6MTcuNjcwMTY4WiJ9"
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "12",
+          "eventTime": "2026-09-09T12:20:18.204583708Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049368",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "13",
+          "eventTime": "2026-09-09T12:20:18.229336672Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049372",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "12",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "e1b31ff8-121b-4c72-8429-150bf45befa6",
+            "historySizeBytes": "2600"
+          }
+        },
+        {
+          "eventId": "14",
+          "eventTime": "2026-09-09T12:20:18.298905655Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049376",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "12",
+            "startedEventId": "13",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "15",
+          "eventTime": "2026-09-09T12:20:18.299199363Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049377",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "6bcfa434-f5cc-3ade-9022-05f0c096030a",
+            "activityType": {
+              "name": "CreateWmsShipment"
+            },
+            "taskQueue": {
+              "name": "wms-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxYS03ZjIwLTdlOTctYWJmNi1lMjU3YmIyNWIwNjMiLCJhc3NpZ25tZW50Ijp7InN0b2NrT3BlcmF0aW9uSWQiOiIwMWEwODYxYS04MzE5LTc5NGItYjYyMy03MDZkYWQyMjk1ZTUiLCJvcmRlcklkIjoiMDFhMDg2MWEtN2YyMC03ZTk3LWFiZjYtZTI1N2JiMjViMDYzIiwib3duZXJJZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZhY2lsaXR5SWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMTEiLCJtb3ZlcyI6W3sib3JkZXJMaW5lSWQiOiIwMWEwODYxYS03ZjIxLTcwZmQtYjU3NS0zM2U2Yzc3ODZiZmIiLCJtb3ZlSWQiOiIwMWEwODYxYS04MzFhLTcyNzYtYWEwOC04NTUxM2RlMWU3YWYiLCJza3VDb2RlIjoiVUktVE1QLU1VTFRJLUEiLCJzb3VyY2VMb2NhdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDIxIiwicXVhbnRpdHkiOjJ9LHsib3JkZXJMaW5lSWQiOiIwMWEwODYxYS03ZjIxLTcyMjgtYjU3Ni0xZjFlZWNiMTczZDEiLCJtb3ZlSWQiOiIwMWEwODYxYS04MzFhLTc1OTktYWEwOS1jMzIxYjMwZThjNDMiLCJza3VDb2RlIjoiVUktVE1QLU1VTFRJLUIiLCJzb3VyY2VMb2NhdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDIxIiwicXVhbnRpdHkiOjN9XSwiZGlzcGF0Y2hCeSI6IjIwMjYtMDktMTBUMDQ6MDA6MDBaIiwicmVsZWFzZVByaW9yaXR5IjowLCJhc3NpZ25lZEF0IjoiMjAyNi0wOS0wOVQxMjoyMDoxNy42NzAxNjhaIn19"
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "14",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "16",
+          "eventTime": "2026-09-09T12:20:18.310682471Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049382",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "15",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "930f8a72-da58-41f9-b388-a072d48577c0",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "17",
+          "eventTime": "2026-09-09T12:20:18.335663560Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049383",
+          "activityTaskCompletedEventAttributes": {
+            "result": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzaGlwbWVudElkIjoiMDFhMDg2MWMtYTEwYi03MjlmLTg0MzAtNDNiZDQ4ZmJkMDEwIn0="
+                }
+              ]
+            },
+            "scheduledEventId": "15",
+            "startedEventId": "16",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "18",
+          "eventTime": "2026-09-09T12:20:18.335705893Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049384",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "19",
+          "eventTime": "2026-09-09T12:20:18.338613222Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049388",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "18",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "b65a1841-ea20-4cde-881d-6d0d209ac310",
+            "historySizeBytes": "4295"
+          }
+        },
+        {
+          "eventId": "20",
+          "eventTime": "2026-09-09T12:20:18.346533044Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049392",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "18",
+            "startedEventId": "19",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "21",
+          "eventTime": "2026-09-09T12:20:28.768638470Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049394",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "shipmentHandedOverToCarrier",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MWEtN2YyMC03ZTk3LWFiZjYtZTI1N2JiMjViMDYzIiwic2hpcG1lbnRJZCI6IjAxYTA4NjFjLWExMGItNzI5Zi04NDMwLTQzYmQ0OGZiZDAxMCIsImhhbmRlZE92ZXJBdCI6IjIwMjYtMDktMDlUMTI6MjA6MjguMTMwNjExWiJ9"
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "22",
+          "eventTime": "2026-09-09T12:20:28.768706428Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049395",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "23",
+          "eventTime": "2026-09-09T12:20:28.785138821Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049399",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "22",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "5a6de7ba-2883-4d48-8ec2-70b24abe7b97",
+            "historySizeBytes": "4873"
+          }
+        },
+        {
+          "eventId": "24",
+          "eventTime": "2026-09-09T12:20:28.821096186Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049403",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "22",
+            "startedEventId": "23",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "25",
+          "eventTime": "2026-09-09T12:20:28.821417310Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049404",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "dbe2f77e-468e-3ab3-a95a-b436437ba964",
+            "activityType": {
+              "name": "CompleteOutboundMovements"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxYS03ZjIwLTdlOTctYWJmNi1lMjU3YmIyNWIwNjMiLCJvcmRlcklkIjoiMDFhMDg2MWEtN2YyMC03ZTk3LWFiZjYtZTI1N2JiMjViMDYzIiwic3RvY2tPcGVyYXRpb25JZCI6IjAxYTA4NjFhLTgzMTktNzk0Yi1iNjIzLTcwNmRhZDIyOTVlNSIsInNoaXBtZW50SWQiOiIwMWEwODYxYy1hMTBiLTcyOWYtODQzMC00M2JkNDhmYmQwMTAiLCJtb3ZlbWVudElkcyI6WyIwMWEwODYxYS04MzFhLTcyNzYtYWEwOC04NTUxM2RlMWU3YWYiLCIwMWEwODYxYS04MzFhLTc1OTktYWEwOS1jMzIxYjMwZThjNDMiXSwiaGFuZGVkT3ZlckF0IjoiMjAyNi0wOS0wOVQxMjoyMDoyOC4xMzA2MTFaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "24",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "26",
+          "eventTime": "2026-09-09T12:20:28.832326420Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049409",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "25",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "5d51028d-d1fe-402b-bb0d-eab5a49ad697",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "27",
+          "eventTime": "2026-09-09T12:20:29.002574757Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049410",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "25",
+            "startedEventId": "26",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "28",
+          "eventTime": "2026-09-09T12:20:29.002606757Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049411",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "29",
+          "eventTime": "2026-09-09T12:20:29.006664542Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049415",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "28",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "0bbbab5f-292c-4c1b-bbd5-1fa62e67c184",
+            "historySizeBytes": "6067"
+          }
+        },
+        {
+          "eventId": "30",
+          "eventTime": "2026-09-09T12:20:29.029858384Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049419",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "28",
+            "startedEventId": "29",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "31",
+          "eventTime": "2026-09-09T12:20:29.029950050Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049420",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "0def2616-e1c1-3274-8219-b8ab4012b683",
+            "activityType": {
+              "name": "RecordOrderFulfillment"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxYS03ZjIwLTdlOTctYWJmNi1lMjU3YmIyNWIwNjMiLCJvcmRlcklkIjoiMDFhMDg2MWEtN2YyMC03ZTk3LWFiZjYtZTI1N2JiMjViMDYzIiwic2hpcG1lbnRJZCI6IjAxYTA4NjFjLWExMGItNzI5Zi04NDMwLTQzYmQ0OGZiZDAxMCIsImZ1bGZpbGxlZEF0IjoiMjAyNi0wOS0wOVQxMjoyMDoyOC4xMzA2MTFaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "30",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "32",
+          "eventTime": "2026-09-09T12:20:29.038858996Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049425",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "31",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "cf473fe0-6d0b-4e20-b692-1ad4e1eadfc3",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "33",
+          "eventTime": "2026-09-09T12:20:29.098831826Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049426",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "31",
+            "startedEventId": "32",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "34",
+          "eventTime": "2026-09-09T12:20:29.098840951Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049427",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "35",
+          "eventTime": "2026-09-09T12:20:29.108330062Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049431",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "34",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "32a5c2d5-167b-466a-a5ff-0d068a7ef7bf",
+            "historySizeBytes": "7101"
+          }
+        },
+        {
+          "eventId": "36",
+          "eventTime": "2026-09-09T12:20:29.134198275Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049435",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "34",
+            "startedEventId": "35",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "37",
+          "eventTime": "2026-09-09T12:20:29.134311774Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+          "taskId": "1049436",
+          "workflowExecutionCompletedEventAttributes": {
+            "workflowTaskCompletedEventId": "36"
+          }
+        }
+      ]
+    },
+    {
+      "orderId": "01a0861e-38a3-71c6-8ebb-93afb127a133",
+      "signals": [
+        "stockOperationAssigned",
+        "shipmentHandedOverToCarrier"
+      ],
+      "activities": [
+        "RequestOrderAllocation",
+        "CreateWmsShipment",
+        "CompleteOutboundMovements",
+        "RecordOrderFulfillment"
+      ],
+      "events": [
+        {
+          "eventId": "1",
+          "eventTime": "2026-09-09T12:22:03.327203516Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+          "taskId": "1049441",
+          "workflowExecutionStartedEventAttributes": {
+            "workflowType": {
+              "name": "OrderFulfillmentWorkflow"
+            },
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MWUtMzhhMy03MWM2LThlYmItOTNhZmIxMjdhMTMzIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoyMjowMi42NTkzODdaIn0="
+                }
+              ]
+            },
+            "workflowExecutionTimeout": "0s",
+            "workflowRunTimeout": "0s",
+            "workflowTaskTimeout": "10s",
+            "originalExecutionRunId": "01a0861e-3b3f-730e-b269-b211a5cd7fe8",
+            "identity": "32021@Jiang-MacBook.local",
+            "firstExecutionRunId": "01a0861e-3b3f-730e-b269-b211a5cd7fe8",
+            "attempt": 1,
+            "firstWorkflowTaskBackoff": "0s",
+            "header": {},
+            "workflowId": "order-fulfillment/01a0861e-38a3-71c6-8ebb-93afb127a133"
+          }
+        },
+        {
+          "eventId": "2",
+          "eventTime": "2026-09-09T12:22:03.328029679Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049442",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "order-fulfillment-workflows",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "3",
+          "eventTime": "2026-09-09T12:22:03.344104778Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049447",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "2",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "ec85a4a7-9957-4ba5-b309-4a6c0ed5eb1a",
+            "historySizeBytes": "460"
+          }
+        },
+        {
+          "eventId": "4",
+          "eventTime": "2026-09-09T12:22:03.369668880Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049451",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "2",
+            "startedEventId": "3",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "langUsedFlags": [
+                1,
+                3
+              ],
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "5",
+          "eventTime": "2026-09-09T12:22:03.369862296Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049452",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "5af4a446-ea80-339b-b185-81726bd4fac6",
+            "activityType": {
+              "name": "RequestOrderAllocation"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxZS0zOGEzLTcxYzYtOGViYi05M2FmYjEyN2ExMzMiLCJvcmRlcklkIjoiMDFhMDg2MWUtMzhhMy03MWM2LThlYmItOTNhZmIxMjdhMTMzIiwib3JkZXJSZWNlaXZlZEF0IjoiMjAyNi0wOS0wOVQxMjoyMjowMi42NTkzODdaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "4",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "6",
+          "eventTime": "2026-09-09T12:22:03.373930946Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049458",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "5",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "f194f73e-0092-4820-8fcb-34c2d5f3768b",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "7",
+          "eventTime": "2026-09-09T12:22:03.555973605Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049459",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "5",
+            "startedEventId": "6",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "8",
+          "eventTime": "2026-09-09T12:22:03.556029063Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049460",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "9",
+          "eventTime": "2026-09-09T12:22:03.561162708Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049464",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "8",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "55d322b5-1b55-40e2-aede-5bd33fc110c5",
+            "historySizeBytes": "1456"
+          }
+        },
+        {
+          "eventId": "10",
+          "eventTime": "2026-09-09T12:22:03.573608365Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049468",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "8",
+            "startedEventId": "9",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "11",
+          "eventTime": "2026-09-09T12:22:04.296362357Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049471",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "stockOperationAssigned",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzdG9ja09wZXJhdGlvbklkIjoiMDFhMDg2MWUtM2I3Zi03OTIyLWFmMGEtMTJlMWRjODJiYzU1Iiwib3JkZXJJZCI6IjAxYTA4NjFlLTM4YTMtNzFjNi04ZWJiLTkzYWZiMTI3YTEzMyIsIm93bmVySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmYWNpbGl0eUlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDExIiwibW92ZXMiOlt7Im9yZGVyTGluZUlkIjoiMDFhMDg2MWUtMzhhMy03ODYyLThlYmMtZTgyOWE3YjA0ZDZhIiwibW92ZUlkIjoiMDFhMDg2MWUtM2I3Zi03YmQ3LWFmMGItY2Q0M2E5YjBmMDc4Iiwic2t1Q29kZSI6IlVJLVRNUC1GRUZPIiwic291cmNlTG9jYXRpb25JZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAyMSIsInF1YW50aXR5Ijo0fV0sImRpc3BhdGNoQnkiOiIyMDI2LTA5LTEwVDA0OjAwOjAwWiIsInJlbGVhc2VQcmlvcml0eSI6MCwiYXNzaWduZWRBdCI6IjIwMjYtMDktMDlUMTI6MjI6MDMuNDQ3MDc5WiJ9"
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "12",
+          "eventTime": "2026-09-09T12:22:04.296368774Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049472",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "13",
+          "eventTime": "2026-09-09T12:22:04.299922634Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049476",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "12",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "20aa8a41-11bf-4129-894d-b07d1ff95eab",
+            "historySizeBytes": "2398"
+          }
+        },
+        {
+          "eventId": "14",
+          "eventTime": "2026-09-09T12:22:04.317416853Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049480",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "12",
+            "startedEventId": "13",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "15",
+          "eventTime": "2026-09-09T12:22:04.317507894Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049481",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "eb8d9743-7c99-3794-88a3-06d6ed5ab7c5",
+            "activityType": {
+              "name": "CreateWmsShipment"
+            },
+            "taskQueue": {
+              "name": "wms-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxZS0zOGEzLTcxYzYtOGViYi05M2FmYjEyN2ExMzMiLCJhc3NpZ25tZW50Ijp7InN0b2NrT3BlcmF0aW9uSWQiOiIwMWEwODYxZS0zYjdmLTc5MjItYWYwYS0xMmUxZGM4MmJjNTUiLCJvcmRlcklkIjoiMDFhMDg2MWUtMzhhMy03MWM2LThlYmItOTNhZmIxMjdhMTMzIiwib3duZXJJZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZhY2lsaXR5SWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMTEiLCJtb3ZlcyI6W3sib3JkZXJMaW5lSWQiOiIwMWEwODYxZS0zOGEzLTc4NjItOGViYy1lODI5YTdiMDRkNmEiLCJtb3ZlSWQiOiIwMWEwODYxZS0zYjdmLTdiZDctYWYwYi1jZDQzYTliMGYwNzgiLCJza3VDb2RlIjoiVUktVE1QLUZFRk8iLCJzb3VyY2VMb2NhdGlvbklkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDIxIiwicXVhbnRpdHkiOjR9XSwiZGlzcGF0Y2hCeSI6IjIwMjYtMDktMTBUMDQ6MDA6MDBaIiwicmVsZWFzZVByaW9yaXR5IjowLCJhc3NpZ25lZEF0IjoiMjAyNi0wOS0wOVQxMjoyMjowMy40NDcwNzlaIn19"
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "14",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "16",
+          "eventTime": "2026-09-09T12:22:04.322571623Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049486",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "15",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "9ca3c95a-0f62-42d9-8848-4810a6c93d39",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "17",
+          "eventTime": "2026-09-09T12:22:04.346546190Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049487",
+          "activityTaskCompletedEventAttributes": {
+            "result": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJzaGlwbWVudElkIjoiMDFhMDg2MWUtM2YyNS03Mjg3LThlYTctYzYxYWM5MzU2YmI5In0="
+                }
+              ]
+            },
+            "scheduledEventId": "15",
+            "startedEventId": "16",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "18",
+          "eventTime": "2026-09-09T12:22:04.346561815Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049488",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "19",
+          "eventTime": "2026-09-09T12:22:04.351875334Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049492",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "18",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "7e029159-4215-4ba2-b2bd-0b70a47f536d",
+            "historySizeBytes": "3890"
+          }
+        },
+        {
+          "eventId": "20",
+          "eventTime": "2026-09-09T12:22:04.356531815Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049496",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "18",
+            "startedEventId": "19",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "21",
+          "eventTime": "2026-09-09T12:22:14.851800675Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
+          "taskId": "1049498",
+          "workflowExecutionSignaledEventAttributes": {
+            "signalName": "shipmentHandedOverToCarrier",
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJvcmRlcklkIjoiMDFhMDg2MWUtMzhhMy03MWM2LThlYmItOTNhZmIxMjdhMTMzIiwic2hpcG1lbnRJZCI6IjAxYTA4NjFlLTNmMjUtNzI4Ny04ZWE3LWM2MWFjOTM1NmJiOSIsImhhbmRlZE92ZXJBdCI6IjIwMjYtMDktMDlUMTI6MjI6MTQuMjcyNzY2WiJ9"
+                }
+              ]
+            },
+            "identity": "32021@Jiang-MacBook.local",
+            "header": {}
+          }
+        },
+        {
+          "eventId": "22",
+          "eventTime": "2026-09-09T12:22:14.851843509Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049499",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "23",
+          "eventTime": "2026-09-09T12:22:14.856749905Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049503",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "22",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "1eacc71b-f091-4a8d-b9ba-bf0f4635e412",
+            "historySizeBytes": "4468"
+          }
+        },
+        {
+          "eventId": "24",
+          "eventTime": "2026-09-09T12:22:14.863789292Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049507",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "22",
+            "startedEventId": "23",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "25",
+          "eventTime": "2026-09-09T12:22:14.863995625Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049508",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "293567a7-d96b-3627-998b-645b1b4f0ae0",
+            "activityType": {
+              "name": "CompleteOutboundMovements"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxZS0zOGEzLTcxYzYtOGViYi05M2FmYjEyN2ExMzMiLCJvcmRlcklkIjoiMDFhMDg2MWUtMzhhMy03MWM2LThlYmItOTNhZmIxMjdhMTMzIiwic3RvY2tPcGVyYXRpb25JZCI6IjAxYTA4NjFlLTNiN2YtNzkyMi1hZjBhLTEyZTFkYzgyYmM1NSIsInNoaXBtZW50SWQiOiIwMWEwODYxZS0zZjI1LTcyODctOGVhNy1jNjFhYzkzNTZiYjkiLCJtb3ZlbWVudElkcyI6WyIwMWEwODYxZS0zYjdmLTdiZDctYWYwYi1jZDQzYTliMGYwNzgiXSwiaGFuZGVkT3ZlckF0IjoiMjAyNi0wOS0wOVQxMjoyMjoxNC4yNzI3NjZaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "24",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "26",
+          "eventTime": "2026-09-09T12:22:14.866385740Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049513",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "25",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "58543f60-1fec-49e1-b042-40186f4e4191",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "27",
+          "eventTime": "2026-09-09T12:22:14.895874034Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049514",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "25",
+            "startedEventId": "26",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "28",
+          "eventTime": "2026-09-09T12:22:14.895884742Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049515",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "29",
+          "eventTime": "2026-09-09T12:22:14.897742984Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049519",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "28",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "48b17811-9e33-46e2-903d-b46678d275c6",
+            "historySizeBytes": "5625"
+          }
+        },
+        {
+          "eventId": "30",
+          "eventTime": "2026-09-09T12:22:14.903611085Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049523",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "28",
+            "startedEventId": "29",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "31",
+          "eventTime": "2026-09-09T12:22:14.903673376Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+          "taskId": "1049524",
+          "activityTaskScheduledEventAttributes": {
+            "activityId": "13094f89-b4b5-3b08-a384-0d1c26e3059f",
+            "activityType": {
+              "name": "RecordOrderFulfillment"
+            },
+            "taskQueue": {
+              "name": "order-promising-activities",
+              "kind": "TASK_QUEUE_KIND_NORMAL"
+            },
+            "header": {},
+            "input": {
+              "payloads": [
+                {
+                  "metadata": {
+                    "encoding": "anNvbi9wbGFpbg=="
+                  },
+                  "data": "eyJwcm9jZXNzSWQiOiJvcmRlci1mdWxmaWxsbWVudC8wMWEwODYxZS0zOGEzLTcxYzYtOGViYi05M2FmYjEyN2ExMzMiLCJvcmRlcklkIjoiMDFhMDg2MWUtMzhhMy03MWM2LThlYmItOTNhZmIxMjdhMTMzIiwic2hpcG1lbnRJZCI6IjAxYTA4NjFlLTNmMjUtNzI4Ny04ZWE3LWM2MWFjOTM1NmJiOSIsImZ1bGZpbGxlZEF0IjoiMjAyNi0wOS0wOVQxMjoyMjoxNC4yNzI3NjZaIn0="
+                }
+              ]
+            },
+            "scheduleToCloseTimeout": "0s",
+            "scheduleToStartTimeout": "0s",
+            "startToCloseTimeout": "30s",
+            "heartbeatTimeout": "0s",
+            "workflowTaskCompletedEventId": "30",
+            "retryPolicy": {
+              "initialInterval": "1s",
+              "backoffCoefficient": 2,
+              "maximumInterval": "30s",
+              "nonRetryableErrorTypes": [
+                "java.lang.IllegalArgumentException",
+                "com.flowzati.archone.foundation.error.ApplicationConflictException",
+                "com.flowzati.archone.foundation.error.DomainConflictException"
+              ]
+            }
+          }
+        },
+        {
+          "eventId": "32",
+          "eventTime": "2026-09-09T12:22:14.906322157Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+          "taskId": "1049529",
+          "activityTaskStartedEventAttributes": {
+            "scheduledEventId": "31",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "5abb963e-d338-4e67-98c5-6d511fc06132",
+            "attempt": 1,
+            "workerVersion": {}
+          }
+        },
+        {
+          "eventId": "33",
+          "eventTime": "2026-09-09T12:22:14.916093325Z",
+          "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+          "taskId": "1049530",
+          "activityTaskCompletedEventAttributes": {
+            "scheduledEventId": "31",
+            "startedEventId": "32",
+            "identity": "32021@Jiang-MacBook.local"
+          }
+        },
+        {
+          "eventId": "34",
+          "eventTime": "2026-09-09T12:22:14.916126074Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+          "taskId": "1049531",
+          "workflowTaskScheduledEventAttributes": {
+            "taskQueue": {
+              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "kind": "TASK_QUEUE_KIND_STICKY",
+              "normalName": "order-fulfillment-workflows"
+            },
+            "startToCloseTimeout": "10s",
+            "attempt": 1
+          }
+        },
+        {
+          "eventId": "35",
+          "eventTime": "2026-09-09T12:22:14.919374478Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+          "taskId": "1049535",
+          "workflowTaskStartedEventAttributes": {
+            "scheduledEventId": "34",
+            "identity": "32021@Jiang-MacBook.local",
+            "requestId": "da1a994c-a5f8-4fd6-89a8-998e575dbba0",
+            "historySizeBytes": "6665"
+          }
+        },
+        {
+          "eventId": "36",
+          "eventTime": "2026-09-09T12:22:14.923780834Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+          "taskId": "1049539",
+          "workflowTaskCompletedEventAttributes": {
+            "scheduledEventId": "34",
+            "startedEventId": "35",
+            "identity": "32021@Jiang-MacBook.local",
+            "workerVersion": {},
+            "sdkMetadata": {
+              "sdkName": "temporal-java",
+              "sdkVersion": "1.35.0"
+            },
+            "meteringMetadata": {}
+          }
+        },
+        {
+          "eventId": "37",
+          "eventTime": "2026-09-09T12:22:14.924398665Z",
+          "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+          "taskId": "1049540",
+          "workflowExecutionCompletedEventAttributes": {
+            "workflowTaskCompletedEventId": "36"
+          }
+        }
+      ]
+    }
+  ],
+  "receiptIds": [
+    "2ce58c93-6af8-4312-9da7-21cc6964310f",
+    "92e396d0-860a-4c48-b8be-10f150ceb392"
+  ]
+}

@@ -1,3 +1,4 @@
+import { temporalWorkflowUrl } from '../fulfillment/temporalWorkflowUrl';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import type { Catalog } from '../api/catalog';
@@ -111,6 +112,7 @@ export function FulfillmentDetails({ data, catalog, list }: {
   data: OrderFulfillmentView; catalog: Catalog; list: ListContext;
 }) {
   const { order, stockOperation: stock, temporalWorkflow: workflow } = data;
+  const workflowUrl = data.orchestrationMode === 'temporal' ? temporalWorkflowUrl(order.orderId) : null;
   const operation = stock?.operation;
   const location = catalog.locationsOf(order.facilityId).find(l => l.locationId === operation?.fromLocationId);
   const canLocate = location && stock?.source.type === 'ORDER' && stock.source.sourceId === order.orderId
@@ -167,6 +169,8 @@ export function FulfillmentDetails({ data, catalog, list }: {
       </article>)}
     </section>
     {data.orchestrationMode === 'temporal' ? <section><h3>Temporal Workflow</h3>
+      {workflowUrl ? <p><a href={workflowUrl} target="_blank" rel="noopener noreferrer">在 Temporal UI 查看 Workflow（新分頁）</a></p>
+        : <p>尚未設定有效的 Temporal UI 位址或 namespace。</p>}
       <p>查詢狀態：{data.workflowQueryStatus}</p>
       {workflow ? <dl className={styles.facts}>
         <dt>目前階段</dt><dd>{workflow.phase ?? '未知'}</dd>
