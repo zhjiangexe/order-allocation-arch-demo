@@ -19,6 +19,59 @@ cd backend
 
 後端模組與職責請見 [`backend/README.md`](backend/README.md)。
 
+## 簡報前一鍵啟動（含前端）
+
+先啟動 Docker（含 Compose v2），在 repository root 執行：
+
+```bash
+# 二選一；也可以同時啟動兩個互相隔離的環境
+make demo-up MODE=events
+make demo-up MODE=temporal
+```
+
+簡寫為 `make demo-events`、`make demo-temporal`。未指定 `MODE` 時預設 `events`。
+底層腳本也可直接呼叫：`./scripts/demo.sh up temporal`。
+
+指令會建置目前工作目錄的後端、啟動 PostgreSQL／Kafka／Kafka Connect／Kafka UI，
+Temporal 模式另外啟動 Temporal server 與 UI；前端在 Node 容器內執行 `npm ci` 後啟動 Vite。
+**Temporal 模式仍依賴事件驅動**：收單事件啟動 Workflow，配貨／交運事件轉成 Signal，
+Ordering 的配貨狀態與庫存可用量喚醒等仍透過事件更新。因此兩種模式都會啟動 Kafka、
+Kafka Connect 與 Outbox connector；Temporal 只接手指定的跨 Context 協調步驟。
+等待前後端健康且 Debezium Outbox connector 為 RUNNING 後，才輸出「簡報環境已就緒」。
+本機不必另外安裝 Java／Node；首次執行需要網路下載 images 與依賴，請在簡報前預先啟動。
+後端使用 dev profile，沿用既有示範主檔初始化與 WMS 自動模擬作業。
+
+| 服務 | Events | Temporal |
+| --- | --- | --- |
+| **ALLOCATION! 操作台** | http://localhost:28695 | http://localhost:28795 |
+| 後端 API | http://localhost:28690 | http://localhost:28790 |
+| Kafka UI | http://localhost:28697 | http://localhost:28797 |
+| Temporal UI | 不啟動 | http://localhost:28796 |
+| PostgreSQL | localhost:28691 | localhost:28791 |
+| Kafka | localhost:28692 | localhost:28792 |
+| Kafka Connect | http://localhost:28693 | http://localhost:28793 |
+| Temporal gRPC | 不啟動 | localhost:28794 |
+| Management | http://localhost:28698 | http://localhost:28798 |
+
+前端自動代理到同組後端，Temporal 連結也自動指向同組 UI，不需修改 `frontend/.env.local`。
+Temporal Activity 在 invoke usecase 前等待約 3 秒；WMS 模擬處理延遲為 10 秒。
+
+```bash
+make demo-ps MODE=temporal       # 查看服務狀態
+make demo-logs MODE=temporal     # 持續查看所有服務日誌，Ctrl+C 離開
+make demo-restart MODE=temporal  # 重建並重新啟動，套用程式修改
+make demo-down MODE=temporal    # 停止該組服務，保留資料
+```
+
+兩組固定使用 `archone-demo-events`／`archone-demo-temporal` Compose project，
+資料庫、Kafka 與 Temporal 資料以各自的 named volumes 保存；停止再啟動會沿用資料，
+不是每次清空重建。切換展示模式請開啟另一組操作台，既有訂單不會移轉到另一個 driver。
+這些環境與 `make dev-up`、先前手動啟動的 2849x／2859x 環境分開，舊示範訂單不會自動出現在新環境。
+
+若啟動失敗，先執行 `make demo-ps MODE=...` 與 `make demo-logs MODE=...` 查看狀態；
+修正後可重跑 `make demo-up MODE=...`。固定連接埠被其他程式占用時，請先停止占用者。
+此入口供本機簡報使用，前端為 Vite dev server；正式部署仍使用下方流程。
+
 ## Monolith 打包與啟動
 
 根目錄的 `Makefile` 是統一入口。開發環境會一併啟動 monolith、PostgreSQL、Kafka、

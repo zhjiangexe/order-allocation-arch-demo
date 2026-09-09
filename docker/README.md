@@ -9,6 +9,13 @@
 | `stage` | `compose.yml` + `compose.stage.yml` | 外部 PostgreSQL、Kafka 與 Debezium；Spring profiles 為 `prod,staging` |
 | `prod` | `compose.yml` + `compose.prod.yml` | 外部 PostgreSQL、Kafka 與 Debezium；Spring profile 為 `prod` |
 
+## 簡報操作台
+
+需要前端與完整雙模式服務時，使用根目錄的 `make demo-up MODE=events|temporal`。
+此入口額外套用 `compose.demo.yml`，使用獨立 project／ports，並保留 Kafka 與 Temporal 資料。
+Temporal 模式仍會啟動 Kafka、Kafka Connect 與 Outbox connector。
+啟動、停止與連接埠對照請見 [根目錄 README](../README.md#簡報前一鍵啟動含前端)。
+
 ## Commands
 
 一律從 repository root 使用 `Makefile`：

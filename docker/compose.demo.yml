@@ -1,0 +1,59 @@
+# 簡報環境沿用 dev 後端與基礎設施，額外啟動操作台並保留訊息／Workflow 資料。
+services:
+  monolith:
+    environment:
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
+
+  demo-data-init:
+    image: node:22-alpine
+    user: "0:0"
+    command: ["sh", "-c", "chown 1000:1000 /data/kafka /data/temporal"]
+    volumes:
+      - kafka-data:/data/kafka
+      - temporal-data:/data/temporal
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["sh", "-c", "npm ci --no-audit --no-fund && npm run dev -- --host 0.0.0.0 --port 5173"]
+    environment:
+      ARCHONE_BACKEND_ORIGIN: http://monolith:8080
+      VITE_TEMPORAL_UI_URL: http://localhost:${ARCHONE_TEMPORAL_UI_PORT}
+      VITE_TEMPORAL_NAMESPACE: default
+    volumes:
+      - ../frontend:/app:ro
+      - frontend-modules:/app/node_modules
+    ports:
+      - "127.0.0.1:${ARCHONE_FRONTEND_PORT}:5173"
+    depends_on:
+      monolith:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "Promise.all(['/', '/api/owners'].map(p => fetch('http://127.0.0.1:5173'+p).then(r => { if (!r.ok) throw Error(r.status); }))).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      start_period: 120s
+      retries: 30
+    init: true
+
+  kafka:
+    depends_on:
+      demo-data-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+
+  temporal:
+    depends_on:
+      demo-data-init:
+        condition: service_completed_successfully
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/var/lib/temporal/demo.db"]
+    volumes:
+      - temporal-data:/var/lib/temporal
+
+volumes:
+  frontend-modules:
+  kafka-data:
+  temporal-data:
