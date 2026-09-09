@@ -15,6 +15,7 @@ import { ConfirmStockReceiptDialog, type ConfirmStockReceiptInput } from './Conf
 import styles from './StockPanel.module.css';
 
 interface StockPanelProps {
+  ownerId?: string | undefined;
   /** 已經與主檔 join 過的列表：該貨主的每一個規格各一列，這個倉沒有的四個數字都是 0。 */
   initialScope?: { ownerId: string; facilityId: string; locationId: string; sku: string } | undefined;
   receiptLocked?: boolean;
@@ -49,6 +50,7 @@ interface StockPanelProps {
  * 到得了每一個規格。只列有貨的會讓這個倉從未放過的貨品再也進不去。
  */
 export function StockPanel({
+  ownerId: fixedOwnerId,
   initialScope,
   receiptLocked = false,
   lines,
@@ -63,7 +65,7 @@ export function StockPanel({
   const ownerFieldId = useId();
   const facilityFieldId = useId();
   const locationFieldId = useId();
-  const [selectedOwner, setSelectedOwner] = useState(initialScope?.ownerId ?? '');
+  const [selectedOwner, setSelectedOwner] = useState(fixedOwnerId ?? initialScope?.ownerId ?? '');
   const [selectedFacility, setSelectedFacility] = useState(initialScope?.facilityId ?? '');
   const [selectedLocation, setSelectedLocation] = useState(initialScope?.locationId ?? '');
   const [receiving, setReceiving] = useState<StockLine | null>(null);
@@ -83,7 +85,7 @@ export function StockPanel({
   return (
     <div className={styles.panel}>
       <fieldset className={styles.controls} disabled={receiptLocked} style={{ border: 0, padding: 0, margin: 0 }}>
-
+        {fixedOwnerId ? null : <>
         <div className={styles.field}>
           <label className={styles.label} htmlFor={ownerFieldId}>貨主</label>
           <Select autoSelectSingle
@@ -101,7 +103,7 @@ export function StockPanel({
             ))}
           </Select>
         </div>
-
+        </>}
         <div className={styles.field}>
           <label className={styles.label} htmlFor={facilityFieldId}>設施</label>
           <Select autoSelectSingle

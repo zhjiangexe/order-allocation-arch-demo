@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useOwnerSession } from '../owner/OwnerSession';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import { ApiError, listRecentOrders, placeOrder } from '../api/client';
@@ -23,9 +24,12 @@ interface Placement {
 const initialPlacement: Placement = { state: 'idle', command: null, message: '', found: null };
 
 export function OrdersPage() {
+  const selectedOwnerId = useOwnerSession()?.owner?.ownerId;
   const catalog = useCatalog();
   const orderFormId = useId();
-  const orders = useAsyncAction(listRecentOrders);
+  const listOrders = useCallback((limit: number) => listRecentOrders(limit, undefined, selectedOwnerId)
+    .then(rows => selectedOwnerId ? rows.filter(row => row.ownerId === selectedOwnerId) : rows), [selectedOwnerId]);
+  const orders = useAsyncAction(listOrders);
   const { run: loadOrders } = orders;
   const [placement, setPlacement] = useState<Placement>(initialPlacement);
   const [formOpen, setFormOpen] = useState(false);
@@ -92,7 +96,7 @@ export function OrdersPage() {
           setFormKey(key => key + 1);
         }
       }}>
-      <PlaceOrderForm key={formKey} formId={orderFormId} catalog={catalog} onSubmit={handlePlaceOrder}
+      <PlaceOrderForm key={formKey} formId={orderFormId} ownerId={selectedOwnerId} catalog={catalog} onSubmit={handlePlaceOrder}
         pending={placement.state === 'pending'} blocked={placement.state === 'uncertain' || placement.state === 'success'} />
       {placement.message ? <p role={placement.state === 'success' ? 'status' : 'alert'}>{placement.message}</p> : null}
       {placement.state === 'uncertain' ? <>

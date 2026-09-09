@@ -1,4 +1,4 @@
-import { selectOption } from '../test/selectOption';
+import { OwnerSessionContext } from '../owner/OwnerSession';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -71,11 +71,12 @@ describe('CatalogPage', () => {
   });
 
   it('切換貨主後不混入另一貨主的同層主檔', async () => {
-    render(<CatalogPage />);
-    const user = userEvent.setup();
+    const view = (owner: typeof OWNER_A) => <OwnerSessionContext.Provider value={{ owners: [OWNER_A, OWNER_B], owner, loading: false, error: null, retry: () => {} }}><CatalogPage /></OwnerSessionContext.Provider>;
+    const { rerender } = render(view(OWNER_A));
     await screen.findByRole('heading', { name: '甲貨主' });
-
-    await selectOption(user, screen.getByLabelText('貨主'), OWNER_B.ownerId);
+    rerender(view(OWNER_B));
+    await screen.findByRole('heading', { name: '乙貨主' });
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: '乙貨主' })).toBeInTheDocument();
     expect(screen.getByText('麥茶')).toBeInTheDocument();

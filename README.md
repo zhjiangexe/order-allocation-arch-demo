@@ -49,13 +49,17 @@ prod 對應 `docker/env/prod.env.example` 與 `make prod-deploy`。完整變數�
 ## Allocation 操作台與履約 API
 
 前端提供訂單、配貨佇列、庫存與主檔四頁，可從建單、補貨追蹤到履約完成。
+右上角共用貨主選擇模擬登入身分；各頁沿用所選貨主，切換時重設操作範圍。
 Events／Temporal 由後端啟動設定決定，Temporal 詳情可跳轉 Workflow。
 啟動方式與操作見 [frontend/README.md](frontend/README.md)，雙模式驗證見
 [validation.md](docs/plans/allocation-console/validation.md)。
 
+訂單列表 `GET /orders?limit=20&ownerId=...` 與配貨佇列都支援可選的 `ownerId`，先篩選貨主再取筆數。
+這是查詢條件，尚未提供登入授權隔離。
+
 Monolith 的相關 API：
 
-- `GET /stock-operations?state=CONFIRMED&limit=200`：列出等待中的庫存作業；不提供精確缺口或全域佇列排名。
+- `GET /stock-operations?state=CONFIRMED&limit=200&ownerId=...`：列出指定貨主等待中的庫存作業；不提供精確缺口或全域佇列排名。
 - `GET /demo/orders/{orderId}/fulfillment`：組合 Order、StockOperation／movement／批次、WMS Shipment，Temporal 模式另帶 Workflow state。
 - `POST /orders/{orderId}/cancellation-requests`：把 immutable cancellation request 送進目前生效的 Events 或 Temporal 協調流程。
 

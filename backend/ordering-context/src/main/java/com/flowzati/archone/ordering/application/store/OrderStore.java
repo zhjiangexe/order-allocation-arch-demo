@@ -24,4 +24,6 @@ public interface OrderStore {
      * 多筆訂單若沒有穩定的次序，重複查詢會回傳不同順序，畫面上的列表就會無故跳動。
      */
     List<Order> findRecent(int limit);
+
+    List<Order> findRecent(UUID ownerId, int limit);
 }

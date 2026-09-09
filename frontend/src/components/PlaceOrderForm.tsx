@@ -8,6 +8,7 @@ import styles from './PlaceOrderForm.module.css';
 interface PlaceOrderFormProps {
   /** 提供 ID 時由視窗 footer 的外部 submit 按鈕送出。 */
   formId?: string;
+  ownerId?: string | undefined;
   catalog: Catalog;
   onSubmit: (command: PlaceOrderCommand) => void;
   pending: boolean;
@@ -43,7 +44,7 @@ interface DraftLine {
  * 同一個規格出現在兩條行上是允許的，不是被容忍的：收單接受它，需求讀成兩者的加總。在這裡擋
  * 下只會讓操作台拒絕系統處理得了的訂單。
  */
-export function PlaceOrderForm({ formId, catalog, onSubmit, pending, blocked = false }: PlaceOrderFormProps) {
+export function PlaceOrderForm({ formId, ownerId: fixedOwnerId, catalog, onSubmit, pending, blocked = false }: PlaceOrderFormProps) {
   const ownerId = useId();
   const facilityId = useId();
   const externalOrderNoId = useId();
@@ -56,7 +57,7 @@ export function PlaceOrderForm({ formId, catalog, onSubmit, pending, blocked = f
   const [dispatchBy, setDispatchBy] = useState('');
   const [releasePriority, setReleasePriority] = useState('0');
 
-  const [selectedOwner, setSelectedOwner] = useState('');
+  const [selectedOwner, setSelectedOwner] = useState(fixedOwnerId ?? '');
   const [selectedFacility, setSelectedFacility] = useState('');
   const [externalOrderNo, setExternalOrderNo] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine(0)]);
@@ -128,7 +129,7 @@ export function PlaceOrderForm({ formId, catalog, onSubmit, pending, blocked = f
     <form id={formId} onSubmit={handleSubmit} noValidate>
       <fieldset className={styles.form} disabled={pending || blocked}>
       <legend className={styles.srOnly}>建立訂單</legend>
-
+      {fixedOwnerId ? null : <>
       <div className={styles.field}>
         <label className={styles.label} htmlFor={ownerId}>貨主</label>
         <Select autoSelectSingle
@@ -145,7 +146,7 @@ export function PlaceOrderForm({ formId, catalog, onSubmit, pending, blocked = f
           ))}
         </Select>
       </div>
-
+      </>}
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor={facilityId}>履約設施</label>

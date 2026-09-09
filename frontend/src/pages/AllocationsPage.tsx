@@ -1,3 +1,4 @@
+import { useOwnerSession } from '../owner/OwnerSession';
 import { Select, SelectOption } from '../components/Select';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
@@ -22,6 +23,7 @@ function resolveLocation(catalog: Catalog, row: StockOperationView) {
 }
 
 export function AllocationsPage() {
+  const selectedOwnerId = useOwnerSession()?.owner?.ownerId;
   const catalog = useCatalog();
   const location = useLocation();
   const navigate = useNavigate();
@@ -36,15 +38,15 @@ export function AllocationsPage() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    void listConfirmedStockOperations(LIMIT, controller.signal).then(data => {
-      if (!controller.signal.aborted) setRows(data);
+    void listConfirmedStockOperations(LIMIT, controller.signal, selectedOwnerId).then(data => {
+      if (!controller.signal.aborted) setRows(selectedOwnerId ? data.filter(row => row.operation.ownerId === selectedOwnerId) : data);
     }).catch((cause: unknown) => {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : String(cause));
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [revision]);
+  }, [revision, selectedOwnerId]);
 
   const owners = new Map((rows ?? []).map(row => [row.operation.ownerId,
     catalog.owners.find(owner => owner.ownerId === row.operation.ownerId)?.name ?? row.operation.ownerId]));
@@ -55,7 +57,7 @@ export function AllocationsPage() {
   if (filters.ownerId && !owners.has(filters.ownerId)) owners.set(filters.ownerId, filters.ownerId);
   if (filters.facilityId && !facilities.has(filters.facilityId)) facilities.set(filters.facilityId, filters.facilityId);
   const sources = [...new Set([...(rows ?? []).map(row => row.source.type), ...(filters.source ? [filters.source] : [])])];
-  const filtered = (rows ?? []).filter(row => (!filters.ownerId || row.operation.ownerId === filters.ownerId)
+  const filtered = (rows ?? []).filter(row => (!selectedOwnerId || row.operation.ownerId === selectedOwnerId)
     && (!filters.source || row.source.type === filters.source)
     && (!filters.facilityId || resolveLocation(catalog, row)?.facility.facilityId === filters.facilityId)
     && (!filters.sku || row.moves.some(move => move.skuCode.toLowerCase().includes(filters.sku!.toLowerCase()))));
@@ -77,10 +79,6 @@ export function AllocationsPage() {
     <p>等待分配的出庫作業（CONFIRMED）。等待可能來自庫存、批次條件或前序需求，並不一定是缺貨。</p>
     <p>最多載入 {LIMIT} 筆；篩選僅套用已載入資料，不代表全量搜尋或全域配貨順位。</p>
     <div className={styles.filters}>
-      <label>貨主<Select value={filters.ownerId ?? ''} onValueChange={value => changeFilter('ownerId', value)}>
-        <SelectOption value="">全部貨主</SelectOption>
-        {[...owners].map(([id, name]) => <SelectOption key={id} value={id}>{name}</SelectOption>)}
-      </Select></label>
       <label>設施<Select value={filters.facilityId ?? ''} onValueChange={value => changeFilter('facilityId', value)}>
         <SelectOption value="">全部設施</SelectOption>
         {[...facilities].map(([id, name]) => <SelectOption key={id} value={id}>{name}</SelectOption>)}

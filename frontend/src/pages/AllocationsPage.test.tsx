@@ -1,3 +1,4 @@
+import { OwnerSessionContext } from '../owner/OwnerSession';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -34,7 +35,7 @@ afterEach(() => vi.restoreAllMocks());
 it('loads the supported queue with a 200 limit, shows fields and expands demand lines', async () => {
   mount();
   expect(await screen.findByText('已載入 1 筆，符合篩選 1 筆。')).toBeVisible();
-  expect(client.listConfirmedStockOperations).toHaveBeenCalledWith(200, expect.any(AbortSignal));
+  expect(client.listConfirmedStockOperations).toHaveBeenCalledWith(200, expect.any(AbortSignal), undefined);
   expect(screen.getByText(row().operation.stockOperationId)).toBeVisible();
   expect(screen.getByText('庫存')).toBeVisible();
   fireEvent.click(screen.getByText('SKU 需求明細（1 行）'));
@@ -118,26 +119,21 @@ it('aborts on unmount and ignores the late response', async () => {
   await act(async () => resolve([row()]));
 });
 
-it('combines owner, facility and source filters without fetching a different queue', async () => {
+it('scopes the queue to the current owner before applying facility and source filters', async () => {
   const other = row();
   other.operation.stockOperationId = 'other-operation';
   other.operation.ownerId = '00000000-0000-0000-0000-000000000099';
   other.source.type = 'TRANSFER';
   vi.mocked(client.listConfirmedStockOperations).mockResolvedValue([row(), other]);
-  mount();
-  await screen.findByText('已載入 2 筆，符合篩選 2 筆。');
-  fireEvent.click(screen.getByLabelText('來源'));
-  fireEvent.click(screen.getAllByRole('option').find(option => option.getAttribute('data-value') === 'TRANSFER')!);
-  expect(screen.getAllByRole('article')).toHaveLength(1);
-  fireEvent.click(screen.getByLabelText('貨主'));
-  fireEvent.click(screen.getAllByRole('option').find(option => option.getAttribute('data-value') === order.ownerId)!);
-  expect(screen.getByText('已載入的作業中沒有符合篩選的資料。')).toBeVisible();
-  fireEvent.click(screen.getByLabelText('來源'));
-  fireEvent.click(screen.getAllByRole('option').find(option => option.getAttribute('data-value') === 'ORDER')!);
+  render(<MemoryRouter><OwnerSessionContext.Provider value={{ owners: catalog.owners, owner: catalog.owners[0]!, loading: false, error: null, retry: () => {} }}><AllocationsPage /></OwnerSessionContext.Provider></MemoryRouter>);
+  await screen.findByText('已載入 1 筆，符合篩選 1 筆。');
+  expect(client.listConfirmedStockOperations).toHaveBeenCalledWith(200, expect.any(AbortSignal), order.ownerId);
+  expect(screen.queryByLabelText('貨主')).not.toBeInTheDocument();
+  expect(screen.queryByText('other-operation')).not.toBeInTheDocument();
   fireEvent.click(screen.getByLabelText('設施'));
   fireEvent.click(screen.getAllByRole('option').find(option => option.getAttribute('data-value') === order.facilityId)!);
   expect(screen.getAllByRole('article')).toHaveLength(1);
   fireEvent.click(screen.getByRole('button', { name: '清除篩選' }));
-  expect(screen.getAllByRole('article')).toHaveLength(2);
+  expect(screen.getAllByRole('article')).toHaveLength(1);
   expect(client.listConfirmedStockOperations).toHaveBeenCalledTimes(1);
 });

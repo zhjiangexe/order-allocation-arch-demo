@@ -20,6 +20,10 @@ public class StockOperationQueryService {
         this.stockOperationViewStore = stockOperationViewStore;
     }
 
+    public List<StockOperationView> listConfirmed(UUID ownerId, int limit) {
+        return stockOperationViewStore.findConfirmedOutbound(ownerId, limit);
+    }
+
     public List<StockOperationView> listConfirmed(int limit) {
         return stockOperationViewStore.findConfirmedOutbound(limit);
     }

@@ -91,6 +91,14 @@ class OrderRestTest {
     private ListRecentOrdersUsecase listRecentOrdersUsecase;
 
     @Test
+    void filtersRecentOrdersByOwner() {
+        UUID ownerId = UUID.randomUUID();
+        when(listRecentOrdersUsecase.listRecent(ownerId, 20)).thenReturn(List.of());
+        assertThat(mvc.get().uri("/orders?ownerId=" + ownerId + "&limit=20")).hasStatusOk();
+        verify(listRecentOrdersUsecase).listRecent(ownerId, 20);
+    }
+
+    @Test
     @DisplayName("下單以 JSON body 送出，回傳與單筆查詢相同形狀的訂單表示")
     void shouldPlaceOrderFromJsonBodyAndReturnFullOrderRepresentation() {
         UUID orderId = UUID.randomUUID();

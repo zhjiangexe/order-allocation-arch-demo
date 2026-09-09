@@ -68,14 +68,16 @@ public class OrderRest {
 
     @GetMapping
     public List<OrderStatusResponse> listRecentOrders(
-            @RequestParam(name = "limit", defaultValue = "" + DEFAULT_LIMIT) int limit) {
+            @RequestParam(name = "limit", defaultValue = "" + DEFAULT_LIMIT) int limit,
+            @RequestParam(name = "ownerId", required = false) UUID ownerId) {
         if (limit < MIN_LIMIT || limit > MAX_LIMIT) {
             throw new IllegalArgumentException(
                     "limit must be between " + MIN_LIMIT + " and " + MAX_LIMIT + ", but was " + limit);
         }
-        return listRecentOrdersUsecase.listRecent(limit).stream()
-                .map(OrderStatusResponse::from)
-                .toList();
+        return (ownerId == null
+                        ? listRecentOrdersUsecase.listRecent(limit)
+                        : listRecentOrdersUsecase.listRecent(ownerId, limit))
+                .stream().map(OrderStatusResponse::from).toList();
     }
 
     @GetMapping("/{orderId}")

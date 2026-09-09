@@ -36,6 +36,21 @@ class StockOperationRestTest {
     private StockOperationQueryService queryService;
 
     @Test
+    void filtersQueueByOwner() {
+        UUID ownerId = UUID.randomUUID();
+        when(queryService.listConfirmed(ownerId, 20)).thenReturn(List.of());
+        assertThat(mvc.get().uri("/stock-operations?ownerId=" + ownerId + "&limit=20"))
+                .hasStatus(200);
+        verify(queryService).listConfirmed(ownerId, 20);
+    }
+
+    @Test
+    void rejectsMalformedOwner() {
+        assertThat(mvc.get().uri("/stock-operations?ownerId=invalid")).hasStatus(400);
+        verifyNoInteractions(queryService);
+    }
+
+    @Test
     void returnsCanonicalPickingQueue() {
         UUID stockOperationId = UUID.randomUUID();
         when(queryService.listConfirmed(20)).thenReturn(List.of(operation(stockOperationId)));

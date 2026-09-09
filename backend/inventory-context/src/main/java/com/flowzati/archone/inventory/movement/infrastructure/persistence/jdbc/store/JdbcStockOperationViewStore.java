@@ -5,6 +5,7 @@ import com.flowzati.archone.inventory.movement.application.store.StockOperationV
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -57,6 +58,11 @@ public class JdbcStockOperationViewStore implements StockOperationViewStore {
 
     @Override
     public List<StockOperationView> findConfirmedOutbound(int limit) {
+        return findConfirmedOutbound(null, limit);
+    }
+
+    @Override
+    public List<StockOperationView> findConfirmedOutbound(UUID ownerId, int limit) {
         if (limit <= 0) {
             throw new IllegalArgumentException("Confirmed operation query limit must be positive");
         }
@@ -66,11 +72,12 @@ public class JdbcStockOperationViewStore implements StockOperationViewStore {
               FROM stock_operations
              WHERE state = 'CONFIRMED'
                AND direction = 'OUTBOUND'
+               %s
              ORDER BY enqueued_at, id
              LIMIT ?
           )
-          """ + PROJECTION;
-        return query(sql, limit);
+          """.formatted(ownerId == null ? "" : "AND owner_id = ?") + PROJECTION;
+        return ownerId == null ? query(sql, limit) : query(sql, ownerId, limit);
     }
 
     @Override

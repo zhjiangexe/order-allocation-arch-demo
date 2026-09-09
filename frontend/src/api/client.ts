@@ -46,8 +46,8 @@ export function placeOrder(command: PlaceOrderCommand): Promise<OrderView> {
   return request<OrderView>('/orders', { method: 'POST', body: JSON.stringify(command) });
 }
 
-export function listRecentOrders(limit: number, signal?: AbortSignal): Promise<OrderView[]> {
-  return request<OrderView[]>(`/orders?limit=${limit}`, signal ? { signal } : {});
+export function listRecentOrders(limit: number, signal?: AbortSignal, ownerId?: string): Promise<OrderView[]> {
+  return request<OrderView[]>(`/orders?limit=${limit}${ownerId ? `&ownerId=${encodeURIComponent(ownerId)}` : ''}`, signal ? { signal } : {});
 }
 
 /**
@@ -111,6 +111,6 @@ export function getOrderFulfillment(orderId: string, signal?: AbortSignal): Prom
 }
 
 /** 後端目前僅提供 CONFIRMED 佇列，非全量作業搜尋。 */
-export function listConfirmedStockOperations(limit = 100, signal?: AbortSignal): Promise<StockOperationView[]> {
-  return request(`/stock-operations?state=CONFIRMED&limit=${limit}`, signal ? { signal } : {});
+export function listConfirmedStockOperations(limit = 100, signal?: AbortSignal, ownerId?: string): Promise<StockOperationView[]> {
+  return request(`/stock-operations?state=CONFIRMED&limit=${limit}${ownerId ? `&ownerId=${encodeURIComponent(ownerId)}` : ''}`, signal ? { signal } : {});
 }

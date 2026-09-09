@@ -1,4 +1,4 @@
-import { Select, SelectOption } from '../components/Select';
+import { useOwnerSession } from '../owner/OwnerSession';
 import { useMemo, useState } from 'react';
 
 import type { CatalogSku } from '../api/catalog';
@@ -13,14 +13,12 @@ interface VisibleProduct {
 
 /** 唯讀主檔瀏覽；主檔維護需要另一套授權與稽核，不在 DEMO 操作台提供。 */
 export function CatalogPage() {
+  const selectedOwnerId = useOwnerSession()?.owner?.ownerId;
   const catalog = useCatalog();
-  const [requestedOwnerId, setRequestedOwnerId] = useState('');
   const [keyword, setKeyword] = useState('');
 
   const owners = catalog.owners;
-  const ownerId = owners.some((owner) => owner.ownerId === requestedOwnerId)
-    ? requestedOwnerId
-    : (owners[0]?.ownerId ?? '');
+  const ownerId = selectedOwnerId ?? owners[0]?.ownerId ?? '';
   const owner = owners.find((candidate) => candidate.ownerId === ownerId);
   const facilities = catalog.facilitiesOf(ownerId);
   const visibleProducts = useMemo(
@@ -42,21 +40,6 @@ export function CatalogPage() {
       </header>
 
       <section className={styles.filters} aria-label="主檔篩選">
-        <label>
-          貨主
-          <Select
-            value={ownerId}
-            onValueChange={value => setRequestedOwnerId(value)}
-            disabled={owners.length === 0}
-          >
-            {owners.length === 0 && <SelectOption value="">載入中…</SelectOption>}
-            {owners.map((candidate) => (
-              <SelectOption key={candidate.ownerId} value={candidate.ownerId}>
-                {candidate.name} · {candidate.code}
-              </SelectOption>
-            ))}
-          </Select>
-        </label>
         <label>
           篩選商品 / SKU
           <input

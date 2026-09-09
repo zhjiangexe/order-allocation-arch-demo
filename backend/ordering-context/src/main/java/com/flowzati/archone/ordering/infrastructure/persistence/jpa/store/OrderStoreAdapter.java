@@ -30,6 +30,13 @@ public class OrderStoreAdapter implements OrderStore {
     }
 
     @Override
+    public List<Order> findRecent(UUID ownerId, int limit) {
+        return repository.findByOwnerIdOrderByReceivedAtDescIdDesc(ownerId, Limit.of(limit)).stream()
+                .map(OrderMapper::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Order> findRecent(int limit) {
         return repository.findAllByOrderByReceivedAtDescIdDesc(Limit.of(limit)).stream()
                 .map(OrderMapper::toDomain)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, getOrderFulfillment } from '../api/client';
 import type { OrderFulfillmentView } from '../api/types';
+import { useOwnerSession } from '../owner/OwnerSession';
 import { fulfillmentProgress } from '../fulfillment/progress';
 
 interface TrackingState {
@@ -16,6 +17,7 @@ const empty = (orderId: string | null): TrackingState =>
 
 /** 每次完成後才排下一次；只追蹤目前詳情。傳 null 表示關閉。 */
 export function useFulfillmentTracking(orderId: string | null) {
+  const ownerId = useOwnerSession()?.owner?.ownerId;
   const [state, setState] = useState<TrackingState>(() => empty(orderId));
   const controls = useRef({ refresh: () => {}, pause: () => {}, resume: () => {} });
 
@@ -39,6 +41,7 @@ export function useFulfillmentTracking(orderId: string | null) {
       try {
         const data = await getOrderFulfillment(orderId, request.signal);
         if (disposed || request.signal.aborted) return;
+        if (ownerId && data.order.ownerId !== ownerId) throw new Error('此訂單不屬於目前貨主，請切換貨主後查看');
         if (data.order.orderId !== orderId) throw new Error('履約回應與目前訂單不一致');
         const progress = fulfillmentProgress(data);
         stopped = progress.stopTracking;
@@ -91,7 +94,7 @@ export function useFulfillmentTracking(orderId: string | null) {
       controller?.abort();
       document.removeEventListener('visibilitychange', visibility);
     };
-  }, [orderId]);
+  }, [orderId, ownerId]);
 
   const refresh = useCallback(() => controls.current.refresh(), []);
   const pause = useCallback(() => controls.current.pause(), []);

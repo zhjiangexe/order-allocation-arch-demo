@@ -1,3 +1,4 @@
+import { useOwnerSession } from '../owner/OwnerSession';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useBlocker, useLocation } from 'react-router';
 
@@ -14,10 +15,11 @@ import { useCatalogState } from '../hooks/useCatalog';
 import styles from './OrdersPage.module.css';
 
 export function StockPage() {
+  const selectedOwnerId = useOwnerSession()?.owner?.ownerId;
   const { search } = useLocation();
   const { catalog, loading, error } = useCatalogState();
   const context = parseReceiptContext(search);
-  const validation = context === null ? 'invalid' : validateReceiptContext(context, {
+  const validation = context === null || (selectedOwnerId && context.ownerId !== selectedOwnerId) ? 'invalid' : validateReceiptContext(context, {
     ownerId: context.ownerId,
     owners: loading ? null : catalog.owners,
     facilities: [...catalog.facilitiesOf(context.ownerId)],
@@ -31,13 +33,13 @@ export function StockPage() {
   return <div className={styles.page}><section className={styles.section}>
     <h2 className={styles.sectionHeading}>庫存與收貨確認</h2>
     {loading ? <p role="status">載入主檔中…</p> : error ? <p role="alert">主檔載入失敗：{error}，請重新載入頁面。</p> : <>
-      {search && validation !== 'valid' ? <p role="alert">補貨定位參數無效或不屬於指定貨主／設施，請手動選擇貨主、設施與庫位。</p> : null}
-      <StockSession key={search} catalog={catalog} context={validation === 'valid' ? context : null} />
+      {search && validation !== 'valid' ? <p role="alert">補貨定位參數無效或不屬於指定貨主／設施，請選擇目前貨主的設施與庫位。</p> : null}
+      <StockSession key={search} ownerId={selectedOwnerId} catalog={catalog} context={validation === 'valid' ? context : null} />
     </>}
   </section></div>;
 }
 
-function StockSession({ catalog, context }: { catalog: Catalog; context: ReceiptContext | null }) {
+function StockSession({ catalog, context, ownerId: fixedOwnerId }: { catalog: Catalog; context: ReceiptContext | null; ownerId?: string | undefined }) {
   const [lines, setLines] = useState<AsyncState<StockLine[]>>({ status: 'idle' });
   const [receipt, setReceipt] = useState<AsyncState<StockReceiptConfirmed>>({ status: 'idle' });
   const command = useRef<ConfirmStockReceiptRequest | null>(null);
@@ -135,6 +137,7 @@ function StockSession({ catalog, context }: { catalog: Catalog; context: Receipt
       <button type="button" onClick={() => blocker.proceed()}>仍要離開</button>
     </div> : null}
     <StockPanel
+      ownerId={fixedOwnerId}
       initialScope={context ?? undefined}
       receiptLocked={receipt.status !== 'idle'}
       lines={lines}

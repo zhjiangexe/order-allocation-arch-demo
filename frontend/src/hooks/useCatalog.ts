@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { useOwnerSession } from '../owner/OwnerSession';
 import { Catalog, type CatalogEntry } from '../api/catalog';
 import {
   listFacilities,
@@ -10,25 +11,25 @@ import {
 } from '../api/client';
 
 /**
- * 進場載入一次主檔（貨主、倉庫、款、規格），供下拉選單、訂單列表的名稱解析、庫存頁的
- * SKU 建議共用。
- *
- * <p>整個畫面查一次，不是每一列、每一次選擇各查一次——後者才是 N+1。
- *
- * <p>每一層內部並行（`Promise.all`），因此請求數雖與貨主／款數成正比，往返只有三層。demo
- * 的資料量下這是可接受的；主檔若成長到這個 fan-out 會痛，就該由後端提供一支扁平的主檔查詢，
- * 而不是在前端拼（取捨見 frontend/README.md 的「主檔載入的代價」）。
+ * 載入目前貨主的倉別、庫位、商品與 SKU；貨主清單由頁首 session 共用。
+ * 同一層查詢並行，切換貨主或離頁後不採用舊回應。
+ * 元件獨立使用、沒有 session 時，仍可載入完整 Catalog。
  */
 export function useCatalogState() {
+  const session = useOwnerSession();
+  const selectedOwner = session?.owner;
   const [catalog, setCatalog] = useState(() => new Catalog([]));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setCatalog(new Catalog([]));
 
     async function load() {
-      const owners = await listOwners();
+      const owners = selectedOwner ? [selectedOwner] : await listOwners();
       const entries: CatalogEntry[] = await Promise.all(
         owners.map(async (owner) => {
           const [facilities, products] = await Promise.all([
@@ -61,7 +62,7 @@ export function useCatalogState() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedOwner]);
 
   return { catalog, loading, error };
 }

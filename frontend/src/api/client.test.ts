@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { ApiError, getOrderFulfillment, listConfirmedStockOperations } from './client';
+import { ApiError, getOrderFulfillment, listRecentOrders, listConfirmedStockOperations } from './client';
 import samples from '../test/fixtures/fulfillment.json';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -24,4 +24,14 @@ it('reads only the supported CONFIRMED queue', async () => {
 it('preserves HTTP errors', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Order not found', { status: 404 })));
   await expect(getOrderFulfillment('missing')).rejects.toEqual(new ApiError(404, 'Order not found'));
+});
+
+it('passes owner filters to both bounded list APIs', async () => {
+  const fetch = vi.fn().mockImplementation(async () => new Response('[]'));
+  vi.stubGlobal('fetch', fetch);
+  const ownerId = samples.events.order.ownerId;
+  await listRecentOrders(20, undefined, ownerId);
+  await listConfirmedStockOperations(200, undefined, ownerId);
+  expect(fetch).toHaveBeenCalledWith(`/api/orders?limit=20&ownerId=${ownerId}`, expect.any(Object));
+  expect(fetch).toHaveBeenCalledWith(`/api/stock-operations?state=CONFIRMED&limit=200&ownerId=${ownerId}`, expect.any(Object));
 });

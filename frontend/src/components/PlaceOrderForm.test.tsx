@@ -388,14 +388,26 @@ describe('必填交付欄位', () => {
   });
 });
 
+it('uses the fixed header owner for submission even when another owner has the same SKU code', async () => {
+  const onSubmit = vi.fn();
+  render(<PlaceOrderForm ownerId={OWNER_B.ownerId} catalog={catalogOf(OWNER_A, OWNER_B)} onSubmit={onSubmit} pending={false} />);
+  const user = userEvent.setup();
+  expect(screen.queryByLabelText('貨主')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText(/^最晚離倉時間/), { target: { value: '2099-01-01T12:00' } });
+  await selectOption(user, screen.getByLabelText('履約設施'), CENTRAL_FACILITY_ID);
+  await fillLine(user, 1, 'P-TEA', 'SKU-AVAILABLE', '3');
+  await user.type(screen.getByLabelText('上游單號'), 'FIXED-B');
+  await user.click(screen.getByRole('button', { name: '送出' }));
+  expect(onSubmit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ ownerId: OWNER_B.ownerId, externalOrderNo: 'FIXED-B' }));
+});
 
 it('cascades a sole facility, product and SKU after catalog loading without losing other lines', async () => {
   const full = catalogOf(OWNER_A);
   const sole = new Catalog([{ owner: OWNER_A, facilities: full.facilitiesOf(OWNER_A.ownerId).slice(0, 1), locations: [],
     products: full.productsOf(OWNER_A.ownerId).slice(0, 1), skus: full.skusOf(OWNER_A.ownerId, 'P-TEA') }]);
   const onSubmit = vi.fn();
-  const view = (catalog: Catalog) => <PlaceOrderForm catalog={catalog} pending={false} onSubmit={onSubmit} />;
-  const { rerender } = render(view(new Catalog([{ owner: OWNER_A, facilities: [], locations: [], products: [], skus: [] }])));
+  const view = (catalog: Catalog) => <PlaceOrderForm ownerId={OWNER_A.ownerId} catalog={catalog} pending={false} onSubmit={onSubmit} />;
+  const { rerender } = render(view(new Catalog([])));
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: '新增訂單行' }));
   rerender(view(sole));

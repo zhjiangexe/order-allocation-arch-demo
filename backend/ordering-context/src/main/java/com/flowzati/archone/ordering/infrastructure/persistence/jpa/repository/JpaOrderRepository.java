@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaOrderRepository extends JpaRepository<OrderEntity, UUID> {
 
+    List<OrderEntity> findByOwnerIdOrderByReceivedAtDescIdDesc(UUID ownerId, Limit limit);
+
     // Order status is a projection only. Allocation waiting queues are owned by stock movements.
     List<OrderEntity> findAllByOrderByReceivedAtDescIdDesc(Limit limit);
 }
