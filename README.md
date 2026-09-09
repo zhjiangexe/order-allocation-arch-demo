@@ -72,6 +72,16 @@ make demo-down MODE=temporal    # 停止該組服務，保留資料
 修正後可重跑 `make demo-up MODE=...`。固定連接埠被其他程式占用時，請先停止占用者。
 此入口供本機簡報使用，前端為 Vite dev server；正式部署仍使用下方流程。
 
+## 資料庫初始化
+
+目前尚未上線，migration 已整理成直接建立現行 schema 的 V1–V6，移除舊模型的 ALTER／資料回填歷史。
+**本次整理前建立的資料庫不能直接套用新版**：Flyway 版本與 checksum 已改變，請另建空白資料庫，
+或確認舊資料可捨棄後重建開發環境。不要用 `flyway repair` 假裝已完成 schema 遷移。
+`make demo-down` 會保留 volumes，因此單純 down／up 不會自動轉換舊資料庫。
+目前執行中的示範資料庫未被本次整理重建；重新建置啟動前請先處理其舊 schema。
+
+各 migration 職責、seed 與驗證方式見 [資料庫說明](backend/deployments/monolith/src/main/resources/db/README.md)。
+
 ## Monolith 打包與啟動
 
 根目錄的 `Makefile` 是統一入口。開發環境會一併啟動 monolith、PostgreSQL、Kafka、

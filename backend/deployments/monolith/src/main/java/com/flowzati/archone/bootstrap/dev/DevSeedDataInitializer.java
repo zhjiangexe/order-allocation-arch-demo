@@ -222,8 +222,8 @@ public class DevSeedDataInitializer implements ApplicationRunner {
      * 主檔必須先於庫存與訂單建立：訂單行的 {@code (owner_id, sku_code)} 有外鍵指向
      * {@code skus}。
      *
-     * <p>{@code stock_pools} 反而沒有指向主檔的外鍵——兩邊的 {@code sku_code} 對不上時資料庫
-     * 不會報錯，只會讓訂單配不到貨。三個庫存池用到的 SKU 因此必須在這裡都建出來。
+     * <p>{@code stock_pools} 同樣透過 {@code (owner_id, sku_code)} 參照 {@code skus}，
+     * 所有示範批次使用的 SKU 都必須先建立。Seed 直接寫入現行模型，不依賴 migration 回填。
      */
     private void seedCatalog() {
         if (ownerStore.findById(FIRST_OWNER_ID).isPresent()) {

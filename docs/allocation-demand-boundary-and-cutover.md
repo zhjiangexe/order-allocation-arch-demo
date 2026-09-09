@@ -13,8 +13,8 @@
 - WMS Shipment 以 `stockOperationId` 冪等建立，但 Inventory 不擁有 wave/task/operator/packing state。
 - Inbound operation 沒有 source document identity；它仍有 from/to location 與 moves。
 
-不存在 runtime `AllocationDemand`、`Allocation`、`AllocationSlice` persistence。歷史 V12–V20 schema 與 v1
-Integration Event 類別只用於 migration/retained-reader compatibility，不是新 writer 的模型。
+不存在 runtime `AllocationDemand`、`Allocation`、`AllocationSlice` persistence。歷史 V12–V20 schema
+已隨未上線系統的 migration 重整移除；Integration Event 的 retained-reader compatibility 不受本次 schema 整理影響。
 
 ## Canonical identity
 
@@ -30,7 +30,11 @@ Integration Event 類別只用於 migration/retained-reader compatibility，不�
 
 ## Historical expand / backfill / validate / contract
 
-V1–V20 是已發布 baseline，不得改 checksum。此 change 的 V21–V29 依序：
+以下為 Git 歷史中的升級設計，當時將 V1–V20 視為固定 baseline。因系統尚未上線，
+目前已合併為直接建立最終 schema 的 V1–V6，這些升級步驟不再執行。
+現行初始化與既有開發資料庫處理方式見 [資料庫說明](../backend/deployments/monolith/src/main/resources/db/README.md)。
+
+原 V21–V29 依序：
 
 1. **Expand**：為 picking/move/WMS/cancellation operation 加入 nullable canonical identity。
 2. **Backfill pickings**：每個 legacy demand 決定性對應一個 picking，複製 source、policy、route、queue facts。
@@ -42,9 +46,9 @@ V1–V20 是已發布 baseline，不得改 checksum。此 change 的 V21–V29 �
 7. **Contract**：移除 demand/order-specific core columns 與 demand tables。
 8. **Cross-row guard**：deferred constraint triggers 檢查 group、coverage 與 counter invariants。
 
-V21–V29 已是 rename 的輸入基線，不得再修改。V30 只做 forward-only metadata rename：保留既有 UUID、資料列、
-source identity、state、timestamps、versions 與 relationships，並在 canonical table/column names 上重建 deferred invariants。
-若任何非 disposable database 已套用 V30，只能新增 forward repair migration，不可重寫 checksum。
+原 V30 只做 metadata rename，保留既有 UUID、資料列、source identity、state、timestamps、versions
+與 relationships，並在 canonical table/column names 上重建 deferred invariants。新版直接建立相同最終定義；
+已有舊 Flyway history 的開發資料庫必須另行重建，不能將本次 baseline 當成原地升級。
 
 ## Contract rollout
 

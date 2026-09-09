@@ -1,2 +1,0 @@
--- Establish Flyway schema history before business tables are introduced.
--- SR-09 through SR-12 own the migrations for their respective persistence adapters.
