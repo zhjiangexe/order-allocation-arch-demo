@@ -180,3 +180,113 @@ export interface StockReceiptConfirmed {
   sku: string;
   quantity: number;
 }
+
+/** 履約端點的訂單行沒有列表端點的 status，另有 orderLineId。 */
+export interface FulfillmentOrderView extends Omit<OrderView, 'lines' | 'status'> {
+  status: string | null;
+  dispatchBy: string;
+  releasePriority: number;
+  cancellationRequestId: string | null;
+  cancellationReason: string | null;
+  fulfilledByShipmentId: string | null;
+  lines: Array<{ orderLineId: string; lineNo: number; skuCode: string; quantity: number }>;
+}
+
+/** 狀態保留原始字串，以便遇到新版／未知值時安全停止追蹤。 */
+export interface StockOperationView {
+  source: { type: string; sourceId: string; operationUnitKey: string };
+  operation: {
+    stockOperationId: string;
+    stockOperationTypeId: string;
+    direction: string;
+    ownerId: string;
+    fromLocationId: string | null;
+    toLocationId: string | null;
+    assignmentPolicy: string;
+    enqueuedAt: string;
+    dispatchBy: string | null;
+    releasePriority: number | null;
+    state: string | null;
+  };
+  moves: Array<{
+    moveId: string;
+    sourceLineId: string | null;
+    lineSequence: number | null;
+    skuCode: string;
+    quantity: number;
+    state: string | null;
+    createdAt: string;
+    assignedAt: string | null;
+    batches: Array<{
+      stockQuantId: string;
+      locationId: string;
+      skuCode: string;
+      inDate: string;
+      expiryDate: string;
+      quantity: number;
+    }>;
+  }>;
+}
+
+export interface ShipmentView {
+  shipmentId: string;
+  stockOperationId: string;
+  orderId: string;
+  ownerId: string;
+  facilityId: string;
+  status: string | null;
+  waveId: string | null;
+  createdAt: string;
+  dispatchBy: string;
+  releasePriority: number;
+  cancellationRequestId: string | null;
+  cancellationRequestedAt: string | null;
+  cancellationReason: string | null;
+  cancelledAt: string | null;
+  cancellationState: string | null;
+  lines: Array<{
+    orderLineId: string;
+    moveId: string;
+    skuCode: string;
+    sourceLocationId: string;
+    quantity: number;
+  }>;
+  pickTasks: Array<{
+    pickTaskId: string;
+    orderLineId: string;
+    moveId: string;
+    skuCode: string;
+    sourceLocationId: string;
+    requestedQuantity: number;
+    pickedQuantity: number;
+    status: string;
+    confirmedAt: string | null;
+  }>;
+}
+
+export interface TemporalWorkflowSnapshot {
+  orderId: string;
+  phase: string | null;
+  allocationState: string | null;
+  cancellationState: string | null;
+  cancellationRequestId: string | null;
+  cancellationRequestedAt: string | null;
+  outcome: string | null;
+  stockOperationId: string | null;
+  shipmentId: string | null;
+  /** Workflow 使用 HANDED_OVER；Shipment 使用 HANDED_OVER_TO_CARRIER。 */
+  shipmentTerminalStatus: string | null;
+  shipmentTerminalAt: string | null;
+  cancelledAt: string | null;
+  /** phase 進入時間，並非 HTTP 快照取得時間。 */
+  updatedAt: string | null;
+}
+
+export interface OrderFulfillmentView {
+  order: FulfillmentOrderView;
+  stockOperation: StockOperationView | null;
+  shipments: ShipmentView[];
+  temporalWorkflow: TemporalWorkflowSnapshot | null;
+  orchestrationMode: string;
+  workflowQueryStatus: string;
+}

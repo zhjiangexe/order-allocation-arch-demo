@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Plan
 
 - 日期：2026-09-09
-- 狀態：T1 已確認；T2 查詢補強完成、待使用者檢查；T3～T7 尚未實作
+- 狀態：T1／T2 已確認；T3 前端基礎完成、使用者同意提交；T4～T7 尚未實作
 - 任務清單：[tasks.md](tasks.md)
 
 ## 目標與範圍
@@ -246,4 +246,14 @@ Events 必須確認不依賴 Temporal 服務。驗證使用隔離資料，不能
 Temporal，僅捕捉查無 Workflow 與連線不可用／逾時；其餘錯誤繼續拋出。模式由 demo 的
 OrderFulfillmentQueryConfiguration 使用共用的 OrderFulfillmentProperties.Driver 組裝後傳入 Service；已移除專用 properties、configuration、排程器與 gRPC Context。
 沿用 SDK 的既有 timeout／retry，服務故障時可能等待較久，不提供獨立查詢期限。
-詳細範例與驗證見 [t2-query-review.md](t2-query-review.md)。T3 尚未開始，等待使用者確認簡化後的 T2。
+詳細範例與驗證見 [t2-query-review.md](t2-query-review.md)。T2 已確認並提交 7ebc34e。
+
+
+## T3 實作結果
+
+已完成前端履約／作業佇列唯讀契約、關聯完成判定、單一詳情追蹤 hook，以及詳情與補貨 URL context。
+既有唯讀 client 可傳 AbortSignal；命令送出方式不變。Events 與 Temporal 使用各自完成條件，
+HTTP 錯誤／UNAVAILABLE 保留快照並暫停，自動追蹤不設定缺貨失敗期限。
+URL context 保留 ownerId／facilityId／sku／source／limit；返回頁面僅允許 orders 或 allocations。
+T3 尚未將 hook 接到頁面，也未修正 T4 的建單欄位；T4～T7 等待後續階段。
+詳細檢查與驗證見 [t3-foundation-review.md](t3-foundation-review.md)。

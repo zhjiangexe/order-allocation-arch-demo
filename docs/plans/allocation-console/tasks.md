@@ -1,7 +1,7 @@
 # Allocation 操作與履約追蹤台 — Tasks
 
 - 日期：2026-09-09
-- 狀態：T1 已確認；T2 已完成、等待使用者確認；T3～T7 待實作
+- 狀態：T1／T2 已確認；T3 已完成、使用者同意提交；T4～T7 待實作
 - 設計與範圍：[plan.md](plan.md)
 - T1～T7 保留為里程碑；實作及勾選單位改為下列子任務。
 - T1 證據：[t1-baseline.md](t1-baseline.md)，含實際雙模式 HTTP 驗證與契約樣本。
@@ -17,7 +17,7 @@
 具體交付內容見 [plan.md 的使用者檢查點](plan.md#使用者檢查點2026-09-09-確認)。
 
 - [x] T1 成果已交付，使用者確認可進入 T2（2026-09-09）。
-- [ ] T2 成果已交付，使用者確認可進入 T3。
+- [x] T2 成果已交付並提交 7ebc34e，使用者確認可進入 T3（2026-09-09）。
 - [ ] T3 成果已交付，使用者確認可進入 T4。
 - [ ] T4 成果已交付，使用者確認可進入 T5。
 - [ ] T5 成果已交付，使用者確認可進入 T6。
@@ -88,36 +88,38 @@ T2 驗證與回應範例：[t2-query-review.md](t2-query-review.md)。
 
 ### T3.1：API 型別及讀取 client
 
-- [ ] 依 t1-contract-samples.json 與 T2 新欄位加入履約整合、stock operation 佇列型別及 client functions；派生測試 fixture 與 T1 原始證據分開。
-- [ ] 明確採用 Workflow updatedAt、nullable outcome，以及 HANDED_OVER 與 HANDED_OVER_TO_CARRIER 的不同列舉。
-- [ ] 區分兩種 Order view；核對批次 JSON 名稱；讀取支援 AbortSignal，不改 mutation 的送出語意。
+- [x] 依 t1-contract-samples.json 與 T2 新欄位加入履約整合、stock operation 佇列型別及 client functions；派生測試 fixture 與 T1 原始證據分開。
+- [x] 明確採用 Workflow updatedAt、nullable outcome，以及 HANDED_OVER 與 HANDED_OVER_TO_CARRIER 的不同列舉。
+- [x] 區分兩種 Order view；核對批次 JSON 名稱；讀取支援 AbortSignal，不改 mutation 的送出語意。
 
 驗收：以實際 JSON fixture 檢查欄位，型別檢查通過。
 
 ### T3.2：業務證據與完成判定
 
-- [ ] 建立共用業務進度與模式各自的成功停止 predicate；容忍未知值、空值與短暫資料不同步。
-- [ ] 以 fulfilledByShipmentId／orderId／stockOperationId 關聯 Shipment，核對來源 ORDER／PRIMARY；Temporal 核對三個 IDs 與 shipmentTerminalStatus=HANDED_OVER。
-- [ ] 測試多 Shipment、缺失／矛盾關聯、未知終態，不以任意已交接 Shipment 代表成功。
+- [x] 建立共用業務進度與模式各自的成功停止 predicate；容忍未知值、空值與短暫資料不同步。
+- [x] 以 fulfilledByShipmentId／orderId／stockOperationId 關聯 Shipment，核對來源 ORDER／PRIMARY；Temporal 核對三個 IDs 與 shipmentTerminalStatus=HANDED_OVER。
+- [x] 測試多 Shipment、缺失／矛盾關聯、未知終態，不以任意已交接 Shipment 代表成功。
 
 驗收：兩種模式的純狀態轉換有測試，未知資料不假裝完成。
 
 ### T3.3：單一詳情追蹤生命週期
 
-- [ ] 預設每 2 秒追蹤，不重疊請求；支援手動重查、暫停及恢復。
-- [ ] 關閉、換單與卸載時清理；背景暫停；防止較舊回應覆蓋新訂單。
-- [ ] HTTP 查詢錯誤或 HTTP 200 且 workflowQueryStatus=UNAVAILABLE 時，保留最後快照及時間，暫停自動追蹤並提供重試；NOT_FOUND 不當作 Events。
-- [ ] 測試兩模式完成條件、Temporal 尚未建立／不可用、長時間缺貨、外部取消及 stale response。
+- [x] 預設每 2 秒追蹤，不重疊請求；支援手動重查、暫停及恢復。
+- [x] 關閉、換單與卸載時清理；背景暫停；防止較舊回應覆蓋新訂單。
+- [x] HTTP 查詢錯誤或 HTTP 200 且 workflowQueryStatus=UNAVAILABLE 時，保留最後快照及時間，暫停自動追蹤並提供重試；NOT_FOUND 不當作 Events。
+- [x] 測試兩模式完成條件、Temporal 尚未建立／不可用、長時間缺貨、外部取消及 stale response。
 
 驗收：Events 不等待不存在的 Workflow；Temporal 不僅憑 Order FULFILLED 顯示 Workflow 成功。
 
 ### T3.4：共用詳情與補貨 URL context
 
-- [ ] 定義 orderId、來源列表、篩選與補貨 owner／facility／location／SKU／returnOrderId 的解析與建構。
-- [ ] URL 僅接受固定站內返回頁面；主檔未載入不做錯誤預選。
-- [ ] 測試深連結、非法 UUID、返回原列表、返回詳情、瀏覽器上一頁／下一頁。
+- [x] 定義 orderId、來源列表、篩選與補貨 owner／facility／location／SKU／returnOrderId 的解析與建構。
+- [x] URL 僅接受固定站內返回頁面；主檔未載入不做錯誤預選。
+- [x] 測試深連結、非法 UUID、返回原列表、返回詳情、瀏覽器上一頁／下一頁。
 
 驗收：T4／T5／T6 使用同一導航契約，不各自組合不相容參數。
+
+T3 實作與檢查方式：[t3-foundation-review.md](t3-foundation-review.md)。
 
 ## T4：訂單履約抽屜與訂單頁串接
 

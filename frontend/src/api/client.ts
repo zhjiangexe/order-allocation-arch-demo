@@ -1,5 +1,7 @@
 import type {
   FacilityView,
+  OrderFulfillmentView,
+  StockOperationView,
   OrderView,
   OwnerView,
   PlaceOrderCommand,
@@ -44,8 +46,8 @@ export function placeOrder(command: PlaceOrderCommand): Promise<OrderView> {
   return request<OrderView>('/orders', { method: 'POST', body: JSON.stringify(command) });
 }
 
-export function listRecentOrders(limit: number): Promise<OrderView[]> {
-  return request<OrderView[]>(`/orders?limit=${limit}`);
+export function listRecentOrders(limit: number, signal?: AbortSignal): Promise<OrderView[]> {
+  return request<OrderView[]>(`/orders?limit=${limit}`, signal ? { signal } : {});
 }
 
 /**
@@ -54,27 +56,29 @@ export function listRecentOrders(limit: number): Promise<OrderView[]> {
  * 款與規格的路徑巢狀在貨主之下，是因為在 3PL 裡編碼由貨主自訂、跨貨主撞號——貨主不是可省
  * 略的篩選條件，而是這些資源存在的前提。
  */
-export function listOwners(): Promise<OwnerView[]> {
-  return request<OwnerView[]>('/owners');
+export function listOwners(signal?: AbortSignal): Promise<OwnerView[]> {
+  return request<OwnerView[]>('/owners', signal ? { signal } : {});
 }
 
-export function listProducts(ownerId: string): Promise<ProductView[]> {
-  return request<ProductView[]>(`/owners/${encodeURIComponent(ownerId)}/products`);
+export function listProducts(ownerId: string, signal?: AbortSignal): Promise<ProductView[]> {
+  return request<ProductView[]>(`/owners/${encodeURIComponent(ownerId)}/products`, signal ? { signal } : {});
 }
 
-export function listFacilities(ownerId: string): Promise<FacilityView[]> {
-  return request<FacilityView[]>(`/owners/${encodeURIComponent(ownerId)}/facilities`);
+export function listFacilities(ownerId: string, signal?: AbortSignal): Promise<FacilityView[]> {
+  return request<FacilityView[]>(`/owners/${encodeURIComponent(ownerId)}/facilities`, signal ? { signal } : {});
 }
 
-export function listStockLocations(facilityId: string): Promise<StockLocationView[]> {
+export function listStockLocations(facilityId: string, signal?: AbortSignal): Promise<StockLocationView[]> {
   return request<StockLocationView[]>(
     `/facilities/${encodeURIComponent(facilityId)}/locations`,
+    signal ? { signal } : {},
   );
 }
 
-export function listSkus(ownerId: string, productCode: string): Promise<SkuView[]> {
+export function listSkus(ownerId: string, productCode: string, signal?: AbortSignal): Promise<SkuView[]> {
   return request<SkuView[]>(
     `/owners/${encodeURIComponent(ownerId)}/products/${encodeURIComponent(productCode)}/skus`,
+    signal ? { signal } : {},
   );
 }
 
@@ -87,9 +91,10 @@ export function listSkus(ownerId: string, productCode: string): Promise<SkuView[
  *
  * 這個倉什麼都沒放時回 200 與空清單，不是 404。
  */
-export function getStockInLocation(ownerId: string, locationId: string): Promise<StockPoolView> {
+export function getStockInLocation(ownerId: string, locationId: string, signal?: AbortSignal): Promise<StockPoolView> {
   return request<StockPoolView>(
     `/stock-pool?ownerId=${encodeURIComponent(ownerId)}&locationId=${encodeURIComponent(locationId)}`,
+    signal ? { signal } : {},
   );
 }
 
@@ -98,4 +103,14 @@ export function confirmStockReceipt(command: ConfirmStockReceiptRequest): Promis
     method: 'POST',
     body: JSON.stringify(command),
   });
+}
+
+/** 僅查詢目前打開的詳情；AbortSignal 不用於建單／收貨命令。 */
+export function getOrderFulfillment(orderId: string, signal?: AbortSignal): Promise<OrderFulfillmentView> {
+  return request(`/demo/orders/${encodeURIComponent(orderId)}/fulfillment`, signal ? { signal } : {});
+}
+
+/** 後端目前僅提供 CONFIRMED 佇列，非全量作業搜尋。 */
+export function listConfirmedStockOperations(limit = 100, signal?: AbortSignal): Promise<StockOperationView[]> {
+  return request(`/stock-operations?state=CONFIRMED&limit=${limit}`, signal ? { signal } : {});
 }
