@@ -29,12 +29,10 @@ public class StockOperationAssignedIntegrationEventAdapter implements StockOpera
     @Override
     public void publish(StockOperationAssigned event) {
         if (event.source().sourceType() == MovementSourceType.ORDER) {
-            if (event.source().sourceType() != MovementSourceType.ORDER) {
-                throw new IllegalStateException("Only ORDER movement assignment can use the order publication");
-            }
+
             // Order-specific contract translation 只在邊界發生，Inventory core 仍維持 source-neutral。
             UUID orderId = parseUuid(event.source().sourceId(), "Canonical ORDER source ID");
-            var integrationEvent = createIntegrationEvent(event, orderId);
+            OrderAllocationCommittedIntegrationEvent integrationEvent = createIntegrationEvent(event, orderId);
             integrationEventPublisher.publish(new IntegrationEventPublication(
                     integrationEvent,
                     new AggregateReference(OrderingAggregateTypes.ORDER, orderId.toString()),

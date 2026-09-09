@@ -58,7 +58,7 @@
 | `PendingPickingSelection.Selection` | `AssignmentCandidate` |
 | `PendingPickingQueueKey` | `AssignmentQueueKey` |
 | `AssignPickingUsecase` | `StockOperationAssignmentTransaction` |
-| `PendingPickingBacklogAssignmentUsecase` | `ReconcileStockOperationBacklogUsecase` |
+| `PendingPickingBacklogAssignmentUsecase` | `StockOperationBacklogReconciler` |
 | `PickingAssignmentResult` | `StockOperationAssignmentResult` |
 | `PickingPredecessor` | `StockOperationPredecessor` |
 | `StockPickingCancellationOperation` | `StockOperationCancellation` |
@@ -100,7 +100,7 @@ AssignmentCandidateQuery  MovementAssignmentPlanner  StockOperationAssignmentTra
 
 `AssignmentCandidateQuery` 只回傳 immutable `MovementPlanningSnapshot` 與 optional `StockOperationPredecessor`，不得把可變 `StockOperation` aggregate 暴露給 planner 或入口。`MovementAssignmentPlanner` 保持 pure concrete service；目前只有一個 policy implementation，不為模式名稱增加無用 interface。`StockOperationAssignmentTransaction` 是 internal transaction boundary，負責重新 lock、重新讀取與 revalidate 後 apply proposal，不是另一個可被 adapter 任意呼叫的 use case。
 
-`AssignmentQueueKey` 直接作為 availability/backlog 入口的 transport-neutral value object；移除只重複其欄位的 `AssignPendingPickingCommand` 與只包一層 transaction 的 `PendingPickingAssignmentUsecase`。Scheduler 使用 `ReconcileStockOperationBacklogUsecase` 表達「尋找並補償尚未 assignment 的 operation」，reconciler 仍逐一呼叫同一 façade，不複製 planner/commit 流程。
+`AssignmentQueueKey` 直接作為 availability/backlog 入口的 transport-neutral value object；移除只重複其欄位的 `AssignPendingPickingCommand` 與只包一層 transaction 的 `PendingPickingAssignmentUsecase`。Scheduler 使用 `StockOperationBacklogReconciler` 表達「尋找並補償尚未 assignment 的 operation」，reconciler 仍逐一呼叫同一 façade，不複製 planner/commit 流程。
 
 Alternatives considered：保留 `Selector -> Planner -> Committer` 三個對等公開 service。否決，因 selector 會洩漏 aggregate、committer 會被誤當獨立 use case，且多個入口容易各自重組流程。三個技術階段仍存在，但只有 façade 是 application entry。
 

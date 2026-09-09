@@ -100,7 +100,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
         // Step 1：準備 fixture —— 一個只有 10 件庫存的 StockQuant，以及 1,000 張各要 1 件的 PENDING
         // Order／OrderPlaced event。每筆 event 有自己的 eventId，之後可以個別重送。
         UUID stockQuantId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, HOT_SKU, ON_HAND_QUANTITY, 0));
 
         List<OrderPlacedIntegrationEvent> events = new ArrayList<>(TOTAL_ORDERS);
@@ -349,7 +349,7 @@ class AllocationHotSkuConcurrencyIntegrationTest {
         //
         // **切點是字串，指錯不會編譯失敗，只會靜默匹配不到任何東西**——那時每一條斷言都仍然
         // 執行，只是重試次數變成 0。元件改名或搬家時，這一行必須跟著改。
-        @Around("execution(* com.flowzati.archone.inventory.reservation.application.service."
+        @Around("execution(* com.flowzati.archone.inventory.allocation.application.service."
                 + "StockAllocationCommitter.commit(..))")
         public Object synchronizeFirstWave(ProceedingJoinPoint joinPoint) throws Throwable {
             int invocation = invocations.incrementAndGet();

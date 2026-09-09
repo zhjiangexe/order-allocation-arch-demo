@@ -117,7 +117,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         ConsumerRecord<String, String> record =
@@ -147,7 +147,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         jdbcTemplate.update("DELETE FROM stock_operation_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);

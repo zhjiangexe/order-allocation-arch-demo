@@ -10,10 +10,10 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
-import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileStockOperationBacklogUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogReconciler;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;
 import java.time.Instant;
@@ -26,35 +26,36 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("Pending operation backlog assignment")
-class ReconcileStockOperationBacklogUsecaseTest {
+class StockOperationBacklogReconcilerTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 27);
     private static final UUID OWNER_ID = uuid(1);
     private static final UUID LOCATION_ID = uuid(2);
     private final StockOperationAssignmentBacklogStore backlog = mock(StockOperationAssignmentBacklogStore.class);
-    private final StockOperationAssignmentCoordinator coordinator = mock(StockOperationAssignmentCoordinator.class);
-    private final ReconcileStockOperationBacklogUsecase usecase =
-            new ReconcileStockOperationBacklogUsecase(backlog, coordinator, appClock());
+    private final AssignNextStockOperationUsecase assignNextStockOperationUsecase =
+            mock(AssignNextStockOperationUsecase.class);
+    private final StockOperationBacklogReconciler usecase =
+            new StockOperationBacklogReconciler(backlog, assignNextStockOperationUsecase, appClock());
 
     @Test
     void drainsSuccessfulQueuesInFairRounds() {
         var first = queueKey("SKU-1");
         var second = queueKey("SKU-2");
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(List.of(first, second));
-        when(coordinator.tryAssignNext(first))
+        when(assignNextStockOperationUsecase.execute(first))
                 .thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)), Optional.empty());
-        when(coordinator.tryAssignNext(second))
+        when(assignNextStockOperationUsecase.execute(second))
                 .thenReturn(
                         Optional.of(mock(StockOperationAssignmentResult.class)),
                         Optional.of(mock(StockOperationAssignmentResult.class)),
                         Optional.empty());
         usecase.execute();
-        var order = inOrder(coordinator);
-        order.verify(coordinator).tryAssignNext(first);
-        order.verify(coordinator).tryAssignNext(second);
-        order.verify(coordinator).tryAssignNext(first);
-        order.verify(coordinator, times(2)).tryAssignNext(second);
+        var order = inOrder(assignNextStockOperationUsecase);
+        order.verify(assignNextStockOperationUsecase).execute(first);
+        order.verify(assignNextStockOperationUsecase).execute(second);
+        order.verify(assignNextStockOperationUsecase).execute(first);
+        order.verify(assignNextStockOperationUsecase, times(2)).execute(second);
         verify(backlog).findQueueKeysWithAvailableStock(TODAY, 200, second);
-        verifyNoMoreInteractions(coordinator);
+        verifyNoMoreInteractions(assignNextStockOperationUsecase);
     }
 
     @Test
@@ -66,16 +67,16 @@ class ReconcileStockOperationBacklogUsecaseTest {
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(shortages);
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, shortages.getLast()))
                 .thenReturn(List.of(ready));
-        when(coordinator.tryAssignNext(ready))
+        when(assignNextStockOperationUsecase.execute(ready))
                 .thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)), Optional.empty());
         usecase.execute();
-        verify(coordinator, times(2)).tryAssignNext(ready);
+        verify(assignNextStockOperationUsecase, times(2)).execute(ready);
         for (var queue : shortages) {
-            verify(coordinator).tryAssignNext(queue);
+            verify(assignNextStockOperationUsecase).execute(queue);
         }
         usecase.execute();
         verify(backlog, times(2)).findQueueKeysWithAvailableStock(TODAY, 200, null);
-        verify(coordinator, times(3)).tryAssignNext(ready);
+        verify(assignNextStockOperationUsecase, times(3)).execute(ready);
     }
 
     @Test
@@ -84,12 +85,12 @@ class ReconcileStockOperationBacklogUsecaseTest {
         var following = queueKey("SKU-2");
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(List.of(failed));
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, failed)).thenReturn(List.of(following));
-        when(coordinator.tryAssignNext(failed)).thenThrow(new IllegalStateException("unexpected"));
+        when(assignNextStockOperationUsecase.execute(failed)).thenThrow(new IllegalStateException("unexpected"));
         usecase.execute();
-        var order = inOrder(coordinator);
-        order.verify(coordinator).tryAssignNext(failed);
-        order.verify(coordinator).tryAssignNext(following);
-        verifyNoMoreInteractions(coordinator);
+        var order = inOrder(assignNextStockOperationUsecase);
+        order.verify(assignNextStockOperationUsecase).execute(failed);
+        order.verify(assignNextStockOperationUsecase).execute(following);
+        verifyNoMoreInteractions(assignNextStockOperationUsecase);
     }
 
     @Test
@@ -97,7 +98,7 @@ class ReconcileStockOperationBacklogUsecaseTest {
         var failure = new IllegalStateException("scan failed");
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenThrow(failure);
         assertThatThrownBy(usecase::execute).isSameAs(failure);
-        verifyNoMoreInteractions(coordinator);
+        verifyNoMoreInteractions(assignNextStockOperationUsecase);
     }
 
     private static AssignmentQueueKey queueKey(String skuCode) {

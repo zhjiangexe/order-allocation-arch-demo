@@ -94,7 +94,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     void shouldAllocateOrderFromKafkaIntegrationEventAndWriteOutbox() throws Exception {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-AVAILABLE", 10, 0));
 
@@ -150,7 +150,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     void shouldReleaseActiveReservationFromKafkaCancellationEvent() throws Exception {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
-        Instant reservedAt = Instant.now().minusSeconds(1);
+        Instant reservedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         Order order = OrderFixtures.allocatedOrder(
                 orderId, "SKU-PARTIALLY-RESERVED", 4, reservedAt.minusSeconds(1), reservedAt);
         orderStore.save(order);
@@ -158,7 +158,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         var scenario = MovementFixtures.seedAssignedPicking(jdbcTemplate, order, stockQuantId, 4);
 
         OrderCancelledIntegrationEvent event =
-                new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, Instant.now());
+                new OrderCancelledIntegrationEvent(UUID.randomUUID(), orderId, PostgreSQLTestConfiguration.NOW);
         consumer.consume(event);
         // lost acknowledgement 後同一 event replay 必須由 Inbox 與 operation identity 共同維持 exactly-once。
         consumer.consume(event);
@@ -205,7 +205,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     void shouldReallocationCommitterAfterExplicitRelease() throws Exception {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(2);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(2);
         orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-AVAILABLE", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-AVAILABLE", 10, 0));
 
@@ -217,7 +217,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID moveId = jdbcTemplate.queryForObject(
                 "SELECT id FROM stock_moves WHERE stock_operation_id = ?", UUID.class, stockOperationId);
 
-        assertThat(releaseStockOperationUsecase.execute(stockOperationId, Instant.now()))
+        assertThat(releaseStockOperationUsecase.execute(stockOperationId, PostgreSQLTestConfiguration.NOW))
                 .isTrue();
         assertThat(stockQuantStore.findById(stockQuantId))
                 .hasValueSatisfying(
@@ -254,7 +254,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID stockQuantId = UUID.randomUUID();
         UUID firstOrderId = IdGenerator.nextId();
         UUID secondOrderId = IdGenerator.nextId();
-        Instant firstBackorderedAt = Instant.now().minusSeconds(4);
+        Instant firstBackorderedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(4);
         Instant secondBackorderedAt = firstBackorderedAt.plusSeconds(1);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-FIFO", 0, 0));
         MovementFixtures.saveConfirmedPickingOrder(
@@ -297,7 +297,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID stockQuantId = UUID.randomUUID();
         UUID cancelledOrderId = IdGenerator.nextId();
         UUID liveOrderId = IdGenerator.nextId();
-        Instant earlier = Instant.now().minusSeconds(4);
+        Instant earlier = PostgreSQLTestConfiguration.NOW.minusSeconds(4);
 
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-FIFO", 0, 0));
 
@@ -310,10 +310,11 @@ class AllocationWorkflowEndToEndIntegrationTest {
         // 先取消再一次寫入：訂單只存一次（第二次 save 會撞主鍵，聚合根的 version 不會自己回填）。
         // 最終狀態與「先排隊、後取消」完全相同——搬運存在、訂單已取消、取消事件尚未被消費。
         Order cancelled = backorderedOrder(cancelledOrderId, "SKU-FIFO", 3, earlier);
-        cancelled.cancel(UUID.randomUUID(), Instant.now().minusSeconds(2), "Integration test cancellation");
+        cancelled.cancel(
+                UUID.randomUUID(), PostgreSQLTestConfiguration.NOW.minusSeconds(2), "Integration test cancellation");
         MovementFixtures.saveConfirmedPickingOrder(orderStore, jdbcTemplate, cancelled);
         consumer.consume(new OrderCancelledIntegrationEvent(
-                UUID.randomUUID(), cancelledOrderId, Instant.now().minusSeconds(2)));
+                UUID.randomUUID(), cancelledOrderId, PostgreSQLTestConfiguration.NOW.minusSeconds(2)));
 
         MovementFixtures.saveConfirmedPickingOrder(
                 orderStore, jdbcTemplate, backorderedOrder(liveOrderId, "SKU-FIFO", 3, earlier.plusSeconds(1)));
@@ -340,7 +341,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID plentifulId = UUID.randomUUID();
         UUID scarceId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         orderStore.save(OrderFixtures.pendingMultiSkuOrder(
                 orderId,
                 receivedAt,
@@ -371,7 +372,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID firstPoolId = UUID.randomUUID();
         UUID secondPoolId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         orderStore.save(OrderFixtures.pendingMultiSkuOrder(
                 orderId,
                 receivedAt,
@@ -400,7 +401,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     void shouldCountTwoLinesOfTheSameSkuOnceAsTheirSum() throws Exception {
         UUID orderId = IdGenerator.nextId();
         UUID poolId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         Order order = Order.rehydrate(
                 orderId,
                 OrderFixtures.OWNER_ID,
@@ -441,7 +442,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     void shouldJudgeACandidatesOtherSkuAgainstItsOwnStock() throws Exception {
         UUID poolId = UUID.randomUUID();
         UUID orderId = IdGenerator.nextId();
-        Instant backorderedAt = Instant.now().minusSeconds(4);
+        Instant backorderedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(4);
         stockQuantStore.save(StockFixtures.unexpiredBatch(poolId, "SKU-BASKET-A", 0, 0));
         Order order = OrderFixtures.pendingMultiSkuOrder(
                 orderId,

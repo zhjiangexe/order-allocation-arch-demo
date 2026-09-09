@@ -38,7 +38,7 @@
 - [x] 5.2 將 `PendingPickingSelection` 改為 `AssignmentCandidateQuery`，讓 `AssignmentCandidate` 只包含 immutable `MovementPlanningSnapshot` 與 optional `StockOperationPredecessor`，不再攜帶 mutable `StockOperation`
 - [x] 5.3 移除 `AssignPendingPickingCommand` 與只有 transaction forwarding 的 `PendingPickingAssignmentUsecase`，讓 availability consumer 與其他 entry points 直接傳遞 `AssignmentQueueKey`
 - [x] 5.4 將 `AssignPickingUsecase` 改為 internal `StockOperationAssignmentTransaction`，保留 final operation/move/quant reload、exact predecessor recheck、proposal revalidation、lock order 與 rollback semantics
-- [x] 5.5 將 `PendingPickingBacklogAssignmentUsecase` 改為 `ReconcileStockOperationBacklogUsecase`，讓 scheduler 只負責觸發 reconciliation，reconciler 逐一透過同一 `StockOperationAssigner` 嘗試 queue candidate
+- [x] 5.5 將 `PendingPickingBacklogAssignmentUsecase` 改為 `StockOperationBacklogReconciler`，讓 scheduler 只負責觸發 reconciliation，reconciler 逐一透過同一 `StockOperationAssigner` 嘗試 queue candidate
 - [x] 5.6 保持 `MovementAssignmentPlanner`、`MovementPlanningSnapshot`、`MovementAssignmentProposal` 與 `MoveReservationDraft` 為 pure immutable planning model，在沒有第二種 policy implementation 前不新增 planner interface 或 Strategy registry
 - [x] 5.7 新增 architecture/application tests，禁止 adapter 直接呼叫 assignment transaction、禁止 application use case 呼叫另一個 use case、禁止 candidate 暴露 aggregate，並證明三種觸發來源共用相同 façade
 

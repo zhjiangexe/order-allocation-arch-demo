@@ -9,7 +9,6 @@ import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -38,7 +37,7 @@ public class StockOperationRegistrar {
         this.idSupplier = idSupplier;
     }
 
-    @Transactional
+    /** 由呼叫端 Usecase 提供交易，確保 Operation 與 Moves 一起保存。 */
     public StockOperationRegistrationResult register(RegisterStockOperationCommand command) {
         // StockOperationSource 是註冊冪等鍵，同一來源只能對應一組 canonical movements。
         return stockOperationStore

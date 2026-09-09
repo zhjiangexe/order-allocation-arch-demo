@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
-import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileStockOperationBacklogUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogReconciler;
 import com.flowzati.archone.testsupport.InProcessMessagingTestConfiguration;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -43,7 +43,7 @@ class AllocationReconciliationBenchmarkTest {
     private StockOperationAssignmentBacklogStore backlog;
 
     @Autowired
-    private StockOperationAssignmentCoordinator coordinator;
+    private AssignNextStockOperationUsecase coordinator;
 
     @Autowired
     private BusinessClock clock;
@@ -64,7 +64,7 @@ class AllocationReconciliationBenchmarkTest {
     }
 
     private void run(int size, String scenario, int repeat) {
-        var usecase = new ReconcileStockOperationBacklogUsecase(backlog, coordinator, clock);
+        var usecase = new StockOperationBacklogReconciler(backlog, coordinator, clock);
         attempts.count = 0;
         attempts.failures = 0;
         jdbc.execute("SELECT pg_stat_statements_reset()");

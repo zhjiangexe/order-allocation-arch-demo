@@ -230,3 +230,10 @@ Inventory 的自訂資料存取 port 統一使用 `*Store`，並放在所屬 mod
 Posting、Traceability、Inventory Control、Availability 目前只是 seam，不建立空介面或空 package。
 等到出現「實際執行與原承諾不同」、serial/lot custody、調整盤點或獨立 ATP 政策時，再以已存在的
 行為與資料生命週期決定是否成立新 module。
+
+## 配貨交易入口
+
+- `AllocateOrderUsecase` 管理需求登記與首次配貨的同一筆交易。
+- `AssignNextStockOperationUsecase` 管理單次補配交易，供庫存增加 Consumer 與 Reconciler 共用；已有 Inbox 交易時加入該交易。
+- `StockOperationBacklogReconciler` 只管理分頁與迴圈，不開整批交易；每次補配返回時已提交，失敗則在回滾後略過該 queue。
+- `StockOperationAssignmentCoordinator`、`StockOperationRegistrar`、`StockAllocationCommitter` 沿用呼叫端交易，不自行宣告交易。直接呼叫這些服務的整合測試必須提供交易。

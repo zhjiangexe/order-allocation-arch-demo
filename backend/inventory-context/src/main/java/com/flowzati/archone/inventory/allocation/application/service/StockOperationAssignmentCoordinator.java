@@ -54,7 +54,7 @@ public class StockOperationAssignmentCoordinator {
      */
     public Optional<StockOperationAssignmentResult> tryAssign(UUID stockOperationId) {
         // 初次配貨只選指定 Operation；補貨喚醒則走 tryAssignNext。
-        var demand = stockOperationAssignmentCandidateStore.findDemand(stockOperationId);
+        Optional<StockOperationDemand> demand = stockOperationAssignmentCandidateStore.findDemand(stockOperationId);
         // 沒有可配需求就略過，包含不存在、已處理或不符合配貨條件的 Operation。
         if (demand.isEmpty()) {
             return Optional.empty();

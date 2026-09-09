@@ -237,7 +237,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
     void concurrentCancellationAndHandoverCommitOnlyOneOutcome(boolean cancellationWins) throws Exception {
         UUID shipmentId = createShipment();
         var cancellation = cancellationCommand(shipmentId);
-        var handover = new SimulateWarehouseOperationsCommand(shipmentId, Instant.now());
+        var handover = new SimulateWarehouseOperationsCommand(shipmentId, PostgreSQLTestConfiguration.NOW);
         var staleRead = new CountDownLatch(1);
         var winnerCommitted = new CountDownLatch(1);
 
@@ -303,7 +303,8 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
     }
 
     private CancelShipmentCommand cancellationCommand(UUID shipmentId) {
-        return new CancelShipmentCommand(UUID.randomUUID(), shipmentId, Instant.now(), "Customer changed mind");
+        return new CancelShipmentCommand(
+                UUID.randomUUID(), shipmentId, PostgreSQLTestConfiguration.NOW, "Customer changed mind");
     }
 
     private int cancellationEventCount(UUID shipmentId) {

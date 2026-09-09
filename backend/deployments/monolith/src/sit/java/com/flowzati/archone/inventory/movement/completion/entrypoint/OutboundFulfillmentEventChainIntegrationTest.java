@@ -93,7 +93,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
         UUID orderId = UUID.randomUUID();
         UUID shipmentId = UUID.randomUUID();
         UUID stockQuantId = UUID.randomUUID();
-        Instant allocatedAt = Instant.now().minusSeconds(2);
+        Instant allocatedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(2);
         Instant handedOverAt = allocatedAt.plusSeconds(1);
         var order = OrderFixtures.allocatedOrder(orderId, "SKU-OUTBOUND", 3, allocatedAt.minusSeconds(1), allocatedAt);
         orderStore.save(order);

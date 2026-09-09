@@ -142,8 +142,9 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
         StockAllocationProposal proposal = proposalFor(EARLIER_OPERATION);
 
         List<AttemptResult> attempts = runTogether(
-                () -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT),
-                () -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT));
+                () -> transactionTemplate.execute(commitTx -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT)),
+                () -> transactionTemplate.execute(
+                        commitTx -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT)));
 
         assertThat(attempts).allSatisfy(attempt -> {
             assertThat(attempt.failure()).isNull();
@@ -165,8 +166,10 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
         StockAllocationProposal laterProposal = proposalFor(LATER_OPERATION);
 
         List<AttemptResult> attempts = runTogether(
-                () -> allocationCommitter.commit(earlierProposal, TODAY, ASSIGNED_AT),
-                () -> allocationCommitter.commit(laterProposal, TODAY, ASSIGNED_AT));
+                () -> transactionTemplate.execute(
+                        commitTx -> allocationCommitter.commit(earlierProposal, TODAY, ASSIGNED_AT)),
+                () -> transactionTemplate.execute(
+                        commitTx -> allocationCommitter.commit(laterProposal, TODAY, ASSIGNED_AT)));
 
         var successful =
                 attempts.stream().filter(attempt -> attempt.failure() == null).toList();
@@ -203,16 +206,19 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
                                         .CONFIRMED);
                 try {
                     // This future returns only after the other thread's transaction has committed.
-                    executor.submit(() -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT))
+                    executor.submit(() -> transactionTemplate.execute(
+                                    commitTx -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT)))
                             .get(10, TimeUnit.SECONDS);
                 } catch (Exception exception) {
                     throw new AssertionError("Concurrent assignment did not commit", exception);
                 }
-                allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(1));
+                transactionTemplate.execute(
+                        commitTx -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(1)));
             }));
             assertThat(failure).isInstanceOf(org.springframework.dao.OptimisticLockingFailureException.class);
             // Once A has rolled back, a fresh transaction can reconstruct B's committed assignment.
-            var replay = allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(2));
+            var replay = transactionTemplate.execute(
+                    commitTx -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT.plusSeconds(2)));
             assertThat(replay.stockOperationId()).isEqualTo(EARLIER_OPERATION);
             assertThat(replay.assignedAt()).isEqualTo(ASSIGNED_AT);
             assertAssignedExactlyOnce(EARLIER_OPERATION, 3);
@@ -241,7 +247,7 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
                     .get(10, TimeUnit.SECONDS);
             assertThat(ownerAllocationPolicyStore.find(OrderFixtures.OWNER_ID))
                     .isEqualTo(AllocationSequencePolicy.FIFO);
-            allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT);
+            transactionTemplate.execute(commitTx -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT));
             assertAssignedExactlyOnce(EARLIER_OPERATION, 3);
         } finally {
             executor.shutdownNow();

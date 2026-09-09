@@ -19,7 +19,6 @@ import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
-import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -79,7 +78,7 @@ public class StockAllocationCommitter {
         this.idSupplier = idSupplier;
     }
 
-    @Transactional
+    /** 在呼叫端 Usecase 的交易內保存配貨結果與事件。 */
     public StockOperationAssignmentResult commit(
             StockAllocationProposal proposal, LocalDate today, Instant occurredAt) {
         // 1. Proposal 是 Planner 產生的非權威規劃結果；先確認它完整且具備提交所需時間。

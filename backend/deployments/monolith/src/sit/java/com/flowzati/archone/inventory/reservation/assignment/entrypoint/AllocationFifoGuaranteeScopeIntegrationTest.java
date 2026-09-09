@@ -128,7 +128,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
     private UUID seedQueuedOrder() {
         UUID orderId = IdGenerator.nextId();
-        Instant backorderedAt = Instant.now().minusSeconds(3600);
+        Instant backorderedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(3600);
         MovementFixtures.saveConfirmedPickingOrder(
                 orderStore,
                 jdbcTemplate,
@@ -139,7 +139,7 @@ class AllocationFifoGuaranteeScopeIntegrationTest {
 
     private UUID placeNewOrder() throws Exception {
         UUID orderId = IdGenerator.nextId();
-        Instant receivedAt = Instant.now();
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW;
         orderStore.save(OrderFixtures.pendingOrder(orderId, SKU, NEW_ORDER_QUANTITY, receivedAt));
         OrderPlacedIntegrationEvent event = new OrderPlacedIntegrationEvent(UUID.randomUUID(), orderId, receivedAt);
         consumer.consume(event);

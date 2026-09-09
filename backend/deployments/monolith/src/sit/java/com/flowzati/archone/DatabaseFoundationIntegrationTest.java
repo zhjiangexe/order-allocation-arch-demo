@@ -10,7 +10,6 @@ import java.sql.Connection;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -66,15 +65,12 @@ class DatabaseFoundationIntegrationTest {
     @Test
     @DisplayName("Flyway 應套用並驗證所有資料庫 migration")
     void appliesAndValidatesAllMigrations() {
-        var appliedVersions = Arrays.stream(flyway.info().applied())
-                .map(migration -> migration.getVersion().getVersion())
-                .toList();
-
-        assertThat(appliedVersions)
-                .containsExactly(
-                        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17",
-                        "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31");
+        assertThat(flyway.info().applied()).isNotEmpty();
+        assertThat(flyway.info().pending()).isEmpty();
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
+        assertThat(tableExists(jdbcTemplate, "owner_allocation_policies")).isTrue();
+        assertThat(columnExists(jdbcTemplate, "owner_allocation_policies", "sequence_policy"))
+                .isTrue();
     }
 
     @Test

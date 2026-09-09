@@ -2,6 +2,9 @@ package com.flowzati.archone.inventory.movement.registration.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
@@ -36,10 +39,12 @@ import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.st
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationCancellationStoreAdapter;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationStoreAdapter;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.store.StockOperationTypeStoreAdapter;
+import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
+import com.flowzati.archone.testsupport.SitDatabase;
 import jakarta.persistence.EntityManager;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -60,6 +65,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.transaction.TestTransaction;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @DataJpaTest(properties = "spring.data.jpa.repositories.enabled=false", showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -230,6 +237,57 @@ class StockMovementRegistrationPersistenceIntegrationTest {
                         Integer.class,
                         stockOperationId))
                 .isZero();
+    }
+
+    @Test
+    @DisplayName("首次配貨自行開交易，發布失敗時連同新登記需求一起回滾，重試可完整提交")
+    void rollsBackRegistrationAndAssignmentWithoutAnOuterTransaction() {
+        for (String sku : new String[] {"SKU-A", "SKU-B"}) {
+            jdbcTemplate.update("""
+                    INSERT INTO stock_pools
+                        (id, owner_id, location_id, sku_code, in_date, expiry_date,
+                         on_hand_quantity, reserved_quantity, version)
+                    VALUES (?, ?, ?, ?, DATE '2026-01-01', DATE '2026-12-31', 10, 0, 0)
+                    """, UUID.randomUUID(), OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, sku);
+        }
+        // 先提交測試資料；被測 Usecase 不得借用 @DataJpaTest 的交易。
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        try {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive())
+                    .isFalse();
+            doThrow(new IllegalStateException("publication failed"))
+                    .when(eventPublisher)
+                    .publish(any(IntegrationEventPublication.class));
+
+            assertThatThrownBy(() -> allocateOrder.execute(new AllocateOrderCommand(ORDER_ID)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("publication failed");
+
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_operations", Long.class))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_moves", Long.class))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_move_lines", Long.class))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject("SELECT SUM(reserved_quantity) FROM stock_pools", Long.class))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM event_outbox", Long.class))
+                    .isZero();
+
+            doNothing().when(eventPublisher).publish(any(IntegrationEventPublication.class));
+            allocateOrder.execute(new AllocateOrderCommand(ORDER_ID));
+            assertThat(jdbcTemplate.queryForObject("SELECT state FROM stock_operations", String.class))
+                    .isEqualTo("ASSIGNED");
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_moves", Long.class))
+                    .isEqualTo(2);
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_move_lines", Long.class))
+                    .isEqualTo(2);
+            assertThat(jdbcTemplate.queryForObject("SELECT SUM(reserved_quantity) FROM stock_pools", Long.class))
+                    .isEqualTo(5);
+        } finally {
+            SitDatabase.clear(jdbcTemplate);
+        }
     }
 
     @Test

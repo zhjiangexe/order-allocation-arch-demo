@@ -19,8 +19,8 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationInventoryAvailabilityEventConsumer;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationOrderPlacedEventConsumer;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
@@ -126,9 +126,7 @@ class IntegrationEventWiringTest {
                 .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
                 .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
                 .withBean(CancelSourceStockMovementsUsecase.class, () -> mock(CancelSourceStockMovementsUsecase.class))
-                .withBean(
-                        StockOperationAssignmentCoordinator.class,
-                        () -> mock(StockOperationAssignmentCoordinator.class))
+                .withBean(AssignNextStockOperationUsecase.class, () -> mock(AssignNextStockOperationUsecase.class))
                 .withBean(CreateShipmentUsecase.class, () -> mock(CreateShipmentUsecase.class))
                 .withBean(CompleteOutboundMovementsUsecase.class, () -> mock(CompleteOutboundMovementsUsecase.class))
                 .withBean(IntegrationEventPublisher.class, () -> mock(IntegrationEventPublisher.class))

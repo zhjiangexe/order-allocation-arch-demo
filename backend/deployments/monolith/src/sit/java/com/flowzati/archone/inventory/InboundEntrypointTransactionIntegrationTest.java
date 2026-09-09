@@ -86,7 +86,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
 
@@ -110,7 +110,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(1);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         orderStore.save(OrderFixtures.pendingOrder(orderId, "SKU-1", 3, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
 
@@ -146,7 +146,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Instant allocatedAt = Instant.now().minusSeconds(1);
+        Instant allocatedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(1);
         Order order = OrderFixtures.allocatedOrder(orderId, "SKU-1", 3, allocatedAt.minusSeconds(1), allocatedAt);
         orderStore.save(order);
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
@@ -157,7 +157,8 @@ class InboundEntrypointTransactionIntegrationTest {
                 "ALTER TABLE stock_pools ADD CONSTRAINT ck_test_reject_release CHECK (reserved_quantity >= 3) NOT VALID");
         try {
             assertThatThrownBy(() -> consumeOrderingEvent(
-                            new OrderCancelledIntegrationEvent(eventId, orderId, Instant.now()), orderId))
+                            new OrderCancelledIntegrationEvent(eventId, orderId, PostgreSQLTestConfiguration.NOW),
+                            orderId))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         } finally {
             jdbcTemplate.execute("ALTER TABLE stock_pools DROP CONSTRAINT ck_test_reject_release");
@@ -181,7 +182,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(60);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(60);
         MovementFixtures.saveConfirmedPickingOrder(
                 orderStore, jdbcTemplate, OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 0, 0));
@@ -234,7 +235,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID orderId = IdGenerator.nextId();
         UUID stockQuantId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        Instant receivedAt = Instant.now().minusSeconds(60);
+        Instant receivedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(60);
         MovementFixtures.saveConfirmedPickingOrder(
                 orderStore, jdbcTemplate, OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 0, 0));

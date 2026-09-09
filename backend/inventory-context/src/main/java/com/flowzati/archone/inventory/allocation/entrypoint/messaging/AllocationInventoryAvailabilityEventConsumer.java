@@ -2,8 +2,8 @@ package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -17,11 +17,11 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnIntegrationEventConsumption
 public class AllocationInventoryAvailabilityEventConsumer {
 
-    private final StockOperationAssignmentCoordinator stockOperationAssignmentCoordinator;
+    private final AssignNextStockOperationUsecase assignNextStockOperationUsecase;
 
     public AllocationInventoryAvailabilityEventConsumer(
-            StockOperationAssignmentCoordinator stockOperationAssignmentCoordinator) {
-        this.stockOperationAssignmentCoordinator = stockOperationAssignmentCoordinator;
+            AssignNextStockOperationUsecase assignNextStockOperationUsecase) {
+        this.assignNextStockOperationUsecase = assignNextStockOperationUsecase;
     }
 
     @Bean
@@ -31,7 +31,7 @@ public class AllocationInventoryAvailabilityEventConsumer {
         //
         // 這裡只負責「訂閱哪個 destination、收到哪種 integration event 後呼叫哪個 handler」；
         // 不在 messaging adapter 裡實作配貨規則。真正的等待需求配貨由
-        // StockOperationAssignmentCoordinator 負責，scheduler 也會共用同一個 transaction operation。
+        // AssignNextStockOperationUsecase 負責，scheduler 也會共用同一個 transaction operation。
         IntegrationEventHandlers handlers = IntegrationEventHandlersBuilder
                 // STOCK_EVENTS 是 Inventory／StockQuant 發布實際庫存增加事實的 destination。
                 .forDestination(InventoryEventDestinations.STOCK_EVENTS)
@@ -49,8 +49,8 @@ public class AllocationInventoryAvailabilityEventConsumer {
 
     void onStockAvailabilityIncreased(StockAvailabilityIncreasedIntegrationEvent event) {
         // Availability event 是低延遲觸發來源；定期 reconciliation scheduler 也會呼叫同一個
-        // StockOperationAssignmentCoordinator，兩者因此共用 FIFO、FEFO 與 ship-complete 規則。
-        stockOperationAssignmentCoordinator.tryAssignNext(
+        // AssignNextStockOperationUsecase，兩者因此共用 FIFO、FEFO 與 ship-complete 規則。
+        assignNextStockOperationUsecase.execute(
                 new AssignmentQueueKey(event.getOwnerId(), event.getLocationId(), event.getSku()));
     }
 }

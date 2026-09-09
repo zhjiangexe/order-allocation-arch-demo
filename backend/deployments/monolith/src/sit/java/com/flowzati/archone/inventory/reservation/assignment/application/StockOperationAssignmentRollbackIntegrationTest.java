@@ -4,11 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
-import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
+import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
 import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
@@ -17,11 +21,8 @@ import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
-import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
-import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
-import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationTypeRepository;
@@ -73,6 +74,9 @@ import org.springframework.transaction.support.TransactionTemplate;
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
     JdbcOwnerAllocationPolicyStoreAdapter.class,
     StockAllocationCommitter.class,
+    AssignNextStockOperationUsecase.class,
+    StockOperationAssignmentCoordinator.class,
+    MovementAssignmentPlanner.class,
     StockOperationAssignmentResultFactory.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentRollbackIntegrationTest.RepositoryConfiguration.class
@@ -89,16 +93,10 @@ class StockOperationAssignmentRollbackIntegrationTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-08-27");
 
     @Autowired
-    private StockAllocationCommitter allocationCommitter;
+    private AssignNextStockOperationUsecase assignNextStockOperationUsecase;
 
-    @Autowired
-    private StockOperationStore stockOperationStore;
-
-    @Autowired
-    private StockMoveStore stockMoveStore;
-
-    @Autowired
-    private StockAllocationSupplyStore stockAllocationSupplyStore;
+    @MockitoBean
+    private BusinessClock businessClock;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -114,6 +112,8 @@ class StockOperationAssignmentRollbackIntegrationTest {
 
     @BeforeEach
     void seedConfirmedGroupAndStock() {
+        when(businessClock.today()).thenReturn(TODAY);
+        when(businessClock.instant()).thenReturn(ASSIGNED_AT);
         removeFailureConstraints();
         clearScenario();
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "SKU-A");
@@ -174,12 +174,6 @@ class StockOperationAssignmentRollbackIntegrationTest {
     @EnumSource(AssignmentFailure.class)
     @DisplayName("every persistence and publication failure restores the original confirmed group")
     void rollsBackEveryAssignmentWrite(AssignmentFailure failure) {
-        var operation = stockOperationStore.findById(STOCK_OPERATION_ID).orElseThrow();
-        var moves = stockMoveStore.findOrderedByStockOperationId(STOCK_OPERATION_ID);
-        var demand = StockOperationDemandFactory.from(operation, moves);
-        var supply = stockAllocationSupplyStore.findBySku(
-                OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, demand.skuCodes(), TODAY);
-        var proposal = new MovementAssignmentPlanner().plan(demand, supply);
         AssignmentSnapshot before = snapshot();
 
         if (failure == AssignmentFailure.PUBLICATION) {
@@ -190,7 +184,8 @@ class StockOperationAssignmentRollbackIntegrationTest {
             failure.install(jdbcTemplate);
         }
 
-        Throwable thrown = catchThrowable(() -> allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT));
+        Throwable thrown = catchThrowable(() -> assignNextStockOperationUsecase.execute(
+                new AssignmentQueueKey(OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, "SKU-A")));
 
         assertThat(thrown).isNotNull();
         assertThat(rootCause(thrown).getMessage()).contains(failure.constraintName());

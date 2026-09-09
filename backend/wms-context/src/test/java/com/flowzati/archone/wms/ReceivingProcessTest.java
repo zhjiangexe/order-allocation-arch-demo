@@ -44,7 +44,7 @@ class ReceivingProcessTest {
     @Test
     void completesArrivalInspectionAndPutaway() {
         UUID operationId = UUID.randomUUID();
-        InboundOperation operation = register.handle(new RegisterInboundOperationCommand(
+        register.handle(new RegisterInboundOperationCommand(
                 operationId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
@@ -60,13 +60,13 @@ class ReceivingProcessTest {
                         "SKU-A", UUID.randomUUID(), LocalDate.of(2026, 8, 6), LocalDate.of(2027, 8, 6), 10)),
                 T0.plusSeconds(30)));
 
-        assertThat(operation.status()).isEqualTo(InboundStatus.COMPLETED);
+        assertThat(repository.findById(operationId).orElseThrow().status()).isEqualTo(InboundStatus.COMPLETED);
     }
 
     @Test
     void quarantinesRejectedGoods() {
         UUID operationId = UUID.randomUUID();
-        InboundOperation operation = register.handle(new RegisterInboundOperationCommand(
+        register.handle(new RegisterInboundOperationCommand(
                 operationId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
@@ -77,7 +77,7 @@ class ReceivingProcessTest {
 
         inspect.handle(new RecordInspectionCommand(operationId, false, "Damaged packaging", T0.plusSeconds(20)));
 
-        assertThat(operation.status()).isEqualTo(InboundStatus.QUARANTINED);
+        assertThat(repository.findById(operationId).orElseThrow().status()).isEqualTo(InboundStatus.QUARANTINED);
     }
 
     @Test
@@ -121,19 +121,30 @@ class ReceivingProcessTest {
 
         @Override
         public Optional<InboundOperation> findById(UUID inboundOperationId) {
-            return Optional.ofNullable(operations.get(inboundOperationId));
+            return Optional.ofNullable(operations.get(inboundOperationId)).map(InMemoryInboundStore::copy);
         }
 
         @Override
         public Optional<InboundOperation> findByExternalReference(String externalReference) {
             return operations.values().stream()
                     .filter(operation -> operation.externalReference().equals(externalReference))
-                    .findFirst();
+                    .findFirst()
+                    .map(InMemoryInboundStore::copy);
+        }
+
+        private static InboundOperation copy(InboundOperation operation) {
+            return InboundOperation.rehydrate(
+                    operation.id(),
+                    operation.ownerId(),
+                    operation.facilityId(),
+                    operation.externalReference(),
+                    operation.expectedLines(),
+                    operation.status());
         }
 
         @Override
         public void save(InboundOperation operation) {
-            operations.put(operation.id(), operation);
+            operations.put(operation.id(), copy(operation));
         }
     }
 }

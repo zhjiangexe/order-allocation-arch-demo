@@ -26,7 +26,7 @@
   `allocation/application/assignment/model`; preserve validation and immutable collection copies.
 - [x] 3.2 Move `StockOperationAssignmentCandidateRepository`, `StockOperationAssignmentBacklogRepository` and
   `StockAllocationSupplyFinder` into `allocation/application/assignment/port` with full type-derived dependency property names.
-- [x] 3.3 Move `StockOperationAssignmentCoordinator`, `StockAllocationCommitter`, `ReconcileStockOperationBacklogUsecase`, result assembly and
+- [x] 3.3 Move `StockOperationAssignmentCoordinator`, `StockAllocationCommitter`, `StockOperationBacklogReconciler`, result assembly and
   assignment working models under the assignment feature without changing the select-plan-commit method sequence.
 - [x] 3.4 Update JDBC candidate, backlog and supply adapters, retry handling, scheduler entrypoints, monolith wiring and tests for the new
   assignment model and port packages.

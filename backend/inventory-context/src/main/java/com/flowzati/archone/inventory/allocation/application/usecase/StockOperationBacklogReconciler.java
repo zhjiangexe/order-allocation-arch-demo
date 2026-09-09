@@ -1,7 +1,6 @@
 package com.flowzati.archone.inventory.allocation.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
 import java.util.ArrayList;
@@ -12,21 +11,21 @@ import org.springframework.stereotype.Service;
 
 /** Periodic paged sweep over confirmed operation queues. */
 @Service
-public class ReconcileStockOperationBacklogUsecase {
+public class StockOperationBacklogReconciler {
 
-    private static final Logger log = LoggerFactory.getLogger(ReconcileStockOperationBacklogUsecase.class);
+    private static final Logger log = LoggerFactory.getLogger(StockOperationBacklogReconciler.class);
 
     private final StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore;
-    private final StockOperationAssignmentCoordinator coordinator;
+    private final AssignNextStockOperationUsecase assignNextStockOperationUsecase;
     private final BusinessClock appClock;
     private static final int PAGE_SIZE = 200;
 
-    public ReconcileStockOperationBacklogUsecase(
+    public StockOperationBacklogReconciler(
             StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore,
-            StockOperationAssignmentCoordinator coordinator,
+            AssignNextStockOperationUsecase assignNextStockOperationUsecase,
             BusinessClock appClock) {
         this.stockOperationAssignmentBacklogStore = stockOperationAssignmentBacklogStore;
-        this.coordinator = coordinator;
+        this.assignNextStockOperationUsecase = assignNextStockOperationUsecase;
         this.appClock = appClock;
     }
 
@@ -60,7 +59,7 @@ public class ReconcileStockOperationBacklogUsecase {
 
     private boolean tryAssign(AssignmentQueueKey queueKey) {
         try {
-            return coordinator.tryAssignNext(queueKey).isPresent();
+            return assignNextStockOperationUsecase.execute(queueKey).isPresent();
         } catch (RuntimeException exception) {
             log.atError()
                     .addKeyValue("ownerId", queueKey.ownerId())

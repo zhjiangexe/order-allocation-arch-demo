@@ -6,10 +6,10 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
-import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileStockOperationBacklogUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogReconciler;
 import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
@@ -73,13 +73,13 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     @Autowired
     private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-    private ReconcileStockOperationBacklogUsecase reconcileStockOperationBacklogUsecase;
+    private StockOperationBacklogReconciler stockOperationBacklogReconciler;
 
     @Autowired
     private StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore;
 
     @Autowired
-    private StockOperationAssignmentCoordinator stockOperationAssignmentCoordinator;
+    private AssignNextStockOperationUsecase assignNextStockOperationUsecase;
 
     @Autowired
     private BusinessClock appClock;
@@ -106,8 +106,8 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     void seedCatalogForOrders() {
         // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
         // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
-        reconcileStockOperationBacklogUsecase = new ReconcileStockOperationBacklogUsecase(
-                stockOperationAssignmentBacklogStore, stockOperationAssignmentCoordinator, appClock);
+        stockOperationBacklogReconciler = new StockOperationBacklogReconciler(
+                stockOperationAssignmentBacklogStore, assignNextStockOperationUsecase, appClock);
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
         ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO);
     }
@@ -181,7 +181,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
         // 有可用庫存但不足以滿足隊首：本次巡檢應停止此 queue，不跳過 blocker 配後面的單。
         UUID stockQuantId = UUID.randomUUID();
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, FIFO_SKU, 0, 0));
-        Instant backorderedAt = Instant.now().minusSeconds(3600);
+        Instant backorderedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(3600);
         int position = 0;
         UUID blockerOrderId = seedBackorderedOrder(BLOCKER_QUANTITY, backorderedAt, position++);
         for (int i = 0; i < QUEUED_ORDER_SAMPLE_SIZE * 2; i++) {
@@ -224,11 +224,11 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
                             OrderFixtures.OWNER_ID,
                             FIFO_SKU,
                             1,
-                            Instant.now().minusSeconds(7200),
-                            Instant.now().minusSeconds(7200)));
+                            PostgreSQLTestConfiguration.NOW.minusSeconds(7200),
+                            PostgreSQLTestConfiguration.NOW.minusSeconds(7200)));
             otherWarehouseOrders.add(orderId);
         }
-        UUID mine = seedBackorderedOrder(1, Instant.now().minusSeconds(60), 0);
+        UUID mine = seedBackorderedOrder(1, PostgreSQLTestConfiguration.NOW.minusSeconds(60), 0);
 
         receive(1);
         reconcileWithSchedulerUntilStable();
@@ -242,7 +242,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
 
     /** 建立 FIFO 排序穩定的 1,000 張 BACKORDERED Order：前 500 張、blocker、後 499 張。 */
     private BackorderQueue seedBackorderQueue() {
-        Instant firstBackorderedAt = Instant.now().minusSeconds(3600);
+        Instant firstBackorderedAt = PostgreSQLTestConfiguration.NOW.minusSeconds(3600);
         int position = 0;
         UUID firstOrderId = seedBackorderedOrder(1, firstBackorderedAt, position++);
         for (int i = 1; i < FITTING_ORDERS_BEFORE_BLOCKER; i++) {
@@ -373,9 +373,9 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     /** 一次巡檢配完可配需求；再跑一次應沒有新增 outcome。 */
     private int reconcileWithSchedulerUntilStable() {
         int before = allocatedOutcomeCount();
-        reconcileStockOperationBacklogUsecase.execute();
+        stockOperationBacklogReconciler.execute();
         int after = allocatedOutcomeCount();
-        reconcileStockOperationBacklogUsecase.execute();
+        stockOperationBacklogReconciler.execute();
         assertThat(allocatedOutcomeCount()).isEqualTo(after);
         return after > before ? 1 : 0;
     }

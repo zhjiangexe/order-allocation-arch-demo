@@ -5,7 +5,7 @@
 
 ## 測試方式
 
-- 直接呼叫真實 ReconcileStockOperationBacklogUsecase，使用真實 Candidate Store、Planner、Committer、交易、資料庫約束及 outbox 寫入。
+- 直接呼叫真實 StockOperationBacklogReconciler，使用真實 Candidate Store、Planner、Committer、交易、資料庫約束及 outbox 寫入。
 - Kafka listener、正式 scheduler 不啟動；不包含訂單建立、事件傳遞、後續 WMS 工作。
 - 一貨主、一來源位置；每張 StockOperation 一行、一 SKU；每 SKU 一個庫存批次；DISPATCH_DATE_FIRST。
 - DISTRIBUTED：每張需求不同 SKU，因此 1,000／10,000 張對應同數量的 queue。

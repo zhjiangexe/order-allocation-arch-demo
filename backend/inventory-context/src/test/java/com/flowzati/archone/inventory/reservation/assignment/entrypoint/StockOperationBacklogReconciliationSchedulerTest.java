@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.inventory.allocation.application.usecase.ReconcileStockOperationBacklogUsecase;
+import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogReconciler;
 import com.flowzati.archone.inventory.allocation.entrypoint.schedule.StockOperationBacklogReconciliationScheduler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,9 +17,7 @@ class StockOperationBacklogReconciliationSchedulerTest {
     void conditionsTheSchedulerBeanInsteadOfTheSchedulingEngine() {
         ApplicationContextRunner runner = new ApplicationContextRunner()
                 .withUserConfiguration(StockOperationBacklogReconciliationScheduler.class)
-                .withBean(
-                        ReconcileStockOperationBacklogUsecase.class,
-                        () -> mock(ReconcileStockOperationBacklogUsecase.class));
+                .withBean(StockOperationBacklogReconciler.class, () -> mock(StockOperationBacklogReconciler.class));
 
         runner.withPropertyValues("archone.allocation.reconciliation-scheduler-enabled=false")
                 .run(context ->
@@ -31,7 +29,7 @@ class StockOperationBacklogReconciliationSchedulerTest {
     @Test
     @DisplayName("scheduler delegates only to the confirmed-operation backlog usecase")
     void delegatesToPickingBacklogAssignment() {
-        ReconcileStockOperationBacklogUsecase usecase = mock(ReconcileStockOperationBacklogUsecase.class);
+        StockOperationBacklogReconciler usecase = mock(StockOperationBacklogReconciler.class);
 
         new StockOperationBacklogReconciliationScheduler(usecase).reconcileAssignmentBacklog();
 
