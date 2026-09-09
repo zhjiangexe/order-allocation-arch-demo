@@ -1,0 +1,244 @@
+{
+  "events": {
+    "order": {
+      "orderId": "01a084f0-ff13-7000-8037-41e71939b078",
+      "ownerId": "00000000-0000-0000-0000-000000000001",
+      "externalOrderNo": "KARATE-EVT-HAPPY-603733a5-838e-46cb-bf02-9bb057152042",
+      "facilityId": "00000000-0000-0000-0000-000000000011",
+      "shipToZone": "100",
+      "shipToAddress": "台北市中正區 Karate 測試路 1 號",
+      "promisedDeliveryDate": "2099-01-02",
+      "dispatchBy": "2099-01-01T12:00:00Z",
+      "releasePriority": 50,
+      "status": "FULFILLED",
+      "receivedAt": "2026-09-09T06:53:01.587134Z",
+      "placedAt": null,
+      "allocatedAt": "2026-09-09T06:53:01.918146Z",
+      "cancelledAt": null,
+      "cancellationRequestId": null,
+      "cancellationReason": null,
+      "fulfilledAt": "2026-09-09T06:53:03.116998Z",
+      "fulfilledByShipmentId": "01a084f1-0250-786e-9d08-77438bbddf22",
+      "lines": [
+        {
+          "orderLineId": "01a084f0-ff13-725a-8038-726312494b86",
+          "lineNo": 1,
+          "skuCode": "E2E-EVT-HAPPY",
+          "quantity": 3
+        }
+      ]
+    },
+    "stockOperation": {
+      "source": {
+        "type": "ORDER",
+        "sourceId": "01a084f0-ff13-7000-8037-41e71939b078",
+        "operationUnitKey": "PRIMARY"
+      },
+      "operation": {
+        "stockOperationId": "01a084f1-0053-780c-bed5-8ecd6ce57dcc",
+        "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+        "direction": "OUTBOUND",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "fromLocationId": "00000000-0000-0000-0000-000000000021",
+        "toLocationId": "00000000-0000-0000-0000-000000000025",
+        "assignmentPolicy": "SHIP_COMPLETE",
+        "enqueuedAt": "2026-09-09T06:53:01.587134Z",
+        "dispatchBy": "2099-01-01T12:00:00Z",
+        "releasePriority": 50,
+        "state": "DONE"
+      },
+      "moves": [
+        {
+          "moveId": "01a084f1-0053-7989-bed6-c721e4a6e49e",
+          "sourceLineId": "01a084f0-ff13-725a-8038-726312494b86",
+          "lineSequence": 1,
+          "skuCode": "E2E-EVT-HAPPY",
+          "quantity": 3,
+          "state": "DONE",
+          "createdAt": "2026-09-09T06:53:01.587134Z",
+          "assignedAt": "2026-09-09T06:53:01.918146Z",
+          "batches": [
+            {
+              "stockQuantId": "f4ad6ad9-e5ca-cb4e-1934-c3ba9fb3daa6",
+              "locationId": "00000000-0000-0000-0000-000000000021",
+              "skuCode": "E2E-EVT-HAPPY",
+              "inDate": "2026-01-01",
+              "expiryDate": "2099-12-31",
+              "quantity": 3
+            }
+          ]
+        }
+      ]
+    },
+    "shipments": [
+      {
+        "shipmentId": "01a084f1-0250-786e-9d08-77438bbddf22",
+        "stockOperationId": "01a084f1-0053-780c-bed5-8ecd6ce57dcc",
+        "orderId": "01a084f0-ff13-7000-8037-41e71939b078",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "status": "HANDED_OVER_TO_CARRIER",
+        "waveId": "01a084f1-0511-7f2f-8ae6-42d0f71f7b76",
+        "createdAt": "2026-09-09T06:53:01.918146Z",
+        "dispatchBy": "2099-01-01T12:00:00Z",
+        "releasePriority": 50,
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "cancellationReason": null,
+        "cancelledAt": null,
+        "cancellationState": null,
+        "lines": [
+          {
+            "orderLineId": "01a084f0-ff13-725a-8038-726312494b86",
+            "moveId": "01a084f1-0053-7989-bed6-c721e4a6e49e",
+            "skuCode": "E2E-EVT-HAPPY",
+            "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+            "quantity": 3
+          }
+        ],
+        "pickTasks": [
+          {
+            "pickTaskId": "01a084f1-0521-79f3-ab83-59fbb3e7d926",
+            "orderLineId": "01a084f0-ff13-725a-8038-726312494b86",
+            "moveId": "01a084f1-0053-7989-bed6-c721e4a6e49e",
+            "skuCode": "E2E-EVT-HAPPY",
+            "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+            "requestedQuantity": 3,
+            "pickedQuantity": 3,
+            "status": "PICKED",
+            "confirmedAt": "2026-09-09T06:53:03.116998Z"
+          }
+        ]
+      }
+    ],
+    "temporalWorkflow": null
+  },
+  "temporal": {
+    "order": {
+      "orderId": "01a084f2-af2b-792f-a21f-35db4cc3a7b9",
+      "ownerId": "00000000-0000-0000-0000-000000000001",
+      "externalOrderNo": "KARATE-TMP-HAPPY-01e193b4-5aab-42d8-9829-7e58527e7d55",
+      "facilityId": "00000000-0000-0000-0000-000000000011",
+      "shipToZone": "100",
+      "shipToAddress": "台北市中正區 Karate 測試路 1 號",
+      "promisedDeliveryDate": "2099-01-02",
+      "dispatchBy": "2099-01-01T12:00:00Z",
+      "releasePriority": 50,
+      "status": "FULFILLED",
+      "receivedAt": "2026-09-09T06:54:52.203594Z",
+      "placedAt": null,
+      "allocatedAt": "2026-09-09T06:54:53.518411Z",
+      "cancelledAt": null,
+      "cancellationRequestId": null,
+      "cancellationReason": null,
+      "fulfilledAt": "2026-09-09T06:54:54.905123Z",
+      "fulfilledByShipmentId": "01a084f2-b6cf-7dd7-99b0-7507edd440f3",
+      "lines": [
+        {
+          "orderLineId": "01a084f2-af2b-7a1c-a220-cc0e929559df",
+          "lineNo": 1,
+          "skuCode": "E2E-TMP-HAPPY",
+          "quantity": 4
+        }
+      ]
+    },
+    "stockOperation": {
+      "source": {
+        "type": "ORDER",
+        "sourceId": "01a084f2-af2b-792f-a21f-35db4cc3a7b9",
+        "operationUnitKey": "PRIMARY"
+      },
+      "operation": {
+        "stockOperationId": "01a084f2-b408-7b95-a2d0-6bea9da44d1e",
+        "stockOperationTypeId": "00000000-0000-0000-0000-000000000031",
+        "direction": "OUTBOUND",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "fromLocationId": "00000000-0000-0000-0000-000000000021",
+        "toLocationId": "00000000-0000-0000-0000-000000000025",
+        "assignmentPolicy": "SHIP_COMPLETE",
+        "enqueuedAt": "2026-09-09T06:54:52.203594Z",
+        "dispatchBy": "2099-01-01T12:00:00Z",
+        "releasePriority": 50,
+        "state": "DONE"
+      },
+      "moves": [
+        {
+          "moveId": "01a084f2-b409-78f1-9141-60aa9d61d594",
+          "sourceLineId": "01a084f2-af2b-7a1c-a220-cc0e929559df",
+          "lineSequence": 1,
+          "skuCode": "E2E-TMP-HAPPY",
+          "quantity": 4,
+          "state": "DONE",
+          "createdAt": "2026-09-09T06:54:52.203594Z",
+          "assignedAt": "2026-09-09T06:54:53.518411Z",
+          "batches": [
+            {
+              "stockQuantId": "07ca6109-02a3-a216-1796-f7b29da7fd49",
+              "locationId": "00000000-0000-0000-0000-000000000021",
+              "skuCode": "E2E-TMP-HAPPY",
+              "inDate": "2026-01-01",
+              "expiryDate": "2099-12-31",
+              "quantity": 4
+            }
+          ]
+        }
+      ]
+    },
+    "shipments": [
+      {
+        "shipmentId": "01a084f2-b6cf-7dd7-99b0-7507edd440f3",
+        "stockOperationId": "01a084f2-b408-7b95-a2d0-6bea9da44d1e",
+        "orderId": "01a084f2-af2b-792f-a21f-35db4cc3a7b9",
+        "ownerId": "00000000-0000-0000-0000-000000000001",
+        "facilityId": "00000000-0000-0000-0000-000000000011",
+        "status": "HANDED_OVER_TO_CARRIER",
+        "waveId": "01a084f2-b9bd-7fb6-8208-6fb5453547f3",
+        "createdAt": "2026-09-09T06:54:53.518411Z",
+        "dispatchBy": "2099-01-01T12:00:00Z",
+        "releasePriority": 50,
+        "cancellationRequestId": null,
+        "cancellationRequestedAt": null,
+        "cancellationReason": null,
+        "cancelledAt": null,
+        "cancellationState": null,
+        "lines": [
+          {
+            "orderLineId": "01a084f2-af2b-7a1c-a220-cc0e929559df",
+            "moveId": "01a084f2-b409-78f1-9141-60aa9d61d594",
+            "skuCode": "E2E-TMP-HAPPY",
+            "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+            "quantity": 4
+          }
+        ],
+        "pickTasks": [
+          {
+            "pickTaskId": "01a084f2-b9d0-7497-896a-c0a524916a0f",
+            "orderLineId": "01a084f2-af2b-7a1c-a220-cc0e929559df",
+            "moveId": "01a084f2-b409-78f1-9141-60aa9d61d594",
+            "skuCode": "E2E-TMP-HAPPY",
+            "sourceLocationId": "00000000-0000-0000-0000-000000000021",
+            "requestedQuantity": 4,
+            "pickedQuantity": 4,
+            "status": "PICKED",
+            "confirmedAt": "2026-09-09T06:54:54.905123Z"
+          }
+        ]
+      }
+    ],
+    "temporalWorkflow": {
+      "orderId": "01a084f2-af2b-792f-a21f-35db4cc3a7b9",
+      "phase": "FINISHED",
+      "allocationState": "COMMITTED",
+      "cancellationState": "NONE",
+      "cancellationRequestId": null,
+      "cancellationRequestedAt": null,
+      "outcome": "FULFILLMENT_COMPLETED",
+      "stockOperationId": "01a084f2-b408-7b95-a2d0-6bea9da44d1e",
+      "shipmentId": "01a084f2-b6cf-7dd7-99b0-7507edd440f3",
+      "shipmentTerminalStatus": "HANDED_OVER",
+      "shipmentTerminalAt": "2026-09-09T06:54:54.905123Z",
+      "cancelledAt": null,
+      "updatedAt": "2026-09-09T06:54:55.205Z"
+    }
+  }
+}

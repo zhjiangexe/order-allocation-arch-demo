@@ -71,3 +71,14 @@ consumer failure。這些不是外部使用者流程，因此不搬進 Karate �
 Temporal 取消請求衝突案例會暫停 Connect，讓 Workflow 等待 Shipment terminal event，再驗證修改
 reason／requestedAt 的 HTTP 請求回 409。恢復 Connect 後再驗證取消完成。`fulfillment-process`
 只 mock Workflow client 驗證結果映射，不依賴 runtime；runtime 自己保留狀態轉換、重試與 replay 測試。
+
+## Allocation console 驗收資料
+
+`fixtures/e2e-catalog.sql` 另備有 `UI-EVT-*` 與 `UI-TMP-*` 各五個 SKU，分別供有貨、
+缺貨補貨、多 SKU 整單與 FEFO 前端驗收；既有 Karate scenarios 不使用這些 SKU。
+FEFO 每個 SKU 初始四批，在手 17、有效 ATP 10、過期 7。
+完整資料與操作矩陣見 [T1 基線](../../docs/plans/allocation-console/t1-baseline.md)。
+
+fixtures 僅適用新的隔離資料庫；`ON CONFLICT DO NOTHING` 不還原已消耗數量。
+重跑請建立新的隔離環境，不要把同一資料庫當成初始庫存。`KEEP_E2E_STACK=true` 只保留容器，
+runner 結束仍會停止其啟動的 app；瀏覽器驗收須另啟動對應模式的 app 與前端。
