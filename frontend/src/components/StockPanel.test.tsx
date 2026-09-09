@@ -1,3 +1,4 @@
+import { selectOption } from '../test/selectOption';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -97,9 +98,9 @@ function renderPanel(
 
 /** 選好貨主、設施與庫位——收貨視窗的唯讀欄位與送出的命令都來自它們。 */
 async function chooseScope(user: ReturnType<typeof userEvent.setup>) {
-  await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-  await user.selectOptions(screen.getByLabelText('設施'), NORTH.facilityId);
-  await user.selectOptions(screen.getByLabelText('庫位'), NORTH_LOCATION.locationId);
+  await selectOption(user, screen.getByLabelText('貨主'), OWNER.ownerId);
+  await selectOption(user, screen.getByLabelText('設施'), NORTH.facilityId);
+  await selectOption(user, screen.getByLabelText('庫位'), NORTH_LOCATION.locationId);
 }
 
 const idle: AsyncState<StockLine[]> = { status: 'idle' };
@@ -117,17 +118,18 @@ const expanders = () => screen.getAllByRole('button', { expanded: false });
 const batchTable = () => within(screen.getAllByRole('table')[1]!);
 
 describe('StockPanel 的查詢軸', () => {
-  it('貨主、設施與庫位都選了才查得動', async () => {
+  it('唯一貨主與庫位自動帶入，多個設施仍須選擇', async () => {
     const props = renderPanel(idle);
     const user = userEvent.setup();
 
     expect(screen.getByRole('button', { name: '查詢庫存' })).toBeDisabled();
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER.ownerId);
     expect(screen.getByRole('button', { name: '查詢庫存' })).toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText('設施'), NORTH.facilityId);
-    expect(screen.getByRole('button', { name: '查詢庫存' })).toBeDisabled();
-    await user.selectOptions(screen.getByLabelText('庫位'), NORTH_LOCATION.locationId);
+    await selectOption(user, screen.getByLabelText('設施'), NORTH.facilityId);
+    expect(screen.getByLabelText('庫位')).toHaveValue(NORTH_LOCATION.locationId);
+    expect(screen.getByRole('button', { name: '查詢庫存' })).toBeEnabled();
+    expect(props.onQuery).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: '查詢庫存' }));
 
     expect(props.onQuery).toHaveBeenCalledExactlyOnceWith(
@@ -137,19 +139,20 @@ describe('StockPanel 的查詢軸', () => {
     );
   });
 
-  it('未選貨主時設施不可選——倉是掛在貨主底下的', () => {
+  it('唯一貨主自動帶入並啟用其設施選單', () => {
     renderPanel(idle);
 
-    expect(screen.getByLabelText('設施')).toBeDisabled();
+    expect(screen.getByLabelText('貨主')).toHaveValue(OWNER.ownerId);
+    expect(screen.getByLabelText('設施')).toBeEnabled();
   });
 
   it('換貨主會清空設施並作廢畫面上的結果', async () => {
     const props = renderPanel(idle);
     const user = userEvent.setup();
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('設施'), CENTRAL.facilityId);
-    await user.selectOptions(screen.getByLabelText('貨主'), '');
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER.ownerId);
+    await selectOption(user, screen.getByLabelText('設施'), CENTRAL.facilityId);
+    await selectOption(user, screen.getByLabelText('貨主'), '');
 
     // 兩個貨主可能共用同一個倉，留著看起來像仍然有效，但有效與否取決於指派關係。
     expect(screen.getByLabelText('設施')).toHaveValue('');
@@ -160,20 +163,15 @@ describe('StockPanel 的查詢軸', () => {
     const props = renderPanel(idle);
     const user = userEvent.setup();
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('設施'), NORTH.facilityId);
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER.ownerId);
+    await selectOption(user, screen.getByLabelText('設施'), NORTH.facilityId);
     props.onScopeChange.mockClear();
-    await user.selectOptions(screen.getByLabelText('設施'), CENTRAL.facilityId);
+    await selectOption(user, screen.getByLabelText('設施'), CENTRAL.facilityId);
 
     expect(props.onScopeChange).toHaveBeenCalled();
   });
 
-  it('尚未查詢時就說明為什麼兩者都要選', () => {
-    renderPanel(idle);
 
-    // 使用者面對這個疑問是在按任何按鈕之前，所以不能只跟著結果出現。
-    expect(screen.getByText(/貨主、設施與庫位都要選/)).toBeInTheDocument();
-  });
 
   it('查詢失敗時就地顯示失敗，不顯示任何列', () => {
     renderPanel({ status: 'failure', message: '後端不可用' });
@@ -475,7 +473,7 @@ describe('StockPanel 的收貨視窗', () => {
     const user = userEvent.setup();
     await chooseScope(user);
     await user.click(screen.getByRole('button', { name: '收貨' }));
-    await user.selectOptions(screen.getByLabelText('設施'), CENTRAL.facilityId);
+    await selectOption(user, screen.getByLabelText('設施'), CENTRAL.facilityId);
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });

@@ -123,3 +123,20 @@ it('links Temporal workflows using configured UI and namespace even when query i
     vi.unstubAllEnvs();
   }
 });
+
+it('outside click closes the drawer and aborts tracking; inside whitespace stays open', () => {
+  const get = vi.spyOn(client, 'getOrderFulfillment').mockImplementation(() => new Promise(() => {}));
+  render(<MemoryRouter initialEntries={[`/orders?sku=TEA&orderId=${samples.events.order.orderId}`]}>
+    <FulfillmentDrawerRoute catalog={catalog} /><LocationProbe />
+  </MemoryRouter>);
+  const drawer = screen.getByRole('dialog');
+  vi.spyOn(drawer, 'getBoundingClientRect').mockReturnValue({ left: 400, right: 1000, top: 0, bottom: 800 } as DOMRect);
+  fireEvent.click(drawer, { clientX: 500, clientY: 200 });
+  expect(drawer).toBeInTheDocument();
+  fireEvent.click(screen.getByText('訂單履約'));
+  expect(drawer).toBeInTheDocument();
+  fireEvent.click(drawer, { clientX: 100, clientY: 200 });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.getByTestId('url')).toHaveTextContent('/orders?sku=TEA');
+  expect(get.mock.calls[0]![1]!.aborted).toBe(true);
+});

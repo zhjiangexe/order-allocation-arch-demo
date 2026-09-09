@@ -5,7 +5,7 @@ import styles from './AppHeader.module.css';
 export function AppHeader() {
   return (
     <header className={styles.header}>
-      <h1 className={styles.title}>order-promising 操作台</h1>
+      <h1 className={styles.title}>ALLOCATION!</h1>
       <nav className={styles.nav}>
         <NavLink to="/orders" className={linkClass}>
           訂單

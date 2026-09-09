@@ -1,3 +1,4 @@
+import { selectOption } from '../test/selectOption';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -91,22 +92,26 @@ const removeLine = (lineNo: number) =>
 type User = ReturnType<typeof userEvent.setup>;
 
 async function selectDownTo(user: User, owner: OwnerView) {
-  fireEvent.change(screen.getByLabelText('最晚離倉時間'), { target: { value: '2099-01-01T12:00' } });
-  await user.selectOptions(screen.getByLabelText('貨主'), owner.ownerId);
-  await user.selectOptions(screen.getByLabelText('履約設施'), CENTRAL_FACILITY_ID);
-  await user.selectOptions(product(1), 'P-TEA');
-  await user.selectOptions(sku(1), 'SKU-AVAILABLE');
+  fireEvent.change(screen.getByLabelText(/^最晚離倉時間/), { target: { value: '2099-01-01T12:00' } });
+  await selectOption(user, screen.getByLabelText('貨主'), owner.ownerId);
+  await selectOption(user, screen.getByLabelText('履約設施'), CENTRAL_FACILITY_ID);
+  await selectOption(user, product(1), 'P-TEA');
+  await selectOption(user, sku(1), 'SKU-AVAILABLE');
 }
 
 async function fillLine(user: User, lineNo: number, productCode: string, skuCode: string, qty: string) {
-  await user.selectOptions(product(lineNo), productCode);
-  await user.selectOptions(sku(lineNo), skuCode);
+  await selectOption(user, product(lineNo), productCode);
+  await selectOption(user, sku(lineNo), skuCode);
   await user.clear(quantityOf(lineNo));
   await user.type(quantityOf(lineNo), qty);
 }
 
 function optionValues(label: string) {
-  return [...screen.getByLabelText(label).querySelectorAll('option')].map((o) => o.value);
+  const trigger = screen.getByLabelText(label);
+  fireEvent.click(trigger);
+  const values = screen.getAllByRole('option').map(o => o.getAttribute('data-value'));
+  fireEvent.keyDown(trigger, { key: 'Escape' });
+  return values;
 }
 
 describe('PlaceOrderForm', () => {
@@ -122,7 +127,7 @@ describe('PlaceOrderForm', () => {
     await user.type(screen.getByLabelText('上游單號'), 'PO-8891');
     await user.clear(quantityOf(1));
     await user.type(quantityOf(1), '3');
-    await user.click(screen.getByRole('button', { name: '送出訂單' }));
+    await user.click(screen.getByRole('button', { name: '送出' }));
 
     expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -154,16 +159,16 @@ describe('PlaceOrderForm', () => {
     );
     const user = userEvent.setup();
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER_A.ownerId);
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER_A.ownerId);
     expect(optionValues('履約設施')).toEqual(['', NORTH_FACILITY_ID, CENTRAL_FACILITY_ID]);
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER_B.ownerId);
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER_B.ownerId);
     // 中部倉兩個貨主共用，南部倉只有乙貨主有——北部倉必須消失
     expect(optionValues('履約設施')).toEqual(['', CENTRAL_FACILITY_ID, SOUTH_FACILITY_ID]);
   });
 
-  it('未選貨主時款與規格不可選，也沒有任何選項', () => {
-    render(<PlaceOrderForm catalog={catalogOf(OWNER_A)} onSubmit={vi.fn()} pending={false} />);
+  it('多位貨主尚未選定時，款與規格不可選', () => {
+    render(<PlaceOrderForm catalog={catalogOf(OWNER_A, OWNER_B)} onSubmit={vi.fn()} pending={false} />);
 
     expect(product(1)).toBeDisabled();
     expect(sku(1)).toBeDisabled();
@@ -175,12 +180,12 @@ describe('PlaceOrderForm', () => {
     render(<PlaceOrderForm catalog={catalogOf(OWNER_A)} onSubmit={onSubmit} pending={false} />);
     const user = userEvent.setup();
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER_A.ownerId);
-    await user.selectOptions(product(1), 'P-TEA');
-    await user.selectOptions(sku(1), 'SKU-AVAILABLE');
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER_A.ownerId);
+    await selectOption(user, product(1), 'P-TEA');
+    await selectOption(user, sku(1), 'SKU-AVAILABLE');
     await user.clear(screen.getByLabelText('上游單號'));
     await user.type(screen.getByLabelText('上游單號'), 'PO-1');
-    await user.click(screen.getByRole('button', { name: '送出訂單' }));
+    await user.click(screen.getByRole('button', { name: '送出' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('履約設施');
@@ -208,7 +213,7 @@ describe('PlaceOrderForm', () => {
     if (quantity !== '') {
       await user.type(quantityOf(1), quantity);
     }
-    await user.click(screen.getByRole('button', { name: '送出訂單' }));
+    await user.click(screen.getByRole('button', { name: '送出' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -227,7 +232,7 @@ describe('PlaceOrderForm', () => {
       await user.type(quantityOf(1), '10');
       await user.click(screen.getByRole('button', { name: '新增訂單行' }));
       await fillLine(user, 2, 'P-COFFEE', 'SKU-SECOND', '5');
-      await user.click(screen.getByRole('button', { name: '送出訂單' }));
+      await user.click(screen.getByRole('button', { name: '送出' }));
 
       expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
@@ -249,7 +254,7 @@ describe('PlaceOrderForm', () => {
       await user.type(screen.getByLabelText('上游單號'), 'PO-8891');
       await user.click(screen.getByRole('button', { name: '新增訂單行' }));
       await fillLine(user, 2, 'P-TEA', 'SKU-AVAILABLE', '2');
-      await user.click(screen.getByRole('button', { name: '送出訂單' }));
+      await user.click(screen.getByRole('button', { name: '送出' }));
 
       // 在這裡擋下只會讓操作台拒絕系統處理得了的訂單。
       expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
@@ -307,7 +312,7 @@ describe('PlaceOrderForm', () => {
       await user.click(screen.getByRole('button', { name: '新增訂單行' }));
       await fillLine(user, 2, 'P-COFFEE', 'SKU-SECOND', '3');
 
-      await user.selectOptions(screen.getByLabelText('貨主'), OWNER_B.ownerId);
+      await selectOption(user, screen.getByLabelText('貨主'), OWNER_B.ownerId);
 
       // 兩個貨主的 SKU 代碼相同，留著任何一條都等於留著屬於別的貨主的商品——畫面看起來像
       // 「已選好」，實際指向另一個貨主。倉庫尤其要清：中部倉兩個貨主都有，有效與否取決於
@@ -327,9 +332,9 @@ describe('PlaceOrderForm', () => {
       await user.clear(screen.getByLabelText('上游單號'));
       await user.type(screen.getByLabelText('上游單號'), 'PO-8891');
       await user.click(screen.getByRole('button', { name: '新增訂單行' }));
-      await user.selectOptions(product(2), 'P-COFFEE');
+      // 第二行仍未選款；唯一規格會自動帶入，因此不再用漏選規格模擬不完整。
 
-      await user.click(screen.getByRole('button', { name: '送出訂單' }));
+      await user.click(screen.getByRole('button', { name: '送出' }));
 
       // 靜靜丟掉第二條送出第一條，會讓對方拿到一張少東西的訂單卻以為送對了。
       expect(onSubmit).not.toHaveBeenCalled();
@@ -354,8 +359,8 @@ describe('必填交付欄位', () => {
     const user = userEvent.setup();
     await selectDownTo(user, OWNER_A);
     await user.type(screen.getByLabelText('上游單號'), 'T4-VALIDATION');
-    fireEvent.change(screen.getByLabelText(label), { target: { value } });
-    await user.click(screen.getByRole('button', { name: '送出訂單' }));
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${label}`)), { target: { value } });
+    await user.click(screen.getByRole('button', { name: '送出' }));
     expect(submit).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent(message);
   });
@@ -365,10 +370,10 @@ describe('必填交付欄位', () => {
     const user = userEvent.setup();
     await selectDownTo(user, OWNER_A);
     await user.type(screen.getByLabelText('上游單號'), 'T4-TIME');
-    fireEvent.change(screen.getByLabelText('最晚離倉時間'), { target: { value: '2099-01-01T00:05' } });
+    fireEvent.change(screen.getByLabelText(/^最晚離倉時間/), { target: { value: '2099-01-01T00:05' } });
     fireEvent.change(screen.getByLabelText('承諾到貨日'), { target: { value: '2099-01-02' } });
-    fireEvent.change(screen.getByLabelText('出庫釋放優先級'), { target: { value: '100' } });
-    await user.click(screen.getByRole('button', { name: '送出訂單' }));
+    fireEvent.change(screen.getByLabelText(/^出庫釋放優先級/), { target: { value: '100' } });
+    await user.click(screen.getByRole('button', { name: '送出' }));
     expect(submit).toHaveBeenCalledWith(expect.objectContaining({
       dispatchBy: new Date(2099, 0, 1, 0, 5).toISOString(), promisedDeliveryDate: '2099-01-02', releasePriority: 100,
     }));
@@ -377,8 +382,27 @@ describe('必填交付欄位', () => {
     const submit = vi.fn();
     render(<PlaceOrderForm catalog={catalogOf(OWNER_A)} pending onSubmit={submit} />);
     expect(screen.getByLabelText('上游單號')).toBeDisabled();
-    expect(screen.getByLabelText('最晚離倉時間')).toBeDisabled();
+    expect(screen.getByLabelText(/^最晚離倉時間/)).toBeDisabled();
     fireEvent.submit(screen.getByRole('button', { name: '送出中…' }).closest('form')!);
     expect(submit).not.toHaveBeenCalled();
   });
+});
+
+
+it('cascades a sole facility, product and SKU after catalog loading without losing other lines', async () => {
+  const full = catalogOf(OWNER_A);
+  const sole = new Catalog([{ owner: OWNER_A, facilities: full.facilitiesOf(OWNER_A.ownerId).slice(0, 1), locations: [],
+    products: full.productsOf(OWNER_A.ownerId).slice(0, 1), skus: full.skusOf(OWNER_A.ownerId, 'P-TEA') }]);
+  const onSubmit = vi.fn();
+  const view = (catalog: Catalog) => <PlaceOrderForm catalog={catalog} pending={false} onSubmit={onSubmit} />;
+  const { rerender } = render(view(new Catalog([{ owner: OWNER_A, facilities: [], locations: [], products: [], skus: [] }])));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: '新增訂單行' }));
+  rerender(view(sole));
+  expect(screen.getByLabelText('履約設施')).toHaveValue(NORTH_FACILITY_ID);
+  expect(product(1)).toHaveValue('P-TEA');
+  expect(product(2)).toHaveValue('P-TEA');
+  expect(sku(1)).toHaveValue('SKU-AVAILABLE');
+  expect(sku(2)).toHaveValue('SKU-AVAILABLE');
+  expect(onSubmit).not.toHaveBeenCalled();
 });

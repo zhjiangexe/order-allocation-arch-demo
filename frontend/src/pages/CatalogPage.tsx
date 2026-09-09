@@ -1,3 +1,4 @@
+import { Select, SelectOption } from '../components/Select';
 import { useMemo, useState } from 'react';
 
 import type { CatalogSku } from '../api/catalog';
@@ -43,18 +44,18 @@ export function CatalogPage() {
       <section className={styles.filters} aria-label="主檔篩選">
         <label>
           貨主
-          <select
+          <Select
             value={ownerId}
-            onChange={(event) => setRequestedOwnerId(event.target.value)}
+            onValueChange={value => setRequestedOwnerId(value)}
             disabled={owners.length === 0}
           >
-            {owners.length === 0 && <option value="">載入中…</option>}
+            {owners.length === 0 && <SelectOption value="">載入中…</SelectOption>}
             {owners.map((candidate) => (
-              <option key={candidate.ownerId} value={candidate.ownerId}>
+              <SelectOption key={candidate.ownerId} value={candidate.ownerId}>
                 {candidate.name} · {candidate.code}
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           篩選商品 / SKU

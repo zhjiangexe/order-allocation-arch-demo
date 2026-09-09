@@ -5,7 +5,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--font-body);
   font-variant-numeric: tabular-nums;
 }
 
@@ -18,16 +18,14 @@
 }
 
 .table th {
-  font-size: 0.72rem;
+  font-size: var(--font-body);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 
 .id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
+  font-family: var(--font-family);
+  font-size: var(--font-body);
   color: var(--muted);
 }
 
@@ -38,8 +36,8 @@
 /* 代碼是要拿去庫存頁貼的，等寬字讓它好選、好核對；視覺上退到品名之後。 */
 .lineSkuCode {
   margin-left: 0.4rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
+  font-family: var(--font-family);
+  font-size: var(--font-body);
   color: var(--muted);
 }
 
@@ -64,11 +62,11 @@
 }
 
 .absent {
-  color: var(--border);
+  color: var(--muted);
 }
 
 .empty {
   margin: 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--font-body);
 }

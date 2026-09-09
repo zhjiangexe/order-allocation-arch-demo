@@ -1,3 +1,4 @@
+import { Select, SelectOption } from '../components/Select';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import type { Catalog } from '../api/catalog';
@@ -76,18 +77,18 @@ export function AllocationsPage() {
     <p>等待分配的出庫作業（CONFIRMED）。等待可能來自庫存、批次條件或前序需求，並不一定是缺貨。</p>
     <p>最多載入 {LIMIT} 筆；篩選僅套用已載入資料，不代表全量搜尋或全域配貨順位。</p>
     <div className={styles.filters}>
-      <label>貨主<select value={filters.ownerId ?? ''} onChange={event => changeFilter('ownerId', event.target.value)}>
-        <option value="">全部貨主</option>
-        {[...owners].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-      </select></label>
-      <label>設施<select value={filters.facilityId ?? ''} onChange={event => changeFilter('facilityId', event.target.value)}>
-        <option value="">全部設施</option>
-        {[...facilities].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-      </select></label>
-      <label>來源<select value={filters.source ?? ''} onChange={event => changeFilter('source', event.target.value)}>
-        <option value="">全部來源</option>
-        {sources.map(source => <option key={source} value={source}>{source}</option>)}
-      </select></label>
+      <label>貨主<Select value={filters.ownerId ?? ''} onValueChange={value => changeFilter('ownerId', value)}>
+        <SelectOption value="">全部貨主</SelectOption>
+        {[...owners].map(([id, name]) => <SelectOption key={id} value={id}>{name}</SelectOption>)}
+      </Select></label>
+      <label>設施<Select value={filters.facilityId ?? ''} onValueChange={value => changeFilter('facilityId', value)}>
+        <SelectOption value="">全部設施</SelectOption>
+        {[...facilities].map(([id, name]) => <SelectOption key={id} value={id}>{name}</SelectOption>)}
+      </Select></label>
+      <label>來源<Select value={filters.source ?? ''} onValueChange={value => changeFilter('source', value)}>
+        <SelectOption value="">全部來源</SelectOption>
+        {sources.map(source => <SelectOption key={source} value={source}>{source}</SelectOption>)}
+      </Select></label>
       <label>SKU<input value={filters.sku ?? ''} onChange={event => changeFilter('sku', event.target.value)} placeholder="輸入 SKU 關鍵字" /></label>
       <button onClick={() => {
         const params = new URLSearchParams(location.search);

@@ -61,7 +61,13 @@ export function FulfillmentDrawer({ orderId, list, catalog, onClose }: {
     } catch { setCopyMessage('無法複製，請從下方技術資訊手動選取'); }
   }
   return <dialog ref={dialog} className={styles.drawer} aria-labelledby={titleId}
-    onCancel={event => { event.preventDefault(); onClose(); }}>
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onClick={event => {
+      if (event.target !== event.currentTarget) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right
+        || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
+    }}>
     <header className={styles.header}>
       <h2 id={titleId}>訂單履約</h2>
       <button type="button" onClick={onClose}>關閉詳情</button>

@@ -36,7 +36,7 @@ export function OrderTable({ orders, catalog, onViewFulfillment }: OrderTablePro
   }
 
   if (orders.length === 0) {
-    return <p className={styles.empty}>目前沒有訂單。用上方的表單下一張。</p>;
+    return <p className={styles.empty}>目前沒有訂單。按「新建訂單」建立第一張訂單。</p>;
   }
 
   return (

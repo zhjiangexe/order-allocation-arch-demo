@@ -1,29 +1,30 @@
+/* 固定柔和淺色，不隨作業系統切換暗色。 */
 :root {
-  --surface: #ffffff;
-  --border: #d8dbe0;
-  --muted: #6b7280;
-  --ok: #15803d;
-  --warn: #b45309;
-  --danger: #b91c1c;
-  --danger-surface: #fef2f2;
-  --accent: #1d4ed8;
-  --accent-surface: #eff6ff;
+  --font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans TC', sans-serif;
+  --font-body: 0.9375rem;
+  --font-heading: 1.25rem;
+  --font-subheading: 1rem;
+  --select-width: 15rem;
+  --control-height: 2.5rem;
+  --control-padding: 0.45rem 0.65rem;
+  --background: #f3eee5;
+  --surface: #fcf9f3;
+  --text: #40352b;
+  --border: #beb09e;
+  --control-border: #917c65;
+  --disabled-surface: #e8dfd2;
+  --muted: #685744;
+  --ok: #287044;
+  --warn: #8a5a20;
+  --danger: #a53f3f;
+  --danger-surface: #f8eeea;
+  --accent: #795333;
+  --accent-surface: #eee0cc;
+  --overlay: rgb(64 53 43 / 28%);
 
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface: #16181d;
-    --border: #333842;
-    --muted: #9aa2af;
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    --danger: #f87171;
-    --danger-surface: #2a1616;
-    --accent: #60a5fa;
-    --accent-surface: #14203a;
-  }
+  color-scheme: light;
+  color: var(--text);
+  background: var(--background);
 }
 
 * {
@@ -32,13 +33,16 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans TC', sans-serif;
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font-family);
+  font-size: var(--font-body);
   line-height: 1.5;
 }
 
 button {
   padding: 0.4rem 0.8rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   background: var(--surface);
   color: inherit;
@@ -51,6 +55,23 @@ button:hover:not(:disabled) {
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 1;
+  color: var(--muted);
+  background: var(--disabled-surface);
+  border-style: dashed;
   cursor: not-allowed;
 }
+
+a { color: var(--accent); }
+a:visited { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: #e3ceb1; color: var(--text); }
+
+input::placeholder { color: var(--muted); opacity: 1; }
+
+/* 各頁、視窗及表格共用相同文字階層。 */
+h1, h2 { font-size: var(--font-heading); font-weight: 600; line-height: 1.4; }
+h3, h4, h5, h6 { font-size: var(--font-subheading); font-weight: 600; line-height: 1.4; }
+p, label, table, small, summary { font-size: var(--font-body); }
+button, input, textarea { font-family: var(--font-family); font-size: var(--font-body); line-height: 1.5; }
+button, input:not([type="checkbox"]):not([type="radio"]), textarea { min-height: var(--control-height); }

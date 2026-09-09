@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import { ApiError, listRecentOrders, placeOrder } from '../api/client';
 import type { OrderView, PlaceOrderCommand } from '../api/types';
 import { ActionState } from '../components/ActionState';
 import { FulfillmentDrawerRoute } from '../components/FulfillmentDrawer';
+import { OrderDialog } from '../components/OrderDialog';
 import { OrderTable } from '../components/OrderTable';
 import { PlaceOrderForm } from '../components/PlaceOrderForm';
 import { detailUrl } from '../fulfillment/navigation';
@@ -23,9 +24,11 @@ const initialPlacement: Placement = { state: 'idle', command: null, message: '',
 
 export function OrdersPage() {
   const catalog = useCatalog();
+  const orderFormId = useId();
   const orders = useAsyncAction(listRecentOrders);
   const { run: loadOrders } = orders;
   const [placement, setPlacement] = useState<Placement>(initialPlacement);
+  const [formOpen, setFormOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const submitting = useRef(false);
   const [checking, setChecking] = useState(false);
@@ -43,6 +46,7 @@ export function OrdersPage() {
     try {
       const placed = await placeOrder(command);
       setPlacement({ state: 'success', command, message: '訂單已建立', found: placed });
+      setFormOpen(false);
       open(placed.orderId);
       void loadOrders(LIST_LIMIT);
     } catch (error) {
@@ -69,26 +73,42 @@ export function OrdersPage() {
 
   return <div className={styles.page}>
     <section className={styles.section}>
-      <h2 className={styles.sectionHeading}>下單</h2>
-      <PlaceOrderForm key={formKey} catalog={catalog} onSubmit={handlePlaceOrder}
+      <div className={styles.toolbar}>
+      <button type="button" onClick={() => {
+        if (placement.state === 'success') {
+          setPlacement(initialPlacement);
+          setFormKey(key => key + 1);
+        }
+        setFormOpen(true);
+      }}>{placement.state === 'uncertain' ? '繼續確認訂單' : '新建訂單'}</button>
+      <button type="button" onClick={() => void loadOrders(LIST_LIMIT)}
+        disabled={orders.state.status === 'pending'}>重新整理</button>
+      </div>
+      <OrderDialog open={formOpen} formId={orderFormId} pending={placement.state === 'pending'}
+        blocked={placement.state === 'uncertain' || placement.state === 'success'} onClose={() => {
+        setFormOpen(false);
+        if (placement.state !== 'uncertain') {
+          setPlacement(initialPlacement);
+          setFormKey(key => key + 1);
+        }
+      }}>
+      <PlaceOrderForm key={formKey} formId={orderFormId} catalog={catalog} onSubmit={handlePlaceOrder}
         pending={placement.state === 'pending'} blocked={placement.state === 'uncertain' || placement.state === 'success'} />
       {placement.message ? <p role={placement.state === 'success' ? 'status' : 'alert'}>{placement.message}</p> : null}
       {placement.state === 'uncertain' ? <>
         <p>原單號：{placement.command?.externalOrderNo} · 貨主：{placement.command?.ownerId}</p>
         <button disabled={checking} onClick={() => void reconcile()}>{checking ? '重查中…' : '重查最近訂單確認'}</button>
       </> : null}
-      {placement.found ? <button onClick={() => open(placement.found!.orderId)}>查看此訂單履約</button> : null}
+      {placement.found ? <button onClick={() => { setFormOpen(false); open(placement.found!.orderId); }}>查看此訂單履約</button> : null}
       {placement.state === 'success' || placement.state === 'uncertain' ? <button disabled={checking} onClick={() => {
         setPlacement(initialPlacement);
         setFormKey(key => key + 1);
       }}>開始另一張訂單</button> : null}
+      </OrderDialog>
     </section>
     <section className={styles.section}>
       <h2 className={styles.sectionHeading} tabIndex={-1} data-fulfillment-list-heading>最近 {LIST_LIMIT} 筆訂單
-        <button type="button" className={styles.refresh} onClick={() => void loadOrders(LIST_LIMIT)}
-          disabled={orders.state.status === 'pending'}>重新整理</button>
       </h2>
-      <p>列表手動更新；開啟「查看履約」可追蹤該筆訂單。</p>
       <ActionState state={orders.state} pendingLabel="載入訂單中…">
         {list => <OrderTable orders={list} catalog={catalog} onViewFulfillment={open} />}
       </ActionState>

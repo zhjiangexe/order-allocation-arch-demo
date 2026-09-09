@@ -1,3 +1,4 @@
+import { Select, SelectOption } from './Select';
 import { useId, useState } from 'react';
 
 import type { StockLine } from '../api/stockLines';
@@ -81,68 +82,63 @@ export function StockPanel({
 
   return (
     <div className={styles.panel}>
-      {/*
-        這段必須在查詢之前就在畫面上：使用者面對「為什麼要選貨主」的疑問是在按任何按鈕之前。
-      */}
-      <p className={styles.scopeNote}>
-        貨主、設施與庫位都要選——同碼 SKU 在兩個貨主名下是兩批不同的貨，而每個庫位也是
-        獨立的實際庫存端點。
-      </p>
       <fieldset className={styles.controls} disabled={receiptLocked} style={{ border: 0, padding: 0, margin: 0 }}>
+
         <div className={styles.field}>
           <label className={styles.label} htmlFor={ownerFieldId}>貨主</label>
-          <select
+          <Select autoSelectSingle
             id={ownerFieldId}
             className={styles.input}
             value={selectedOwner}
             // 倉掛在貨主底下，換貨主就不該留著前一個貨主的倉
-            onChange={(event) => changeScope(event.target.value, '')}
+            onValueChange={value => changeScope(value, '')}
           >
-            <option value="">請選擇</option>
+            <SelectOption value="">請選擇</SelectOption>
             {owners.map((owner) => (
-              <option key={owner.ownerId} value={owner.ownerId}>
+              <SelectOption key={owner.ownerId} value={owner.ownerId}>
                 {owner.name}（{owner.code}）
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </Select>
         </div>
+
         <div className={styles.field}>
           <label className={styles.label} htmlFor={facilityFieldId}>設施</label>
-          <select
+          <Select autoSelectSingle
             id={facilityFieldId}
             className={styles.input}
             value={selectedFacility}
-            onChange={(event) => changeScope(selectedOwner, event.target.value)}
+            onValueChange={value => changeScope(selectedOwner, value)}
             disabled={selectedOwner === ''}
           >
-            <option value="">請選擇</option>
+            <SelectOption value="">請選擇</SelectOption>
             {facilitiesOf(selectedOwner).map((facility) => (
-              <option key={facility.facilityId} value={facility.facilityId}>
+              <SelectOption key={facility.facilityId} value={facility.facilityId}>
                 {facility.name}（{facility.code}）
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </Select>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor={locationFieldId}>庫位</label>
-          <select
+          <Select autoSelectSingle
             id={locationFieldId}
             className={styles.input}
             value={selectedLocation}
-            onChange={(event) => {
-              setSelectedLocation(event.target.value);
+            onValueChange={value => {
+              setSelectedLocation(value);
               setReceiving(null);
               onScopeChange();
             }}
             disabled={selectedFacility === ''}
           >
-            <option value="">請選擇</option>
+            <SelectOption value="">請選擇</SelectOption>
             {locationsOf(selectedFacility).map((location) => (
-              <option key={location.locationId} value={location.locationId}>
+              <SelectOption key={location.locationId} value={location.locationId}>
                 {location.name}（{location.code}）
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </Select>
         </div>
         <button
           type="button"

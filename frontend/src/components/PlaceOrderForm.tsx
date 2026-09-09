@@ -1,3 +1,4 @@
+import { Select, SelectOption } from './Select';
 import { useId, useState } from 'react';
 
 import type { Catalog } from '../api/catalog';
@@ -5,6 +6,8 @@ import type { PlaceOrderCommand } from '../api/types';
 import styles from './PlaceOrderForm.module.css';
 
 interface PlaceOrderFormProps {
+  /** 提供 ID 時由視窗 footer 的外部 submit 按鈕送出。 */
+  formId?: string;
   catalog: Catalog;
   onSubmit: (command: PlaceOrderCommand) => void;
   pending: boolean;
@@ -40,7 +43,7 @@ interface DraftLine {
  * 同一個規格出現在兩條行上是允許的，不是被容忍的：收單接受它，需求讀成兩者的加總。在這裡擋
  * 下只會讓操作台拒絕系統處理得了的訂單。
  */
-export function PlaceOrderForm({ catalog, onSubmit, pending, blocked = false }: PlaceOrderFormProps) {
+export function PlaceOrderForm({ formId, catalog, onSubmit, pending, blocked = false }: PlaceOrderFormProps) {
   const ownerId = useId();
   const facilityId = useId();
   const externalOrderNoId = useId();
@@ -75,7 +78,7 @@ export function PlaceOrderForm({ catalog, onSubmit, pending, blocked = false }: 
   }
 
   function updateLine(key: number, patch: Partial<DraftLine>) {
-    setLines(lines.map((line) => (line.key === key ? { ...line, ...patch } : line)));
+    setLines(previous => previous.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   }
 
   function addLine() {
@@ -122,42 +125,44 @@ export function PlaceOrderForm({ catalog, onSubmit, pending, blocked = false }: 
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form id={formId} onSubmit={handleSubmit} noValidate>
       <fieldset className={styles.form} disabled={pending || blocked}>
       <legend className={styles.srOnly}>建立訂單</legend>
+
       <div className={styles.field}>
         <label className={styles.label} htmlFor={ownerId}>貨主</label>
-        <select
+        <Select autoSelectSingle
           id={ownerId}
           className={styles.input}
           value={selectedOwner}
-          onChange={(event) => handleOwnerChange(event.target.value)}
+          onValueChange={value => handleOwnerChange(value)}
         >
-          <option value="">請選擇</option>
+          <SelectOption value="">請選擇</SelectOption>
           {catalog.owners.map((owner) => (
-            <option key={owner.ownerId} value={owner.ownerId}>
+            <SelectOption key={owner.ownerId} value={owner.ownerId}>
               {owner.name}（{owner.code}）
-            </option>
+            </SelectOption>
           ))}
-        </select>
+        </Select>
       </div>
+
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor={facilityId}>履約設施</label>
-        <select
+        <Select autoSelectSingle
           id={facilityId}
           className={styles.input}
           value={selectedFacility}
-          onChange={(event) => setSelectedFacility(event.target.value)}
+          onValueChange={value => setSelectedFacility(value)}
           disabled={selectedOwner === ''}
         >
-          <option value="">請選擇</option>
+          <SelectOption value="">請選擇</SelectOption>
           {facilities.map((facility) => (
-            <option key={facility.facilityId} value={facility.facilityId}>
+            <SelectOption key={facility.facilityId} value={facility.facilityId}>
               {facility.name}（{facility.code}）
-            </option>
+            </SelectOption>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className={styles.field}>
@@ -179,42 +184,42 @@ export function PlaceOrderForm({ catalog, onSubmit, pending, blocked = false }: 
               <label className={styles.label} htmlFor={`${lineFieldId}-product-${line.key}`}>
                 第 {index + 1} 行・款
               </label>
-              <select
+              <Select autoSelectSingle
                 id={`${lineFieldId}-product-${line.key}`}
                 className={styles.input}
                 value={line.productCode}
-                onChange={(event) =>
+                onValueChange={value =>
                   // 換款就清掉規格：舊的規格屬於舊的款，留著會送出兩者對不上的組合。
-                  updateLine(line.key, { productCode: event.target.value, skuCode: '' })}
+                  updateLine(line.key, { productCode: value, skuCode: '' })}
                 disabled={selectedOwner === ''}
               >
-                <option value="">請選擇</option>
+                <SelectOption value="">請選擇</SelectOption>
                 {products.map((product) => (
-                  <option key={product.productId} value={product.productCode}>
+                  <SelectOption key={product.productId} value={product.productCode}>
                     {product.name}（{product.temperatureZone}）
-                  </option>
+                  </SelectOption>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className={styles.field}>
               <label className={styles.label} htmlFor={`${lineFieldId}-sku-${line.key}`}>
                 第 {index + 1} 行・規格
               </label>
-              <select
+              <Select autoSelectSingle
                 id={`${lineFieldId}-sku-${line.key}`}
                 className={styles.input}
                 value={line.skuCode}
-                onChange={(event) => updateLine(line.key, { skuCode: event.target.value })}
+                onValueChange={value => updateLine(line.key, { skuCode: value })}
                 disabled={line.productCode === ''}
               >
-                <option value="">請選擇</option>
+                <SelectOption value="">請選擇</SelectOption>
                 {catalog.skusOf(selectedOwner, line.productCode).map((sku) => (
-                  <option key={sku.skuId} value={sku.skuCode}>
+                  <SelectOption key={sku.skuId} value={sku.skuCode}>
                     {sku.specName}（{sku.skuCode}・{sku.weightGram}g）
-                  </option>
+                  </SelectOption>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className={styles.field}>
@@ -275,21 +280,19 @@ export function PlaceOrderForm({ catalog, onSubmit, pending, blocked = false }: 
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label} htmlFor={dispatchId}>最晚離倉時間</label>
+        <label className={styles.label} htmlFor={dispatchId}>最晚離倉時間（時區：{Intl.DateTimeFormat().resolvedOptions().timeZone}）</label>
         <input id={dispatchId} className={styles.input} type="datetime-local" required
           value={dispatchBy} onChange={event => setDispatchBy(event.target.value)} />
-        <small>時區：{Intl.DateTimeFormat().resolvedOptions().timeZone}</small>
       </div>
       <div className={styles.field}>
-        <label className={styles.label} htmlFor={priorityId}>出庫釋放優先級</label>
+        <label className={styles.label} htmlFor={priorityId}>出庫釋放優先級（0～100，預設 0）</label>
         <input id={priorityId} className={`${styles.input} ${styles.quantity}`} type="number"
           min="0" max="100" step="1" required value={releasePriority}
           onChange={event => setReleasePriority(event.target.value)} />
-        <small>0～100，預設 0</small>
       </div>
-      <button type="submit" disabled={pending || blocked}>
-        {pending ? '送出中…' : '送出訂單'}
-      </button>
+      {formId ? null : <button type="submit" disabled={pending || blocked}>
+        {pending ? '送出中…' : '送出'}
+      </button>}
       {invalidReason === null ? null : (
         <p className={styles.error} role="alert">{invalidReason}</p>
       )}

@@ -16,13 +16,13 @@
 }
 
 .label {
-  font-size: 0.8rem;
+  font-size: var(--font-body);
   color: var(--muted);
 }
 
 .input {
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border);
+  padding: var(--control-padding);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   font: inherit;
   background: var(--surface);
@@ -52,14 +52,17 @@
 }
 
 .removeLine {
-  font-size: 0.85rem;
+  font-size: var(--font-body);
 }
 
 .error {
   flex-basis: 100%;
   margin: 0;
   color: var(--danger);
-  font-size: 0.85rem;
+  font-size: var(--font-body);
 }
 
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* 選取長文字時也維持相同欄寬；窄螢幕以可用寬度為上限。 */
+.field:has([role="combobox"]) { width: var(--select-width); max-width: 100%; }

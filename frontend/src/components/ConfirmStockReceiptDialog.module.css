@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgb(0 0 0 / 45%);
+  background: var(--overlay);
   z-index: 10;
 }
 
@@ -24,7 +24,7 @@
 
 .title {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-heading);
 }
 
 /*
@@ -48,24 +48,24 @@
 }
 
 .context dt {
-  font-size: 0.75rem;
+  font-size: var(--font-body);
   color: var(--muted);
 }
 
 .context dd {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-body);
 }
 
 .skuValue {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85rem;
+  font-family: var(--font-family);
+  font-size: var(--font-body);
   color: var(--muted);
 }
 
 .note {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--font-body);
   color: var(--muted);
 }
 
@@ -83,13 +83,13 @@
 }
 
 .label {
-  font-size: 0.8rem;
+  font-size: var(--font-body);
   color: var(--muted);
 }
 
 .input {
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border);
+  padding: var(--control-padding);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   font: inherit;
   background: var(--surface);

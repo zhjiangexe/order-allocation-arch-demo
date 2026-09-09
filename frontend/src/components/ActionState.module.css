@@ -1,7 +1,7 @@
 .pending {
   margin: 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--font-body);
 }
 
 .failure {
@@ -10,5 +10,5 @@
   border-left: 3px solid var(--danger);
   background: var(--danger-surface);
   color: var(--danger);
-  font-size: 0.9rem;
+  font-size: var(--font-body);
 }

@@ -1,3 +1,4 @@
+import { selectOption } from '../test/selectOption';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -74,7 +75,7 @@ describe('CatalogPage', () => {
     const user = userEvent.setup();
     await screen.findByRole('heading', { name: '甲貨主' });
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER_B.ownerId);
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER_B.ownerId);
 
     expect(screen.getByRole('heading', { name: '乙貨主' })).toBeInTheDocument();
     expect(screen.getByText('麥茶')).toBeInTheDocument();

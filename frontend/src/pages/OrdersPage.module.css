@@ -16,13 +16,15 @@
   align-items: baseline;
   gap: 0.75rem;
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--font-heading);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 
-.refresh {
-  margin-left: auto;
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
 }

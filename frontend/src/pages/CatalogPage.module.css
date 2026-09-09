@@ -24,7 +24,7 @@
 }
 
 .title {
-  font-size: 1.45rem;
+  font-size: var(--font-heading);
 }
 
 .description,
@@ -40,10 +40,8 @@
 .eyebrow {
   margin: 0 0 0.2rem;
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: var(--font-body);
   font-weight: 700;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
 }
 
 .readonly,
@@ -53,7 +51,7 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--font-body);
   white-space: nowrap;
 }
 
@@ -67,17 +65,17 @@
 
 .filters label {
   display: grid;
-  min-width: 16rem;
+  min-width: var(--select-width);
   gap: 0.3rem;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--font-body);
 }
 
-.filters select,
+.filters [role="combobox"],
 .filters input {
-  min-height: 2.35rem;
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--border);
+  min-height: var(--control-height);
+  padding: var(--control-padding);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   background: var(--surface);
   color: inherit;
@@ -100,7 +98,7 @@
 
 .definition dt {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--font-body);
 }
 
 .definition dd {
@@ -114,8 +112,8 @@
 .productHeader code,
 .locationList code,
 .productCard td code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.75rem;
+  font-family: var(--font-family);
+  font-size: var(--font-body);
 }
 
 .columns {
@@ -140,7 +138,7 @@
 }
 
 .panelHeading h3 {
-  font-size: 1rem;
+  font-size: var(--font-body);
 }
 
 .facilityList,
@@ -164,7 +162,7 @@
 .identifier {
   margin: 0.3rem 0;
   overflow-wrap: anywhere;
-  font-size: 0.72rem;
+  font-size: var(--font-body);
 }
 
 .locationList {
@@ -199,7 +197,7 @@
   width: 100%;
   margin-top: 0.7rem;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: var(--font-body);
 }
 
 .productCard th,
@@ -212,10 +210,8 @@
 
 .productCard th {
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: var(--font-body);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .empty {

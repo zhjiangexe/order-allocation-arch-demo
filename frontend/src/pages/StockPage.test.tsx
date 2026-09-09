@@ -1,5 +1,6 @@
+import { selectOption } from '../test/selectOption';
 import { transferableAbortController } from 'node:util';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -93,9 +94,9 @@ describe('StockPage 的請求時機', () => {
     const user = userEvent.setup();
     await screen.findByLabelText('貨主');
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('設施'), FACILITY.facilityId);
-    await user.selectOptions(screen.getByLabelText('庫位'), LOCATION.locationId);
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER.ownerId);
+    await selectOption(user, screen.getByLabelText('設施'), FACILITY.facilityId);
+    await selectOption(user, screen.getByLabelText('庫位'), LOCATION.locationId);
     await user.click(screen.getByRole('button', { name: '查詢庫存' }));
 
     expect(client.getStockInLocation).toHaveBeenCalledExactlyOnceWith(
@@ -109,9 +110,9 @@ describe('StockPage 的請求時機', () => {
     const user = userEvent.setup();
     await screen.findByLabelText('貨主');
 
-    await user.selectOptions(screen.getByLabelText('貨主'), OWNER.ownerId);
-    await user.selectOptions(screen.getByLabelText('設施'), FACILITY.facilityId);
-    await user.selectOptions(screen.getByLabelText('庫位'), LOCATION.locationId);
+    await selectOption(user, screen.getByLabelText('貨主'), OWNER.ownerId);
+    await selectOption(user, screen.getByLabelText('設施'), FACILITY.facilityId);
+    await selectOption(user, screen.getByLabelText('庫位'), LOCATION.locationId);
     await user.click(screen.getByRole('button', { name: '查詢庫存' }));
     await screen.findByRole('button', { name: '收貨' });
     expect(client.getStockInLocation).toHaveBeenCalledTimes(1);
@@ -188,7 +189,7 @@ describe('T6 補貨定位與重試', () => {
   ])('無效定位 %j 不查錯誤庫位也不建立返回訂單', async overrides => {
     renderPage(receiptPath(overrides));
     await screen.findByText(/補貨定位參數無效/);
-    expect(screen.getByLabelText('貨主')).toHaveValue('');
+    await waitFor(() => expect(screen.getByLabelText('貨主')).toHaveValue(OWNER.ownerId));
     expect(client.getStockInLocation).not.toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: '返回履約' })).not.toBeInTheDocument();
   });
