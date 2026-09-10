@@ -31,7 +31,7 @@
 == 3/3 Debezium connector（偵測到已 RUNNING 會跳過註冊） ==
 等待 Kafka Connect REST API（http://localhost:8083）就緒...
 註冊 connector 'order-promising-outbox' ...
-{"name":"order-promising-outbox","config":{"connector.class":"io.debezium.connector.postgresql.PostgresConnector","database.hostname":"postgres","database.port":"5432","database.user":"order_promising","database.password":"order_promising","database.dbname":"order_promising","plugin.name":"pgoutput","topic.prefix":"order-promising","table.include.list":"public.event_outbox","slot.name":"order_promising_outbox_slot","publication.autocreate.mode":"filtered","transforms":"outbox","transforms.outbox.type":"io.debezium.transforms.outbox.EventRouter","transforms.outbox.route.by.field":"route","transforms.outbox.route.topic.replacement":"${routedByValue}","transforms.outbox.table.field.event.key":"partition_key","transforms.outbox.table.expand.json.payload":"true","transforms.outbox.table.fields.additional.placement":"type:header:eventType","key.converter":"org.apache.kafka.connect.storage.StringConverter","value.converter":"org.apache.kafka.connect.json.JsonConverter","value.converter.schemas.enable":"false","name":"order-promising-outbox"},"tasks":[],"type":"source"}等待 connector 'order-promising-outbox' 進入 RUNNING 狀態...
+{"name":"order-promising-outbox","config":{"connector.class":"io.debezium.connector.postgresql.PostgresConnector","database.hostname":"postgres","database.port":"5432","database.user":"order_promising","database.password":"[redacted-dev-password]","database.dbname":"order_promising","plugin.name":"pgoutput","topic.prefix":"order-promising","table.include.list":"public.event_outbox","slot.name":"order_promising_outbox_slot","publication.autocreate.mode":"filtered","transforms":"outbox","transforms.outbox.type":"io.debezium.transforms.outbox.EventRouter","transforms.outbox.route.by.field":"route","transforms.outbox.route.topic.replacement":"${routedByValue}","transforms.outbox.table.field.event.key":"partition_key","transforms.outbox.table.expand.json.payload":"true","transforms.outbox.table.fields.additional.placement":"type:header:eventType","key.converter":"org.apache.kafka.connect.storage.StringConverter","value.converter":"org.apache.kafka.connect.json.JsonConverter","value.converter.schemas.enable":"false","name":"order-promising-outbox"},"tasks":[],"type":"source"}等待 connector 'order-promising-outbox' 進入 RUNNING 狀態...
 Connector 'order-promising-outbox' 已經是 RUNNING。
 
 系統已就緒：app http://localhost:8080、Kafka UI http://localhost:8081
@@ -55,7 +55,7 @@ INSERT 0 1
 
 
      execution: local
-        script: /Users/zhenghongjiang/dev/flowzati/archone/e2e/perf/k6/hot-sku-burst.js
+        script: e2e/perf/k6/hot-sku-burst.js
         output: -
 
      scenarios: (100.00%) 1 scenario, 1000 max VUs, 2m30s max duration (incl. graceful stop):

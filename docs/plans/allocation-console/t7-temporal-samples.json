@@ -1025,7 +1025,7 @@
             "workflowRunTimeout": "0s",
             "workflowTaskTimeout": "10s",
             "originalExecutionRunId": "01a08615-b19c-7d98-aed0-5b7102c508d2",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "firstExecutionRunId": "01a08615-b19c-7d98-aed0-5b7102c508d2",
             "attempt": 1,
             "firstWorkflowTaskBackoff": "0s",
@@ -1054,7 +1054,7 @@
           "taskId": "1049135",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "2",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "b39396e8-a150-407e-9f56-a5e2f92f65dd",
             "historySizeBytes": "460"
           }
@@ -1067,7 +1067,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "2",
             "startedEventId": "3",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "langUsedFlags": [
@@ -1129,7 +1129,7 @@
           "taskId": "1049146",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "5",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "a16f84f3-b7b7-44d8-b2f6-ccc96fe09c3a",
             "attempt": 1,
             "workerVersion": {}
@@ -1143,7 +1143,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "5",
             "startedEventId": "6",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -1153,7 +1153,7 @@
           "taskId": "1049148",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1168,7 +1168,7 @@
           "taskId": "1049152",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "8",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "549fd367-189b-4c17-ad46-06d589797532",
             "historySizeBytes": "1456"
           }
@@ -1181,7 +1181,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "8",
             "startedEventId": "9",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1207,7 +1207,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -1218,7 +1218,7 @@
           "taskId": "1049160",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1233,7 +1233,7 @@
           "taskId": "1049164",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "12",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "37b70ff8-dddc-43e9-a671-1d6c4ed6df03",
             "historySizeBytes": "2399"
           }
@@ -1246,7 +1246,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "12",
             "startedEventId": "13",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1304,7 +1304,7 @@
           "taskId": "1049174",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "15",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "a32d6f8b-718d-43af-a082-209256d11708",
             "attempt": 1,
             "workerVersion": {}
@@ -1328,7 +1328,7 @@
             },
             "scheduledEventId": "15",
             "startedEventId": "16",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -1338,7 +1338,7 @@
           "taskId": "1049176",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1353,7 +1353,7 @@
           "taskId": "1049180",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "18",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "8192f30d-024b-4d31-9663-10536174ac4b",
             "historySizeBytes": "3892"
           }
@@ -1366,7 +1366,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "18",
             "startedEventId": "19",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1392,7 +1392,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -1403,7 +1403,7 @@
           "taskId": "1049187",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1418,7 +1418,7 @@
           "taskId": "1049191",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "22",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "e85f53a1-af7c-4dd7-a1be-26e7bee0b92f",
             "historySizeBytes": "4470"
           }
@@ -1431,7 +1431,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "22",
             "startedEventId": "23",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1489,7 +1489,7 @@
           "taskId": "1049201",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "25",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "b78ac67b-fca0-4b65-9749-28d271cc371d",
             "attempt": 1,
             "workerVersion": {}
@@ -1503,7 +1503,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "25",
             "startedEventId": "26",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -1513,7 +1513,7 @@
           "taskId": "1049203",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1528,7 +1528,7 @@
           "taskId": "1049207",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "28",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "249e9fbc-1723-450e-a8e8-c6acdba4a433",
             "historySizeBytes": "5627"
           }
@@ -1541,7 +1541,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "28",
             "startedEventId": "29",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1599,7 +1599,7 @@
           "taskId": "1049217",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "31",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "c78a1449-581d-4fd0-8a68-9e4f87195a88",
             "attempt": 1,
             "workerVersion": {}
@@ -1613,7 +1613,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "31",
             "startedEventId": "32",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -1623,7 +1623,7 @@
           "taskId": "1049219",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1638,7 +1638,7 @@
           "taskId": "1049223",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "34",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "8102db58-f9bc-4350-bdde-4aa132ddd697",
             "historySizeBytes": "6667"
           }
@@ -1651,7 +1651,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "34",
             "startedEventId": "35",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1711,7 +1711,7 @@
             "workflowRunTimeout": "0s",
             "workflowTaskTimeout": "10s",
             "originalExecutionRunId": "01a08617-3c50-719f-a669-547d8f98978b",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "firstExecutionRunId": "01a08617-3c50-719f-a669-547d8f98978b",
             "attempt": 1,
             "firstWorkflowTaskBackoff": "0s",
@@ -1740,7 +1740,7 @@
           "taskId": "1049239",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "2",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "8c2acb14-e397-42eb-beee-290fa988e867",
             "historySizeBytes": "460"
           }
@@ -1753,7 +1753,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "2",
             "startedEventId": "3",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "langUsedFlags": [
@@ -1815,7 +1815,7 @@
           "taskId": "1049250",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "5",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "5cd29934-63de-4f61-a93b-fb8bc07d1a60",
             "attempt": 1,
             "workerVersion": {}
@@ -1829,7 +1829,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "5",
             "startedEventId": "6",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -1839,7 +1839,7 @@
           "taskId": "1049252",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1854,7 +1854,7 @@
           "taskId": "1049256",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "8",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "ef1ed6df-8770-4bd9-8776-3410a88df2d6",
             "historySizeBytes": "1456"
           }
@@ -1867,7 +1867,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "8",
             "startedEventId": "9",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1893,7 +1893,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -1904,7 +1904,7 @@
           "taskId": "1049264",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -1919,7 +1919,7 @@
           "taskId": "1049268",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "12",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "9a1fa73e-52a2-4471-b12c-88d4c2139f9c",
             "historySizeBytes": "2398"
           }
@@ -1932,7 +1932,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "12",
             "startedEventId": "13",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -1990,7 +1990,7 @@
           "taskId": "1049278",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "15",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "861e851e-f875-40ee-9536-caf17e32bb1e",
             "attempt": 1,
             "workerVersion": {}
@@ -2014,7 +2014,7 @@
             },
             "scheduledEventId": "15",
             "startedEventId": "16",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -2024,7 +2024,7 @@
           "taskId": "1049280",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2039,7 +2039,7 @@
           "taskId": "1049284",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "18",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "274f4829-2982-4a77-8537-49253d07f674",
             "historySizeBytes": "3890"
           }
@@ -2052,7 +2052,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "18",
             "startedEventId": "19",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2078,7 +2078,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -2089,7 +2089,7 @@
           "taskId": "1049291",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2104,7 +2104,7 @@
           "taskId": "1049295",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "22",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "c729763e-dbf4-4cc3-b933-5d4f7686e3e9",
             "historySizeBytes": "4468"
           }
@@ -2117,7 +2117,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "22",
             "startedEventId": "23",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2175,7 +2175,7 @@
           "taskId": "1049305",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "25",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "22c2ab41-b618-4b22-9153-e92303c1ca18",
             "attempt": 1,
             "workerVersion": {}
@@ -2189,7 +2189,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "25",
             "startedEventId": "26",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -2199,7 +2199,7 @@
           "taskId": "1049307",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2214,7 +2214,7 @@
           "taskId": "1049311",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "28",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "b2a04f69-f651-46ba-ac7f-ffdb020846c0",
             "historySizeBytes": "5625"
           }
@@ -2227,7 +2227,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "28",
             "startedEventId": "29",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2285,7 +2285,7 @@
           "taskId": "1049321",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "31",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "bd4cbe13-ccd3-4b86-b81c-35899535b87e",
             "attempt": 1,
             "workerVersion": {}
@@ -2299,7 +2299,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "31",
             "startedEventId": "32",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -2309,7 +2309,7 @@
           "taskId": "1049323",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2324,7 +2324,7 @@
           "taskId": "1049327",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "34",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "aa7635b8-0c62-4cea-8038-1e3e9d3f040b",
             "historySizeBytes": "6665"
           }
@@ -2337,7 +2337,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "34",
             "startedEventId": "35",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2397,7 +2397,7 @@
             "workflowRunTimeout": "0s",
             "workflowTaskTimeout": "10s",
             "originalExecutionRunId": "01a0861a-823e-7e1c-ad0f-67ff26658061",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "firstExecutionRunId": "01a0861a-823e-7e1c-ad0f-67ff26658061",
             "attempt": 1,
             "firstWorkflowTaskBackoff": "0s",
@@ -2426,7 +2426,7 @@
           "taskId": "1049343",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "2",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "8bd3d2f8-f1d2-486a-99a7-790f2357b278",
             "historySizeBytes": "460"
           }
@@ -2439,7 +2439,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "2",
             "startedEventId": "3",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "langUsedFlags": [
@@ -2501,7 +2501,7 @@
           "taskId": "1049354",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "5",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "203beb4a-3912-469d-8acb-405168a4542d",
             "attempt": 1,
             "workerVersion": {}
@@ -2515,7 +2515,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "5",
             "startedEventId": "6",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -2525,7 +2525,7 @@
           "taskId": "1049356",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2540,7 +2540,7 @@
           "taskId": "1049360",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "8",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "1b6c8034-e6fa-4a4f-a4ae-01c69142fd59",
             "historySizeBytes": "1456"
           }
@@ -2553,7 +2553,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "8",
             "startedEventId": "9",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2579,7 +2579,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -2590,7 +2590,7 @@
           "taskId": "1049368",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2605,7 +2605,7 @@
           "taskId": "1049372",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "12",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "e1b31ff8-121b-4c72-8429-150bf45befa6",
             "historySizeBytes": "2600"
           }
@@ -2618,7 +2618,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "12",
             "startedEventId": "13",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2676,7 +2676,7 @@
           "taskId": "1049382",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "15",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "930f8a72-da58-41f9-b388-a072d48577c0",
             "attempt": 1,
             "workerVersion": {}
@@ -2700,7 +2700,7 @@
             },
             "scheduledEventId": "15",
             "startedEventId": "16",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -2710,7 +2710,7 @@
           "taskId": "1049384",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2725,7 +2725,7 @@
           "taskId": "1049388",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "18",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "b65a1841-ea20-4cde-881d-6d0d209ac310",
             "historySizeBytes": "4295"
           }
@@ -2738,7 +2738,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "18",
             "startedEventId": "19",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2764,7 +2764,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -2775,7 +2775,7 @@
           "taskId": "1049395",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2790,7 +2790,7 @@
           "taskId": "1049399",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "22",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "5a6de7ba-2883-4d48-8ec2-70b24abe7b97",
             "historySizeBytes": "4873"
           }
@@ -2803,7 +2803,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "22",
             "startedEventId": "23",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2861,7 +2861,7 @@
           "taskId": "1049409",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "25",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "5d51028d-d1fe-402b-bb0d-eab5a49ad697",
             "attempt": 1,
             "workerVersion": {}
@@ -2875,7 +2875,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "25",
             "startedEventId": "26",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -2885,7 +2885,7 @@
           "taskId": "1049411",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -2900,7 +2900,7 @@
           "taskId": "1049415",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "28",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "0bbbab5f-292c-4c1b-bbd5-1fa62e67c184",
             "historySizeBytes": "6067"
           }
@@ -2913,7 +2913,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "28",
             "startedEventId": "29",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -2971,7 +2971,7 @@
           "taskId": "1049425",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "31",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "cf473fe0-6d0b-4e20-b692-1ad4e1eadfc3",
             "attempt": 1,
             "workerVersion": {}
@@ -2985,7 +2985,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "31",
             "startedEventId": "32",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -2995,7 +2995,7 @@
           "taskId": "1049427",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -3010,7 +3010,7 @@
           "taskId": "1049431",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "34",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "32a5c2d5-167b-466a-a5ff-0d068a7ef7bf",
             "historySizeBytes": "7101"
           }
@@ -3023,7 +3023,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "34",
             "startedEventId": "35",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -3083,7 +3083,7 @@
             "workflowRunTimeout": "0s",
             "workflowTaskTimeout": "10s",
             "originalExecutionRunId": "01a0861e-3b3f-730e-b269-b211a5cd7fe8",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "firstExecutionRunId": "01a0861e-3b3f-730e-b269-b211a5cd7fe8",
             "attempt": 1,
             "firstWorkflowTaskBackoff": "0s",
@@ -3112,7 +3112,7 @@
           "taskId": "1049447",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "2",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "ec85a4a7-9957-4ba5-b309-4a6c0ed5eb1a",
             "historySizeBytes": "460"
           }
@@ -3125,7 +3125,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "2",
             "startedEventId": "3",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "langUsedFlags": [
@@ -3187,7 +3187,7 @@
           "taskId": "1049458",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "5",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "f194f73e-0092-4820-8fcb-34c2d5f3768b",
             "attempt": 1,
             "workerVersion": {}
@@ -3201,7 +3201,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "5",
             "startedEventId": "6",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -3211,7 +3211,7 @@
           "taskId": "1049460",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -3226,7 +3226,7 @@
           "taskId": "1049464",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "8",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "55d322b5-1b55-40e2-aede-5bd33fc110c5",
             "historySizeBytes": "1456"
           }
@@ -3239,7 +3239,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "8",
             "startedEventId": "9",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -3265,7 +3265,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -3276,7 +3276,7 @@
           "taskId": "1049472",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -3291,7 +3291,7 @@
           "taskId": "1049476",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "12",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "20aa8a41-11bf-4129-894d-b07d1ff95eab",
             "historySizeBytes": "2398"
           }
@@ -3304,7 +3304,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "12",
             "startedEventId": "13",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -3362,7 +3362,7 @@
           "taskId": "1049486",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "15",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "9ca3c95a-0f62-42d9-8848-4810a6c93d39",
             "attempt": 1,
             "workerVersion": {}
@@ -3386,7 +3386,7 @@
             },
             "scheduledEventId": "15",
             "startedEventId": "16",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -3396,7 +3396,7 @@
           "taskId": "1049488",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -3411,7 +3411,7 @@
           "taskId": "1049492",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "18",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "7e029159-4215-4ba2-b2bd-0b70a47f536d",
             "historySizeBytes": "3890"
           }
@@ -3424,7 +3424,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "18",
             "startedEventId": "19",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -3450,7 +3450,7 @@
                 }
               ]
             },
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "header": {}
           }
         },
@@ -3461,7 +3461,7 @@
           "taskId": "1049499",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -3476,7 +3476,7 @@
           "taskId": "1049503",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "22",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "1eacc71b-f091-4a8d-b9ba-bf0f4635e412",
             "historySizeBytes": "4468"
           }
@@ -3489,7 +3489,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "22",
             "startedEventId": "23",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -3547,7 +3547,7 @@
           "taskId": "1049513",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "25",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "58543f60-1fec-49e1-b042-40186f4e4191",
             "attempt": 1,
             "workerVersion": {}
@@ -3561,7 +3561,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "25",
             "startedEventId": "26",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -3571,7 +3571,7 @@
           "taskId": "1049515",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -3586,7 +3586,7 @@
           "taskId": "1049519",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "28",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "48b17811-9e33-46e2-903d-b46678d275c6",
             "historySizeBytes": "5625"
           }
@@ -3599,7 +3599,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "28",
             "startedEventId": "29",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",
@@ -3657,7 +3657,7 @@
           "taskId": "1049529",
           "activityTaskStartedEventAttributes": {
             "scheduledEventId": "31",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "5abb963e-d338-4e67-98c5-6d511fc06132",
             "attempt": 1,
             "workerVersion": {}
@@ -3671,7 +3671,7 @@
           "activityTaskCompletedEventAttributes": {
             "scheduledEventId": "31",
             "startedEventId": "32",
-            "identity": "32021@Jiang-MacBook.local"
+            "identity": "32021@temporal-worker"
           }
         },
         {
@@ -3681,7 +3681,7 @@
           "taskId": "1049531",
           "workflowTaskScheduledEventAttributes": {
             "taskQueue": {
-              "name": "32021@Jiang-MacBook.local:ac5689b1-878a-4d63-884e-76d5ed510b4b",
+              "name": "32021@temporal-worker:ac5689b1-878a-4d63-884e-76d5ed510b4b",
               "kind": "TASK_QUEUE_KIND_STICKY",
               "normalName": "order-fulfillment-workflows"
             },
@@ -3696,7 +3696,7 @@
           "taskId": "1049535",
           "workflowTaskStartedEventAttributes": {
             "scheduledEventId": "34",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "requestId": "da1a994c-a5f8-4fd6-89a8-998e575dbba0",
             "historySizeBytes": "6665"
           }
@@ -3709,7 +3709,7 @@
           "workflowTaskCompletedEventAttributes": {
             "scheduledEventId": "34",
             "startedEventId": "35",
-            "identity": "32021@Jiang-MacBook.local",
+            "identity": "32021@temporal-worker",
             "workerVersion": {},
             "sdkMetadata": {
               "sdkName": "temporal-java",

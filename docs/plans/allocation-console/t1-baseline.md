@@ -134,11 +134,10 @@ COMPOSE_PROJECT_NAME=archone-allocation-t1 \
 ARCHONE_POSTGRES_PORT=28491 ARCHONE_KAFKA_PORT=28492 ARCHONE_CONNECT_PORT=28493 \
 ARCHONE_TEMPORAL_PORT=28494 ARCHONE_TEMPORAL_UI_PORT=28496 ARCHONE_KAFKA_UI_PORT=28497 \
 E2E_APP_PORT=28490 \
-E2E_JAVA_BIN=/Users/zhenghongjiang/.sdkman/candidates/java/25-tem/bin/java \
 KEEP_E2E_STACK=true ./e2e/spec/run.sh
 ```
 
-Java 路徑是本機實測值，其他機器可省略並由 runner 偵測 Gradle toolchain。
+省略 `E2E_JAVA_BIN` 時由 runner 偵測 Gradle toolchain。
 KEEP_E2E_STACK 只保留基礎設施，runner 結束仍會停止其啟動的 app。
 保留目的為 fixture 檢查；本次檢查後僅清理自己建立的 project，不影響既有 archone-karate-e2e。
 

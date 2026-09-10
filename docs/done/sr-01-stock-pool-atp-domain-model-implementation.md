@@ -140,8 +140,7 @@ BUILD SUCCESSFUL
 執行完整 verification lifecycle：
 
 ```bash
-env DOCKER_HOST=unix:///Users/zhenghongjiang/.orbstack/run/docker.sock \
-  ./gradlew :order-promising:check
+./gradlew :order-promising:check
 ```
 
 結果：

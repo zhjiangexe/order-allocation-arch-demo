@@ -19,6 +19,44 @@ cd backend
 
 後端模組與職責請見 [`backend/README.md`](backend/README.md)。
 
+## Temporal 在訂單履約中的角色
+
+本系統以 Allocation 為核心，Temporal 用來串接 Inventory、WMS 與 Ordering 的跨模組履約流程。
+[`OrderFulfillmentWorkflowImpl.java`](backend/orchestration-temporal-runtime/src/main/java/com/flowzati/archone/orchestration/runtime/workflow/order/OrderFulfillmentWorkflowImpl.java)
+負責決定「下一步做什麼、等待哪個結果」；**Activity** 則透過各模組的 Adapter 呼叫既有 Use Case，
+實際執行配貨、建立出貨單、完成出庫與更新訂單。業務規則與資料交易仍由各模組負責，Workflow 保存的是流程進度。
+
+正常履約主線如下；缺貨時會停在等待配貨結果，補貨後由事件通知繼續：
+
+```text
+訂單成立事件 → 啟動 Workflow
+  → Activity：請求配貨 → 等待配貨完成 Signal
+  → Activity：建立 WMS Shipment → 等待交運完成 Signal
+  → Activity：完成出庫 movements
+  → Activity：記錄訂單履約完成 → Workflow 結束
+```
+
+**Signal** 是外部結果通知：配貨與交運的 Integration Event 經 bridge 轉成 Signal，讓等待中的 Workflow 繼續。
+WMS 內部揀貨、包裝與集貨仍由 WMS 自行執行；Temporal 模式也仍需要 Kafka／Outbox。
+Activity 的逾時與重試由 Temporal 依設定處理；Workflow 可依執行歷史恢復進度，Activity 對應的業務操作仍須處理重複執行。
+
+建議從 [履約活動圖（PlantUML）](backend/orchestration-temporal-runtime/src/main/java/com/flowzati/archone/orchestration/runtime/workflow/order/OrderFulfillmentWorkflowImpl.puml)
+搭配 Workflow 實作閱讀，再依下表追到實際業務入口：
+
+| 相關檔案 | 在本系統中的職責 |
+| --- | --- |
+| [OrderFulfillmentWorkflow](backend/orchestration-temporal-contract/src/main/java/com/flowzati/archone/orchestration/contract/workflow/order/OrderFulfillmentWorkflow.java) | 定義啟動入口、Signal、查詢進度的 Query，以及提交取消請求的 Update。 |
+| [TemporalFulfillmentEventBridge](backend/fulfillment-process/src/main/java/com/flowzati/archone/orderfulfillment/entrypoint/messaging/TemporalFulfillmentEventBridge.java) | 將收單事件轉成 Workflow start，將配貨、交運與取消結果轉成 Signal。 |
+| [Activity contracts](backend/orchestration-temporal-contract/src/main/java/com/flowzati/archone/orchestration/contract/activity) | 定義 Workflow 可呼叫的業務動作與輸入／輸出，實作由各 Context 提供。 |
+| [TemporalInventoryAllocationActivitiesAdapter](backend/inventory-context/src/main/java/com/flowzati/archone/inventory/allocation/entrypoint/temporal/TemporalInventoryAllocationActivitiesAdapter.java) | `requestAllocation` → `AllocateOrderUsecase`，請求配貨。 |
+| [TemporalShipmentActivitiesAdapter](backend/wms-context/src/main/java/com/flowzati/archone/wms/shipment/entrypoint/temporal/TemporalShipmentActivitiesAdapter.java) | `releaseToWarehouse` → `CreateShipmentUsecase`，建立出貨單；也提供請求取消出貨的 Activity。 |
+| [TemporalInventoryMovementActivitiesAdapter](backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/entrypoint/temporal/TemporalInventoryMovementActivitiesAdapter.java) | `completeOutboundMovements` → `CompleteOutboundMovementsUsecase`，在確認交運後完成出庫。 |
+| [TemporalOrderActivitiesAdapter](backend/ordering-context/src/main/java/com/flowzati/archone/ordering/entrypoint/temporal/TemporalOrderActivitiesAdapter.java) | `recordOrderFulfillment` → `RecordOrderFulfillmentUsecase`，更新訂單履約結果；也提供取消訂單的 Activity。 |
+| [TemporalFulfillmentWorkerConfiguration](backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/configuration/TemporalFulfillmentWorkerConfiguration.java) | 在 monolith 註冊 Workflow 與 Activity workers，從對應 Task Queue 接收並執行工作。 |
+
+Workflow 另有取消協調分支，活動圖包含其等待與判斷；目前前端未提供取消操作。
+Events 模式則由事件處理串接履約步驟，兩種模式沿用相同業務 Use Case 與業務狀態。
+
 ## 簡報前一鍵啟動（含前端）
 
 先啟動 Docker（含 Compose v2），在 repository root 執行：

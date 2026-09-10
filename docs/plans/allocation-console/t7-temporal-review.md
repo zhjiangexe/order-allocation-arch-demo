@@ -31,8 +31,7 @@ COMPOSE_PROJECT_NAME=archone-allocation-t7-temporal \
 ARCHONE_POSTGRES_PORT=28591 ARCHONE_KAFKA_PORT=28592 ARCHONE_CONNECT_PORT=28593 \
 ARCHONE_TEMPORAL_PORT=28594 ARCHONE_TEMPORAL_UI_PORT=28596 ARCHONE_KAFKA_UI_PORT=28597 \
 E2E_APP_PORT=28590 E2E_MODE=temporal \
-E2E_JAVA_BIN=/Users/zhenghongjiang/.sdkman/candidates/java/25-tem/bin/java \
-E2E_BUILD_DIR=/Users/zhenghongjiang/dev/flowzati/archone/e2e/spec/build/t7-temporal \
+E2E_BUILD_DIR=e2e/spec/build/t7-temporal \
 KEEP_E2E_STACK=true ./e2e/spec/run.sh
 ```
 
@@ -53,7 +52,7 @@ ORDER_PROMISING_KAFKA_BOOTSTRAP_SERVERS=localhost:28592 \
 ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE=temporal \
 ORDER_PROMISING_TEMPORAL_TARGET=localhost:28594 \
 ORDER_PROMISING_WMS_SIMULATION_PROCESSING_DELAY=10s \
-/Users/zhenghongjiang/.sdkman/candidates/java/25-tem/bin/java \
+java \
 -jar backend/deployments/monolith/build/libs/archone-monolith.jar --spring.profiles.active=dev
 
 ARCHONE_BACKEND_ORIGIN=http://localhost:28590 \
@@ -61,7 +60,7 @@ VITE_TEMPORAL_UI_URL=http://localhost:28596 VITE_TEMPORAL_NAMESPACE=default \
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 28595
 ```
 
-以上 Java 路徑為本機值。HTTP 情境 delay 0s／取消窗口 30s；UI 使用 10s。
+以上命令使用 PATH 上的 Java 25。HTTP 情境 delay 0s／取消窗口 30s；UI 使用 10s。
 目前保留 app、前端及隔離容器供使用者檢查。
 
 ## 真實 UI 驗證

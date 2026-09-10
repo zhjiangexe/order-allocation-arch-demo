@@ -67,7 +67,7 @@ Temporal 跳轉預設 UI `http://localhost:28296`、namespace `default`；隔離
 
 ## Environment files
 
-`dev.env` 只有本機開發用預設值，可以進版控。stage／prod 請從 `.example` 建立實際檔案：
+`dev.env` 只有本機開發用預設值，可以進版控；資料庫密碼也明確標示為本機專用。stage／prod 請從 `.example` 建立實際檔案：
 
 ```bash
 cp docker/env/stage.env.example docker/env/stage.env

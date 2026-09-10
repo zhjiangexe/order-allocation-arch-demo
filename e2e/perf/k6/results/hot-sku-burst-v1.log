@@ -49,5 +49,5 @@
 running (0m05.2s), 0000/1000 VUs, 1000 complete and 0 interrupted iterations
 hot_sku_burst ✓ [ 100% ] 1000 VUs  0m05.2s/2m0s  1000/1000 iters, 1 per VU
 
-結果存到 /Users/zhenghongjiang/dev/flowzati/archone/e2e/perf/k6/results/hot-sku-burst-v1.json
+結果存到 e2e/perf/k6/results/hot-sku-burst-v1.json
 驗證衝突率／DB 狀態：./e2e/perf/run.sh verify HOT-SKU

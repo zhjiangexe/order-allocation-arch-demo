@@ -32,8 +32,7 @@ COMPOSE_PROJECT_NAME=archone-allocation-t7-events \
 ARCHONE_POSTGRES_PORT=28491 ARCHONE_KAFKA_PORT=28492 ARCHONE_CONNECT_PORT=28493 \
 ARCHONE_TEMPORAL_PORT=28494 ARCHONE_TEMPORAL_UI_PORT=28496 ARCHONE_KAFKA_UI_PORT=28497 \
 E2E_APP_PORT=28490 E2E_MODE=events \
-E2E_JAVA_BIN=/Users/zhenghongjiang/.sdkman/candidates/java/25-tem/bin/java \
-E2E_BUILD_DIR=/Users/zhenghongjiang/dev/flowzati/archone/e2e/spec/build/t7-events \
+E2E_BUILD_DIR=e2e/spec/build/t7-events \
 KEEP_E2E_STACK=true ./e2e/spec/run.sh
 ```
 
@@ -46,14 +45,14 @@ ORDER_PROMISING_KAFKA_BOOTSTRAP_SERVERS=localhost:28492 \
 ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE=events \
 ORDER_PROMISING_TEMPORAL_TARGET=localhost:28494 \
 ORDER_PROMISING_WMS_SIMULATION_PROCESSING_DELAY=10s \
-/Users/zhenghongjiang/.sdkman/candidates/java/25-tem/bin/java \
+java \
 -jar backend/deployments/monolith/build/libs/archone-monolith.jar --spring.profiles.active=dev
 
 ARCHONE_BACKEND_ORIGIN=http://localhost:28490 \
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 28495
 ```
 
-Java 路徑為此機器設定；全新重跑須選新 project／資料庫，不能重用已消耗的 fixture 當初始資料。
+需使用 Java 25；全新重跑須選新 project／資料庫，不能重用已消耗的 fixture 當初始資料。
 目前保留此環境供使用者檢查。
 
 ## 回歸結果
