@@ -163,7 +163,7 @@ export function StockPanel({
           <p className={styles.accepted}>
             <span className={styles.skuValue}>{confirmed.sku}</span> 已完成收貨{' '}
             <span className={styles.eventId}>{confirmed.quantity}</span> 件。
-            訂單配置結果請由訂單列表確認。收貨成功後，availability 事件會推進後續分配，不代表原訂單已完成配貨。{' '}
+            訂單配置結果請由訂單列表確認。收貨成功後，庫存可用性事件會推進後續分配，不代表原訂單已完成配貨。{' '}
             <button
               type="button"
               className={styles.requery}

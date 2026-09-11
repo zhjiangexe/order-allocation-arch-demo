@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { CatalogSku } from '../api/catalog';
 import type { ProductView } from '../api/types';
 import { useCatalog } from '../hooks/useCatalog';
+import { temperatureZoneLabel } from '../i18n/labels';
 import styles from './CatalogPage.module.css';
 
 interface VisibleProduct {
@@ -30,7 +31,7 @@ export function CatalogPage() {
     <div className={styles.page}>
       <header className={styles.intro}>
         <div>
-          <p className={styles.eyebrow}>Reference data</p>
+          <p className={styles.eyebrow}>主檔資料</p>
           <h2 className={styles.title}>主檔瀏覽</h2>
           <p className={styles.description}>
             查看貨主、可出貨倉庫、商品與 SKU。此頁只有讀取能力，不提供主檔異動。
@@ -57,11 +58,11 @@ export function CatalogPage() {
         <>
           <section className={styles.ownerCard} aria-labelledby="selected-owner">
             <div>
-              <p className={styles.eyebrow}>Selected owner</p>
+              <p className={styles.eyebrow}>目前貨主</p>
               <h3 id="selected-owner" className={styles.ownerName}>{owner.name}</h3>
             </div>
             <Definition label="代碼" value={owner.code} />
-            <Definition label="Owner ID" value={owner.ownerId} mono />
+            <Definition label="貨主識別碼" value={owner.ownerId} mono />
             <Definition label="可出貨倉" value={`${facilities.length} 座`} />
             <Definition label="商品" value={`${catalog.productsOf(ownerId).length} 款`} />
           </section>
@@ -70,7 +71,7 @@ export function CatalogPage() {
             <section className={styles.panel} aria-labelledby="facilities-heading">
               <div className={styles.panelHeading}>
                 <div>
-                  <p className={styles.eyebrow}>Fulfillment nodes</p>
+                  <p className={styles.eyebrow}>履約設施</p>
                   <h3 id="facilities-heading">可出貨倉庫</h3>
                 </div>
                 <span>{facilities.length}</span>
@@ -104,7 +105,7 @@ export function CatalogPage() {
             <section className={styles.panel} aria-labelledby="products-heading">
               <div className={styles.panelHeading}>
                 <div>
-                  <p className={styles.eyebrow}>Product catalog</p>
+                  <p className={styles.eyebrow}>商品主檔</p>
                   <h3 id="products-heading">商品與 SKU</h3>
                 </div>
                 <span>{visibleProducts.length}</span>
@@ -129,7 +130,7 @@ export function CatalogPage() {
                             <th>SKU</th>
                             <th>規格</th>
                             <th>重量</th>
-                            <th>SKU ID</th>
+                            <th>SKU 識別碼</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -195,5 +196,5 @@ function includesKeyword(values: readonly string[], keyword: string) {
 }
 
 function temperatureLabel(zone: ProductView['temperatureZone']) {
-  return { AMBIENT: '常溫', CHILLED: '冷藏', FROZEN: '冷凍' }[zone];
+  return temperatureZoneLabel(zone);
 }

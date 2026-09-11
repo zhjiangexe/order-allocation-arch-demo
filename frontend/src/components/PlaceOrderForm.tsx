@@ -3,6 +3,7 @@ import { useId, useState } from 'react';
 
 import type { Catalog } from '../api/catalog';
 import type { PlaceOrderCommand } from '../api/types';
+import { temperatureZoneLabel } from '../i18n/labels';
 import styles from './PlaceOrderForm.module.css';
 
 interface PlaceOrderFormProps {
@@ -197,7 +198,7 @@ export function PlaceOrderForm({ formId, ownerId: fixedOwnerId, catalog, onSubmi
                 <SelectOption value="">請選擇</SelectOption>
                 {products.map((product) => (
                   <SelectOption key={product.productId} value={product.productCode}>
-                    {product.name}（{product.temperatureZone}）
+                    {product.name}（{temperatureZoneLabel(product.temperatureZone)}）
                   </SelectOption>
                 ))}
               </Select>

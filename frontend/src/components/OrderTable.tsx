@@ -1,5 +1,6 @@
 import type { Catalog } from '../api/catalog';
 import type { OrderView } from '../api/types';
+import { orderStatusLabel } from '../i18n/labels';
 import styles from './OrderTable.module.css';
 
 interface OrderTableProps {
@@ -44,17 +45,17 @@ export function OrderTable({ orders, catalog, onViewFulfillment }: OrderTablePro
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>order</th>
+            <th>訂單</th>
             <th>履約</th>
-            <th>owner</th>
-            <th>item</th>
-            <th>qty</th>
-            <th>status</th>
-            <th>received at</th>
-            <th>placed upstream</th>
-            <th>allocated at</th>
-            <th>fulfilled at</th>
-            <th>cancelled at</th>
+            <th>貨主</th>
+            <th>商品</th>
+            <th>數量</th>
+            <th>狀態</th>
+            <th>收單時間</th>
+            <th>上游下單時間</th>
+            <th>分配時間</th>
+            <th>履約完成時間</th>
+            <th>取消時間</th>
           </tr>
         </thead>
         <tbody>
@@ -72,7 +73,7 @@ export function OrderTable({ orders, catalog, onViewFulfillment }: OrderTablePro
                 ))}
               </td>
               <td>{order.lines.map((line) => line.quantity).join('、')}</td>
-              <td className={`${styles.status} ${styles[order.status]}`}>{order.status}</td>
+              <td className={`${styles.status} ${styles[order.status]}`}>{orderStatusLabel(order.status)}</td>
               <td>{formatTime(order.receivedAt)}</td>
               {/* 上游沒送時留白（—），與其他未發生的階段同一個表示法。不重複 receivedAt：
                   兩欄一樣的話，看的人分不出上游是真的送了還是我們補的。 */}

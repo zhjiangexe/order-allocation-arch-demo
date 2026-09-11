@@ -6,6 +6,17 @@ import type { OrderFulfillmentView } from '../api/types';
 import { detailUrl, isUuid, parseDetail, receiptUrl } from '../fulfillment/navigation';
 import type { ListContext } from '../fulfillment/navigation';
 import { useFulfillmentTracking } from '../hooks/useFulfillmentTracking';
+import {
+  operationStateLabel,
+  operationUnitLabel,
+  shipmentStatusLabel,
+  sourceTypeLabel,
+  workflowAllocationLabel,
+  workflowOutcomeLabel,
+  workflowPhaseLabel,
+  workflowQueryStatusLabel,
+  workflowShipmentTerminalLabel,
+} from '../i18n/labels';
 import styles from './FulfillmentDrawer.module.css';
 
 const orderStatuses = [
@@ -82,7 +93,7 @@ export function FulfillmentDrawer({ orderId, list, catalog, onClose }: {
           onClick={tracking.paused ? tracking.resume : tracking.pause}>
           {tracking.paused ? '恢復自動追蹤' : '暫停自動追蹤'}
         </button>
-        {workflowUrl ? <button type="button" title="在 Temporal UI 查看 Workflow（新分頁）"
+        {workflowUrl ? <button type="button" title="在 Temporal UI 查看工作流程（新分頁）"
           onClick={() => window.open(workflowUrl, '_blank', 'noopener,noreferrer')}>Temporal</button> : null}
         <button onClick={() => void copyIds()}>複製 IDs</button>
       </div>
@@ -135,7 +146,7 @@ export function FulfillmentDetails({ data, catalog, list }: {
     <section>
       <h3>{order.externalOrderNo}</h3>
       <dl className={styles.facts}>
-        <dt>模式</dt><dd>{data.orchestrationMode === 'events' ? 'Events' : data.orchestrationMode === 'temporal' ? 'Temporal' : data.orchestrationMode}</dd>
+        <dt>模式</dt><dd>{data.orchestrationMode === 'events' ? '事件驅動' : data.orchestrationMode === 'temporal' ? 'Temporal' : data.orchestrationMode}</dd>
         <dt>貨主</dt><dd>{catalog.owners.find(o => o.ownerId === order.ownerId)?.name ?? order.ownerId}</dd>
         <dt>設施</dt><dd>{catalog.findFacility(order.ownerId, order.facilityId)?.name ?? order.facilityId}</dd>
         <dt>地址／分區</dt><dd>{order.shipToAddress}／{order.shipToZone}</dd>
@@ -156,13 +167,13 @@ export function FulfillmentDetails({ data, catalog, list }: {
     </section>
     <section><h3>庫存作業與分配批次</h3>
       {!stock ? <p>尚無庫存作業或分配資料。</p> : <>
-        <p>作業狀態：{operation?.state ?? '未知'} · 來源：{stock.source.type}／{stock.source.operationUnitKey}</p>
+        <p>作業狀態：{operationStateLabel(operation?.state)} · 來源：{sourceTypeLabel(stock.source.type)}／{operationUnitLabel(stock.source.operationUnitKey)}</p>
         <p>入列時間：{time(operation?.enqueuedAt ?? null)} · 來源庫位：{location?.name ?? operation?.fromLocationId ?? '—'}</p>
-        {stock.moves.length === 0 ? <p>尚無 Move。</p> : stock.moves.map(move => <article className={styles.card} key={move.moveId}>
+        {stock.moves.length === 0 ? <p>尚無庫存移動明細。</p> : stock.moves.map(move => <article className={styles.card} key={move.moveId}>
           <h4>第 {move.lineSequence ?? '—'} 行 · {move.skuCode} × {move.quantity}</h4>
-          <p>{move.state ?? '未知'} · 分配時間：{time(move.assignedAt)}</p>
+          <p>{operationStateLabel(move.state)} · 分配時間：{time(move.assignedAt)}</p>
           {move.batches.length === 0 ? <p>尚未分配批次。</p> : <div className={styles.scroll}><table>
-            <thead><tr><th>批次 stockQuantId</th><th>入庫日</th><th>效期</th><th>數量</th></tr></thead>
+            <thead><tr><th>批次識別碼</th><th>入庫日</th><th>效期</th><th>數量</th></tr></thead>
             <tbody>{move.batches.map(batch => <tr key={`${batch.stockQuantId}:${batch.locationId}`}>
               <td>{batch.stockQuantId}</td><td>{batch.inDate}</td><td>{batch.expiryDate}</td><td>{batch.quantity}</td>
             </tr>)}</tbody>
@@ -170,29 +181,29 @@ export function FulfillmentDetails({ data, catalog, list }: {
         </article>)}
       </>}
     </section>
-    <section><h3>Shipment</h3>
-      {data.shipments.length === 0 ? <p>尚未建立 Shipment。</p> : data.shipments.map(shipment => <article className={styles.card} key={shipment.shipmentId}>
-        <h4>{shipment.shipmentId === order.fulfilledByShipmentId ? '訂單履約所屬 Shipment' : 'Shipment'}</h4>
-        <p>{shipment.status ?? '未知'} · 建立時間：{time(shipment.createdAt)}</p>
-        <p>Shipment：{shipment.shipmentId}</p>
+    <section><h3>出貨作業</h3>
+      {data.shipments.length === 0 ? <p>尚未建立出貨作業。</p> : data.shipments.map(shipment => <article className={styles.card} key={shipment.shipmentId}>
+        <h4>{shipment.shipmentId === order.fulfilledByShipmentId ? '訂單履約所屬出貨作業' : '出貨作業'}</h4>
+        <p>{shipmentStatusLabel(shipment.status)} · 建立時間：{time(shipment.createdAt)}</p>
+        <p>出貨作業識別碼：{shipment.shipmentId}</p>
         <p>作業：{shipment.stockOperationId}</p>
         <p>品項 {shipment.lines.length} 行 · 揀貨 {shipment.pickTasks.filter(t => t.status === 'PICKED').length}／{shipment.pickTasks.length} 筆</p>
       </article>)}
     </section>
-    {data.orchestrationMode === 'temporal' ? <section><h3>Temporal Workflow</h3>
-      {workflowUrl ? <p><a href={workflowUrl} target="_blank" rel="noopener noreferrer">在 Temporal UI 查看 Workflow（新分頁）</a></p>
-        : <p>尚未設定有效的 Temporal UI 位址或 namespace。</p>}
+    {data.orchestrationMode === 'temporal' ? <section><h3>Temporal 工作流程</h3>
+      {workflowUrl ? <p><a href={workflowUrl} target="_blank" rel="noopener noreferrer">在 Temporal UI 查看工作流程（新分頁）</a></p>
+        : <p>尚未設定有效的 Temporal UI 位址或命名空間。</p>}
       <details><summary>流程協調技術資訊</summary>
-      <p>此處顯示 Temporal 協調進度；履約狀態與 Events 使用相同的業務資料判斷。</p>
-      <p>查詢狀態：{data.workflowQueryStatus}</p>
-      {data.workflowQueryStatus === 'UNAVAILABLE' ? <p>Workflow 查詢暫時不可用；本次取得的業務資料仍會更新。可重新查詢或前往 Temporal UI 核對。</p> : null}
+      <p>此處顯示 Temporal 協調進度；履約狀態與事件驅動流程使用相同的業務資料判斷。</p>
+      <p>查詢狀態：{workflowQueryStatusLabel(data.workflowQueryStatus)}</p>
+      {data.workflowQueryStatus === 'UNAVAILABLE' ? <p>工作流程查詢暫時不可用；本次取得的業務資料仍會更新。可重新查詢或前往 Temporal UI 核對。</p> : null}
       {workflow ? <dl className={styles.facts}>
-        <dt>流程協調階段</dt><dd>{workflow.phase ?? '未知'}</dd>
-        <dt>Outcome</dt><dd>{workflow.outcome ?? '尚無最終結果'}</dd>
+        <dt>流程協調階段</dt><dd>{workflowPhaseLabel(workflow.phase)}</dd>
+        <dt>執行結果</dt><dd>{workflowOutcomeLabel(workflow.outcome)}</dd>
         <dt>目前階段進入時間</dt><dd>{time(workflow.updatedAt)}</dd>
-        <dt>分配</dt><dd>{workflow.allocationState ?? '—'}</dd>
-        <dt>交接終態</dt><dd>{workflow.shipmentTerminalStatus ?? '—'}</dd>
-      </dl> : <p>{data.workflowQueryStatus === 'NOT_FOUND' ? '查無 Workflow，可能尚未建立；不保證稍後一定啟動。' : '目前無可讀的 Workflow 快照。'}</p>}
+        <dt>分配</dt><dd>{workflowAllocationLabel(workflow.allocationState)}</dd>
+        <dt>交接終態</dt><dd>{workflowShipmentTerminalLabel(workflow.shipmentTerminalStatus)}</dd>
+      </dl> : <p>{data.workflowQueryStatus === 'NOT_FOUND' ? '查無工作流程，可能尚未建立；不保證稍後一定啟動。' : '目前無可讀的工作流程快照。'}</p>}
       </details>
     </section> : null}
   </>;

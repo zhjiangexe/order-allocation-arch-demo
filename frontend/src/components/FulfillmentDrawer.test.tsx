@@ -19,24 +19,24 @@ afterEach(() => vi.restoreAllMocks());
 
 it.each(['events', 'temporal'] as const)('renders %s evidence without polling', mode => {
   render(<MemoryRouter><FulfillmentDetails data={samples[mode]} catalog={catalog} list={list} /></MemoryRouter>);
-  expect(screen.getByText(mode === 'events' ? 'Events' : 'Temporal')).toBeVisible();
+  expect(screen.getByText(mode === 'events' ? '事件驅動' : 'Temporal')).toBeVisible();
   expect(screen.getByText('庫存作業與分配批次')).toBeVisible();
   expect(screen.getByText(samples[mode].stockOperation.moves[0]!.batches[0]!.stockQuantId)).toBeVisible();
-  expect(screen.getByText('訂單履約所屬 Shipment')).toBeVisible();
+  expect(screen.getByText('訂單履約所屬出貨作業')).toBeVisible();
   if (mode === 'temporal') {
-    expect(screen.getByText('FULFILLMENT_COMPLETED')).not.toBeVisible();
+    expect(screen.getByText('履約完成')).not.toBeVisible();
     fireEvent.click(screen.getByText('流程協調技術資訊'));
-    expect(screen.getByText('FULFILLMENT_COMPLETED')).toBeVisible();
+    expect(screen.getByText('履約完成')).toBeVisible();
   }
-  else expect(screen.queryByText('Temporal Workflow')).not.toBeInTheDocument();
+  else expect(screen.queryByText('Temporal 工作流程')).not.toBeInTheDocument();
 });
 it('renders empty allocation and NOT_FOUND without calling it Events', () => {
   render(<MemoryRouter><FulfillmentDetails data={{ ...samples.temporal, stockOperation: null,
     shipments: [], temporalWorkflow: null, workflowQueryStatus: 'NOT_FOUND' }} catalog={catalog} list={list} /></MemoryRouter>);
   expect(screen.getByText('尚無庫存作業或分配資料。')).toBeVisible();
-  expect(screen.getByText('尚未建立 Shipment。')).toBeVisible();
+  expect(screen.getByText('尚未建立出貨作業。')).toBeVisible();
   fireEvent.click(screen.getByText('流程協調技術資訊'));
-  expect(screen.getByText(/查無 Workflow，可能尚未建立/)).toBeVisible();
+  expect(screen.getByText(/查無工作流程，可能尚未建立/)).toBeVisible();
   expect(screen.queryByRole('link', { name: '前往庫存補貨' })).not.toBeInTheDocument();
 });
 function LocationProbe() { const location = useLocation(); return <output data-testid="url">{location.pathname}{location.search}</output>; }
@@ -118,7 +118,7 @@ it('links Temporal workflows using configured UI and namespace even when query i
   try {
     const { rerender } = render(<MemoryRouter><FulfillmentDetails data={{ ...samples.temporal,
       temporalWorkflow: null, workflowQueryStatus: 'UNAVAILABLE' }} catalog={catalog} list={list} /></MemoryRouter>);
-    const link = screen.getByRole('link', { name: '在 Temporal UI 查看 Workflow（新分頁）' });
+  const link = screen.getByRole('link', { name: '在 Temporal UI 查看工作流程（新分頁）' });
     expect(link).toHaveAttribute('href', `https://temporal.example.test/ui/namespaces/allocation-dev/workflows/${encodeURIComponent(`order-fulfillment/${samples.temporal.order.orderId}`)}`);
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
@@ -156,7 +156,7 @@ it('keeps the same business status when Temporal query is unavailable, with diag
   expect(screen.getByLabelText(/FULFILLED，.*目前狀態/)).toHaveAttribute('aria-current', 'step');
   expect(screen.getByText('自動追蹤已停止')).toBeVisible();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  const diagnostic = screen.getByText(/Workflow 查詢暫時不可用；/);
+  const diagnostic = screen.getByText(/工作流程查詢暫時不可用；/);
   expect(diagnostic).not.toBeVisible();
   fireEvent.click(screen.getByText('流程協調技術資訊'));
   expect(diagnostic).toBeVisible();
@@ -171,7 +171,7 @@ it('shows the Temporal shortcut next to tracking only for a confirmed Workflow',
   const button = await screen.findByRole('button', { name: 'Temporal' });
   expect(button.previousElementSibling).toHaveTextContent('自動追蹤');
   fireEvent.click(button);
-  expect(open).toHaveBeenCalledWith(screen.getByRole('link', { name: /在 Temporal UI 查看 Workflow/ }).getAttribute('href'),
+  expect(open).toHaveBeenCalledWith(screen.getByRole('link', { name: /在 Temporal UI 查看工作流程/ }).getAttribute('href'),
     '_blank', 'noopener,noreferrer');
   get.mockResolvedValue({ ...samples.temporal, temporalWorkflow: null, workflowQueryStatus: 'NOT_FOUND' });
   await act(async () => fireEvent.click(screen.getByRole('button', { name: '重新查詢履約' })));

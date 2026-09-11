@@ -8,6 +8,7 @@ import type { StockOperationView } from '../api/types';
 import { FulfillmentDrawerRoute } from '../components/FulfillmentDrawer';
 import { detailUrl, isUuid, parseDetail, receiptUrl } from '../fulfillment/navigation';
 import { useCatalog } from '../hooks/useCatalog';
+import { operationStateLabel, operationUnitLabel, sourceTypeLabel } from '../i18n/labels';
 import styles from './AllocationsPage.module.css';
 
 const LIMIT = 200;
@@ -76,7 +77,7 @@ export function AllocationsPage() {
         {loading ? '載入中…' : '重新整理佇列'}
       </button>
     </header>
-    <p>等待分配的出庫作業（CONFIRMED）。等待可能來自庫存、批次條件或前序需求，並不一定是缺貨。</p>
+    <p>等待分配的出庫作業（已確認，待分配）。等待可能來自庫存、批次條件或前序需求，並不一定是缺貨。</p>
     <p>最多載入 {LIMIT} 筆；篩選僅套用已載入資料，不代表全量搜尋或全域配貨順位。</p>
     <div className={styles.filters}>
       <label>設施<Select value={filters.facilityId ?? ''} onValueChange={value => changeFilter('facilityId', value)}>
@@ -107,7 +108,7 @@ export function AllocationsPage() {
               && isUuid(row.source.sourceId) ? row.source.sourceId : null;
             return <article className={styles.card} key={operation.stockOperationId}>
               <div className={styles.heading}>
-                <h3>{row.source.type} · {row.source.operationUnitKey || '—'}</h3>
+        <h3>{sourceTypeLabel(row.source.type)} · {operationUnitLabel(row.source.operationUnitKey)}</h3>
                 {orderId ? <button onClick={() => void navigate(detailUrl('/allocations', location.search, orderId))}>查看履約</button>
                   : <span>此來源無可用的訂單履約入口</span>}
               </div>
@@ -124,8 +125,8 @@ export function AllocationsPage() {
               </dl>
               <details><summary>SKU 需求明細（{row.moves.length} 行）</summary>
                 {row.moves.length === 0 ? <p>尚無需求明細。</p> : <ul className={styles.moves}>{row.moves.map(move => <li key={move.moveId}>
-                  <div>第 {move.lineSequence ?? '—'} 行 · <strong>{move.skuCode}</strong> × {move.quantity} · {move.state ?? '未知'}</div>
-                  <small>Move ID：{move.moveId}</small>
+                  <div>第 {move.lineSequence ?? '—'} 行 · <strong>{move.skuCode}</strong> × {move.quantity} · {operationStateLabel(move.state)}</div>
+                  <small>庫存移動識別碼：{move.moveId}</small>
                   {orderId && resolved && operation.direction === 'OUTBOUND'
                     && [operation.ownerId, resolved.facility.facilityId, resolved.location.locationId].every(isUuid)
                     && catalog.findSku(operation.ownerId, move.skuCode)
