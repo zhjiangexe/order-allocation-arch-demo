@@ -58,12 +58,10 @@ public class MovementAssignmentPlanner implements StockAllocationPlanner {
         return List.copyOf(proposedMoveLines);
     }
 
-    private static final class FefoQueue {
-
-        private final Deque<RemainingSupply> supplies;
+    private record FefoQueue(Deque<RemainingSupply> supplies) {
 
         private FefoQueue(List<StockQuantSupply> fefoSupplies) {
-            supplies = new ArrayDeque<>();
+            this(new ArrayDeque<>());
             fefoSupplies.stream()
                     .map(supply -> new RemainingSupply(supply, supply.availableToPromise()))
                     .forEach(supplies::addLast);

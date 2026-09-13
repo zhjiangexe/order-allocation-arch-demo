@@ -5,6 +5,8 @@ import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
+import com.flowzati.archone.inventory.allocation.application.result.AssignedMove;
+import com.flowzati.archone.inventory.allocation.application.result.AssignedMoveLine;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.allocation.application.state.MoveQuantAllocationSet;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
@@ -15,12 +17,16 @@ import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.movement.application.state.StockOperationComposite;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
+import com.flowzati.archone.inventory.movement.application.store.StockOperationTypeStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
+import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
 import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,47 +39,47 @@ import org.springframework.stereotype.Component;
 
 /** Commits a ready allocation proposal as one authoritative stock-operation assignment. */
 @Component
-public class StockAllocationCommitter {
+public class StockAllocationCommitService {
 
     private final StockOperationStore stockOperationStore;
     private final StockMoveStore stockMoveStore;
     private final StockMoveLineStore stockMoveLineStore;
     private final StockQuantStore stockQuantStore;
-    private final StockOperationAssignmentResultFactory resultFactory;
+    private final StockOperationTypeStore stockOperationTypeStore;
     private final StockOperationAssignedPublisher assignmentPublisher;
     private final Supplier<UUID> idSupplier;
 
     @Autowired
-    public StockAllocationCommitter(
+    public StockAllocationCommitService(
             StockOperationStore stockOperationStore,
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockQuantStore stockQuantStore,
-            StockOperationAssignmentResultFactory resultFactory,
+            StockOperationTypeStore stockOperationTypeStore,
             StockOperationAssignedPublisher assignmentPublisher) {
         this(
                 stockOperationStore,
                 stockMoveStore,
                 stockMoveLineStore,
                 stockQuantStore,
-                resultFactory,
+                stockOperationTypeStore,
                 assignmentPublisher,
                 IdGenerator::nextId);
     }
 
-    public StockAllocationCommitter(
+    public StockAllocationCommitService(
             StockOperationStore stockOperationStore,
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockQuantStore stockQuantStore,
-            StockOperationAssignmentResultFactory resultFactory,
+            StockOperationTypeStore stockOperationTypeStore,
             StockOperationAssignedPublisher assignmentPublisher,
             Supplier<UUID> idSupplier) {
         this.stockOperationStore = stockOperationStore;
         this.stockMoveStore = stockMoveStore;
         this.stockMoveLineStore = stockMoveLineStore;
         this.stockQuantStore = stockQuantStore;
-        this.resultFactory = resultFactory;
+        this.stockOperationTypeStore = stockOperationTypeStore;
         this.assignmentPublisher = assignmentPublisher;
         this.idSupplier = idSupplier;
     }
@@ -104,7 +110,7 @@ public class StockAllocationCommitter {
                 applyAllocation(operationComposite, allocationSet, lockedStockQuants, occurredAt);
 
         // 7. 在同一交易內組裝結果並同步寫入 Outbox，確保庫存與事件原子一致。
-        StockOperationAssignmentResult result = resultFactory.create(
+        StockOperationAssignmentResult result = createAssignmentResult(
                 operationComposite.operation(), operationComposite.moves(), committedMoveLines, occurredAt);
         assignmentPublisher.publish(StockOperationAssigned.from(result));
         return result;
@@ -202,11 +208,54 @@ public class StockAllocationCommitter {
         if (assignedTimes.size() != 1 || assignedTimes.contains(null)) {
             throw new IllegalStateException("Assigned stock moves have inconsistent assignment times");
         }
-        return resultFactory.create(
+        return createAssignmentResult(
                 operationComposite.operation(),
                 operationComposite.moves(),
                 operationComposite.lines(),
                 assignedTimes.iterator().next());
+    }
+
+    private StockOperationAssignmentResult createAssignmentResult(
+            StockOperation operation, List<StockMove> moves, List<StockMoveLine> moveLines, Instant assignedAt) {
+        Map<UUID, List<StockMoveLine>> moveLinesByMove = moveLines.stream()
+                .collect(Collectors.groupingBy(StockMoveLine::moveId, LinkedHashMap::new, Collectors.toList()));
+        List<AssignedMove> assignedMoves = moves.stream()
+                .sorted(Comparator.comparingInt(StockMove::getLineSequence).thenComparing(StockMove::getId))
+                .map(move -> new AssignedMove(
+                        move.getId(),
+                        move.getSourceLineId(),
+                        move.getLineSequence(),
+                        move.getSkuCode(),
+                        move.getDemandQuantity(),
+                        moveLinesByMove.getOrDefault(move.getId(), List.of()).stream()
+                                .sorted(Comparator.comparing(StockMoveLine::stockQuantId))
+                                .map(moveLine -> new AssignedMoveLine(moveLine.stockQuantId(), moveLine.quantity()))
+                                .toList()))
+                .toList();
+        if (moveLinesByMove.keySet().stream()
+                .anyMatch(moveId ->
+                        assignedMoves.stream().noneMatch(move -> move.moveId().equals(moveId)))) {
+            throw new IllegalStateException("Assigned stock operation contains a move line for a foreign stock move");
+        }
+
+        StockOperationType stockOperationType = stockOperationTypeStore
+                .findById(operation.stockOperationTypeId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Stock operation type no longer exists: " + operation.stockOperationTypeId()));
+
+        return new StockOperationAssignmentResult(
+                operation.id(),
+                operation.stockOperationTypeId(),
+                stockOperationType.facilityId(),
+                operation.source(),
+                operation.ownerId(),
+                operation.fromLocationId(),
+                operation.toLocationId(),
+                operation.assignmentPolicy(),
+                operation.dispatchBy(),
+                operation.releasePriority(),
+                assignedAt,
+                assignedMoves);
     }
 
     private static StaleStateException staleProposal(String message) {

@@ -31,7 +31,7 @@ public class StockOperationAssignmentCoordinator {
     private final OwnerAllocationPolicyStore ownerAllocationPolicyStore;
     private final StockAllocationSupplyStore stockAllocationSupplyStore;
     private final StockAllocationPlanner planner;
-    private final StockAllocationCommitter allocationCommitter;
+    private final StockAllocationCommitService allocationCommitService;
     private final BusinessClock businessClock;
 
     public StockOperationAssignmentCoordinator(
@@ -39,13 +39,13 @@ public class StockOperationAssignmentCoordinator {
             OwnerAllocationPolicyStore ownerAllocationPolicyStore,
             StockAllocationSupplyStore stockAllocationSupplyStore,
             StockAllocationPlanner planner,
-            StockAllocationCommitter allocationCommitter,
+            StockAllocationCommitService allocationCommitService,
             BusinessClock businessClock) {
         this.stockOperationAssignmentCandidateStore = stockOperationAssignmentCandidateStore;
         this.ownerAllocationPolicyStore = ownerAllocationPolicyStore;
         this.stockAllocationSupplyStore = stockAllocationSupplyStore;
         this.planner = planner;
-        this.allocationCommitter = allocationCommitter;
+        this.allocationCommitService = allocationCommitService;
         this.businessClock = businessClock;
     }
 
@@ -111,7 +111,8 @@ public class StockOperationAssignmentCoordinator {
 
         // 足量才提交：Committer 鎖定並重驗需求版本、庫存及完整覆蓋，原子完成預留與事件發布。
         // 順位已在規劃前判斷；此時不因晚到的優先需求而讓位。
-        StockOperationAssignmentResult result = allocationCommitter.commit(proposal, today, businessClock.instant());
+        StockOperationAssignmentResult result =
+                allocationCommitService.commit(proposal, today, businessClock.instant());
         return Optional.of(result);
     }
 }

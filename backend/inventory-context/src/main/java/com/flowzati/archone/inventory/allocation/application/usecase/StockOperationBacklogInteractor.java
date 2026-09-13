@@ -11,16 +11,16 @@ import org.springframework.stereotype.Service;
 
 /** Periodic paged sweep over confirmed operation queues. */
 @Service
-public class StockOperationBacklogReconciler {
+public class StockOperationBacklogInteractor {
 
-    private static final Logger log = LoggerFactory.getLogger(StockOperationBacklogReconciler.class);
+    private static final Logger log = LoggerFactory.getLogger(StockOperationBacklogInteractor.class);
 
     private final StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore;
     private final AssignNextStockOperationUsecase assignNextStockOperationUsecase;
     private final BusinessClock appClock;
     private static final int PAGE_SIZE = 200;
 
-    public StockOperationBacklogReconciler(
+    public StockOperationBacklogInteractor(
             StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore,
             AssignNextStockOperationUsecase assignNextStockOperationUsecase,
             BusinessClock appClock) {

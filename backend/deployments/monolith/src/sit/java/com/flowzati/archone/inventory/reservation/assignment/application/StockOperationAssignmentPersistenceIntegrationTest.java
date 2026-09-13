@@ -4,8 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
@@ -72,8 +71,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     StockOperationTypeStoreAdapter.class,
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
     JdbcOwnerAllocationPolicyStoreAdapter.class,
-    StockAllocationCommitter.class,
-    StockOperationAssignmentResultFactory.class,
+    StockAllocationCommitService.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationLifecycleChangedIntegrationEventAdapter.class,
     StockOperationCompletedIntegrationEventAdapter.class,
@@ -96,7 +94,7 @@ class StockOperationAssignmentPersistenceIntegrationTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-08-27");
 
     @Autowired
-    private StockAllocationCommitter allocationCommitter;
+    private StockAllocationCommitService allocationCommitter;
 
     @Autowired
     private ReleaseStockOperationUsecase releaseOperation;

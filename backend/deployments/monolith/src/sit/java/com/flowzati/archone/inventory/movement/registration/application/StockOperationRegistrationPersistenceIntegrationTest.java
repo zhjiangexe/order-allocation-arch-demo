@@ -10,9 +10,8 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
-import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
@@ -85,8 +84,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
     JdbcOwnerAllocationPolicyStoreAdapter.class,
     JdbcStockAllocationSupplyStoreAdapter.class,
     MovementAssignmentPlanner.class,
-    StockAllocationCommitter.class,
-    StockOperationAssignmentResultFactory.class,
+    StockAllocationCommitService.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentCoordinator.class,
     AllocateOrderUsecase.class,

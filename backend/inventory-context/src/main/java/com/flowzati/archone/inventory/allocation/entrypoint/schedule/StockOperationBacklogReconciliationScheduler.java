@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.entrypoint.schedule;
 
-import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogReconciler;
+import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogInteractor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -20,9 +20,9 @@ import org.springframework.stereotype.Component;
         matchIfMissing = true)
 public class StockOperationBacklogReconciliationScheduler {
 
-    private final StockOperationBacklogReconciler stockOperationBacklogUsecase;
+    private final StockOperationBacklogInteractor stockOperationBacklogUsecase;
 
-    public StockOperationBacklogReconciliationScheduler(StockOperationBacklogReconciler stockOperationBacklogUsecase) {
+    public StockOperationBacklogReconciliationScheduler(StockOperationBacklogInteractor stockOperationBacklogUsecase) {
         this.stockOperationBacklogUsecase = stockOperationBacklogUsecase;
     }
 

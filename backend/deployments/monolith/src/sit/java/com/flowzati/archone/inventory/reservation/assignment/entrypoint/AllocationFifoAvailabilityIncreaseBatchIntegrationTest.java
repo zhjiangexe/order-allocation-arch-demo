@@ -9,7 +9,7 @@ import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
-import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogReconciler;
+import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogInteractor;
 import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
@@ -73,7 +73,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     @Autowired
     private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-    private StockOperationBacklogReconciler stockOperationBacklogReconciler;
+    private StockOperationBacklogInteractor stockOperationBacklogInteractor;
 
     @Autowired
     private StockOperationAssignmentBacklogStore stockOperationAssignmentBacklogStore;
@@ -106,7 +106,7 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     void seedCatalogForOrders() {
         // test profile 刻意不建立／啟動 production scheduler bean，避免背景 tick 介入；本 SIT
         // 直接建立同一個 entrypoint 並明確驅動每一輪，production condition 另由 unit test 保護。
-        stockOperationBacklogReconciler = new StockOperationBacklogReconciler(
+        stockOperationBacklogInteractor = new StockOperationBacklogInteractor(
                 stockOperationAssignmentBacklogStore, assignNextStockOperationUsecase, appClock);
         OrderFixtures.seedCatalog(jdbcTemplate, OrderFixtures.OWNER_ID, "FIFO-SKU");
         ownerAllocationPolicyStore.save(OrderFixtures.OWNER_ID, AllocationSequencePolicy.FIFO);
@@ -373,9 +373,9 @@ class AllocationFifoAvailabilityIncreaseBatchIntegrationTest {
     /** 一次巡檢配完可配需求；再跑一次應沒有新增 outcome。 */
     private int reconcileWithSchedulerUntilStable() {
         int before = allocatedOutcomeCount();
-        stockOperationBacklogReconciler.execute();
+        stockOperationBacklogInteractor.execute();
         int after = allocatedOutcomeCount();
-        stockOperationBacklogReconciler.execute();
+        stockOperationBacklogInteractor.execute();
         assertThat(allocatedOutcomeCount()).isEqualTo(after);
         return after > before ? 1 : 0;
     }

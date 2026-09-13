@@ -12,8 +12,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.foundation.error.StaleStateException;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
-import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
@@ -48,7 +47,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 @DisplayName("Stock allocation committer")
-class StockAllocationCommitterTest {
+class StockAllocationCommitServiceTest {
 
     private static final UUID STOCK_OPERATION_ID = uuid(1);
     private static final UUID OWNER_ID = uuid(2);
@@ -107,7 +106,7 @@ class StockAllocationCommitterTest {
         when(stockMoveStore.lockByStockOperationIdInIdOrder(STOCK_OPERATION_ID)).thenReturn(moves);
         when(stockQuantStore.lockByIds(Set.of(QUANT_1, QUANT_2))).thenReturn(List.of(first, second));
         when(stockMoveStore.saveAll(moves)).thenReturn(moves);
-        StockAllocationCommitter committer = committer(uuid(101), uuid(102), uuid(103));
+        StockAllocationCommitService committer = committer(uuid(101), uuid(102), uuid(103));
 
         var result = committer.commit(proposal, TODAY, ASSIGNED_AT);
 
@@ -214,14 +213,14 @@ class StockAllocationCommitterTest {
         org.mockito.Mockito.verifyNoInteractions(stockQuantStore, assignmentPublisher);
     }
 
-    private StockAllocationCommitter committer(UUID... lineIds) {
+    private StockAllocationCommitService committer(UUID... lineIds) {
         Queue<UUID> ids = new ArrayDeque<>(List.of(lineIds));
-        return new StockAllocationCommitter(
+        return new StockAllocationCommitService(
                 stockOperationStore,
                 stockMoveStore,
                 stockMoveLineStore,
                 stockQuantStore,
-                new StockOperationAssignmentResultFactory(stockOperationTypeStore),
+                stockOperationTypeStore,
                 assignmentPublisher,
                 () -> {
                     UUID id = ids.poll();

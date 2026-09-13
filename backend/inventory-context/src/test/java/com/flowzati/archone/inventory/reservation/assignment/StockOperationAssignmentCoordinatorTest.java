@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.inventory.allocation.application.result.AssignedMove;
 import com.flowzati.archone.inventory.allocation.application.result.AssignedMoveLine;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
-import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.state.StockOperationPredecessor;
@@ -65,7 +65,7 @@ class StockOperationAssignmentCoordinatorTest {
     private StockOperationAssignmentCandidateStore stockOperationAssignmentCandidateStore;
     private StockAllocationSupplyStore stockAllocationSupplyStore;
     private StockAllocationPlanner planner;
-    private StockAllocationCommitter allocationCommitter;
+    private StockAllocationCommitService allocationCommitter;
     private StockOperationAssignmentCoordinator coordinator;
     private final OwnerAllocationPolicyStore ownerAllocationPolicyStore = mock(OwnerAllocationPolicyStore.class);
     private StockOperationDemand demand;
@@ -76,7 +76,7 @@ class StockOperationAssignmentCoordinatorTest {
         stockOperationAssignmentCandidateStore = mock(StockOperationAssignmentCandidateStore.class);
         stockAllocationSupplyStore = mock(StockAllocationSupplyStore.class);
         planner = mock(StockAllocationPlanner.class);
-        allocationCommitter = mock(StockAllocationCommitter.class);
+        allocationCommitter = mock(StockAllocationCommitService.class);
         coordinator = new StockOperationAssignmentCoordinator(
                 stockOperationAssignmentCandidateStore,
                 ownerAllocationPolicyStore,

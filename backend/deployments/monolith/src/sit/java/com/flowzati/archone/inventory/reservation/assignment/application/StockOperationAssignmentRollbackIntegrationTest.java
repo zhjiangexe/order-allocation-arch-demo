@@ -7,9 +7,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
-import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
@@ -73,11 +72,10 @@ import org.springframework.transaction.support.TransactionTemplate;
     StockOperationTypeStoreAdapter.class,
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
     JdbcOwnerAllocationPolicyStoreAdapter.class,
-    StockAllocationCommitter.class,
+    StockAllocationCommitService.class,
     AssignNextStockOperationUsecase.class,
     StockOperationAssignmentCoordinator.class,
     MovementAssignmentPlanner.class,
-    StockOperationAssignmentResultFactory.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentRollbackIntegrationTest.RepositoryConfiguration.class
 })

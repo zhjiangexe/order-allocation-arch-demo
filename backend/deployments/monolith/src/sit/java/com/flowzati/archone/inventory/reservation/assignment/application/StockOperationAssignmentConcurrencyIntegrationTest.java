@@ -6,8 +6,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
-import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitter;
-import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentResultFactory;
+import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
@@ -79,8 +78,7 @@ import org.springframework.transaction.support.TransactionTemplate;
     StockOperationTypeStoreAdapter.class,
     JdbcStockOperationAssignmentCandidateStoreAdapter.class,
     JdbcOwnerAllocationPolicyStoreAdapter.class,
-    StockAllocationCommitter.class,
-    StockOperationAssignmentResultFactory.class,
+    StockAllocationCommitService.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentConcurrencyIntegrationTest.RepositoryConfiguration.class
 })
@@ -99,7 +97,7 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-08-27");
 
     @Autowired
-    private StockAllocationCommitter allocationCommitter;
+    private StockAllocationCommitService allocationCommitter;
 
     @Autowired
     private StockOperationStore stockOperationStore;

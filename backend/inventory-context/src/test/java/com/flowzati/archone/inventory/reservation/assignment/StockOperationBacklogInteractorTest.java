@@ -13,7 +13,7 @@ import com.flowzati.archone.inventory.allocation.application.result.StockOperati
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
-import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogReconciler;
+import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogInteractor;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;
 import java.time.Instant;
@@ -26,15 +26,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("Pending operation backlog assignment")
-class StockOperationBacklogReconcilerTest {
+class StockOperationBacklogInteractorTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 27);
     private static final UUID OWNER_ID = uuid(1);
     private static final UUID LOCATION_ID = uuid(2);
     private final StockOperationAssignmentBacklogStore backlog = mock(StockOperationAssignmentBacklogStore.class);
     private final AssignNextStockOperationUsecase assignNextStockOperationUsecase =
             mock(AssignNextStockOperationUsecase.class);
-    private final StockOperationBacklogReconciler usecase =
-            new StockOperationBacklogReconciler(backlog, assignNextStockOperationUsecase, appClock());
+    private final StockOperationBacklogInteractor usecase =
+            new StockOperationBacklogInteractor(backlog, assignNextStockOperationUsecase, appClock());
 
     @Test
     void drainsSuccessfulQueuesInFairRounds() {
