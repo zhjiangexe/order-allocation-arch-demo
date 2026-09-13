@@ -61,7 +61,7 @@ flowchart LR
 
 ## Allocation commit boundary
 
-`StockAllocationCommitter` 依序：
+`StockAllocationCommitService` 依序：
 
 1. lock operation；若已 assigned，從 retained move lines 重建相同結果；
 2. lock ordered moves，載入 move lines 並組成不擁有 DB lock 的 `StockOperationComposite`，再重驗版本、policy、source 與
@@ -90,7 +90,7 @@ flowchart LR
 3. `StockOperationAssignmentCoordinator`
 4. `StockOperationAssignmentCandidateStore`
 5. `MovementAssignmentPlanner`
-6. `StockAllocationCommitter` / `StockOperationComposite`
+6. `StockAllocationCommitService` / `StockOperationComposite`
 7. `ReleaseStockOperationUsecase` / `CancelStockOperationUsecase` / `CompleteOutboundMovementsUsecase`
 8. `StockOperationViewStore` / `StockOperationReconciliationStore`
 

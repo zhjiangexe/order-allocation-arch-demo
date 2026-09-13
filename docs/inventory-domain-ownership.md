@@ -235,5 +235,5 @@ Posting、Traceability、Inventory Control、Availability 目前只是 seam，�
 
 - `AllocateOrderUsecase` 管理需求登記與首次配貨的同一筆交易。
 - `AssignNextStockOperationUsecase` 管理單次補配交易，供庫存增加 Consumer 與 Reconciler 共用；已有 Inbox 交易時加入該交易。
-- `StockOperationBacklogReconciler` 只管理分頁與迴圈，不開整批交易；每次補配返回時已提交，失敗則在回滾後略過該 queue。
-- `StockOperationAssignmentCoordinator`、`StockOperationRegistrar`、`StockAllocationCommitter` 沿用呼叫端交易，不自行宣告交易。直接呼叫這些服務的整合測試必須提供交易。
+- `StockOperationBacklogInteractor` 只管理分頁與迴圈，不開整批交易；每次補配返回時已提交，失敗則在回滾後略過該 queue。
+- `StockOperationAssignmentCoordinator`、`StockOperationRegistrar`、`StockAllocationCommitService` 沿用呼叫端交易，不自行宣告交易。直接呼叫這些服務的整合測試必須提供交易。

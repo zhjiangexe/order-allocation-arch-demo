@@ -876,7 +876,7 @@ StockOperationDemand + StockAllocationSupply -> StockAllocationProposal
 
 `StockAllocationSupply` 擁有 owner/location/SKU coverage、明確空 SKU group 與 ATP 加總等供給集合不變式；
 每一列是從 SQL 直接投影的 immutable `StockQuantSupply`。focused `StockAllocationSupplyStore` 保留 set-based FEFO
-查詢，`StockAllocationCommitter` 才在 commit phase 重新鎖定並載入 mutable `StockQuant`。
+查詢，`StockAllocationCommitService` 才在 commit phase 重新鎖定並載入 mutable `StockQuant`。
 
 因此 collection shape、planning facts 與 command aggregate 已分離：Planner 只計算，Proposal 不持久化，
 reservation 仍由唯一 transaction boundary 建立。
