@@ -82,7 +82,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         String processId = Workflow.getInfo().getWorkflowId();
         assignmentState.markRequested();
 
-        // Stage 1 - Request allocation and wait for a committed assignment or a cancellation request.
+        // Stage 1 - 訂單配貨
         enterPhase(OrderFulfillmentPhase.ALLOCATION);
         inventoryAllocationActivities.requestAllocation(new RequestAllocationActivityInput(
                 processId, workflowInput.orderId(), workflowInput.orderReceivedAt()));
@@ -97,7 +97,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
 
         StockOperationAssignedInput assignment = assignmentState.assignmentSnapshot();
 
-        // Stage 2 - Coordinate warehouse execution through a confirmed Shipment outcome.
+        // Stage 2 - 倉儲備貨
         enterPhase(OrderFulfillmentPhase.WAREHOUSE_EXECUTION);
 
         // Create or retrieve the Shipment and correlate any Signals received before the Activity response.
@@ -116,14 +116,13 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
         // Wait for a Signal confirming cancellation or handover.
         Workflow.await(() -> shipmentState.hasCancellation() || shipmentState.hasHandover());
 
-        // Stage 3 - Finalize fulfillment based on the Shipment outcome.
         // Shipment cancellation is confirmed; finalize Order cancellation.
         if (shipmentState.hasCancellation()) {
             cancelOrderActivityAndFinish(processId, cancellationState.request(), shipmentState.terminalAtOrNull());
             return;
         }
 
-        // Stage 4 - Complete outbound movements
+        // Stage 3 - 完成出庫
         enterPhase(OrderFulfillmentPhase.INVENTORY_FINALIZATION);
         inventoryMovementActivities.completeOutboundMovements(new CompleteOutboundMovementsActivityInput(
                 processId,
@@ -133,7 +132,7 @@ public final class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkf
                 assignment.moves().stream().map(AssignedStockMove::moveId).toList(),
                 shipmentState.terminalAtOrNull()));
 
-        // Stage 5 - Record Order fulfillment and mark Workflow finished.
+        // Stage 4 - 完成履約
         enterPhase(OrderFulfillmentPhase.ORDER_COMPLETION);
         orderActivities.recordOrderFulfillment(new RecordOrderFulfillmentActivityInput(
                 processId,

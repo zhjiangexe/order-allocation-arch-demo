@@ -13,57 +13,57 @@ skinparam noteBorderColor #A4AFBA
 skinparam ArrowColor #43576B
 skinparam dpi 140
 
-title Order fulfillment\nSimplified activity diagram
+title 訂單履約\n簡化活動圖
 
 start
-partition "Stage 1 - Allocation" {
+partition "階段 1 - 庫存分配" {
   :ALLOCATION\nrequestAllocation Activity;
-  :Wait for committed assignment\nor cancellation request;
-  if (Cancellation requested?) then (yes)
-    :cancelOrderActivityAndFinish()\nUse Workflow.currentTimeMillis();
+  :等待分配承諾\n或取消請求;
+  if (收到取消請求？) then (是)
+    :cancelOrderActivityAndFinish()\n使用 Workflow.currentTimeMillis();
     stop
-  else (no)
+  else (否)
   endif
 }
-partition "Stage 2 - Warehouse execution" {
+partition "階段 2 - 倉內執行" {
   :WAREHOUSE_EXECUTION\nreleaseToWarehouse Activity;
-  :Record Shipment identity\nand correlate early Signals;
-  :Wait for cancellation request or carrier handover;
-  if (Cancellation requested\nand no confirmed handover?) then (yes)
+  :記錄出貨作業識別\n並關聯提前到達的 Signal;
+  :等待取消請求或承運商交接;
+  if (收到取消請求\n且尚未確認交接？) then (是)
     :requestShipmentCancellationActivity();
     note right
-      Enters CANCELLING and calls the WMS Activity.
-      REJECTED: return to WAREHOUSE_EXECUTION.
-      An acknowledgement is not cancellation completion.
+      進入 CANCELLING 並呼叫 WMS Activity。
+      REJECTED：返回 WAREHOUSE_EXECUTION。
+      收到確認不代表取消已完成。
     end note
-  else (no)
+  else (否)
   endif
-  :Wait for carrier handover or Shipment cancellation;
+  :等待承運商交接或出貨作業取消;
 }
-partition "Stage 3 - Resolve Shipment outcome" {
-  if (Shipment cancellation confirmed?) then (yes)
-    :cancelOrderActivityAndFinish()\nUse Shipment cancellation time;
+partition "階段 3 - 判定出貨作業結果" {
+  if (已確認出貨作業取消？) then (是)
+    :cancelOrderActivityAndFinish()\n使用出貨作業取消時間;
     stop
-  else (no: handover confirmed)
+  else (否：已確認交接)
   endif
 }
-partition "Stage 4 - Complete outbound movements" {
+partition "階段 4 - 完成出庫移動" {
   :INVENTORY_FINALIZATION\ncompleteOutboundMovements Activity;
 }
-partition "Stage 5 - Complete the Order" {
+partition "階段 5 - 完成訂單" {
   :ORDER_COMPLETION\nrecordOrderFulfillment Activity;
   :markFinished(FULFILLMENT_COMPLETED);
   stop
 }
 legend bottom
-  cancelOrderActivityAndFinish(): CANCELLING -> cancelOrder Activity
-  -> record cancellation -> markFinished(ORDER_CANCELLED).
-  Ordering REJECTED fails the Workflow; it does not mark cancellation complete.
+  cancelOrderActivityAndFinish()：CANCELLING -> cancelOrder Activity
+  -> 記錄取消 -> markFinished(ORDER_CANCELLED)。
+  Ordering REJECTED 會使 Workflow 失敗，不會標記取消完成。
 
-  Updates record cancellation intent. Signals report WMS outcomes.
-  Only this Workflow requests WMS cancellation; its Signal follows that Activity invocation.
-  Signals can arrive before Activity replies. An already-satisfied wait returns immediately.
-  Inventory release after Order cancellation continues asynchronously.
-  Retry policy and contradictory-fact failure paths are omitted for clarity.
+  Update 會記錄取消意圖。Signal 會回報 WMS 結果。
+  只有此 Workflow 會請求 WMS 取消；對應 Signal 會在該 Activity 呼叫後送達。
+  Signal 可能早於 Activity 回應抵達；等待條件若已滿足，會立即繼續。
+  訂單取消後，庫存釋放仍會非同步繼續。
+  為保持圖表簡潔，省略重試政策與矛盾事實的失敗路徑。
 endlegend
 @enduml
