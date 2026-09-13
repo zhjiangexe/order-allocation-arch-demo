@@ -33,7 +33,7 @@ that planner or the authoritative stock model.
 
 ### 1. Name the boundary after its business command
 
-Rename `StockOperationAssignmentTransaction` to `StockAllocationCommitter` and `execute(...)` to `commit(...)`. `StockAllocation` names
+Rename `StockOperationAssignmentTransaction` to `StockAllocationCommitService` and `execute(...)` to `commit(...)`. `StockAllocation` names
 the proposal being made authoritative; `Committer` names the irreversible application action. The `@Transactional` annotation and
 tests continue to guarantee the technical boundary without embedding that mechanism in the business type name.
 

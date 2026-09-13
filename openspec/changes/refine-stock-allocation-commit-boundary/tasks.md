@@ -1,6 +1,6 @@
 ## 1. Commit Boundary Vocabulary
 
-- [x] 1.1 Rename `StockOperationAssignmentTransaction` to `StockAllocationCommitter`, change `execute` to `commit`, and migrate all production, test, architecture and transaction-pointcut references.
+- [x] 1.1 Rename `StockOperationAssignmentTransaction` to `StockAllocationCommitService`, change `execute` to `commit`, and migrate all production, test, architecture and transaction-pointcut references.
 - [x] 1.2 Rename `QuantReservationSet` and its nested vocabulary to the stage-neutral `MoveQuantAllocationSet` model across assignment, release and completion.
 - [x] 1.3 Replace residual movement, snapshot, batch, picking and generic use-case locals with current StockMove and Allocation vocabulary.
 - [x] 1.4 Rename `StockOperationAssigner` to `StockOperationAssignmentCoordinator` across production and active tests.

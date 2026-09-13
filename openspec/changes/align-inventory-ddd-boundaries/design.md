@@ -7,7 +7,7 @@ candidate selection -> immutable demand/supply -> pure planning -> transactional
 ```
 
 `StockOperationAssignmentCoordinator` selects work, `StockAllocationPlanner` produces a proposal without persistence, and
-`StockAllocationCommitter` locks and revalidates authoritative state before writing move lines, quant reservations and lifecycle state.
+`StockAllocationCommitService` locks and revalidates authoritative state before writing move lines, quant reservations and lifecycle state.
 The remaining problem is structural rather than algorithmic. Packages still describe a mixture of technical categories and obsolete
 aggregate assumptions:
 

@@ -2,7 +2,7 @@
 
 ### Requirement: A ready stock allocation proposal commits through one cohesive boundary
 
-The allocation application SHALL commit a ready `StockAllocationProposal` through an internal `StockAllocationCommitter`. The
+The allocation application SHALL commit a ready `StockAllocationProposal` through an internal `StockAllocationCommitService`. The
 committer SHALL expose a `commit` operation and SHALL keep proposal validation, canonical operation/move/quant locking, final
 predecessor validation, quant reservation, `StockMoveLine` creation, operation/move assignment and integration-event publication inside
 one database transaction.

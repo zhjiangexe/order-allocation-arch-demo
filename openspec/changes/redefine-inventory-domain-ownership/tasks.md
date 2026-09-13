@@ -41,7 +41,7 @@
 - [x] 6.2 Move `StockMoveLine` to Reservation ownership while preserving its class name, validation, persistence identity, schema mapping and create/delete lifecycle.
 - [x] 6.3 Extract a Reservation-owned `StockMoveLineRepository` Application port for save/find/delete operations and leave `StockMoveRepository` responsible only for Stock Moves.
 - [x] 6.4 Move or split the existing Move Line JPA repository, entity mapping and adapter behind the new port without changing SQL, flush behavior, constraints, lock order or transaction ownership.
-- [x] 6.5 Update `StockAllocationCommitter`, release, completion, cancellation and receipt workflows to use the new Reservation port while preserving proposal revalidation and exact-coverage invariants.
+- [x] 6.5 Update `StockAllocationCommitService`, release, completion, cancellation and receipt workflows to use the new Reservation port while preserving proposal revalidation and exact-coverage invariants.
 - [x] 6.6 Run assignment planner/coordinator/committer, release, concurrency/rollback, Move Line persistence/schema and architecture tests.
 
 ## 7. Move completion, lifecycle publication and cancellation to Movement

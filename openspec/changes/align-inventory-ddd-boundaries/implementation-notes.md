@@ -51,7 +51,7 @@ deleted, reset, overwritten or reformatted merely because they are present in th
 ### Messaging and framework boundaries
 
 - `inventory-context/.../allocation/application/event/*.java`
-- `StockAllocationCommitter`, cancellation transactions, release/completion use cases and `ConfirmStockReceiptUsecase`
+- `StockAllocationCommitService`, cancellation transactions, release/completion use cases and `ConfirmStockReceiptUsecase`
 - Inventory messaging adapters and entrypoint subscription identities
 - `inventory-context/.../allocation/domain/service/MovementAssignmentPlanner.java`
 - `inventory-context/.../movement/application/query/StockOperationView.java`

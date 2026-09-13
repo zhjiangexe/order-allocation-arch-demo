@@ -133,8 +133,8 @@ inventory/reservation/
 ```
 
 - Order intake 先呼叫 Movement registration，再呼叫 Reservation assignment；Order aggregate 不進入 Inventory。
-- `StockOperationAssignmentCoordinator` 讀 Allocation candidate/supply、呼叫 planner，ready 時交給 `StockAllocationCommitter`。
-- `StockAllocationCommitter`、`MoveQuantAllocationSet`、assignment result/factory/publisher、wake-up consumer/scheduler/reconciler 歸 Reservation Assignment。
+- `StockOperationAssignmentCoordinator` 讀 Allocation candidate/supply、呼叫 planner，ready 時交給 `StockAllocationCommitService`。
+- `StockAllocationCommitService`、`MoveQuantAllocationSet`、assignment result/factory/publisher、wake-up consumer/scheduler/reconciler 歸 Reservation Assignment。
 - `ReleaseStockOperationUsecase` 歸 Reservation Release。
 - `StockMoveLine` 保留既有 class name、schema、identity 與 create/delete lifecycle，但 domain ownership 從 Movement 移至 Reservation。
 
