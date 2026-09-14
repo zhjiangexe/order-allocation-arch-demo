@@ -149,6 +149,8 @@ Messaging infrastructure 與 Persistence infrastructure 不得互相依賴。
 
 ## Verification
 
+- Ordering scoped verification 統一執行 repository root 的 `./scripts/agent/verify-ordering.sh`；agent、hook 與
+  CI 不得各自複製另一套指令。
 - 修改 Java 後執行 `cd backend && ./gradlew spotlessApply`。
 - 至少執行 `cd backend && ./gradlew :ordering-context:test`。
 - 提交前執行 `cd backend && ./gradlew spotlessCheck`。
