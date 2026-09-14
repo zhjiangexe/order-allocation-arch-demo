@@ -7,6 +7,7 @@ import com.flowzati.archone.demo.orderfulfillment.result.WorkflowQueryStatus;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
 import com.flowzati.archone.inventory.movement.entrypoint.rest.StockOperationResponse;
 import com.flowzati.archone.orderfulfillment.configuration.OrderFulfillmentProperties.Driver;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.wms.shipment.application.result.ShipmentView;
@@ -41,7 +42,7 @@ public class OrderFulfillmentQueryService {
     }
 
     public OrderFulfillmentView query(UUID orderId) {
-        Order order = getOrderUsecase.getOrder(orderId);
+        Order order = getOrderUsecase.getOrder(new GetOrderQuery(orderId));
         StockOperationResponse stockOperation = stockOperationQueryService
                 .findPrimaryOrder(orderId)
                 .map(StockOperationResponse::from)

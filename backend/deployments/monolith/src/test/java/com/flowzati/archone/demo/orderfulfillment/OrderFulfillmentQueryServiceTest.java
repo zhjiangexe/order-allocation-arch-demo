@@ -17,6 +17,7 @@ import com.flowzati.archone.inventory.movement.application.service.StockOperatio
 import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentSnapshot;
 import com.flowzati.archone.orderfulfillment.configuration.OrderFulfillmentProperties.Driver;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
@@ -62,7 +63,7 @@ class OrderFulfillmentQueryServiceTest {
                         Instant.parse("2099-01-01T12:00:00Z"),
                         0));
         when(order.getLines()).thenReturn(List.of());
-        when(orders.getOrder(orderId)).thenReturn(order);
+        when(orders.getOrder(new GetOrderQuery(orderId))).thenReturn(order);
         var header = mock(StockOperationHeaderView.class);
         when(header.stockOperationId()).thenReturn(operationId);
         when(operations.findPrimaryOrder(orderId))
@@ -101,7 +102,7 @@ class OrderFulfillmentQueryServiceTest {
 
     @Test
     void unknownOrderDoesNotTriggerWorkflowQuery() {
-        when(orders.getOrder(orderId)).thenThrow(new NoSuchElementException("Order not found"));
+        when(orders.getOrder(new GetOrderQuery(orderId))).thenThrow(new NoSuchElementException("Order not found"));
         assertThatThrownBy(() -> service(Driver.TEMPORAL).query(orderId)).isInstanceOf(NoSuchElementException.class);
         verifyNoInteractions(readers, reader);
     }

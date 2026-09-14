@@ -1,5 +1,7 @@
 package com.flowzati.archone.ordering.entrypoint.rest;
 
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
+import com.flowzati.archone.ordering.application.invocation.ListRecentOrdersQuery;
 import com.flowzati.archone.ordering.application.invocation.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
@@ -74,15 +76,17 @@ public class OrderRest {
             throw new IllegalArgumentException(
                     "limit must be between " + MIN_LIMIT + " and " + MAX_LIMIT + ", but was " + limit);
         }
-        return (ownerId == null
-                        ? listRecentOrdersUsecase.listRecent(limit)
-                        : listRecentOrdersUsecase.listRecent(ownerId, limit))
-                .stream().map(OrderStatusResponse::from).toList();
+        ListRecentOrdersQuery query = ownerId == null
+                ? ListRecentOrdersQuery.forAllOwners(limit)
+                : ListRecentOrdersQuery.forOwner(ownerId, limit);
+        return listRecentOrdersUsecase.listRecent(query).stream()
+                .map(OrderStatusResponse::from)
+                .toList();
     }
 
     @GetMapping("/{orderId}")
     public OrderStatusResponse getOrder(@PathVariable(name = "orderId") UUID orderId) {
-        return OrderStatusResponse.from(getOrderUsecase.getOrder(orderId));
+        return OrderStatusResponse.from(getOrderUsecase.getOrder(new GetOrderQuery(orderId)));
     }
 
     /**

@@ -9,6 +9,7 @@ import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellation
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
@@ -33,7 +34,7 @@ public class TemporalFulfillmentCancellationCoordinator implements FulfillmentCa
 
     @Override
     public FulfillmentCancellationResult request(FulfillmentCancellationRequest request) {
-        Order order = getOrderUsecase.getOrder(request.orderId());
+        Order order = getOrderUsecase.getOrder(new GetOrderQuery(request.orderId()));
         if (order.getStatus() == OrderStatus.CANCELLED) {
             requireSameCommittedRequest(order, request);
             return new FulfillmentCancellationResult(

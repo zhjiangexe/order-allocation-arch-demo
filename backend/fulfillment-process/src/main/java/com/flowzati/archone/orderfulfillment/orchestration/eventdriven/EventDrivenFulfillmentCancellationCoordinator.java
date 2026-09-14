@@ -6,6 +6,7 @@ import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellation
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
 import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
@@ -44,7 +45,7 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
     @Override
     @Transactional
     public FulfillmentCancellationResult request(FulfillmentCancellationRequest request) {
-        Order order = getOrderUsecase.getOrder(request.orderId());
+        Order order = getOrderUsecase.getOrder(new GetOrderQuery(request.orderId()));
         if (order.getStatus() == OrderStatus.CANCELLED) {
             return cancelOrder(request);
         }

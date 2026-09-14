@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
@@ -49,7 +50,7 @@ class EventDrivenFulfillmentCancellationCoordinatorTest {
 
         Order order = mock(Order.class);
         when(order.getStatus()).thenReturn(OrderStatus.ALLOCATED);
-        when(getOrderUsecase.getOrder(ORDER_ID)).thenReturn(order);
+        when(getOrderUsecase.getOrder(new GetOrderQuery(ORDER_ID))).thenReturn(order);
     }
 
     @Test

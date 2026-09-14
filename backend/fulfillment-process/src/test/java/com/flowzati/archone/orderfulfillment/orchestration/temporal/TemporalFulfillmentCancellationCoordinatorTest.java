@@ -14,6 +14,7 @@ import com.flowzati.archone.orchestration.contract.workflow.order.result.Cancell
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
@@ -48,7 +49,7 @@ class TemporalFulfillmentCancellationCoordinatorTest {
         OrderFulfillmentWorkflow workflow = mock(OrderFulfillmentWorkflow.class);
         Order order = mock(Order.class);
         when(order.getStatus()).thenReturn(OrderStatus.ALLOCATED);
-        when(getOrderUsecase.getOrder(ORDER_ID)).thenReturn(order);
+        when(getOrderUsecase.getOrder(new GetOrderQuery(ORDER_ID))).thenReturn(order);
         when(workflowClient.newWorkflowStub(
                         OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(ORDER_ID)))
                 .thenReturn(workflow);
@@ -73,7 +74,7 @@ class TemporalFulfillmentCancellationCoordinatorTest {
         when(order.getStatus()).thenReturn(OrderStatus.CANCELLED);
         when(order.getCancellationRequestId()).thenReturn(REQUEST_ID);
         when(order.getCancellationReason()).thenReturn("Customer changed mind");
-        when(getOrderUsecase.getOrder(ORDER_ID)).thenReturn(order);
+        when(getOrderUsecase.getOrder(new GetOrderQuery(ORDER_ID))).thenReturn(order);
         TemporalFulfillmentCancellationCoordinator coordinator =
                 new TemporalFulfillmentCancellationCoordinator(getOrderUsecase, workflowClient);
 
@@ -92,7 +93,7 @@ class TemporalFulfillmentCancellationCoordinatorTest {
         when(order.getStatus()).thenReturn(OrderStatus.CANCELLED);
         when(order.getCancellationRequestId()).thenReturn(REQUEST_ID);
         when(order.getCancellationReason()).thenReturn("Customer changed mind");
-        when(getOrderUsecase.getOrder(ORDER_ID)).thenReturn(order);
+        when(getOrderUsecase.getOrder(new GetOrderQuery(ORDER_ID))).thenReturn(order);
         TemporalFulfillmentCancellationCoordinator coordinator =
                 new TemporalFulfillmentCancellationCoordinator(getOrderUsecase, mock(WorkflowClient.class));
 

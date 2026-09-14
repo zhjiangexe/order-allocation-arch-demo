@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.error.NotFoundException;
 import com.flowzati.archone.ordering.application.error.OrderApplicationErrorCode;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
@@ -28,7 +29,7 @@ class GetOrderUsecaseTest {
         Order order = OrderingFixtures.pendingOrder(orderId, "SKU-1", 3, Instant.now());
         when(repository.findById(orderId)).thenReturn(Optional.of(order));
 
-        assertThat(usecase.getOrder(orderId)).isEqualTo(order);
+        assertThat(usecase.getOrder(new GetOrderQuery(orderId))).isEqualTo(order);
     }
 
     @Test
@@ -37,7 +38,7 @@ class GetOrderUsecaseTest {
         UUID orderId = UUID.randomUUID();
         when(repository.findById(orderId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> usecase.getOrder(orderId))
+        assertThatThrownBy(() -> usecase.getOrder(new GetOrderQuery(orderId)))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining(orderId.toString())
                 .satisfies(exception -> assertThat(((NotFoundException) exception).errorCode())

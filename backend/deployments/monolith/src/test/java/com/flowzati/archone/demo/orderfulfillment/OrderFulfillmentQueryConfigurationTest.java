@@ -11,6 +11,7 @@ import com.flowzati.archone.demo.orderfulfillment.result.WorkflowQueryStatus;
 import com.flowzati.archone.demo.orderfulfillment.service.OrderFulfillmentQueryService;
 import com.flowzati.archone.demo.orderfulfillment.service.TemporalWorkflowStateReader;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
+import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.type.OrderStatus;
@@ -79,6 +80,6 @@ class OrderFulfillmentQueryConfigurationTest {
                         LocalDate.of(2099, 1, 2),
                         Instant.parse("2099-01-01T12:00:00Z"),
                         0));
-        when(orders.getOrder(orderId)).thenReturn(order);
+        when(orders.getOrder(new GetOrderQuery(orderId))).thenReturn(order);
     }
 }

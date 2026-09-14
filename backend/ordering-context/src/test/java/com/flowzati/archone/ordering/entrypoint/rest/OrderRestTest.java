@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.ordering.application.invocation.ListRecentOrdersQuery;
 import com.flowzati.archone.ordering.application.invocation.PlaceOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.GetOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase;
@@ -93,9 +94,10 @@ class OrderRestTest {
     @Test
     void filtersRecentOrdersByOwner() {
         UUID ownerId = UUID.randomUUID();
-        when(listRecentOrdersUsecase.listRecent(ownerId, 20)).thenReturn(List.of());
+        when(listRecentOrdersUsecase.listRecent(ListRecentOrdersQuery.forOwner(ownerId, 20)))
+                .thenReturn(List.of());
         assertThat(mvc.get().uri("/orders?ownerId=" + ownerId + "&limit=20")).hasStatusOk();
-        verify(listRecentOrdersUsecase).listRecent(ownerId, 20);
+        verify(listRecentOrdersUsecase).listRecent(ListRecentOrdersQuery.forOwner(ownerId, 20));
     }
 
     @Test
@@ -235,7 +237,8 @@ class OrderRestTest {
                 null,
                 null,
                 null);
-        when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(twoLineOrder));
+        when(listRecentOrdersUsecase.listRecent(ListRecentOrdersQuery.forAllOwners(20)))
+                .thenReturn(List.of(twoLineOrder));
 
         MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
 
@@ -273,7 +276,8 @@ class OrderRestTest {
                 null,
                 null,
                 null);
-        when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(backordered));
+        when(listRecentOrdersUsecase.listRecent(ListRecentOrdersQuery.forAllOwners(20)))
+                .thenReturn(List.of(backordered));
 
         MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
 
@@ -303,7 +307,8 @@ class OrderRestTest {
                 null,
                 fulfilledAt,
                 1L);
-        when(listRecentOrdersUsecase.listRecent(20)).thenReturn(List.of(fulfilled));
+        when(listRecentOrdersUsecase.listRecent(ListRecentOrdersQuery.forAllOwners(20)))
+                .thenReturn(List.of(fulfilled));
 
         MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
 
@@ -315,7 +320,7 @@ class OrderRestTest {
     @Test
     @DisplayName("訂單只帶貨主識別碼，不帶名稱——名稱由呼叫端用它已載入的主檔自行解析")
     void carriesOwnerIdButNotOwnerName() {
-        when(listRecentOrdersUsecase.listRecent(20))
+        when(listRecentOrdersUsecase.listRecent(ListRecentOrdersQuery.forAllOwners(20)))
                 .thenReturn(List.of(OrderingFixtures.pendingOrder(UUID.randomUUID(), SKU, 3, RECEIVED_AT)));
 
         MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
@@ -330,7 +335,7 @@ class OrderRestTest {
     @DisplayName("最近訂單列表預設取 20 筆")
     void shouldListRecentOrdersWithDefaultLimit() {
         UUID orderId = UUID.randomUUID();
-        when(listRecentOrdersUsecase.listRecent(20))
+        when(listRecentOrdersUsecase.listRecent(ListRecentOrdersQuery.forAllOwners(20)))
                 .thenReturn(List.of(OrderingFixtures.pendingOrder(orderId, SKU, 3, RECEIVED_AT)));
 
         MvcTestResultAssert response = assertThat(mvc.get().uri("/orders"));
@@ -345,7 +350,8 @@ class OrderRestTest {
     @ValueSource(ints = {1, 100})
     @DisplayName("limit 在有效範圍內應被接受")
     void shouldAcceptLimitWithinRange(int limit) {
-        when(listRecentOrdersUsecase.listRecent(limit)).thenReturn(List.of());
+        when(listRecentOrdersUsecase.listRecent(ListRecentOrdersQuery.forAllOwners(limit)))
+                .thenReturn(List.of());
 
         assertThat(mvc.get().uri("/orders?limit=" + limit)).hasStatus(200);
     }

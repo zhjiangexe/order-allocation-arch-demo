@@ -7,8 +7,15 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.lang.ArchCondition;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -25,7 +32,8 @@ class OrderingContextArchitectureTest {
             PROJECT_PACKAGE + ".messaging.events.IntegrationEventPublisher";
     private static final String DOMAIN_PACKAGE = BASE_PACKAGE + ".domain..";
     private static final String APPLICATION_PACKAGE = BASE_PACKAGE + ".application..";
-    private static final String INVOCATION_PACKAGE = BASE_PACKAGE + ".application.invocation..";
+    private static final String INVOCATION_PACKAGE_ROOT = BASE_PACKAGE + ".application.invocation";
+    private static final String INVOCATION_PACKAGE = INVOCATION_PACKAGE_ROOT + "..";
     private static final String USECASE_PACKAGE = BASE_PACKAGE + ".application.usecase..";
     private static final String APPLICATION_SERVICE_PACKAGE = BASE_PACKAGE + ".application.service..";
     private static final String APPLICATION_PORT_PACKAGE = BASE_PACKAGE + ".application.port..";
@@ -182,6 +190,20 @@ class OrderingContextArchitectureTest {
                     .haveNameMatching(".*(Usecase|Interactor)$")
                     .should()
                     .resideInAPackage(USECASE_PACKAGE)
+                    .check(ORDERING_CLASSES);
+        }
+
+        @Test
+        @DisplayName("Usecase 與 Interactor 只能有一個 public operation，且只能接收一個 Command 或 Query")
+        void usecasesAndInteractorsExposeOneInvocationOperation() {
+            classes()
+                    .that()
+                    .resideInAPackage(USECASE_PACKAGE)
+                    .and()
+                    .areTopLevelClasses()
+                    .and()
+                    .haveNameMatching(".*(Usecase|Interactor)$")
+                    .should(haveSinglePublicOperationWithInvocationParameter())
                     .check(ORDERING_CLASSES);
         }
 
@@ -822,5 +844,51 @@ class OrderingContextArchitectureTest {
                     .resideInAPackage(PERSISTENCE_INFRASTRUCTURE_PACKAGE)
                     .check(ORDERING_CLASSES);
         }
+    }
+
+    private static ArchCondition<JavaClass> haveSinglePublicOperationWithInvocationParameter() {
+        return new ArchCondition<>(
+                "declare exactly one non-static public operation with one application invocation Command or Query") {
+            @Override
+            public void check(JavaClass javaClass, ConditionEvents events) {
+                List<JavaMethod> publicOperations = javaClass.getMethods().stream()
+                        .filter(method -> method.getModifiers().contains(JavaModifier.PUBLIC))
+                        .toList();
+
+                if (publicOperations.size() != 1) {
+                    events.add(SimpleConditionEvent.violated(
+                            javaClass,
+                            javaClass.getName() + " declares " + publicOperations.size()
+                                    + " public operations; exactly one is required"));
+                    return;
+                }
+
+                JavaMethod operation = publicOperations.getFirst();
+                if (operation.getModifiers().contains(JavaModifier.STATIC)) {
+                    events.add(
+                            SimpleConditionEvent.violated(operation, operation.getFullName() + " must not be static"));
+                }
+
+                List<JavaClass> parameterTypes = operation.getRawParameterTypes();
+                if (parameterTypes.size() != 1 || !isInvocation(parameterTypes.getFirst())) {
+                    String parameters = parameterTypes.stream()
+                            .map(JavaClass::getName)
+                            .toList()
+                            .toString();
+                    events.add(SimpleConditionEvent.violated(
+                            operation,
+                            operation.getFullName() + " has parameters " + parameters
+                                    + "; exactly one application.invocation Command or Query is required"));
+                }
+            }
+        };
+    }
+
+    private static boolean isInvocation(JavaClass parameterType) {
+        boolean belongsToInvocationPackage = parameterType.getPackageName().equals(INVOCATION_PACKAGE_ROOT)
+                || parameterType.getPackageName().startsWith(INVOCATION_PACKAGE_ROOT + ".");
+        return belongsToInvocationPackage
+                && (parameterType.getSimpleName().endsWith("Command")
+                        || parameterType.getSimpleName().endsWith("Query"));
     }
 }
