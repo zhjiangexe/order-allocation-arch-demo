@@ -3,8 +3,6 @@ package com.flowzati.archone.inventory.movement.entrypoint.rest;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,10 +35,5 @@ public class StockOperationRest {
         }
         return (ownerId == null ? queryService.listConfirmed(limit) : queryService.listConfirmed(ownerId, limit))
                 .stream().map(StockOperationResponse::from).toList();
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleInvalidRequest(IllegalArgumentException exception) {
-        return ResponseEntity.badRequest().body(exception.getMessage());
     }
 }

@@ -17,16 +17,19 @@ import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSource
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.movement.entrypoint.rest.StockOperationRest;
+import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 @WebMvcTest(StockOperationRest.class)
+@Import(GlobalRestExceptionHandler.class)
 class StockOperationRestTest {
 
     @Autowired

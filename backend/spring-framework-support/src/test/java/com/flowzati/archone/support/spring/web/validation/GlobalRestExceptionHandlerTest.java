@@ -16,12 +16,16 @@ import com.flowzati.archone.foundation.error.InvalidStateTransitionException;
 import com.flowzati.archone.foundation.error.NotFoundException;
 import com.flowzati.archone.foundation.error.StaleStateException;
 import java.net.URI;
+import java.sql.SQLException;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.context.support.StaticMessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -74,6 +78,77 @@ class GlobalRestExceptionHandlerTest {
         assertThat(problem.getProperties())
                 .hasSize(1)
                 .containsEntry("code", exception.errorCode().value());
+    }
+
+    @Test
+    void mapsIllegalArgumentsToInvalidRequestProblemDetails() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/stock-receipts");
+
+        ResponseEntity<ProblemDetail> response =
+                handler.handleInvalidRequest(new IllegalArgumentException("Location is outside facility"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        ProblemDetail problem = response.getBody();
+        assertThat(problem.getType()).isEqualTo(URI.create("urn:archone:problem:invalid-request"));
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail()).isEqualTo("Location is outside facility");
+        assertThat(problem.getInstance()).isEqualTo(URI.create("/stock-receipts"));
+        assertThat(problem.getProperties()).hasSize(1).containsEntry("code", "INVALID_REQUEST");
+    }
+
+    @Test
+    void mapsMissingResourcesToNotFoundProblemDetails() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/orders/order-1");
+
+        ResponseEntity<ProblemDetail> response =
+                handler.handleResourceNotFound(new NoSuchElementException("Order not found"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        ProblemDetail problem = response.getBody();
+        assertThat(problem.getType()).isEqualTo(URI.create("urn:archone:problem:resource-not-found"));
+        assertThat(problem.getTitle()).isEqualTo("Resource not found");
+        assertThat(problem.getDetail()).isEqualTo("Order not found");
+        assertThat(problem.getInstance()).isEqualTo(URI.create("/orders/order-1"));
+        assertThat(problem.getProperties()).hasSize(1).containsEntry("code", "RESOURCE_NOT_FOUND");
+    }
+
+    @Test
+    void mapsUniqueConstraintViolationsToDataConflicts() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/orders");
+        DataIntegrityViolationException exception = new DataIntegrityViolationException(
+                "Could not persist order", new SQLException("duplicate key", "23505"));
+
+        ResponseEntity<ProblemDetail> response = handler.handleDataIntegrityViolation(exception, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        ProblemDetail problem = response.getBody();
+        assertThat(problem.getType()).isEqualTo(URI.create("urn:archone:problem:data-conflict"));
+        assertThat(problem.getTitle()).isEqualTo("Data conflict");
+        assertThat(problem.getDetail()).isEqualTo("The request conflicts with existing data");
+        assertThat(problem.getProperties()).hasSize(1).containsEntry("code", "DATA_CONFLICT");
+    }
+
+    @Test
+    void mapsOtherDataIntegrityViolationsToInvalidRequests() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/orders");
+
+        ResponseEntity<ProblemDetail> response = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("foreign key violation"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        ProblemDetail problem = response.getBody();
+        assertThat(problem.getType()).isEqualTo(URI.create("urn:archone:problem:data-integrity-violation"));
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail()).isEqualTo("The request references data that does not exist or is invalid");
+        assertThat(problem.getProperties()).hasSize(1).containsEntry("code", "DATA_INTEGRITY_VIOLATION");
     }
 
     private static Stream<ContractViolationException> contractViolations() {

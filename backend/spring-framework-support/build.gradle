@@ -10,6 +10,7 @@ dependencies {
     api libs.spring.boot.starter.webmvc
 
     implementation libs.spring.boot.starter.validation
+    implementation libs.spring.tx
 
     annotationProcessor libs.spring.boot.configuration.processor
 

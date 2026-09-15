@@ -1,13 +1,9 @@
 package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
-import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,15 +37,5 @@ public class StockReceiptRest {
                 request.quantity());
         stockReceiptApplicationFacade.confirm(new StockReceiptRequest(request.receiptId(), command));
         return new StockReceiptConfirmedResponse(request.receiptId(), request.sku(), request.quantity());
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleInvalidRequest(IllegalArgumentException exception) {
-        return ResponseEntity.badRequest().body(exception.getMessage());
-    }
-
-    @ExceptionHandler(ApplicationConflictException.class)
-    public ResponseEntity<String> handleIdempotencyConflict(ApplicationConflictException exception) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
     }
 }

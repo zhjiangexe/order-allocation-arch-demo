@@ -79,23 +79,28 @@ class StockReceiptRestTest {
     }
 
     @Test
-    @DisplayName("use case 拒絕收貨時轉成 400")
+    @DisplayName("use case 拒絕輸入時由 global handler 轉成 400 ProblemDetail")
     void shouldMapAnApplicationInputErrorToBadRequest() {
         doThrow(new IllegalArgumentException("Location is outside facility"))
                 .when(facade)
                 .confirm(any());
 
-        assertThat(mvc.post()
-                        .uri("/stock-receipts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY))
-                .hasStatus(400);
+        var response = assertThat(mvc.post()
+                .uri("/stock-receipts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(BODY));
+
+        response.hasStatus(400);
+        response.bodyJson().extractingPath("$.type").isEqualTo("urn:archone:problem:invalid-request");
+        response.bodyJson().extractingPath("$.title").isEqualTo("Invalid request");
+        response.bodyJson().extractingPath("$.detail").isEqualTo("Location is outside facility");
+        response.bodyJson().extractingPath("$.code").isEqualTo("INVALID_REQUEST");
 
         verify(facade).confirm(any());
     }
 
     @Test
-    @DisplayName("同一 receiptId 改送不同內容時回 409")
+    @DisplayName("同一 receiptId 改送不同內容時由 global handler 回 409 ProblemDetail")
     void shouldRejectAConflictingIdempotencyKey() {
         doThrow(new ApplicationConflictException(
                         StockBalanceErrorCode.STOCK_RECEIPT_REQUEST_CONFLICT,
@@ -103,11 +108,20 @@ class StockReceiptRestTest {
                 .when(facade)
                 .confirm(any());
 
-        assertThat(mvc.post()
-                        .uri("/stock-receipts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY))
-                .hasStatus(409);
+        var response = assertThat(mvc.post()
+                .uri("/stock-receipts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(BODY));
+
+        response.hasStatus(409);
+        response.bodyJson()
+                .extractingPath("$.type")
+                .isEqualTo("urn:archone:problem:inventory-stock-receipt-request-conflict");
+        response.bodyJson().extractingPath("$.title").isEqualTo("Business conflict");
+        response.bodyJson()
+                .extractingPath("$.detail")
+                .isEqualTo("Receipt ID is already bound to a different request: " + RECEIPT_ID);
+        response.bodyJson().extractingPath("$.code").isEqualTo("INVENTORY_STOCK_RECEIPT_REQUEST_CONFLICT");
 
         verify(facade).confirm(any());
     }

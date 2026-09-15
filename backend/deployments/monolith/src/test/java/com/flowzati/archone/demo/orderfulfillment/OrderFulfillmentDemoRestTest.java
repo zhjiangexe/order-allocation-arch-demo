@@ -20,6 +20,7 @@ import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFu
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentPhase;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentSnapshot;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.ShipmentTerminalStatus;
+import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -31,11 +32,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResultAssert;
 
 @WebMvcTest(OrderFulfillmentDemoRest.class)
+@Import(GlobalRestExceptionHandler.class)
 class OrderFulfillmentDemoRestTest {
 
     private static final UUID ORDER_ID = UUID.fromString("00000000-0000-7000-8000-000000000001");
