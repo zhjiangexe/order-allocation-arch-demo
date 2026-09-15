@@ -20,16 +20,17 @@ import org.springframework.stereotype.Component;
         matchIfMissing = true)
 public class StockOperationBacklogReconciliationScheduler {
 
-    private final StockOperationBacklogInteractor stockOperationBacklogUsecase;
+    private final StockOperationBacklogInteractor stockOperationBacklogInteractor;
 
-    public StockOperationBacklogReconciliationScheduler(StockOperationBacklogInteractor stockOperationBacklogUsecase) {
-        this.stockOperationBacklogUsecase = stockOperationBacklogUsecase;
+    public StockOperationBacklogReconciliationScheduler(
+            StockOperationBacklogInteractor stockOperationBacklogInteractor) {
+        this.stockOperationBacklogInteractor = stockOperationBacklogInteractor;
     }
 
     @Scheduled(
             initialDelayString = "${archone.allocation.reconciliation-scheduler-initial-delay-ms:30000}",
             fixedDelayString = "${archone.allocation.reconciliation-scheduler-delay-ms:900000}")
     public void reconcileAssignmentBacklog() {
-        stockOperationBacklogUsecase.execute();
+        stockOperationBacklogInteractor.execute();
     }
 }
