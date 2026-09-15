@@ -5,8 +5,8 @@ import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.CancellationRequestInput;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestResult;
+import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
 import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
@@ -33,7 +33,7 @@ public class TemporalFulfillmentCancellationCoordinator implements FulfillmentCa
     }
 
     @Override
-    public FulfillmentCancellationResult request(FulfillmentCancellationRequest request) {
+    public FulfillmentCancellationResult request(FulfillmentCancellationCommand request) {
         Order order = getOrderUsecase.getOrder(new GetOrderQuery(request.orderId()));
         if (order.getStatus() == OrderStatus.CANCELLED) {
             requireSameCommittedRequest(order, request);
@@ -70,7 +70,7 @@ public class TemporalFulfillmentCancellationCoordinator implements FulfillmentCa
         return new FulfillmentCancellationResult(status, acknowledgement.effectiveRequestId());
     }
 
-    private static void requireSameCommittedRequest(Order order, FulfillmentCancellationRequest request) {
+    private static void requireSameCommittedRequest(Order order, FulfillmentCancellationCommand request) {
         if (!request.requestId().equals(order.getCancellationRequestId())
                 || !request.reason().equals(order.getCancellationReason())) {
             throw new DomainConflictException(

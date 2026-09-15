@@ -4,5 +4,5 @@ package com.flowzati.archone.orderfulfillment.application;
 @FunctionalInterface
 public interface FulfillmentCancellationCoordinator {
 
-    FulfillmentCancellationResult request(FulfillmentCancellationRequest request);
+    FulfillmentCancellationResult request(FulfillmentCancellationCommand request);
 }

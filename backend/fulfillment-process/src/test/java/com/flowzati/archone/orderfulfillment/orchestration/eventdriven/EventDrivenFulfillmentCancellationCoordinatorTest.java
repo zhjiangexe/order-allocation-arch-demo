@@ -7,7 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
+import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
 import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
@@ -97,7 +97,7 @@ class EventDrivenFulfillmentCancellationCoordinatorTest {
         verifyNoInteractions(cancelOrderUsecase);
     }
 
-    private static FulfillmentCancellationRequest request() {
-        return new FulfillmentCancellationRequest(REQUEST_ID, ORDER_ID, REQUESTED_AT, "Customer changed mind");
+    private static FulfillmentCancellationCommand request() {
+        return new FulfillmentCancellationCommand(REQUEST_ID, ORDER_ID, REQUESTED_AT, "Customer changed mind");
     }
 }

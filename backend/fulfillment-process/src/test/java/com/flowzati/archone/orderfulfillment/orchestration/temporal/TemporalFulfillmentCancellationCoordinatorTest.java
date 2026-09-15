@@ -11,7 +11,7 @@ import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestResult;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestStatus;
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
+import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
 import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
@@ -58,7 +58,7 @@ class TemporalFulfillmentCancellationCoordinatorTest {
         TemporalFulfillmentCancellationCoordinator coordinator =
                 new TemporalFulfillmentCancellationCoordinator(getOrderUsecase, workflowClient);
 
-        FulfillmentCancellationResult result = coordinator.request(new FulfillmentCancellationRequest(
+        FulfillmentCancellationResult result = coordinator.request(new FulfillmentCancellationCommand(
                 REQUEST_ID, ORDER_ID, Instant.parse("2026-08-20T08:00:00Z"), "Customer changed mind"));
 
         assertThat(result.status()).isEqualTo(expectedStatus);
@@ -78,7 +78,7 @@ class TemporalFulfillmentCancellationCoordinatorTest {
         TemporalFulfillmentCancellationCoordinator coordinator =
                 new TemporalFulfillmentCancellationCoordinator(getOrderUsecase, workflowClient);
 
-        FulfillmentCancellationResult result = coordinator.request(new FulfillmentCancellationRequest(
+        FulfillmentCancellationResult result = coordinator.request(new FulfillmentCancellationCommand(
                 REQUEST_ID, ORDER_ID, Instant.parse("2026-08-20T08:00:00Z"), "Customer changed mind"));
 
         assertThat(result.status()).isEqualTo(FulfillmentCancellationStatus.ALREADY_CANCELLED);
@@ -97,7 +97,7 @@ class TemporalFulfillmentCancellationCoordinatorTest {
         TemporalFulfillmentCancellationCoordinator coordinator =
                 new TemporalFulfillmentCancellationCoordinator(getOrderUsecase, mock(WorkflowClient.class));
 
-        assertThatThrownBy(() -> coordinator.request(new FulfillmentCancellationRequest(
+        assertThatThrownBy(() -> coordinator.request(new FulfillmentCancellationCommand(
                         UUID.randomUUID(), ORDER_ID, Instant.parse("2026-08-20T08:00:00Z"), "Customer changed mind")))
                 .isInstanceOfSatisfying(
                         DomainConflictException.class,

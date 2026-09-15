@@ -1,8 +1,8 @@
 package com.flowzati.archone.orderfulfillment.orchestration.eventdriven;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
+import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
 import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
@@ -44,7 +44,7 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
 
     @Override
     @Transactional
-    public FulfillmentCancellationResult request(FulfillmentCancellationRequest request) {
+    public FulfillmentCancellationResult request(FulfillmentCancellationCommand request) {
         Order order = getOrderUsecase.getOrder(new GetOrderQuery(request.orderId()));
         if (order.getStatus() == OrderStatus.CANCELLED) {
             return cancelOrder(request);
@@ -70,7 +70,7 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
         return cancelOrder(request);
     }
 
-    private FulfillmentCancellationResult cancelOrder(FulfillmentCancellationRequest request) {
+    private FulfillmentCancellationResult cancelOrder(FulfillmentCancellationCommand request) {
         Order.CancellationStatus result = cancelOrderUsecase.cancel(new CancelOrderCommand(
                 request.requestId(), request.orderId(), request.requestedAt(), request.reason()));
         return switch (result) {
@@ -82,7 +82,7 @@ public class EventDrivenFulfillmentCancellationCoordinator implements Fulfillmen
         };
     }
 
-    private static FulfillmentCancellationResult rejected(FulfillmentCancellationRequest request) {
+    private static FulfillmentCancellationResult rejected(FulfillmentCancellationCommand request) {
         return new FulfillmentCancellationResult(FulfillmentCancellationStatus.REJECTED, request.requestId());
     }
 }

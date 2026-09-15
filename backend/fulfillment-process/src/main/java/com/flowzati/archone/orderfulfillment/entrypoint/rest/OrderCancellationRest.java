@@ -2,8 +2,8 @@ package com.flowzati.archone.orderfulfillment.entrypoint.rest;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.error.DomainConflictException;
+import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
 import jakarta.validation.Valid;
@@ -33,7 +33,7 @@ public class OrderCancellationRest {
     public ResponseEntity<OrderCancellationResponse> requestCancellation(
             @PathVariable(name = "orderId") UUID orderId, @Valid @RequestBody OrderCancellationRequest body) {
         FulfillmentCancellationResult result = cancellationCoordinator.request(
-                new FulfillmentCancellationRequest(body.requestId(), orderId, body.requestedAt(), body.reason()));
+                new FulfillmentCancellationCommand(body.requestId(), orderId, body.requestedAt(), body.reason()));
         OrderCancellationResponse response = OrderCancellationResponse.from(result);
         if (result.status() == FulfillmentCancellationStatus.ACCEPTED) {
             return ResponseEntity.accepted().body(response);

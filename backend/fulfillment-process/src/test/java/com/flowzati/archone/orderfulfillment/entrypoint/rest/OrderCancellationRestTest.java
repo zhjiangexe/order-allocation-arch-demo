@@ -6,8 +6,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationRequest;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
@@ -61,7 +61,7 @@ class OrderCancellationRestTest {
         response.bodyJson().extractingPath("$.effectiveRequestId").isEqualTo(REQUEST_ID.toString());
         response.bodyJson().doesNotHavePath("$.detail");
         verify(coordinator)
-                .request(new FulfillmentCancellationRequest(
+                .request(new FulfillmentCancellationCommand(
                         REQUEST_ID, ORDER_ID, REQUESTED_AT, "Customer changed mind"));
     }
 

@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /** 跨重試保持不變的取消命令內容。 */
-public record FulfillmentCancellationRequest(UUID requestId, UUID orderId, Instant requestedAt, String reason) {
+public record FulfillmentCancellationCommand(UUID requestId, UUID orderId, Instant requestedAt, String reason) {
 
-    public FulfillmentCancellationRequest {
+    public FulfillmentCancellationCommand {
         if (requestId == null || orderId == null || requestedAt == null) {
             throw new IllegalArgumentException("Cancellation request ID, Order ID and requested time are required");
         }
