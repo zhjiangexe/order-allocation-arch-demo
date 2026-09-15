@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.allocation.application.invocation.AssignNextPendingStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
@@ -41,19 +42,19 @@ class StockOperationBacklogInteractorTest {
         var first = queueKey("SKU-1");
         var second = queueKey("SKU-2");
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(List.of(first, second));
-        when(assignNextStockOperationUsecase.execute(first))
+        when(assignNextStockOperationUsecase.execute(command(first)))
                 .thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)), Optional.empty());
-        when(assignNextStockOperationUsecase.execute(second))
+        when(assignNextStockOperationUsecase.execute(command(second)))
                 .thenReturn(
                         Optional.of(mock(StockOperationAssignmentResult.class)),
                         Optional.of(mock(StockOperationAssignmentResult.class)),
                         Optional.empty());
         usecase.execute();
         var order = inOrder(assignNextStockOperationUsecase);
-        order.verify(assignNextStockOperationUsecase).execute(first);
-        order.verify(assignNextStockOperationUsecase).execute(second);
-        order.verify(assignNextStockOperationUsecase).execute(first);
-        order.verify(assignNextStockOperationUsecase, times(2)).execute(second);
+        order.verify(assignNextStockOperationUsecase).execute(command(first));
+        order.verify(assignNextStockOperationUsecase).execute(command(second));
+        order.verify(assignNextStockOperationUsecase).execute(command(first));
+        order.verify(assignNextStockOperationUsecase, times(2)).execute(command(second));
         verify(backlog).findQueueKeysWithAvailableStock(TODAY, 200, second);
         verifyNoMoreInteractions(assignNextStockOperationUsecase);
     }
@@ -67,16 +68,16 @@ class StockOperationBacklogInteractorTest {
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(shortages);
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, shortages.getLast()))
                 .thenReturn(List.of(ready));
-        when(assignNextStockOperationUsecase.execute(ready))
+        when(assignNextStockOperationUsecase.execute(command(ready)))
                 .thenReturn(Optional.of(mock(StockOperationAssignmentResult.class)), Optional.empty());
         usecase.execute();
-        verify(assignNextStockOperationUsecase, times(2)).execute(ready);
+        verify(assignNextStockOperationUsecase, times(2)).execute(command(ready));
         for (var queue : shortages) {
-            verify(assignNextStockOperationUsecase).execute(queue);
+            verify(assignNextStockOperationUsecase).execute(command(queue));
         }
         usecase.execute();
         verify(backlog, times(2)).findQueueKeysWithAvailableStock(TODAY, 200, null);
-        verify(assignNextStockOperationUsecase, times(3)).execute(ready);
+        verify(assignNextStockOperationUsecase, times(3)).execute(command(ready));
     }
 
     @Test
@@ -85,11 +86,12 @@ class StockOperationBacklogInteractorTest {
         var following = queueKey("SKU-2");
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, null)).thenReturn(List.of(failed));
         when(backlog.findQueueKeysWithAvailableStock(TODAY, 200, failed)).thenReturn(List.of(following));
-        when(assignNextStockOperationUsecase.execute(failed)).thenThrow(new IllegalStateException("unexpected"));
+        when(assignNextStockOperationUsecase.execute(command(failed)))
+                .thenThrow(new IllegalStateException("unexpected"));
         usecase.execute();
         var order = inOrder(assignNextStockOperationUsecase);
-        order.verify(assignNextStockOperationUsecase).execute(failed);
-        order.verify(assignNextStockOperationUsecase).execute(following);
+        order.verify(assignNextStockOperationUsecase).execute(command(failed));
+        order.verify(assignNextStockOperationUsecase).execute(command(following));
         verifyNoMoreInteractions(assignNextStockOperationUsecase);
     }
 
@@ -103,6 +105,10 @@ class StockOperationBacklogInteractorTest {
 
     private static AssignmentQueueKey queueKey(String skuCode) {
         return new AssignmentQueueKey(OWNER_ID, LOCATION_ID, skuCode);
+    }
+
+    private static AssignNextPendingStockOperationCommand command(AssignmentQueueKey queueKey) {
+        return new AssignNextPendingStockOperationCommand(queueKey);
     }
 
     private static BusinessClock appClock() {

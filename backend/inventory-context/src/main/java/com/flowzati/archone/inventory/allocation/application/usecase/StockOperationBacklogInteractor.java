@@ -1,6 +1,7 @@
 package com.flowzati.archone.inventory.allocation.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.allocation.application.invocation.AssignNextPendingStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
 import java.util.ArrayList;
@@ -59,7 +60,9 @@ public class StockOperationBacklogInteractor {
 
     private boolean tryAssign(AssignmentQueueKey queueKey) {
         try {
-            return assignNextStockOperationUsecase.execute(queueKey).isPresent();
+            return assignNextStockOperationUsecase
+                    .execute(new AssignNextPendingStockOperationCommand(queueKey))
+                    .isPresent();
         } catch (RuntimeException exception) {
             log.atError()
                     .addKeyValue("ownerId", queueKey.ownerId())

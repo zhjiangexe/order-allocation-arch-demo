@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
+import com.flowzati.archone.inventory.allocation.application.invocation.AssignNextPendingStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
@@ -50,7 +50,7 @@ public class AllocationInventoryAvailabilityEventConsumer {
     void onStockAvailabilityIncreased(StockAvailabilityIncreasedIntegrationEvent event) {
         // Availability event 是低延遲觸發來源；定期 reconciliation scheduler 也會呼叫同一個
         // AssignNextStockOperationUsecase，兩者因此共用 FIFO、FEFO 與 ship-complete 規則。
-        assignNextStockOperationUsecase.execute(
-                new AssignmentQueueKey(event.getOwnerId(), event.getLocationId(), event.getSku()));
+        assignNextStockOperationUsecase.execute(AssignNextPendingStockOperationCommand.forQueue(
+                event.getOwnerId(), event.getLocationId(), event.getSku()));
     }
 }

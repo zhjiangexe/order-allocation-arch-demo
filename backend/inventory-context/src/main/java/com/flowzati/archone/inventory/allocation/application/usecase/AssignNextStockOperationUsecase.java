@@ -1,8 +1,8 @@
 package com.flowzati.archone.inventory.allocation.application.usecase;
 
+import com.flowzati.archone.inventory.allocation.application.invocation.AssignNextPendingStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
-import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import jakarta.transaction.Transactional;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,7 @@ public class AssignNextStockOperationUsecase {
 
     /** 每次只嘗試一張需求；已有 Inbox 交易時加入，否則建立獨立交易。 */
     @Transactional
-    public Optional<StockOperationAssignmentResult> execute(AssignmentQueueKey queueKey) {
-        return coordinator.tryAssignNext(queueKey);
+    public Optional<StockOperationAssignmentResult> execute(AssignNextPendingStockOperationCommand command) {
+        return coordinator.tryAssignNext(command.queueKey());
     }
 }
