@@ -51,13 +51,12 @@ public class PlaceOrderUsecase {
                 receivedAt,
                 command.placedAt());
         orderStore.save(placedOrder);
-        publishOrderPlaced(placedOrder, receivedAt);
-        return placedOrder;
-    }
-
-    private void publishOrderPlaced(Order order, Instant receivedAt) {
         orderPlacedPublisher.publish(new OrderPlaced(
-                order.getId(), order.getOwnerId(), order.getDeliveryTerms().facilityId(), receivedAt));
+                placedOrder.getId(),
+                placedOrder.getOwnerId(),
+                placedOrder.getDeliveryTerms().facilityId(),
+                receivedAt));
+        return placedOrder;
     }
 
     /** 行號依提交順序產生，從 1 起算。 */
