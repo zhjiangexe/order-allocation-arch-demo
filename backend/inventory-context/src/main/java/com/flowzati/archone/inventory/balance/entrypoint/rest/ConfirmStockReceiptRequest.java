@@ -1,6 +1,8 @@
 package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -10,7 +12,7 @@ public record ConfirmStockReceiptRequest(
         @NotNull UUID ownerId,
         @NotNull UUID facilityId,
         @NotNull UUID locationId,
-        @NotNull String sku,
-        LocalDate inDate,
-        LocalDate expiryDate,
-        @NotNull Integer quantity) {}
+        @NotBlank String sku,
+        @NotNull LocalDate inDate,
+        @NotNull LocalDate expiryDate,
+        @NotNull @Positive Integer quantity) {}
