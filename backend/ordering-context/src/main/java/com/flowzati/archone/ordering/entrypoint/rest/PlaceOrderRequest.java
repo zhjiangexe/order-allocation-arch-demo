@@ -1,5 +1,12 @@
 package com.flowzati.archone.ordering.entrypoint.rest;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -15,22 +22,22 @@ import java.util.UUID;
  * {@code placedAt}——上游系統說客戶何時下的單。
  */
 public record PlaceOrderRequest(
-        UUID ownerId,
-        String externalOrderNo,
-        String shipToZone,
-        String shipToAddress,
-        LocalDate promisedDeliveryDate,
+        @NotNull UUID ownerId,
+        @NotBlank String externalOrderNo,
+        @NotBlank String shipToZone,
+        @NotBlank String shipToAddress,
+        @NotNull LocalDate promisedDeliveryDate,
         /** 上游依承運時效、截單時間與行事曆算出的最晚離倉時刻。 */
-        Instant dispatchBy,
+        @NotNull Instant dispatchBy,
         /** WMS wave release 排程使用的必填 0..100 優先級；wrapper 用來區分缺欄位與明確的 0。 */
-        Integer releasePriority,
-        UUID facilityId,
+        @NotNull @Min(0) @Max(100) Integer releasePriority,
+        @NotNull UUID facilityId,
         /**
          * 上游說客戶下單的時刻。可省略——上游系統沒有義務送這個值，省略時訂單就不帶它，
          * 不會被補成收單時刻。
          */
         Instant placedAt,
-        List<Line> lines) {
+        @NotEmpty @Valid List<Line> lines) {
 
-    public record Line(String skuCode, int quantity) {}
+    public record Line(@NotBlank String skuCode, @Positive int quantity) {}
 }

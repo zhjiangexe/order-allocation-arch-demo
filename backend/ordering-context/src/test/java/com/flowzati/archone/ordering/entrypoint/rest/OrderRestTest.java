@@ -165,17 +165,14 @@ class OrderRestTest {
     }
 
     @Test
-    @DisplayName("未指定倉別時回 400——倉別必填，領域層就會拒絕")
+    @DisplayName("未指定倉別時回 400——request validation 先拒絕缺少的必填欄位")
     void rejectsOrdersWithoutAWarehouse() {
-        when(placeOrderUsecase.placeOrder(any(PlaceOrderCommand.class)))
-                .thenThrow(new IllegalArgumentException("Fulfillment facility is required"));
-
         assertThat(mvc.post()
                         .uri("/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BODY_WITHOUT_NODE))
                 .hasStatus(400);
-        verify(placeOrderUsecase).placeOrder(any(PlaceOrderCommand.class));
+        verifyNoInteractions(placeOrderUsecase);
     }
 
     @Test
