@@ -25,6 +25,9 @@ import org.springframework.validation.ObjectError;
 import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
@@ -177,15 +180,42 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private RequestValidationError toValidationError(ParameterValidationResult result, MessageSourceResolvable error) {
-        String field = error instanceof FieldError fieldError
-                ? fieldError.getField()
-                : result.getMethodParameter().getParameterName();
+        String field = error instanceof FieldError fieldError ? fieldError.getField() : requestParameterName(result);
         return new RequestValidationError(field, constraintCode(error), messageFormatter.format(error));
     }
 
     private static String constraintCode(MessageSourceResolvable error) {
         String[] codes = error.getCodes();
-        return codes == null || codes.length == 0 ? DEFAULT_ERROR_CODE : codes[codes.length - 1];
+        if (codes == null || codes.length == 0) {
+            return DEFAULT_ERROR_CODE;
+        }
+        return codes[0].split("\\.", 2)[0];
+    }
+
+    private static String requestParameterName(ParameterValidationResult result) {
+        var parameter = result.getMethodParameter();
+        RequestParam requestParam = parameter.getParameterAnnotation(RequestParam.class);
+        if (requestParam != null) {
+            return firstNonBlank(requestParam.name(), requestParam.value(), parameter.getParameterName());
+        }
+        PathVariable pathVariable = parameter.getParameterAnnotation(PathVariable.class);
+        if (pathVariable != null) {
+            return firstNonBlank(pathVariable.name(), pathVariable.value(), parameter.getParameterName());
+        }
+        RequestHeader requestHeader = parameter.getParameterAnnotation(RequestHeader.class);
+        if (requestHeader != null) {
+            return firstNonBlank(requestHeader.name(), requestHeader.value(), parameter.getParameterName());
+        }
+        return parameter.getParameterName();
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private static boolean isUniqueConstraintViolation(Throwable throwable) {
