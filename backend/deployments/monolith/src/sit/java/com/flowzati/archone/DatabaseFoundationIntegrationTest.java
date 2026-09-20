@@ -136,7 +136,7 @@ class DatabaseFoundationIntegrationTest {
     @Test
     @DisplayName("整理後的初始 schema 重跑 Flyway 不應執行任何 migration")
     void freshBaselineIsIdempotent() {
-        assertThat(flyway.info().applied()).hasSize(6);
+        assertThat(flyway.info().applied()).hasSize(8);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         for (String legacyTable :

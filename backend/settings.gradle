@@ -1,13 +1,13 @@
 rootProject.name = 'archone'
 
 include('deployments:monolith')
-include('ordering-context')
-include('inventory-context')
+include('ordering:ordering-api', 'ordering:ordering-server')
+include('inventory:inventory-api', 'inventory:inventory-server')
 include('logistics-data-context')
 include('fulfillment-process')
 include('orchestration-temporal-contract')
 include('orchestration-temporal-runtime')
-include('wms-context')
+include('wms:wms-server')
 include('foundation')
 include('domain-contract')
 include('spring-framework-support')

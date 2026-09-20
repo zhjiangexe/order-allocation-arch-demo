@@ -1,9 +1,9 @@
 package com.flowzati.archone.orderfulfillment.entrypoint.rest;
 
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
+import com.flowzati.archone.orderfulfillment.application.CancellationRequestCoordinator;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
+import com.flowzati.archone.orderfulfillment.application.invocation.FulfillmentCancellationCommand;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -19,9 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/orders")
 public class OrderCancellationRest {
 
-    private final FulfillmentCancellationCoordinator cancellationCoordinator;
+    private final CancellationRequestCoordinator cancellationCoordinator;
 
-    public OrderCancellationRest(FulfillmentCancellationCoordinator cancellationCoordinator) {
+    public OrderCancellationRest(CancellationRequestCoordinator cancellationCoordinator) {
         this.cancellationCoordinator = cancellationCoordinator;
     }
 

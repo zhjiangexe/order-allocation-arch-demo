@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ArchoneApplication;
-import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.CancellationEventDestinations;
+import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
@@ -199,7 +199,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                         WHERE aggregateid = ?
                         """, shipmentId.toString()))
                 .containsEntry("type", ShipmentCancelledIntegrationEvent.EVENT_TYPE)
-                .containsEntry("route", FulfillmentEventDestinations.SHIPMENT_EVENTS)
+                .containsEntry("route", CancellationEventDestinations.SHIPMENT_EVENTS)
                 .containsEntry("partition_key", orderId.toString())
                 .containsEntry("shipment_id", shipmentId.toString())
                 .containsEntry("stock_operation_id", stockOperationId.toString())

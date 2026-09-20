@@ -7,7 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;

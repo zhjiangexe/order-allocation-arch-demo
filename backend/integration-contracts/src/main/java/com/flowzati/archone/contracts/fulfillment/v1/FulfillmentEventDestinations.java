@@ -4,7 +4,6 @@ package com.flowzati.archone.contracts.fulfillment.v1;
 public final class FulfillmentEventDestinations {
 
     public static final String FULFILLMENT_HANDOFFS = "promising.fulfillment-handoffs";
-    public static final String SHIPMENT_EVENTS = "wms.shipment-events";
 
     private FulfillmentEventDestinations() {}
 }

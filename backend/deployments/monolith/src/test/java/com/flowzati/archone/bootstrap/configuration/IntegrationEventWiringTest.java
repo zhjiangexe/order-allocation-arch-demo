@@ -8,9 +8,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.contracts.cancel.v1.CancellationEventDestinations;
+import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
@@ -39,11 +40,12 @@ import com.flowzati.archone.messaging.events.IntegrationEventNameMapping;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
 import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
+import com.flowzati.archone.ordering.application.usecase.CompleteOrderCancellationRequestUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingAllocationResultEventConsumer;
+import com.flowzati.archone.ordering.entrypoint.messaging.OrderingCancellationRequestEventConsumer;
 import com.flowzati.archone.ordering.entrypoint.messaging.OrderingFulfillmentCompletionEventConsumer;
-import com.flowzati.archone.ordering.entrypoint.messaging.OrderingShipmentCancellationEventConsumer;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.shipment.entrypoint.messaging.WmsEventSubscriptions;
 import com.flowzati.archone.wms.shipment.entrypoint.messaging.WmsFulfillmentHandoffEventConsumer;
@@ -87,7 +89,7 @@ class IntegrationEventWiringTest {
                     assertThat(context).doesNotHaveBean(WmsFulfillmentHandoffEventConsumer.class);
                     assertThat(context).doesNotHaveBean(ShipmentHandoverEventConsumer.class);
                     assertThat(context).doesNotHaveBean(OrderingFulfillmentCompletionEventConsumer.class);
-                    assertThat(context).doesNotHaveBean(OrderingShipmentCancellationEventConsumer.class);
+                    assertThat(context).doesNotHaveBean(OrderingCancellationRequestEventConsumer.class);
                     assertThat(context).doesNotHaveBean(AllocationOrderPlacedEventConsumer.class);
                     // Allocation projection、Order cancellation 與 availability reconciliation 仍是一般事件 consumer。
                     assertThat(context.getBeansOfType(IntegrationEventDispatcher.class))
@@ -122,7 +124,7 @@ class IntegrationEventWiringTest {
                         WmsFulfillmentHandoffEventConsumer.class,
                         ShipmentHandoverEventConsumer.class,
                         OrderingFulfillmentCompletionEventConsumer.class,
-                        OrderingShipmentCancellationEventConsumer.class)
+                        OrderingCancellationRequestEventConsumer.class)
                 .withBean(RecordOrderAllocationUsecase.class, () -> mock(RecordOrderAllocationUsecase.class))
                 .withBean(AllocateOrderUsecase.class, () -> mock(AllocateOrderUsecase.class))
                 .withBean(CancelSourceStockMovementsUsecase.class, () -> mock(CancelSourceStockMovementsUsecase.class))
@@ -131,6 +133,9 @@ class IntegrationEventWiringTest {
                 .withBean(CompleteOutboundMovementsUsecase.class, () -> mock(CompleteOutboundMovementsUsecase.class))
                 .withBean(IntegrationEventPublisher.class, () -> mock(IntegrationEventPublisher.class))
                 .withBean(RecordOrderFulfillmentUsecase.class, () -> mock(RecordOrderFulfillmentUsecase.class));
+        runner = runner.withBean(
+                CompleteOrderCancellationRequestUsecase.class,
+                () -> mock(CompleteOrderCancellationRequestUsecase.class));
         runner = runner.withBean(CancelOrderUsecase.class, () -> mock(CancelOrderUsecase.class));
         return factory == null ? runner : runner.withBean(IntegrationEventDispatcherFactory.class, () -> factory);
     }
@@ -221,12 +226,12 @@ class IntegrationEventWiringTest {
         ArgumentCaptor<IntegrationEventHandlers> shipmentCancellationHandlers =
                 ArgumentCaptor.forClass(IntegrationEventHandlers.class);
         verify(factory)
-                .make(eq(OrderingEventSubscriptions.SHIPMENT_CANCELLATIONS), shipmentCancellationHandlers.capture());
+                .make(eq(OrderingEventSubscriptions.CANCELLATION_REQUESTS), shipmentCancellationHandlers.capture());
         assertThat(new IntegrationEventDispatcher(
                         deserializer, shipmentCancellationHandlers.getValue(), mapping, event -> {}))
                 .matches(dispatcher -> dispatcher.supports(
-                        FulfillmentEventDestinations.SHIPMENT_EVENTS,
-                        ShipmentCancelledIntegrationEvent.EVENT_TYPE,
+                        CancellationEventDestinations.ORDERING_CANCELLATION_REQUESTS,
+                        OrderingCancellationRequestedIntegrationEvent.EVENT_TYPE,
                         EventMessageHeaders.INITIAL_CONTRACT_VERSION));
     }
 }

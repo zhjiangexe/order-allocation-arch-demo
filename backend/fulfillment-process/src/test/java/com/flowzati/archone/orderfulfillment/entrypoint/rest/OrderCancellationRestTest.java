@@ -6,11 +6,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCommand;
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
+import com.flowzati.archone.orderfulfillment.application.CancellationRequestCoordinator;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationResult;
 import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationStatus;
+import com.flowzati.archone.orderfulfillment.application.invocation.FulfillmentCancellationCommand;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
+import java.net.SocketTimeoutException;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -20,14 +21,17 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResultAssert;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 @WebMvcTest(OrderCancellationRest.class)
-@Import(GlobalRestExceptionHandler.class)
+@Import({GlobalRestExceptionHandler.class, CancellationRpcExceptionHandler.class})
 @TestPropertySource(
         properties = "archone.web.validation.message-basenames="
                 + "classpath:i18n/validation/constraints_template,"
@@ -43,7 +47,7 @@ class OrderCancellationRestTest {
     private MockMvcTester mvc;
 
     @MockitoBean
-    private FulfillmentCancellationCoordinator coordinator;
+    private CancellationRequestCoordinator coordinator;
 
     @Test
     @DisplayName("協調者受理取消時 HTTP 應回 202，而不是假裝補償已全部完成")
@@ -98,6 +102,33 @@ class OrderCancellationRestTest {
         response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("Cancellation request time is required");
 
         verifyNoInteractions(coordinator);
+    }
+
+    @Test
+    void shouldPreserveDownstreamConflictInsteadOfReportingAccepted() {
+        when(coordinator.request(any())).thenThrow(new HttpClientErrorException(HttpStatus.CONFLICT));
+
+        MvcTestResultAssert response = assertThat(mvc.post()
+                .uri("/orders/{orderId}/cancellation-requests", ORDER_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody()));
+
+        response.hasStatus(409);
+        response.bodyJson().extractingPath("$.code").isEqualTo("DOWNSTREAM_RPC_ERROR");
+    }
+
+    @Test
+    void shouldReportUnknownOutcomeWhenDownstreamTimesOut() {
+        when(coordinator.request(any()))
+                .thenThrow(new ResourceAccessException("timeout", new SocketTimeoutException("read timed out")));
+
+        MvcTestResultAssert response = assertThat(mvc.post()
+                .uri("/orders/{orderId}/cancellation-requests", ORDER_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody()));
+
+        response.hasStatus(504);
+        response.bodyJson().extractingPath("$.code").isEqualTo("DOWNSTREAM_TIMEOUT");
     }
 
     private static String requestBody() {

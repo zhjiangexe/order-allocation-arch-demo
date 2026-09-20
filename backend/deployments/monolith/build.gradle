@@ -24,11 +24,11 @@ configurations {
 }
 
 dependencies {
-    implementation project(':ordering-context')
-    implementation project(':inventory-context')
+    implementation project(':ordering:ordering-server')
+    implementation project(':inventory:inventory-server')
     implementation project(':logistics-data-context')
     implementation project(':fulfillment-process')
-    implementation project(':wms-context')
+    implementation project(':wms:wms-server')
     implementation project(':orchestration-temporal-runtime')
     implementation project(':foundation')
     implementation project(':spring-framework-support')
@@ -61,7 +61,7 @@ dependencies {
     testImplementation libs.spring.boot.starter.webmvc.test
     testImplementation libs.spring.modulith.starter.test
     testImplementation project(':messaging:messaging-test-support')
-    testImplementation(testFixtures(project(':inventory-context')))
+    testImplementation(testFixtures(project(':inventory:inventory-server')))
     testRuntimeOnly libs.junit.platform.launcher
 
     sitImplementation libs.spring.boot.testcontainers

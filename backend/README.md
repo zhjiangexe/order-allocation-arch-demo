@@ -11,10 +11,10 @@ contexts、共用 contracts、messaging infrastructure，以及目前唯一的 S
 | 模組 | 職責 |
 | --- | --- |
 | `deployments:monolith` | Modular monolith Spring Boot composition root、Flyway migrations 與跨 context wiring |
-| `ordering-context` | Order lifecycle bounded context |
-| `inventory-context` | Inventory、allocation、movement 與 warehouse capabilities |
+| `ordering/ordering-api`、`ordering/ordering-server` | Order RPC 契約與 lifecycle bounded context |
+| `inventory/inventory-api`、`inventory/inventory-server` | Inventory API 模組與 allocation、movement、warehouse 實作 |
 | `logistics-data-context` | Owner、product、SKU 與 facility reference data |
-| `wms-context` | WMS bounded context，包含 application、domain 與可由 deployment 組裝的 adapters |
+| `wms/wms-server` | WMS bounded context；取消命令由 Integration Event 或 Temporal Activity 接收 |
 | `fulfillment-process` | Ordering、Inventory、WMS 之間的共用 event-driven 與 Temporal 跨 context 流程 |
 | `orchestration-temporal-contract` | Temporal Workflow／Activity interfaces 與 transport DTOs |
 | `orchestration-temporal-runtime` | Long-running fulfillment Workflow runtime implementation |
@@ -23,6 +23,23 @@ contexts、共用 contracts、messaging infrastructure，以及目前唯一的 S
 | `foundation` | Framework-neutral foundation utilities |
 | `spring-framework-support` | 共用 Spring framework support |
 | `messaging` | Transactional Outbox／Inbox、Kafka 與 Spring adapters；細節見 [`messaging/README.md`](messaging/README.md) |
+
+Ordering 的 `ordering-api` 定義帶 `@PostExchange` 的內部取消 RPC 契約，server
+以 `@RestController` 實作。Monolith 直接注入 server bean；API 模組的測試以 `RestClient` 和
+`HttpServiceProxyFactory` 驗證遠端 HTTP 呼叫。遠端部署可設定
+`archone.fulfillment.rpc.transport=http` 與 `ordering-base-url` 建立 Ordering
+HTTP proxy。WMS 取消命令透過 Integration Event 或 Temporal Activity 接收，無同步 RPC API。
+Inventory 目前無同步 RPC 需求，因此 `inventory-api` 暫無 Java 契約。
+取消流程專用的 Integration Event 與 destination 定義在 `contracts.cancel.v1`；
+`OrderCancelledIntegrationEvent` 是 Ordering 的訂單生命週期事實，仍位於 `contracts.ordering.v1`。
+未來若拆成微服務，需另行處理跨 HTTP 的交易、逾時、重試與服務部署。
+
+Events 模式的取消入口先經 Ordering API 檢查是否已取消／已完成，再於本地交易
+寫出 `WmsCancellationRequestedIntegrationEvent`。WMS 消費請求並處理 Shipment；
+有 Shipment 時以 `ShipmentCancelledIntegrationEvent` 推進 Ordering，查無 Shipment
+時以 `WmsCancellationRequestResolvedIntegrationEvent` 推進 Ordering。HTTP 202
+僅代表請求已寫入 outbox，並非跨 context 取消已完成。Temporal 模式仍由 Workflow
+執行取消流程。
 
 ## 常用指令
 
@@ -42,7 +59,7 @@ contexts、共用 contracts、messaging infrastructure，以及目前唯一的 S
 ```
 
 `check` 會依賴 `spotlessCheck`。若只想驗證特定模組，可將 `test` 替換為該模組，例如
-`./gradlew :inventory-context:test`；完整的 PostgreSQL、Flyway、messaging 與跨 context 驗證則使用
+`./gradlew :inventory:inventory-server:test`；完整的 PostgreSQL、Flyway、messaging 與跨 context 驗證則使用
 `./gradlew :deployments:monolith:sit`。
 
 `deployments:monolith` 是目前唯一的 Spring Boot 啟動入口；各 bounded context 本身不是獨立可啟動的

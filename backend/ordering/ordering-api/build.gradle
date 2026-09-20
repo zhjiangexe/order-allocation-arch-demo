@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'ordering internal RPC contract'
+
+dependencies {
+    api 'org.springframework:spring-web'
+
+    testImplementation libs.spring.boot.starter.webmvc
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

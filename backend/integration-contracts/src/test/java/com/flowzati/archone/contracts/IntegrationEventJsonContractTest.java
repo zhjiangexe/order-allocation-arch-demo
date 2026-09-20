@@ -2,8 +2,8 @@ package com.flowzati.archone.contracts;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;

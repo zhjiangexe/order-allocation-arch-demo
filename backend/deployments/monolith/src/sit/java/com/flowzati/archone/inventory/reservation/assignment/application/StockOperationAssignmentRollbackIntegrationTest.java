@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.inventory.allocation.application.invocation.AssignNextPendingStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
@@ -182,8 +183,9 @@ class StockOperationAssignmentRollbackIntegrationTest {
             failure.install(jdbcTemplate);
         }
 
-        Throwable thrown = catchThrowable(() -> assignNextStockOperationUsecase.execute(
-                new AssignmentQueueKey(OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, "SKU-A")));
+        Throwable thrown =
+                catchThrowable(() -> assignNextStockOperationUsecase.execute(new AssignNextPendingStockOperationCommand(
+                        new AssignmentQueueKey(OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, "SKU-A"))));
 
         assertThat(thrown).isNotNull();
         assertThat(rootCause(thrown).getMessage()).contains(failure.constraintName());

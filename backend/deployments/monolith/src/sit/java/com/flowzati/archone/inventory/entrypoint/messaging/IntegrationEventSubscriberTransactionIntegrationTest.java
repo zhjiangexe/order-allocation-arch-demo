@@ -107,8 +107,11 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         assertThat(applicationContext.getBeansOfType(IntegrationEventHandlers.class))
                 .isEmpty();
         assertThat(applicationContext.getBeansOfType(IntegrationEventDispatcher.class))
-                .hasSize(8)
-                .containsKey("orderingShipmentCancellationIntegrationEventDispatcher");
+                .containsKeys(
+                        "cancellationWmsResultDispatcher",
+                        "cancellationOrderingResultDispatcher",
+                        "orderingCancellationRequestIntegrationEventDispatcher",
+                        "wmsOrderCancellationRequestDispatcher");
     }
 
     @Test

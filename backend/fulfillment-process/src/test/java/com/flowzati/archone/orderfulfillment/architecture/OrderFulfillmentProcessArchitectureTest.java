@@ -2,7 +2,7 @@ package com.flowzati.archone.orderfulfillment.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
-import com.flowzati.archone.orderfulfillment.application.FulfillmentCancellationCoordinator;
+import com.flowzati.archone.orderfulfillment.application.CancellationRequestCoordinator;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import org.junit.jupiter.api.Test;
@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class OrderFulfillmentProcessArchitectureTest {
 
     private static final JavaClasses PROCESS_CLASSES = new ClassFileImporter()
-            .importUrl(FulfillmentCancellationCoordinator.class
+            .importUrl(CancellationRequestCoordinator.class
                     .getProtectionDomain()
                     .getCodeSource()
                     .getLocation());

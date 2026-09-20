@@ -1,7 +1,11 @@
 package com.flowzati.archone.bootstrap.configuration;
 
+import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestResolvedIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestedIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.WmsCancellationRequestResolvedIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.WmsCancellationRequestedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
@@ -44,6 +48,22 @@ public class IntegrationEventContractConfiguration {
                         ShipmentCancelledIntegrationEvent.class,
                         ShipmentCancelledIntegrationEvent.EVENT_TYPE,
                         ShipmentCancelledIntegrationEvent.CONTRACT_VERSION)
+                .map(
+                        WmsCancellationRequestedIntegrationEvent.class,
+                        WmsCancellationRequestedIntegrationEvent.EVENT_TYPE,
+                        WmsCancellationRequestedIntegrationEvent.CONTRACT_VERSION)
+                .map(
+                        WmsCancellationRequestResolvedIntegrationEvent.class,
+                        WmsCancellationRequestResolvedIntegrationEvent.EVENT_TYPE,
+                        WmsCancellationRequestResolvedIntegrationEvent.CONTRACT_VERSION)
+                .map(
+                        OrderingCancellationRequestedIntegrationEvent.class,
+                        OrderingCancellationRequestedIntegrationEvent.EVENT_TYPE,
+                        OrderingCancellationRequestedIntegrationEvent.CONTRACT_VERSION)
+                .map(
+                        OrderingCancellationRequestResolvedIntegrationEvent.class,
+                        OrderingCancellationRequestResolvedIntegrationEvent.EVENT_TYPE,
+                        OrderingCancellationRequestResolvedIntegrationEvent.CONTRACT_VERSION)
                 .map(
                         ShipmentHandedOverIntegrationEvent.class,
                         ShipmentHandedOverIntegrationEvent.EVENT_TYPE,
