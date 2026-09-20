@@ -51,7 +51,7 @@ Feature: 下單前主檔與同步命令的邊界行為
     And request order
     When method post
     Then status 409
-    And match response contains 'already exists'
+    And match response.code == 'DATA_CONFLICT'
 
   Scenario: 收貨以 receiptId 保證重試不會重複入帳，內容不同則拒絕
     # 第一次與完全相同的 retry 都成功；第二次不能讓庫存從 5 變成 10。
@@ -87,4 +87,4 @@ Feature: 下單前主檔與同步命令的邊界行為
     And request conflictingReceipt
     When method post
     Then status 409
-    And match response contains 'already bound'
+    And match response.code == 'INVENTORY_STOCK_RECEIPT_REQUEST_CONFLICT'

@@ -23,7 +23,7 @@ partition "A. 共用 HTTP 入口" {
   建立 immutable request
   requestId + requestedAt + reason; <<#E8F1FF>>
   :依 archone.fulfillment.orchestration-mode
-  注入唯一 FulfillmentCancellationCoordinator; <<#FFF7D6>>
+  注入唯一 CancellationRequestCoordinator; <<#FFF7D6>>
 }
 
 if (Order 已 FULFILLED？) then (是)
@@ -33,36 +33,39 @@ if (Order 已 FULFILLED？) then (是)
 endif
 
 if (orchestration mode？) then (events)
-  partition "B1. Events mode：command 與終態 event 分離" {
-    :EventDrivenFulfillmentCancellationCoordinator; <<#E8F1FF>>
-    :讀取 Order 與最多一張 Shipment; <<#E2F0D9>>
-    if (Shipment 存在？) then (是)
-      :CancelShipmentUsecase
-      提交 immutable cancellation command; <<#E2F0D9>>
-      if (command status？) then (ACCEPTED /
-      ALREADY_ACCEPTED)
-        :回 202 ACCEPTED
-        不在 HTTP transaction 取消 Order; <<#E8F1FF>>
-        :WMS 完成停止作業／recovery
-        Shipment = CANCELLED; <<#FDECEC>>
-        :ShipmentCancelledIntegrationEvent; <<#EDE9FE>>
-        :OrderingShipmentCancellationEventConsumer
-        使用實際 cancelledAt 取消 Order; <<#E8F1FF>>
-      else (REJECTED)
-        :回 409 REJECTED；handover 已先提交
-        後續必須走 Return flow; <<#FFF0F0>>
-        stop
-      endif
-    else (否)
-      :CancelOrderUsecase
-      cancellation 立即成立; <<#FDECEC>>
+  partition "B1. Events mode：持久化 process manager" {
+    :EventDrivenCancellationRequestCoordinator
+    向 Ordering 評估是否可受理; <<#E8F1FF>>
+    :AcceptCancellationRequestUsecase
+    保存 WAITING_WMS 與 WMS 取消請求 outbox; <<#E2F0D9>>
+    :回 202 ACCEPTED；流程仍在進行; <<#E8F1FF>>
+    :WmsCancellationRequestedIntegrationEvent
+    → WMS 查詢並處理 Shipment; <<#EDE9FE>>
+    if (Shipment 可取消？) then (是)
+      :WMS 完成停止作業／recovery
+      Shipment = CANCELLED; <<#FDECEC>>
+      :ShipmentCancelledIntegrationEvent; <<#EDE9FE>>
+    else (無 Shipment／拒絕／多張)
+      :WmsCancellationRequestResolvedIntegrationEvent; <<#EDE9FE>>
     endif
-    :Order = CANCELLED；同 transaction
-    發布 OrderCancelledIntegrationEvent; <<#FDECEC>>
+    :HandleWmsCancellationOutcomeUsecase
+    保存 WMS 結果與下一個流程狀態; <<#E8F1FF>>
+    if (WMS 允許取消 Order？) then (是)
+      :同交易發布 OrderingCancellationRequestedIntegrationEvent
+      流程進入 WAITING_ORDERING; <<#EDE9FE>>
+      :Ordering 取消 Order 並發布
+      OrderCancelledIntegrationEvent 與
+      OrderingCancellationRequestResolvedIntegrationEvent; <<#FDECEC>>
+      :RecordOrderingCancellationOutcomeUsecase
+      流程進入 COMPLETED 或 CONFLICT; <<#E8F1FF>>
+    else (否)
+      :流程進入 REJECTED 或 CONFLICT; <<#FFF0F0>>
+      stop
+    endif
   }
 else (temporal)
   partition "B2. Temporal mode：Update 既有 Workflow" {
-    :TemporalFulfillmentCancellationCoordinator; <<#E8F1FF>>
+    :TemporalCancellationRequestCoordinator; <<#E8F1FF>>
     :requestCancellation(Update); <<#E8F1FF>>
 
     if (correlated handover

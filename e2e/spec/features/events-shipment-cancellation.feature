@@ -18,7 +18,7 @@ Feature: Events 模式在倉內作業前取消 Shipment
 
     # simulation delay 讓 CREATED 成為可觀察的穩定窗口，取消必須在倉內作業前送達。
     Given path 'demo', 'orders', orderId, 'fulfillment'
-    And retry until response.shipments.length == 1 && response.shipments[0].status == 'CREATED'
+    And retry until response.shipments.length == 1 && response.shipments[0].status == 'CREATED' && response.order.status == 'ALLOCATED' && response.stockOperation.operation.state == 'ASSIGNED'
     When method get
     Then status 200
     And match response.order.status == 'ALLOCATED'
@@ -46,3 +46,10 @@ Feature: Events 模式在倉內作業前取消 Shipment
     And match response.shipments[0].cancellationReason == cancellation.reason
     And match response.shipments[0].cancelledAt == '#string'
     And match response.temporalWorkflow == null
+
+    Given path 'orders', orderId, 'cancellation-requests', cancellation.requestId
+    And retry until response.state == 'COMPLETED'
+    When method get
+    Then status 200
+    And match response.wmsOutcome == 'SHIPMENT_CANCELLED'
+    And match response.orderingOutcome == '#string'

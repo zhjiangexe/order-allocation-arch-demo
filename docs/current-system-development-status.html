@@ -766,12 +766,12 @@
       </div>
 
       <div class="flow-lane">
-        <div class="lane-name"><strong>F. 取消訂單</strong><span>共用 API → mode coordinator → Inventory 補償</span></div>
+        <div class="lane-name"><strong>F. 取消訂單</strong><span>共用 API → Events process manager／Temporal workflow → Inventory 補償</span></div>
         <div class="step event"><strong>POST /orders/{id}/cancellation-requests</strong><span>immutable request</span></div>
-        <div class="step sync"><strong>FulfillmentCancellationCoordinator</strong><span>Events 提交 WMS command；Temporal Update 保存 request</span></div>
-        <div class="step state"><strong>WMS cancellation command</strong><span>Temporal 的短 Activity ACK 不等於 Shipment 已取消</span></div>
-        <div class="step event"><strong>Shipment terminal fact</strong><span>CANCELLED → 取消 Order；HANDED_OVER → 正常履約勝出</span></div>
-        <div class="step sync"><strong>CancelOrderUsecase</strong><span>只在 ShipmentCancelled 或 Shipment 尚未建立時執行</span></div>
+        <div class="step sync"><strong>CancellationRequestCoordinator</strong><span>Events 保存流程與 WMS request outbox；Temporal Update 保存 request</span></div>
+        <div class="step state"><strong>WMS cancellation result</strong><span>Events 等待 WMS 結果；Temporal Activity ACK 不等於 Shipment 已取消</span></div>
+        <div class="step event"><strong>Process decision</strong><span>Events 收到 WMS 結果後才要求 Ordering 取消；Temporal 等待 Shipment 終態 Signal</span></div>
+        <div class="step sync"><strong>CancelOrderUsecase</strong><span>Ordering 完成取消並發布結果；Inventory 消費 OrderCancelled 釋放預留</span></div>
         <div class="step event"><strong>OrderCancelledIntegrationEvent</strong><span>Outbox → Kafka</span></div>
         <div class="step event"><strong>Programmatic subscriber</strong><span>transaction + Inbox + typed dispatch</span></div>
         <div class="step sync"><strong>CancelSourceStockMovementsUsecase</strong><span>只處理 Stock business command</span></div>

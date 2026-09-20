@@ -114,27 +114,30 @@ partition "WMS：Shipment 與倉內作業" {
         :handover fact 已成立; <<#E2F0D9>>
       endif
     else (events)
-      :EventDrivenFulfillmentCancellationCoordinator
-      -> CancelShipmentUsecase; <<#FDECEC>>
-
-      if (CancelShipmentStatus？) then (ACCEPTED /
-      ALREADY_ACCEPTED)
-        if (實體作業已開始？) then (是)
-          :Shipment = CANCELLING；
-          WMS recovery backlog 完成停止／回庫; <<#FFF7D6>>
-        endif
-        :Shipment = CANCELLED；
-        cancellationState = COMPLETED; <<#FDECEC>>
-        :ShipmentCancelledIntegrationEvent Outbox
-        帶 requestedAt 與實際 cancelledAt; <<#EDE9FE>>
-        :OrderingShipmentCancellationEventConsumer
-        -> CancelOrderUsecase; <<#E8F1FF>>
+      :EventDrivenCancellationRequestCoordinator
+      -> AcceptCancellationRequestUsecase
+      保存 WAITING_WMS 與 WMS 取消請求 outbox; <<#FDECEC>>
+      :WMS 消費取消請求; <<#EDE9FE>>
+      if (Shipment 存在且可取消？) then (是)
+        :WMS 停止作業／recovery
+        Shipment = CANCELLED; <<#FDECEC>>
+        :ShipmentCancelledIntegrationEvent Outbox; <<#EDE9FE>>
+      else (否)
+        :WmsCancellationRequestResolvedIntegrationEvent Outbox
+        回報無 Shipment／拒絕／多張; <<#EDE9FE>>
+      endif
+      :fulfillment-process 保存 WMS 結果; <<#E8F1FF>>
+      if (可進入 Ordering 取消？) then (是)
+        :OrderingCancellationRequestedIntegrationEvent
+        -> CancelOrderUsecase; <<#EDE9FE>>
         :OrderCancelled Outbox
         -> Inventory 釋放 reservation; <<#FDECEC>>
+        :OrderingCancellationRequestResolvedIntegrationEvent
+        -> process manager COMPLETED; <<#EDE9FE>>
         stop
-      else (REJECTED)
-        :carrier handover 已先提交；
-        正常履約已勝出，取消改走 Return flow; <<#FFF0F0>>
+      else (否)
+        :process manager REJECTED／CONFLICT
+        交運後改走 Return flow; <<#FFF0F0>>
         :handover fact 已成立; <<#E2F0D9>>
       endif
     endif
@@ -159,7 +162,7 @@ note right
   未來只替換這一段，handover 後的線路不變。
 
   Events mode 的取消由 REST controller 呼叫
-  EventDrivenFulfillmentCancellationCoordinator；
+  EventDrivenCancellationRequestCoordinator；
   Temporal mode 則把同一請求送進既有 Workflow Update。
 
   已開始作業的 cancellation 會進入 CANCELLING，

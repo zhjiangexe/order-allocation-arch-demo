@@ -326,24 +326,26 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 
 | Module | 內容 | 狀態 |
 | --- | --- | --- |
-| `ordering-context` | `ordering/{application,domain,entrypoint,infrastructure}` | 已抽離為獨立 Gradle module |
-| `inventory-context` | `inventory/{allocation,balance,movement,warehouse}` | 已抽離為獨立 Gradle module |
+| `ordering-api`／`ordering-server` | Ordering 內部 RPC 契約／`ordering/{application,domain,entrypoint,infrastructure}` | API 與 server 分離 |
+| `inventory-api`／`inventory-server` | Inventory API 邊界／`inventory/{allocation,balance,movement,warehouse}` | API 與 server 分離；目前無需公開 RPC 操作 |
+| `wms-server` | Shipment、picking、wave 等 WMS 實作 | 取消命令透過 Integration Event 或 Temporal Activity 接收 |
 | `logistics-data-context` | `logisticsdata/{application,domain,entrypoint,infrastructure}` | 貨主、商品、SKU 與倉別等物流主檔 context |
 | `bootstrap` | Spring Boot 啟動、跨 context 組裝、migration 與 `demo` | 單一 deployable runtime |
 | `fulfillment` | 履約層（最小版：兩本帳與短揀對帳） | **新增** |
 
-`ordering-context`、`inventory-context` 與 `logistics-data-context` 都已取得編譯期 module 邊界，但尚未成為獨立微服務。
+Ordering、Inventory、WMS 與 `logistics-data-context` 都已取得編譯期 module 邊界，但尚未成為獨立微服務。
+`fulfillment-process` 的取消入口依賴 Ordering API；WMS 取消由 Events process manager 發送事件，或由 Temporal Workflow 呼叫 Activity。
 資料庫 migration、跨 context 的 adapter view 與 Spring Boot 啟動仍由 `bootstrap` 擁有；若日後需要
 獨立部署，再分別建立 runtime module，並先以事件或外部 API 取代跨資料庫查詢。
 
-單一 context 的 unit／MVC slice tests 跟著各自的 module；`inventory-context` 另外以 Gradle test fixtures
+單一 context 的 unit／MVC slice tests 跟著各自的 server module；`inventory-server` 另外以 Gradle test fixtures
 發布 context-owned 測試資料。需要同時組裝 Ordering、Inventory、migration 或 PostgreSQL 的測試才留在
 `bootstrap`，避免測試 fixture 反向模糊 production module 邊界。
 
 `inventory` 目前是同一 bounded context 的 package 根；`allocation` 負責 operation precedence、純供需規劃與批次選擇，
 `balance` 負責 `StockQuant` 與收貨，`movement` 負責 `StockOperation`／`StockMove` 的意圖與生命週期紀錄，
 `warehouse` 擁有 `StockLocation` 與 `StockOperationType` 倉儲設定。WMS 的 picking、wave 與 task execution 仍由
-`wms-context` 擁有，不因 Inventory operation 命名而轉移責任。
+`wms-server` 擁有，不因 Inventory operation 命名而轉移責任。
 
 餘額 aggregate 採 Odoo ubiquitous language 命名為 `StockQuant`。既有 PostgreSQL 表
 `stock_pools`、欄位 `stock_pool_id`、`GET /stock-pool`、v1 JSON 的 `stockPoolId`，以及

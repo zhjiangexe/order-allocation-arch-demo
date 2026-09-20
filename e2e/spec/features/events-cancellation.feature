@@ -41,6 +41,18 @@ Feature: Events 模式的取消流程
     And match response.stockOperation.moves[0].batches == '#[0]'
     And match response.shipments == '#[0]'
 
+    Given path 'orders', cancelledOrderId, 'cancellation-requests', cancellation.requestId
+    And retry until response.state == 'COMPLETED'
+    When method get
+    Then status 200
+    And match response.wmsOutcome == 'NO_SHIPMENT'
+    And match response.orderingOutcome == '#string'
+
+    # requestId 存在但不屬於此 Order，不得洩漏另一張訂單的取消流程。
+    Given path 'orders', newId(), 'cancellation-requests', cancellation.requestId
+    When method get
+    Then status 404
+
     # 網路 retry 重送完全相同的取消命令時，只回報既有結果，不重做 compensation。
     Given path 'orders', cancelledOrderId, 'cancellation-requests'
     And request cancellation
