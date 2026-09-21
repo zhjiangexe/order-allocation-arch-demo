@@ -5,7 +5,7 @@ plugins {
 description = 'cross-boundary integration contracts'
 
 dependencies {
-    api project(':messaging:messaging-events')
+    api project(':archone-framework:messaging:messaging-events')
     api libs.jackson.annotations
 
     testImplementation libs.spring.boot.starter.test

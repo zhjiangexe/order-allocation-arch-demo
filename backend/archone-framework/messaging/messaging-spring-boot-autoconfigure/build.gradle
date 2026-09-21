@@ -1,0 +1,54 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Spring Boot auto-configuration for Archone transactional messaging'
+
+dependencies {
+    compileOnly project(':archone-framework:messaging:messaging-api')
+    compileOnly project(':archone-framework:messaging:messaging-events')
+    compileOnly project(':archone-framework:messaging:messaging-producer-common')
+    compileOnly project(':archone-framework:messaging:messaging-consumer-common')
+    compileOnly project(':archone-framework:messaging:messaging-jdbc-common')
+    compileOnly project(':archone-framework:messaging:messaging-producer-jdbc')
+    compileOnly project(':archone-framework:messaging:messaging-consumer-jdbc')
+    compileOnly project(':archone-framework:messaging:messaging-consumer-kafka')
+    compileOnly project(':archone-framework:messaging:messaging-spring-jdbc')
+    compileOnly project(':archone-framework:messaging:messaging-spring-producer-jdbc')
+    compileOnly project(':archone-framework:messaging:messaging-spring-consumer-jdbc')
+    compileOnly project(':archone-framework:messaging:messaging-spring-consumer-kafka')
+    compileOnly project(':archone-framework:messaging:messaging-spring-observability')
+    compileOnly project(':archone-framework:messaging:messaging-spring-producer-observability')
+    compileOnly project(':archone-framework:messaging:messaging-spring-consumer-observability')
+    compileOnly project(':archone-framework:messaging:messaging-spring-flyway')
+
+    compileOnly libs.spring.boot.starter.flyway
+    compileOnly libs.spring.boot.starter.kafka
+    compileOnly libs.jackson.databind
+    compileOnly libs.micrometer.observation
+
+    annotationProcessor libs.spring.boot.configuration.processor
+    annotationProcessor libs.spring.boot.autoconfigure.processor
+
+    testImplementation project(':archone-framework:messaging:messaging-api')
+    testImplementation project(':archone-framework:messaging:messaging-events')
+    testImplementation project(':archone-framework:messaging:messaging-producer-common')
+    testImplementation project(':archone-framework:messaging:messaging-consumer-common')
+    testImplementation project(':archone-framework:messaging:messaging-jdbc-common')
+    testImplementation project(':archone-framework:messaging:messaging-producer-jdbc')
+    testImplementation project(':archone-framework:messaging:messaging-consumer-jdbc')
+    testImplementation project(':archone-framework:messaging:messaging-consumer-kafka')
+    testImplementation project(':archone-framework:messaging:messaging-spring-jdbc')
+    testImplementation project(':archone-framework:messaging:messaging-spring-producer-jdbc')
+    testImplementation project(':archone-framework:messaging:messaging-spring-consumer-jdbc')
+    testImplementation project(':archone-framework:messaging:messaging-spring-consumer-kafka')
+    testImplementation project(':archone-framework:messaging:messaging-spring-observability')
+    testImplementation project(':archone-framework:messaging:messaging-spring-producer-observability')
+    testImplementation project(':archone-framework:messaging:messaging-spring-consumer-observability')
+    testImplementation project(':archone-framework:messaging:messaging-spring-flyway')
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.flyway
+    testImplementation libs.spring.boot.starter.kafka
+    testRuntimeOnly libs.junit.platform.launcher
+}

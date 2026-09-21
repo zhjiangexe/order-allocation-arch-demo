@@ -1,0 +1,24 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'framework-neutral reusable fixtures and TCK probes for messaging implementations'
+
+dependencies {
+    api project(':archone-framework:messaging:messaging-api')
+    api project(':archone-framework:messaging:messaging-events')
+    api project(':archone-framework:messaging:messaging-producer-common')
+    api project(':archone-framework:messaging:messaging-consumer-common')
+
+    testImplementation project(':archone-framework:messaging:messaging-consumer-jdbc')
+    testImplementation project(':archone-framework:messaging:messaging-spring-producer-observability')
+    testImplementation project(':archone-framework:messaging:messaging-spring-consumer-observability')
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.opentelemetry.test
+    testImplementation libs.micrometer.tracing.bridge.otel
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test') {
+    systemProperty 'archone.rootDir', rootProject.projectDir.absolutePath
+}

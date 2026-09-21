@@ -6,7 +6,7 @@ description = 'Temporal orchestration workflow runtime'
 
 dependencies {
     api project(':orchestration-temporal-contract')
-    implementation project(':foundation')
+    implementation project(':archone-framework:foundation')
     implementation libs.temporal.sdk
 
     testImplementation libs.temporal.testing

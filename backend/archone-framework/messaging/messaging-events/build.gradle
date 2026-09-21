@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'typed Integration Event publication API and implementation'
+
+dependencies {
+    api project(':archone-framework:messaging:messaging-api')
+    api libs.jackson.databind
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

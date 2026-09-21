@@ -30,15 +30,15 @@ dependencies {
     implementation project(':fulfillment-process')
     implementation project(':wms:wms-server')
     implementation project(':orchestration-temporal-runtime')
-    implementation project(':foundation')
+    implementation project(':archone-framework:foundation')
     implementation project(':spring-framework-support')
     implementation project(':integration-contracts')
-    implementation project(':messaging:messaging-api')
-    implementation project(':messaging:messaging-events')
+    implementation project(':archone-framework:messaging:messaging-api')
+    implementation project(':archone-framework:messaging:messaging-events')
     // Optional Tram-style local retry around the complete consumer transaction.
-    implementation project(':messaging:messaging-spring-optimistic-locking')
+    implementation project(':archone-framework:messaging:messaging-spring-optimistic-locking')
     // This deployable both publishes and consumes, so it uses the all-in-one convenience starter.
-    implementation project(':messaging:messaging-spring-boot-starter')
+    implementation project(':archone-framework:messaging:messaging-spring-boot-starter')
     implementation libs.spring.boot.starter.actuator
     implementation libs.spring.boot.starter.data.jpa
     implementation libs.spring.boot.starter.flyway
@@ -60,7 +60,7 @@ dependencies {
     testImplementation libs.spring.boot.starter.opentelemetry.test
     testImplementation libs.spring.boot.starter.webmvc.test
     testImplementation libs.spring.modulith.starter.test
-    testImplementation project(':messaging:messaging-test-support')
+    testImplementation project(':archone-framework:messaging:messaging-test-support')
     testImplementation(testFixtures(project(':inventory:inventory-server')))
     testRuntimeOnly libs.junit.platform.launcher
 

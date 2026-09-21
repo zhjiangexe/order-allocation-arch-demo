@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'all-in-one Spring Boot starter for Archone transactional messaging'
+
+dependencies {
+    api project(':archone-framework:messaging:messaging-spring-producer-starter')
+    api project(':archone-framework:messaging:messaging-spring-consumer-starter')
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

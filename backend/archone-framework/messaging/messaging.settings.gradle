@@ -1,0 +1,27 @@
+// Messaging remains part of the root multi-project build, while owning its artifact inventory.
+[
+    'messaging-api',
+    'messaging-events',
+    'messaging-producer-common',
+    'messaging-consumer-common',
+    'messaging-jdbc-common',
+    'messaging-producer-jdbc',
+    'messaging-consumer-jdbc',
+    'messaging-consumer-kafka',
+    'messaging-spring-jdbc',
+    'messaging-spring-producer-jdbc',
+    'messaging-spring-consumer-jdbc',
+    'messaging-spring-consumer-kafka',
+    'messaging-spring-observability',
+    'messaging-spring-producer-observability',
+    'messaging-spring-consumer-observability',
+    'messaging-spring-optimistic-locking',
+    'messaging-spring-flyway',
+    'messaging-spring-boot-autoconfigure',
+    'messaging-spring-producer-starter',
+    'messaging-spring-consumer-starter',
+    'messaging-spring-boot-starter',
+    'messaging-test-support'
+].each { module ->
+    include(":archone-framework:messaging:${module}")
+}

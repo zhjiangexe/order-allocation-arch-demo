@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Spring JDBC and transaction implementations for messaging ports'
+
+dependencies {
+    api project(':archone-framework:messaging:messaging-jdbc-common')
+    api libs.spring.context
+    api libs.spring.jdbc
+    api libs.spring.tx
+
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}
