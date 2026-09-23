@@ -2,7 +2,8 @@ package com.flowzati.archone.bootstrap.configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.orderfulfillment.configuration.OrderFulfillmentProperties;
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode.Driver;
+import com.flowzati.archone.fulfillment.configuration.OrderFulfillmentProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -16,7 +17,7 @@ class OrderFulfillmentConfigurationTest {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(OrderFulfillmentProperties.class);
             assertThat(context.getBean(OrderFulfillmentProperties.class).orchestrationMode())
-                    .isEqualTo(OrderFulfillmentProperties.Driver.EVENTS);
+                    .isEqualTo(Driver.EVENTS);
         });
     }
 
@@ -26,7 +27,7 @@ class OrderFulfillmentConfigurationTest {
                 .withPropertyValues("archone.fulfillment.orchestration-mode=temporal")
                 .run(context -> assertThat(context.getBean(OrderFulfillmentProperties.class)
                                 .orchestrationMode())
-                        .isEqualTo(OrderFulfillmentProperties.Driver.TEMPORAL));
+                        .isEqualTo(Driver.TEMPORAL));
     }
 
     @Test
@@ -38,6 +39,6 @@ class OrderFulfillmentConfigurationTest {
                         .getFailure()
                         .rootCause()
                         .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessageContaining("OrderFulfillmentProperties.Driver.typo"));
+                        .hasMessageContaining("FulfillmentOrchestrationMode.Driver.typo"));
     }
 }

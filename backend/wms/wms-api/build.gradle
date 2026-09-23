@@ -1,0 +1,9 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'wms internal RPC contract'
+
+dependencies {
+    api 'org.springframework:spring-web'
+}

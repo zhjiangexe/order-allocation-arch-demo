@@ -2,6 +2,7 @@ package com.flowzati.archone.wms.shipment.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
@@ -20,7 +21,10 @@ import org.springframework.context.annotation.Configuration;
 /** Tram-style fulfillment handoff consumer: Inbox transaction surrounds this complete handler. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnIntegrationEventConsumption
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "events", matchIfMissing = true)
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.EVENTS,
+        matchIfMissing = true)
 public class WmsFulfillmentHandoffEventConsumer {
 
     private final CreateShipmentUsecase createShipmentUsecase;

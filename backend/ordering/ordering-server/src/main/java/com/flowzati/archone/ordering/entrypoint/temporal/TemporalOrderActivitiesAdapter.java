@@ -1,5 +1,6 @@
 package com.flowzati.archone.ordering.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityInput;
 import com.flowzati.archone.orchestration.contract.activity.ordering.CancelOrderActivityResult;
@@ -16,7 +17,9 @@ import org.springframework.stereotype.Component;
 
 /** Temporal Order Activity contract 到 Ordering application use cases 的 inbound adapter。 */
 @Component
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "temporal")
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.TEMPORAL)
 public final class TemporalOrderActivitiesAdapter implements OrderActivities {
 
     private final RecordOrderFulfillmentUsecase recordOrderFulfillmentUsecase;

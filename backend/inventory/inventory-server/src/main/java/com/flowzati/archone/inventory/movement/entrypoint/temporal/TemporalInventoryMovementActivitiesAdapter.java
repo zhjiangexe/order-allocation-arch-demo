@@ -1,5 +1,6 @@
 package com.flowzati.archone.inventory.movement.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
@@ -13,7 +14,9 @@ import org.springframework.stereotype.Component;
 
 /** Temporal Inventory Movement Activity contract 到 Movement application use case 的 inbound adapter。 */
 @Component
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "temporal")
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.TEMPORAL)
 public final class TemporalInventoryMovementActivitiesAdapter implements InventoryMovementActivities {
 
     private final CompleteOutboundMovementsUsecase completeOutboundMovementsUsecase;

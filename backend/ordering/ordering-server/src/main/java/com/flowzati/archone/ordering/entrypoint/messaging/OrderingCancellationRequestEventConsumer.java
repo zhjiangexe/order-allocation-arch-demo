@@ -2,6 +2,7 @@ package com.flowzati.archone.ordering.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.cancel.v1.CancellationEventDestinations;
 import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestedIntegrationEvent;
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -15,7 +16,10 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnIntegrationEventConsumption
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "events", matchIfMissing = true)
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.EVENTS,
+        matchIfMissing = true)
 public class OrderingCancellationRequestEventConsumer {
     private final CompleteOrderCancellationRequestUsecase complete;
 

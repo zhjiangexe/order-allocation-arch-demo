@@ -5,6 +5,7 @@ plugins {
 description = 'wms'
 
 dependencies {
+    api project(':wms:wms-api')
     implementation project(':archone-framework:foundation')
     implementation project(':orchestration-temporal-contract')
     implementation project(':integration-contracts')

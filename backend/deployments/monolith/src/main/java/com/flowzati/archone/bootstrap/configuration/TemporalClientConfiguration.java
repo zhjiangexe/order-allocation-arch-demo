@@ -1,5 +1,6 @@
 package com.flowzati.archone.bootstrap.configuration;
 
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
@@ -11,7 +12,9 @@ import org.springframework.context.annotation.Configuration;
 
 /** 建立此 deployable 共用的 Temporal service connection 與 client。 */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "temporal")
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.TEMPORAL)
 public class TemporalClientConfiguration {
 
     @Bean(destroyMethod = "shutdown")

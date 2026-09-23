@@ -2,6 +2,7 @@ package com.flowzati.archone.inventory.allocation.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
@@ -16,7 +17,10 @@ import org.springframework.context.annotation.Configuration;
 /** Event-driven 模式的 order-placement driver；Temporal 模式由同一 subscriber identity 接手。 */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnIntegrationEventConsumption
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "events", matchIfMissing = true)
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.EVENTS,
+        matchIfMissing = true)
 public class AllocationOrderPlacedEventConsumer {
 
     private final AllocateOrderUsecase allocateOrderUsecase;

@@ -1,5 +1,6 @@
 package com.flowzati.archone.bootstrap.configuration;
 
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.orchestration.contract.activity.inventory.InventoryAllocationActivities;
 import com.flowzati.archone.orchestration.contract.activity.inventory.InventoryMovementActivities;
 import com.flowzati.archone.orchestration.contract.activity.ordering.OrderActivities;
@@ -15,7 +16,9 @@ import org.springframework.context.annotation.Configuration;
 
 /** 組裝此 deployable 承載的 Fulfillment Workflow 與 Activity Workers。 */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "temporal")
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.TEMPORAL)
 public class TemporalFulfillmentWorkerConfiguration {
 
     @Bean(destroyMethod = "shutdown")

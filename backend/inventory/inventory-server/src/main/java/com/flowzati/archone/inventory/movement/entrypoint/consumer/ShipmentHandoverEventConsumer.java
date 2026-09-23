@@ -2,6 +2,7 @@ package com.flowzati.archone.inventory.movement.entrypoint.consumer;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
@@ -17,7 +18,10 @@ import org.springframework.context.annotation.Configuration;
 /** Event-driven handover adapter from WMS custody transfer to Inventory movement completion. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnIntegrationEventConsumption
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "events", matchIfMissing = true)
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.EVENTS,
+        matchIfMissing = true)
 public class ShipmentHandoverEventConsumer {
 
     private final CompleteOutboundMovementsUsecase completeOutboundMovements;

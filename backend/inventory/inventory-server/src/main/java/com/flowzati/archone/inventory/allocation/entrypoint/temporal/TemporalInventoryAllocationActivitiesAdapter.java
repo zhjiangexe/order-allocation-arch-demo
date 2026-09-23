@@ -1,5 +1,6 @@
 package com.flowzati.archone.inventory.allocation.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.inventory.allocation.application.invocation.AllocateOrderCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
@@ -10,7 +11,9 @@ import org.springframework.stereotype.Component;
 
 /** Temporal Inventory Allocation Activity contract 到 Allocation application use case 的 inbound adapter。 */
 @Component
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "temporal")
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.TEMPORAL)
 public final class TemporalInventoryAllocationActivitiesAdapter implements InventoryAllocationActivities {
 
     private final AllocateOrderUsecase allocateOrderUsecase;

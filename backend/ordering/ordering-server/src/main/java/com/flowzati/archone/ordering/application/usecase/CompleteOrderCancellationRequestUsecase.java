@@ -1,5 +1,6 @@
 package com.flowzati.archone.ordering.application.usecase;
 
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.ordering.application.event.OrderCancellationResolved;
 import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.port.OrderCancellationResolvedPublisher;
@@ -8,7 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "events", matchIfMissing = true)
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.EVENTS,
+        matchIfMissing = true)
 public class CompleteOrderCancellationRequestUsecase {
     private final CancelOrderUsecase cancelOrder;
     private final OrderCancellationResolvedPublisher publisher;

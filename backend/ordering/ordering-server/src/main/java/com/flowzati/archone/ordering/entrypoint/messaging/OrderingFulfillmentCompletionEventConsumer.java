@@ -2,6 +2,7 @@ package com.flowzati.archone.ordering.entrypoint.messaging;
 
 import com.flowzati.archone.contracts.fulfillment.v1.FulfillmentEventDestinations;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
@@ -17,7 +18,10 @@ import org.springframework.context.annotation.Configuration;
 /** Event-driven 模式下，Inventory 出庫完成後將 Ordering 推進到 FULFILLED。 */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnIntegrationEventConsumption
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "events", matchIfMissing = true)
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.EVENTS,
+        matchIfMissing = true)
 public class OrderingFulfillmentCompletionEventConsumer {
 
     private final RecordOrderFulfillmentUsecase recordOrderFulfillmentUsecase;

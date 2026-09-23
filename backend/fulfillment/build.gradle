@@ -1,0 +1,28 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'cross-context order fulfillment process'
+
+dependencies {
+    implementation project(':archone-framework:foundation')
+    implementation project(':archone-framework:messaging:messaging-events')
+    implementation project(':archone-framework:messaging:messaging-spring-boot-autoconfigure')
+    implementation project(':integration-contracts')
+    implementation project(':orchestration-temporal-contract')
+    implementation project(':ordering:ordering-api')
+    implementation project(':inventory:inventory-api')
+    implementation project(':wms:wms-api')
+    implementation libs.temporal.sdk
+    implementation libs.spring.boot.starter.validation
+    implementation libs.spring.boot.starter.webmvc
+    implementation libs.spring.tx
+    implementation libs.spring.jdbc
+
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.boot.starter.webmvc.test
+    testImplementation libs.spring.modulith.starter.test
+    testImplementation project(':spring-framework-support')
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.0'
+    testRuntimeOnly libs.junit.platform.launcher
+}

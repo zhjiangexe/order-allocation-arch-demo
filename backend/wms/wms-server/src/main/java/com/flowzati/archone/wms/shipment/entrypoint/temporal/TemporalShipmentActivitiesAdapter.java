@@ -1,5 +1,6 @@
 package com.flowzati.archone.wms.shipment.entrypoint.temporal;
 
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.foundation.simulation.SimulationUtil;
 import com.flowzati.archone.orchestration.contract.activity.wms.CancelShipmentActivityInput;
@@ -18,7 +19,9 @@ import org.springframework.stereotype.Component;
 
 /** Temporal Shipment Activity contract 到 WMS Shipment application use cases 的 inbound adapter。 */
 @Component
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "temporal")
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.TEMPORAL)
 public final class TemporalShipmentActivitiesAdapter implements ShipmentActivities {
 
     private final CreateShipmentUsecase createShipmentUsecase;

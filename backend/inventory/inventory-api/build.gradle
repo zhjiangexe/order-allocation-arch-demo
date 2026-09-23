@@ -3,3 +3,7 @@ plugins {
 }
 
 description = 'inventory internal RPC contract'
+
+dependencies {
+    api 'org.springframework:spring-web'
+}

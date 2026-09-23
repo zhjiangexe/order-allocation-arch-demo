@@ -2,6 +2,7 @@ package com.flowzati.archone.ordering.infrastructure.messaging;
 
 import com.flowzati.archone.contracts.cancel.v1.CancellationEventDestinations;
 import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestResolvedIntegrationEvent;
+import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;
@@ -13,7 +14,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "archone.fulfillment.orchestration-mode", havingValue = "events", matchIfMissing = true)
+@ConditionalOnProperty(
+        name = FulfillmentOrchestrationMode.ORCHESTRATION_MODE,
+        havingValue = FulfillmentOrchestrationMode.EVENTS,
+        matchIfMissing = true)
 public class OrderingCancellationRequestResolvedIntegrationEventAdapter implements OrderCancellationResolvedPublisher {
     private final IntegrationEventPublisher publisher;
 
