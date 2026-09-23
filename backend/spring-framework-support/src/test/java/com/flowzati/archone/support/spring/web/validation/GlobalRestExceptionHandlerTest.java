@@ -15,6 +15,7 @@ import com.flowzati.archone.foundation.error.ErrorCode;
 import com.flowzati.archone.foundation.error.InvalidStateTransitionException;
 import com.flowzati.archone.foundation.error.NotFoundException;
 import com.flowzati.archone.foundation.error.StaleStateException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.sql.SQLException;
 import java.util.NoSuchElementException;
@@ -30,6 +31,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 class GlobalRestExceptionHandlerTest {
 
@@ -149,6 +152,44 @@ class GlobalRestExceptionHandlerTest {
         assertThat(problem.getTitle()).isEqualTo("Invalid request");
         assertThat(problem.getDetail()).isEqualTo("The request references data that does not exist or is invalid");
         assertThat(problem.getProperties()).hasSize(1).containsEntry("code", "DATA_INTEGRITY_VIOLATION");
+    }
+
+    @Test
+    void hidesDownstreamResponseDetails() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/orders/order-1/cancellation-requests");
+
+        ResponseEntity<ProblemDetail> response = handler.handleDownstreamResponse(
+                new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR, "sensitive downstream message"),
+                request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getBody()).isNotNull();
+        ProblemDetail problem = response.getBody();
+        assertThat(problem.getType()).isEqualTo(URI.create("urn:archone:problem:downstream-service"));
+        assertThat(problem.getDetail()).isEqualTo("The system could not complete the request at this time");
+        assertThat(problem.getProperties())
+                .containsEntry("code", "DOWNSTREAM_SERVICE_ERROR")
+                .doesNotContainValue("sensitive downstream message");
+        assertThatCodeIsUuid(problem.getProperties().get("incidentId"));
+    }
+
+    @Test
+    void mapsDownstreamTimeoutWithoutExposingTransportDetails() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/orders/order-1/cancellation-requests");
+
+        ResponseEntity<ProblemDetail> response = handler.handleDownstreamTransportFailure(
+                new ResourceAccessException("internal host timed out", new SocketTimeoutException("read timed out")),
+                request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+        assertThat(response.getBody()).isNotNull();
+        ProblemDetail problem = response.getBody();
+        assertThat(problem.getDetail()).isEqualTo("The system could not complete the request at this time");
+        assertThat(problem.getProperties()).containsEntry("code", "DOWNSTREAM_SERVICE_TIMEOUT");
+        assertThat(problem.getProperties().values()).doesNotContain("internal host timed out", "read timed out");
+        assertThatCodeIsUuid(problem.getProperties().get("incidentId"));
     }
 
     private static Stream<ContractViolationException> contractViolations() {

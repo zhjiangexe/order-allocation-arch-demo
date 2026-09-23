@@ -4,7 +4,9 @@ import com.flowzati.archone.contract.ContractViolationException;
 import com.flowzati.archone.foundation.error.BusinessErrorKind;
 import com.flowzati.archone.foundation.error.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
+import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.net.http.HttpTimeoutException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -46,6 +50,7 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
     private static final URI DATA_CONFLICT_TYPE = URI.create("urn:archone:problem:data-conflict");
     private static final URI DATA_INTEGRITY_TYPE = URI.create("urn:archone:problem:data-integrity-violation");
     private static final URI CONTRACT_VIOLATION_TYPE = URI.create("urn:archone:problem:internal-contract-violation");
+    private static final URI DOWNSTREAM_SERVICE_TYPE = URI.create("urn:archone:problem:downstream-service");
     private static final String BUSINESS_ERROR_TYPE_PREFIX = "urn:archone:problem:";
     private static final String DEFAULT_ERROR_CODE = "Invalid";
     private static final String INVALID_REQUEST_CODE = "INVALID_REQUEST";
@@ -55,6 +60,10 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String INTERNAL_ERROR_CODE = "INTERNAL_ERROR";
     private static final String INTERNAL_ERROR_TITLE = "Internal server error";
     private static final String INTERNAL_ERROR_DETAIL = "The system could not complete the request";
+    private static final String DOWNSTREAM_SERVICE_TITLE = "Dependent service unavailable";
+    private static final String DOWNSTREAM_SERVICE_DETAIL = "The system could not complete the request at this time";
+    private static final String DOWNSTREAM_SERVICE_CODE = "DOWNSTREAM_SERVICE_ERROR";
+    private static final String DOWNSTREAM_TIMEOUT_CODE = "DOWNSTREAM_SERVICE_TIMEOUT";
 
     private final RequestValidationMessageFormatter messageFormatter;
 
@@ -156,6 +165,51 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", conflict ? DATA_CONFLICT_CODE : DATA_INTEGRITY_CODE);
         return ResponseEntity.status(status).body(problem);
+    }
+
+    @ExceptionHandler(RestClientResponseException.class)
+    public ResponseEntity<ProblemDetail> handleDownstreamResponse(
+            RestClientResponseException exception, HttpServletRequest request) {
+        return downstreamServiceProblem(exception, HttpStatus.BAD_GATEWAY, DOWNSTREAM_SERVICE_CODE, request);
+    }
+
+    @ExceptionHandler(ResourceAccessException.class)
+    public ResponseEntity<ProblemDetail> handleDownstreamTransportFailure(
+            ResourceAccessException exception, HttpServletRequest request) {
+        boolean timeout = hasTimeoutCause(exception);
+        return downstreamServiceProblem(
+                exception,
+                timeout ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.SERVICE_UNAVAILABLE,
+                timeout ? DOWNSTREAM_TIMEOUT_CODE : DOWNSTREAM_SERVICE_CODE,
+                request);
+    }
+
+    private ResponseEntity<ProblemDetail> downstreamServiceProblem(
+            RuntimeException exception, HttpStatus status, String code, HttpServletRequest request) {
+        String incidentId = UUID.randomUUID().toString();
+        LOGGER.error(
+                "Downstream service failure: incidentId={}, requestUri={}, exceptionType={}",
+                incidentId,
+                request.getRequestURI(),
+                exception.getClass().getName(),
+                exception);
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, DOWNSTREAM_SERVICE_DETAIL);
+        problem.setType(DOWNSTREAM_SERVICE_TYPE);
+        problem.setTitle(DOWNSTREAM_SERVICE_TITLE);
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", code);
+        problem.setProperty("incidentId", incidentId);
+        return ResponseEntity.status(status).body(problem);
+    }
+
+    private static boolean hasTimeoutCause(Throwable throwable) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SocketTimeoutException || cause instanceof HttpTimeoutException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ProblemDetail requestValidationProblem(
