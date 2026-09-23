@@ -9,7 +9,7 @@
 
 ## T1：建立依賴與行為基線
 
-- [x] 盤點三個 context 被 `fulfillment-process`、monolith、Temporal runtime、測試
+- [x] 盤點三個 context 被 `fulfillment`、monolith、Temporal runtime、測試
   及其他 Gradle project 引用的 production type 與 test fixtures。
 - [x] 固定 Events／Temporal 取消的既有結果矩陣：無 shipment、有 shipment、
   多 shipment、已取消、已完成、拒絕、重複 request 與衝突。
@@ -30,14 +30,14 @@
 - [x] 補足契約與 coordinator 回歸測試，特別核對事件發布仍由 owning context 的
   Usecase 經既有 Publisher port／Integration Event Adapter 執行。
 
-驗收：兩種取消模式結果不變，`fulfillment-process` 的取消程式不再依賴
+驗收：兩種取消模式結果不變，`fulfillment` 的取消程式不再依賴
 Ordering／WMS Domain 或 Usecase；本機與 HTTP endpoint 共享相同契約。
 
 ## T3：拆分 Gradle API／Server project
 
 - [x] 依 T1 盤點建立 Ordering、WMS、Inventory 各自的 `*-api`／`*-server` project；
   遷移既有 production code，保留 package 名稱與測試可執行性。
-- [x] 設定 `server → api`，`fulfillment-process → api`，
+- [x] 設定 `server → api`，`fulfillment → api`，
   `deployments:monolith → server` 的 Gradle 依賴。
 - [x] 配置與現有 Spring Boot 版本相容的 Spring Web HTTP Service Client 依賴，
   明確限制 HTTP client 的啟用範圍；避免單體產生重複 bean。
@@ -46,10 +46,10 @@ Ordering／WMS Domain 或 Usecase；本機與 HTTP endpoint 共享相同契約�
 - [x] 更新 monolith 啟動、test fixtures、Spring scan、Gradle 設定與相關文件；
   移除舊 `*-context` project 引用。
 - [x] 更新 Ordering／Inventory 的 `AGENTS.md` 適用路徑，確認既有架構測試通過；
-  保持原有 layer 與 Integration Event 約束，新增 `fulfillment-process` 對
+  保持原有 layer 與 Integration Event 約束，新增 `fulfillment` 對
   context 內部型別的依賴檢查。
 
-驗收：`fulfillment-process` production compile classpath 只含所需 API，
+驗收：`fulfillment` production compile classpath 只含所需 API，
 monolith 可組裝所有 server，沒有 API → server 循環依賴；HTTP proxy 不在單體被意外啟用。
 
 ## T4：整合驗證與交付

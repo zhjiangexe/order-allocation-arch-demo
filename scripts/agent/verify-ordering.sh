@@ -10,6 +10,6 @@ cd "$REPOSITORY_ROOT/backend"
 ./gradlew \
   :ordering-context:spotlessCheck \
   :ordering-context:test \
-  :fulfillment-process:compileTestJava \
+  :fulfillment:compileTestJava \
   :deployments:monolith:compileTestJava \
   "$@"

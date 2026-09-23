@@ -19,7 +19,7 @@ temporalWorkflow 四個欄位，新增 orchestrationMode 與 workflowQueryStatus
 UNAVAILABLE 不表示 Workflow 執行失敗。查無訂單仍回 HTTP 404，不會執行 Workflow Query。
 模式沿用 OrderFulfillmentProperties 的 Driver enum，由 Spring 綁定並驗證；demo 的
 OrderFulfillmentQueryConfiguration 將 enum 透過 constructor 傳給 Service，僅在 API 回傳時轉為小寫字串。
-Properties 移至 fulfillment-process 的 configuration package，讓 bootstrap 與 demo 共用，維持既有架構依賴規則。
+Properties 移至 fulfillment 的 configuration package，讓 bootstrap 與 demo 共用，維持既有架構依賴規則。
 Service 不使用 @Value、不重新驗證模式，也不從 snapshot 推測。
 若 Temporal 模式缺少必要 reader，視為組態錯誤，不降級成 Events。
 
@@ -55,10 +55,10 @@ ORDER_PROMISING_FULFILLMENT_QUERY_TIMEOUT 不再是應用程式支援的設定�
 
 ```bash
 cd backend
-./gradlew spotlessApply spotlessCheck :fulfillment-process:test :deployments:monolith:test --console=plain
+./gradlew spotlessApply spotlessCheck :fulfillment:test :deployments:monolith:test --console=plain
 ```
 
-2026-09-09 改用共用 enum 設定後：格式檢查通過；fulfillment-process 24 個、monolith 50 個測試，
+2026-09-09 改用共用 enum 設定後：格式檢查通過；fulfillment 24 個、monolith 50 個測試，
 全部 0 failures／errors，其中履約查詢相關測試 26 個。
 本次沒有重跑整套雙模式 HTTP E2E，也未重測故障等待時間；目前不提供獨立耗時保證。
 

@@ -18,10 +18,10 @@
 
 ```bash
 cd backend
-./gradlew :orchestration-temporal-runtime:test --rerun :fulfillment-process:test --rerun --console=plain
+./gradlew :orchestration-temporal-runtime:test --rerun :fulfillment:test --rerun --console=plain
 ```
 
-runtime 66 tests、fulfillment-process 24 tests，全部重新執行通過，0 failures／errors／skipped。
+runtime 66 tests、fulfillment 24 tests，全部重新執行通過，0 failures／errors／skipped。
 T7.1 的 monolith 50 tests 及連結增補後的前端 171 tests／build 均通過，期間無產品程式再次修改。
 
 HTTP runner（repo root）：

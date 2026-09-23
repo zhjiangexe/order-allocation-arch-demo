@@ -14,8 +14,8 @@ contexts、共用 contracts、messaging infrastructure，以及目前唯一的 S
 | `ordering/ordering-api`、`ordering/ordering-server` | Order RPC 契約與 lifecycle bounded context |
 | `inventory/inventory-api`、`inventory/inventory-server` | Inventory API 模組與 allocation、movement、warehouse 實作 |
 | `logistics-data-context` | Owner、product、SKU 與 facility reference data |
-| `wms/wms-server` | WMS bounded context；取消命令由 Integration Event 或 Temporal Activity 接收 |
-| `fulfillment-process` | Ordering、Inventory、WMS 之間的共用 event-driven 與 Temporal 跨 context 流程 |
+| `wms/wms-api`、`wms/wms-server` | WMS shipment query RPC 契約與 bounded context 實作；取消命令由事件或 Activity 接收 |
+| `fulfillment` | Ordering、Inventory、WMS 之間的共用 event-driven 與 Temporal 跨 context 流程 |
 | `orchestration-temporal-contract` | Temporal Workflow／Activity interfaces 與 transport DTOs |
 | `orchestration-temporal-runtime` | Long-running fulfillment Workflow runtime implementation |
 | `integration-contracts` | 跨 bounded context 使用的 versioned integration event contracts |
@@ -28,8 +28,8 @@ Ordering 的 `ordering-api` 定義帶 `@PostExchange` 的內部取消 RPC 契約
 以 `@RestController` 實作。Monolith 直接注入 server bean；API 模組的測試以 `RestClient` 和
 `HttpServiceProxyFactory` 驗證遠端 HTTP 呼叫。遠端部署可設定
 `archone.fulfillment.rpc.transport=http` 與 `ordering-base-url` 建立 Ordering
-HTTP proxy。WMS 取消命令透過 Integration Event 或 Temporal Activity 接收，無同步 RPC API。
-Inventory 目前無同步 RPC 需求，因此 `inventory-api` 暫無 Java 契約。
+HTTP proxy。WMS 取消命令透過 Integration Event 或 Temporal Activity 接收；同步 API 只提供
+shipment query。Inventory 的同步 API 同樣只提供 stock operation query，不接收流程命令。
 取消流程專用的 Integration Event 與 destination 定義在 `contracts.cancel.v1`；
 `OrderCancelledIntegrationEvent` 是 Ordering 的訂單生命週期事實，仍位於 `contracts.ordering.v1`。
 未來若拆成微服務，需另行處理跨 HTTP 的交易、逾時、重試與服務部署。
@@ -65,7 +65,7 @@ Events 模式的取消入口先經 Ordering API 檢查是否已取消／已完�
 `deployments:monolith` 是目前唯一的 Spring Boot 啟動入口；各 bounded context 本身不是獨立可啟動的
 application。Temporal Workflow／Activity 的 contract 與 runtime 分別位於
 `orchestration-temporal-contract` 與 `orchestration-temporal-runtime`，跨 context 的流程接線由
-`fulfillment-process` 提供。
+`fulfillment` 提供。
 
 ## Activity 演示延遲
 

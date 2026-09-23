@@ -31,7 +31,7 @@ Task Queue 為 `order-fulfillment-workflows`，Workflow Type 為 `OrderFulfillme
 | 前端 | T7.1 170 tests；Workflow 連結加入後 171 tests，typecheck／build 通過 |
 | monolith | 強制重跑 50 tests 通過 |
 | orchestration-temporal-runtime | 強制重跑 66 tests 通過 |
-| fulfillment-process | 強制重跑 24 tests 通過 |
+| fulfillment | 強制重跑 24 tests 通過 |
 | Events HTTP | 12／12 scenarios，含 catalog、履約、取消與 connector catch-up |
 | Temporal HTTP | 8／8 scenarios，含 catalog、履約與取消 |
 | 真實 Chrome | 每模式 4 筆建單、2 次補貨，共 8 筆訂單完成 |
@@ -44,7 +44,7 @@ npm --prefix frontend run typecheck
 npm --prefix frontend run build
 cd backend
 ./gradlew :deployments:monolith:test --rerun --console=plain
-./gradlew :orchestration-temporal-runtime:test --rerun :fulfillment-process:test --rerun --console=plain
+./gradlew :orchestration-temporal-runtime:test --rerun :fulfillment:test --rerun --console=plain
 ```
 
 HTTP 使用 `E2E_MODE=events`／`temporal` 分開執行；完整環境變數命令見各模式 review，

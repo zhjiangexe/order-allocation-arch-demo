@@ -126,7 +126,7 @@ partition "WMS：Shipment 與倉內作業" {
         :WmsCancellationRequestResolvedIntegrationEvent Outbox
         回報無 Shipment／拒絕／多張; <<#EDE9FE>>
       endif
-      :fulfillment-process 保存 WMS 結果; <<#E8F1FF>>
+      :fulfillment 保存 WMS 結果; <<#E8F1FF>>
       if (可進入 Ordering 取消？) then (是)
         :OrderingCancellationRequestedIntegrationEvent
         -> CancelOrderUsecase; <<#EDE9FE>>

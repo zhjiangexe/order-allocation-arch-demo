@@ -31,8 +31,8 @@ External overdue detector / user cancellation
      -> events: EventDrivenCancellationRequestCoordinator
           -> AcceptCancellationRequestUsecase persists WAITING_WMS and WMS request outbox
           -> WMS resolves no Shipment / rejection / multiple Shipments, or cancels Shipment
-          -> fulfillment-process records WMS outcome; on success requests Ordering cancellation
-          -> Ordering resolves request; fulfillment-process records final process state
+          -> fulfillment records WMS outcome; on success requests Ordering cancellation
+          -> Ordering resolves request; fulfillment records final process state
      -> temporal: requestCancellation Update on the existing Workflow
           -> no Shipment can exist: CancelOrder Activity
           -> Shipment exists: requestShipmentCancellation Activity acknowledges command
@@ -308,7 +308,7 @@ WMS 的 `CancelShipmentUsecase` 只回傳 command 結果：`ACCEPTED`、`ALREADY
 
 Temporal Activity 使用 void return，只確認 cancellation command transaction 已提交。Workflow 隨後等待
 `ShipmentCancelledInput` 或 `ShipmentHandedOverToCarrierInput`；Events mode 則由
-`fulfillment-process` 的 process manager 消費同一個 `ShipmentCancelledIntegrationEvent`，保存 WMS 結果後再發布
+`fulfillment` 的 process manager 消費同一個 `ShipmentCancelledIntegrationEvent`，保存 WMS 結果後再發布
 `OrderingCancellationRequestedIntegrationEvent`。因此
 `cancellationRequestedAt` 始終是原始請求時間，而 Order 與 Shipment 的 `cancelledAt` 是真正完成時間。
 `ShipmentCancelledInput` 同時保留 `cancellationRequestId`，Signal handler 必須先與 Update 記錄的 request

@@ -61,13 +61,13 @@ T1～T6 的子任務連續完成；T7 依使用者確認拆成三個檢查點，
 
 ## T2：補強既有履約唯讀查詢
 
-預計異動：monolith 的 `OrderFulfillmentView`、`OrderFulfillmentQueryService`、
+預計異動：monolith 的 `OrderFulfillmentView`、`OrderFulfillmentQueryUsecase`、
 `TemporalWorkflowStateReader` 與其測試；必要設定沿用既有 configuration。
 
 ### T2.1：模式及 additive response 契約
 
 - [x] 新增 `orchestrationMode` 與 `workflowQueryStatus`；以 T1 實際 JSON 樣本核對既有欄位相容，樣本本身不覆寫。
-- [x] 沿用 OrderFulfillmentProperties 綁定並驗證 Driver enum，由 demo 的 OrderFulfillmentQueryConfiguration 傳入 Service；properties 移至 fulfillment-process configuration，維持 bootstrap 依賴邊界。Service 不使用 @Value 或字串模式解析。
+- [x] 沿用 OrderFulfillmentProperties 綁定並驗證 Driver enum，由 demo 的 OrderFulfillmentQueryConfiguration 傳入 Service；properties 移至 fulfillment configuration，維持 bootstrap 依賴邊界。Service 不使用 @Value 或字串模式解析。
 - [x] Events 回傳 NOT_APPLICABLE，驗證不存取 Temporal。
 
 驗收：兩種模式的 JSON 契約測試通過，既有欄位相容。

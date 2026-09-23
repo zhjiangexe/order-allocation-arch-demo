@@ -12,7 +12,7 @@
 
 將 `ordering-context`、`inventory-context`、`wms-context` 的公開 RPC 契約與實作分開，
 示範 Yudao Cloud 式 `api/server` 邊界，並讓未來的微服務部署能沿用同一份契約。
-`fulfillment-process` 只依賴必要的 `*-api`；`deployments:monolith` 統一組裝 server
+`fulfillment` 只依賴必要的 `*-api`；`deployments:monolith` 統一組裝 server
 實作。保留 Events 與 Temporal 兩種模式作為範例，不以其中一種取代另一種。
 
 這次以 Spring HTTP Service Clients 與 `RestClient` 作為 RPC client 範例，`*-api`
@@ -24,7 +24,7 @@ endpoint。單體模式直接注入 server 的本機實作；未來微服務模�
 
 ## 現況與需要切開的依賴
 
-- `fulfillment-process` 目前直接依賴三個完整 `*-context` Gradle project。
+- `fulfillment` 目前直接依賴三個完整 `*-context` Gradle project。
 - Events 取消 coordinator 直接使用 Ordering／WMS Usecase、`Order` aggregate、
   `OrderStatus`、`ShipmentView` 與 `CancelShipmentStatus`；它同時承擔跨 context
   流程與部分 context 內部判斷。
@@ -38,12 +38,12 @@ endpoint。單體模式直接注入 server 的本機實作；未來微服務模�
 ## 目標依賴方向
 
 ```text
-fulfillment-process ──> ordering-api
+fulfillment ──> ordering-api
                        (僅實際使用的 RPC 契約)
 ordering-server ──────> ordering-api
 inventory-server ─────> inventory-api
 wms-server              (取消入口改由 Integration Event／Temporal Activity 提供)
-deployments:monolith ─> fulfillment-process + 三個 *-server
+deployments:monolith ─> fulfillment + 三個 *-server
 ```
 
 Gradle project 名稱以 `:ordering:ordering-api`、`:ordering:ordering-server` 等為目標；
@@ -59,7 +59,7 @@ Application Event → Publisher port → Integration Event Adapter 規則。
 ## 取消流程的邊界
 
 - Ordering RPC 提供取消前所需的最小狀態／衝突判斷與取消命令結果；
-  `fulfillment-process` 不讀取 `Order` aggregate 或直接引用 `*Usecase`。
+  `fulfillment` 不讀取 `Order` aggregate 或直接引用 `*Usecase`。
 - WMS RPC 提供面向訂單的取消操作及明確結果；實作仍由 WMS 自己處理 shipment
   查找、數量衝突及取消。不要將完整 `ShipmentView` 暴露給流程模組，
   也不要只把目前兩次內部呼叫原樣包成兩個公開 HTTP 式方法。
@@ -76,7 +76,7 @@ Application Event → Publisher port → Integration Event Adapter 規則。
 先盤點三個 context 的所有跨模組 Java import、Gradle 依賴與 Spring component scan。
 只有真正被外部呼叫的型別進入 `*-api`；Inventory 若目前只需要共享 subscription
 識別，不因此建立假的 Inventory 業務操作。此類配置常數應移至其真正的組裝 owner，
-或定義適當的 shared messaging contract，避免 `fulfillment-process` import entrypoint。
+或定義適當的 shared messaging contract，避免 `fulfillment` import entrypoint。
 
 單體啟動時只註冊 server 的本機實作；微服務 caller 啟動時只註冊該介面的
 HTTP proxy，避免同一介面出現兩個候選 bean 或錯誤地在單體內走 HTTP。
@@ -88,7 +88,7 @@ Inventory 分批完成，但最終 Gradle 圖必須符合上述方向。不要�
 
 ## 驗收
 
-- `fulfillment-process` production compile classpath 不含三個 `*-server`，且 source
+- `fulfillment` production compile classpath 不含三個 `*-server`，且 source
   不再 import Ordering／Inventory／WMS 的 Usecase、Domain、Entrypoint、Infrastructure。
 - Monolith 可在 Events 與 Temporal 設定下啟動；既有取消、履約與事件路徑行為維持。
 - 對同一 RPC 介面，單體只注入本機 bean；微服務 caller 的接線測試只注入
@@ -96,7 +96,7 @@ Inventory 分批完成，但最終 Gradle 圖必須符合上述方向。不要�
 - 取消的接受、拒絕、已取消、重複 request 與多 shipment 衝突有適當回歸驗證。
 - Gradle 模組及 architecture tests 能防止 API 反向依賴 server，以及流程模組重新依賴內部實作。
 - 修改 Java 後執行 `cd backend && ./gradlew spotlessApply`；完成相應 context、
-  `fulfillment-process`、monolith 測試，提交前執行 `spotlessCheck`。
+  `fulfillment`、monolith 測試，提交前執行 `spotlessCheck`。
 
 ## 不在本階段
 
@@ -110,7 +110,7 @@ Inventory 分批完成，但最終 Gradle 圖必須符合上述方向。不要�
   `*-server` Gradle project。Inventory 目前無同步 RPC 呼叫，`inventory-api`
   刻意沒有 Java 契約；取消後的庫存處理仍由既有 Integration Event 推進。
 - Ordering、WMS 取消 RPC 介面位於各自 API；server 實作內部 HTTP endpoint，
-  並在單體內提供同一介面的本機 bean。`fulfillment-process` 已移除對三個
+  並在單體內提供同一介面的本機 bean。`fulfillment` 已移除對三個
   完整 context project 的依賴及內部 Usecase／Domain／Entrypoint import。
 - Ordering／WMS API 各以獨立 Spring context 建立 HTTP proxy 並呼叫測試 HTTP
   server；monolith 接線測試確認只取得本機實作。這驗證了契約可作遠端 client，

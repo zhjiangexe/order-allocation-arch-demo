@@ -64,7 +64,7 @@ T1 已證明既有後端可跑完雙模式正常履約；後續工作聚焦將�
 - `frontend/src/App.tsx`、`frontend/src/api/client.ts`
 - `backend/deployments/monolith/src/main/java/com/flowzati/archone/demo/orderfulfillment/`
 - `backend/inventory-context/src/main/java/com/flowzati/archone/inventory/movement/entrypoint/rest/StockOperationRest.java`
-- `backend/fulfillment-process/src/main/java/com/flowzati/archone/orderfulfillment/entrypoint/messaging/TemporalFulfillmentEventBridge.java`
+- `backend/fulfillment/src/main/java/com/flowzati/archone/orderfulfillment/entrypoint/messaging/TemporalFulfillmentEventBridge.java`
 - `backend/orchestration-temporal-runtime/src/main/java/com/flowzati/archone/orchestration/runtime/workflow/order/OrderFulfillmentWorkflowImpl.java`
 
 本規劃經第二次程式碼核對；T1 已以隔離環境確認雙模式既有 HTTP 路徑，詳見 t1-baseline.md；新版 UI 尚未實作。根目錄 README 的
@@ -336,7 +336,7 @@ E2E runner 新增 E2E_MODE 與獨立報告目錄選項，預設仍跑原本雙�
 
 ## T7.2 Temporal 執行結果
 
-新隔離環境的 Temporal HTTP 8 scenarios、runtime 66 tests、fulfillment-process 24 tests 通過。
+新隔離環境的 Temporal HTTP 8 scenarios、runtime 66 tests、fulfillment 24 tests 通過。
 真實 UI 完成有貨、缺貨補貨、多 SKU 整單、FEFO 四種情境，業務完成與 Workflow 成功終態一致。
 已實際由新增連結開啟正確 Workflow Timeline，另核對四筆 Signal、Activity 與完成歷史，
 以及無 Workflow seed 的 NOT_FOUND 提示。未新增產品修正。

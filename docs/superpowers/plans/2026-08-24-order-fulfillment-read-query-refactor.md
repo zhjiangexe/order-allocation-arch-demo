@@ -1,7 +1,7 @@
 # Order Fulfillment Read Query Refactor 任務計畫
 
 **狀態：** 待實作
-**目標：** 保留 `OrderFulfillmentQueryService` 的跨 Context composition 結構，同時減少 Inventory 的多次
+**目標：** 保留 `OrderFulfillmentQueryUsecase` 的跨 Context composition 結構，同時減少 Inventory 的多次
 repository query、移除 WMS 的 lazy-loading N+1，並讓取消流程不再載入完整 `ShipmentView`。
 
 ## 設計結論
@@ -168,11 +168,11 @@ SQL 回傳 facts，`AllocationDemandQueryService` 或獨立 assembler 負責計�
 - `listPending(limit)` 維持 FIFO 順序與 limit 語意。
 - 列表查詢數不隨 demand 數量線性增加。
 
-## Task 4：重新接線 `OrderFulfillmentQueryService`
+## Task 4：重新接線 `OrderFulfillmentQueryUsecase`
 
 ### 預計異動
 
-- 修改：`OrderFulfillmentQueryService`
+- 修改：`OrderFulfillmentQueryUsecase`
 - 修改：`OrderFulfillmentDemoRestTest`
 - 視命名調整更新 Spring configuration／wiring tests
 

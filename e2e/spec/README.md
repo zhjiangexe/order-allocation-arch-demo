@@ -69,7 +69,7 @@ consumer failure。這些不是外部使用者流程，因此不搬進 Karate �
 故障，替 production application 增加測試專用 API。
 
 Temporal 取消請求衝突案例會暫停 Connect，讓 Workflow 等待 Shipment terminal event，再驗證修改
-reason／requestedAt 的 HTTP 請求回 409。恢復 Connect 後再驗證取消完成。`fulfillment-process`
+reason／requestedAt 的 HTTP 請求回 409。恢復 Connect 後再驗證取消完成。`fulfillment`
 只 mock Workflow client 驗證結果映射，不依賴 runtime；runtime 自己保留狀態轉換、重試與 replay 測試。
 
 ## Allocation console 驗收資料

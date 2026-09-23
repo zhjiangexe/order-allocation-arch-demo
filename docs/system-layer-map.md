@@ -334,7 +334,7 @@ DOM 也有裝箱的變體（出貨前預估箱數以估運費、挑物流商）�
 | `fulfillment` | 履約層（最小版：兩本帳與短揀對帳） | **新增** |
 
 Ordering、Inventory、WMS 與 `logistics-data-context` 都已取得編譯期 module 邊界，但尚未成為獨立微服務。
-`fulfillment-process` 的取消入口依賴 Ordering API；WMS 取消由 Events process manager 發送事件，或由 Temporal Workflow 呼叫 Activity。
+`fulfillment` 的取消入口依賴 Ordering API；WMS 取消由 Events process manager 發送事件，或由 Temporal Workflow 呼叫 Activity。
 資料庫 migration、跨 context 的 adapter view 與 Spring Boot 啟動仍由 `bootstrap` 擁有；若日後需要
 獨立部署，再分別建立 runtime module，並先以事件或外部 API 取代跨資料庫查詢。
 
