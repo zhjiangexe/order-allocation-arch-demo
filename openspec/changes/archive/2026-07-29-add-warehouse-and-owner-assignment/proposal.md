@@ -6,7 +6,7 @@
 下單時就指定了倉別，系統照做。沒有選擇就沒有選點問題。
 
 倉庫本身**不隨之消失**。它仍是領域裡的真實維度：庫存分倉、訂單指定倉、出貨屬於某個倉。而
-[execution-roadmap.md](../../../docs/execution-roadmap.md) 的 R3 要把 `stock_pools` 的唯一鍵
+[execution-roadmap.md](../../../../docs/archive/legacy-strategy/execution-roadmap.md) 的 R3 要把 `stock_pools` 的唯一鍵
 改成 `(owner_id, node_id, sku_code, lot_no)`——**本 change 存在的唯一理由，是讓那個 `node_id`
 有參照對象**。roadmap 的禁忌第 5 條也明訂倉庫維度不可從該唯一鍵拿掉，因為事後補回來是改鍵、
 改所有查詢、改兩本帳的對帳等式，不是加欄位。

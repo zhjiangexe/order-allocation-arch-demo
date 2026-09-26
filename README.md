@@ -46,7 +46,7 @@ Activity 的逾時與重試由 Temporal 依設定處理；Workflow 可依執行�
 | 相關檔案 | 在本系統中的職責 |
 | --- | --- |
 | [OrderFulfillmentWorkflow](backend/orchestration-temporal-contract/src/main/java/com/flowzati/archone/orchestration/contract/workflow/order/OrderFulfillmentWorkflow.java) | 定義啟動入口、Signal、查詢進度的 Query，以及提交取消請求的 Update。 |
-| [TemporalFulfillmentEventBridge](backend/fulfillment/src/main/java/com/flowzati/archone/orderfulfillment/entrypoint/messaging/TemporalFulfillmentEventBridge.java) | 將收單事件轉成 Workflow start，將配貨、交運與取消結果轉成 Signal。 |
+| [TemporalFulfillmentEventBridge](backend/fulfillment/src/main/java/com/flowzati/archone/fulfillment/entrypoint/messaging/TemporalFulfillmentEventBridge.java) | 將收單事件轉成 Workflow start，將配貨、交運與取消結果轉成 Signal。 |
 | [Activity contracts](backend/orchestration-temporal-contract/src/main/java/com/flowzati/archone/orchestration/contract/activity) | 定義 Workflow 可呼叫的業務動作與輸入／輸出，實作由各 Context 提供。 |
 | [TemporalInventoryAllocationActivitiesAdapter](backend/inventory/inventory-server/src/main/java/com/flowzati/archone/inventory/allocation/entrypoint/temporal/TemporalInventoryAllocationActivitiesAdapter.java) | `requestAllocation` → `AllocateOrderUsecase`，請求配貨。 |
 | [TemporalShipmentActivitiesAdapter](backend/wms/wms-server/src/main/java/com/flowzati/archone/wms/shipment/entrypoint/temporal/TemporalShipmentActivitiesAdapter.java) | `releaseToWarehouse` → `CreateShipmentUsecase`，建立出貨單；也提供請求取消出貨的 Activity。 |
@@ -153,7 +153,7 @@ prod 對應 `docker/env/prod.env.example` 與 `make prod-deploy`。完整變數�
 右上角共用貨主選擇模擬登入身分；各頁沿用所選貨主，切換時重設操作範圍。
 Events／Temporal 由後端啟動設定決定，Temporal 詳情可跳轉 Workflow。
 啟動方式與操作見 [frontend/README.md](frontend/README.md)，雙模式驗證見
-[validation.md](docs/plans/allocation-console/validation.md)。
+[validation.md](docs/archive/plans/allocation-console/validation.md)。
 
 訂單列表 `GET /orders?limit=20&ownerId=...` 與配貨佇列都支援可選的 `ownerId`，先篩選貨主再取筆數。
 這是查詢條件，尚未提供登入授權隔離。

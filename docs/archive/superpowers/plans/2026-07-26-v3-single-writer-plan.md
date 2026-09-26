@@ -831,12 +831,12 @@ Expected: `e2e/perf/k6/results/throughput_comparison.png` 與
 | v1（orderId 分區） | <填入 Step 1 的 iterations rate> | <v1 attempts> | <v1 exhausted> |
 | v3（sku 分區） | <填入 Step 3 的 iterations rate> | <v3 attempts> | <v3 exhausted> |
 
-對比圖：[`throughput_comparison.png`](k6/results/throughput_comparison.png)、
-[`conflict_comparison.png`](k6/results/conflict_comparison.png)。
+對比圖：[`throughput_comparison.png`](../../../../e2e/perf/k6/results/throughput_comparison.png)、
+[`conflict_comparison.png`](../../../../e2e/perf/k6/results/conflict_comparison.png)。
 
 v3 只解決「下單 vs 下單」的衝突；「下單 vs 補貨」跨 consumer group 的殘留對撞
 不在這次範圍內，見
-[`docs/superpowers/specs/2026-07-26-v3-single-writer-design.md`](../../docs/superpowers/specs/2026-07-26-v3-single-writer-design.md)。
+[`docs/superpowers/specs/2026-07-26-v3-single-writer-design.md`](../specs/2026-07-26-v3-single-writer-design.md)。
 ```
 
 （iterations rate 可以直接從 Step 1/3 的 k6 終端輸出「CUSTOM」區塊上面的

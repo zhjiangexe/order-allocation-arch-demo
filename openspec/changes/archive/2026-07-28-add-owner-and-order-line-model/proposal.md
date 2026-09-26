@@ -2,7 +2,7 @@
 
 現況 `orders` 直接持有 `sku` 與 `quantity` 兩個裸欄位，一張單就是「一個 SKU 的一個
 數量」。沒有貨主、沒有商品主檔、沒有收件地與承諾到貨日。這個形狀擋住
-[execution-roadmap.md](../../../docs/execution-roadmap.md) 上除 R2 之外的每一個後續
+[execution-roadmap.md](../../../../docs/archive/legacy-strategy/execution-roadmap.md) 上除 R2 之外的每一個後續
 change：R3 的跨貨主隔離要 `owner_id`、R6 的選點要溫層與重量、R7 的揀貨要 line 粒度。
 
 拖延的成本不是線性的。每晚一個 change，就多一批在「單貨主、單行、SKU 是裸字串」的

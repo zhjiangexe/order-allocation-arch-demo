@@ -5,7 +5,7 @@
 適用範圍：Java、DDD、Event Sourcing，以及使用 coding agent 的開發流程。
 
 本文以 [uContract](https://gitlab.com/TeddyChen/ucontract) 與專案內建
-[`domain-contract`](../backend/domain-contract/README.md) lambda DSL 為參考，說明 Design by Contract
+[`domain-contract`](../backend/archone-framework/domain-contract/README.md) lambda DSL 為參考，說明 Design by Contract
 （DbC）與 Validation、Domain Rule、Test 的分工。
 
 ## 1. 團隊決策摘要
@@ -951,7 +951,8 @@ Exception 保留：
 - Plain diagnostic message。
 - Predicate evaluation cause。
 
-詳細 API 見 [`backend/domain-contract/README.md`](../backend/domain-contract/README.md)。
+詳細 API 見
+[`backend/archone-framework/domain-contract/README.md`](../backend/archone-framework/domain-contract/README.md)。
 
 ### 11.2 Global Exception Handler
 

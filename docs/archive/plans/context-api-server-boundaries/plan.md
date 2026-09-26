@@ -6,7 +6,7 @@
 
 > 本文件保留當時的 RPC 拆分規劃與驗收紀錄。後續 Events 取消改由 process manager
 > 編排，WMS 取消 RPC 與 Ordering `commit` RPC 已移除；目前 Ordering API 僅提供
-> `assess`。現行取消流程見 [fulfillment-cancellation-process-manager.md](../../fulfillment-cancellation-process-manager.md)。
+> `assess`。現行取消流程見 [fulfillment-cancellation-process-manager.md](../../../fulfillment-cancellation-process-manager.md)。
 
 ## 目標
 

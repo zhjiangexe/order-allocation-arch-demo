@@ -39,6 +39,9 @@ out/
 .spectra/
 openspec/.vector-search.db*
 
+### Generated knowledge graph ###
+graphify-out/
+
 ### macOS ###
 .DS_Store
 

@@ -5,14 +5,14 @@
 系統裡不存在。
 
 這個形狀不是疏漏，是 v1 刻意的最小起點——當時要證明的是超賣防線與 FIFO 佇列，兩者都
-不需要貨主與 line。但 [execution-roadmap.md](../../../docs/execution-roadmap.md) 之後的
+不需要貨主與 line。但 [execution-roadmap.md](../../../../docs/archive/legacy-strategy/execution-roadmap.md) 之後的
 每一個 change 都需要：R3 的跨貨主隔離要 `owner_id`，R6 的選點要溫層與重量，R7 的揀貨
 要 line 粒度。本 change 是 roadmap 的 **R1**，無依賴，可與 R2 並行。
 
 逐欄位、逐方法的展開在
-[r1-order-data-model-and-usecases.md](../../../docs/r1-order-data-model-and-usecases.md)，
+[r1-order-data-model-and-usecases.md](../../../../docs/archive/legacy-strategy/r1-order-data-model-and-usecases.md)，
 設計理由在
-[dom-order-intake-scope.md](../../../docs/dom-order-intake-scope.md)。本文件不重複那些
+[dom-order-intake-scope.md](../../../../docs/archive/legacy-strategy/dom-order-intake-scope.md)。本文件不重複那些
 內容，只記錄**做這個 change 時要下的技術決定**。
 
 限制條件有兩個。第一，schema 尚未部署至任何環境，因此 migration 可以改寫而非疊加。
@@ -42,7 +42,7 @@ seed 有兩個貨主，但配貨仍可能跨貨主取用。
   的簽章吃一個池、`BasicAllocationContext` 只是一個可承諾量的整數。跨 SKU 要同時改這
   四處加上 coordinator 的持久化，那是 R8 的核心。
 - **不加 `PARTIALLY_ALLOCATED`**。採 ship-complete（見
-  [dom-promising-scope.md](../../../docs/dom-promising-scope.md)），該狀態不存在，不是
+  [dom-promising-scope.md](../../../../docs/archive/legacy-strategy/dom-promising-scope.md)），該狀態不存在，不是
   「留到 R8」。
 - **不動 `stock_pools`／`stock_reservations`**，因此跨貨主隔離不生效。屬 R3。
 - **不改 partition key，而且現階段改反而會壞。** `stock_pools` 的 unique key 仍是

@@ -22,7 +22,7 @@ contexts、共用 contracts、messaging infrastructure，以及目前唯一的 S
 | `domain-contract` | 共用的 domain-level contracts |
 | `foundation` | Framework-neutral foundation utilities |
 | `spring-framework-support` | 共用 Spring framework support |
-| `messaging` | Transactional Outbox／Inbox、Kafka 與 Spring adapters；細節見 [`messaging/README.md`](messaging/README.md) |
+| `archone-framework/messaging` | Transactional Outbox／Inbox、Kafka 與 Spring adapters；細節見 [`messaging/README.md`](archone-framework/messaging/README.md) |
 
 Ordering 的 `ordering-api` 定義帶 `@PostExchange` 的內部取消 RPC 契約，server
 以 `@RestController` 實作。Monolith 直接注入 server bean；API 模組的測試以 `RestClient` 和

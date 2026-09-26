@@ -254,26 +254,4 @@ make the allocation side depend on the catalog for the first time.
 <!-- @trace
 source: key-the-stock-page-to-a-warehouse
 updated: 2026-07-31
-code:
-  - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/rest/StockPoolController.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/usecase/GetStockPoolUsecase.java
-  - frontend/src/api/types.ts
-  - order-promising/src/main/java/com/flowzati/archone/stock/entrypoint/rest/StockPoolResponse.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/repository/StockPoolRepository.java
-  - frontend/src/components/ReplenishDialog.tsx
-  - frontend/src/api/client.ts
-  - frontend/src/components/StockPanel.tsx
-  - frontend/src/components/StockPanel.module.css
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/jpa/JpaStockRepository.java
-  - frontend/README.md
-  - frontend/src/api/stockLines.ts
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/StockPoolRepositoryImpl.java
-  - frontend/src/components/ReplenishDialog.module.css
-  - frontend/src/pages/StockPage.tsx
-tests:
-  - order-promising/src/test/java/com/flowzati/archone/stock/entrypoint/rest/StockPoolControllerTest.java
-  - frontend/src/api/stockLines.test.ts
-  - frontend/src/pages/StockPage.test.tsx
-  - frontend/src/components/StockPanel.test.tsx
-  - order-promising/src/sit/java/com/flowzati/archone/stock/infrastructure/repository/StockPoolPersistenceIntegrationTest.java
 -->

@@ -48,7 +48,7 @@ cd backend
 ```
 
 HTTP 使用 `E2E_MODE=events`／`temporal` 分開執行；完整環境變數命令見各模式 review，
-runner 用法見 [e2e/spec/README.md](../../../e2e/spec/README.md)。總計 20 次 scenario 執行，
+runner 用法見 [e2e/spec/README.md](../../../../e2e/spec/README.md)。總計 20 次 scenario 執行，
 包含兩模式各跑一次的 3 個共用 catalog 情境；不代表 20 個互異案例，也不是整個後端全模組測試。
 
 本機產物為 `e2e/spec/build/t7-events/reports/`、`e2e/spec/build/t7-temporal/reports/`；
@@ -119,6 +119,6 @@ HAPPY 已實際由詳情連結開啟新分頁 Timeline，正確導向 runId
 ## 最終檢查點
 
 - [x] 雙模式回歸與 UI 證據整併。
-- [x] 更新 [前端操作說明](../../../frontend/README.md)、[根 README](../../../README.md)、[部署說明](../../../docker/README.md)。
+- [x] 更新 [前端操作說明](../../../../frontend/README.md)、[根 README](../../../../README.md)、[部署說明](../../../../docker/README.md)。
 - [x] 更新 plan／tasks，區分執行完成與使用者確認。
 - [x] 使用者確認 T7.3 與整體最終成果（2026-09-09 指示 commit）。

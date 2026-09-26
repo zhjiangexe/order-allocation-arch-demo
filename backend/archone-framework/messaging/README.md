@@ -202,5 +202,5 @@ policy 能分開判斷 `MAPPING`、`CONTRACT`、`HANDLER` 與 `INFRASTRUCTURE`�
 `messaging.dlt.disposition=direct|retry_exhausted`。
 
 Rolling deployment、subscriber/group rename、DLT replay、header failure 與 retention 請見
-[`docs/messaging-operations-runbook.md`](../docs/messaging-operations-runbook.md)。完整演進決策請見
-[`docs/eventuate-tram-aligned-messaging-roadmap.md`](../docs/eventuate-tram-aligned-messaging-roadmap.md)。
+[`docs/messaging-operations-runbook.md`](../../../docs/messaging-operations-runbook.md)。歷史演進紀錄見
+[`eventuate-tram-aligned-messaging-roadmap.md`](../../../docs/archive/messaging-evolution/eventuate-tram-aligned-messaging-roadmap.md)。

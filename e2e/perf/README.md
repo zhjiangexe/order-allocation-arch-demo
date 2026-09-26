@@ -79,7 +79,7 @@ network，不需要再手動同步 `POSTGRES_CONTAINER`／`NETWORK`。
 
 重試與 DLT 架構（`AllocationConcurrencyExhaustedException` → 4 次指數退避重送 →
 `DeadLetterPublishingRecoverer`）的設計與取捨見
-[`BootstrapKafkaConsumerConfiguration`](../../backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/messaging/consumer/BootstrapKafkaConsumerConfiguration.java)
+[`KafkaConsumerConfiguration`](../../backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/configuration/KafkaConsumerConfiguration.java)
 的 Javadoc。Application 只宣告 exception classification 與 backoff；error handler、DLT headers 與
 failure observation 由 messaging runtime 依實際 subscriber 組裝。兩輪即時驗證：
 
@@ -154,7 +154,7 @@ load average 6 的機器上不會，而兩者都與程式的正確性無關。
 
 v3 只解決「下單 vs 下單」的衝突；「下單 vs 補貨」跨 consumer group 的殘留對撞
 不在這次範圍內，見
-[`docs/superpowers/specs/2026-07-26-v3-single-writer-design.md`](../../docs/superpowers/specs/2026-07-26-v3-single-writer-design.md)。
+[`2026-07-26-v3-single-writer-design.md`](../../docs/archive/superpowers/specs/2026-07-26-v3-single-writer-design.md)。
 
 如果訊息卡在退避重送中，直接 `./e2e/perf/run.sh down` 重來，不用 debug 被污染的
 partition——反正是拋棄式的本機環境。

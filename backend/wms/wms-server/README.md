@@ -60,7 +60,7 @@ archone.wms.simulation.batch-limit=100
 archone.wms.simulation.cancellation-batch-limit=100
 ```
 
-完整線路見 [Shipment handover 自動模擬流程](../../docs/shipment-handover-connection-gaps.png)。未來接真實
+完整線路見 [Shipment handover 自動模擬流程](../../../docs/shipment-handover-connection-gaps.png)。未來接真實
 WMS 時，由外部操作入口取代 `SimulatedWarehouseOperationsScheduler`，後續 handover event、Inventory
 出庫完成與 Ordering fulfillment contract 不變。
 

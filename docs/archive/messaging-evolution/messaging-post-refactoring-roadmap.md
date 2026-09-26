@@ -27,8 +27,8 @@ messaging modules，而是處理重構後才看得見的整合與 production rea
 
 - Tram 對齊歷程：[`eventuate-tram-aligned-messaging-roadmap.md`](eventuate-tram-aligned-messaging-roadmap.md)
 - 功能落差：[`eventuate-tram-gap-analysis.md`](eventuate-tram-gap-analysis.md)
-- Server 維運：[`messaging-server-operations-guide.md`](messaging-server-operations-guide.md)
-- 故障操作：[`messaging-operations-runbook.md`](messaging-operations-runbook.md)
+- Server 維運：[`messaging-server-operations-guide.md`](../../messaging-server-operations-guide.md)
+- 故障操作：[`messaging-operations-runbook.md`](../../messaging-operations-runbook.md)
 
 ## 2. 已確認的改善點
 
@@ -317,7 +317,7 @@ order-promising transaction
 ## 10. Gate P2-G — Production operations
 
 本 Gate 的詳細操作規範以
-[`messaging-server-operations-guide.md`](messaging-server-operations-guide.md) 為準，本 roadmap
+[`messaging-server-operations-guide.md`](../../messaging-server-operations-guide.md) 為準，本 roadmap
 只追蹤落地項目。
 
 - [ ] G1. 建立 production connector／topic／DB logical replication 的 versioned configuration。

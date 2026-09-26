@@ -79,5 +79,5 @@ v3 對比的數字要重測。
 **可刪**：`DevSeedDataIntegrationTest` 中「每個庫存池的 SKU 都存在於主檔」那支——外鍵取代它。
 
 **六件動工前事項已全數定案**，見
-[execution-roadmap.md](../../../docs/execution-roadmap.md) 的 R3 段落。本 change 不重新討論，
+[execution-roadmap.md](../../../../docs/archive/legacy-strategy/execution-roadmap.md) 的 R3 段落。本 change 不重新討論，
 只在 design 記錄與實作直接相關的部分。

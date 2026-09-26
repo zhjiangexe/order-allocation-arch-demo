@@ -77,7 +77,8 @@ reason／requestedAt 的 HTTP 請求回 409。恢復 Connect 後再驗證取消�
 `fixtures/e2e-catalog.sql` 另備有 `UI-EVT-*` 與 `UI-TMP-*` 各五個 SKU，分別供有貨、
 缺貨補貨、多 SKU 整單與 FEFO 前端驗收；既有 Karate scenarios 不使用這些 SKU。
 FEFO 每個 SKU 初始四批，在手 17、有效 ATP 10、過期 7。
-完整資料與操作矩陣見 [T1 基線](../../docs/plans/allocation-console/t1-baseline.md)。
+完整資料與操作矩陣見
+[T1 基線](../../docs/archive/plans/allocation-console/t1-baseline.md)。
 
 fixtures 僅適用新的隔離資料庫；`ON CONFLICT DO NOTHING` 不還原已消耗數量。
 重跑請建立新的隔離環境，不要把同一資料庫當成初始庫存。`KEEP_E2E_STACK=true` 只保留容器，

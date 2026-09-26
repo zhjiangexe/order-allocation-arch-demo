@@ -170,8 +170,8 @@ response 擷取，保留現有 nullable 欄位，沒有加入尚未實作的 T2 
 - Temporal Order：`01a084f2-af2b-792f-a21f-35db4cc3a7b9`；phase=FINISHED、outcome=FULFILLMENT_COMPLETED。
 - 額外 Events Order（Temporal target 不可用）：`01a084f5-6614-716c-889a-0a5a9bd464f6`。
 
-本機完整報告：[Events](../../../e2e/spec/build/reports/events/karate-summary.html)、
-[Temporal](../../../e2e/spec/build/reports/temporal/karate-summary.html)。報告是 ignored build artifacts，
+本機完整報告位於 `e2e/spec/build/reports/events/karate-summary.html` 與
+`e2e/spec/build/reports/temporal/karate-summary.html`。報告是 ignored build artifacts，
 可能被後續執行覆寫；此文件與 JSON samples 為本次保留的摘要證據。
 
 未驗證／限制：

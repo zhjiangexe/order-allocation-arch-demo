@@ -117,11 +117,6 @@ at the first unsatisfiable order instead of skipping ahead.
 <!-- @trace
 source: add-fifo-replenishment-demo
 updated: 2026-07-25
-code:
-  - docs/done/demo-02-fifo-replenishment-batch-implementation.md
-  - docs/stock-reservation-design.md
-tests:
-  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
 -->
 
 ---
@@ -147,18 +142,13 @@ records, all of type `OrderAllocatedIntegrationEvent`.
 <!-- @trace
 source: add-fifo-replenishment-demo
 updated: 2026-07-25
-code:
-  - docs/done/demo-02-fifo-replenishment-batch-implementation.md
-  - docs/stock-reservation-design.md
-tests:
-  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
 -->
 
 ---
 ### Requirement: A subsequent sequential replenishment resumes the queue correctly
 
-After the first replenishment leaves the blocker and the remaining orders
-BACKORDERED, the scenario SHALL submit a second, sequential (not concurrent)
+After the first replenishment leaves the blocker and the remaining orders BACKORDERED, the scenario SHALL
+submit a second, sequential (not concurrent)
 `StockReplenishedIntegrationEvent` with a quantity equal to the sum of the
 still-backordered orders. The scenario SHALL assert that this second event
 allocates the rest of the queue in the same FIFO order, proving that waking
@@ -188,9 +178,4 @@ correctly resumes and completes it.
 <!-- @trace
 source: add-fifo-replenishment-demo
 updated: 2026-07-25
-code:
-  - docs/done/demo-02-fifo-replenishment-batch-implementation.md
-  - docs/stock-reservation-design.md
-tests:
-  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationFifoReplenishmentBatchIntegrationTest.java
 -->

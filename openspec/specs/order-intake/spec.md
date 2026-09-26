@@ -152,8 +152,10 @@ not correct behavior but is safe behavior.
 ---
 ### Requirement: Order handling does not depend on the number of lines
 
-Reaching a line by position is correct while intake permits only one line, produces no
-failing test, and silently ignores every other line once the policy is relaxed.
+Production code SHALL NOT reach an order line by position except through the named
+single-line operation described below. Reaching a line by position appears correct while
+intake permits only one line, produces no failing test, and silently ignores every other
+line once the policy is relaxed.
 
 A small number of places genuinely need to collapse an order's lines into a single
 value — the message key used for event partitioning and the label attached to allocation
@@ -271,8 +273,8 @@ historical import.
 ---
 ### Requirement: A line's status mirrors its header, and no timestamp is stored on it
 
-Because an order is fulfilled complete, all of an order's lines reach an allocation outcome
-together. A line SHALL therefore hold no status of its own: the header's status is the
+A line SHALL hold no status of its own because an order is fulfilled complete and all of
+its lines reach an allocation outcome together. The header's status is the
 line's status, and reading a line's status SHALL mean reading the header's.
 
 Storing it per line was justified by a use that does not exist. The reason recorded on the
@@ -502,43 +504,4 @@ single-line policy; with it gone, both accept exactly the orders the schema perm
 <!-- @trace
 source: allocate-multi-sku-orders-as-one-basket
 updated: 2026-07-31
-code:
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/policy/StrictFifoAllocationPolicy.java
-  - order-promising/src/main/java/com/flowzati/archone/bootstrap/DevSeedDataInitializer.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/policy/MaximizeFulfilledOrdersPolicy.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/context/BasicAllocationContext.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/coordinator/OrderAllocationCoordinator.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/usecase/AllocateOrderUsecase.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/selector/context/BasicAllocationContextFactory.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationRequest.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationResult.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/entrypoint/rest/PlaceOrderRequest.java
-  - frontend/src/components/OrderTable.tsx
-  - frontend/src/components/PlaceOrderForm.module.css
-  - frontend/src/components/PlaceOrderForm.tsx
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationService.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/SkuQuantities.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/repository/StockPoolRepository.java
-  - docs/execution-roadmap.md
-  - order-promising/src/main/java/com/flowzati/archone/stock/domain/service/AllocationPlan.java
-  - order-promising/src/main/java/com/flowzati/archone/ordering/domain/model/Order.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/jpa/JpaStockRepository.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/infrastructure/repository/StockPoolRepositoryImpl.java
-  - order-promising/src/main/java/com/flowzati/archone/stock/application/usecase/ReplenishmentUsecase.java
-tests:
-  - frontend/src/components/PlaceOrderForm.test.tsx
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationServiceTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/OrderingArchitectureTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/usecase/ReplenishmentUsecaseTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/bootstrap/DevSeedDataIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationPlanTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/entrypoint/rest/OrderControllerTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/selector/AllocationPolicyTest.java
-  - order-promising/src/test/java/com/flowzati/archone/ordering/domain/model/OrderTest.java
-  - order-promising/src/test/java/com/flowzati/archone/testsupport/OrderFixtures.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/usecase/AllocateOrderUsecaseTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/SkuQuantitiesTest.java
-  - order-promising/src/sit/java/com/flowzati/archone/stock/entrypoint/kafka/AllocationWorkflowEndToEndIntegrationTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/domain/service/AllocationSelectorTest.java
-  - order-promising/src/test/java/com/flowzati/archone/stock/application/coordinator/OrderAllocationCoordinatorTest.java
 -->
