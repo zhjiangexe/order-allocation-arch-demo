@@ -201,6 +201,5 @@ policy 能分開判斷 `MAPPING`、`CONTRACT`、`HANDLER` 與 `INFRASTRUCTURE`�
 低基數 `messaging.failure.category`、`messaging.failure.retryable`，DLT 另帶
 `messaging.dlt.disposition=direct|retry_exhausted`。
 
-Rolling deployment、subscriber/group rename、DLT replay、header failure 與 retention 請見
-[`docs/messaging-operations-runbook.md`](../../../docs/messaging-operations-runbook.md)。歷史演進紀錄見
-[`eventuate-tram-aligned-messaging-roadmap.md`](../../../docs/archive/messaging-evolution/eventuate-tram-aligned-messaging-roadmap.md)。
+Rolling deployment、subscriber/group rename、DLT replay、header failure、retention 與事故處理請見
+[`docs/operations/messaging.md`](../../../docs/operations/messaging.md)。歷史演進由 Git history 保存。

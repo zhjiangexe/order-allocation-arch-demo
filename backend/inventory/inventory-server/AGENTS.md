@@ -1,7 +1,7 @@
 # Inventory context development rules
 
 本檔適用於 `backend/inventory/inventory-server`。Inventory 的 living architecture 位於
-`docs/inventory-domain-ownership.md`；新增或搬移類別前，先依該文件判斷 Movement、Allocation、
+`docs/architecture/inventory.md`；新增或搬移類別前，先依該文件判斷 Movement、Allocation、
 Reservation、Position、Location 的唯一 owner。
 
 ## Package grammar

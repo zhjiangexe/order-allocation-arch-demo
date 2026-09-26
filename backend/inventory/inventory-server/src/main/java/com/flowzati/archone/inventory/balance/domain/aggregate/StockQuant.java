@@ -24,7 +24,7 @@ import java.util.UUID;
  * <p><b>但在手量與預留量是物化的，不是 {@code SUM(moves)}。</b>一列庫存是外部 Inventory/WMS
  * 事實與本地預留共同維護的餘額，不是搬運的檢視。這一點必須寫在這裡，因為「餘額由異動推導」是
  * 下一步最自然的誤讀——而守著這個餘額的樂觀鎖正是可用量增加與喚醒序列化的機制，見
- * {@code docs/dom-promising-scope.md} 的「決定二」。Odoo 的 {@code stock.quant} 也是物化餘額。
+ * {@code docs/architecture/inventory.md}。Odoo 的 {@code stock.quant} 也是物化餘額。
  */
 public class StockQuant {
 

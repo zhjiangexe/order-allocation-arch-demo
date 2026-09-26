@@ -7,7 +7,6 @@
 docs
 e2e
 frontend
-openspec
 backend/.gradle
 backend/**/build
 **/.DS_Store

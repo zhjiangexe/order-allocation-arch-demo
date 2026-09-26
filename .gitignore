@@ -37,7 +37,6 @@ out/
 ### VS Code ###
 .vscode/
 .spectra/
-openspec/.vector-search.db*
 
 ### Generated knowledge graph ###
 graphify-out/

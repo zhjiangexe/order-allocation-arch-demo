@@ -93,8 +93,8 @@ logging／tracing 提供，不塞進 Contract API。
 - predicate 的 evaluation cause。
 
 這些資料只供測試、log 與問題診斷。公開 REST API 遇到 Contract violation 時，應回傳固定的通用 `500` 與
-incident ID，不應直接把 Contract message 或 cause 顯示給使用者；詳細處理方式見
-[Design by Contract 開發手冊的 Global Exception Handler](../../../docs/design-by-contract-development-guide.md#112-global-exception-handler)。
+incident ID，不應直接把 Contract message 或 cause 顯示給使用者；責任切分與 review 規則見
+[Design by Contract development policy](../../../docs/development/design-by-contract.md)。
 
 ## 設計限制
 

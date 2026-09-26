@@ -64,7 +64,7 @@ API 仍使用 28290；後續重建容器時沿用相同覆寫值。
 Temporal 跳轉預設 UI `http://localhost:28296`、namespace `default`；隔離環境透過前端
 `VITE_TEMPORAL_UI_URL`／`VITE_TEMPORAL_NAMESPACE` 調整，這不會切換後端模式。
 詳見 [前端操作說明](../frontend/README.md) 與
-[雙模式驗收紀錄](../docs/archive/plans/allocation-console/validation.md)。
+[`e2e/spec/features`](../e2e/spec/features) 的雙模式 executable scenarios。
 
 ## Environment files
 

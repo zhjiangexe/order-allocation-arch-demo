@@ -152,9 +152,9 @@ load average 6 的機器上不會，而兩者都與程式的正確性無關。
 的上界」，不是一般流量的預期改善。真實訂單分散在多個 SKU 時衝突本來就少，兩個策略的差距會
 明顯縮小——這也是預設仍為 `order-id` 的理由：策略的價值取決於流量形狀，不是一律開啟。
 
-v3 只解決「下單 vs 下單」的衝突；「下單 vs 補貨」跨 consumer group 的殘留對撞
-不在這次範圍內，見
-[`2026-07-26-v3-single-writer-design.md`](../../docs/archive/superpowers/specs/2026-07-26-v3-single-writer-design.md)。
+這組測試只量測「下單 vs 下單」的衝突；「下單 vs 補貨」跨 consumer group 的競爭不在此 scenario
+涵蓋範圍。現行 concurrency 與 transaction boundary 以測試程式及
+[`docs/architecture/inventory.md`](../../docs/architecture/inventory.md) 為準。
 
 如果訊息卡在退避重送中，直接 `./e2e/perf/run.sh down` 重來，不用 debug 被污染的
 partition——反正是拋棄式的本機環境。

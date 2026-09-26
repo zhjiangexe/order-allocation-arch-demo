@@ -8,7 +8,7 @@ import java.util.UUID;
  *
  * <p>庫存掛在位置上而不是設施上，因為**設施當不了搬運的端點**——供應商與客戶不是本系統
  * 經營的設施，卻必須是移動的合法另一端。詳見 {@link LocationUsageType} 與
- * {@code docs/dom-stock-movement-scope.md}。
+ * {@code docs/architecture/inventory.md}。
  *
  * <p><b>設施是實體欄位，不是沿樹推導的。</b> 一個設施可以有多個 {@code INTERNAL}
  * 位置；位置目前不成樹，因此 {@code facilityId} 直接回答「這個位置屬於哪個設施」。Odoo 有樹，

@@ -138,6 +138,5 @@ VITE_TEMPORAL_NAMESPACE=default
 4. 多 SKU 單先確認未部分預留，再補足不足 SKU；FEFO 單核對有效批各取 2、過期批未消耗。
 5. Temporal 模式再確認 Workflow 成功終態並跳轉 Timeline。
 
-完整命令、隔離環境、八筆訂單 IDs 與證據界線見
-[T7 驗收紀錄](../docs/archive/plans/allocation-console/validation.md)。
+自動化驗收以 [`e2e/spec/features`](../e2e/spec/features) 的 Events／Temporal scenarios 為準。
 fixtures 使用 `ON CONFLICT` 不等於重置庫存；重跑請用全新 project／資料庫，不能把已消耗資料當初始值。

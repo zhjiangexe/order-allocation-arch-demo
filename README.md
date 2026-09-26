@@ -152,8 +152,8 @@ prod 對應 `docker/env/prod.env.example` 與 `make prod-deploy`。完整變數�
 前端提供訂單、配貨佇列、庫存與主檔四頁，可從建單、補貨追蹤到履約完成。
 右上角共用貨主選擇模擬登入身分；各頁沿用所選貨主，切換時重設操作範圍。
 Events／Temporal 由後端啟動設定決定，Temporal 詳情可跳轉 Workflow。
-啟動方式與操作見 [frontend/README.md](frontend/README.md)，雙模式驗證見
-[validation.md](docs/archive/plans/allocation-console/validation.md)。
+啟動方式與操作見 [frontend/README.md](frontend/README.md)；雙模式行為由
+[`e2e/spec/features`](e2e/spec/features) 下的 Events／Temporal scenarios 驗證。
 
 訂單列表 `GET /orders?limit=20&ownerId=...` 與配貨佇列都支援可選的 `ownerId`，先篩選貨主再取筆數。
 這是查詢條件，尚未提供登入授權隔離。

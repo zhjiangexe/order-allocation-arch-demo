@@ -1,8 +1,23 @@
 # Context Map
 
-狀態：AS-IS 關係＋TO-BE 已決策方向
+更新日期：2026-09-26
 
-## AS-IS 關係圖
+## Current bounded contexts
+
+| Context | 擁有的事實 | 主要實作 |
+| --- | --- | --- |
+| Ordering | `Order`、`OrderLine` 與 order lifecycle | `backend/ordering` |
+| Inventory | stock operation／move、allocation、reservation、quant 與 location | `backend/inventory` |
+| WMS | Shipment、Wave、Picking、Dispatch 與 Receiving execution | `backend/wms` |
+| Logistics Data | Owner、Product、SKU 與 Facility reference data | `backend/logistics-data-context` |
+| Fulfillment Coordination | 跨 context 履約查詢、Events cancellation process 與 Temporal workflow coordination | `backend/fulfillment`、`backend/orchestration-temporal-*` |
+
+`integration-contracts`、`archone-framework` 與 `deployments:monolith` 分別是 published contracts、技術能力與部署
+組裝，不是 bounded context。同一 process 部署也不表示 context 可以繞過 application boundary 共用 domain model。
+
+Inventory 與 WMS 內的 package 是內部 domain module；package 分割本身不構成新的 bounded context。
+
+## Current relationships
 
 ```mermaid
 flowchart LR
@@ -10,117 +25,76 @@ flowchart LR
     O[Ordering]
     I[Inventory]
     W[WMS]
-    F[Fulfillment Coordination / current module]
+    F[Fulfillment Coordination]
 
     LD -. reference identities .-> O
     LD -. reference identities .-> I
     LD -. reference identities .-> W
-
-    O -- OrderPlaced --> I
-    I -- OrderAllocationCommitted --> O
-    I -- OrderAllocationCommitted --> W
-    W -- ShipmentHandedOver --> I
-    I -- OutboundMovementsCompleted --> O
-    O -- OrderCancelled --> I
-
-    F -- WmsCancellationRequested --> W
-    W -- cancellation outcome --> F
-    F -- OrderingCancellationRequested --> O
-    O -- cancellation outcome --> F
-
-    F -. RPC/query composition .-> O
-    F -. RPC/query composition .-> I
-    F -. RPC/query composition .-> W
-```
-
-## TO-BE 關係圖
-
-```mermaid
-flowchart LR
-    EXT[Owner systems]
-    PI[Partner Integration / ACL]
-    SP[Operational Service Policy]
-    LD[Logistics Data]
-    F[Outbound Fulfillment Operations]
-    O[Ordering]
-    I[Inventory]
-    W[WMS]
-    R[Returns capability]
-    B[3PL Billing]
-    CT[Control Tower projection / work queue]
-    ERP[External ERP]
-
-    EXT --> PI
-    PI -- normalized submission --> F
-    SP -- versioned service profile --> F
-    LD -- operational product / facility constraints --> F
-    F -- accepted order command --> O
-
     O -- order facts --> I
     I -- allocation facts --> O
     I -- allocation facts --> W
-    W -- warehouse facts --> I
-    I -- movement facts --> O
-
-    O -. facts .-> CT
-    I -. facts .-> CT
-    W -. facts .-> CT
-    F -. case / SLA / exception .-> CT
-    R -. return progress .-> CT
-
-    O -. billable facts .-> B
-    I -. billable facts .-> B
-    W -. billable facts .-> B
-    R -. billable facts .-> B
-    B -- billing statement --> ERP
-
-    R -- receiving / disposition commands --> W
-    W -- receipt / inspection facts --> R
-    R -- stock disposition commands --> I
-    I -- inventory facts --> R
+    W -- handover facts --> I
+    I -- movement completion facts --> O
+    F -- cancellation commands --> W
+    W -- cancellation outcomes --> F
+    F -- cancellation commands --> O
+    O -- cancellation outcomes --> F
+    F -. queries / Temporal activities .-> O
+    F -. queries / Temporal activities .-> I
+    F -. queries / Temporal activities .-> W
 ```
 
-## 合作關係
+| Upstream → Downstream | 合作方式 | 邊界語意 |
+| --- | --- | --- |
+| Ordering → Inventory | Published Language | 已受理 Order 成為 source-neutral movement intent |
+| Inventory → Ordering | Published Language | committed allocation 與 completed outbound movement |
+| Inventory → WMS | Customer–Supplier | committed assignment snapshot 成為 Shipment input |
+| WMS → Inventory | Published Language | handover 使 Inventory 可以完成 outbound movement |
+| Fulfillment → WMS／Ordering | Process Manager | Events commands 或 Temporal Activities；兩種 driver 委派相同 use cases |
+| WMS／Ordering → Fulfillment | Process feedback | outcome events 或 Temporal Signals；Fulfillment 只擁有協調狀態 |
+| Logistics Data → consumers | Reference data | 共享 identity／read model，不共享 persistence ownership |
 
-| Upstream → Downstream | 關係草案 | Published language / contract | 備註 |
-| --- | --- | --- | --- |
-| Ordering → Inventory | Customer–Supplier | `OrderPlacedIntegrationEvent` | Inventory 將 order identity 正規化成 movement demand |
-| Inventory → Ordering | Open Host Service + Published Language | `OrderAllocationCommittedIntegrationEvent`、`OutboundMovementsCompletedIntegrationEvent` | Ordering 不讀 Inventory domain model |
-| Inventory → WMS | Customer–Supplier | `OrderAllocationCommittedIntegrationEvent` | 完整 assignment snapshot 成為 Shipment input |
-| WMS → Inventory | Published Language | `ShipmentHandedOverIntegrationEvent` | Inventory 以 correlation 與 movement proof 完成出庫 |
-| Ordering → Inventory | Published Language | `OrderCancelledIntegrationEvent` | Inventory 釋放 source movements |
-| Outbound Fulfillment → WMS / Ordering | Process Manager | cancel command events 或 Temporal Activities | driver 互斥，但委派相同 use cases |
-| WMS / Ordering → Outbound Fulfillment | Process Manager feedback | cancellation outcome events 或 Signals | Fulfillment 只擁有協調狀態 |
-| Logistics Data → consumers | 待確認；傾向 Open Host Service | 目前為 REST/read model 與 shared identifiers | 需避免共享 persistence model |
+## Context ownership
 
-## TO-BE 新增關係
+### Ordering
 
-| Upstream → Downstream | 關係 | Published language / boundary | 邊界規則 |
-| --- | --- | --- | --- |
-| Owner systems → Partner Integration | Anti-Corruption Layer | Owner-specific API／EDI／file | 只處理 protocol、identity、mapping、dedupe 與 ACK |
-| Partner Integration → Outbound Fulfillment | Conformist to canonical intake | normalized submission command | Fulfillment 才做 semantic validation 與受理決策 |
-| Operational Service Policy → Outbound Fulfillment | Open Host Service + snapshot | versioned service profile | 核准時快照，硬條件在建單前重驗 |
-| Logistics Data → Outbound Fulfillment／WMS／Inventory | Open Host Service | operational product and facility profile | 商業 Product Master 仍由 Owner ERP 擁有 |
-| Outbound Fulfillment → Ordering | Customer–Supplier | accepted-order command | 未核准 submission 不得建立 Order 或發布 OrderPlaced |
-| Operational contexts → Control Tower | Published Language / projection | case、milestone、SLA、exception views | Control Tower 不回寫來源 aggregate truth |
-| Operational contexts → 3PL Billing | Published Language | immutable billable facts | Billing 依 RateCard 產生 activity／adjustment |
-| 3PL Billing → external ERP | Anti-Corruption Layer | billing statement/export | ERP 擁有 invoice、AR、payment、ledger |
-| Returns → WMS／Inventory | Process Manager | receiving、inspection、disposition intent | ReturnCase 不重開原 FulfillmentCase |
+管理 Order identity 與生命週期，記錄 allocation、fulfillment、cancellation 對 Order 的結果。它不計算 ATP、
+不擁有批次承諾，也不解讀 WMS 內部進度。
 
-## 重要邊界規則
+### Inventory
 
-1. Producer 的 Application/Domain code 不依賴 versioned Integration Event contract。
-2. Integration Event consumer 只做 contract-to-command normalization，不自行編排 outbound publication。
-3. 同一 business fact 面向多個 audience 時，由 Integration Event Adapter 原子轉成多筆 publication。
-4. Temporal Activity 是 command delivery boundary；canonical terminal fact 仍由擁有該事實的 context 發布。
-5. Modular monolith 的同 process 部署不代表可以繞過公開 application boundary。
-6. Tenant 代表 3PL provider；`ownerId` 是 tenant 內的強制 ACL、庫存、政策與計費範圍。
-7. Control Tower 共用 UI、SLA 元件或 workflow runtime，不構成合併 inbound、outbound、returns domain model 的理由。
-8. Partner Integration consumer 只把外部 contract 正規化成 command；不得自行決定受理或直接發布後續 domain fact。
+把來源需求轉成 movement intent，規劃並原子提交庫存承諾，維持位置數量與 movement lifecycle。它不擁有 Order、
+Shipment 或商品主檔生命週期。詳細規則見 [Inventory 架構](../architecture/inventory.md)。
 
-## 待確認的關係
+### WMS
 
-- Logistics Data 的跨 context published contract 與 profile version propagation 方式。
-- Operational Work Management 是否會形成獨立 context，或長期只作為 Control Tower application capability。
-- WMS Inbound 是否會因 appointment／ASN coordination／vendor variance／detention SLA 而需要獨立 context。
-- Returns 何時具備從 capability/module 升格 Returns Management bounded context 的條件。
+把已承諾需求轉成可執行的倉內工作，直到 handover；也管理 receiving execution。它不決定 Order 是否 fulfilled，
+也不擁有 `StockQuant`。
+
+### Fulfillment Coordination
+
+現行能力是跨 context 查詢、取消 process manager 與 Temporal workflow。它不複製 Order、StockOperation、Shipment
+狀態；workflow phase 只是 checkpoint。目標演進見[策略](strategy.md)與
+[Fulfillment orchestration](../architecture/fulfillment-orchestration.md)。
+
+## Target additions
+
+Target context map 增加下列邊界，但尚未全部實作：
+
+- Partner Integration／ACL 將 Owner-specific protocol 正規化成 submission command。
+- Operational Service Policy 提供版本化 service profile 與硬條件。
+- Outbound Fulfillment Operations 完成受理、Case、SLA、取消與 exception coordination。
+- Control Tower 讀取各 context facts 建立 projection 與工作入口，不回寫來源 aggregate truth。
+- 3PL Billing 由不可變作業事實產生 billable activity，交由外部 ERP 開票與入帳。
+- Returns 以獨立 capability 協調 WMS receiving 與 Inventory disposition，不重開原 FulfillmentCase。
+
+## Boundary rules
+
+1. Domain／Application business code 不依賴 versioned Integration Event contract 或 transport infrastructure。
+2. Outbound publication 走 `Application Event → Publisher port → Integration Event Adapter`，並留在原 business
+   transaction。
+3. Consumer 只把 versioned contract 與 correlation identity 轉成 normalized command，再交給 use case。
+4. Context 間不得以共享 database entity 或讀取對方 internal table 取代 published boundary。
+5. Temporal Activity 傳遞 command；canonical result 由 owner context 透過自己的 transaction 與 event 發布。
+6. Tenant 是 3PL provider；`ownerId` 是 tenant 內 ACL、庫存、政策與計費的強制範圍。
+7. Control Tower、報表與查詢 projection 可以組合資料，但不能因此取得來源狀態的寫入權。
