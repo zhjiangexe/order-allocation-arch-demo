@@ -10,56 +10,65 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class JdbcCancellationProcessStore implements CancellationProcessStore {
+public class JdbcCancellationProcessStoreAdapter implements CancellationProcessStore {
 
     private static final String SELECT = "SELECT request_id, order_id, requested_at, reason, state, "
             + "wms_outcome, ordering_outcome "
             + "FROM cancellation_processes WHERE request_id = ?";
 
-    private final JdbcTemplate jdbc;
+    private final JdbcClient jdbcClient;
 
-    public JdbcCancellationProcessStore(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+    public JdbcCancellationProcessStoreAdapter(JdbcClient jdbcClient) {
+        this.jdbcClient = jdbcClient;
     }
 
     @Override
     public Optional<CancellationProcess> find(UUID requestId) {
-        return jdbc.query(SELECT, JdbcCancellationProcessStore::map, requestId).stream()
-                .findFirst();
+        return jdbcClient
+                .sql(SELECT)
+                .param(requestId)
+                .query(JdbcCancellationProcessStoreAdapter::map)
+                .optional();
     }
 
     @Override
     public Optional<CancellationProcess> lock(UUID requestId) {
-        return jdbc.query(SELECT + " FOR UPDATE", JdbcCancellationProcessStore::map, requestId).stream()
-                .findFirst();
+        return jdbcClient
+                .sql(SELECT + " FOR UPDATE")
+                .param(requestId)
+                .query(JdbcCancellationProcessStoreAdapter::map)
+                .optional();
     }
 
     @Override
     public boolean insert(CancellationProcess process) {
-        return jdbc.update(
-                        "INSERT INTO cancellation_processes (request_id, order_id, requested_at, reason, state) "
-                                + "VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
-                        process.requestId(),
-                        process.orderId(),
-                        Timestamp.from(process.requestedAt()),
-                        process.reason(),
-                        process.state().name())
+        return jdbcClient
+                        .sql("INSERT INTO cancellation_processes "
+                                + "(request_id, order_id, requested_at, reason, state) "
+                                + "VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
+                        .params(
+                                process.requestId(),
+                                process.orderId(),
+                                Timestamp.from(process.requestedAt()),
+                                process.reason(),
+                                process.state().name())
+                        .update()
                 == 1;
     }
 
     @Override
     public void recordWmsOutcome(
             UUID requestId, CancellationProcessState next, WmsCancellationOutcomeCommand.Outcome outcome) {
-        int changed = jdbc.update(
-                "UPDATE cancellation_processes SET state = ?, wms_outcome = ?, updated_at = CURRENT_TIMESTAMP "
-                        + "WHERE request_id = ? AND state = 'WAITING_WMS' AND wms_outcome IS NULL",
-                next.name(),
-                outcome.name(),
-                requestId);
+        int changed = jdbcClient
+                .sql("UPDATE cancellation_processes "
+                        + "SET state = ?, wms_outcome = ?, updated_at = CURRENT_TIMESTAMP "
+                        + "WHERE request_id = ? AND state = 'WAITING_WMS' AND wms_outcome IS NULL")
+                .params(next.name(), outcome.name(), requestId)
+                .update();
         if (changed != 1) {
             throw new IllegalStateException("Cancellation WMS outcome changed unexpectedly: " + requestId);
         }
@@ -68,12 +77,12 @@ public class JdbcCancellationProcessStore implements CancellationProcessStore {
     @Override
     public void recordOrderingOutcome(
             UUID requestId, CancellationProcessState next, OrderingCancellationOutcomeCommand.Outcome outcome) {
-        int changed = jdbc.update(
-                "UPDATE cancellation_processes SET state = ?, ordering_outcome = ?, updated_at = CURRENT_TIMESTAMP "
-                        + "WHERE request_id = ? AND state = 'WAITING_ORDERING' AND ordering_outcome IS NULL",
-                next.name(),
-                outcome.name(),
-                requestId);
+        int changed = jdbcClient
+                .sql("UPDATE cancellation_processes "
+                        + "SET state = ?, ordering_outcome = ?, updated_at = CURRENT_TIMESTAMP "
+                        + "WHERE request_id = ? AND state = 'WAITING_ORDERING' AND ordering_outcome IS NULL")
+                .params(next.name(), outcome.name(), requestId)
+                .update();
         if (changed != 1) {
             throw new IllegalStateException("Cancellation Ordering outcome changed unexpectedly: " + requestId);
         }
