@@ -9,6 +9,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-dlt-init:
+        condition: service_completed_successfully
       temporal:
         condition: service_healthy
         required: false
@@ -75,6 +77,19 @@ services:
       timeout: 5s
       retries: 30
     restart: unless-stopped
+
+  kafka-dlt-init:
+    image: apache/kafka:4.3.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/scripts/ensure-kafka-dlts.sh"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KAFKA_TOPIC_PARTITIONS: "4"
+    volumes:
+      - ../scripts/ensure-kafka-dlts.sh:/scripts/ensure-kafka-dlts.sh:ro
+    restart: "no"
 
   kafka-connect:
     image: quay.io/debezium/connect:3.5.2.Final

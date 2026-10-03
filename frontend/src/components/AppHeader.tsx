@@ -24,8 +24,11 @@ export function AppHeader() {
         <NavLink to="/catalog" className={linkClass}>
           主檔瀏覽
         </NavLink>
+        <NavLink to="/dead-letters" className={linkClass}>
+          DLT 訊息
+        </NavLink>
       </nav>
-      <label className={styles.owner}>貨主
+      {location.pathname !== '/dead-letters' ? <label className={styles.owner}>貨主
         <Select aria-label="目前貨主" value={session?.owner?.ownerId ?? ''}
           disabled={!session?.owners.length || session.loading}
           onValueChange={ownerId => {
@@ -35,7 +38,7 @@ export function AppHeader() {
           {!session?.owners.length ? <SelectOption value="">{session?.loading ? '載入中…' : '沒有貨主'}</SelectOption> : null}
           {session?.owners.map(owner => <SelectOption key={owner.ownerId} value={owner.ownerId}>{owner.name}（{owner.code}）</SelectOption>)}
         </Select>
-      </label>
+      </label> : null}
     </header>
   );
 }

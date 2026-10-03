@@ -1,0 +1,16 @@
+.page { padding: 1.5rem; }
+.heading { display: flex; justify-content: space-between; align-items: start; gap: 1rem; }
+.heading h2, .heading h3 { margin: 0; }
+.heading p { margin: 0.3rem 0 1rem; }
+.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin: 1rem 0; }
+.filters label { display: grid; gap: 0.25rem; }
+.filters select, .filters input { min-width: 14rem; padding: 0.4rem; border: 1px solid var(--control-border); border-radius: 4px; background: var(--surface); color: var(--text); }
+.tableWrap { overflow-x: auto; }
+.tableWrap table { width: 100%; border-collapse: collapse; background: var(--surface); }
+.tableWrap th, .tableWrap td { padding: 0.55rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.paging { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+.detail { margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border); background: var(--surface); }
+.detail dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1rem; }
+.detail dt { font-weight: 600; }
+.detail dd { margin: 0; overflow-wrap: anywhere; }
+.detail pre { padding: 0.75rem; overflow-x: auto; background: var(--background); white-space: pre-wrap; overflow-wrap: anywhere; }
