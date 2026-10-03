@@ -2,19 +2,25 @@ package com.flowzati.archone.contracts;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestResolvedIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestedIntegrationEvent;
 import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.WmsCancellationRequestResolvedIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.WmsCancellationRequestedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
+import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -43,14 +49,42 @@ class IntegrationEventJsonContractTest {
             .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
             .build();
 
+    @Test
+    void orderPlacedAsyncApiDemoMatchesTheJavaAndGoldenJsonContract() throws Exception {
+        try (InputStream document = getClass().getResourceAsStream("/asyncapi/order-placed-v1.json");
+                InputStream golden = getClass().getResourceAsStream("/contracts/order-placed-v1.json")) {
+            assertThat(document).isNotNull();
+            assertThat(golden).isNotNull();
+            var asyncApi = objectMapper.readTree(document);
+            var payload = asyncApi.get("components").get("messages").get("orderPlaced");
+            var schema = payload.get("payload");
+
+            assertThat(asyncApi.get("asyncapi").asText()).isEqualTo("3.1.0");
+            assertThat(asyncApi.get("channels")
+                            .get("orderEvents")
+                            .get("address")
+                            .asText())
+                    .isEqualTo(OrderingEventDestinations.ORDER_EVENTS);
+            assertThat(payload.get("name").asText()).isEqualTo(OrderPlacedIntegrationEvent.EVENT_TYPE);
+            assertThat(schema.get("required").toString()).isEqualTo("[\"eventId\",\"orderId\",\"receivedAt\"]");
+            assertThat(payload.get("examples").get(0).get("payload")).isEqualTo(objectMapper.readTree(golden));
+        }
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("contracts")
     void matchesGoldenPayloadAndRoundTrips(
             String resource, IntegrationEvent event, Class<? extends IntegrationEvent> eventClass) throws Exception {
         try (InputStream expectedJson = getClass().getResourceAsStream("/contracts/" + resource)) {
             assertThat(expectedJson).as("golden contract %s", resource).isNotNull();
+            var goldenPayload = objectMapper.readTree(expectedJson);
             assertThat(objectMapper.readTree(objectMapper.writeValueAsString(event)))
-                    .isEqualTo(objectMapper.readTree(expectedJson));
+                    .isEqualTo(goldenPayload);
+
+            IntegrationEvent restoredGolden = objectMapper.readValue(goldenPayload.toString(), eventClass);
+            assertThat(objectMapper.readTree(objectMapper.writeValueAsString(restoredGolden)))
+                    .isEqualTo(goldenPayload);
+            assertThat(restoredGolden.eventType()).isEqualTo(event.eventType());
         }
 
         IntegrationEvent restored = objectMapper.readValue(objectMapper.writeValueAsString(event), eventClass);
@@ -126,6 +160,34 @@ class IntegrationEventJsonContractTest {
                                 "customer request",
                                 OCCURRED_AT.plusSeconds(30)),
                         ShipmentCancelledIntegrationEvent.class),
+                Arguments.of(
+                        "wms-cancellation-requested-v1.json",
+                        new WmsCancellationRequestedIntegrationEvent(
+                                EVENT_ID, CANCELLATION_REQUEST_ID, ORDER_ID, OCCURRED_AT, "customer request"),
+                        WmsCancellationRequestedIntegrationEvent.class),
+                Arguments.of(
+                        "wms-cancellation-request-resolved-v1.json",
+                        new WmsCancellationRequestResolvedIntegrationEvent(
+                                EVENT_ID,
+                                CANCELLATION_REQUEST_ID,
+                                ORDER_ID,
+                                OCCURRED_AT,
+                                "customer request",
+                                WmsCancellationRequestResolvedIntegrationEvent.Outcome.NO_SHIPMENT),
+                        WmsCancellationRequestResolvedIntegrationEvent.class),
+                Arguments.of(
+                        "ordering-cancellation-requested-v1.json",
+                        new OrderingCancellationRequestedIntegrationEvent(
+                                EVENT_ID, CANCELLATION_REQUEST_ID, ORDER_ID, OCCURRED_AT, "customer request"),
+                        OrderingCancellationRequestedIntegrationEvent.class),
+                Arguments.of(
+                        "ordering-cancellation-request-resolved-v1.json",
+                        new OrderingCancellationRequestResolvedIntegrationEvent(
+                                EVENT_ID,
+                                CANCELLATION_REQUEST_ID,
+                                ORDER_ID,
+                                OrderingCancellationRequestResolvedIntegrationEvent.Outcome.CANCELLED),
+                        OrderingCancellationRequestResolvedIntegrationEvent.class),
                 Arguments.of(
                         "shipment-handed-over-v1.json",
                         new ShipmentHandedOverIntegrationEvent(

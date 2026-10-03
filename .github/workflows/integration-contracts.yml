@@ -1,0 +1,21 @@
+name: Integration contracts
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Check formatting and v1 event contracts
+        working-directory: backend
+        run: ./gradlew :integration-contracts:spotlessCheck :integration-contracts:test --console=plain

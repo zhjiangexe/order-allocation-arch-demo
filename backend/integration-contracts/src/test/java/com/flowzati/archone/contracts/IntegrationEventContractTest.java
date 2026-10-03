@@ -3,7 +3,11 @@ package com.flowzati.archone.contracts;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestResolvedIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestedIntegrationEvent;
 import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.WmsCancellationRequestResolvedIntegrationEvent;
+import com.flowzati.archone.contracts.cancel.v1.WmsCancellationRequestedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.OutboundMovementsCompletedIntegrationEvent;
 import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
@@ -112,6 +116,10 @@ class IntegrationEventContractTest {
                 StockAvailabilityIncreasedIntegrationEvent.EVENT_TYPE,
                 StockOperationLifecycleIntegrationEvent.EVENT_TYPE,
                 ShipmentCancelledIntegrationEvent.EVENT_TYPE,
+                WmsCancellationRequestedIntegrationEvent.EVENT_TYPE,
+                WmsCancellationRequestResolvedIntegrationEvent.EVENT_TYPE,
+                OrderingCancellationRequestedIntegrationEvent.EVENT_TYPE,
+                OrderingCancellationRequestResolvedIntegrationEvent.EVENT_TYPE,
                 ShipmentHandedOverIntegrationEvent.EVENT_TYPE,
                 OutboundMovementsCompletedIntegrationEvent.EVENT_TYPE);
 
@@ -123,6 +131,10 @@ class IntegrationEventContractTest {
                         "StockAvailabilityIncreasedIntegrationEvent",
                         "StockOperationLifecycleIntegrationEvent",
                         "ShipmentCancelledIntegrationEvent",
+                        "WmsCancellationRequestedIntegrationEvent",
+                        "WmsCancellationRequestResolvedIntegrationEvent",
+                        "OrderingCancellationRequestedIntegrationEvent",
+                        "OrderingCancellationRequestResolvedIntegrationEvent",
                         "ShipmentHandedOverIntegrationEvent",
                         "OutboundMovementsCompletedIntegrationEvent");
         assertThat(eventTypes).doesNotHaveDuplicates();
@@ -133,6 +145,10 @@ class IntegrationEventContractTest {
                         StockAvailabilityIncreasedIntegrationEvent.CONTRACT_VERSION,
                         StockOperationLifecycleIntegrationEvent.CONTRACT_VERSION,
                         ShipmentCancelledIntegrationEvent.CONTRACT_VERSION,
+                        WmsCancellationRequestedIntegrationEvent.CONTRACT_VERSION,
+                        WmsCancellationRequestResolvedIntegrationEvent.CONTRACT_VERSION,
+                        OrderingCancellationRequestedIntegrationEvent.CONTRACT_VERSION,
+                        OrderingCancellationRequestResolvedIntegrationEvent.CONTRACT_VERSION,
                         ShipmentHandedOverIntegrationEvent.CONTRACT_VERSION,
                         OutboundMovementsCompletedIntegrationEvent.CONTRACT_VERSION))
                 .containsOnly(1);

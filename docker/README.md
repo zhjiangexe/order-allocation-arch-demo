@@ -16,6 +16,17 @@
 Temporal 模式仍會啟動 Kafka、Kafka Connect 與 Outbox connector。
 啟動、停止與連接埠對照請見 [根目錄 README](../README.md#簡報前一鍵啟動含前端)。
 
+Demo 另外啟動 Apicurio Registry，並將 Kafbat UI 的 Schema Registry 連線指向它。
+`events` 模式的 Registry API 位於 `http://localhost:28699/apis/ccompat/v7`；
+`temporal` 模式位於 `http://localhost:28799/apis/ccompat/v7`。`make demo-up` 會從 AsyncAPI
+範例擷取 payload，冪等註冊 `ordering.order-events.OrderPlacedIntegrationEvent-value` JSON Schema，
+可在 Kafbat UI 的 Schemas 頁面查看；其他事件尚未註冊。這是 demo 啟動時的資料，不代表 application 會向 Registry
+註冊或查詢 schema，也不會以 Registry 驗證 Kafka 訊息。這個 demo 未設定持久化儲存，重建容器後
+schema 資料會消失；再次執行 `make demo-up` 會重新註冊。此流程使用的
+[`OrderPlaced` AsyncAPI demo](../backend/integration-contracts/src/test/resources/asyncapi/order-placed-v1.json)
+只描述一個現有 v1 事件；整份 AsyncAPI 文件不是可直接上傳為 Confluent Schema Registry subject 的 JSON Schema。
+若同名 subject 已有不同內容，demo 註冊步驟會報錯，不會覆寫或新增版本；須先查明差異。
+
 ## Commands
 
 一律從 repository root 使用 `Makefile`：

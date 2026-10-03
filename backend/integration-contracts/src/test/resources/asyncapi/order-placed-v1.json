@@ -1,0 +1,61 @@
+{
+  "asyncapi": "3.1.0",
+  "info": {
+    "title": "Archone Ordering event demo",
+    "version": "1.0.0",
+    "description": "Demo document for the current Java OrderPlacedIntegrationEvent v1 contract. The Java contract remains authoritative."
+  },
+  "defaultContentType": "application/json",
+  "channels": {
+    "orderEvents": {
+      "address": "ordering.order-events",
+      "messages": {
+        "orderPlaced": {
+          "$ref": "#/components/messages/orderPlaced"
+        }
+      }
+    }
+  },
+  "operations": {
+    "publishOrderPlaced": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/orderEvents"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/orderEvents/messages/orderPlaced"
+        }
+      ]
+    }
+  },
+  "components": {
+    "messages": {
+      "orderPlaced": {
+        "name": "OrderPlacedIntegrationEvent",
+        "title": "Order received",
+        "summary": "Ordering received an order; consumers use orderId to obtain current order details.",
+        "contentType": "application/json",
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eventId", "orderId", "receivedAt"],
+          "properties": {
+            "eventId": { "type": "string", "format": "uuid" },
+            "orderId": { "type": "string", "format": "uuid" },
+            "receivedAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "eventId": "00000000-0000-0000-0000-000000000001",
+              "orderId": "00000000-0000-0000-0000-000000000002",
+              "receivedAt": "2026-08-07T00:00:00Z"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

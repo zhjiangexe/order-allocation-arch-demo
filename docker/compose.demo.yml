@@ -36,6 +36,38 @@ services:
       retries: 30
     init: true
 
+  # Demo-only Schema Registry. Its default storage is in memory; application messaging does not depend on it.
+  apicurio-registry:
+    image: apicurio/apicurio-registry:3.3.3
+    ports:
+      - "127.0.0.1:${ARCHONE_REGISTRY_PORT}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 30
+
+  registry-schema-init:
+    image: node:22-alpine
+    profiles: ["tools"]
+    command: ["node", "/demo/register-demo-order-placed-schema.mjs"]
+    environment:
+      REGISTRY_URL: http://apicurio-registry:8080/apis/ccompat/v7
+    volumes:
+      - ../scripts/register-demo-order-placed-schema.mjs:/demo/register-demo-order-placed-schema.mjs:ro
+      - ../backend/integration-contracts/src/test/resources/asyncapi/order-placed-v1.json:/demo/order-placed-v1.json:ro
+    depends_on:
+      apicurio-registry:
+        condition: service_healthy
+
+  kafka-ui:
+    environment:
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://apicurio-registry:8080/apis/ccompat/v7
+    depends_on:
+      apicurio-registry:
+        condition: service_healthy
+
   kafka:
     depends_on:
       demo-data-init:

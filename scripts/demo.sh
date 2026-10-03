@@ -29,6 +29,7 @@ export ARCHONE_FRONTEND_PORT="$((port_base + 5))"
 export ARCHONE_TEMPORAL_UI_PORT="$((port_base + 6))"
 export ARCHONE_KAFKA_UI_PORT="$((port_base + 7))"
 export ARCHONE_MANAGEMENT_PORT="$((port_base + 8))"
+export ARCHONE_REGISTRY_PORT="$((port_base + 9))"
 export ORDER_PROMISING_FULFILLMENT_ORCHESTRATION_MODE="${mode}"
 export ORDER_PROMISING_TEMPORAL_TARGET=temporal:7233
 
@@ -43,6 +44,7 @@ show_urls() {
   echo "操作台：http://localhost:${ARCHONE_FRONTEND_PORT}"
   echo "後端 API：http://localhost:${ARCHONE_HTTP_PORT}"
   echo "Kafka UI：http://localhost:${ARCHONE_KAFKA_UI_PORT}"
+  echo "Schema Registry API：http://localhost:${ARCHONE_REGISTRY_PORT}/apis/ccompat/v7"
   if [ "${mode}" = temporal ]; then echo "Temporal UI：http://localhost:${ARCHONE_TEMPORAL_UI_PORT}"; fi
 }
 
@@ -53,10 +55,11 @@ case "${action}" in
     # restart 同樣重建，確保簡報使用目前工作目錄的程式碼。
     start_args=(up --detach --build --wait --wait-timeout 300)
     if [ "${action}" = restart ]; then start_args+=(--force-recreate); fi
-    services=(postgres kafka kafka-connect kafka-ui monolith frontend)
+    services=(postgres kafka kafka-connect apicurio-registry kafka-ui monolith frontend)
     if [ "${mode}" = temporal ]; then services+=(temporal); fi
     "${compose[@]}" "${start_args[@]}" "${services[@]}"
     "${compose[@]}" --profile tools run --rm connector-init
+    "${compose[@]}" --profile tools run --rm registry-schema-init
     show_urls
     ;;
   down) "${compose[@]}" down --remove-orphans ;;
