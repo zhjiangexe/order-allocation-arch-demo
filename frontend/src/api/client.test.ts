@@ -13,6 +13,12 @@ it('reads the additive fulfillment contract and passes AbortSignal', async () =>
   expect(result.temporalWorkflow?.updatedAt).toBe(samples.temporal.temporalWorkflow.updatedAt);
   expect(result.workflowQueryStatus).toBe('AVAILABLE');
 });
+it('derives the events mode from the current backend fulfillment response', async () => {
+  const { orchestrationMode: _omitted, ...backendResponse } = samples.events;
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(backendResponse))));
+  const result = await getOrderFulfillment(backendResponse.order.orderId);
+  expect(result.orchestrationMode).toBe('events');
+});
 it('reads only the supported CONFIRMED queue', async () => {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify([samples.events.stockOperation])));
   vi.stubGlobal('fetch', fetch);

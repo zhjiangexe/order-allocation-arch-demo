@@ -106,8 +106,14 @@ export function confirmStockReceipt(command: ConfirmStockReceiptRequest): Promis
 }
 
 /** 僅查詢目前打開的詳情；AbortSignal 不用於建單／收貨命令。 */
-export function getOrderFulfillment(orderId: string, signal?: AbortSignal): Promise<OrderFulfillmentView> {
-  return request(`/demo/orders/${encodeURIComponent(orderId)}/fulfillment`, signal ? { signal } : {});
+export async function getOrderFulfillment(orderId: string, signal?: AbortSignal): Promise<OrderFulfillmentView> {
+  const view = await request<Omit<OrderFulfillmentView, 'orchestrationMode'> & { orchestrationMode?: string }>(
+    `/demo/orders/${encodeURIComponent(orderId)}/fulfillment`, signal ? { signal } : {},
+  );
+  const orchestrationMode = view.orchestrationMode
+    ?? (view.workflowQueryStatus === 'NOT_APPLICABLE' ? 'events'
+      : ['AVAILABLE', 'NOT_FOUND', 'UNAVAILABLE'].includes(view.workflowQueryStatus) ? 'temporal' : 'unknown');
+  return { ...view, orchestrationMode };
 }
 
 /** 後端目前僅提供 CONFIRMED 佇列，非全量作業搜尋。 */
