@@ -39,6 +39,39 @@ facts；差別只在跨 context coordination 的保存與推進方式。
 程式入口與活動圖位於 `backend/orchestration-temporal-runtime`；公開 Workflow／Activity contract 位於
 `backend/orchestration-temporal-contract`。
 
+## Required semantic parity
+
+Events 與 Temporal 可以保存不同 coordination state，但不能形成兩套業務產品。下列項目是 mode parity 的最低
+驗收面；每次新增或改變履約步驟，都必須在兩種 mode 的 executable scenarios 中得到相同 owner-context 結果。
+
+| Concern | Events driver | Temporal driver | 必須相同的結果 |
+| --- | --- | --- | --- |
+| 啟動 | `OrderPlaced` consumer 推進事件鏈 | `OrderPlaced` 啟動 workflow | 相同 Order identity 只啟動一條有效流程 |
+| Command delivery | Consumer 正規化後呼叫 use case | Activity 呼叫相同 application boundary | 相同 command validation、transaction 與 authorization |
+| Progress feedback | 下一個 terminal event 觸發 consumer | terminal event bridge 送出 Signal | 只接受 owner context 發布的 canonical fact |
+| 等待庫存 | Operation 留在 `CONFIRMED`，等待 availability event | Workflow 等待 assignment Signal | 不建立部分 `SHIP_COMPLETE` 承諾，也不把 timeout 當拒絕 |
+| 取消 | Persisted cancellation process manager | Workflow Update、Activities 與 Signals | 相同 request identity、合法終態、衝突與人工調查結果 |
+| Retry／replay | Inbox、stable message ID 與 business identity | Workflow replay 與 idempotent Activity | 不重複建立 Order、reservation、Shipment 或 terminal publication |
+| Technical failure | rollback 後 retry／DLT | Activity retry 或 workflow 保持等待 | 不把 unknown／timeout 翻譯成 business rejection |
+| 查詢 | 組合 owner-context views 與 process state | 組合 owner-context views 與 workflow checkpoint | 不以 coordination state 覆寫來源 aggregate truth |
+
+Parity 的驗證入口是 `e2e/spec` 的雙模式 scenario matrix；低層 unit／integration tests 仍各自保護 transaction、
+idempotency、event contract 與 workflow determinism。
+
+## Mode cutover gate
+
+Mode 是 deployment-wide 選擇，不是逐單 feature flag。切換前必須同時滿足：
+
+1. 兩種 mode 的 parity scenarios 對相同案例得到相同 owner-context terminal facts。
+2. 停止接收新的 fulfillment command，盤點並保存舊 mode 的 in-flight Order、StockOperation、Shipment、
+   cancellation request 與等待原因。
+3. 舊 mode 已完成或有經驗證的逐筆 migration／reconciliation 方法；不得讓新 mode 猜測舊流程進度。
+4. 所有 replicas 一次只啟用同一 mode；不得用同時存在 Events／Temporal pods 的一般 rolling update。
+5. rollback 必須回到一致的 deployment-wide mode，並再次核對 Inbox、Outbox、Workflow history 與 owner-context
+   facts，不能只以 pod 健康判斷成功。
+
+實際設定、停止接單與部署順序見 [`docker/README.md`](../../docker/README.md#fulfillment-orchestration-modes)。
+
 ## Normal fulfillment
 
 ```text

@@ -79,14 +79,21 @@ Shipment 或商品主檔生命週期。詳細規則見 [Inventory 架構](../arc
 
 ## Target additions
 
-Target context map 增加下列邊界，但尚未全部實作：
+下表的狀態描述 capability 成熟度，不等同於 package 或畫面是否已存在。`Partial` 代表已有可重用的現行能力，
+但尚未擁有 Target 所列的完整語言與責任。
 
-- Partner Integration／ACL 將 Owner-specific protocol 正規化成 submission command。
-- Operational Service Policy 提供版本化 service profile 與硬條件。
-- Outbound Fulfillment Operations 完成受理、Case、SLA、取消與 exception coordination。
-- Control Tower 讀取各 context facts 建立 projection 與工作入口，不回寫來源 aggregate truth。
-- 3PL Billing 由不可變作業事實產生 billable activity，交由外部 ERP 開票與入帳。
-- Returns 以獨立 capability 協調 WMS receiving 與 Inventory disposition，不重開原 FulfillmentCase。
+| Target capability | 狀態 | 預定 ownership | 升格／實作觸發條件 |
+| --- | --- | --- | --- |
+| Partner Integration／ACL | `Not started` | 獨立 boundary；將 Owner-specific API／EDI／file 與 identity 正規化成 submission command | 第一個需要獨立 protocol、credential、deduplication、ACK 或重送政策的 partner |
+| Operational Service Policy | `Not started` | 落點仍為 [OPEN-002](decisions.md#open尚待決定) | 開始實作版本化 Owner service profile、硬條件與 effective dating |
+| Outbound Fulfillment Operations | `Partial` | 由現行 Fulfillment Coordination 演進 | 實作 `OrderSubmission`、review、`FulfillmentCase`、SLA 或跨 context exception lifecycle |
+| Control Tower | `Not started` | 初期為 read-only projection／工作入口 | 需要跨 context timeline、告警與人工工作清單；若開始擁有工作狀態，重開 OPEN-003 |
+| 3PL Billing | `Not started` | 獨立 bounded context；ERP 保留開票與總帳 | 第一個 billable activity／rate card 方案進入實作 |
+| Returns | `Not started` | 先為獨立 capability，必要時升格 bounded context | RMA、退款、換貨、整新、disposition 或逆向 SLA 形成獨立語言 |
+| Inbound Coordination | `Not started` | execution 仍由 WMS／Inventory 擁有 | appointment、ASN coordination、vendor variance 或 detention SLA 超出 receiving execution |
+
+目前沒有為 `Not started` capability 預留空 module。開始實作時，先在[決策與待決問題](decisions.md)確認 ownership、
+authoritative facts 與 boundary，再建立程式結構。
 
 ## Boundary rules
 
