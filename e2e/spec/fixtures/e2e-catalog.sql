@@ -1,8 +1,41 @@
 -- Karate E2E 專用規格與庫存。
 -- 每條流程使用不同 SKU，避免預留量、FIFO 先後與補貨事件讓案例互相污染。
--- 貨主、商品、倉與庫位仍沿用 dev profile 的正式 seed；這裡只補測試 fixture。
+-- 自行建立最小主檔，monolith／microservice 共用，不依賴 dev profile seed。
 
 BEGIN;
+
+INSERT INTO owners (id, code, name)
+VALUES ('00000000-0000-0000-0000-000000000001', 'OWNER-A', '甲貨主')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
+VALUES ('00000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-000000000001',
+        'P-TEA', '測試茶品', 'AMBIENT')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO facilities (id, code, name)
+VALUES ('00000000-0000-0000-0000-000000000011', 'WH-NORTH', '北部倉')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO owner_facilities (owner_id, facility_id)
+VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO stock_locations (id, facility_id, code, name, usage) VALUES
+    ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000011',
+     'WH-NORTH/Stock', '北部倉庫位', 'INTERNAL'),
+    ('00000000-0000-0000-0000-000000000024', NULL, 'Partners/Vendors', '供應商', 'SUPPLIER'),
+    ('00000000-0000-0000-0000-000000000025', NULL, 'Partners/Customers', '客戶', 'CUSTOMER'),
+    ('00000000-0000-0000-0000-000000000026', NULL, 'Virtual/Inventory', '庫存調整', 'INVENTORY')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO stock_operation_types (id, facility_id, code, name, default_from_location_id, default_to_location_id)
+VALUES
+    ('00000000-0000-0000-0000-000000000031', '00000000-0000-0000-0000-000000000011',
+     'OUTBOUND', '北部倉出貨', '00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000025'),
+    ('00000000-0000-0000-0000-000000000034', '00000000-0000-0000-0000-000000000011',
+     'INBOUND', '北部倉收貨', '00000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000021')
+ON CONFLICT DO NOTHING;
 
 CREATE TEMP TABLE e2e_sku_fixture (
     sku_code VARCHAR(64) PRIMARY KEY,
@@ -89,6 +122,72 @@ CROSS JOIN (VALUES
     (DATE '2026-01-02', DATE '2098-12-31', 3),
     (DATE '1999-01-01', DATE '2000-01-01', 7)
 ) AS batches(in_date, expiry_date, quantity)
+ON CONFLICT (owner_id, location_id, sku_code, in_date, expiry_date) DO NOTHING;
+
+-- 隔離案例：同 SKU、不同貨主或倉庫；只變動一個維度，避免兩種邊界互相掩蓋。
+INSERT INTO owners (id, code, name)
+VALUES ('00000000-0000-0000-0000-000000000002', 'OWNER-B', '乙貨主')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO products (id, owner_id, product_code, name, temperature_zone)
+VALUES ('00000000-0000-0000-0000-000000000042', '00000000-0000-0000-0000-000000000002',
+        'P-TEA', '乙貨主測試茶品', 'AMBIENT')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO facilities (id, code, name)
+VALUES ('00000000-0000-0000-0000-000000000012', 'WH-SOUTH', '南部倉')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO owner_facilities (owner_id, facility_id) VALUES
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000011'),
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000012')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO stock_locations (id, facility_id, code, name, usage)
+VALUES ('00000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000012',
+        'WH-SOUTH/Stock', '南部倉庫位', 'INTERNAL')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO stock_operation_types (id, facility_id, code, name, default_from_location_id, default_to_location_id)
+VALUES
+    ('00000000-0000-0000-0000-000000000032', '00000000-0000-0000-0000-000000000012',
+     'OUTBOUND', '南部倉出貨', '00000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000025'),
+    ('00000000-0000-0000-0000-000000000035', '00000000-0000-0000-0000-000000000012',
+     'INBOUND', '南部倉收貨', '00000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000022')
+ON CONFLICT DO NOTHING;
+
+CREATE TEMP TABLE e2e_isolation_scope (
+    sku_code VARCHAR(64) PRIMARY KEY,
+    supply_owner_id UUID NOT NULL,
+    supply_location_id UUID NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO e2e_isolation_scope (sku_code, supply_owner_id, supply_location_id) VALUES
+    ('E2E-EVT-OWNER-ISOLATION', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000021'),
+    ('E2E-TMP-OWNER-ISOLATION', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000021'),
+    ('E2E-EVT-WAREHOUSE-ISOLATION', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000022'),
+    ('E2E-TMP-WAREHOUSE-ISOLATION', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000022');
+
+INSERT INTO skus (id, owner_id, sku_code, product_code, spec_name, weight_gram)
+SELECT DISTINCT
+    md5('karate-isolation-sku:' || owners.owner_id::text || ':' || sku_code)::uuid,
+    owners.owner_id, sku_code, 'P-TEA', '庫存隔離', 100
+FROM e2e_isolation_scope
+CROSS JOIN LATERAL (VALUES
+    ('00000000-0000-0000-0000-000000000001'::uuid), (supply_owner_id)
+) AS owners(owner_id)
+ON CONFLICT (owner_id, sku_code) DO NOTHING;
+
+-- 目標範圍只有 2 件，其他範圍有 7 件；批次日期與 HTTP 收貨 builder 一致，補貨合併同一批。
+INSERT INTO stock_pools (id, owner_id, location_id, sku_code, in_date, expiry_date, on_hand_quantity, reserved_quantity)
+SELECT
+    md5('karate-isolation-stock:' || stocks.owner_id::text || ':' || stocks.location_id::text || ':' || sku_code)::uuid,
+    stocks.owner_id, stocks.location_id, sku_code, DATE '2026-08-24', DATE '2099-12-31', stocks.quantity, 0
+FROM e2e_isolation_scope
+CROSS JOIN LATERAL (VALUES
+    ('00000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000021'::uuid, 2),
+    (supply_owner_id, supply_location_id, 7)
+) AS stocks(owner_id, location_id, quantity)
 ON CONFLICT (owner_id, location_id, sku_code, in_date, expiry_date) DO NOTHING;
 
 COMMIT;

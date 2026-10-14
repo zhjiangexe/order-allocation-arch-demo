@@ -13,11 +13,18 @@ function fn() {
 
   return {
     baseUrl: baseUrl,
+    orderingUrl: System.getenv('E2E_ORDERING_URL') || baseUrl,
+    inventoryUrl: System.getenv('E2E_INVENTORY_URL') || baseUrl,
+    fulfillmentUrl: System.getenv('E2E_FULFILLMENT_URL') || baseUrl,
+    logisticsDataUrl: System.getenv('E2E_LOGISTICS_DATA_URL') || baseUrl,
     connectUrl: connectUrl,
     connectorName: connectorName,
     ownerId: ownerId,
     facilityId: facilityId,
     locationId: locationId,
+    isolationOwnerId: '00000000-0000-0000-0000-000000000002',
+    isolationFacilityId: '00000000-0000-0000-0000-000000000012',
+    isolationLocationId: '00000000-0000-0000-0000-000000000022',
     newId: function() {
       return UUID.randomUUID().toString();
     },

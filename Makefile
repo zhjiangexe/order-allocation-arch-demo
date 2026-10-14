@@ -16,6 +16,7 @@ help:
 		'make test                         Run backend unit tests' \
 		'make check                        Run backend checks and SIT' \
 		'make e2e                          Run isolated Karate v2 Events and Temporal E2E' \
+		'E2E_DEPLOYMENT=microservice make e2e  Run the same Events scenarios on five services' \
 		'make package ENV=dev|stage|prod   Build the monolith image' \
 		'make push ENV=stage|prod          Push the selected image' \
 		'make up ENV=dev|stage|prod        Start an image already available locally' \

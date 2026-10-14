@@ -1,0 +1,45 @@
+name: Database and deployments
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Verify standalone migrations and failure gates
+        run: ./scripts/verify-migrations.sh
+      - name: Build, unit tests and database/service integration tests
+        working-directory: backend
+        run: ./gradlew build --console=plain
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        deployment: [monolith, microservice]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Shared E2E scenarios with standalone migration
+        env:
+          E2E_DEPLOYMENT: ${{ matrix.deployment }}
+        run: ./e2e/spec/run.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-reports-${{ matrix.deployment }}
+          path: e2e/spec/build/

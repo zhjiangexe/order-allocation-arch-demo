@@ -19,7 +19,7 @@ Feature: Debezium connector 暫停後追趕
     Then status 200
 
     # connector 已停止傳遞事件，此時下單只應完成 Ordering transaction。
-    Given url baseUrl
+    Given url orderingUrl
     And path 'orders'
     * def externalOrderNo = 'KARATE-CONNECT-PAUSED-' + newId()
     * def order = buildOrderRequest({ ownerId: ownerId, facilityId: facilityId, externalOrderNo: externalOrderNo, lines: [{ skuCode: 'E2E-EVT-CONNECT', quantity: 2 }] })
@@ -32,7 +32,7 @@ Feature: Debezium connector 暫停後追趕
     * karate.pause(2000)
 
     # 留出正常消費時間後仍是 PENDING，確認事件確實尚未送達 Inventory。
-    Given url baseUrl
+    Given url orderingUrl
     And path 'orders', orderId
     When method get
     Then status 200
@@ -51,7 +51,7 @@ Feature: Debezium connector 暫停後追趕
     Then status 200
 
     # 不重送訂單，等待先前的 outbox record 追上並讓各 Context 收斂。
-    Given url baseUrl
+    Given url fulfillmentUrl
     And path 'demo', 'orders', orderId, 'fulfillment'
     And retry until response.order.status == 'FULFILLED'
     When method get
