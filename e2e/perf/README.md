@@ -27,7 +27,8 @@ COMPOSE_PROJECT_NAME=order-promising-e2e-clean ./e2e/perf/run.sh up  # 隔離的
 `up` 與 `perf` 分開，是因為代價差一個數量級：只想開操作台看畫面的人不該被迫跑一輪上千
 VUS 的壓測。`up` 是預設的 subcommand，因此直接 `./e2e/perf/run.sh` 只會把系統起來。
 
-三步的順序不能換：connector 要讀 `event_outbox`，而那張表是 app 啟動時由 Flyway 建的。
+啟動順序為基礎設施 → 獨立 migration → app → connector；connector 要讀的 `event_outbox`
+由 `scripts/migrate.sh` 建立，app 啟動時不執行 migration。
 **app 不在 compose 裡**，所以 `docker compose up` 起不出一套完整的系統——少了 connector
 註冊，`OrderPlaced` 會卡在 outbox 出不去，訂單就永遠停在 `PENDING`。
 
@@ -79,7 +80,7 @@ network，不需要再手動同步 `POSTGRES_CONTAINER`／`NETWORK`。
 
 重試與 DLT 架構（`AllocationConcurrencyExhaustedException` → 4 次指數退避重送 →
 `DeadLetterPublishingRecoverer`）的設計與取捨見
-[`KafkaConsumerConfiguration`](../../backend/deployments/monolith/src/main/java/com/flowzati/archone/bootstrap/configuration/KafkaConsumerConfiguration.java)
+[`KafkaConsumerConfiguration`](../../backend/deployments/deployment-support/src/main/java/com/flowzati/archone/bootstrap/configuration/KafkaConsumerConfiguration.java)
 的 Javadoc。Application 只宣告 exception classification 與 backoff；error handler、DLT headers 與
 failure observation 由 messaging runtime 依實際 subscriber 組裝。兩輪即時驗證：
 

@@ -1,0 +1,17 @@
+plugins {
+    alias(libs.plugins.spring.boot)
+}
+
+apply from: rootProject.file('deployments/microservice/service.gradle')
+
+description = 'ordering microservice deployment'
+
+dependencies {
+    implementation project(':archone-framework:messaging:messaging-spring-boot-starter')
+    implementation libs.spring.boot.starter.kafka
+    implementation project(':ordering:ordering-server')
+}
+
+tasks.named('bootJar') {
+    archiveBaseName = 'archone-ordering'
+}

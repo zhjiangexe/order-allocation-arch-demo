@@ -1,0 +1,20 @@
+plugins {
+    alias(libs.plugins.spring.boot)
+}
+
+apply from: rootProject.file('deployments/microservice/service.gradle')
+
+description = 'fulfillment microservice deployment'
+
+dependencies {
+    implementation project(':archone-framework:messaging:messaging-spring-boot-starter')
+    implementation libs.spring.boot.starter.kafka
+    implementation project(':fulfillment')
+    implementation project(':ordering:ordering-api')
+    implementation project(':inventory:inventory-api')
+    implementation project(':wms:wms-api')
+}
+
+tasks.named('bootJar') {
+    archiveBaseName = 'archone-fulfillment'
+}

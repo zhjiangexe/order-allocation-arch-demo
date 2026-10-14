@@ -14,7 +14,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class OptimisticLockingConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withUserConfiguration(OptimisticLockingConfiguration.class)
+            .withUserConfiguration(OptimisticLockingConfiguration.class, AllocationRetryObservationConfiguration.class)
             .withBean(MeterRegistry.class, SimpleMeterRegistry::new);
 
     @Test

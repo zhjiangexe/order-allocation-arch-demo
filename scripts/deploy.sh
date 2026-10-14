@@ -51,10 +51,13 @@ start_environment() {
       compose+=(--profile temporal)
       dev_services+=(temporal)
     fi
-    dev_services+=(monolith)
     "${compose[@]}" up --detach --build --wait "${dev_services[@]}"
+    "${repository_root}/scripts/migrate.sh" migrate "${compose[@]:2}"
+    "${repository_root}/scripts/migrate.sh" check "${compose[@]:2}"
+    "${compose[@]}" up --detach --build --wait monolith
     "${compose[@]}" --profile tools run --rm connector-init
   else
+    "${repository_root}/scripts/migrate.sh" check "${compose[@]:2}"
     "${compose[@]}" up --detach --no-build --wait monolith
   fi
 }
@@ -79,6 +82,7 @@ case "${action}" in
     start_environment
     ;;
   restart)
+    "${repository_root}/scripts/migrate.sh" check "${compose[@]:2}"
     "${compose[@]}" up --detach --no-build --force-recreate --wait monolith
     ;;
   down)

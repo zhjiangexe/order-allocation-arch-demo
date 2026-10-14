@@ -1,6 +1,15 @@
 name: ${ARCHONE_COMPOSE_PROJECT:-archone-dev}
 
 services:
+  database-migrate:
+    extends:
+      file: ../database/compose.yml
+      service: database-migrate
+    environment:
+      FLYWAY_URL: ${ORDER_PROMISING_DB_URL:-}
+      FLYWAY_USER: ${ORDER_PROMISING_DB_USERNAME:-}
+      FLYWAY_PASSWORD: ${ORDER_PROMISING_DB_PASSWORD:-}
+
   monolith:
     image: ${ARCHONE_IMAGE:-archone-monolith}:${ARCHONE_IMAGE_TAG:-dev}
     build:

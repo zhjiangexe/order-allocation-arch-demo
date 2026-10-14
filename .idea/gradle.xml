@@ -35,6 +35,14 @@
             <option value="$PROJECT_DIR$/backend/archone-framework/messaging/messaging-spring-producer-starter" />
             <option value="$PROJECT_DIR$/backend/archone-framework/messaging/messaging-test-support" />
             <option value="$PROJECT_DIR$/backend/deployments" />
+            <option value="$PROJECT_DIR$/backend/deployments/deployment-support" />
+            <option value="$PROJECT_DIR$/backend/deployments/microservice" />
+            <option value="$PROJECT_DIR$/backend/deployments/microservice/common" />
+            <option value="$PROJECT_DIR$/backend/deployments/microservice/fulfillment-service" />
+            <option value="$PROJECT_DIR$/backend/deployments/microservice/inventory-service" />
+            <option value="$PROJECT_DIR$/backend/deployments/microservice/logistics-data-service" />
+            <option value="$PROJECT_DIR$/backend/deployments/microservice/ordering-service" />
+            <option value="$PROJECT_DIR$/backend/deployments/microservice/wms-service" />
             <option value="$PROJECT_DIR$/backend/deployments/monolith" />
             <option value="$PROJECT_DIR$/backend/fulfillment" />
             <option value="$PROJECT_DIR$/backend/integration-contracts" />

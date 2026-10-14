@@ -55,9 +55,12 @@ case "${action}" in
     # restart 同樣重建，確保簡報使用目前工作目錄的程式碼。
     start_args=(up --detach --build --wait --wait-timeout 300)
     if [ "${action}" = restart ]; then start_args+=(--force-recreate); fi
-    services=(postgres kafka kafka-connect apicurio-registry kafka-ui monolith frontend)
+    services=(postgres kafka kafka-connect apicurio-registry kafka-ui)
     if [ "${mode}" = temporal ]; then services+=(temporal); fi
     "${compose[@]}" "${start_args[@]}" "${services[@]}"
+    "${repository_root}/scripts/migrate.sh" migrate "${compose[@]:2}"
+    "${repository_root}/scripts/migrate.sh" check "${compose[@]:2}"
+    "${compose[@]}" "${start_args[@]}" monolith frontend
     "${compose[@]}" --profile tools run --rm connector-init
     "${compose[@]}" --profile tools run --rm registry-schema-init
     show_urls

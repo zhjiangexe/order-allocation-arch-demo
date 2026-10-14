@@ -157,6 +157,10 @@ else
   compose --profile temporal up -d --wait postgres kafka kafka-connect temporal
 fi
 
+echo "執行獨立 schema migration..."
+"${REPO_ROOT}/scripts/migrate.sh" migrate -f "${COMPOSE_FILE}" -f "${DEV_COMPOSE_FILE}"
+"${REPO_ROOT}/scripts/migrate.sh" check -f "${COMPOSE_FILE}" -f "${DEV_COMPOSE_FILE}"
+
 initial_mode=events
 if [ "${E2E_MODE}" = "temporal" ]; then initial_mode=temporal; fi
 start_app "${initial_mode}" 0s "${initial_mode}"

@@ -1,0 +1,17 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Shared deployment policies and current shared-database migrations'
+
+dependencies {
+    implementation project(':archone-framework:foundation')
+    implementation project(':integration-contracts')
+    implementation project(':archone-framework:messaging:messaging-events')
+    implementation project(':archone-framework:messaging:messaging-spring-boot-autoconfigure')
+    implementation project(':archone-framework:messaging:messaging-spring-consumer-kafka')
+    implementation project(':archone-framework:messaging:messaging-spring-optimistic-locking')
+    implementation libs.spring.context
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

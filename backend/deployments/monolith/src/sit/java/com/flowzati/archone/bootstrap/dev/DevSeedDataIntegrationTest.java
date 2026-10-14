@@ -32,7 +32,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(
         classes = ArchoneApplication.class,
-        properties = "spring.kafka.listener.auto-startup=false",
+        // Test-only database initialization; the real dev startup runs scripts/migrate.sh first.
+        properties = {"spring.kafka.listener.auto-startup=false", "spring.flyway.enabled=true"},
         webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("dev")
 @Import(PostgreSQLTestConfiguration.class)

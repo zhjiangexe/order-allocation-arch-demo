@@ -1,21 +1,13 @@
 package com.flowzati.archone.bootstrap.configuration;
 
-import com.flowzati.archone.inventory.bootstrap.observability.AllocationOptimisticLockRetryObserver;
 import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEventConsumption;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingDecoratorConfiguration;
-import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryObserver;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetrySettings;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-/**
- * Opts the assembled application into the generic Tram-style optimistic-locking decorator.
- *
- * <p>The shared module owns retry mechanics. This application composition root owns the retry
- * budget and its Allocation-specific observations.
- */
+/** Applies the deployment's local retry policy to all enabled Integration Event consumers. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnIntegrationEventConsumption
 @Import(OptimisticLockingDecoratorConfiguration.class)
@@ -24,10 +16,5 @@ public class OptimisticLockingConfiguration {
     @Bean
     OptimisticLockingRetrySettings bootstrapOptimisticLockingRetrySettings() {
         return ConsumerFailurePolicy.optimisticLockingRetrySettings();
-    }
-
-    @Bean
-    OptimisticLockingRetryObserver allocationOptimisticLockRetryObserver(MeterRegistry meterRegistry) {
-        return new AllocationOptimisticLockRetryObserver(meterRegistry);
     }
 }

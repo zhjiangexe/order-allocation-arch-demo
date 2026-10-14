@@ -3,7 +3,7 @@
 # compose／git 那樣），不用記一堆各自獨立的檔案路徑。
 #
 # 用法：
-#   ./e2e/perf/run.sh [up]                        起一套可用的系統：基礎設施→app→connector
+#   ./e2e/perf/run.sh [up]                        基礎設施→migration→app→connector
 #                                                  （每步都會偵測已在跑就跳過）
 #   ./e2e/perf/run.sh perf                         up ＋ 種庫存 ＋ 跑 k6
 #   SKU=... STOCK=... VUS=... ./e2e/perf/run.sh perf
@@ -59,19 +59,22 @@ PERF_STOCK_QUANT_ID="00000000-0000-0000-0000-0000000000f5"
 PERF_IN_DATE="2026-01-01"
 PERF_EXPIRY_DATE="2099-12-31"
 
-# 起一套可用的系統。三步的順序不能換：connector 要讀 event_outbox，而那張表是 app 啟動時
-# 由 Flyway 建的——app 不在 compose 裡，所以 compose 自己帶不出一套完整的系統。
+# 起一套可用的系統：基礎設施 → 獨立 migration → app → connector。
 cmd_up() {
   set -e
   local partition_key_strategy="${PARTITION_KEY_STRATEGY:-order-id}"
   local kafka_concurrency="${KAFKA_CONCURRENCY:-4}"
   local app_started=false
 
-  echo "== 1/3 基礎設施 =="
-  docker compose -f "${COMPOSE_FILE}" up -d
+  echo "== 1/4 基礎設施 =="
+  docker compose -f "${COMPOSE_FILE}" up -d --wait
+
+  echo "== 2/4 schema migration =="
+  "${REPO_ROOT}/scripts/migrate.sh" migrate -f "${COMPOSE_FILE}"
+  "${REPO_ROOT}/scripts/migrate.sh" check -f "${COMPOSE_FILE}"
 
   echo
-  echo "== 2/3 app（偵測到已在跑會跳過啟動） =="
+  echo "== 3/4 app（偵測到已在跑會跳過啟動） =="
   if curl -sf -o /dev/null http://localhost:28290/actuator/health; then
     echo "app 已經在跑，略過啟動"
   else
@@ -115,7 +118,7 @@ cmd_up() {
   fi
 
   echo
-  echo "== 3/3 Debezium connector（偵測到已 RUNNING 會跳過註冊） =="
+  echo "== 4/4 Debezium connector（偵測到已 RUNNING 會跳過註冊） =="
   local status state
   status=$(curl -sf "${CONNECT_URL}/connectors/${CONNECTOR_NAME}/status" 2>/dev/null || echo '{}')
   state=$(echo "${status}" | jq -r '.connector.state // empty')

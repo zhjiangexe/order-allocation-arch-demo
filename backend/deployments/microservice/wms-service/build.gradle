@@ -1,0 +1,17 @@
+plugins {
+    alias(libs.plugins.spring.boot)
+}
+
+apply from: rootProject.file('deployments/microservice/service.gradle')
+
+description = 'wms microservice deployment'
+
+dependencies {
+    implementation project(':archone-framework:messaging:messaging-spring-boot-starter')
+    implementation libs.spring.boot.starter.kafka
+    implementation project(':wms:wms-server')
+}
+
+tasks.named('bootJar') {
+    archiveBaseName = 'archone-wms'
+}

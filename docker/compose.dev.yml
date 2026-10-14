@@ -1,4 +1,10 @@
 services:
+  database-migrate:
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${ORDER_PROMISING_DB_NAME:-order_promising}
+      FLYWAY_USER: ${ORDER_PROMISING_DB_USERNAME:-order_promising}
+      FLYWAY_PASSWORD: ${ORDER_PROMISING_DB_PASSWORD:-order_promising}
+
   monolith:
     environment:
       SPRING_PROFILES_ACTIVE: dev

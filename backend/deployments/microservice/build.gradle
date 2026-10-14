@@ -1,0 +1,31 @@
+description = 'Packaging and verification entry points for all microservices'
+
+def services = subprojects.findAll { it.name.endsWith('-service') }
+
+tasks.register('bootJars') {
+    group = 'build'
+    description = 'Packages every microservice as an executable jar without starting services or running tests.'
+    dependsOn services.collect { "${it.path}:bootJar" }
+}
+
+tasks.named('jar') {
+    enabled = false
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('bootJars')
+}
+
+tasks.named('test') {
+    dependsOn services.collect { "${it.path}:test" }, ':deployments:microservice:common:test'
+}
+
+tasks.register('sit') {
+    group = 'verification'
+    description = 'Verifies isolated service assembly using PostgreSQL Testcontainers.'
+    dependsOn services.collect { "${it.path}:sit" }
+}
+
+tasks.named('check') {
+    dependsOn services.collect { "${it.path}:check" }, ':deployments:microservice:common:check'
+}

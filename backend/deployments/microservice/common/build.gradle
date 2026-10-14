@@ -1,0 +1,27 @@
+plugins {
+    id 'java-library'
+    id 'java-test-fixtures'
+}
+
+description = 'Shared microservice deployment settings and isolated startup verification'
+
+tasks.named('processTestFixturesResources') {
+    from(rootProject.file('../database/migrations')) {
+        into 'db/migration'
+    }
+}
+
+dependencies {
+    api project(':deployments:deployment-support')
+    implementation libs.spring.context
+    testFixturesImplementation project(':archone-framework:messaging:messaging-spring-optimistic-locking')
+    testFixturesImplementation libs.spring.boot.starter.data.jpa
+    testFixturesImplementation libs.flyway.core
+    testFixturesRuntimeOnly libs.flyway.database.postgresql
+    testFixturesRuntimeOnly libs.postgresql
+    testFixturesImplementation libs.spring.boot.starter.test
+    testFixturesImplementation libs.testcontainers.postgresql
+    testFixturesImplementation libs.spring.boot.starter.webmvc
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

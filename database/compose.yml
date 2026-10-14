@@ -1,0 +1,16 @@
+services:
+  database-migrate:
+    # Keep aligned with the Spring Boot BOM used by database integration tests.
+    image: flyway/flyway:11.14.1
+    profiles: ["migration"]
+    environment:
+      FLYWAY_URL: ${FLYWAY_URL:-}
+      FLYWAY_USER: ${FLYWAY_USER:-}
+      FLYWAY_PASSWORD: ${FLYWAY_PASSWORD:-}
+    volumes:
+      - ./migrations:/flyway/sql:ro
+      - ./flyway.conf:/flyway/conf/flyway.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["info"]
+    restart: "no"

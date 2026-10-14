@@ -18,12 +18,19 @@ sourceSets {
     }
 }
 
+tasks.named('processSitResources') {
+    from(rootProject.file('../database/migrations')) {
+        into 'db/migration'
+    }
+}
+
 configurations {
     sitImplementation.extendsFrom testImplementation
     sitRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 dependencies {
+    implementation project(':deployments:deployment-support')
     implementation project(':ordering:ordering-server')
     implementation project(':inventory:inventory-server')
     implementation project(':logistics-data-context')
@@ -42,7 +49,6 @@ dependencies {
     implementation project(':archone-framework:messaging:messaging-spring-boot-starter')
     implementation libs.spring.boot.starter.actuator
     implementation libs.spring.boot.starter.data.jpa
-    implementation libs.spring.boot.starter.flyway
     implementation libs.spring.boot.starter.kafka
     implementation libs.spring.boot.starter.opentelemetry
     implementation libs.spring.boot.starter.validation
@@ -52,7 +58,6 @@ dependencies {
     developmentOnly libs.spring.boot.devtools
     runtimeOnly libs.micrometer.registry.otlp
     runtimeOnly libs.micrometer.registry.prometheus
-    runtimeOnly libs.flyway.database.postgresql
     runtimeOnly libs.postgresql
     annotationProcessor libs.spring.boot.configuration.processor
 
@@ -66,6 +71,8 @@ dependencies {
     testRuntimeOnly libs.junit.platform.launcher
 
     sitImplementation libs.spring.boot.testcontainers
+    sitImplementation libs.spring.boot.starter.flyway
+    sitRuntimeOnly libs.flyway.database.postgresql
     sitImplementation libs.testcontainers.postgresql
     sitImplementation libs.testcontainers.kafka
     sitImplementation libs.kafka.clients

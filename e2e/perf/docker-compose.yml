@@ -11,6 +11,15 @@ name: order-promising-e2e-perf
 # single-node env vars) so the Debezium Outbox Event Router connector config can be
 # reused verbatim: kafka-connect reaches the broker at kafka:19092.
 services:
+  database-migrate:
+    extends:
+      file: ../../database/compose.yml
+      service: database-migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/order_promising
+      FLYWAY_USER: order_promising
+      FLYWAY_PASSWORD: order_promising
+
   postgres:
     image: postgres:16-alpine
     environment:

@@ -41,10 +41,12 @@ make logs ENV=stage
 make down ENV=stage
 ```
 
-`make dev-up` 會 build image、等待 application 與基礎設施健康，再冪等建立 Debezium Outbox connector。
+`make dev-up` 會先啟動基礎設施並執行獨立 migration，成功後 build／啟動 application，
+最後冪等建立 Debezium Outbox connector。
 Kafbat UI 預設在 [http://localhost:28297](http://localhost:28297)，可查看 topic、partition、message key、
 consumer group 與 Kafka Connect；它只存在於 dev overlay。stage／prod 的 `deploy` 則會先 pull 環境檔
-指定的 image tag，再啟動 monolith。
+指定的 image tag，確認 schema 已符合目前 release 的 SQL，再啟動 monolith。
+stage／prod 的 migration 必須由先前的獨立 CI/CD 步驟完成，詳見 [資料庫流程](../database/README.md)。
 
 ## Fulfillment orchestration modes
 
@@ -92,7 +94,7 @@ cp docker/env/prod.env.example docker/env/prod.env
 
 ## Boundary responsibilities
 
-- image 內含 monolith 與 Flyway migrations；application 啟動時驗證並執行 migration。
+- application image 不含 migration SQL／Flyway runtime；`database/` 與 `scripts/migrate.sh` 負責獨立 migration。
 - dev 的 connector 由 `scripts/register-outbox-connector.sh` 建立。
 - stage／prod 的 Kafka topics、Debezium connector、database backup／restore、TLS 與 credentials rotation
   屬於部署平台責任，不由 application container 動態建立。

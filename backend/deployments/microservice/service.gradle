@@ -1,0 +1,38 @@
+// Shared build mechanics; each service still declares its own business dependencies.
+version = providers.gradleProperty('serviceVersion').getOrElse(rootProject.version.toString())
+
+springBoot {
+    buildInfo()
+}
+
+sourceSets {
+    sit {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += output + compileClasspath
+    }
+}
+configurations {
+    sitImplementation.extendsFrom testImplementation
+    sitRuntimeOnly.extendsFrom testRuntimeOnly
+}
+dependencies {
+    implementation project(':deployments:microservice:common')
+    implementation project(':spring-framework-support')
+    implementation libs.spring.boot.starter.actuator
+    implementation libs.spring.boot.starter.data.jpa
+    implementation libs.spring.boot.starter.webmvc
+    runtimeOnly libs.postgresql
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+    sitImplementation testFixtures(project(':deployments:microservice:common'))
+}
+tasks.register('sit', Test) {
+    group = 'verification'
+    description = 'Starts this service in isolation against PostgreSQL Testcontainers.'
+    testClassesDirs = sourceSets.sit.output.classesDirs
+    classpath = sourceSets.sit.runtimeClasspath
+    shouldRunAfter tasks.named('test')
+}
+tasks.named('check') {
+    dependsOn tasks.named('sit')
+}

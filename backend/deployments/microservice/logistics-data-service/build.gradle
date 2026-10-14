@@ -1,0 +1,15 @@
+plugins {
+    alias(libs.plugins.spring.boot)
+}
+
+apply from: rootProject.file('deployments/microservice/service.gradle')
+
+description = 'logistics-data microservice deployment'
+
+dependencies {
+    implementation project(':logistics-data-context')
+}
+
+tasks.named('bootJar') {
+    archiveBaseName = 'archone-logistics-data'
+}

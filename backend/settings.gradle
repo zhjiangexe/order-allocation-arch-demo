@@ -1,6 +1,10 @@
 rootProject.name = 'archone'
 
-include('deployments:monolith')
+include('deployments:monolith', 'deployments:deployment-support')
+include('deployments:microservice:common')
+include('deployments:microservice:ordering-service', 'deployments:microservice:inventory-service')
+include('deployments:microservice:wms-service', 'deployments:microservice:fulfillment-service')
+include('deployments:microservice:logistics-data-service')
 include('ordering:ordering-api', 'ordering:ordering-server')
 include('inventory:inventory-api', 'inventory:inventory-server')
 include('logistics-data-context')
