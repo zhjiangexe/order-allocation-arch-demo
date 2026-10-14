@@ -14,7 +14,7 @@
 需要前端與完整雙模式服務時，使用根目錄的 `make demo-up MODE=events|temporal`。
 此入口額外套用 `compose.demo.yml`，使用獨立 project／ports，並保留 Kafka 與 Temporal 資料。
 Temporal 模式仍會啟動 Kafka、Kafka Connect 與 Outbox connector。
-啟動、停止與連接埠對照請見 [根目錄 README](../README.md#簡報前一鍵啟動含前端)。
+啟動、停止與連接埠對照請見[示範系統操作指南](../docs/operations/demo.md)。
 
 Demo 另外啟動 Apicurio Registry，並將 Kafbat UI 的 Schema Registry 連線指向它。
 `events` 模式的 Registry API 位於 `http://localhost:28699/apis/ccompat/v7`；

@@ -39,6 +39,10 @@ facts；差別只在跨 context coordination 的保存與推進方式。
 程式入口與活動圖位於 `backend/orchestration-temporal-runtime`；公開 Workflow／Activity contract 位於
 `backend/orchestration-temporal-contract`。
 
+閱讀時可搭配[履約活動圖（PlantUML）](../../backend/orchestration-temporal-runtime/src/main/java/com/flowzati/archone/orchestration/runtime/workflow/order/OrderFulfillmentWorkflowImpl.puml)。
+Activity 執行配貨、建立出貨單、完成出庫與回寫訂單；Signal 通知外部結果，Query 讀取流程進度，Update 接收取消請求。
+Activity 的逾時與重試由 Temporal 處理，業務入口仍須能安全處理重複執行。
+
 ## Required semantic parity
 
 Events 與 Temporal 可以保存不同 coordination state，但不能形成兩套業務產品。下列項目是 mode parity 的最低

@@ -7,6 +7,8 @@
 這是操作範圍選擇，尚未實作登入或後端授權隔離。同一前端支援 Events 與 Temporal；
 模式由後端啟動設定決定。範圍為 allocation 正常履約，不提供取消或手動 WMS 操作。
 
+只想開啟完整系統，請見[一鍵 demo](../docs/operations/demo.md)；主機與 IDE 開發見[本機開發](../docs/development/local-development.md)。
+
 ## 本機啟動
 
 從 repository root 選擇一種模式：
@@ -22,7 +24,7 @@ ARCHONE_MANAGEMENT_PORT=28298 make dev-up-temporal
 再啟動前端：
 
 ```bash
-npm --prefix frontend install
+npm --prefix frontend ci
 npm --prefix frontend run dev
 ```
 
@@ -35,7 +37,7 @@ ARCHONE_BACKEND_ORIGIN=http://localhost:28490 \
 npm --prefix frontend run dev -- --port 28495
 ```
 
-`make dev-up*` 會等待 app migration 完成並註冊 Debezium connector。只啟動資料庫與 Kafka
+`make dev-up*` 會先執行獨立 migration，再啟動 app 並註冊 Debezium connector。只啟動資料庫與 Kafka
 不足以推進流程。模式切換限制見 [部署說明](../docker/README.md)。
 前端以 `/api` 相對路徑請求，由 Vite dev proxy 轉送；production hosting 需另提供對應代理及 SPA fallback。
 
@@ -46,7 +48,7 @@ npm --prefix frontend run dev -- --port 28495
 | `npm run typecheck` | TypeScript 檢查 |
 | `npm run build` | 型別檢查與 production build |
 
-## 四個功能頁面
+## 五個功能頁面
 
 | 路徑 | 操作與限制 |
 | --- | --- |
@@ -54,6 +56,7 @@ npm --prefix frontend run dev -- --port 28495
 | `/allocations` 配貨佇列 | 查詢 `GET /stock-operations?state=CONFIRMED&limit=200&ownerId=...`，於目前貨主的已載入資料篩選倉別、來源及 SKU。提供手動更新、有效 ORDER／PRIMARY 訂單的履約入口與補貨導航。 |
 | `/stock` 庫存 | 沿用目前貨主，按倉別、庫位查詢；SKU 彙總、展開批次、收貨及手動重新查詢。從佇列帶入的參數經主檔驗證，返回時保留原篩選。 |
 | `/catalog` 主檔 | 唯讀查看貨主、倉別、庫位、商品及 SKU，保留代碼與 UUID 供核對。 |
+| `/dead-letters` DLT 訊息 | 依原 topic 與 consumer group 查詢失敗訊息、錯誤與 payload；僅供查詢，不提供重送，也不依頁首貨主篩選。 |
 
 佇列呈現等待中的庫存作業，不是精確缺口、全域排名或 FIFO blocker 查詢；最多顯示 200 筆，
 本地篩選不能代表全部後端資料。
@@ -71,6 +74,10 @@ npm --prefix frontend run dev -- --port 28495
 新建訂單送出期間不能關閉視窗；結果不明時取消只收起視窗，再按「繼續確認訂單」可恢復原資料。
 
 ## 查看履約與自動追蹤
+
+Monolith 的 `GET /demo/orders/{orderId}/fulfillment` 組合 Order、StockOperation／movement／批次與 WMS Shipment；
+Temporal 模式另帶 Workflow state。取消 API `POST /orders/{orderId}/cancellation-requests` 尚未接入前端，
+重試同一次取消請求時須原樣重送 `requestId`、`requestedAt` 與 `reason`，流程見[履約架構](../docs/architecture/fulfillment-orchestration.md#cancellation)。
 
 詳情抽屜可由 URL 深連結恢復，按「關閉詳情」、Escape 或側邊欄外的遮罩即可關閉並回原頁。分區顯示訂單、庫存作業、movement／批次、Shipment
 及技術資訊。狀態橫列列出訂單狀態，當前 `order.status` 使用綠色，滑鼠移入可看說明。
