@@ -1,5 +1,9 @@
 # Karate v2 E2E
 
+每個主 Scenario 以 `# case-id:` 註解對應 [`../biz-bdd/features/`](../biz-bdd/features/) 的業務 BDD。
+執行 `python3 e2e/biz-bdd/check_traceability.py` 檢查雙向對應；列出案例位置與維護規則見
+[`業務 BDD 說明`](../biz-bdd/README.md#雙向案例對應)。這些註解不改變 Karate 的測試步驟或 tags。
+
 這裡是獨立於 backend Gradle source set 的黑箱 E2E。測試透過 HTTP 驗證完整履約流程，環境包含
 真實 PostgreSQL、Kafka、Debezium Connect，以及 monolith 或五個 microservices。
 兩種部署共用同一份 Events feature／fixture／業務斷言；monolith 另支援 Temporal：

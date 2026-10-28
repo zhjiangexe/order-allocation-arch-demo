@@ -1,3 +1,4 @@
+# 業務規格：e2e/biz-bdd/features/catalog-and-idempotency.feature
 @events @business-flow
 Feature: 下單前主檔與同步命令的邊界行為
 
@@ -6,6 +7,7 @@ Feature: 下單前主檔與同步命令的邊界行為
     * def buildOrderRequest = read('support/build-order-request.js')
     * def buildStockReceiptRequest = read('support/build-stock-receipt-request.js')
 
+  # case-id: CAT-001
   Scenario: 下單端可以依貨主逐層取得商品、規格、可用倉與庫位
     # 這些查詢是實際下單流程的前置步驟，不直接假設 UI 已知道所有 UUID。
     Given url logisticsDataUrl
@@ -40,6 +42,7 @@ Feature: 下單前主檔與同步命令的邊界行為
     Then status 200
     And match response contains deep { locationId: '#(locationId)', code: 'WH-NORTH/Stock' }
 
+  # case-id: CAT-002
   Scenario: 相同貨主與上游單號不能建立第二張實體訂單
     # 目前訂單 API 對重送明確回 409；這能防止同一張單出貨兩次，但尚不是「回傳原訂單」式冪等。
     * def externalOrderNo = 'KARATE-DUPLICATE-' + newId()
@@ -59,6 +62,7 @@ Feature: 下單前主檔與同步命令的邊界行為
     Then status 409
     And match response.code == 'DATA_CONFLICT'
 
+  # case-id: CAT-003
   Scenario: 收貨以 receiptId 保證重試不會重複入帳，內容不同則拒絕
     # 第一次與完全相同的 retry 都成功；第二次不能讓庫存從 5 變成 10。
     * def sku = 'E2E-RECEIPT-IDEMPOTENCY'

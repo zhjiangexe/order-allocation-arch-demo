@@ -1,3 +1,4 @@
+# 業務規格：e2e/biz-bdd/features/events-cancellation.feature
 @events @cancellation @business-flow
 Feature: Events 模式的取消流程
 
@@ -6,6 +7,7 @@ Feature: Events 模式的取消流程
     * def buildOrderRequest = read('support/build-order-request.js')
     * def buildStockReceiptRequest = read('support/build-stock-receipt-request.js')
 
+  # case-id: EVT-CAN-001
   Scenario: 待配貨訂單取消後不會再被補貨喚醒，庫存會留給下一張有效訂單
     # 這同時驗證 compensation 與 FIFO：已取消的 stock operation 必須退出競爭，不能卡住後來的訂單。
     * def sku = 'E2E-EVT-CANCEL-PENDING'
@@ -102,6 +104,7 @@ Feature: Events 模式的取消流程
     Then status 200
     And match response.status == 'CANCELLED'
 
+  # case-id: EVT-CAN-002
   Scenario: 已交運完成的訂單拒絕取消，改由退貨流程處理
     # handover 是不可逆邊界；命令先受理，再由 WMS 非同步拒絕，訂單仍須保持 FULFILLED。
     * def externalOrderNo = 'KARATE-EVT-CANCEL-DONE-' + newId()

@@ -1,3 +1,4 @@
+# 業務規格：e2e/biz-bdd/features/connector-catch-up.feature
 @events @messaging-resilience
 Feature: Debezium connector 暫停後追趕
 
@@ -5,6 +6,7 @@ Feature: Debezium connector 暫停後追趕
     * configure retry = { count: 90, interval: 1000 }
     * def buildOrderRequest = read('support/build-order-request.js')
 
+  # case-id: MSG-001
   Scenario: Connect 暫停期間已提交的訂單，恢復後仍會從 WAL 追上並完成
     # 先停 connector，證明 HTTP transaction 與事件傳遞解耦：訂單可提交，但暫時不會建立 stock operation。
     Given url connectUrl

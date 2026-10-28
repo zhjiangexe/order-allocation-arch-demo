@@ -1,3 +1,4 @@
+# 業務規格：e2e/biz-bdd/features/temporal-cancellation.feature
 @temporal @cancellation @business-flow
 Feature: Temporal workflow 的取消分支
 
@@ -5,6 +6,7 @@ Feature: Temporal workflow 的取消分支
     * configure retry = { count: 90, interval: 500 }
     * def buildOrderRequest = read('support/build-order-request.js')
 
+  # case-id: TMP-CAN-001
   Scenario: 尚未配到庫存時，workflow 不需 Shipment 就能取消訂單
     # 此分支證明取消不是依賴 Shipment 存在；workflow 應直接協調 Ordering 與 Inventory 結束等待。
     * def externalOrderNo = 'KARATE-TMP-CANCEL-PENDING-' + newId()
@@ -44,6 +46,7 @@ Feature: Temporal workflow 的取消分支
     And match response.temporalWorkflow.cancellationState == 'ORDER_CANCELLED'
     And match response.temporalWorkflow.cancellationRequestId == cancellation.requestId
 
+  # case-id: TMP-CAN-002
   Scenario: workflow 取消 Shipment 後釋放預留，等待訂單不需補貨即可完成
     # runner 以較長 WMS simulation delay 執行，讓 cancellation signal 能落在 CREATED 狀態。
     * def sku = 'E2E-TMP-CANCEL-SHIP'

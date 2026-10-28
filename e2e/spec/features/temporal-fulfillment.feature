@@ -1,3 +1,4 @@
+# 業務規格：e2e/biz-bdd/features/temporal-fulfillment.feature
 @temporal @business-flow
 Feature: Temporal 模式的配貨與履約流程
 
@@ -6,6 +7,7 @@ Feature: Temporal 模式的配貨與履約流程
     * def buildOrderRequest = read('support/build-order-request.js')
     * def buildStockReceiptRequest = read('support/build-stock-receipt-request.js')
 
+  # case-id: TMP-FUL-001
   Scenario: Temporal workflow 會完成訂單履約並保留終態
     # 與 Events 成功路徑使用不同 SKU；除了業務結果，還檢查 durable workflow 自己的狀態。
     * def sku = 'E2E-TMP-HAPPY'
@@ -50,6 +52,7 @@ Feature: Temporal 模式的配貨與履約流程
     # Workflow 成功也必須對上實際庫存：只扣出貨的 4 件，預留歸零，剩餘 16 件可再配置。
     * def completedStock = call read('support/assert-stock-balance.feature') { sku: '#(sku)', onHand: 16, reserved: 0, available: 16 }
 
+  # case-id: TMP-FUL-002
   Scenario: Temporal workflow 在缺貨期間保持等待，補貨後從原 workflow 繼續完成
     # 不建立第二個 workflow，也不重送下單命令；availability event 會把 stock operation assignment signal 回原流程。
     * def sku = 'E2E-TMP-WAKE'
@@ -97,6 +100,7 @@ Feature: Temporal 模式的配貨與履約流程
     And match response.workflowQueryStatus == 'AVAILABLE'
     And match response.temporalWorkflow.phase == 'FINISHED'
 
+  # case-id: TMP-FUL-003
   Scenario: Temporal 已完成交運時同樣拒絕取消
     # orchestration 技術不同，不可逆的 handover 業務規則必須相同。
     * def externalOrderNo = 'KARATE-TMP-CANCEL-DONE-' + newId()
@@ -133,8 +137,10 @@ Feature: Temporal 模式的配貨與履約流程
     And match response.order.status == 'FULFILLED'
     And match response.temporalWorkflow.outcome == 'FULFILLMENT_COMPLETED'
 
+  # case-id: TMP-FUL-004
   Scenario: 相同 SKU 在同一倉庫的其他貨主有貨或補貨，不得供應目標貨主
     * def isolation = call read('support/verify-stock-isolation.feature') { sku: 'E2E-TMP-OWNER-ISOLATION', supplyOwnerId: '#(isolationOwnerId)', supplyFacilityId: '#(facilityId)', supplyLocationId: '#(locationId)', isTemporal: true }
 
+  # case-id: TMP-FUL-005
   Scenario: 相同貨主與 SKU 在其他倉庫有貨或補貨，不得供應目標倉庫
     * def isolation = call read('support/verify-stock-isolation.feature') { sku: 'E2E-TMP-WAREHOUSE-ISOLATION', supplyOwnerId: '#(ownerId)', supplyFacilityId: '#(isolationFacilityId)', supplyLocationId: '#(isolationLocationId)', isTemporal: true }

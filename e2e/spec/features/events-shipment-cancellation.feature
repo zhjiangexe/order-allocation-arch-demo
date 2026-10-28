@@ -1,3 +1,4 @@
+# 業務規格：e2e/biz-bdd/features/events-shipment-cancellation.feature
 @events @cancellation @business-flow
 Feature: Events 模式在倉內作業前取消 Shipment
 
@@ -5,6 +6,7 @@ Feature: Events 模式在倉內作業前取消 Shipment
     * configure retry = { count: 90, interval: 500 }
     * def buildOrderRequest = read('support/build-order-request.js')
 
+  # case-id: EVT-SHIP-CAN-001
   Scenario: Shipment 作業前取消會釋放預留，等待訂單不需補貨即可完成
     # 此 feature 由 runner 以較長 WMS simulation delay 執行，刻意留下可取消的 CREATED 窗口。
     * def sku = 'E2E-EVT-CANCEL-SHIP'

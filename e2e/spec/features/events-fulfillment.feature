@@ -1,3 +1,4 @@
+# 業務規格：e2e/biz-bdd/features/events-fulfillment.feature
 @events @business-flow
 Feature: Events 模式的配貨與履約流程
 
@@ -6,6 +7,7 @@ Feature: Events 模式的配貨與履約流程
     * def buildOrderRequest = read('support/build-order-request.js')
     * def buildStockReceiptRequest = read('support/build-stock-receipt-request.js')
 
+  # case-id: EVT-FUL-001
   Scenario: 有足夠庫存時，訂單會走完配貨、倉內作業與交運
     # 這是 Events orchestration 的主成功路徑；最終狀態不足以證明流程完整，所以一併檢查 stock operation 與 shipment。
     * def sku = 'E2E-EVT-HAPPY'
@@ -47,6 +49,7 @@ Feature: Events 模式的配貨與履約流程
     # 交運必須實際扣除 3 件在手量並清空預留；庫存仍為 20 或重複扣成 14 都不能通過。
     * def completedStock = call read('support/assert-stock-balance.feature') { sku: '#(sku)', onHand: 17, reserved: 0, available: 17 }
 
+  # case-id: EVT-FUL-002
   Scenario: 缺貨訂單會等待，收貨後由 availability event 喚醒並完成
     # CONFIRMED stock operation 是可恢復狀態；補貨不需重送訂單，也不由測試直接呼叫 assignment command。
     * def sku = 'E2E-EVT-WAKE'
@@ -89,6 +92,7 @@ Feature: Events 模式的配貨與履約流程
     And match response.stockOperation.moves[0].batches == '#[1]'
     And match response.shipments[0].status == 'HANDED_OVER_TO_CARRIER'
 
+  # case-id: EVT-FUL-003
   Scenario: ship-complete 會等所有 SKU 都足夠，不會先占用充足的那一行
     # A 有庫存、B 沒庫存時整張訂單保持 PENDING；B 補齊後兩行才一起進入履約。
     * def skuA = 'E2E-EVT-MULTI-A'
@@ -134,6 +138,7 @@ Feature: Events 模式的配貨與履約流程
     And match each response.stockOperation.moves contains { state: 'DONE' }
     And match response.shipments[0].lines == '#[2]'
 
+  # case-id: EVT-FUL-004
   Scenario: 同一 SKU 出現在兩行時會先加總需求，再一次判斷整張訂單
     # 兩行不是兩張獨立需求；總需求 5 必須完整保留到 allocation 與 shipment 的明細中。
     * def sku = 'E2E-EVT-SAME-SKU'
@@ -160,6 +165,7 @@ Feature: Events 模式的配貨與履約流程
     * def quantities = response.shipments[0].lines.map(x => x.quantity)
     And match quantities contains only [2, 3]
 
+  # case-id: EVT-FUL-005
   Scenario: FIFO 的隊首不足時不能跳過它配置後來的小單
     # 第一張要 5、第二張只要 2；先補 2 時兩張都應等待，避免後來的小單插隊。
     * def sku = 'E2E-EVT-FIFO'
@@ -248,8 +254,10 @@ Feature: Events 模式的配貨與履約流程
     When method get
     Then status 200
 
+  # case-id: EVT-FUL-006
   Scenario: 相同 SKU 在同一倉庫的其他貨主有貨或補貨，不得供應目標貨主
     * def isolation = call read('support/verify-stock-isolation.feature') { sku: 'E2E-EVT-OWNER-ISOLATION', supplyOwnerId: '#(isolationOwnerId)', supplyFacilityId: '#(facilityId)', supplyLocationId: '#(locationId)', isTemporal: false }
 
+  # case-id: EVT-FUL-007
   Scenario: 相同貨主與 SKU 在其他倉庫有貨或補貨，不得供應目標倉庫
     * def isolation = call read('support/verify-stock-isolation.feature') { sku: 'E2E-EVT-WAREHOUSE-ISOLATION', supplyOwnerId: '#(ownerId)', supplyFacilityId: '#(isolationFacilityId)', supplyLocationId: '#(isolationLocationId)', isTemporal: false }
