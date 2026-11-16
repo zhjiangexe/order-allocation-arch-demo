@@ -38,6 +38,12 @@ subprojects {
             mavenBom "org.springframework.modulith:spring-modulith-bom:${libs.versions.springModulith.get()}"
             mavenBom "org.springframework.cloud:spring-cloud-dependencies:${libs.versions.springCloud.get()}"
         }
+        dependencies {
+            // kafka-clients 與 temporal-sdk 帶入的版本有已知漏洞, BOM 尚未涵蓋, 在此指定修補版本。
+            dependency "org.xerial.snappy:snappy-java:${libs.versions.snappyJava.get()}"
+            dependency "at.yawk.lz4:lz4-java:${libs.versions.lz4Java.get()}"
+            dependency "com.google.guava:guava:${libs.versions.guava.get()}"
+        }
     }
 
     tasks.withType(Test).configureEach {
