@@ -5,7 +5,7 @@ ENV ?= dev
 MODE ?= events
 DEPLOY := ./scripts/deploy.sh
 
-.PHONY: demo-up demo-down demo-restart demo-logs demo-ps demo-config demo-events demo-temporal help test check e2e package push pull up deploy restart down logs ps config \
+.PHONY: demo-up demo-down demo-restart demo-logs demo-ps demo-config demo-events demo-temporal help test check e2e bdd-check package push pull up deploy restart down logs ps config \
 	dev-up dev-up-temporal dev-down stage-deploy stage-down prod-deploy prod-down
 
 help:
@@ -16,6 +16,7 @@ help:
 		'make test                         Run backend unit tests' \
 		'make check                        Run backend checks and SIT' \
 		'make e2e                          Run isolated Karate v2 Events and Temporal E2E' \
+		'make bdd-check                    Check business BDD / Karate scenario links (Python 3)' \
 		'E2E_DEPLOYMENT=microservice make e2e  Run the same Events scenarios on five services' \
 		'make package ENV=dev|stage|prod   Build the monolith image' \
 		'make push ENV=stage|prod          Push the selected image' \
@@ -33,6 +34,9 @@ check:
 
 e2e:
 	./e2e/spec/run.sh
+
+bdd-check:
+	python3 e2e/biz-bdd/check_traceability.py
 
 package push pull up deploy restart down logs ps config:
 	$(DEPLOY) $(ENV) $@
