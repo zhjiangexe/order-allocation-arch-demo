@@ -190,7 +190,7 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
         LOGGER.error(
                 "Downstream service failure: incidentId={}, requestUri={}, exceptionType={}",
                 incidentId,
-                request.getRequestURI(),
+                singleLine(request.getRequestURI()),
                 exception.getClass().getName(),
                 exception);
 
@@ -201,6 +201,11 @@ public class GlobalRestExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setProperty("code", code);
         problem.setProperty("incidentId", incidentId);
         return ResponseEntity.status(status).body(problem);
+    }
+
+    /** 移除換行字元，避免 request 內容在 log 中偽造出額外的紀錄。 */
+    private static String singleLine(String value) {
+        return value.replaceAll("\\R", "_");
     }
 
     private static boolean hasTimeoutCause(Throwable throwable) {
