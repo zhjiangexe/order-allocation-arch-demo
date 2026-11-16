@@ -1,0 +1,163 @@
+# 資安檢查：靜態分析、相依套件、機密與設定、容器映像檔，以及每週一次的動態掃描。
+# 與 build／E2E 分開，讓「測試失敗」與「資安發現」是兩個獨立的訊號。
+#
+# 這裡掃不到存取控制與認證（OWASP A01、A07）：工具無法判斷哪些端點應該受保護。
+# Secret scanning 與 Dependabot alerts 是 repo 設定，不在這個檔案裡。
+name: Security
+
+on:
+  push:
+  pull_request:
+  # 每週一 02:00 UTC：程式碼沒變時，新公布的漏洞也要能被發現。
+  schedule:
+    - cron: '0 2 * * 1'
+  # 允許在 Actions 頁面手動執行。
+  workflow_dispatch:
+
+# 預設只能讀取原始碼；需要額外權限的 job 各自宣告。
+permissions:
+  contents: read
+
+jobs:
+  # 靜態分析（SAST）：追蹤資料流，找注入、SSRF、不安全的反序列化等問題。
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # 上傳結果到 repo 的 Security 分頁。
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Java 需要實際編譯，分析才看得到完整的型別與呼叫關係。
+          - language: java-kotlin
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        if: matrix.language == 'java-kotlin'
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # 比預設規則集多一些安全性查詢。
+          queries: security-extended
+      # 只編譯不跑測試；關閉 daemon 與 build cache，CodeQL 才攔截得到每一次編譯。
+      - name: Compile backend for analysis
+        if: matrix.language == 'java-kotlin'
+        working-directory: backend
+        run: ./gradlew --no-daemon --no-build-cache classes testClasses --console=plain
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  # 把 Gradle 實際解析出的相依清單送給 GitHub。
+  # 沒有這一步，多模組加 version catalog 的 Java 相依不會完整出現在相依圖，Dependabot alerts 也就看不到。
+  dependency-submission:
+    name: Submit Gradle dependencies
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      # 寫入相依圖所需。
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/dependency-submission@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          build-root-directory: backend
+
+  # 相依套件（SCA）：PR 若引入有已知漏洞的套件就擋下。
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+
+  # 掃描 repo 內的檔案：npm lockfile 的已知漏洞、Dockerfile 與 Terraform 的不安全設定、誤放的機密。
+  # 注意：這一項看不到 Gradle 相依（沒有 lockfile），Java 套件由下面的映像檔掃描負責。
+  trivy-repo:
+    name: Trivy (repository)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          # .agents 是安裝進來的第三方 skill，不屬於本專案的程式碼。
+          skip-dirs: .agents
+          severity: CRITICAL,HIGH
+          # 只擋已有修正版本的漏洞；無解的不擋，但仍會列出。
+          ignore-unfixed: true
+          exit-code: '1'
+
+  # 掃描實際建置出來的 monolith 映像檔：jar 內的 Java 套件，以及基底映像檔的作業系統套件。
+  trivy-image:
+    name: Trivy (monolith image)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      # --pull 確保每次都使用最新的基底映像檔，作業系統套件的修補才會進來。
+      - name: Build monolith image
+        run: docker build --pull --tag archone-monolith:security-scan .
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: archone-monolith:security-scan
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-image.sarif
+          # SARIF 預設會列出所有嚴重度，這裡限制成與擋下門檻一致。
+          limit-severities-for-sarif: true
+          exit-code: '1'
+      # 掃描失敗（有發現）時仍然上傳，結果才會出現在 Security 分頁。
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('trivy-image.sarif') != ''
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+  # 動態掃描（DAST）：啟動整套 Events demo，依 OpenAPI 合約對每個端點送出攻擊請求。
+  # 耗時且會寫入資料，所以只在排程與手動觸發時執行，而且不擋 PR。
+  # 目前涵蓋有限：合約缺少真實的範例 ID，多數請求會在輸入驗證就被擋成 400。
+  zap-api-scan:
+    name: ZAP API scan
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      # 後端會在 http://localhost:28690，與 sa_specs/openapi.yaml 的第一個 server 相同。
+      - name: Start Events demo environment
+        run: make demo-up MODE=events
+      - uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
+        with:
+          target: sa_specs/openapi.yaml
+          format: openapi
+          # 只產出報告（artifact），不讓 job 失敗，也不自動開 issue。
+          fail_action: false
+          allow_issue_writing: false
+      - name: Stop demo environment
+        if: always()
+        run: make demo-down MODE=events
