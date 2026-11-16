@@ -1,13 +1,18 @@
+# 主要的 CI 流程：先驗證資料庫 migration 與後端建置，再以兩種部署形態跑同一套 E2E。
+# 只做驗證，不會部署任何環境。
 name: Database and deployments
 
+# 任何分支的 push 與所有 pull request 都會觸發。
 on:
   push:
   pull_request:
 
+# 只需要讀取原始碼，不給寫入 repo 或其他資源的權限。
 permissions:
   contents: read
 
 jobs:
+  # 後端建置與測試。失敗時不會進入 E2E。
   build:
     runs-on: ubuntu-latest
     steps:
@@ -16,17 +21,23 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      # 驗證 database/ 下的獨立 migration 可以從空資料庫套用，且預期該失敗的檢查確實會失敗。
       - name: Verify standalone migrations and failure gates
         run: ./scripts/verify-migrations.sh
+      # build 會連帶執行 spotlessCheck、unit test 與各 deployment 的 SIT（以 Testcontainers 啟動 PostgreSQL、Kafka）。
       - name: Build, unit tests and database/service integration tests
         working-directory: backend
         run: ./gradlew build --console=plain
+
+  # 以 Karate 對實際啟動的系統跑端到端情境。
   e2e:
     needs: build
     runs-on: ubuntu-latest
     strategy:
+      # 其中一種部署失敗時，另一種仍然跑完，方便判斷問題是否只出現在單一部署形態。
       fail-fast: false
       matrix:
+        # monolith 跑 Events 與 Temporal 兩組情境；microservice 只跑 Events 情境（五個服務）。
         deployment: [monolith, microservice]
     steps:
       - uses: actions/checkout@v4
@@ -34,10 +45,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      # run.sh 會自行建置後端 jar、以 compose 啟動隔離的基礎設施、套用 migration，跑完後清除。
       - name: Shared E2E scenarios with standalone migration
         env:
           E2E_DEPLOYMENT: ${{ matrix.deployment }}
         run: ./e2e/spec/run.sh
+      # 不論成功或失敗都保留 Karate 報告，失敗時可下載查看。
       - uses: actions/upload-artifact@v4
         if: always()
         with:

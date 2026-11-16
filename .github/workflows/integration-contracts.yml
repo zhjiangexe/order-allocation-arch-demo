@@ -1,9 +1,13 @@
+# 單獨檢查 integration-contracts 模組：對外的 versioned Integration Event contract 不得在無意間被改動。
+# 與主要流程分開，讓 contract 被破壞時有獨立且快速（約 1 分鐘）的失敗訊號。
 name: Integration contracts
 
+# 任何分支的 push 與所有 pull request 都會觸發。
 on:
   push:
   pull_request:
 
+# 只需要讀取原始碼。
 permissions:
   contents: read
 
@@ -16,6 +20,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      # spotlessCheck 檢查格式；test 以既有的 v1 event 範例驗證 contract 仍然相容。
       - name: Check formatting and v1 event contracts
         working-directory: backend
         run: ./gradlew :integration-contracts:spotlessCheck :integration-contracts:test --console=plain
