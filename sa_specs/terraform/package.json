@@ -1,0 +1,13 @@
+{
+  "name": "archone-sa-deployment",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "auth:check": "node check-auth.mjs",
+    "deploy": "node deploy.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.154.0"
+  }
+}

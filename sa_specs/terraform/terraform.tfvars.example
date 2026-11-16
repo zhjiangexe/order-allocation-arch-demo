@@ -1,0 +1,8 @@
+# 複製為 terraform.tfvars 後填寫；不要在這裡放 API Token。
+account_id        = "填入你的 Cloudflare Account ID"
+project_name      = "archone-sa"
+production_branch = "main"
+
+# 預設只使用 pages.dev，以下兩項可以不填。
+# custom_domain = "sa.example.com"
+# dns_zone_id   = "填入 example.com 的 Cloudflare Zone ID"
