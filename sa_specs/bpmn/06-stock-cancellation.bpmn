@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Definitions_StockCancellation" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_StockCancellation">
+    <bpmn:participant id="Pool_Archone" name="Archone" processRef="Process_StockCancellation" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_StockCancellation" name="取消後的庫存釋放" isExecutable="false">
+    <bpmn:documentation>現況分析模型，非可部署流程。泳道代表業務權責；順序流不等於同步呼叫或單一交易。詳見 process-spec.md。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_StockCancellation">
+      <bpmn:lane id="Lane_Inventory" name="庫存 Inventory">
+        <bpmn:flowNodeRef>Event_OrderCancelled</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Locate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Operation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Confirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Release</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CancelWaiting</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ReleaseMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Released</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_NoOp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Done</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Event_OrderCancelled" name="訂單取消事實&#10;已送達">
+      <bpmn:documentation>OrderCancelledIntegrationEvent；兩種 driver 都由 Inventory consumer 處理。</bpmn:documentation>
+      <bpmn:outgoing>Flow_OrderCancelledToLocate</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_OrderCancelledToLocate" sourceRef="Event_OrderCancelled" targetRef="Task_Locate" />
+    <bpmn:serviceTask id="Task_Locate" name="查詢並鎖定&#10;出庫作業" implementation="urn:archone:java-application">
+      <bpmn:incoming>Flow_OrderCancelledToLocate</bpmn:incoming>
+      <bpmn:outgoing>Flow_LocateToOperation</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_LocateToOperation" sourceRef="Task_Locate" targetRef="Gateway_Operation" />
+    <bpmn:exclusiveGateway id="Gateway_Operation" name="出庫作業狀態?" default="Flow_OperationToNoOp">
+      <bpmn:incoming>Flow_LocateToOperation</bpmn:incoming>
+      <bpmn:outgoing>Flow_OperationToConfirm</bpmn:outgoing>
+      <bpmn:outgoing>Flow_OperationToCancelWaiting</bpmn:outgoing>
+      <bpmn:outgoing>Flow_OperationToDone</bpmn:outgoing>
+      <bpmn:outgoing>Flow_OperationToNoOp</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_OperationToConfirm" name="ASSIGNED" sourceRef="Gateway_Operation" targetRef="Task_Confirm">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">operationAssigned</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_OperationToCancelWaiting" name="CONFIRMED" sourceRef="Gateway_Operation" targetRef="Task_CancelWaiting">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">operationConfirmed</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_OperationToDone" name="DONE" sourceRef="Gateway_Operation" targetRef="Event_Done">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">operationDone</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_OperationToNoOp" name="不存在／已取消" sourceRef="Gateway_Operation" targetRef="Event_NoOp" />
+    <bpmn:serviceTask id="Task_Confirm" name="保存外部取消&#10;確認紀錄" implementation="urn:archone:java-application">
+      <bpmn:documentation>EXTERNAL_CONFIRMED；依上游可信取消事實寫入，不是再次遠端呼叫 WMS。</bpmn:documentation>
+      <bpmn:incoming>Flow_OperationToConfirm</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConfirmToRelease</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ConfirmToRelease" sourceRef="Task_Confirm" targetRef="Task_Release" />
+    <bpmn:serviceTask id="Task_Release" name="釋放全部預留&#10;並取消出庫作業" implementation="urn:archone:java-application">
+      <bpmn:documentation>reserved 減少、onHand 不變；清除 move lines 再取消 operation/moves。</bpmn:documentation>
+      <bpmn:incoming>Flow_ConfirmToRelease</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReleaseToReleaseMerge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ReleaseToReleaseMerge" sourceRef="Task_Release" targetRef="Gateway_ReleaseMerge" />
+    <bpmn:serviceTask id="Task_CancelWaiting" name="取消未配置&#10;出庫需求" implementation="urn:archone:java-application">
+      <bpmn:documentation>CONFIRMED 無預留可釋放。</bpmn:documentation>
+      <bpmn:incoming>Flow_OperationToCancelWaiting</bpmn:incoming>
+      <bpmn:outgoing>Flow_CancelWaitingToReleaseMerge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_CancelWaitingToReleaseMerge" sourceRef="Task_CancelWaiting" targetRef="Gateway_ReleaseMerge" />
+    <bpmn:exclusiveGateway id="Gateway_ReleaseMerge">
+      <bpmn:incoming>Flow_ReleaseToReleaseMerge</bpmn:incoming>
+      <bpmn:incoming>Flow_CancelWaitingToReleaseMerge</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReleaseMergeToReleased</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_ReleaseMergeToReleased" sourceRef="Gateway_ReleaseMerge" targetRef="Event_Released" />
+    <bpmn:endEvent id="Event_Released" name="庫存取消已完成&#10;等待需求可重評">
+      <bpmn:incoming>Flow_ReleaseMergeToReleased</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_NoOp" name="無需重複&#10;取消庫存">
+      <bpmn:documentation>不存在或已 CANCELLED。</bpmn:documentation>
+      <bpmn:incoming>Flow_OperationToNoOp</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_Done" name="已出庫&#10;不可取消庫存">
+      <bpmn:documentation>NOT_CANCELLABLE；矛盾需調查，不宣稱已自動建立人工工單。</bpmn:documentation>
+      <bpmn:incoming>Flow_OperationToDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Collaboration_StockCancellation">
+    <bpmndi:BPMNPlane id="BPMNPlane_Collaboration_StockCancellation" bpmnElement="Collaboration_StockCancellation">
+      <bpmndi:BPMNShape id="BPMNShape_Pool_Archone" bpmnElement="Pool_Archone" isHorizontal="true">
+        <dc:Bounds x="80" y="80" width="996" height="492" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_Inventory" bpmnElement="Lane_Inventory" isHorizontal="true">
+        <dc:Bounds x="110" y="80" width="966" height="492" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_OrderCancelled" bpmnElement="Event_OrderCancelled">
+        <dc:Bounds x="170" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="147" y="174" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Locate" bpmnElement="Task_Locate">
+        <dc:Bounds x="266" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_Operation" bpmnElement="Gateway_Operation" isMarkerVisible="true">
+        <dc:Bounds x="426" y="125" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="421" y="105" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Confirm" bpmnElement="Task_Confirm">
+        <dc:Bounds x="567" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Release" bpmnElement="Task_Release">
+        <dc:Bounds x="727" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_CancelWaiting" bpmnElement="Task_CancelWaiting">
+        <dc:Bounds x="567" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_ReleaseMerge" bpmnElement="Gateway_ReleaseMerge" isMarkerVisible="true">
+        <dc:Bounds x="887" y="125" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Released" bpmnElement="Event_Released">
+        <dc:Bounds x="997" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="985" y="174" width="61" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_NoOp" bpmnElement="Event_NoOp">
+        <dc:Bounds x="599" y="486" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="580" y="528" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Done" bpmnElement="Event_Done">
+        <dc:Bounds x="599" y="390" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="576" y="432" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OrderCancelledToLocate" bpmnElement="Flow_OrderCancelledToLocate">
+        <di:waypoint x="206" y="150" />
+        <di:waypoint x="266" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_LocateToOperation" bpmnElement="Flow_LocateToOperation">
+        <di:waypoint x="366" y="150" />
+        <di:waypoint x="426" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OperationToConfirm" bpmnElement="Flow_OperationToConfirm">
+        <di:waypoint x="476" y="150" />
+        <di:waypoint x="567" y="150" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="484" y="132" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OperationToCancelWaiting" bpmnElement="Flow_OperationToCancelWaiting">
+        <di:waypoint x="451" y="175" />
+        <di:waypoint x="451" y="290" />
+        <di:waypoint x="567" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="272" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OperationToDone" bpmnElement="Flow_OperationToDone">
+        <di:waypoint x="451" y="175" />
+        <di:waypoint x="451" y="408" />
+        <di:waypoint x="599" y="408" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="390" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OperationToNoOp" bpmnElement="Flow_OperationToNoOp">
+        <di:waypoint x="451" y="175" />
+        <di:waypoint x="451" y="504" />
+        <di:waypoint x="599" y="504" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="486" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ConfirmToRelease" bpmnElement="Flow_ConfirmToRelease">
+        <di:waypoint x="667" y="150" />
+        <di:waypoint x="727" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ReleaseToReleaseMerge" bpmnElement="Flow_ReleaseToReleaseMerge">
+        <di:waypoint x="827" y="150" />
+        <di:waypoint x="887" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_CancelWaitingToReleaseMerge" bpmnElement="Flow_CancelWaitingToReleaseMerge">
+        <di:waypoint x="667" y="290" />
+        <di:waypoint x="912" y="290" />
+        <di:waypoint x="912" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ReleaseMergeToReleased" bpmnElement="Flow_ReleaseMergeToReleased">
+        <di:waypoint x="937" y="150" />
+        <di:waypoint x="997" y="150" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

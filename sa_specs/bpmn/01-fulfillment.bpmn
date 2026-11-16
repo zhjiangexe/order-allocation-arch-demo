@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Fulfillment" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Fulfillment">
+    <bpmn:participant id="Pool_External" name="上游系統／操作端" />
+    <bpmn:participant id="Pool_Archone" name="Archone" processRef="Process_Fulfillment" />
+    <bpmn:messageFlow id="Flow_ExternalToRequest" name="建立訂單" sourceRef="Pool_External" targetRef="Event_Request" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Fulfillment" name="正常訂單履約" isExecutable="false">
+    <bpmn:documentation>現況分析模型，非可部署流程。泳道代表業務權責；順序流不等於同步呼叫或單一交易。詳見 process-spec.md。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Fulfillment">
+      <bpmn:lane id="Lane_Ordering" name="訂單 Ordering">
+        <bpmn:flowNodeRef>Event_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Create</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Fulfill</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Fulfilled</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Inventory" name="庫存 Inventory">
+        <bpmn:flowNodeRef>Call_Allocate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Outbound</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Assigned</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Stopped</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_WMS" name="倉儲 WMS">
+        <bpmn:flowNodeRef>Call_Warehouse</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Event_Request" name="建單請求&#10;已到達">
+      <bpmn:outgoing>Flow_RequestToCreate</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_PlaceOrderRequest" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_RequestToCreate" sourceRef="Event_Request" targetRef="Task_Create" />
+    <bpmn:serviceTask id="Task_Create" name="驗證並建立&#10;訂單" implementation="urn:archone:java-application">
+      <bpmn:documentation>非法請求與重複單號拒絕另列規格。</bpmn:documentation>
+      <bpmn:incoming>Flow_RequestToCreate</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateToAllocate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_CreateToAllocate" sourceRef="Task_Create" targetRef="Call_Allocate" />
+    <bpmn:callActivity id="Call_Allocate" name="執行整單配貨&#10;詳見圖 02" calledElement="Process_Allocation">
+      <bpmn:incoming>Flow_CreateToAllocate</bpmn:incoming>
+      <bpmn:outgoing>Flow_AllocateToAssigned</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_AllocateToAssigned" sourceRef="Call_Allocate" targetRef="Gateway_Assigned" />
+    <bpmn:exclusiveGateway id="Gateway_Assigned" name="配置已提交?" default="Flow_AssignedToStopped">
+      <bpmn:incoming>Flow_AllocateToAssigned</bpmn:incoming>
+      <bpmn:outgoing>Flow_AssignedToWarehouse</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AssignedToStopped</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_AssignedToWarehouse" name="已提交配置" sourceRef="Gateway_Assigned" targetRef="Call_Warehouse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">allocationAssigned</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_AssignedToStopped" name="已確認取消" sourceRef="Gateway_Assigned" targetRef="Event_Stopped" />
+    <bpmn:callActivity id="Call_Warehouse" name="執行倉內出庫&#10;詳見圖 03" calledElement="Process_Warehouse">
+      <bpmn:incoming>Flow_AssignedToWarehouse</bpmn:incoming>
+      <bpmn:outgoing>Flow_WarehouseToOutbound</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:sequenceFlow id="Flow_WarehouseToOutbound" sourceRef="Call_Warehouse" targetRef="Task_Outbound" />
+    <bpmn:serviceTask id="Task_Outbound" name="完成出庫扣帳" implementation="urn:archone:java-application">
+      <bpmn:documentation>只在 handover terminal fact 成立後，扣減 onHand 與 reserved。</bpmn:documentation>
+      <bpmn:incoming>Flow_WarehouseToOutbound</bpmn:incoming>
+      <bpmn:outgoing>Flow_OutboundToFulfill</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_OutboundToFulfill" sourceRef="Task_Outbound" targetRef="Task_Fulfill" />
+    <bpmn:serviceTask id="Task_Fulfill" name="記錄訂單&#10;履約完成" implementation="urn:archone:java-application">
+      <bpmn:documentation>Inventory 完成出庫後，Ordering 才記錄 FULFILLED。</bpmn:documentation>
+      <bpmn:incoming>Flow_OutboundToFulfill</bpmn:incoming>
+      <bpmn:outgoing>Flow_FulfillToFulfilled</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_FulfillToFulfilled" sourceRef="Task_Fulfill" targetRef="Event_Fulfilled" />
+    <bpmn:endEvent id="Event_Fulfilled" name="訂單履約&#10;已完成">
+      <bpmn:incoming>Flow_FulfillToFulfilled</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_Stopped" name="配貨需求已取消&#10;停止正常履約">
+      <bpmn:incoming>Flow_AssignedToStopped</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:message id="Message_PlaceOrderRequest" name="PlaceOrderRequest" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Collaboration_Fulfillment">
+    <bpmndi:BPMNPlane id="BPMNPlane_Collaboration_Fulfillment" bpmnElement="Collaboration_Fulfillment">
+      <bpmndi:BPMNShape id="BPMNShape_Pool_External" bpmnElement="Pool_External" isHorizontal="true">
+        <dc:Bounds x="80" y="80" width="1181" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Pool_Archone" bpmnElement="Pool_Archone" isHorizontal="true">
+        <dc:Bounds x="80" y="220" width="1181" height="420" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_WMS" bpmnElement="Lane_WMS" isHorizontal="true">
+        <dc:Bounds x="110" y="500" width="1151" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_Inventory" bpmnElement="Lane_Inventory" isHorizontal="true">
+        <dc:Bounds x="110" y="360" width="1151" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_Ordering" bpmnElement="Lane_Ordering" isHorizontal="true">
+        <dc:Bounds x="110" y="220" width="1151" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Request" bpmnElement="Event_Request">
+        <dc:Bounds x="170" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="154" y="314" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Create" bpmnElement="Task_Create">
+        <dc:Bounds x="266" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Call_Allocate" bpmnElement="Call_Allocate">
+        <dc:Bounds x="426" y="390" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_Assigned" bpmnElement="Gateway_Assigned" isMarkerVisible="true">
+        <dc:Bounds x="586" y="405" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="584" y="385" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Call_Warehouse" bpmnElement="Call_Warehouse">
+        <dc:Bounds x="699" y="530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Outbound" bpmnElement="Task_Outbound">
+        <dc:Bounds x="859" y="390" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Fulfill" bpmnElement="Task_Fulfill">
+        <dc:Bounds x="1019" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Fulfilled" bpmnElement="Event_Fulfilled">
+        <dc:Bounds x="1179" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1163" y="314" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Stopped" bpmnElement="Event_Stopped">
+        <dc:Bounds x="731" y="412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="719" y="454" width="61" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_RequestToCreate" bpmnElement="Flow_RequestToCreate">
+        <di:waypoint x="206" y="290" />
+        <di:waypoint x="266" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_CreateToAllocate" bpmnElement="Flow_CreateToAllocate">
+        <di:waypoint x="316" y="330" />
+        <di:waypoint x="316" y="430" />
+        <di:waypoint x="426" y="430" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_AllocateToAssigned" bpmnElement="Flow_AllocateToAssigned">
+        <di:waypoint x="526" y="430" />
+        <di:waypoint x="586" y="430" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_AssignedToWarehouse" bpmnElement="Flow_AssignedToWarehouse">
+        <di:waypoint x="611" y="455" />
+        <di:waypoint x="611" y="570" />
+        <di:waypoint x="699" y="570" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="619" y="552" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_AssignedToStopped" bpmnElement="Flow_AssignedToStopped">
+        <di:waypoint x="636" y="430" />
+        <di:waypoint x="731" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="644" y="412" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WarehouseToOutbound" bpmnElement="Flow_WarehouseToOutbound">
+        <di:waypoint x="799" y="570" />
+        <di:waypoint x="909" y="570" />
+        <di:waypoint x="909" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OutboundToFulfill" bpmnElement="Flow_OutboundToFulfill">
+        <di:waypoint x="959" y="430" />
+        <di:waypoint x="1069" y="430" />
+        <di:waypoint x="1069" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_FulfillToFulfilled" bpmnElement="Flow_FulfillToFulfilled">
+        <di:waypoint x="1119" y="290" />
+        <di:waypoint x="1179" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ExternalToRequest" bpmnElement="Flow_ExternalToRequest">
+        <di:waypoint x="188" y="140" />
+        <di:waypoint x="188" y="272" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="194" y="173" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

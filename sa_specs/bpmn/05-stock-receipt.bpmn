@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Definitions_StockReceipt" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_StockReceipt">
+    <bpmn:participant id="Pool_External" name="收貨操作端" />
+    <bpmn:participant id="Pool_Archone" name="Archone" processRef="Process_StockReceipt" />
+    <bpmn:messageFlow id="Flow_ExternalToReceipt" name="POST /stock-receipts" sourceRef="Pool_External" targetRef="Event_Receipt" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_StockReceipt" name="一段式收貨與補庫" isExecutable="false">
+    <bpmn:documentation>現況分析模型，非可部署流程。泳道代表業務權責；順序流不等於同步呼叫或單一交易。詳見 process-spec.md。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_StockReceipt">
+      <bpmn:lane id="Lane_Inventory" name="庫存 Inventory">
+        <bpmn:flowNodeRef>Event_Receipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Receive</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Received</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Replay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Bad</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Event_Receipt" name="收貨請求&#10;已到達">
+      <bpmn:outgoing>Flow_ReceiptToCheck</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_StockReceiptRequest" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_ReceiptToCheck" sourceRef="Event_Receipt" targetRef="Task_Check" />
+    <bpmn:serviceTask id="Task_Check" name="驗證收貨資料&#10;與請求識別" implementation="urn:archone:java-application">
+      <bpmn:documentation>receiptId、owner、facility、internal location、SKU、數量與日期；相同 receiptId 比對 payload。</bpmn:documentation>
+      <bpmn:incoming>Flow_ReceiptToCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_CheckToRequest</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_CheckToRequest" sourceRef="Task_Check" targetRef="Gateway_Request" />
+    <bpmn:exclusiveGateway id="Gateway_Request" name="請求檢核結果?" default="Flow_RequestToBad">
+      <bpmn:incoming>Flow_CheckToRequest</bpmn:incoming>
+      <bpmn:outgoing>Flow_RequestToReceive</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RequestToReplay</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RequestToBad</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_RequestToReceive" name="首次且合法" sourceRef="Gateway_Request" targetRef="Task_Receive">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">newValidRequest</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RequestToReplay" name="同識別同內容" sourceRef="Gateway_Request" targetRef="Event_Replay">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">identicalSuccessfulReplay</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RequestToBad" name="資料不合法／識別衝突" sourceRef="Gateway_Request" targetRef="Event_Bad" />
+    <bpmn:serviceTask id="Task_Receive" name="完成收貨入庫&#10;並保存事件" implementation="urn:archone:java-application">
+      <bpmn:documentation>同一交易：去重、inbound operation/move/line、onHand 增加及 availability Outbox。</bpmn:documentation>
+      <bpmn:incoming>Flow_RequestToReceive</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReceiveToReceived</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ReceiveToReceived" sourceRef="Task_Receive" targetRef="Event_Received" />
+    <bpmn:endEvent id="Event_Received" name="收貨已提交&#10;等待非同步配貨">
+      <bpmn:incoming>Flow_ReceiveToReceived</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_Replay" name="既有成功已回覆&#10;未重複入庫">
+      <bpmn:incoming>Flow_RequestToReplay</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_Bad" name="收貨已拒絕&#10;庫存未異動">
+      <bpmn:documentation>不合法 400；receiptId 不同 payload 409。技術失敗 rollback，不等於業務拒絕。</bpmn:documentation>
+      <bpmn:incoming>Flow_RequestToBad</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:message id="Message_StockReceiptRequest" name="StockReceiptRequest" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Collaboration_StockReceipt">
+    <bpmndi:BPMNPlane id="BPMNPlane_Collaboration_StockReceipt" bpmnElement="Collaboration_StockReceipt">
+      <bpmndi:BPMNShape id="BPMNShape_Pool_External" bpmnElement="Pool_External" isHorizontal="true">
+        <dc:Bounds x="80" y="80" width="733" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Pool_Archone" bpmnElement="Pool_Archone" isHorizontal="true">
+        <dc:Bounds x="80" y="220" width="733" height="352" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_Inventory" bpmnElement="Lane_Inventory" isHorizontal="true">
+        <dc:Bounds x="110" y="220" width="703" height="352" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Receipt" bpmnElement="Event_Receipt">
+        <dc:Bounds x="170" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="154" y="314" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Check" bpmnElement="Task_Check">
+        <dc:Bounds x="266" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_Request" bpmnElement="Gateway_Request" isMarkerVisible="true">
+        <dc:Bounds x="426" y="265" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="421" y="245" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Receive" bpmnElement="Task_Receive">
+        <dc:Bounds x="574" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Received" bpmnElement="Event_Received">
+        <dc:Bounds x="734" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="722" y="314" width="61" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Replay" bpmnElement="Event_Replay">
+        <dc:Bounds x="606" y="390" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="594" y="432" width="61" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Bad" bpmnElement="Event_Bad">
+        <dc:Bounds x="606" y="486" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="580" y="528" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ReceiptToCheck" bpmnElement="Flow_ReceiptToCheck">
+        <di:waypoint x="206" y="290" />
+        <di:waypoint x="266" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_CheckToRequest" bpmnElement="Flow_CheckToRequest">
+        <di:waypoint x="366" y="290" />
+        <di:waypoint x="426" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_RequestToReceive" bpmnElement="Flow_RequestToReceive">
+        <di:waypoint x="476" y="290" />
+        <di:waypoint x="574" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="484" y="272" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_RequestToReplay" bpmnElement="Flow_RequestToReplay">
+        <di:waypoint x="451" y="315" />
+        <di:waypoint x="451" y="408" />
+        <di:waypoint x="606" y="408" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="390" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_RequestToBad" bpmnElement="Flow_RequestToBad">
+        <di:waypoint x="451" y="315" />
+        <di:waypoint x="451" y="504" />
+        <di:waypoint x="606" y="504" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="486" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ReceiveToReceived" bpmnElement="Flow_ReceiveToReceived">
+        <di:waypoint x="674" y="290" />
+        <di:waypoint x="734" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ExternalToReceipt" bpmnElement="Flow_ExternalToReceipt">
+        <di:waypoint x="188" y="140" />
+        <di:waypoint x="188" y="272" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="194" y="166" width="90" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

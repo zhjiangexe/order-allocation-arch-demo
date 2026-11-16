@@ -1,0 +1,1110 @@
+openapi: 3.1.0
+info:
+  title: 05｜OPENAPI
+  version: '2026-10-28'
+  description: |-
+    本系統原始需求以訂單建立、收貨、取消申請與查詢為主，使用 GET 與 POST 即可滿足需求，未使用 PUT、PATCH 或 DELETE。取消透過 POST 建立取消請求並保留業務紀錄，不直接刪除訂單。
+
+    本合約包含下單、取消、同步收貨、庫存佇列與主檔查詢。路徑為後端原始路徑；前端 /api 為代理前綴。
+servers:
+  - url: http://localhost:28690
+    description: 既有 Events monolith demo；需另行啟動。
+  - url: http://localhost:28790
+    description: 既有 Temporal monolith demo；不提供 Events process GET。
+  - url: http://localhost:28290
+    description: Monolith application.properties 預設 host port。
+tags:
+  - name: Ordering
+    description: 訂單需求與狀態投影
+  - name: Inventory
+    description: 同步收貨、庫存與待配貨佇列
+  - name: Fulfillment
+    description: 取消流程協調
+  - name: Catalog
+    description: 唯讀主檔
+x-security-note: 本合約未定義身份驗證；ownerId 為資料範圍，不代表使用者授權。部署環境須另行定義身份驗證與權限。
+paths:
+  /orders:
+    post:
+      operationId: placeOrder
+      summary: 建立整單履約需求
+      tags:
+        - Ordering
+      description: 同 ownerId + externalOrderNo 重送回 DATA_CONFLICT，沒有返回原單的 HTTP 冪等機制；未讀取 X-Idempotency-Key。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceOrderRequest"
+      responses:
+        "200":
+          description: 已提交訂單與 Outbox；初始 PENDING。不是 201。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderStatusResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "500":
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: listRecentOrders
+      summary: 查詢最近訂單
+      tags:
+        - Ordering
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: ownerId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 依 receivedAt DESC、id DESC 排序的最近清單。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrderStatusResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      summary: 查詢單筆訂單
+      tags:
+        - Ordering
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 目前訂單投影。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderStatusResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /orders/{orderId}/cancellation-requests:
+    post:
+      operationId: requestOrderCancellation
+      summary: 提出不可變取消請求
+      tags:
+        - Fulfillment
+      description: events／temporal 同路徑不同 Controller。Events 首次受理後須查 process；已交運的拒絕可能非同步發生。
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCancellationRequest"
+      responses:
+        "200":
+          description: ALREADY_REQUESTED 或 ALREADY_CANCELLED，依驅動與既有結果。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCancellationResponse"
+        "202":
+          description: ACCEPTED；不表示補償與釋放全部完成。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCancellationResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: 業務 REJECTED／CONFLICT 使用 application/json；Temporal workflow 不存在時回
+            application/problem+json，code=FULFILLMENT_CANCELLATION_WORKFLOW_UNAVAILABLE。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCancellationResponse"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          $ref: "#/components/responses/Problem"
+  /orders/{orderId}/cancellation-requests/{requestId}:
+    get:
+      operationId: getCancellationProcess
+      summary: 查詢 Events 取消流程
+      tags:
+        - Fulfillment
+      description: 只有 events 模式註冊此路由；temporal 模式改查 workflow snapshot。
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 取消 process 與已知 outcome。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancellationProcess"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          description: 找不到，或 orderId 與 process 不符；Controller 回應空 body。
+      x-orchestration-modes:
+        - events
+  /stock-receipts:
+    post:
+      operationId: confirmStockReceipt
+      summary: 同步確認入庫
+      tags:
+        - Inventory
+      description: 以 body.receiptId 去重。指定內部庫位必須屬於 facility。收貨與 availability Outbox 同交易；後續配貨非同步。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmStockReceiptRequest"
+      responses:
+        "200":
+          description: 首次或相同 receiptId／完整內容重送均成功；不重複入帳。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockReceiptConfirmedResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "500":
+          description: 內部契約違反可回 ProblemDetails；缺少庫位／作業類型等 IllegalStateException 未由自訂 handler 統一映射，不能保證所有 500 body。
+  /stock-pool:
+    get:
+      operationId: getStockByLocation
+      summary: 依貨主與庫位查詢庫存批次
+      tags:
+        - Inventory
+      parameters:
+        - name: ownerId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 沒有庫存回 skus 空清單；批次按 SKU、效期、入庫日與 ID 排序。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockQuantResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /stock-operations:
+    get:
+      operationId: listConfirmedStockOperations
+      summary: 查詢待配貨作業
+      tags:
+        - Inventory
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            default: CONFIRMED
+            pattern: ^[Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd]$
+          description: 對應 equalsIgnoreCase 檢核；其他狀態拒絕。
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 100
+        - name: ownerId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: CONFIRMED 佇列。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockOperationResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /owners:
+    get:
+      operationId: listOwners
+      summary: 列出貨主
+      tags:
+        - Catalog
+      responses:
+        "200":
+          description: 查無符合資料回空陣列；不是 404。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OwnerResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /owners/{ownerId}/products:
+    get:
+      operationId: listProducts
+      summary: 列出貨主商品
+      tags:
+        - Catalog
+      parameters:
+        - name: ownerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 查無符合資料回空陣列；不是 404。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /owners/{ownerId}/facilities:
+    get:
+      operationId: listOwnerFacilities
+      summary: 列出貨主可用設施
+      tags:
+        - Catalog
+      parameters:
+        - name: ownerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 查無符合資料回空陣列；不是 404。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FacilityResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /owners/{ownerId}/products/{productCode}/skus:
+    get:
+      operationId: listProductSkus
+      summary: 列出商品規格
+      tags:
+        - Catalog
+      parameters:
+        - name: ownerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: productCode
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 依貨主區隔；程式未定義額外字元 Regex。
+      responses:
+        "200":
+          description: 查無符合資料回空陣列；不是 404。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SkuResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /facilities/{facilityId}/locations:
+    get:
+      operationId: listInternalLocations
+      summary: 列出設施內部庫位
+      tags:
+        - Inventory
+      parameters:
+        - name: facilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 查無符合資料回空陣列；不是 404。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockLocationResponse"
+        "400":
+          $ref: "#/components/responses/Problem"
+components:
+  schemas:
+    PlaceOrderLine:
+      type: object
+      required:
+        - skuCode
+        - quantity
+      properties:
+        skuCode:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: 所屬貨主的 SKU；沒有額外業務 Regex。資料庫上限 64 字元。
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+    PlaceOrderRequest:
+      type: object
+      required:
+        - ownerId
+        - externalOrderNo
+        - shipToZone
+        - shipToAddress
+        - promisedDeliveryDate
+        - dispatchBy
+        - releasePriority
+        - facilityId
+        - lines
+      properties:
+        ownerId:
+          type: string
+          format: uuid
+        externalOrderNo:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: 同貨主不可重複；資料庫 VARCHAR(128)，並非 @Size 驗證。
+        shipToZone:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: 資料庫 VARCHAR(32)。
+        shipToAddress:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: 資料庫 VARCHAR(512)。
+        promisedDeliveryDate:
+          type: string
+          format: date
+        dispatchBy:
+          type: string
+          format: date-time
+          description: 由上游提供的最晚離倉時刻；系統不由承諾到貨日反推。
+        releasePriority:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+        facilityId:
+          type: string
+          format: uuid
+        placedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: 可省略；不得晚於系統 receivedAt 超過 5 分鐘，不限制歷史下界。
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaceOrderLine"
+          minItems: 1
+          description: 允許同 SKU 多行；沒有宣告行數上限。
+    OrderLineResponse:
+      type: object
+      required:
+        - lineNo
+        - skuCode
+        - quantity
+        - status
+      properties:
+        lineNo:
+          type: integer
+          format: int32
+          minimum: 1
+        skuCode:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ALLOCATED
+            - FULFILLED
+            - CANCELLED
+      description: status 從 header 導出，並非逐行獨立狀態。
+    OrderStatusResponse:
+      type: object
+      required:
+        - orderId
+        - ownerId
+        - externalOrderNo
+        - facilityId
+        - shipToZone
+        - shipToAddress
+        - promisedDeliveryDate
+        - dispatchBy
+        - releasePriority
+        - lines
+        - status
+        - receivedAt
+        - placedAt
+        - allocatedAt
+        - cancelledAt
+        - fulfilledAt
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        externalOrderNo:
+          type: string
+        facilityId:
+          type: string
+          format: uuid
+        shipToZone:
+          type: string
+        shipToAddress:
+          type: string
+        promisedDeliveryDate:
+          type: string
+          format: date
+        dispatchBy:
+          type: string
+          format: date-time
+        releasePriority:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLineResponse"
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ALLOCATED
+            - FULFILLED
+            - CANCELLED
+        receivedAt:
+          type: string
+          format: date-time
+        placedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        allocatedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        cancelledAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        fulfilledAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+    ConfirmStockReceiptRequest:
+      type: object
+      required:
+        - receiptId
+        - ownerId
+        - facilityId
+        - locationId
+        - sku
+        - inDate
+        - expiryDate
+        - quantity
+      properties:
+        receiptId:
+          type: string
+          format: uuid
+          description: 真正的收貨冪等鍵；重送需保持全部欄位相同。
+        ownerId:
+          type: string
+          format: uuid
+        facilityId:
+          type: string
+          format: uuid
+        locationId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+          minLength: 1
+          pattern: \S
+          description: 注意欄位名為 sku；資料庫對應 sku_code。
+        inDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+          description: 無 expiryDate >= inDate 的程式檢核；過期批可登錄但配貨供給查詢會排除。
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+    StockReceiptConfirmedResponse:
+      type: object
+      required:
+        - receiptId
+        - sku
+        - quantity
+      properties:
+        receiptId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+    StockBatchResponse:
+      type: object
+      required:
+        - stockPoolId
+        - inDate
+        - expiryDate
+        - onHandQuantity
+        - reservedQuantity
+        - availableToPromise
+        - expired
+      properties:
+        stockPoolId:
+          type: string
+          format: uuid
+          description: "@JsonProperty 對外名稱；內部 stockQuantId。"
+        inDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        onHandQuantity:
+          type: integer
+          format: int32
+          minimum: 0
+        reservedQuantity:
+          type: integer
+          format: int32
+          minimum: 0
+        availableToPromise:
+          type: integer
+          format: int32
+          minimum: 0
+          description: onHandQuantity - reservedQuantity；過期批仍回此差額，需另檢查 expired。
+        expired:
+          type: boolean
+          description: expiryDate < 系統業務日期；效期當天仍可用。
+    SkuStockResponse:
+      type: object
+      required:
+        - sku
+        - batches
+      properties:
+        sku:
+          type: string
+        batches:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockBatchResponse"
+    StockQuantResponse:
+      type: object
+      required:
+        - skus
+      properties:
+        skus:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkuStockResponse"
+    OrderCancellationRequest:
+      type: object
+      required:
+        - requestId
+        - requestedAt
+        - reason
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        requestedAt:
+          type: string
+          format: date-time
+          description: HTTP retry 必須原值重送；Events 比對採微秒精度。
+        reason:
+          type: string
+          minLength: 1
+          pattern: \S
+          maxLength: 512
+          description: NotBlank 由 request 驗證；512 字元上限由 FulfillmentCancellationCommand 驗證。
+    OrderCancellationResponse:
+      type: object
+      required:
+        - status
+        - effectiveRequestId
+      properties:
+        status:
+          type: string
+          enum:
+            - ACCEPTED
+            - ALREADY_REQUESTED
+            - ALREADY_CANCELLED
+            - REJECTED
+            - CONFLICT
+        effectiveRequestId:
+          type: string
+          format: uuid
+      description: 包含非同步受理結果；409 仍使用此 application/json 格式，並非 Problem Details。
+    CancellationProcess:
+      type: object
+      required:
+        - requestId
+        - orderId
+        - requestedAt
+        - reason
+        - state
+        - wmsOutcome
+        - orderingOutcome
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        requestedAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        state:
+          type: string
+          enum:
+            - WAITING_WMS
+            - WAITING_ORDERING
+            - COMPLETED
+            - REJECTED
+            - CONFLICT
+        wmsOutcome:
+          type:
+            - string
+            - "null"
+          enum:
+            - SHIPMENT_CANCELLED
+            - NO_SHIPMENT
+            - REJECTED
+            - MULTIPLE_SHIPMENTS
+            - null
+        orderingOutcome:
+          type:
+            - string
+            - "null"
+          enum:
+            - SUCCEEDED
+            - REJECTED
+            - null
+      description: Events only；COMPLETED 表示取消協調完成，Inventory 後續事件仍可能尚未可見。
+    OwnerResponse:
+      type: object
+      required:
+        - ownerId
+        - code
+        - name
+      properties:
+        ownerId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+    ProductResponse:
+      type: object
+      required:
+        - productId
+        - ownerId
+        - productCode
+        - name
+        - temperatureZone
+      properties:
+        productId:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        productCode:
+          type: string
+        name:
+          type: string
+        temperatureZone:
+          type: string
+          enum:
+            - AMBIENT
+            - CHILLED
+            - FROZEN
+    SkuResponse:
+      type: object
+      required:
+        - skuId
+        - ownerId
+        - skuCode
+        - productCode
+        - specName
+        - weightGram
+      properties:
+        skuId:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        skuCode:
+          type: string
+        productCode:
+          type: string
+        specName:
+          type: string
+        weightGram:
+          type: integer
+          format: int32
+          minimum: 1
+    FacilityResponse:
+      type: object
+      required:
+        - facilityId
+        - code
+        - name
+      properties:
+        facilityId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+    StockLocationResponse:
+      type: object
+      required:
+        - locationId
+        - facilityId
+        - code
+        - name
+      properties:
+        locationId:
+          type: string
+          format: uuid
+        facilityId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+    SourceTrace:
+      type: object
+      required:
+        - type
+        - sourceId
+        - operationUnitKey
+      properties:
+        type:
+          type: string
+          enum:
+            - ORDER
+            - TRANSFER
+            - REPLENISHMENT
+            - PRODUCTION
+            - MANUAL
+        sourceId:
+          type: string
+        operationUnitKey:
+          type: string
+      description: 列舉存在不代表所有來源都有對外命令 API。
+    StockOperationHeader:
+      type: object
+      required:
+        - stockOperationId
+        - stockOperationTypeId
+        - direction
+        - ownerId
+        - fromLocationId
+        - toLocationId
+        - assignmentPolicy
+        - enqueuedAt
+        - dispatchBy
+        - releasePriority
+        - state
+      properties:
+        stockOperationId:
+          type: string
+          format: uuid
+        stockOperationTypeId:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum:
+            - INBOUND
+            - OUTBOUND
+            - INTERNAL
+        ownerId:
+          type: string
+          format: uuid
+        fromLocationId:
+          type: string
+          format: uuid
+        toLocationId:
+          type: string
+          format: uuid
+        assignmentPolicy:
+          type: string
+          enum:
+            - SHIP_COMPLETE
+        enqueuedAt:
+          type: string
+          format: date-time
+        dispatchBy:
+          type: string
+          format: date-time
+        releasePriority:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+        state:
+          type: string
+          enum:
+            - CONFIRMED
+            - ASSIGNED
+            - DONE
+            - CANCELLED
+    StockOperationBatch:
+      type: object
+      required:
+        - stockQuantId
+        - locationId
+        - skuCode
+        - inDate
+        - expiryDate
+        - quantity
+      properties:
+        stockQuantId:
+          type: string
+          format: uuid
+        locationId:
+          type: string
+          format: uuid
+        skuCode:
+          type: string
+        inDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+    StockOperationMove:
+      type: object
+      required:
+        - moveId
+        - sourceLineId
+        - lineSequence
+        - skuCode
+        - quantity
+        - state
+        - createdAt
+        - assignedAt
+        - batches
+      properties:
+        moveId:
+          type: string
+          format: uuid
+        sourceLineId:
+          type: string
+        lineSequence:
+          type: integer
+          format: int32
+          minimum: 1
+        skuCode:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+        state:
+          type: string
+          enum:
+            - CONFIRMED
+            - ASSIGNED
+            - DONE
+            - CANCELLED
+        createdAt:
+          type: string
+          format: date-time
+        assignedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        batches:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockOperationBatch"
+    StockOperationResponse:
+      type: object
+      required:
+        - source
+        - operation
+        - moves
+      properties:
+        source:
+          $ref: "#/components/schemas/SourceTrace"
+        operation:
+          $ref: "#/components/schemas/StockOperationHeader"
+        moves:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockOperationMove"
+      description: 此公開 list API 只列 CONFIRMED OUTBOUND 佇列；不是所有方向與所有狀態的搜尋。
+    RequestValidationError:
+      type: object
+      required:
+        - field
+        - code
+        - message
+      properties:
+        field:
+          type:
+            - string
+            - "null"
+        code:
+          type: string
+          description: 例如 NotNull、NotBlank、NotEmpty、Positive、Min、Max。
+        message:
+          type: string
+    ProblemDetails:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: 自訂 handler 使用 urn:archone:problem:*；framework error 可用 about:blank。
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+          description: 業務／一般錯誤代碼；validation 不提供頂層 code。
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RequestValidationError"
+          description: 現有 validation extension；沒有 invalid_params 欄位。
+        incidentId:
+          type: string
+          format: uuid
+          description: 內部契約或下游失敗的查證識別碼。
+      description: RFC 9457；允許擴充欄位。非所有 Controller 回應皆採用此格式。
+  responses:
+    Problem:
+      description: 由 GlobalRestExceptionHandler 或 Spring MVC 回傳的 Problem Details；非所有未知 500 都保證使用此 schema。
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"

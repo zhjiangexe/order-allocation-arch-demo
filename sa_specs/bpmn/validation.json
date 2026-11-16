@@ -1,0 +1,48 @@
+{
+  "tool": "@miragon/bpmn-cli 0.8.0",
+  "date": "2026-10-29",
+  "models": [
+    {
+      "file": "01-fulfillment.bpmn",
+      "errors": 0,
+      "warnings": 0,
+      "platform": "none",
+      "isExecutable": false
+    },
+    {
+      "file": "02-allocation.bpmn",
+      "errors": 0,
+      "warnings": 0,
+      "platform": "none",
+      "isExecutable": false
+    },
+    {
+      "file": "03-warehouse.bpmn",
+      "errors": 0,
+      "warnings": 0,
+      "platform": "none",
+      "isExecutable": false
+    },
+    {
+      "file": "04-cancellation.bpmn",
+      "errors": 0,
+      "warnings": 0,
+      "platform": "none",
+      "isExecutable": false
+    },
+    {
+      "file": "05-stock-receipt.bpmn",
+      "errors": 0,
+      "warnings": 0,
+      "platform": "none",
+      "isExecutable": false
+    },
+    {
+      "file": "06-stock-cancellation.bpmn",
+      "errors": 0,
+      "warnings": 0,
+      "platform": "none",
+      "isExecutable": false
+    }
+  ]
+}

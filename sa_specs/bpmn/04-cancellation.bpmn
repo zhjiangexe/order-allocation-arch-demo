@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Definitions_Cancellation" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Cancellation">
+    <bpmn:participant id="Pool_Archone" name="Archone" processRef="Process_Cancellation" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Cancellation" name="訂單取消協調" isExecutable="false">
+    <bpmn:documentation>現況分析模型，非可部署流程。泳道代表業務權責；順序流不等於同步呼叫或單一交易。詳見 process-spec.md。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Cancellation">
+      <bpmn:lane id="Lane_WMS" name="倉儲 WMS">
+        <bpmn:flowNodeRef>Call_WmsCancel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Wms</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Ordering" name="訂單 Ordering">
+        <bpmn:flowNodeRef>Task_OrderCancel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Order</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Fulfillment" name="履約協調">
+        <bpmn:flowNodeRef>Event_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Completed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Completed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Conflict</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Conflict</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WmsConflict</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WmsConflict</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Event_Accepted" name="取消請求&#10;已受理">
+      <bpmn:documentation>首次合法受理開始；202 不是完成。入口重送、404、409 另見規格。</bpmn:documentation>
+      <bpmn:outgoing>Flow_AcceptedToWmsCancel</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_AcceptedToWmsCancel" sourceRef="Event_Accepted" targetRef="Call_WmsCancel" />
+    <bpmn:serviceTask id="Call_WmsCancel" name="確認倉儲&#10;取消結果">
+      <bpmn:incoming>Flow_AcceptedToWmsCancel</bpmn:incoming>
+      <bpmn:outgoing>Flow_WmsCancelToWms</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_WmsCancelToWms" sourceRef="Call_WmsCancel" targetRef="Gateway_Wms" />
+    <bpmn:exclusiveGateway id="Gateway_Wms" name="倉儲結果?" default="Flow_WmsToWmsConflict">
+      <bpmn:incoming>Flow_WmsCancelToWms</bpmn:incoming>
+      <bpmn:outgoing>Flow_WmsToOrderCancel</bpmn:outgoing>
+      <bpmn:outgoing>Flow_WmsToRejected</bpmn:outgoing>
+      <bpmn:outgoing>Flow_WmsToWmsConflict</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_WmsToOrderCancel" name="無出貨單／取消完成" sourceRef="Gateway_Wms" targetRef="Task_OrderCancel">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">wmsSafeToCancel</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_WmsToRejected" name="已確認拒絕" sourceRef="Gateway_Wms" targetRef="Task_Rejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">wmsRejected</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_WmsToWmsConflict" name="已確認的衝突" sourceRef="Gateway_Wms" targetRef="Task_WmsConflict" />
+    <bpmn:serviceTask id="Task_OrderCancel" name="取消訂單並&#10;發布取消事實" implementation="urn:archone:java-application">
+      <bpmn:documentation>OrderCancelled 非同步觸發圖 06。</bpmn:documentation>
+      <bpmn:incoming>Flow_WmsToOrderCancel</bpmn:incoming>
+      <bpmn:outgoing>Flow_OrderCancelToOrder</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_OrderCancelToOrder" sourceRef="Task_OrderCancel" targetRef="Gateway_Order" />
+    <bpmn:exclusiveGateway id="Gateway_Order" name="訂單取消成功?" default="Flow_OrderToConflict">
+      <bpmn:incoming>Flow_OrderCancelToOrder</bpmn:incoming>
+      <bpmn:outgoing>Flow_OrderToCompleted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_OrderToConflict</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_OrderToCompleted" name="已取消／同請求已取消" sourceRef="Gateway_Order" targetRef="Task_Completed">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">orderCancelled</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_OrderToConflict" name="已確認的拒絕或矛盾" sourceRef="Gateway_Order" targetRef="Task_Conflict" />
+    <bpmn:serviceTask id="Task_Completed" name="記錄取消&#10;協調完成" implementation="urn:archone:java-application">
+      <bpmn:documentation>Events COMPLETED／Temporal ORDER_CANCELLED；庫存釋放仍可能未完成。</bpmn:documentation>
+      <bpmn:incoming>Flow_OrderToCompleted</bpmn:incoming>
+      <bpmn:outgoing>Flow_CompletedToCompleted</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_CompletedToCompleted" sourceRef="Task_Completed" targetRef="Event_Completed" />
+    <bpmn:endEvent id="Event_Completed" name="訂單取消&#10;協調已完成">
+      <bpmn:incoming>Flow_CompletedToCompleted</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_Rejected" name="記錄取消拒絕" implementation="urn:archone:java-application">
+      <bpmn:incoming>Flow_WmsToRejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectedToRejected</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_RejectedToRejected" sourceRef="Task_Rejected" targetRef="Event_Rejected" />
+    <bpmn:endEvent id="Event_Rejected" name="取消已拒絕&#10;保留履約結果">
+      <bpmn:incoming>Flow_RejectedToRejected</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_Conflict" name="保留衝突&#10;供人工調查" implementation="urn:archone:java-application">
+      <bpmn:documentation>Events CONFLICT；Temporal 矛盾結果使 workflow 失敗待調查。未假設已建置人工派單。</bpmn:documentation>
+      <bpmn:incoming>Flow_OrderToConflict</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConflictToConflict</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ConflictToConflict" sourceRef="Task_Conflict" targetRef="Event_Conflict" />
+    <bpmn:endEvent id="Event_Conflict" name="狀態待調查&#10;未宣告取消成功">
+      <bpmn:incoming>Flow_ConflictToConflict</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_WmsConflict" name="保留倉儲衝突&#10;供人工調查" implementation="urn:archone:java-application">
+      <bpmn:incoming>Flow_WmsToWmsConflict</bpmn:incoming>
+      <bpmn:outgoing>Flow_WmsConflictToWmsConflict</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_WmsConflictToWmsConflict" sourceRef="Task_WmsConflict" targetRef="Event_WmsConflict" />
+    <bpmn:endEvent id="Event_WmsConflict" name="倉儲結果衝突&#10;未宣告取消成功">
+      <bpmn:incoming>Flow_WmsConflictToWmsConflict</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Collaboration_Cancellation">
+    <bpmndi:BPMNPlane id="BPMNPlane_Collaboration_Cancellation" bpmnElement="Collaboration_Cancellation">
+      <bpmndi:BPMNShape id="BPMNShape_Pool_Archone" bpmnElement="Pool_Archone" isHorizontal="true">
+        <dc:Bounds x="80" y="80" width="1044" height="852" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_Fulfillment" bpmnElement="Lane_Fulfillment" isHorizontal="true">
+        <dc:Bounds x="110" y="360" width="1014" height="572" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_Ordering" bpmnElement="Lane_Ordering" isHorizontal="true">
+        <dc:Bounds x="110" y="220" width="1014" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_WMS" bpmnElement="Lane_WMS" isHorizontal="true">
+        <dc:Bounds x="110" y="80" width="1014" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Accepted" bpmnElement="Event_Accepted">
+        <dc:Bounds x="170" y="412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="154" y="454" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Call_WmsCancel" bpmnElement="Call_WmsCancel">
+        <dc:Bounds x="266" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_Wms" bpmnElement="Gateway_Wms" isMarkerVisible="true">
+        <dc:Bounds x="426" y="125" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="428" y="105" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_OrderCancel" bpmnElement="Task_OrderCancel">
+        <dc:Bounds x="567" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_Order" bpmnElement="Gateway_Order" isMarkerVisible="true">
+        <dc:Bounds x="727" y="265" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="722" y="245" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Completed" bpmnElement="Task_Completed">
+        <dc:Bounds x="875" y="390" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Completed" bpmnElement="Event_Completed">
+        <dc:Bounds x="1035" y="412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1012" y="454" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Rejected" bpmnElement="Task_Rejected">
+        <dc:Bounds x="567" y="670" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Rejected" bpmnElement="Event_Rejected">
+        <dc:Bounds x="734" y="692" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="725" y="734" width="54" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Conflict" bpmnElement="Task_Conflict">
+        <dc:Bounds x="875" y="530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Conflict" bpmnElement="Event_Conflict">
+        <dc:Bounds x="1035" y="552" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1023" y="594" width="61" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_WmsConflict" bpmnElement="Task_WmsConflict">
+        <dc:Bounds x="567" y="810" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_WmsConflict" bpmnElement="Event_WmsConflict">
+        <dc:Bounds x="734" y="832" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="722" y="874" width="61" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_AcceptedToWmsCancel" bpmnElement="Flow_AcceptedToWmsCancel">
+        <di:waypoint x="206" y="430" />
+        <di:waypoint x="316" y="430" />
+        <di:waypoint x="316" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WmsCancelToWms" bpmnElement="Flow_WmsCancelToWms">
+        <di:waypoint x="366" y="150" />
+        <di:waypoint x="426" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WmsToOrderCancel" bpmnElement="Flow_WmsToOrderCancel">
+        <di:waypoint x="451" y="175" />
+        <di:waypoint x="451" y="290" />
+        <di:waypoint x="567" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="272" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WmsToRejected" bpmnElement="Flow_WmsToRejected">
+        <di:waypoint x="451" y="175" />
+        <di:waypoint x="451" y="710" />
+        <di:waypoint x="567" y="710" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="692" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WmsToWmsConflict" bpmnElement="Flow_WmsToWmsConflict">
+        <di:waypoint x="451" y="175" />
+        <di:waypoint x="451" y="850" />
+        <di:waypoint x="567" y="850" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="459" y="832" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OrderCancelToOrder" bpmnElement="Flow_OrderCancelToOrder">
+        <di:waypoint x="667" y="290" />
+        <di:waypoint x="727" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OrderToCompleted" bpmnElement="Flow_OrderToCompleted">
+        <di:waypoint x="752" y="315" />
+        <di:waypoint x="752" y="430" />
+        <di:waypoint x="875" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="760" y="412" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_OrderToConflict" bpmnElement="Flow_OrderToConflict">
+        <di:waypoint x="752" y="315" />
+        <di:waypoint x="752" y="570" />
+        <di:waypoint x="875" y="570" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="760" y="552" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_CompletedToCompleted" bpmnElement="Flow_CompletedToCompleted">
+        <di:waypoint x="975" y="430" />
+        <di:waypoint x="1035" y="430" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_RejectedToRejected" bpmnElement="Flow_RejectedToRejected">
+        <di:waypoint x="667" y="710" />
+        <di:waypoint x="734" y="710" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ConflictToConflict" bpmnElement="Flow_ConflictToConflict">
+        <di:waypoint x="975" y="570" />
+        <di:waypoint x="1035" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WmsConflictToWmsConflict" bpmnElement="Flow_WmsConflictToWmsConflict">
+        <di:waypoint x="667" y="850" />
+        <di:waypoint x="734" y="850" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

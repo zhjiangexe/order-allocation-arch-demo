@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Definitions_Warehouse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Warehouse">
+    <bpmn:participant id="Pool_Archone" name="Archone" processRef="Process_Warehouse" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Warehouse" name="倉內出庫（現行模擬推進）" isExecutable="false">
+    <bpmn:documentation>現況分析模型，非可部署流程。泳道代表業務權責；順序流不等於同步呼叫或單一交易。詳見 process-spec.md。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Warehouse">
+      <bpmn:lane id="Lane_WMS" name="倉儲 WMS">
+        <bpmn:flowNodeRef>Event_Allocation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Shipment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Plan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Release</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Pick</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_WaveDone</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Pack</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Stage</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Handover</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Handed</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Event_Allocation" name="配置承諾&#10;已到達">
+      <bpmn:outgoing>Flow_AllocationToShipment</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_AllocationToShipment" sourceRef="Event_Allocation" targetRef="Task_Shipment" />
+    <bpmn:serviceTask id="Task_Shipment" name="建立出貨單" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_AllocationToShipment</bpmn:incoming>
+      <bpmn:outgoing>Flow_ShipmentToPlan</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ShipmentToPlan" sourceRef="Task_Shipment" targetRef="Task_Plan" />
+    <bpmn:serviceTask id="Task_Plan" name="規劃出貨波次" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_ShipmentToPlan</bpmn:incoming>
+      <bpmn:outgoing>Flow_PlanToRelease</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_PlanToRelease" sourceRef="Task_Plan" targetRef="Task_Release" />
+    <bpmn:serviceTask id="Task_Release" name="釋放波次&#10;建立揀貨工作" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_PlanToRelease</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReleaseToPick</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ReleaseToPick" sourceRef="Task_Release" targetRef="Task_Pick" />
+    <bpmn:serviceTask id="Task_Pick" name="確認各筆&#10;揀貨數量" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_ReleaseToPick</bpmn:incoming>
+      <bpmn:outgoing>Flow_PickToWaveDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_PickToWaveDone" sourceRef="Task_Pick" targetRef="Task_WaveDone" />
+    <bpmn:serviceTask id="Task_WaveDone" name="完成揀貨波次" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_PickToWaveDone</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaveDoneToPack</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_WaveDoneToPack" sourceRef="Task_WaveDone" targetRef="Task_Pack" />
+    <bpmn:serviceTask id="Task_Pack" name="完成出貨包裝" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_WaveDoneToPack</bpmn:incoming>
+      <bpmn:outgoing>Flow_PackToStage</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_PackToStage" sourceRef="Task_Pack" targetRef="Task_Stage" />
+    <bpmn:serviceTask id="Task_Stage" name="移入待交運區" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_PackToStage</bpmn:incoming>
+      <bpmn:outgoing>Flow_StageToHandover</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_StageToHandover" sourceRef="Task_Stage" targetRef="Task_Handover" />
+    <bpmn:serviceTask id="Task_Handover" name="確認承運商&#10;交接" implementation="urn:archone:java-application">
+      <bpmn:documentation>模擬排程在單一交易推進波次、揀貨、包裝、待交運與交接。</bpmn:documentation>
+      <bpmn:incoming>Flow_StageToHandover</bpmn:incoming>
+      <bpmn:outgoing>Flow_HandoverToHanded</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_HandoverToHanded" sourceRef="Task_Handover" targetRef="Event_Handed" />
+    <bpmn:endEvent id="Event_Handed" name="貨物已交運">
+      <bpmn:incoming>Flow_HandoverToHanded</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Collaboration_Warehouse">
+    <bpmndi:BPMNPlane id="BPMNPlane_Collaboration_Warehouse" bpmnElement="Collaboration_Warehouse">
+      <bpmndi:BPMNShape id="BPMNShape_Pool_Archone" bpmnElement="Pool_Archone" isHorizontal="true">
+        <dc:Bounds x="80" y="80" width="1538" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_WMS" bpmnElement="Lane_WMS" isHorizontal="true">
+        <dc:Bounds x="110" y="80" width="1508" height="140" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Allocation" bpmnElement="Event_Allocation">
+        <dc:Bounds x="170" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="154" y="174" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Shipment" bpmnElement="Task_Shipment">
+        <dc:Bounds x="266" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Plan" bpmnElement="Task_Plan">
+        <dc:Bounds x="426" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Release" bpmnElement="Task_Release">
+        <dc:Bounds x="586" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Pick" bpmnElement="Task_Pick">
+        <dc:Bounds x="746" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_WaveDone" bpmnElement="Task_WaveDone">
+        <dc:Bounds x="906" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Pack" bpmnElement="Task_Pack">
+        <dc:Bounds x="1066" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Stage" bpmnElement="Task_Stage">
+        <dc:Bounds x="1226" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Handover" bpmnElement="Task_Handover">
+        <dc:Bounds x="1386" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Handed" bpmnElement="Event_Handed">
+        <dc:Bounds x="1546" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1541" y="174" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_AllocationToShipment" bpmnElement="Flow_AllocationToShipment">
+        <di:waypoint x="206" y="150" />
+        <di:waypoint x="266" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ShipmentToPlan" bpmnElement="Flow_ShipmentToPlan">
+        <di:waypoint x="366" y="150" />
+        <di:waypoint x="426" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_PlanToRelease" bpmnElement="Flow_PlanToRelease">
+        <di:waypoint x="526" y="150" />
+        <di:waypoint x="586" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ReleaseToPick" bpmnElement="Flow_ReleaseToPick">
+        <di:waypoint x="686" y="150" />
+        <di:waypoint x="746" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_PickToWaveDone" bpmnElement="Flow_PickToWaveDone">
+        <di:waypoint x="846" y="150" />
+        <di:waypoint x="906" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WaveDoneToPack" bpmnElement="Flow_WaveDoneToPack">
+        <di:waypoint x="1006" y="150" />
+        <di:waypoint x="1066" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_PackToStage" bpmnElement="Flow_PackToStage">
+        <di:waypoint x="1166" y="150" />
+        <di:waypoint x="1226" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_StageToHandover" bpmnElement="Flow_StageToHandover">
+        <di:waypoint x="1326" y="150" />
+        <di:waypoint x="1386" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_HandoverToHanded" bpmnElement="Flow_HandoverToHanded">
+        <di:waypoint x="1486" y="150" />
+        <di:waypoint x="1546" y="150" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

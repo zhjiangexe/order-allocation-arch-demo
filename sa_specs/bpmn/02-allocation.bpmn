@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Definitions_Allocation" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_Allocation">
+    <bpmn:participant id="Pool_Archone" name="Archone" processRef="Process_Allocation" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Allocation" name="整單配貨與缺貨等待" isExecutable="false">
+    <bpmn:documentation>現況分析模型，非可部署流程。泳道代表業務權責；順序流不等於同步呼叫或單一交易。詳見 process-spec.md。</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Allocation">
+      <bpmn:lane id="Lane_Inventory" name="庫存 Inventory">
+        <bpmn:flowNodeRef>Event_Demand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Register</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_RetryMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Rule_Allocate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Enough</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Commit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Assigned</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Wait</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Active</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Cancelled</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Event_Demand" name="訂單需求&#10;已送達">
+      <bpmn:outgoing>Flow_DemandToRegister</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_DemandToRegister" sourceRef="Event_Demand" targetRef="Task_Register" />
+    <bpmn:serviceTask id="Task_Register" name="建立並確認&#10;出庫需求" implementation="urn:archone:java-application">
+      <bpmn:documentation>StockOperation 與全部 StockMove；CONFIRMED。</bpmn:documentation>
+      <bpmn:incoming>Flow_DemandToRegister</bpmn:incoming>
+      <bpmn:outgoing>Flow_RegisterToRetryMerge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_RegisterToRetryMerge" sourceRef="Task_Register" targetRef="Gateway_RetryMerge" />
+    <bpmn:exclusiveGateway id="Gateway_RetryMerge">
+      <bpmn:incoming>Flow_RegisterToRetryMerge</bpmn:incoming>
+      <bpmn:incoming>Flow_ActiveToRetryMerge</bpmn:incoming>
+      <bpmn:outgoing>Flow_RetryMergeToAllocate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_RetryMergeToAllocate" sourceRef="Gateway_RetryMerge" targetRef="Rule_Allocate" />
+    <bpmn:businessRuleTask id="Rule_Allocate" name="依佇列策略&#10;評估整單配貨" implementation="urn:archone:java-application">
+      <bpmn:documentation>業務配貨規則。owner、facility、SKU 隔離；同 SKU 加總、SHIP_COMPLETE、FEFO、需求排序。</bpmn:documentation>
+      <bpmn:incoming>Flow_RetryMergeToAllocate</bpmn:incoming>
+      <bpmn:outgoing>Flow_AllocateToEnough</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:sequenceFlow id="Flow_AllocateToEnough" sourceRef="Rule_Allocate" targetRef="Gateway_Enough" />
+    <bpmn:exclusiveGateway id="Gateway_Enough" name="整單可配貨?" default="Flow_EnoughToWait">
+      <bpmn:incoming>Flow_AllocateToEnough</bpmn:incoming>
+      <bpmn:outgoing>Flow_EnoughToCommit</bpmn:outgoing>
+      <bpmn:outgoing>Flow_EnoughToWait</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_EnoughToCommit" name="可配置" sourceRef="Gateway_Enough" targetRef="Task_Commit">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">allocationPossible</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_EnoughToWait" name="尚不可配置" sourceRef="Gateway_Enough" targetRef="Task_Wait" />
+    <bpmn:serviceTask id="Task_Commit" name="原子提交&#10;全部預留" implementation="urn:archone:java-application">
+      <bpmn:documentation>成功一次預留全部明細；併發衝突 rollback/retry，不留部分承諾。</bpmn:documentation>
+      <bpmn:incoming>Flow_EnoughToCommit</bpmn:incoming>
+      <bpmn:outgoing>Flow_CommitToAssigned</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_CommitToAssigned" sourceRef="Task_Commit" targetRef="Event_Assigned" />
+    <bpmn:endEvent id="Event_Assigned" name="整單配置&#10;已提交">
+      <bpmn:documentation>ASSIGNED；發布 allocation fact，Ordering 另更新 ALLOCATED。</bpmn:documentation>
+      <bpmn:incoming>Flow_CommitToAssigned</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:receiveTask id="Task_Wait" name="等待重評觸發&#10;或需求取消">
+      <bpmn:documentation>CONFIRMED；可用量增加、前單釋放或 reconciliation 再評估。此為持久化等待的分析抽象。沒有自動逾時取消。</bpmn:documentation>
+      <bpmn:incoming>Flow_EnoughToWait</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitToActive</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:sequenceFlow id="Flow_WaitToActive" sourceRef="Task_Wait" targetRef="Gateway_Active" />
+    <bpmn:exclusiveGateway id="Gateway_Active" name="需求仍有效?" default="Flow_ActiveToRetryMerge">
+      <bpmn:incoming>Flow_WaitToActive</bpmn:incoming>
+      <bpmn:outgoing>Flow_ActiveToRetryMerge</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ActiveToCancelled</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_ActiveToRetryMerge" name="有效，重新評估" sourceRef="Gateway_Active" targetRef="Gateway_RetryMerge" />
+    <bpmn:sequenceFlow id="Flow_ActiveToCancelled" name="已確認取消" sourceRef="Gateway_Active" targetRef="Event_Cancelled">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">demandCancelled</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_Cancelled" name="配貨需求&#10;已取消">
+      <bpmn:documentation>只有確認取消才結束等待；見圖 04、06。</bpmn:documentation>
+      <bpmn:incoming>Flow_ActiveToCancelled</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Collaboration_Allocation">
+    <bpmndi:BPMNPlane id="BPMNPlane_Collaboration_Allocation" bpmnElement="Collaboration_Allocation">
+      <bpmndi:BPMNShape id="BPMNShape_Pool_Archone" bpmnElement="Pool_Archone" isHorizontal="true">
+        <dc:Bounds x="80" y="80" width="1084" height="310" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Lane_Inventory" bpmnElement="Lane_Inventory" isHorizontal="true">
+        <dc:Bounds x="110" y="80" width="1054" height="310" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Demand" bpmnElement="Event_Demand">
+        <dc:Bounds x="170" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="154" y="174" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Register" bpmnElement="Task_Register">
+        <dc:Bounds x="266" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_RetryMerge" bpmnElement="Gateway_RetryMerge" isMarkerVisible="true">
+        <dc:Bounds x="426" y="125" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Rule_Allocate" bpmnElement="Rule_Allocate">
+        <dc:Bounds x="536" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_Enough" bpmnElement="Gateway_Enough" isMarkerVisible="true">
+        <dc:Bounds x="696" y="125" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="694" y="105" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Commit" bpmnElement="Task_Commit">
+        <dc:Bounds x="809" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Assigned" bpmnElement="Event_Assigned">
+        <dc:Bounds x="976" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="960" y="314" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Task_Wait" bpmnElement="Task_Wait">
+        <dc:Bounds x="809" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Gateway_Active" bpmnElement="Gateway_Active" isMarkerVisible="true">
+        <dc:Bounds x="969" y="125" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="967" y="105" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_Event_Cancelled" bpmnElement="Event_Cancelled">
+        <dc:Bounds x="1082" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1066" y="174" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_DemandToRegister" bpmnElement="Flow_DemandToRegister">
+        <di:waypoint x="206" y="150" />
+        <di:waypoint x="266" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_RegisterToRetryMerge" bpmnElement="Flow_RegisterToRetryMerge">
+        <di:waypoint x="366" y="150" />
+        <di:waypoint x="426" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_RetryMergeToAllocate" bpmnElement="Flow_RetryMergeToAllocate">
+        <di:waypoint x="476" y="150" />
+        <di:waypoint x="536" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_AllocateToEnough" bpmnElement="Flow_AllocateToEnough">
+        <di:waypoint x="636" y="150" />
+        <di:waypoint x="696" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_EnoughToCommit" bpmnElement="Flow_EnoughToCommit">
+        <di:waypoint x="721" y="175" />
+        <di:waypoint x="721" y="290" />
+        <di:waypoint x="809" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="729" y="272" width="33" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_EnoughToWait" bpmnElement="Flow_EnoughToWait">
+        <di:waypoint x="746" y="150" />
+        <di:waypoint x="809" y="150" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="754" y="132" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_CommitToAssigned" bpmnElement="Flow_CommitToAssigned">
+        <di:waypoint x="909" y="290" />
+        <di:waypoint x="976" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_WaitToActive" bpmnElement="Flow_WaitToActive">
+        <di:waypoint x="909" y="150" />
+        <di:waypoint x="969" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ActiveToRetryMerge" bpmnElement="Flow_ActiveToRetryMerge">
+        <di:waypoint x="1019" y="163" />
+        <di:waypoint x="1049" y="163" />
+        <di:waypoint x="1049" y="360" />
+        <di:waypoint x="451" y="360" />
+        <di:waypoint x="451" y="175" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="980" y="342" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ActiveToCancelled" bpmnElement="Flow_ActiveToCancelled">
+        <di:waypoint x="1019" y="150" />
+        <di:waypoint x="1082" y="150" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1027" y="132" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
