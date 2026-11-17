@@ -1,0 +1,82 @@
+# Dependabot 版本更新：每週一為每個生態系開一個合併的升級 PR（只含 patch 與 minor），CI 通過後再合併。
+# 這裡管的是「自動開升級 PR」；漏洞警示（Dependabot alerts）是 repo 設定，不在這個檔案裡。
+version: 2
+
+updates:
+  # 後端。多數版本由 Spring Boot BOM 管理，實際會出現的是 gradle/libs.versions.toml 裡明確宣告的版本。
+  - package-ecosystem: gradle
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    ignore:
+      # major 版本通常需要改程式碼，由人決定何時升級，不自動開 PR。
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+      # Spring Boot、Spring Cloud、Spring Modulith 的版本必須互相對齊，minor 升級也有行為變更，只自動跟 patch。
+      - dependency-name: 'org.springframework.boot*'
+        update-types: ['version-update:semver-minor']
+      - dependency-name: 'org.springframework.cloud*'
+        update-types: ['version-update:semver-minor']
+      - dependency-name: 'org.springframework.modulith*'
+        update-types: ['version-update:semver-minor']
+    groups:
+      # 其餘的 patch 與 minor 合成一個 PR。
+      gradle-minor-and-patch:
+        update-types: [minor, patch]
+
+  # 前端操作台、SA 規格網站，以及部署腳本用到的 npm 套件。
+  - package-ecosystem: npm
+    directories:
+      - /frontend
+      - /sa_specs/pages
+      - /sa_specs/terraform
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    ignore:
+      # major 版本（例如 TypeScript、Vite、React Router）由人決定何時升級。
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  # Dockerfile 的基底映像檔。
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+
+  # Workflow 使用的 action。security.yml 的第三方 action 以 commit SHA 固定，需要靠這一項才會跟上新版。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns: ['*']
+
+  # SA 規格網站的 Terraform provider。
+  - package-ecosystem: terraform
+    directory: /sa_specs/terraform
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
