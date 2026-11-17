@@ -16,8 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
@@ -40,8 +40,8 @@ jobs:
         # monolith 跑 Events 與 Temporal 兩組情境；microservice 只跑 Events 情境（五個服務）。
         deployment: [monolith, microservice]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
@@ -51,7 +51,7 @@ jobs:
           E2E_DEPLOYMENT: ${{ matrix.deployment }}
         run: ./e2e/spec/run.sh
       # 不論成功或失敗都保留 Karate 報告，失敗時可下載查看。
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-reports-${{ matrix.deployment }}
