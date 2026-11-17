@@ -20,7 +20,9 @@ LABEL org.opencontainers.image.title="archone-monolith" \
       org.opencontainers.image.description="Archone modular monolith deployment" \
       org.opencontainers.image.version="${APP_VERSION}"
 
+# upgrade 帶入基底映像檔發布後才修正的作業系統套件漏洞。
 RUN apt-get update \
+    && apt-get upgrade --yes \
     && apt-get install --yes --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 archone \
