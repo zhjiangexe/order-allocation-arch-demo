@@ -1,6 +1,6 @@
 # Architecture quality attributes
 
-更新日期：2026-09-26
+更新日期：2026-11-16
 
 本文件把會驅動架構的品質需求轉成可驗收 scenario。它不是 production SLA：尚未取得實測基線或 business SLO
 的數值明確標示 `Open measure`，不得以示意數字代替決策。
@@ -34,6 +34,14 @@ automated test、metric、trace、reconciliation query 或 rehearsal 判斷，�
 | Response | 在建立或消耗 business state 前拒絕；不得讀取、承諾或扣用其他 Owner 的 inventory |
 | Measure | Cross-owner state changes = 0；拒絕可由 stable error／audit identity 追蹤 |
 | Evidence | Domain tests、schema constraints、allocation integration tests；application endpoint authentication／authorization 尚未完成 |
+
+**Trust boundary**：Archone 的 HTTP endpoint 不驗證呼叫者身分，也不檢查呼叫者是否有權操作 request 內的 `ownerId`。
+目前的設計假設服務部署在已完成 authentication 的 gateway 或反向代理之後，`ownerId` 由上游保證；直接對外開放 HTTP port
+等於讓任何呼叫者以任何 Owner 的身分操作。這是刻意排除的範圍，不是已完成的保證：本文的 `Current` 只涵蓋 domain 與
+persistence 層對 Owner 範圍的一致性檢查。
+
+CI 的資安掃描（CodeQL、Trivy、ZAP，見 `.github/workflows/security.yml`）涵蓋注入、已知漏洞套件與設定錯誤，
+不涵蓋這個 authorization gap。
 
 ### QA-002：Atomic `SHIP_COMPLETE` assignment
 
