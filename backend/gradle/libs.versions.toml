@@ -1,17 +1,17 @@
 [versions]
 springBoot = "4.0.9"
 springCloud = "2025.1.4"
-springModulith = "2.0.7"
+springModulith = "2.0.9"
 dependencyManagement = "1.1.7"
 java = "25"
 uuid-creator = "6.1.1"
-temporal = "1.35.0"
-spotless = "8.9.0"
-palantirJavaFormat = "2.96.0"
+temporal = "1.40.0"
+spotless = "8.11.0"
+palantirJavaFormat = "2.103.0"
 # 傳遞相依的安全性修補版本, 由 build.gradle 的 dependencyManagement 套用。
-snappyJava = "1.1.10.9"
-lz4Java = "1.11.4"
-guava = "33.7.2-jre"
+snappyJava = "1.1.10.12"
+lz4Java = "1.14.0"
+guava = "33.8.0-jre"
 
 [libraries]
 # Spring Boot Starters

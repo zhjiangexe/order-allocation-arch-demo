@@ -37,14 +37,13 @@ public class TemporalCancellationRequestAdapter implements CancellationWorkflowP
     }
 
     private static FulfillmentCancellationResult map(CancellationRequestResult acknowledgement) {
-        FulfillmentCancellationStatus status =
-                switch (acknowledgement.status()) {
-                    case ACCEPTED -> FulfillmentCancellationStatus.ACCEPTED;
-                    case ALREADY_REQUESTED -> FulfillmentCancellationStatus.ALREADY_REQUESTED;
-                    case ALREADY_CANCELLED -> FulfillmentCancellationStatus.ALREADY_CANCELLED;
-                    case REJECTED -> FulfillmentCancellationStatus.REJECTED;
-                    case CONFLICT -> FulfillmentCancellationStatus.CONFLICT;
-                };
+        FulfillmentCancellationStatus status = switch (acknowledgement.status()) {
+            case ACCEPTED -> FulfillmentCancellationStatus.ACCEPTED;
+            case ALREADY_REQUESTED -> FulfillmentCancellationStatus.ALREADY_REQUESTED;
+            case ALREADY_CANCELLED -> FulfillmentCancellationStatus.ALREADY_CANCELLED;
+            case REJECTED -> FulfillmentCancellationStatus.REJECTED;
+            case CONFLICT -> FulfillmentCancellationStatus.CONFLICT;
+        };
         return new FulfillmentCancellationResult(status, acknowledgement.effectiveRequestId());
     }
 }

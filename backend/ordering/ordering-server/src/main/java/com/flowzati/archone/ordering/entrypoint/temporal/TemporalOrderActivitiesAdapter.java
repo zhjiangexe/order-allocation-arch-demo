@@ -43,12 +43,11 @@ public final class TemporalOrderActivitiesAdapter implements OrderActivities {
         SimulationUtil.sleep(3_000);
         Order.CancellationStatus result = cancelOrderUsecase.cancel(
                 new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
-        CancelOrderActivityStatus status =
-                switch (result) {
-                    case CANCELLED -> CancelOrderActivityStatus.CANCELLED;
-                    case ALREADY_CANCELLED -> CancelOrderActivityStatus.ALREADY_CANCELLED;
-                    case REJECTED -> CancelOrderActivityStatus.REJECTED;
-                };
+        CancelOrderActivityStatus status = switch (result) {
+            case CANCELLED -> CancelOrderActivityStatus.CANCELLED;
+            case ALREADY_CANCELLED -> CancelOrderActivityStatus.ALREADY_CANCELLED;
+            case REJECTED -> CancelOrderActivityStatus.REJECTED;
+        };
         return new CancelOrderActivityResult(input.orderId(), status);
     }
 }

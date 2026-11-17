@@ -27,13 +27,11 @@ public class OrderingCancellationRequestResolvedIntegrationEventAdapter implemen
 
     @Override
     public void publish(OrderCancellationResolved event) {
-        var outcome =
-                switch (event.status()) {
-                    case CANCELLED -> OrderingCancellationRequestResolvedIntegrationEvent.Outcome.CANCELLED;
-                    case ALREADY_CANCELLED ->
-                        OrderingCancellationRequestResolvedIntegrationEvent.Outcome.ALREADY_CANCELLED;
-                    case REJECTED -> OrderingCancellationRequestResolvedIntegrationEvent.Outcome.REJECTED;
-                };
+        var outcome = switch (event.status()) {
+            case CANCELLED -> OrderingCancellationRequestResolvedIntegrationEvent.Outcome.CANCELLED;
+            case ALREADY_CANCELLED -> OrderingCancellationRequestResolvedIntegrationEvent.Outcome.ALREADY_CANCELLED;
+            case REJECTED -> OrderingCancellationRequestResolvedIntegrationEvent.Outcome.REJECTED;
+        };
         publisher.publish(
                 new OrderingCancellationRequestResolvedIntegrationEvent(
                         IdGenerator.nextId(), event.requestId(), event.orderId(), outcome),
