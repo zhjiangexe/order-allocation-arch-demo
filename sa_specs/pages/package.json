@@ -16,7 +16,7 @@
     "bootstrap": "5.3.9",
     "markdown-it": "15.0.3",
     "mermaid": "12.3.0",
-    "swagger-ui-dist": "5.35.0",
+    "swagger-ui-dist": "5.35.1",
     "yaml": "2.9.1"
   },
   "devDependencies": {
