@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.location.entrypoint.rest.response;
 
-import com.flowzati.archone.inventory.location.application.view.StockLocationView;
+import com.flowzati.archone.inventory.location.application.result.StockLocationView;
 import java.util.UUID;
 
 public record StockLocationResponse(UUID locationId, UUID facilityId, String code, String name) {

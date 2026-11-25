@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.picking.infrastructure.persistence.jpa.model;
 
-import com.flowzati.archone.wms.picking.domain.type.PickTaskStatus;
+import com.flowzati.archone.wms.picking.domain.enums.PickTaskStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

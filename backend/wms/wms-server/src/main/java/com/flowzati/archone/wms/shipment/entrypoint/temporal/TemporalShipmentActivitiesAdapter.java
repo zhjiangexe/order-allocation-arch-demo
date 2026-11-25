@@ -10,10 +10,11 @@ import com.flowzati.archone.orchestration.contract.activity.wms.ReleaseToWarehou
 import com.flowzati.archone.orchestration.contract.activity.wms.ShipmentActivities;
 import com.flowzati.archone.wms.shipment.application.invocation.CancelShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
+import com.flowzati.archone.wms.shipment.application.invocation.MovementLine;
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.CancelShipmentStatus;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -44,7 +45,7 @@ public final class TemporalShipmentActivitiesAdapter implements ShipmentActiviti
                 assignment.ownerId(),
                 assignment.facilityId(),
                 assignment.moves().stream()
-                        .map(line -> new CreateShipmentCommand.MovementLine(
+                        .map(line -> new MovementLine(
                                 line.orderLineId(),
                                 line.moveId(),
                                 line.skuCode(),

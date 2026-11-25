@@ -1,7 +1,7 @@
 package com.flowzati.archone.fulfillment.entrypoint.rest;
 
 import com.flowzati.archone.fulfillment.application.usecase.OrderFulfillmentQueryUsecase;
-import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderFulfillmentView;
+import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderFulfillmentResponse;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,9 +20,9 @@ public class OrderFulfillmentDemoRest {
     }
 
     @GetMapping("/{orderId}/fulfillment")
-    public OrderFulfillmentView getFulfillment(@PathVariable(name = "orderId") UUID orderId) {
+    public OrderFulfillmentResponse getFulfillment(@PathVariable(name = "orderId") UUID orderId) {
         var result = queryService.query(orderId);
-        return new OrderFulfillmentView(
+        return new OrderFulfillmentResponse(
                 result.order(),
                 result.stockOperation(),
                 result.shipments(),

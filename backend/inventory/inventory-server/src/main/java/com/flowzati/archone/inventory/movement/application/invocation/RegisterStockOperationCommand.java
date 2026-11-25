@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.application.invocation;
 
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.time.Instant;
 import java.util.Comparator;

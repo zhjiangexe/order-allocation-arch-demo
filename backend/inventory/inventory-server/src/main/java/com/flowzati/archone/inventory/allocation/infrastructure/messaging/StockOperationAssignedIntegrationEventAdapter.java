@@ -6,7 +6,7 @@ import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedInteg
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;

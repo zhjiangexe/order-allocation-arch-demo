@@ -4,7 +4,7 @@ import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
+import com.flowzati.archone.ordering.entrypoint.messaging.OrderingEventSubscriptions;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 

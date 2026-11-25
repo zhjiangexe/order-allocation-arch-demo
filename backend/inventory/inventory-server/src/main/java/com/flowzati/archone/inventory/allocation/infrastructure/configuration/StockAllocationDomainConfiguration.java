@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.infrastructure.configuration;
 
-import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
+import com.flowzati.archone.inventory.allocation.domain.service.ShipCompleteFefoStockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationPlanner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +11,6 @@ public class StockAllocationDomainConfiguration {
 
     @Bean
     StockAllocationPlanner stockAllocationPlanner() {
-        return new MovementAssignmentPlanner();
+        return new ShipCompleteFefoStockAllocationPlanner();
     }
 }

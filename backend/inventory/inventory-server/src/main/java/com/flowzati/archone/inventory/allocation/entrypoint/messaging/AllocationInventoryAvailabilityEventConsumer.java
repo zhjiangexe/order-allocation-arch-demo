@@ -44,7 +44,7 @@ public class AllocationInventoryAvailabilityEventConsumer {
 
         // 使用固定 subscription name 讓 Inbox／consumer idempotency 能辨識這個訂閱者；
         // factory 會把 handlers 包裝成實際的 IntegrationEventDispatcher。
-        return factory.make(AllocationSubscriberIds.INVENTORY_AVAILABILITY, handlers);
+        return factory.make(AllocationEventSubscriptions.INVENTORY_AVAILABILITY, handlers);
     }
 
     void onStockAvailabilityIncreased(StockAvailabilityIncreasedIntegrationEvent event) {

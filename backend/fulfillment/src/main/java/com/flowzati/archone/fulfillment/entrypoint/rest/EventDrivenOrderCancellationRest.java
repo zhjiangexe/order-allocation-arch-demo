@@ -5,7 +5,6 @@ import com.flowzati.archone.fulfillment.application.invocation.FulfillmentCancel
 import com.flowzati.archone.fulfillment.application.result.FulfillmentCancellationResult;
 import com.flowzati.archone.fulfillment.application.usecase.AcceptCancellationRequestUsecase;
 import com.flowzati.archone.fulfillment.entrypoint.rest.request.OrderCancellationRequest;
-import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderCancellationHttpResponses;
 import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderCancellationResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -38,6 +37,6 @@ public class EventDrivenOrderCancellationRest {
         FulfillmentCancellationCommand command =
                 new FulfillmentCancellationCommand(body.requestId(), orderId, body.requestedAt(), body.reason());
         FulfillmentCancellationResult result = acceptCancellationRequestUsecase.accept(command);
-        return OrderCancellationHttpResponses.from(result);
+        return OrderCancellationResponse.toResponseEntity(result);
     }
 }

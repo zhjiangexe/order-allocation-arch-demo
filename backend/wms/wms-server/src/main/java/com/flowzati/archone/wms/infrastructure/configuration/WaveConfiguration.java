@@ -1,7 +1,7 @@
 package com.flowzati.archone.wms.infrastructure.configuration;
 
+import com.flowzati.archone.wms.wave.domain.service.PriorityCapacityWavePlanner;
 import com.flowzati.archone.wms.wave.domain.service.WavePlanner;
-import com.flowzati.archone.wms.wave.domain.service.impl.PriorityCapacityWavePlanner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

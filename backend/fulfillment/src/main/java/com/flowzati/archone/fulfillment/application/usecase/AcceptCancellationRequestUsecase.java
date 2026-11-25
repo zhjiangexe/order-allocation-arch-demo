@@ -1,12 +1,12 @@
 package com.flowzati.archone.fulfillment.application.usecase;
 
+import com.flowzati.archone.fulfillment.application.enums.CancellationProcessState;
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.event.CancellationRequestAccepted;
 import com.flowzati.archone.fulfillment.application.invocation.FulfillmentCancellationCommand;
 import com.flowzati.archone.fulfillment.application.port.CancellationRequestAcceptedPublisher;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentCancellationResult;
 import com.flowzati.archone.fulfillment.application.state.CancellationProcess;
-import com.flowzati.archone.fulfillment.application.state.CancellationProcessState;
-import com.flowzati.archone.fulfillment.application.state.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.store.CancellationProcessStore;
 import org.springframework.transaction.annotation.Transactional;
 

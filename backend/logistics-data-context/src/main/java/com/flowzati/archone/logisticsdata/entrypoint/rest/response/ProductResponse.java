@@ -1,7 +1,7 @@
 package com.flowzati.archone.logisticsdata.entrypoint.rest.response;
 
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
+import com.flowzati.archone.logisticsdata.domain.enums.TemperatureZoneType;
 import java.util.UUID;
 
 /**

@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.mapper;
 
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.entity.StockOperationCancellationEntity;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.model.StockOperationCancellationEntity;
 
 public final class StockOperationCancellationMapper {
 

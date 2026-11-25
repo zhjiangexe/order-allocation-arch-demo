@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.allocation.application.state;
 
 import com.flowzati.archone.foundation.error.StaleStateException;
-import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
+import com.flowzati.archone.inventory.allocation.application.enums.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.balance.application.policy.StockWriteOrder;

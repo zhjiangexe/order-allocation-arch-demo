@@ -6,14 +6,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockAllocationSupplyStoreAdapter;
 import com.flowzati.archone.inventory.balance.application.result.StockQuantView;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantViewStore;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jdbc.store.JdbcStockQuantViewStore;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.entity.StockQuantEntity;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jdbc.store.StockQuantViewStoreAdapter;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.model.StockQuantEntity;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreAdapter;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -58,9 +58,9 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import({
     PostgreSQLTestConfiguration.class,
-    StockQuantStoreImpl.class,
-    JdbcStockAllocationSupplyStoreAdapter.class,
-    JdbcStockQuantViewStore.class,
+    StockQuantStoreAdapter.class,
+    StockAllocationSupplyStoreAdapter.class,
+    StockQuantViewStoreAdapter.class,
     StockQuantPersistenceIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("StockQuant PostgreSQL persistence adapter")
@@ -82,7 +82,7 @@ class StockQuantPersistenceIntegrationTest {
     private JpaStockQuantRepository jpaStockQuantRepository;
 
     @Autowired
-    private StockQuantStoreImpl stockQuantStoreImpl;
+    private StockQuantStoreAdapter stockQuantStoreImpl;
 
     @Autowired
     private StockAllocationSupplyStore stockAllocationSupplyStore;

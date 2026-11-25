@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.location.application.store;
 
-import com.flowzati.archone.inventory.location.application.view.StockLocationView;
+import com.flowzati.archone.inventory.location.application.result.StockLocationView;
 import java.util.List;
 import java.util.UUID;
 

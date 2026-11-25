@@ -5,8 +5,8 @@ import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaOrderAllocationSourceRepository;
 import com.flowzati.archone.inventory.movement.application.invocation.MovementLine;
 import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.List;
 import java.util.Optional;

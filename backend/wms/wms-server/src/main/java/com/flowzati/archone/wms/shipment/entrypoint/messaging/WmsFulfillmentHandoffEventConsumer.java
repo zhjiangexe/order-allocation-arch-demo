@@ -10,6 +10,7 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
+import com.flowzati.archone.wms.shipment.application.invocation.MovementLine;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
 import java.time.Instant;
 import java.util.List;
@@ -72,7 +73,7 @@ public class WmsFulfillmentHandoffEventConsumer {
                 assignment.ownerId(),
                 assignment.facilityId(),
                 assignment.moves().stream()
-                        .map(line -> new CreateShipmentCommand.MovementLine(
+                        .map(line -> new MovementLine(
                                 line.orderLineId(),
                                 line.moveId(),
                                 line.skuCode(),

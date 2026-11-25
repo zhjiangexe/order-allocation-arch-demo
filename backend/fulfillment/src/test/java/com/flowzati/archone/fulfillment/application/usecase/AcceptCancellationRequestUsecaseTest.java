@@ -7,11 +7,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.fulfillment.application.enums.CancellationProcessState;
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.invocation.FulfillmentCancellationCommand;
 import com.flowzati.archone.fulfillment.application.port.CancellationRequestAcceptedPublisher;
 import com.flowzati.archone.fulfillment.application.state.CancellationProcess;
-import com.flowzati.archone.fulfillment.application.state.CancellationProcessState;
-import com.flowzati.archone.fulfillment.application.state.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.store.CancellationProcessStore;
 import java.time.Instant;
 import java.util.Optional;

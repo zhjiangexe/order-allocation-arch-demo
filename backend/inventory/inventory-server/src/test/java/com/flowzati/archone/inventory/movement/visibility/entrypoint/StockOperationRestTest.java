@@ -11,11 +11,11 @@ import com.flowzati.archone.inventory.movement.application.result.StockOperation
 import com.flowzati.archone.inventory.movement.application.result.StockOperationSourceView;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
+import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationState;
 import com.flowzati.archone.inventory.movement.entrypoint.rest.StockOperationRest;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.time.Instant;

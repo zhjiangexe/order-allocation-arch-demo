@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.mapper.StockMoveMapper;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;

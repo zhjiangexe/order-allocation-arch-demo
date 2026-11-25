@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.error.NotFoundException;
-import com.flowzati.archone.ordering.application.error.OrderApplicationErrorCode;
+import com.flowzati.archone.ordering.application.enums.OrderApplicationErrorCode;
 import com.flowzati.archone.ordering.application.invocation.GetOrderQuery;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;

@@ -1,9 +1,9 @@
 package com.flowzati.archone.fulfillment.configuration;
 
 import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.fulfillment.application.port.FulfillmentWorkflowStateReader;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryResult;
-import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.fulfillment.application.usecase.OrderFulfillmentQueryUsecase;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationQueryApi;
 import com.flowzati.archone.ordering.api.query.OrderQueryApi;

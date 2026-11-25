@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.dispatch.application.event;
 
-import com.flowzati.archone.wms.dispatch.domain.type.ShipmentDispatchStatus;
+import com.flowzati.archone.wms.dispatch.domain.enums.ShipmentDispatchStatus;
 import java.time.Instant;
 import java.util.UUID;
 

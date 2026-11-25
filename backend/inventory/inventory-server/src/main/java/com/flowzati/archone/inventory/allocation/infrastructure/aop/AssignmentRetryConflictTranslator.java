@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.allocation.infrastructure.aop;
 
 import com.flowzati.archone.foundation.error.StaleStateException;
-import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
+import com.flowzati.archone.inventory.allocation.application.enums.StockAllocationErrorCode;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;

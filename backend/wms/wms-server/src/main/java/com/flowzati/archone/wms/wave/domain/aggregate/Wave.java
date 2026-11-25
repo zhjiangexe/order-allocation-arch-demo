@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.wave.domain.aggregate;
 
-import com.flowzati.archone.wms.wave.domain.type.WaveStatus;
+import com.flowzati.archone.wms.wave.domain.enums.WaveStatus;
 import com.flowzati.archone.wms.wave.domain.valueobject.WaveAssignment;
 import com.flowzati.archone.wms.wave.domain.valueobject.WavePlanningPolicy;
 import java.time.Instant;

@@ -4,7 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderCancellationOutcome;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -68,8 +69,8 @@ class OrderTest {
         String reason = "Customer requested cancellation";
         Order order = pendingOrder();
 
-        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationStatus.CANCELLED);
-        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
+        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(OrderCancellationOutcome.CANCELLED);
+        assertThat(order.cancel(requestId, cancelledAt, reason)).isEqualTo(OrderCancellationOutcome.ALREADY_CANCELLED);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
@@ -102,7 +103,7 @@ class OrderTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FULFILLED);
         assertThat(order.getFulfilledAt()).isEqualTo(fulfilledAt);
         assertThat(order.cancel(UUID.randomUUID(), fulfilledAt.plusSeconds(2), "Too late"))
-                .isEqualTo(Order.CancellationStatus.REJECTED);
+                .isEqualTo(OrderCancellationOutcome.REJECTED);
     }
 
     @Test

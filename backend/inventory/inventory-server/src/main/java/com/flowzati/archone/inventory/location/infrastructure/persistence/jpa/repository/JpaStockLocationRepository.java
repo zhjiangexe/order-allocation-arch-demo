@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.location.infrastructure.persistence.jpa.repository;
 
-import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
+import com.flowzati.archone.inventory.location.domain.enums.LocationUsageType;
 import com.flowzati.archone.inventory.location.infrastructure.persistence.jpa.model.StockLocationEntity;
 import java.util.List;
 import java.util.UUID;

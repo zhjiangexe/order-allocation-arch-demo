@@ -6,11 +6,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.wms.shipment.application.enums.OrderShipmentCancellationOutcome;
 import com.flowzati.archone.wms.shipment.application.event.OrderShipmentCancellationResolved;
 import com.flowzati.archone.wms.shipment.application.invocation.RequestOrderShipmentCancellationCommand;
 import com.flowzati.archone.wms.shipment.application.port.OrderShipmentCancellationResolvedPublisher;
 import com.flowzati.archone.wms.shipment.application.result.ShipmentView;
-import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.CancelShipmentStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -37,7 +38,7 @@ class RequestOrderShipmentCancellationUsecaseTest {
                         command.orderId(),
                         command.requestedAt(),
                         command.reason(),
-                        OrderShipmentCancellationResolved.Outcome.NO_SHIPMENT));
+                        OrderShipmentCancellationOutcome.NO_SHIPMENT));
         verifyNoInteractions(cancelShipment);
     }
 
@@ -69,7 +70,7 @@ class RequestOrderShipmentCancellationUsecaseTest {
                         command.orderId(),
                         command.requestedAt(),
                         command.reason(),
-                        OrderShipmentCancellationResolved.Outcome.REJECTED));
+                        OrderShipmentCancellationOutcome.REJECTED));
     }
 
     @Test
@@ -86,7 +87,7 @@ class RequestOrderShipmentCancellationUsecaseTest {
                         command.orderId(),
                         command.requestedAt(),
                         command.reason(),
-                        OrderShipmentCancellationResolved.Outcome.MULTIPLE_SHIPMENTS));
+                        OrderShipmentCancellationOutcome.MULTIPLE_SHIPMENTS));
         verifyNoInteractions(cancelShipment);
     }
 

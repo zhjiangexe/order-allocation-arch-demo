@@ -14,8 +14,8 @@ import com.flowzati.archone.inventory.allocation.application.result.AssignedMove
 import com.flowzati.archone.inventory.allocation.application.result.AssignedMoveLine;
 import com.flowzati.archone.inventory.allocation.application.result.StockOperationAssignmentResult;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import com.flowzati.archone.messaging.events.IntegrationEventPublication;
 import com.flowzati.archone.messaging.events.IntegrationEventPublisher;

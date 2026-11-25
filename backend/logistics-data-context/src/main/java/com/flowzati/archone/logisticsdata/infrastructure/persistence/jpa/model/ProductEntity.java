@@ -1,6 +1,6 @@
 package com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.model;
 
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
+import com.flowzati.archone.logisticsdata.domain.enums.TemperatureZoneType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

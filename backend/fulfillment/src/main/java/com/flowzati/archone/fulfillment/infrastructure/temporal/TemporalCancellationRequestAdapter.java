@@ -1,10 +1,10 @@
 package com.flowzati.archone.fulfillment.infrastructure.temporal;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.invocation.FulfillmentCancellationCommand;
 import com.flowzati.archone.fulfillment.application.port.CancellationWorkflowPort;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentCancellationResult;
-import com.flowzati.archone.fulfillment.application.state.FulfillmentCancellationStatus;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.CancellationRequestInput;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestResult;

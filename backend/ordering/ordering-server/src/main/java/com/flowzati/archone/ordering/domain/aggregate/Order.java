@@ -2,8 +2,9 @@ package com.flowzati.archone.ordering.domain.aggregate;
 
 import com.flowzati.archone.foundation.error.DomainConflictException;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderCancellationOutcome;
+import com.flowzati.archone.ordering.domain.enums.OrderErrorCode;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -316,8 +317,8 @@ public class Order {
     }
 
     /**
-     * 取消這張單。已取消時回 {@link CancellationStatus#ALREADY_CANCELLED}；已履約時回
-     * {@link CancellationStatus#REJECTED}，兩者都不改變訂單狀態。
+     * 取消這張單。已取消時回 {@link OrderCancellationOutcome#ALREADY_CANCELLED}；已履約時回
+     * {@link OrderCancellationOutcome#REJECTED}，兩者都不改變訂單狀態。
      *
      * <p><b>與 {@link #markAllocated} 刻意不同慣例</b>。差別在驅動來源：
      *
@@ -338,14 +339,14 @@ public class Order {
      * <p><b>離倉後不得取消。</b>逆物流不在範圍內，因此 {@code FULFILLED} 必須明確拒絕取消；
      * 不能把沒有補償手段的路徑當作一般冪等重送。
      */
-    public CancellationStatus cancel(UUID requestId, Instant cancelledAt, String reason) {
+    public OrderCancellationOutcome cancel(UUID requestId, Instant cancelledAt, String reason) {
         requireCancellationRequest(requestId, reason);
         if (status == OrderStatus.CANCELLED) {
             requireSameCancellation(requestId, cancelledAt, reason);
-            return CancellationStatus.ALREADY_CANCELLED;
+            return OrderCancellationOutcome.ALREADY_CANCELLED;
         }
         if (status == OrderStatus.FULFILLED) {
-            return CancellationStatus.REJECTED;
+            return OrderCancellationOutcome.REJECTED;
         }
         requireNotBefore(cancelledAt, receivedAt, "Cancelled time cannot be before received time");
         if (allocatedAt != null) {
@@ -355,7 +356,7 @@ public class Order {
         this.cancelledAt = cancelledAt;
         this.cancellationRequestId = requestId;
         this.cancellationReason = reason;
-        return CancellationStatus.CANCELLED;
+        return OrderCancellationOutcome.CANCELLED;
     }
 
     private static void requireCancellationRequest(UUID requestId, String reason) {
@@ -382,12 +383,6 @@ public class Order {
                     OrderErrorCode.CANCELLATION_REQUEST_CONFLICT,
                     "Order was already cancelled by a different immutable request: " + id);
         }
-    }
-
-    public enum CancellationStatus {
-        CANCELLED,
-        ALREADY_CANCELLED,
-        REJECTED
     }
 
     private static void validateState(

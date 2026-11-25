@@ -3,7 +3,7 @@ package com.flowzati.archone.wms.wave.application.usecase;
 import com.flowzati.archone.wms.picking.application.store.PickingWorkStore;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import com.flowzati.archone.wms.wave.application.invocation.CompleteWaveCommand;
 import com.flowzati.archone.wms.wave.application.store.WaveStore;
 import com.flowzati.archone.wms.wave.domain.aggregate.Wave;

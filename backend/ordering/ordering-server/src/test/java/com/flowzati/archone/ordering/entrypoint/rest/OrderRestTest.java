@@ -14,7 +14,7 @@ import com.flowzati.archone.ordering.application.usecase.ListRecentOrdersUsecase
 import com.flowzati.archone.ordering.application.usecase.PlaceOrderUsecase;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.time.Instant;

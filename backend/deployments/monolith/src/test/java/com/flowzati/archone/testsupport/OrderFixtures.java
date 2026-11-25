@@ -3,7 +3,7 @@ package com.flowzati.archone.testsupport;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.ordering.domain.valueobject.DeliveryTerms;
 import java.time.Instant;
 import java.time.LocalDate;

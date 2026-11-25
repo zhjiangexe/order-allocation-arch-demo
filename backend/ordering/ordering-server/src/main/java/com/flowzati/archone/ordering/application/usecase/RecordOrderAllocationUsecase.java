@@ -3,7 +3,7 @@ package com.flowzati.archone.ordering.application.usecase;
 import com.flowzati.archone.ordering.application.invocation.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

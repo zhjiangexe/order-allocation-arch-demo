@@ -13,8 +13,9 @@ import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.port.OrderCancelledPublisher;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.error.OrderErrorCode;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderCancellationOutcome;
+import com.flowzati.archone.ordering.domain.enums.OrderErrorCode;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.ordering.testsupport.OrderingFixtures;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -42,8 +43,8 @@ class CancelOrderUsecaseTest {
         CancelOrderUsecase usecase = new CancelOrderUsecase(repository, events::add);
         CancelOrderCommand command = new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason);
 
-        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.CANCELLED);
-        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
+        assertThat(usecase.cancel(command)).isEqualTo(OrderCancellationOutcome.CANCELLED);
+        assertThat(usecase.cancel(command)).isEqualTo(OrderCancellationOutcome.ALREADY_CANCELLED);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancellationRequestId()).isEqualTo(requestId);
@@ -68,7 +69,7 @@ class CancelOrderUsecaseTest {
 
         assertThat(new CancelOrderUsecase(repository, publisher)
                         .cancel(new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason)))
-                .isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
+                .isEqualTo(OrderCancellationOutcome.ALREADY_CANCELLED);
 
         verifyNoInteractions(publisher);
         verify(repository).findById(order.getId());
@@ -119,8 +120,8 @@ class CancelOrderUsecaseTest {
         var usecase = new CancelOrderUsecase(repository, events::add);
         var command = new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason);
 
-        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.CANCELLED);
-        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.ALREADY_CANCELLED);
+        assertThat(usecase.cancel(command)).isEqualTo(OrderCancellationOutcome.CANCELLED);
+        assertThat(usecase.cancel(command)).isEqualTo(OrderCancellationOutcome.ALREADY_CANCELLED);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isEqualTo(cancelledAt);
@@ -148,7 +149,7 @@ class CancelOrderUsecaseTest {
         var usecase = new CancelOrderUsecase(repository, publisher);
         var command = new CancelOrderCommand(requestId, order.getId(), cancelledAt, reason);
 
-        assertThat(usecase.cancel(command)).isEqualTo(Order.CancellationStatus.REJECTED);
+        assertThat(usecase.cancel(command)).isEqualTo(OrderCancellationOutcome.REJECTED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FULFILLED);
         org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).save(order);
         verifyNoInteractions(publisher);

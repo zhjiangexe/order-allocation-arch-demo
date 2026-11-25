@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.mapper;
 
 import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.entity.StockOperationTypeEntity;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.model.StockOperationTypeEntity;
 
 public final class StockOperationTypeMapper {
 

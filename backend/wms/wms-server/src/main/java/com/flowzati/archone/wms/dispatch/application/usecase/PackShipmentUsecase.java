@@ -8,7 +8,7 @@ import com.flowzati.archone.wms.dispatch.application.store.ShipmentDispatchStore
 import com.flowzati.archone.wms.dispatch.domain.aggregate.ShipmentDispatch;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

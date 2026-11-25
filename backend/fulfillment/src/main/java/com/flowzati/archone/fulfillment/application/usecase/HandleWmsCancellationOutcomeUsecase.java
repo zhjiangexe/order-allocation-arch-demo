@@ -1,11 +1,11 @@
 package com.flowzati.archone.fulfillment.application.usecase;
 
 import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
+import com.flowzati.archone.fulfillment.application.enums.CancellationProcessState;
 import com.flowzati.archone.fulfillment.application.event.OrderingCancellationRequested;
 import com.flowzati.archone.fulfillment.application.invocation.WmsCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.port.OrderingCancellationRequestedPublisher;
 import com.flowzati.archone.fulfillment.application.state.CancellationProcess;
-import com.flowzati.archone.fulfillment.application.state.CancellationProcessState;
 import com.flowzati.archone.fulfillment.application.store.CancellationProcessStore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;

@@ -1,8 +1,8 @@
 package com.flowzati.archone.wms.picking.domain.aggregate;
 
 import com.flowzati.archone.wms.picking.domain.entity.PickTask;
-import com.flowzati.archone.wms.picking.domain.type.PickTaskStatus;
-import com.flowzati.archone.wms.picking.domain.type.PickingWorkStatus;
+import com.flowzati.archone.wms.picking.domain.enums.PickTaskStatus;
+import com.flowzati.archone.wms.picking.domain.enums.PickingWorkStatus;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;

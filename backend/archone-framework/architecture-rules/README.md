@@ -54,6 +54,13 @@ monolith 的總測試對這些項目標示為 skipped，凍結檔只存一份。
 新增延後項目前必須先在上表登記原因與移除時機；凍結檔不得手動編輯，`archunit.properties` 也不得開啟
 `freeze.refreeze`。
 
+凍結檔以違規的文字（含類別名稱）比對。搬移或改名凍結範圍內的類別時，既有違規會被當成新違規而失敗。這時：
+
+1. 確認違規的「內容」沒有變：模組間的循環組合與跨模組依賴（類別對類別）扣掉改名後完全相同。
+2. 刪除該模組的 `archunit-frozen-violations`，暫時把 `allowStoreCreation` 設為 `true` 跑一次該模組測試產生新檔，
+   再改回 `false`。
+3. 在 commit 說明裡寫明重新產生的原因與比對結果。
+
 ## 修改規則
 
 - 不得為了讓程式碼通過而加入 `allowEmptyShould(true)`、排除特定類別或放寬套件條件。

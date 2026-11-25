@@ -3,8 +3,8 @@ package com.flowzati.archone.inventory.bootstrap.observability;
 import com.flowzati.archone.contracts.inventory.v1.StockAvailabilityIncreasedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
-import com.flowzati.archone.inventory.movement.entrypoint.consumer.MovementCancellationEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.messaging.MovementEventSubscriptions;
 import com.flowzati.archone.messaging.consumer.common.MessageHandlerInvocation;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryObserver;
 import io.micrometer.core.instrument.Counter;
@@ -61,8 +61,8 @@ public final class AllocationOptimisticLockRetryObserver implements OptimisticLo
 
     private boolean observes(MessageHandlerInvocation invocation) {
         String subscriberId = invocation.context().subscriberId();
-        return AllocationSubscriberIds.ALL.contains(subscriberId)
-                || MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS.equals(subscriberId);
+        return AllocationEventSubscriptions.ALL.contains(subscriberId)
+                || MovementEventSubscriptions.ORDER_CANCELLATIONS.equals(subscriberId);
     }
 
     private String operation(String messageType) {

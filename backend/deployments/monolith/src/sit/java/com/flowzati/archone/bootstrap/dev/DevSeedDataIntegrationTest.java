@@ -7,12 +7,12 @@ import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockQuantSupply;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreAdapter;
 import com.flowzati.archone.logisticsdata.application.store.FacilityStore;
 import com.flowzati.archone.logisticsdata.application.store.OwnerStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Facility;
 import com.flowzati.archone.ordering.application.store.OrderStore;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.testsupport.SitDatabase;
@@ -43,7 +43,7 @@ class DevSeedDataIntegrationTest {
     private DevSeedDataInitializer initializer;
 
     @Autowired
-    private StockQuantStoreImpl stockQuantStoreImpl;
+    private StockQuantStoreAdapter stockQuantStoreImpl;
 
     @Autowired
     private StockAllocationSupplyStore stockAllocationSupplyStore;

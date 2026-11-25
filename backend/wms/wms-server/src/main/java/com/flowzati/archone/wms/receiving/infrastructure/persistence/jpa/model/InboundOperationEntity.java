@@ -1,7 +1,7 @@
 package com.flowzati.archone.wms.receiving.infrastructure.persistence.jpa.model;
 
 import com.flowzati.archone.wms.receiving.domain.aggregate.InboundOperation;
-import com.flowzati.archone.wms.receiving.domain.type.InboundStatus;
+import com.flowzati.archone.wms.receiving.domain.enums.InboundStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

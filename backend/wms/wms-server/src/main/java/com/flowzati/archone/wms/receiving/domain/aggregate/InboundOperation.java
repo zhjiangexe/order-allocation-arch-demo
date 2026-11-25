@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.receiving.domain.aggregate;
 
-import com.flowzati.archone.wms.receiving.domain.type.InboundStatus;
+import com.flowzati.archone.wms.receiving.domain.enums.InboundStatus;
 import com.flowzati.archone.wms.receiving.domain.valueobject.InboundLine;
 import com.flowzati.archone.wms.receiving.domain.valueobject.PutawayLine;
 import java.time.Instant;

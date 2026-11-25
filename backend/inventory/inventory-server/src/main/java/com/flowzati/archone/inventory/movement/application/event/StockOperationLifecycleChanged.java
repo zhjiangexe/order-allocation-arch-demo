@@ -1,5 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.event;
 
+import com.flowzati.archone.inventory.movement.application.enums.StockOperationLifecycleAction;
 import java.util.Objects;
 
 /** Complete application event for one durable Stock Operation lifecycle transition. */

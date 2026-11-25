@@ -7,7 +7,6 @@ import com.flowzati.archone.messaging.autoconfigure.ConditionalOnIntegrationEven
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.usecase.CompleteOrderCancellationRequestUsecase;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

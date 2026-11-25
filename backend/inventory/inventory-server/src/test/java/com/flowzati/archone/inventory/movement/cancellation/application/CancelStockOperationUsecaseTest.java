@@ -7,13 +7,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.movement.application.enums.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.invocation.CancelStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
-import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelStockOperationUsecase;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

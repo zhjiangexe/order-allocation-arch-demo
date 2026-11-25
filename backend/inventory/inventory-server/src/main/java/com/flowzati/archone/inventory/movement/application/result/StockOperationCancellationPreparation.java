@@ -1,5 +1,7 @@
 package com.flowzati.archone.inventory.movement.application.result;
 
+import com.flowzati.archone.inventory.movement.application.enums.StockOperationCancellationStatus;
+
 /** Result of the local cancellation preparation transaction. */
 public sealed interface StockOperationCancellationPreparation {
 

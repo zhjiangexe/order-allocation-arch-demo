@@ -3,11 +3,11 @@ package com.flowzati.archone.fulfillment.query;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryStatus;
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.fulfillment.application.result.OrderFulfillmentQueryResult;
 import com.flowzati.archone.fulfillment.application.usecase.OrderFulfillmentQueryUsecase;
 import com.flowzati.archone.fulfillment.entrypoint.rest.OrderFulfillmentDemoRest;
-import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderFulfillmentView;
+import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderFulfillmentResponse;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationView;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentAllocationState;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentCancellationState;
@@ -89,7 +89,7 @@ class OrderFulfillmentDemoRestTest {
             value = FulfillmentWorkflowQueryStatus.class,
             names = {"AVAILABLE", "NOT_FOUND", "UNAVAILABLE"})
     void temporalQueryAvailabilityDoesNotRemoveBusinessFields(FulfillmentWorkflowQueryStatus status) {
-        OrderFulfillmentView base = view();
+        OrderFulfillmentResponse base = view();
         OrderFulfillmentSnapshot snapshot = status == FulfillmentWorkflowQueryStatus.AVAILABLE
                 ? new OrderFulfillmentSnapshot(
                         ORDER_ID,
@@ -127,7 +127,7 @@ class OrderFulfillmentDemoRestTest {
         }
     }
 
-    private static OrderFulfillmentView view() {
+    private static OrderFulfillmentResponse view() {
         OrderQueryView order = new OrderQueryView(
                 ORDER_ID,
                 UUID.fromString("00000000-0000-7000-8000-000000000002"),
@@ -179,11 +179,11 @@ class OrderFulfillmentDemoRestTest {
                                 LocalDate.parse("2026-08-01"),
                                 LocalDate.parse("2026-09-01"),
                                 5)))));
-        return new OrderFulfillmentView(
+        return new OrderFulfillmentResponse(
                 order, stockOperation, List.of(), null, FulfillmentWorkflowQueryStatus.NOT_APPLICABLE);
     }
 
-    private static OrderFulfillmentQueryResult result(OrderFulfillmentView view) {
+    private static OrderFulfillmentQueryResult result(OrderFulfillmentResponse view) {
         return new OrderFulfillmentQueryResult(
                 view.order(),
                 view.stockOperation(),

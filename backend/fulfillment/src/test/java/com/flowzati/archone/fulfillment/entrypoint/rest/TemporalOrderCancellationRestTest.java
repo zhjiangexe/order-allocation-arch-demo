@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentCancellationResult;
-import com.flowzati.archone.fulfillment.application.state.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.usecase.RequestWorkflowCancellationUsecase;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.net.SocketTimeoutException;

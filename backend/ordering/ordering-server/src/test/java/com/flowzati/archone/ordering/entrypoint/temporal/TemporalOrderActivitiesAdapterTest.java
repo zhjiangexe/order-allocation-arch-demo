@@ -12,7 +12,7 @@ import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
-import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.enums.OrderCancellationOutcome;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,7 +29,7 @@ class TemporalOrderActivitiesAdapterTest {
     @ParameterizedTest
     @CsvSource({"CANCELLED,CANCELLED", "ALREADY_CANCELLED,ALREADY_CANCELLED", "REJECTED,REJECTED"})
     void mapsWorkflowInputsAndCancellationDecisionWithoutLeakingDomainTypes(
-            Order.CancellationStatus domainStatus, CancelOrderActivityStatus expectedStatus) {
+            OrderCancellationOutcome domainStatus, CancelOrderActivityStatus expectedStatus) {
         UUID orderId = UUID.randomUUID();
         UUID shipmentId = UUID.randomUUID();
         UUID requestId = UUID.randomUUID();

@@ -5,12 +5,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.fulfillment.application.enums.CancellationProcessState;
+import com.flowzati.archone.fulfillment.application.enums.OrderingCancellationOutcome;
+import com.flowzati.archone.fulfillment.application.enums.WmsCancellationOutcome;
 import com.flowzati.archone.fulfillment.application.event.OrderingCancellationRequested;
 import com.flowzati.archone.fulfillment.application.invocation.OrderingCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.invocation.WmsCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.port.OrderingCancellationRequestedPublisher;
 import com.flowzati.archone.fulfillment.application.state.CancellationProcess;
-import com.flowzati.archone.fulfillment.application.state.CancellationProcessState;
 import com.flowzati.archone.fulfillment.application.store.CancellationProcessStore;
 import com.flowzati.archone.fulfillment.application.usecase.HandleWmsCancellationOutcomeUsecase;
 import com.flowzati.archone.fulfillment.application.usecase.RecordOrderingCancellationOutcomeUsecase;
@@ -29,7 +31,7 @@ class RecordCancellationOutcomeUsecaseTest {
     @Test
     void wmsSuccessPersistsOutcomeAndPublishesOrderingCommand() {
         when(store.lock(requestId)).thenReturn(Optional.of(process(CancellationProcessState.WAITING_WMS, null, null)));
-        var command = wms(WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT);
+        var command = wms(WmsCancellationOutcome.NO_SHIPMENT);
         new HandleWmsCancellationOutcomeUsecase(store, publisher).handle(command);
         verify(store).recordWmsOutcome(requestId, CancellationProcessState.WAITING_ORDERING, command.outcome());
         verify(publisher)
@@ -39,7 +41,7 @@ class RecordCancellationOutcomeUsecaseTest {
     @Test
     void wmsRejectionEndsProcessWithoutOrderingCommand() {
         when(store.lock(requestId)).thenReturn(Optional.of(process(CancellationProcessState.WAITING_WMS, null, null)));
-        var command = wms(WmsCancellationOutcomeCommand.Outcome.REJECTED);
+        var command = wms(WmsCancellationOutcome.REJECTED);
         new HandleWmsCancellationOutcomeUsecase(store, publisher).handle(command);
         verify(store).recordWmsOutcome(requestId, CancellationProcessState.REJECTED, command.outcome());
         verifyNoInteractions(publisher);
@@ -48,12 +50,9 @@ class RecordCancellationOutcomeUsecaseTest {
     @Test
     void duplicateWmsOutcomeDoesNotPublishAgain() {
         when(store.lock(requestId))
-                .thenReturn(Optional.of(process(
-                        CancellationProcessState.WAITING_ORDERING,
-                        WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT,
-                        null)));
-        new HandleWmsCancellationOutcomeUsecase(store, publisher)
-                .handle(wms(WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT));
+                .thenReturn(Optional.of(
+                        process(CancellationProcessState.WAITING_ORDERING, WmsCancellationOutcome.NO_SHIPMENT, null)));
+        new HandleWmsCancellationOutcomeUsecase(store, publisher).handle(wms(WmsCancellationOutcome.NO_SHIPMENT));
         verifyNoInteractions(publisher);
         org.mockito.Mockito.verify(store, org.mockito.Mockito.never())
                 .recordWmsOutcome(
@@ -65,12 +64,9 @@ class RecordCancellationOutcomeUsecaseTest {
     @Test
     void orderingSuccessPersistsOutcome() {
         when(store.lock(requestId))
-                .thenReturn(Optional.of(process(
-                        CancellationProcessState.WAITING_ORDERING,
-                        WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT,
-                        null)));
-        var command = new OrderingCancellationOutcomeCommand(
-                requestId, orderId, OrderingCancellationOutcomeCommand.Outcome.SUCCEEDED);
+                .thenReturn(Optional.of(
+                        process(CancellationProcessState.WAITING_ORDERING, WmsCancellationOutcome.NO_SHIPMENT, null)));
+        var command = new OrderingCancellationOutcomeCommand(requestId, orderId, OrderingCancellationOutcome.SUCCEEDED);
         new RecordOrderingCancellationOutcomeUsecase(store).record(command);
         verify(store).recordOrderingOutcome(requestId, CancellationProcessState.COMPLETED, command.outcome());
     }
@@ -80,11 +76,11 @@ class RecordCancellationOutcomeUsecaseTest {
         when(store.lock(requestId))
                 .thenReturn(Optional.of(process(
                         CancellationProcessState.COMPLETED,
-                        WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT,
-                        OrderingCancellationOutcomeCommand.Outcome.SUCCEEDED)));
+                        WmsCancellationOutcome.NO_SHIPMENT,
+                        OrderingCancellationOutcome.SUCCEEDED)));
         new RecordOrderingCancellationOutcomeUsecase(store)
                 .record(new OrderingCancellationOutcomeCommand(
-                        requestId, orderId, OrderingCancellationOutcomeCommand.Outcome.SUCCEEDED));
+                        requestId, orderId, OrderingCancellationOutcome.SUCCEEDED));
         org.mockito.Mockito.verify(store, org.mockito.Mockito.never())
                 .recordOrderingOutcome(
                         org.mockito.ArgumentMatchers.any(),
@@ -92,14 +88,14 @@ class RecordCancellationOutcomeUsecaseTest {
                         org.mockito.ArgumentMatchers.any());
     }
 
-    private WmsCancellationOutcomeCommand wms(WmsCancellationOutcomeCommand.Outcome outcome) {
+    private WmsCancellationOutcomeCommand wms(WmsCancellationOutcome outcome) {
         return new WmsCancellationOutcomeCommand(requestId, orderId, requestedAt, "customer request", outcome);
     }
 
     private CancellationProcess process(
             CancellationProcessState state,
-            WmsCancellationOutcomeCommand.Outcome wmsOutcome,
-            OrderingCancellationOutcomeCommand.Outcome orderingOutcome) {
+            WmsCancellationOutcome wmsOutcome,
+            OrderingCancellationOutcome orderingOutcome) {
         return new CancellationProcess(
                 requestId, orderId, requestedAt, "customer request", state, wmsOutcome, orderingOutcome);
     }

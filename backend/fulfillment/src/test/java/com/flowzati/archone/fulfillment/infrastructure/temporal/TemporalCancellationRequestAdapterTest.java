@@ -5,9 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentCancellationStatus;
 import com.flowzati.archone.fulfillment.application.invocation.FulfillmentCancellationCommand;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentCancellationResult;
-import com.flowzati.archone.fulfillment.application.state.FulfillmentCancellationStatus;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestResult;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.CancellationRequestStatus;

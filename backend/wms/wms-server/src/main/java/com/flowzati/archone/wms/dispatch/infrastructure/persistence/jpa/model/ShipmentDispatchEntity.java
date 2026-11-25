@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.dispatch.infrastructure.persistence.jpa.model;
 
-import com.flowzati.archone.wms.dispatch.domain.type.ShipmentDispatchStatus;
+import com.flowzati.archone.wms.dispatch.domain.enums.ShipmentDispatchStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

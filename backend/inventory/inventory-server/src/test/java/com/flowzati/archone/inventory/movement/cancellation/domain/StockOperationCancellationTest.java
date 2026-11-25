@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

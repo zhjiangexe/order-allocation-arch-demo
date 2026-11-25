@@ -9,7 +9,7 @@ import com.flowzati.archone.logisticsdata.application.store.SkuStore;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
+import com.flowzati.archone.logisticsdata.domain.enums.TemperatureZoneType;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;

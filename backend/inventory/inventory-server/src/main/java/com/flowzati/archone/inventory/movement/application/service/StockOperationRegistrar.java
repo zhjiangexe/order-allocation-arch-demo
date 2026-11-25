@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.movement.application.service;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.movement.application.exception.StockMovementErrorCode;
+import com.flowzati.archone.inventory.movement.application.enums.StockMovementErrorCode;
 import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationRegistrationResult;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;

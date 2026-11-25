@@ -8,8 +8,8 @@ import com.flowzati.archone.wms.shipment.application.port.ShipmentCancellationCo
 import com.flowzati.archone.wms.shipment.application.port.ShipmentCancelledPublisher;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentCancellationState;
+import com.flowzati.archone.wms.shipment.domain.enums.CancelShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentCancellationState;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

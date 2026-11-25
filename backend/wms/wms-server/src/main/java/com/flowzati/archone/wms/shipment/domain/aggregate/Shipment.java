@@ -1,10 +1,10 @@
 package com.flowzati.archone.wms.shipment.domain.aggregate;
 
 import com.flowzati.archone.foundation.error.DomainConflictException;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentErrorCode;
-import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentCancellationState;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.CancelShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentCancellationState;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentErrorCode;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import com.flowzati.archone.wms.shipment.domain.valueobject.ShipmentLine;
 import java.time.Instant;
 import java.util.HashSet;

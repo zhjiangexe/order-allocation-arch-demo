@@ -4,7 +4,6 @@ import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMod
 import com.flowzati.archone.fulfillment.application.invocation.FulfillmentCancellationCommand;
 import com.flowzati.archone.fulfillment.application.usecase.RequestWorkflowCancellationUsecase;
 import com.flowzati.archone.fulfillment.entrypoint.rest.request.OrderCancellationRequest;
-import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderCancellationHttpResponses;
 import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderCancellationResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -33,7 +32,8 @@ public class TemporalOrderCancellationRest {
     @PostMapping("/{orderId}/cancellation-requests")
     public ResponseEntity<OrderCancellationResponse> requestCancellation(
             @PathVariable(name = "orderId") UUID orderId, @Valid @RequestBody OrderCancellationRequest body) {
-        return OrderCancellationHttpResponses.from(requestWorkflowCancellationUsecase.request(command(orderId, body)));
+        return OrderCancellationResponse.toResponseEntity(
+                requestWorkflowCancellationUsecase.request(command(orderId, body)));
     }
 
     private static FulfillmentCancellationCommand command(UUID orderId, OrderCancellationRequest body) {

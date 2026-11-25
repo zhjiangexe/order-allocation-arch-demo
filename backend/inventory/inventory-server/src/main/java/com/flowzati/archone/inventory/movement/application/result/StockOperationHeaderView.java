@@ -1,8 +1,8 @@
 package com.flowzati.archone.inventory.movement.application.result;
 
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationState;
 import java.time.Instant;
 import java.util.UUID;
 

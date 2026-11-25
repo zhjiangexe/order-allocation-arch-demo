@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.location.domain.entity;
 
-import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
+import com.flowzati.archone.inventory.location.domain.enums.LocationUsageType;
 import java.util.UUID;
 
 /**

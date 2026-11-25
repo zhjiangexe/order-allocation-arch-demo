@@ -2,9 +2,9 @@ package com.flowzati.archone.inventory.movement.visibility.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jdbc.store.JdbcStockOperationViewStore;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jdbc.store.StockOperationViewStoreAdapter;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -28,7 +28,7 @@ import org.springframework.test.context.ActiveProfiles;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @ActiveProfiles("test")
-@Import({PostgreSQLTestConfiguration.class, JdbcStockOperationViewStore.class})
+@Import({PostgreSQLTestConfiguration.class, StockOperationViewStoreAdapter.class})
 @DisplayName("Stock operation bounded JDBC projection")
 class StockOperationViewStoreIntegrationTest {
 
@@ -42,7 +42,7 @@ class StockOperationViewStoreIntegrationTest {
     private static final Instant ENQUEUED_AT = Instant.parse("2026-08-27T01:00:00Z");
 
     @Autowired
-    private JdbcStockOperationViewStore jdbcStockOperationViewStore;
+    private StockOperationViewStoreAdapter jdbcStockOperationViewStore;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

@@ -1,5 +1,7 @@
 package com.flowzati.archone.inventory.movement.domain.valueobject;
 
+import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
+
 /** Stable, source-neutral identity of one operation that competes for stock as a unit. */
 public record StockOperationSource(MovementSourceType sourceType, String sourceId, String allocationUnitKey) {
 

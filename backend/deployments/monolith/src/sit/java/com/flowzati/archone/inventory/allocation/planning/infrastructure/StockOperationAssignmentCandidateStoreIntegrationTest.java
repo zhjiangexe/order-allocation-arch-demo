@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentBacklogStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.OwnerAllocationPolicyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockOperationAssignmentBacklogStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
@@ -44,9 +44,9 @@ import org.springframework.test.context.ActiveProfiles;
     PostgreSQLTestConfiguration.class,
     StockOperationStoreAdapter.class,
     StockMoveStoreAdapter.class,
-    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
-    JdbcOwnerAllocationPolicyStoreAdapter.class,
-    JdbcStockOperationAssignmentBacklogStoreAdapter.class,
+    StockOperationAssignmentCandidateStoreAdapter.class,
+    OwnerAllocationPolicyStoreAdapter.class,
+    StockOperationAssignmentBacklogStoreAdapter.class,
     StockOperationAssignmentCandidateStoreIntegrationTest.RepositoryConfiguration.class
 })
 @DisplayName("Pending operation PostgreSQL selection")
@@ -60,10 +60,10 @@ class StockOperationAssignmentCandidateStoreIntegrationTest {
     private static final UUID CANDIDATE_ID = uuid(30);
 
     @Autowired
-    private JdbcStockOperationAssignmentCandidateStoreAdapter jdbcStockOperationAssignmentCandidateStoreAdapter;
+    private StockOperationAssignmentCandidateStoreAdapter jdbcStockOperationAssignmentCandidateStoreAdapter;
 
     @Autowired
-    private JdbcStockOperationAssignmentBacklogStoreAdapter jdbcStockOperationAssignmentBacklogStoreAdapter;
+    private StockOperationAssignmentBacklogStoreAdapter jdbcStockOperationAssignmentBacklogStoreAdapter;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

@@ -7,12 +7,12 @@ import com.flowzati.archone.ArchoneApplication;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.messaging.spring.optimisticlocking.OptimisticLockingRetryExhaustedException;
 import com.flowzati.archone.ordering.application.store.OrderStore;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -141,9 +141,9 @@ class AllocationConcurrencyEndToEndIntegrationTest {
         // 恰好一張拿到預留：兩張都拿到代表超賣，都沒拿到代表兩張都白白重試到耗盡。
         assertThat(!heldBy(firstOrderId).isEmpty() ^ !heldBy(secondOrderId).isEmpty())
                 .isTrue();
-        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, firstEvent.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT, firstEvent.getEventId()))
                 .isTrue();
-        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, secondEvent.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT, secondEvent.getEventId()))
                 .isTrue();
         assertThat(jdbcTemplate.queryForList("SELECT type FROM event_outbox", String.class))
                 .contains(OrderAllocationCommittedIntegrationEvent.EVENT_TYPE);
@@ -173,7 +173,7 @@ class AllocationConcurrencyEndToEndIntegrationTest {
                 .hasValueSatisfying(
                         pool -> assertThat(pool.getReservedQuantity()).isZero());
         assertThat(heldBy(orderId)).isEmpty();
-        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, event.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT, event.getEventId()))
                 .isFalse();
         assertThat(tableCount("event_outbox")).isZero();
         assertThat(exhaustedMetricCount()).isEqualTo(metricBefore + 1.0);

@@ -9,7 +9,7 @@ import com.flowzati.archone.inventory.movement.application.store.StockOperationT
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
 import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

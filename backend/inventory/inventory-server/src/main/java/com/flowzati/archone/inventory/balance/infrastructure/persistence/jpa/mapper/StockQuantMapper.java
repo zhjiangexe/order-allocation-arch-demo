@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.mapper;
 
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.entity.StockQuantEntity;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.model.StockQuantEntity;
 
 public final class StockQuantMapper {
 

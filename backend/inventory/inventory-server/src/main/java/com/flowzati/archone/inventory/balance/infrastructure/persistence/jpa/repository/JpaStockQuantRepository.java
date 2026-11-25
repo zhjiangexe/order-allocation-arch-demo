@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository;
 
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.entity.StockQuantEntity;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.model.StockQuantEntity;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.Collection;

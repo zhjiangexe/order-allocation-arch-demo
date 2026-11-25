@@ -11,7 +11,7 @@ import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.usecase.CancelOrderUsecase;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
-import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.enums.OrderCancellationOutcome;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -41,7 +41,7 @@ public final class TemporalOrderActivitiesAdapter implements OrderActivities {
     @Override
     public CancelOrderActivityResult cancelOrder(CancelOrderActivityInput input) {
         SimulationUtil.sleep(3_000);
-        Order.CancellationStatus result = cancelOrderUsecase.cancel(
+        OrderCancellationOutcome result = cancelOrderUsecase.cancel(
                 new CancelOrderCommand(input.requestId(), input.orderId(), input.cancelledAt(), input.reason()));
         CancelOrderActivityStatus status = switch (result) {
             case CANCELLED -> CancelOrderActivityStatus.CANCELLED;

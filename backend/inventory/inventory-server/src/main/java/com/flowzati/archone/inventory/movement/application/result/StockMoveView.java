@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.result;
 
-import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
+import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

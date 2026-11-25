@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.allocation.application.service;
 
 import com.flowzati.archone.foundation.error.StaleStateException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode;
+import com.flowzati.archone.inventory.allocation.application.enums.StockAllocationErrorCode;
 import com.flowzati.archone.inventory.allocation.application.event.StockOperationAssigned;
 import com.flowzati.archone.inventory.allocation.application.port.StockOperationAssignedPublisher;
 import com.flowzati.archone.inventory.allocation.application.result.AssignedMove;
@@ -21,8 +21,8 @@ import com.flowzati.archone.inventory.movement.application.store.StockOperationT
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
 import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
+import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationState;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;

@@ -5,6 +5,7 @@ import com.flowzati.archone.ordering.application.invocation.CancelOrderCommand;
 import com.flowzati.archone.ordering.application.port.OrderCancelledPublisher;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
+import com.flowzati.archone.ordering.domain.enums.OrderCancellationOutcome;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -35,12 +36,12 @@ public class CancelOrderUsecase {
     }
 
     @Transactional
-    public Order.CancellationStatus cancel(CancelOrderCommand command) {
+    public OrderCancellationOutcome cancel(CancelOrderCommand command) {
         Order order = orderStore
                 .findById(command.orderId())
                 .orElseThrow(() -> new IllegalStateException("Order not found: " + command.orderId()));
-        Order.CancellationStatus result = order.cancel(command.requestId(), command.cancelledAt(), command.reason());
-        if (result != Order.CancellationStatus.CANCELLED) {
+        OrderCancellationOutcome result = order.cancel(command.requestId(), command.cancelledAt(), command.reason());
+        if (result != OrderCancellationOutcome.CANCELLED) {
             return result;
         }
 

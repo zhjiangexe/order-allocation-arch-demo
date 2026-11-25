@@ -1,9 +1,9 @@
 package com.flowzati.archone.fulfillment.infrastructure.temporal;
 
 import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.fulfillment.application.port.FulfillmentWorkflowStateReader;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryResult;
-import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import io.grpc.Status;
 import io.temporal.client.WorkflowClient;

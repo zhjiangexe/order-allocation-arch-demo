@@ -13,10 +13,11 @@ import com.flowzati.archone.orchestration.contract.workflow.order.invocation.Ass
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.StockOperationAssignedInput;
 import com.flowzati.archone.wms.shipment.application.invocation.CancelShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
+import com.flowzati.archone.wms.shipment.application.invocation.MovementLine;
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
-import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.CancelShipmentStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -87,8 +88,7 @@ class TemporalShipmentActivitiesAdapterTest {
                         orderId,
                         ownerId,
                         facilityId,
-                        List.of(new CreateShipmentCommand.MovementLine(
-                                orderLineId, moveId, "SKU-1", sourceLocationId, 3)),
+                        List.of(new MovementLine(orderLineId, moveId, "SKU-1", sourceLocationId, 3)),
                         assignedAt.plusSeconds(3600),
                         80,
                         assignedAt));

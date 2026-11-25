@@ -1,7 +1,7 @@
 package com.flowzati.archone.wms.shipment.infrastructure.persistence.jpa.model;
 
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentCancellationState;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentCancellationState;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

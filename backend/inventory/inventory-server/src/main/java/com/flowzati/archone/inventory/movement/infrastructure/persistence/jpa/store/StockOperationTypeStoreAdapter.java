@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.s
 
 import com.flowzati.archone.inventory.movement.application.store.StockOperationTypeStore;
 import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.mapper.StockOperationTypeMapper;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationTypeRepository;
 import java.util.Optional;

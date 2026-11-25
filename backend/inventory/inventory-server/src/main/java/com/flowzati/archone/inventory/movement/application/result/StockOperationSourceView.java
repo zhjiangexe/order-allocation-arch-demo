@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.result;
 
-import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
 
 /** The application document that declared a stock-consuming operation. */
 public record StockOperationSourceView(MovementSourceType type, String sourceId, String operationUnitKey) {}

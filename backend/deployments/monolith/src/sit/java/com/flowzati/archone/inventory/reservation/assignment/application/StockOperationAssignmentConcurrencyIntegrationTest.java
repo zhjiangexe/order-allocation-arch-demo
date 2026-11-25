@@ -9,18 +9,18 @@ import com.flowzati.archone.inventory.allocation.application.result.StockOperati
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
-import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.service.ShipCompleteFefoStockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.OwnerAllocationPolicyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockAllocationSupplyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreAdapter;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
@@ -73,11 +73,11 @@ import org.springframework.transaction.support.TransactionTemplate;
     StockOperationStoreAdapter.class,
     StockMoveStoreAdapter.class,
     StockMoveLineStoreAdapter.class,
-    StockQuantStoreImpl.class,
-    JdbcStockAllocationSupplyStoreAdapter.class,
+    StockQuantStoreAdapter.class,
+    StockAllocationSupplyStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
-    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
-    JdbcOwnerAllocationPolicyStoreAdapter.class,
+    StockOperationAssignmentCandidateStoreAdapter.class,
+    OwnerAllocationPolicyStoreAdapter.class,
     StockAllocationCommitService.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentConcurrencyIntegrationTest.RepositoryConfiguration.class
@@ -199,9 +199,7 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
             Throwable failure = catchThrowable(() -> transactionTemplate.executeWithoutResult(ignored -> {
                 var before = stockOperationStore.findById(EARLIER_OPERATION).orElseThrow();
                 assertThat(before.state())
-                        .isEqualTo(
-                                com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState
-                                        .CONFIRMED);
+                        .isEqualTo(com.flowzati.archone.inventory.movement.domain.enums.StockOperationState.CONFIRMED);
                 try {
                     // This future returns only after the other thread's transaction has committed.
                     executor.submit(() -> transactionTemplate.execute(
@@ -258,7 +256,7 @@ class StockOperationAssignmentConcurrencyIntegrationTest {
         var demand = StockOperationDemandFactory.from(operation, moves);
         var supply = stockAllocationSupplyStore.findBySku(
                 OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, demand.skuCodes(), TODAY);
-        return new MovementAssignmentPlanner().plan(demand, supply);
+        return new ShipCompleteFefoStockAllocationPlanner().plan(demand, supply);
     }
 
     private void seedGroup(UUID stockOperationId, UUID moveId, UUID sourceLineId, Instant enqueuedAt) {

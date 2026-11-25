@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Owner;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Product;
 import com.flowzati.archone.logisticsdata.domain.aggregate.Sku;
-import com.flowzati.archone.logisticsdata.domain.type.TemperatureZoneType;
+import com.flowzati.archone.logisticsdata.domain.enums.TemperatureZoneType;
 import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.repository.JpaOwnerRepository;
 import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.repository.JpaSkuRepository;
 import com.flowzati.archone.logisticsdata.infrastructure.persistence.jpa.store.OwnerStoreAdapter;

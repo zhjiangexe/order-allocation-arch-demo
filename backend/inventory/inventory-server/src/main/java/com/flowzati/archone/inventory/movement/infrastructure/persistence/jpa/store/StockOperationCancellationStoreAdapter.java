@@ -2,8 +2,8 @@ package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.s
 
 import com.flowzati.archone.inventory.movement.application.store.StockOperationCancellationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.entity.StockOperationCancellationKey;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.mapper.StockOperationCancellationMapper;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.model.StockOperationCancellationPrimaryKey;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationCancellationRepository;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +28,7 @@ public class StockOperationCancellationStoreAdapter implements StockOperationCan
     @Override
     public Optional<StockOperationCancellation> find(UUID stockOperationId, UUID cancellationOperationId) {
         return jpaStockOperationCancellationRepository
-                .findById(new StockOperationCancellationKey(stockOperationId, cancellationOperationId))
+                .findById(new StockOperationCancellationPrimaryKey(stockOperationId, cancellationOperationId))
                 .map(StockOperationCancellationMapper::toDomain);
     }
 }

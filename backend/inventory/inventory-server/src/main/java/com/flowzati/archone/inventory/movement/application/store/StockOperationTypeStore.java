@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.application.store;
 
 import com.flowzati.archone.inventory.movement.domain.entity.StockOperationType;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
 import java.util.Optional;
 import java.util.UUID;
 

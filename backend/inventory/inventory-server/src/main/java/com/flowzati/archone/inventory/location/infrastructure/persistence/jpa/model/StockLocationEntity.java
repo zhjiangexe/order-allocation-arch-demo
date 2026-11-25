@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.location.infrastructure.persistence.jpa.model;
 
-import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
+import com.flowzati.archone.inventory.location.domain.enums.LocationUsageType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

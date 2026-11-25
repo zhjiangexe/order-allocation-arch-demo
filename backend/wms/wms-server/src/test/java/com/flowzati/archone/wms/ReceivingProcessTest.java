@@ -12,7 +12,7 @@ import com.flowzati.archone.wms.receiving.application.usecase.ConfirmPutawayUsec
 import com.flowzati.archone.wms.receiving.application.usecase.RecordInspectionUsecase;
 import com.flowzati.archone.wms.receiving.application.usecase.RegisterInboundOperationUsecase;
 import com.flowzati.archone.wms.receiving.domain.aggregate.InboundOperation;
-import com.flowzati.archone.wms.receiving.domain.type.InboundStatus;
+import com.flowzati.archone.wms.receiving.domain.enums.InboundStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;

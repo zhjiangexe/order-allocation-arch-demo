@@ -7,7 +7,6 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.invocation.RecordOrderAllocationCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderAllocationUsecase;
 import org.springframework.context.annotation.Bean;

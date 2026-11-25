@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.domain.aggregate;
 
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
 import java.time.Instant;
 import java.util.UUID;
 

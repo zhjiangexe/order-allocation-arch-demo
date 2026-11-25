@@ -4,8 +4,8 @@ import com.flowzati.archone.inventory.allocation.domain.valueobject.StockMoveDem
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
+import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationState;
 import java.util.Collection;
 import java.util.List;
 

@@ -4,8 +4,8 @@ import com.flowzati.archone.contracts.ordering.v1.OrderCancelledIntegrationEvent
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingAggregateTypes;
 import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
-import com.flowzati.archone.inventory.movement.entrypoint.consumer.MovementCancellationEventSubscriptions;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.messaging.MovementEventSubscriptions;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.events.AggregateReference;
 import com.flowzati.archone.messaging.events.IntegrationEvent;
@@ -56,8 +56,8 @@ public class AllocationOrderLifecycleEventDriver {
                 new PublicationTarget(OrderingEventDestinations.ORDER_EVENTS, orderId),
                 occurredAt);
         String subscriberId = event instanceof OrderCancelledIntegrationEvent
-                ? MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS
-                : AllocationSubscriberIds.ORDER_PLACEMENT;
+                ? MovementEventSubscriptions.ORDER_CANCELLATIONS
+                : AllocationEventSubscriptions.ORDER_PLACEMENT;
         transport.emit(subscriberId, physicalDestination, messageMapper.toMessage(publication), 1);
     }
 }

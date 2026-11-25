@@ -434,7 +434,7 @@ class OrderingContextArchitectureTest {
         }
 
         @Test
-        @DisplayName("Messaging entrypoint 必須以 EventConsumer 結尾")
+        @DisplayName("Messaging entrypoint 只能是 EventConsumer 或 EventSubscriptions")
         void messagingEntrypointsHaveConsumerNames() {
             classes()
                     .that()
@@ -442,16 +442,18 @@ class OrderingContextArchitectureTest {
                     .and()
                     .areTopLevelClasses()
                     .should()
-                    .haveSimpleNameEndingWith("EventConsumer")
+                    .haveNameMatching(".*(EventConsumer|EventSubscriptions)$")
                     .check(ORDERING_CLASSES);
         }
 
         @Test
-        @DisplayName("Messaging entrypoint 必須把 inbound event 轉成 application invocation")
+        @DisplayName("EventConsumer 必須把 inbound event 轉成 application invocation")
         void messagingEntrypointsTranslateToInvocations() {
             classes()
                     .that()
                     .resideInAPackage(MESSAGING_ENTRYPOINT_PACKAGE)
+                    .and()
+                    .haveSimpleNameEndingWith("EventConsumer")
                     .should()
                     .dependOnClassesThat()
                     .resideInAPackage(INVOCATION_PACKAGE)
@@ -460,6 +462,8 @@ class OrderingContextArchitectureTest {
             classes()
                     .that()
                     .resideInAPackage(MESSAGING_ENTRYPOINT_PACKAGE)
+                    .and()
+                    .haveSimpleNameEndingWith("EventConsumer")
                     .should()
                     .dependOnClassesThat(resideInAPackage(USECASE_PACKAGE)
                             .and(simpleNameEndingWith("Usecase").or(simpleNameEndingWith("Interactor"))))

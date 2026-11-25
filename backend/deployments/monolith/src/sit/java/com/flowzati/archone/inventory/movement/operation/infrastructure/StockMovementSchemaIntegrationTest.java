@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.inventory.movement.application.store.StockOperationReconciliationStore;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jdbc.store.JdbcStockOperationReconciliationStore;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jdbc.store.StockOperationReconciliationStoreAdapter;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -31,7 +31,7 @@ import org.springframework.test.context.ActiveProfiles;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @ActiveProfiles("test")
-@Import({PostgreSQLTestConfiguration.class, JdbcStockOperationReconciliationStore.class})
+@Import({PostgreSQLTestConfiguration.class, StockOperationReconciliationStoreAdapter.class})
 @DisplayName("Stock movement canonical schema")
 class StockMovementSchemaIntegrationTest {
 

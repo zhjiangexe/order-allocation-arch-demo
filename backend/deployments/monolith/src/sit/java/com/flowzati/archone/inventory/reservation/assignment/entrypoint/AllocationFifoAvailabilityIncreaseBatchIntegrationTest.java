@@ -10,13 +10,13 @@ import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocati
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentBacklogStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
 import com.flowzati.archone.inventory.allocation.application.usecase.StockOperationBacklogInteractor;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;

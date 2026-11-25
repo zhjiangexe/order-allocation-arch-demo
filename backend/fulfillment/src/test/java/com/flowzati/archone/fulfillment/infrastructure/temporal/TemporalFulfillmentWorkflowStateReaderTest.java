@@ -6,7 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryStatus;
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentSnapshot;
 import io.grpc.Status;

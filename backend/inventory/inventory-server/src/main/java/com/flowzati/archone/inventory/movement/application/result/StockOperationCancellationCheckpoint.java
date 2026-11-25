@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.application.result;
 
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
 
 /** Latest persisted state of one durable stock-operation cancellation. */
 public record StockOperationCancellationCheckpoint(StockOperationCancellationState state) {

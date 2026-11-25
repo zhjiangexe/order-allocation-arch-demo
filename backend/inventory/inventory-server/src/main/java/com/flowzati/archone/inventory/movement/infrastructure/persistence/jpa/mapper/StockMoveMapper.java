@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.mapper;
 
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.entity.StockMoveEntity;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.model.StockMoveEntity;
 
 /** Canonical Stock Move persistence mapping. */
 public final class StockMoveMapper {

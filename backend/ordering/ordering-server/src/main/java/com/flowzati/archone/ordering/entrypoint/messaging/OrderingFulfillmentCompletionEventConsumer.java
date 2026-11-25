@@ -8,7 +8,6 @@ import com.flowzati.archone.messaging.events.IntegrationEventDispatcher;
 import com.flowzati.archone.messaging.events.IntegrationEventDispatcherFactory;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlers;
 import com.flowzati.archone.messaging.events.IntegrationEventHandlersBuilder;
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.invocation.RecordOrderFulfillmentCommand;
 import com.flowzati.archone.ordering.application.usecase.RecordOrderFulfillmentUsecase;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

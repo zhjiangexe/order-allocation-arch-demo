@@ -13,16 +13,16 @@ import com.flowzati.archone.inventory.allocation.application.service.StockOperat
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.AssignNextStockOperationUsecase;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
-import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.service.ShipCompleteFefoStockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.OwnerAllocationPolicyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockAllocationSupplyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreAdapter;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationTypeRepository;
@@ -68,15 +68,15 @@ import org.springframework.transaction.support.TransactionTemplate;
     StockOperationStoreAdapter.class,
     StockMoveStoreAdapter.class,
     StockMoveLineStoreAdapter.class,
-    StockQuantStoreImpl.class,
-    JdbcStockAllocationSupplyStoreAdapter.class,
+    StockQuantStoreAdapter.class,
+    StockAllocationSupplyStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
-    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
-    JdbcOwnerAllocationPolicyStoreAdapter.class,
+    StockOperationAssignmentCandidateStoreAdapter.class,
+    OwnerAllocationPolicyStoreAdapter.class,
     StockAllocationCommitService.class,
     AssignNextStockOperationUsecase.class,
     StockOperationAssignmentCoordinator.class,
-    MovementAssignmentPlanner.class,
+    ShipCompleteFefoStockAllocationPlanner.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentRollbackIntegrationTest.RepositoryConfiguration.class
 })

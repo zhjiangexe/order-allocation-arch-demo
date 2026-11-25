@@ -9,7 +9,7 @@ import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.balance.domain.valueobject.ReceivingBatchIdentity;
 import com.flowzati.archone.inventory.location.application.store.StockLocationStore;
 import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
-import com.flowzati.archone.inventory.location.domain.valueobject.LocationUsageType;
+import com.flowzati.archone.inventory.location.domain.enums.LocationUsageType;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;

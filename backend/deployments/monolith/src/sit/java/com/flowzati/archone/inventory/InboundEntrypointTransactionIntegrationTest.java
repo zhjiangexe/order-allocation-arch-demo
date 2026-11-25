@@ -10,16 +10,16 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.balance.application.error.StockBalanceErrorCode;
+import com.flowzati.archone.inventory.balance.application.enums.StockBalanceErrorCode;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
@@ -92,7 +92,7 @@ class InboundEntrypointTransactionIntegrationTest {
 
         consumeOrderingEvent(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
 
-        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, eventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT, eventId))
                 .isTrue();
         outcomeDrain().drain();
         assertThat(orderStore.findById(orderId))
@@ -131,7 +131,7 @@ class InboundEntrypointTransactionIntegrationTest {
 
         // 失敗發生在 inbox claim 之後，所以那筆 claim 必須跟著回滾——否則重送會被當成重複而丟棄，
         // 那張單就永遠停在 PENDING 且沒有任何搬運。
-        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, eventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT, eventId))
                 .isFalse();
         outcomeDrain().drain();
         assertThat(orderStore.findById(orderId))
@@ -164,7 +164,7 @@ class InboundEntrypointTransactionIntegrationTest {
             jdbcTemplate.execute("ALTER TABLE stock_pools DROP CONSTRAINT ck_test_reject_release");
         }
 
-        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, eventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT, eventId))
                 .isFalse();
         assertThat(stockQuantStore.findById(stockQuantId))
                 .hasValueSatisfying(
@@ -213,7 +213,7 @@ class InboundEntrypointTransactionIntegrationTest {
         inventoryEvents.redeliver(availabilityEventId);
         assertThat(inventoryEvents.drain()).isZero();
 
-        assertThat(inboxClaimExists(AllocationSubscriberIds.INVENTORY_AVAILABILITY, availabilityEventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.INVENTORY_AVAILABILITY, availabilityEventId))
                 .isTrue();
         assertThat(stockQuantStore.findById(stockQuantId))
                 .hasValueSatisfying(
@@ -257,7 +257,7 @@ class InboundEntrypointTransactionIntegrationTest {
             jdbcTemplate.execute("ALTER TABLE stock_move_lines DROP CONSTRAINT ck_test_reject_new_move_line");
         }
 
-        assertThat(inboxClaimExists(AllocationSubscriberIds.INVENTORY_AVAILABILITY, availabilityEventId))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.INVENTORY_AVAILABILITY, availabilityEventId))
                 .isFalse();
         assertThat(countReceiptRequests(eventId)).isEqualTo(1);
         // 收貨是已完成的獨立 checkpoint；後續 outbound 配貨失敗不能撤銷實際到貨。

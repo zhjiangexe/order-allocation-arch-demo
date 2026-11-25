@@ -2,13 +2,13 @@ package com.flowzati.archone.wms.wave.application.usecase;
 
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import com.flowzati.archone.wms.wave.application.event.WaveReleased;
 import com.flowzati.archone.wms.wave.application.invocation.ReleaseWaveCommand;
 import com.flowzati.archone.wms.wave.application.port.WaveReleasedPublisher;
 import com.flowzati.archone.wms.wave.application.store.WaveStore;
 import com.flowzati.archone.wms.wave.domain.aggregate.Wave;
-import com.flowzati.archone.wms.wave.domain.type.WaveStatus;
+import com.flowzati.archone.wms.wave.domain.enums.WaveStatus;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository;
 
-import com.flowzati.archone.inventory.movement.domain.valueobject.MovementSourceType;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.entity.StockOperationEntity;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.model.StockOperationEntity;
 import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;

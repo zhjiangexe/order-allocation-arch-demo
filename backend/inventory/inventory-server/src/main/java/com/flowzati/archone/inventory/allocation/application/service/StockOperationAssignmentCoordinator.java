@@ -7,7 +7,7 @@ import com.flowzati.archone.inventory.allocation.application.state.StockOperatio
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationProposal;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockAllocationSupply;

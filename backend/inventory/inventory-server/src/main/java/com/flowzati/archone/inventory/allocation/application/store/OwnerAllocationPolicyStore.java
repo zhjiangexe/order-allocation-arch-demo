@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.application.store;
 
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
 import java.util.UUID;
 
 public interface OwnerAllocationPolicyStore {

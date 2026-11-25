@@ -21,11 +21,11 @@ import com.flowzati.archone.inventory.movement.application.store.StockOperationS
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

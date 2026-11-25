@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.application.result;
 
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.time.Instant;
 import java.util.HashSet;

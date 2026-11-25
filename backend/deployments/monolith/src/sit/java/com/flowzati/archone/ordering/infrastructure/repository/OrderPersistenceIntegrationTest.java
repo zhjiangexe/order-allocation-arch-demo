@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.flowzati.archone.ordering.domain.entity.OrderLine;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import com.flowzati.archone.ordering.infrastructure.persistence.jpa.model.OrderEntity;
 import com.flowzati.archone.ordering.infrastructure.persistence.jpa.model.OrderLineEntity;
 import com.flowzati.archone.ordering.infrastructure.persistence.jpa.repository.JpaOrderRepository;

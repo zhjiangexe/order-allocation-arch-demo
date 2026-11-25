@@ -18,7 +18,7 @@ import com.flowzati.archone.inventory.allocation.application.state.StockOperatio
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockOperationAssignmentCandidateStore;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.service.StockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.ProposedMoveLine;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.SkuQuantities;
@@ -30,11 +30,11 @@ import com.flowzati.archone.inventory.allocation.infrastructure.aop.AssignmentRe
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.MoveState;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationState;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
 import java.time.Clock;
 import java.time.Instant;
@@ -222,7 +222,7 @@ class StockOperationAssignmentCoordinatorTest {
         factory.addAspect(new AssignmentRetryConflictTranslator());
         StockOperationAssignmentCoordinator proxy = factory.getProxy();
         var stale = new com.flowzati.archone.foundation.error.StaleStateException(
-                com.flowzati.archone.inventory.allocation.application.error.StockAllocationErrorCode
+                com.flowzati.archone.inventory.allocation.application.enums.StockAllocationErrorCode
                         .STOCK_ALLOCATION_PROPOSAL_STALE,
                 "planned stock changed");
         when(stockOperationAssignmentCandidateStore.findDemand(STOCK_OPERATION_ID))

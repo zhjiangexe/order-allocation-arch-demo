@@ -3,6 +3,8 @@ package com.flowzati.archone.inventory.balance.entrypoint.rest;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
+import com.flowzati.archone.inventory.balance.entrypoint.rest.request.ConfirmStockReceiptRequest;
+import com.flowzati.archone.inventory.balance.entrypoint.rest.response.StockReceiptConfirmedResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

@@ -1,5 +1,8 @@
 package com.flowzati.archone.fulfillment.application.state;
 
+import com.flowzati.archone.fulfillment.application.enums.CancellationProcessState;
+import com.flowzati.archone.fulfillment.application.enums.OrderingCancellationOutcome;
+import com.flowzati.archone.fulfillment.application.enums.WmsCancellationOutcome;
 import com.flowzati.archone.fulfillment.application.invocation.FulfillmentCancellationCommand;
 import com.flowzati.archone.fulfillment.application.invocation.OrderingCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.invocation.WmsCancellationOutcomeCommand;
@@ -14,8 +17,8 @@ public record CancellationProcess(
         Instant requestedAt,
         String reason,
         CancellationProcessState state,
-        WmsCancellationOutcomeCommand.Outcome wmsOutcome,
-        OrderingCancellationOutcomeCommand.Outcome orderingOutcome) {
+        WmsCancellationOutcome wmsOutcome,
+        OrderingCancellationOutcome orderingOutcome) {
 
     public CancellationProcess(
             UUID requestId, UUID orderId, Instant requestedAt, String reason, CancellationProcessState state) {

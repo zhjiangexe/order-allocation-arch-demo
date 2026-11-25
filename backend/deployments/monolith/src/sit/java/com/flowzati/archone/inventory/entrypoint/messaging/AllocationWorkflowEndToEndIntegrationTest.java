@@ -11,17 +11,17 @@ import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.movement.entrypoint.consumer.MovementCancellationEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.messaging.MovementEventSubscriptions;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
+import com.flowzati.archone.ordering.entrypoint.messaging.OrderingEventSubscriptions;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -112,7 +112,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         // 這一步不只是為了讓斷言通過：它同時驗證 ordering 的 consumer 真的消費得了那些事件。
         assertThat(outcomeDrain().drain()).isPositive();
 
-        assertThat(inboxClaimExists(AllocationSubscriberIds.ORDER_PLACEMENT, event.getEventId()))
+        assertThat(inboxClaimExists(AllocationEventSubscriptions.ORDER_PLACEMENT, event.getEventId()))
                 .isTrue();
         assertThat(inboxClaimExists(OrderingEventSubscriptions.ALLOCATION_RESULTS, allocationOutcomeEventId))
                 .isTrue();
@@ -163,7 +163,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
         // lost acknowledgement 後同一 event replay 必須由 Inbox 與 operation identity 共同維持 exactly-once。
         consumer.consume(event);
 
-        assertThat(inboxClaimExists(MovementCancellationEventSubscriptions.ORDER_CANCELLATIONS, event.getEventId()))
+        assertThat(inboxClaimExists(MovementEventSubscriptions.ORDER_CANCELLATIONS, event.getEventId()))
                 .isTrue();
         assertThat(stockQuantStore.findById(stockQuantId))
                 .hasValueSatisfying(

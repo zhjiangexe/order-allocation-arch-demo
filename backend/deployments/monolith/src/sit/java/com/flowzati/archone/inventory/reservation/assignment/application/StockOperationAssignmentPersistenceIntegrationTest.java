@@ -8,17 +8,17 @@ import com.flowzati.archone.inventory.allocation.application.service.StockAlloca
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
-import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.service.ShipCompleteFefoStockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.OwnerAllocationPolicyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockAllocationSupplyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
 import com.flowzati.archone.inventory.allocation.planning.testsupport.StockOperationDemandFactory;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreAdapter;
 import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
@@ -66,11 +66,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     StockOperationStoreAdapter.class,
     StockMoveStoreAdapter.class,
     StockMoveLineStoreAdapter.class,
-    StockQuantStoreImpl.class,
-    JdbcStockAllocationSupplyStoreAdapter.class,
+    StockQuantStoreAdapter.class,
+    StockAllocationSupplyStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
-    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
-    JdbcOwnerAllocationPolicyStoreAdapter.class,
+    StockOperationAssignmentCandidateStoreAdapter.class,
+    OwnerAllocationPolicyStoreAdapter.class,
     StockAllocationCommitService.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationLifecycleChangedIntegrationEventAdapter.class,
@@ -158,7 +158,7 @@ class StockOperationAssignmentPersistenceIntegrationTest {
         var demand = StockOperationDemandFactory.from(operation, moves);
         var supply = stockAllocationSupplyStore.findBySku(
                 OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, demand.skuCodes(), TODAY);
-        var proposal = new MovementAssignmentPlanner().plan(demand, supply);
+        var proposal = new ShipCompleteFefoStockAllocationPlanner().plan(demand, supply);
 
         var committed = allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT);
         entityManager.flush();
@@ -207,7 +207,7 @@ class StockOperationAssignmentPersistenceIntegrationTest {
         var demand = StockOperationDemandFactory.from(operation, moves);
         var supply = stockAllocationSupplyStore.findBySku(
                 OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, demand.skuCodes(), TODAY);
-        var proposal = new MovementAssignmentPlanner().plan(demand, supply);
+        var proposal = new ShipCompleteFefoStockAllocationPlanner().plan(demand, supply);
         allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT);
         entityManager.flush();
         entityManager.clear();
@@ -253,7 +253,7 @@ class StockOperationAssignmentPersistenceIntegrationTest {
         var demand = StockOperationDemandFactory.from(operation, moves);
         var supply = stockAllocationSupplyStore.findBySku(
                 OrderFixtures.OWNER_ID, OrderFixtures.LOCATION_ID, demand.skuCodes(), TODAY);
-        var proposal = new MovementAssignmentPlanner().plan(demand, supply);
+        var proposal = new ShipCompleteFefoStockAllocationPlanner().plan(demand, supply);
         allocationCommitter.commit(proposal, TODAY, ASSIGNED_AT);
         entityManager.flush();
         entityManager.clear();

@@ -14,24 +14,25 @@ import com.flowzati.archone.wms.dispatch.application.invocation.StageShipmentCom
 import com.flowzati.archone.wms.dispatch.application.usecase.HandOverShipmentUsecase;
 import com.flowzati.archone.wms.dispatch.application.usecase.PackShipmentUsecase;
 import com.flowzati.archone.wms.dispatch.application.usecase.StageShipmentUsecase;
-import com.flowzati.archone.wms.dispatch.domain.type.ShipmentDispatchStatus;
+import com.flowzati.archone.wms.dispatch.domain.enums.ShipmentDispatchStatus;
 import com.flowzati.archone.wms.dispatch.infrastructure.messaging.ShipmentHandedOverIntegrationEventAdapter;
 import com.flowzati.archone.wms.picking.application.invocation.ConfirmPickCommand;
 import com.flowzati.archone.wms.picking.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.picking.domain.aggregate.PickingWork;
-import com.flowzati.archone.wms.picking.domain.type.PickTaskStatus;
+import com.flowzati.archone.wms.picking.domain.enums.PickTaskStatus;
 import com.flowzati.archone.wms.shipment.application.invocation.CancelShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
+import com.flowzati.archone.wms.shipment.application.invocation.MovementLine;
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.application.usecase.CancelShipmentUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CompleteShipmentCancellationUsecase;
 import com.flowzati.archone.wms.shipment.application.usecase.CreateShipmentUsecase;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.exception.ShipmentErrorCode;
-import com.flowzati.archone.wms.shipment.domain.type.CancelShipmentStatus;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentCancellationState;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.CancelShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentCancellationState;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentErrorCode;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import com.flowzati.archone.wms.shipment.infrastructure.messaging.ShipmentCancelledIntegrationEventAdapter;
 import com.flowzati.archone.wms.testsupport.InMemoryPickingWorkStore;
 import com.flowzati.archone.wms.testsupport.InMemoryShipmentDispatchStore;
@@ -44,8 +45,8 @@ import com.flowzati.archone.wms.wave.application.usecase.CompleteWaveUsecase;
 import com.flowzati.archone.wms.wave.application.usecase.PlanWaveUsecase;
 import com.flowzati.archone.wms.wave.application.usecase.ReleaseWaveUsecase;
 import com.flowzati.archone.wms.wave.domain.aggregate.Wave;
-import com.flowzati.archone.wms.wave.domain.service.impl.PriorityCapacityWavePlanner;
-import com.flowzati.archone.wms.wave.domain.type.WaveStatus;
+import com.flowzati.archone.wms.wave.domain.enums.WaveStatus;
+import com.flowzati.archone.wms.wave.domain.service.PriorityCapacityWavePlanner;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -411,8 +412,8 @@ class ShipmentProcessTest {
                 OWNER_ID,
                 FACILITY_ID,
                 List.of(
-                        new CreateShipmentCommand.MovementLine(nextId(), nextId(), "SKU-A", nextId(), 3),
-                        new CreateShipmentCommand.MovementLine(nextId(), nextId(), "SKU-B", nextId(), 2)),
+                        new MovementLine(nextId(), nextId(), "SKU-A", nextId(), 3),
+                        new MovementLine(nextId(), nextId(), "SKU-B", nextId(), 2)),
                 dispatchBy,
                 releasePriority,
                 T0);

@@ -2,6 +2,7 @@ package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.balance.application.usecase.GetStockQuantUsecase;
+import com.flowzati.archone.inventory.balance.entrypoint.rest.response.StockQuantResponse;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository;
 
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.entity.StockOperationTypeEntity;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.model.StockOperationTypeEntity;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.picking.application.event;
 
-import com.flowzati.archone.wms.picking.domain.type.PickingWorkStatus;
+import com.flowzati.archone.wms.picking.domain.enums.PickingWorkStatus;
 import java.time.Instant;
 import java.util.UUID;
 

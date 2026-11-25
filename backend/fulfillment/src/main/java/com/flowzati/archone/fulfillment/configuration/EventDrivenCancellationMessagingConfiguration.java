@@ -5,6 +5,8 @@ import com.flowzati.archone.contracts.cancel.v1.OrderingCancellationRequestResol
 import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
 import com.flowzati.archone.contracts.cancel.v1.WmsCancellationRequestResolvedIntegrationEvent;
 import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
+import com.flowzati.archone.fulfillment.application.enums.OrderingCancellationOutcome;
+import com.flowzati.archone.fulfillment.application.enums.WmsCancellationOutcome;
 import com.flowzati.archone.fulfillment.application.invocation.OrderingCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.invocation.WmsCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.usecase.HandleWmsCancellationOutcomeUsecase;
@@ -37,7 +39,7 @@ public class EventDrivenCancellationMessagingConfiguration {
                                     event.getOrderId(),
                                     event.getCancellationRequestedAt(),
                                     event.getCancellationReason(),
-                                    WmsCancellationOutcomeCommand.Outcome.SHIPMENT_CANCELLED));
+                                    WmsCancellationOutcome.SHIPMENT_CANCELLED));
                         })
                         .onEvent(WmsCancellationRequestResolvedIntegrationEvent.class, envelope -> {
                             var event = envelope.event();
@@ -46,7 +48,7 @@ public class EventDrivenCancellationMessagingConfiguration {
                                     event.getOrderId(),
                                     event.getRequestedAt(),
                                     event.getReason(),
-                                    WmsCancellationOutcomeCommand.Outcome.valueOf(
+                                    WmsCancellationOutcome.valueOf(
                                             event.getOutcome().name())));
                         })
                         .build());
@@ -67,8 +69,8 @@ public class EventDrivenCancellationMessagingConfiguration {
                                     event.getOutcome()
                                                     == OrderingCancellationRequestResolvedIntegrationEvent.Outcome
                                                             .REJECTED
-                                            ? OrderingCancellationOutcomeCommand.Outcome.REJECTED
-                                            : OrderingCancellationOutcomeCommand.Outcome.SUCCEEDED));
+                                            ? OrderingCancellationOutcome.REJECTED
+                                            : OrderingCancellationOutcome.SUCCEEDED));
                         })
                         .build());
     }

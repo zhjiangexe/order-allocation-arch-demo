@@ -60,22 +60,4 @@ public record CreateShipmentCommand(
             throw new IllegalArgumentException("Release priority must be between 0 and 100");
         }
     }
-
-    public record MovementLine(
-            UUID orderLineId,
-            UUID moveId,
-            String skuCode,
-            /** 目前由 assigned movement snapshot 提供；若改由 WMS location directive 決定需重畫邊界。 */
-            UUID sourceLocationId,
-            int quantity) {
-
-        public MovementLine {
-            if (orderLineId == null || moveId == null || sourceLocationId == null) {
-                throw new IllegalArgumentException("Movement line requires order line, move and location IDs");
-            }
-            if (skuCode == null || skuCode.isBlank() || quantity <= 0) {
-                throw new IllegalArgumentException("Movement line requires SKU and positive quantity");
-            }
-        }
-    }
 }

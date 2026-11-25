@@ -13,7 +13,7 @@ import com.flowzati.archone.wms.picking.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.process.application.invocation.SimulateWarehouseOperationsCommand;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import com.flowzati.archone.wms.wave.application.invocation.CompleteWaveCommand;
 import com.flowzati.archone.wms.wave.application.invocation.PlanWaveCommand;
 import com.flowzati.archone.wms.wave.application.invocation.ReleaseWaveCommand;

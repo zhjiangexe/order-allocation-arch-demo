@@ -1,9 +1,9 @@
 package com.flowzati.archone.fulfillment.application.store;
 
-import com.flowzati.archone.fulfillment.application.invocation.OrderingCancellationOutcomeCommand;
-import com.flowzati.archone.fulfillment.application.invocation.WmsCancellationOutcomeCommand;
+import com.flowzati.archone.fulfillment.application.enums.CancellationProcessState;
+import com.flowzati.archone.fulfillment.application.enums.OrderingCancellationOutcome;
+import com.flowzati.archone.fulfillment.application.enums.WmsCancellationOutcome;
 import com.flowzati.archone.fulfillment.application.state.CancellationProcess;
-import com.flowzati.archone.fulfillment.application.state.CancellationProcessState;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,8 +15,7 @@ public interface CancellationProcessStore {
 
     boolean insert(CancellationProcess process);
 
-    void recordWmsOutcome(UUID requestId, CancellationProcessState next, WmsCancellationOutcomeCommand.Outcome outcome);
+    void recordWmsOutcome(UUID requestId, CancellationProcessState next, WmsCancellationOutcome outcome);
 
-    void recordOrderingOutcome(
-            UUID requestId, CancellationProcessState next, OrderingCancellationOutcomeCommand.Outcome outcome);
+    void recordOrderingOutcome(UUID requestId, CancellationProcessState next, OrderingCancellationOutcome outcome);
 }

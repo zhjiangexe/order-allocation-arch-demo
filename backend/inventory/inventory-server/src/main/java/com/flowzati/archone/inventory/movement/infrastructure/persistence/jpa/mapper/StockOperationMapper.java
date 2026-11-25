@@ -1,9 +1,9 @@
 package com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.mapper;
 
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationDirection;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
-import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.entity.StockOperationEntity;
+import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.model.StockOperationEntity;
 
 public final class StockOperationMapper {
 

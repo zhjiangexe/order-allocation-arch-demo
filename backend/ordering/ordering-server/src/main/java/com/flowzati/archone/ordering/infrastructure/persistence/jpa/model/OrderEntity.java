@@ -1,6 +1,6 @@
 package com.flowzati.archone.ordering.infrastructure.persistence.jpa.model;
 
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

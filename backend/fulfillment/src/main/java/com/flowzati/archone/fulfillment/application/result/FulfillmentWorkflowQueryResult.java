@@ -1,5 +1,6 @@
 package com.flowzati.archone.fulfillment.application.result;
 
+import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentSnapshot;
 import java.util.Objects;
 

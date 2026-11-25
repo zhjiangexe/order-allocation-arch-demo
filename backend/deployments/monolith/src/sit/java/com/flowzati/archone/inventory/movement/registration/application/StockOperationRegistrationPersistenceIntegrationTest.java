@@ -13,22 +13,22 @@ import com.flowzati.archone.inventory.allocation.application.invocation.Allocate
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
 import com.flowzati.archone.inventory.allocation.application.service.StockOperationAssignmentCoordinator;
 import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrderUsecase;
-import com.flowzati.archone.inventory.allocation.domain.service.MovementAssignmentPlanner;
+import com.flowzati.archone.inventory.allocation.domain.service.ShipCompleteFefoStockAllocationPlanner;
 import com.flowzati.archone.inventory.allocation.infrastructure.messaging.StockOperationAssignedIntegrationEventAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcOwnerAllocationPolicyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockAllocationSupplyStoreAdapter;
-import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.JdbcStockOperationAssignmentCandidateStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.OwnerAllocationPolicyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockAllocationSupplyStoreAdapter;
+import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jdbc.store.StockOperationAssignmentCandidateStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaOrderAllocationSourceRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.repository.JpaStockMoveLineRepository;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.OrderStockMovementStoreAdapter;
 import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.store.StockMoveLineStoreAdapter;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
-import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreImpl;
-import com.flowzati.archone.inventory.movement.application.exception.StockMovementErrorCode;
+import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreAdapter;
+import com.flowzati.archone.inventory.movement.application.enums.StockMovementErrorCode;
 import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
-import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationCancellationState;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockMoveRepository;
 import com.flowzati.archone.inventory.movement.infrastructure.persistence.jpa.repository.JpaStockOperationCancellationRepository;
@@ -76,14 +76,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
     StockOperationStoreAdapter.class,
     StockMoveStoreAdapter.class,
     StockMoveLineStoreAdapter.class,
-    StockQuantStoreImpl.class,
+    StockQuantStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
     OrderStockMovementStoreAdapter.class,
     StockOperationRegistrar.class,
-    JdbcStockOperationAssignmentCandidateStoreAdapter.class,
-    JdbcOwnerAllocationPolicyStoreAdapter.class,
-    JdbcStockAllocationSupplyStoreAdapter.class,
-    MovementAssignmentPlanner.class,
+    StockOperationAssignmentCandidateStoreAdapter.class,
+    OwnerAllocationPolicyStoreAdapter.class,
+    StockAllocationSupplyStoreAdapter.class,
+    ShipCompleteFefoStockAllocationPlanner.class,
     StockAllocationCommitService.class,
     StockOperationAssignedIntegrationEventAdapter.class,
     StockOperationAssignmentCoordinator.class,

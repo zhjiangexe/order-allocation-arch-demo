@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.allocation.domain.valueobject;
 
-import com.flowzati.archone.inventory.movement.domain.policy.MovementAssignmentPolicy;
+import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;

@@ -1,7 +1,7 @@
 package com.flowzati.archone.wms.shipment.application.usecase;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
-import com.flowzati.archone.wms.shipment.application.exception.ShipmentApplicationErrorCode;
+import com.flowzati.archone.wms.shipment.application.enums.ShipmentApplicationErrorCode;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;

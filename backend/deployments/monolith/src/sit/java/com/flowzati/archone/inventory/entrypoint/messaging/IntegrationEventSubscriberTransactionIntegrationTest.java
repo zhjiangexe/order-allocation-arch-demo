@@ -8,7 +8,7 @@ import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.ordering.v1.OrderingEventDestinations;
 import com.flowzati.archone.foundation.identity.IdGenerator;
-import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationSubscriberIds;
+import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.messaging.api.ChannelMapping;
@@ -126,12 +126,12 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         ConsumerRecord<String, String> record =
                 record(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId);
 
-        emit(AllocationSubscriberIds.ORDER_PLACEMENT, record);
-        emit(AllocationSubscriberIds.ORDER_PLACEMENT, record);
+        emit(AllocationEventSubscriptions.ORDER_PLACEMENT, record);
+        emit(AllocationEventSubscriptions.ORDER_PLACEMENT, record);
 
-        ResolvedMessageSubscription subscription = subscription(AllocationSubscriberIds.ORDER_PLACEMENT);
-        assertThat(subscription.subscriberId()).isEqualTo(AllocationSubscriberIds.ORDER_PLACEMENT);
-        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationSubscriberIds.ORDER_PLACEMENT);
+        ResolvedMessageSubscription subscription = subscription(AllocationEventSubscriptions.ORDER_PLACEMENT);
+        assertThat(subscription.subscriberId()).isEqualTo(AllocationEventSubscriptions.ORDER_PLACEMENT);
+        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationEventSubscriptions.ORDER_PLACEMENT);
         assertThat(subscription.destinationToLogicalChannel())
                 .containsEntry(OrderingEventDestinations.ORDER_EVENTS, OrderingEventDestinations.ORDER_EVENTS);
         assertThat(inboxCount(eventId)).isOne();
@@ -155,7 +155,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 10, 0));
         jdbcTemplate.update("DELETE FROM stock_operation_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
         assertThatThrownBy(() -> emit(
-                        AllocationSubscriberIds.ORDER_PLACEMENT,
+                        AllocationEventSubscriptions.ORDER_PLACEMENT,
                         record(new OrderPlacedIntegrationEvent(eventId, orderId, receivedAt), orderId)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("has no outbound operation type");
@@ -187,14 +187,14 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
                         KafkaMessageMapper.SERIALIZED_HEADERS,
                         headersCodec.encode(Map.of()).getBytes(StandardCharsets.UTF_8));
 
-        emit(AllocationSubscriberIds.ORDER_PLACEMENT, record);
+        emit(AllocationEventSubscriptions.ORDER_PLACEMENT, record);
 
         assertThat(inboxCount(eventId)).isOne();
         assertThat(count("stock_operations")).isZero();
         assertThat(count("event_outbox")).isZero();
         Timer ignoredTimer = meterRegistry
                 .find(MessagingObservationNames.CONSUMER)
-                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationSubscriberIds.ORDER_PLACEMENT)
+                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationEventSubscriptions.ORDER_PLACEMENT)
                 .tag(MessagingObservationTags.OUTCOME, "ignored_unhandled")
                 .timer();
         assertThat(ignoredTimer).isNotNull();
@@ -218,18 +218,18 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
                         KafkaMessageMapper.SERIALIZED_HEADERS,
                         headersCodec.encode(Map.of()).getBytes(StandardCharsets.UTF_8));
 
-        emit(AllocationSubscriberIds.INVENTORY_AVAILABILITY, record);
+        emit(AllocationEventSubscriptions.INVENTORY_AVAILABILITY, record);
 
-        ResolvedMessageSubscription subscription = subscription(AllocationSubscriberIds.INVENTORY_AVAILABILITY);
-        assertThat(subscription.subscriberId()).isEqualTo(AllocationSubscriberIds.INVENTORY_AVAILABILITY);
-        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationSubscriberIds.INVENTORY_AVAILABILITY);
-        assertThat(inboxCount(AllocationSubscriberIds.INVENTORY_AVAILABILITY, eventId))
+        ResolvedMessageSubscription subscription = subscription(AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
+        assertThat(subscription.subscriberId()).isEqualTo(AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
+        assertThat(subscription.consumerGroupId()).isEqualTo(AllocationEventSubscriptions.INVENTORY_AVAILABILITY);
+        assertThat(inboxCount(AllocationEventSubscriptions.INVENTORY_AVAILABILITY, eventId))
                 .isOne();
         assertThat(count("stock_move_lines")).isZero();
         assertThat(count("event_outbox")).isZero();
         Timer ignoredTimer = meterRegistry
                 .find(MessagingObservationNames.CONSUMER)
-                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationSubscriberIds.INVENTORY_AVAILABILITY)
+                .tag(MessagingObservationTags.SUBSCRIBER_ID, AllocationEventSubscriptions.INVENTORY_AVAILABILITY)
                 .tag(MessagingObservationTags.OUTCOME, "ignored_unhandled")
                 .timer();
         assertThat(ignoredTimer).isNotNull();
@@ -272,7 +272,7 @@ class IntegrationEventSubscriberTransactionIntegrationTest {
     }
 
     private int inboxCount(UUID eventId) {
-        return inboxCount(AllocationSubscriberIds.ORDER_PLACEMENT, eventId);
+        return inboxCount(AllocationEventSubscriptions.ORDER_PLACEMENT, eventId);
     }
 
     private int inboxCount(String subscriberId, UUID eventId) {

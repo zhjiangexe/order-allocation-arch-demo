@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.shipment.infrastructure.persistence.jpa.repository;
 
-import com.flowzati.archone.wms.shipment.domain.type.ShipmentStatus;
+import com.flowzati.archone.wms.shipment.domain.enums.ShipmentStatus;
 import com.flowzati.archone.wms.shipment.infrastructure.persistence.jpa.model.ShipmentEntity;
 import java.time.Instant;
 import java.util.List;

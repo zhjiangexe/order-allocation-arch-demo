@@ -1,6 +1,6 @@
 package com.flowzati.archone.wms.wave.infrastructure.persistence.jpa.model;
 
-import com.flowzati.archone.wms.wave.domain.type.WaveStatus;
+import com.flowzati.archone.wms.wave.domain.enums.WaveStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

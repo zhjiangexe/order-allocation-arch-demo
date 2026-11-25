@@ -36,7 +36,7 @@ public class AllocationOrderPlacedEventConsumer {
                         OrderingEventDestinations.ORDER_EVENTS)
                 .onEvent(OrderPlacedIntegrationEvent.class, envelope -> onOrderPlaced(envelope.event()))
                 .build();
-        return factory.make(AllocationSubscriberIds.ORDER_PLACEMENT, handlers);
+        return factory.make(AllocationEventSubscriptions.ORDER_PLACEMENT, handlers);
     }
 
     void onOrderPlaced(OrderPlacedIntegrationEvent event) {

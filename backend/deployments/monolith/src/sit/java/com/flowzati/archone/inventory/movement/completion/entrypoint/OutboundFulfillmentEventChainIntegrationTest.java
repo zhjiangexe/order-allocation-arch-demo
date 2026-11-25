@@ -10,7 +10,7 @@ import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrati
 import com.flowzati.archone.contracts.inventory.v1.InventoryEventDestinations;
 import com.flowzati.archone.contracts.inventory.v1.StockOperationLifecycleIntegrationEvent;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
-import com.flowzati.archone.inventory.movement.entrypoint.OutboundFulfillmentEventSubscriptions;
+import com.flowzati.archone.inventory.movement.entrypoint.messaging.MovementEventSubscriptions;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.messaging.api.ChannelMapping;
 import com.flowzati.archone.messaging.events.AggregateReference;
@@ -21,9 +21,9 @@ import com.flowzati.archone.messaging.events.IntegrationEventSerializer;
 import com.flowzati.archone.messaging.events.PublicationTarget;
 import com.flowzati.archone.messaging.kafka.KafkaMessageMapper;
 import com.flowzati.archone.messaging.testsupport.ControllableMessageConsumerImplementation;
-import com.flowzati.archone.ordering.application.event.OrderingEventSubscriptions;
 import com.flowzati.archone.ordering.application.store.OrderStore;
-import com.flowzati.archone.ordering.domain.type.OrderStatus;
+import com.flowzati.archone.ordering.domain.enums.OrderStatus;
+import com.flowzati.archone.ordering.entrypoint.messaging.OrderingEventSubscriptions;
 import com.flowzati.archone.testsupport.MovementFixtures;
 import com.flowzati.archone.testsupport.OrderFixtures;
 import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
@@ -108,7 +108,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
         consumeHandover(handover);
         consumeHandover(handover);
 
-        assertThat(inboxClaimExists(OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER, handover.getEventId()))
+        assertThat(inboxClaimExists(MovementEventSubscriptions.SHIPMENT_HANDOVER, handover.getEventId()))
                 .isTrue();
         assertThat(stockQuantStore.findById(stockQuantId)).hasValueSatisfying(stockQuant -> {
             assertThat(stockQuant.getOnHandQuantity()).isEqualTo(7);
@@ -162,7 +162,7 @@ class OutboundFulfillmentEventChainIntegrationTest {
                         event.getOrderId().toString()),
                 event.getHandedOverAt());
         transport.emit(
-                OutboundFulfillmentEventSubscriptions.SHIPMENT_HANDOVER,
+                MovementEventSubscriptions.SHIPMENT_HANDOVER,
                 channelMapping.transform(FulfillmentEventDestinations.FULFILLMENT_HANDOFFS),
                 new IntegrationEventMessageMapper(eventSerializer, eventNameMapping).toMessage(publication),
                 1);

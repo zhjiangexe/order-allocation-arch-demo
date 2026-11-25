@@ -3,10 +3,12 @@ package com.flowzati.archone.fulfillment.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.flowzati.archone.fulfillment.application.enums.CancellationProcessState;
+import com.flowzati.archone.fulfillment.application.enums.OrderingCancellationOutcome;
+import com.flowzati.archone.fulfillment.application.enums.WmsCancellationOutcome;
 import com.flowzati.archone.fulfillment.application.invocation.OrderingCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.invocation.WmsCancellationOutcomeCommand;
 import com.flowzati.archone.fulfillment.application.state.CancellationProcess;
-import com.flowzati.archone.fulfillment.application.state.CancellationProcessState;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -19,23 +21,23 @@ class CancellationProcessTest {
     @Test
     void wmsOutcomesDetermineTheNextProcessState() {
         assertThat(process(CancellationProcessState.WAITING_WMS, null, null)
-                        .onWmsOutcome(wms(WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT)))
+                        .onWmsOutcome(wms(WmsCancellationOutcome.NO_SHIPMENT)))
                 .contains(CancellationProcessState.WAITING_ORDERING);
         assertThat(process(CancellationProcessState.WAITING_WMS, null, null)
-                        .onWmsOutcome(wms(WmsCancellationOutcomeCommand.Outcome.REJECTED)))
+                        .onWmsOutcome(wms(WmsCancellationOutcome.REJECTED)))
                 .contains(CancellationProcessState.REJECTED);
         assertThat(process(CancellationProcessState.WAITING_WMS, null, null)
-                        .onWmsOutcome(wms(WmsCancellationOutcomeCommand.Outcome.MULTIPLE_SHIPMENTS)))
+                        .onWmsOutcome(wms(WmsCancellationOutcome.MULTIPLE_SHIPMENTS)))
                 .contains(CancellationProcessState.CONFLICT);
     }
 
     @Test
     void repeatedWmsOutcomeIsIgnoredButContradictoryOutcomeFails() {
-        CancellationProcess process = process(
-                CancellationProcessState.WAITING_ORDERING, WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT, null);
-        assertThat(process.onWmsOutcome(wms(WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT)))
+        CancellationProcess process =
+                process(CancellationProcessState.WAITING_ORDERING, WmsCancellationOutcome.NO_SHIPMENT, null);
+        assertThat(process.onWmsOutcome(wms(WmsCancellationOutcome.NO_SHIPMENT)))
                 .isEmpty();
-        assertThatThrownBy(() -> process.onWmsOutcome(wms(WmsCancellationOutcomeCommand.Outcome.SHIPMENT_CANCELLED)))
+        assertThatThrownBy(() -> process.onWmsOutcome(wms(WmsCancellationOutcome.SHIPMENT_CANCELLED)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Contradictory WMS");
     }
@@ -44,22 +46,18 @@ class CancellationProcessTest {
     void mismatchedWmsPayloadCannotAdvanceProcess() {
         CancellationProcess process = process(CancellationProcessState.WAITING_WMS, null, null);
         assertThatThrownBy(() -> process.onWmsOutcome(new WmsCancellationOutcomeCommand(
-                        requestId,
-                        orderId,
-                        requestedAt,
-                        "another reason",
-                        WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT)))
+                        requestId, orderId, requestedAt, "another reason", WmsCancellationOutcome.NO_SHIPMENT)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("does not match request");
     }
 
     @Test
     void orderingOutcomeCompletesOrConflicts() {
-        CancellationProcess process = process(
-                CancellationProcessState.WAITING_ORDERING, WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT, null);
-        assertThat(process.onOrderingOutcome(ordering(OrderingCancellationOutcomeCommand.Outcome.SUCCEEDED)))
+        CancellationProcess process =
+                process(CancellationProcessState.WAITING_ORDERING, WmsCancellationOutcome.NO_SHIPMENT, null);
+        assertThat(process.onOrderingOutcome(ordering(OrderingCancellationOutcome.SUCCEEDED)))
                 .contains(CancellationProcessState.COMPLETED);
-        assertThat(process.onOrderingOutcome(ordering(OrderingCancellationOutcomeCommand.Outcome.REJECTED)))
+        assertThat(process.onOrderingOutcome(ordering(OrderingCancellationOutcome.REJECTED)))
                 .contains(CancellationProcessState.CONFLICT);
     }
 
@@ -67,28 +65,27 @@ class CancellationProcessTest {
     void repeatedOrderingOutcomeIsIgnoredButContradictoryOutcomeFails() {
         CancellationProcess process = process(
                 CancellationProcessState.COMPLETED,
-                WmsCancellationOutcomeCommand.Outcome.NO_SHIPMENT,
-                OrderingCancellationOutcomeCommand.Outcome.SUCCEEDED);
-        assertThat(process.onOrderingOutcome(ordering(OrderingCancellationOutcomeCommand.Outcome.SUCCEEDED)))
+                WmsCancellationOutcome.NO_SHIPMENT,
+                OrderingCancellationOutcome.SUCCEEDED);
+        assertThat(process.onOrderingOutcome(ordering(OrderingCancellationOutcome.SUCCEEDED)))
                 .isEmpty();
-        assertThatThrownBy(
-                        () -> process.onOrderingOutcome(ordering(OrderingCancellationOutcomeCommand.Outcome.REJECTED)))
+        assertThatThrownBy(() -> process.onOrderingOutcome(ordering(OrderingCancellationOutcome.REJECTED)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Contradictory Ordering");
     }
 
-    private WmsCancellationOutcomeCommand wms(WmsCancellationOutcomeCommand.Outcome outcome) {
+    private WmsCancellationOutcomeCommand wms(WmsCancellationOutcome outcome) {
         return new WmsCancellationOutcomeCommand(requestId, orderId, requestedAt, "customer request", outcome);
     }
 
-    private OrderingCancellationOutcomeCommand ordering(OrderingCancellationOutcomeCommand.Outcome outcome) {
+    private OrderingCancellationOutcomeCommand ordering(OrderingCancellationOutcome outcome) {
         return new OrderingCancellationOutcomeCommand(requestId, orderId, outcome);
     }
 
     private CancellationProcess process(
             CancellationProcessState state,
-            WmsCancellationOutcomeCommand.Outcome wmsOutcome,
-            OrderingCancellationOutcomeCommand.Outcome orderingOutcome) {
+            WmsCancellationOutcome wmsOutcome,
+            OrderingCancellationOutcome orderingOutcome) {
         return new CancellationProcess(
                 requestId, orderId, requestedAt, "customer request", state, wmsOutcome, orderingOutcome);
     }

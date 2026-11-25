@@ -2,7 +2,7 @@ package com.flowzati.archone.inventory.allocation.application.store;
 
 import com.flowzati.archone.inventory.allocation.application.state.AssignmentQueueKey;
 import com.flowzati.archone.inventory.allocation.application.state.StockOperationPredecessor;
-import com.flowzati.archone.inventory.allocation.domain.policy.AllocationSequencePolicy;
+import com.flowzati.archone.inventory.allocation.domain.enums.AllocationSequencePolicy;
 import com.flowzati.archone.inventory.allocation.domain.valueobject.StockOperationDemand;
 import java.util.Optional;
 import java.util.UUID;

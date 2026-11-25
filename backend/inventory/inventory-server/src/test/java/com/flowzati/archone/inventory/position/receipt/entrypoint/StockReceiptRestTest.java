@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
-import com.flowzati.archone.inventory.balance.application.error.StockBalanceErrorCode;
+import com.flowzati.archone.inventory.balance.application.enums.StockBalanceErrorCode;
 import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.entrypoint.rest.StockReceiptRest;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
