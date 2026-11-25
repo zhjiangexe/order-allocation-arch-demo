@@ -86,7 +86,9 @@ public final class BoundedContextArchitectureRules {
             "inventory", Set.of("BC-14"),
             // 階段 4 處理：fulfillment.configuration 拆解（Q7，BC-15）與 TemporalFulfillmentEventBridge 改為標準
             // Consumer → Usecase 流程（Q3c，BC-28）。處理完即移除此項與凍結檔。
-            "fulfillment", Set.of("BC-15", "BC-28"));
+            "fulfillment", Set.of("BC-15", "BC-28"),
+            // 階段 5 處理：WmsDomainEventHandlers 的邏輯移入 Usecase，改由 entrypoint.event 的 Listener 呼叫（主題 D）。
+            "wms", Set.of("BC-42"));
 
     /** A shared rule and its stable identifier from the rule table in {@code README.md}. */
     public record SharedRule(String id, ArchRule rule) {}
@@ -95,6 +97,7 @@ public final class BoundedContextArchitectureRules {
     public static List<SharedRule> forContext(String basePackage) {
         BoundedContextArchitectureRules rules = new BoundedContextArchitectureRules(basePackage);
         BoundedContextRoleRules roles = new BoundedContextRoleRules(basePackage);
+        BoundedContextApplicationRules app = new BoundedContextApplicationRules(basePackage);
         return List.of(
                 new SharedRule("BC-01", rules.domainDoesNotDependOnOuterLayers()),
                 new SharedRule("BC-02", rules.applicationDoesNotDependOnEntrypointsOrInfrastructure()),
@@ -130,7 +133,17 @@ public final class BoundedContextArchitectureRules {
                 new SharedRule("BC-32", roles.jpaRepositoriesExtendJpaRepository()),
                 new SharedRule("BC-33", roles.storeAdaptersAreNamedAfterTheirStore()),
                 new SharedRule("BC-34", roles.persistenceUsesKnownPackages()),
-                new SharedRule("BC-35", roles.jpaMappersAreMappers()));
+                new SharedRule("BC-35", roles.jpaMappersAreMappers()),
+                new SharedRule("BC-36", app.applicationClassesUseKnownRolePackages()),
+                new SharedRule("BC-37", app.usecasePackageHoldsUsecasesAndInteractors()),
+                new SharedRule("BC-38", app.usecaseOperationsReceiveOneCommand()),
+                new SharedRule("BC-39", app.queryUsecasesAreReadOnly()),
+                new SharedRule("BC-40", app.parameterlessOperationsAreTriggeredBySchedulers()),
+                new SharedRule("BC-41", app.interactorsComposeUsecases()),
+                new SharedRule("BC-42", app.servicePackageHoldsServicesAndCoordinators()),
+                new SharedRule("BC-43", app.servicesStayBelowUsecases()),
+                new SharedRule("BC-44", app.entrypointsEnterThroughUsecases()),
+                new SharedRule("BC-45", app.interactorsOnlyRead()));
     }
 
     /**

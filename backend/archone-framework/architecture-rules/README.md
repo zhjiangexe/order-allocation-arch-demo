@@ -66,6 +66,30 @@ enum → `enums`；有身分且為主體 → `aggregate`；隸屬主體的身分
 | BC-34 | Persistence 類別只能放在 `jpa.model`、`jpa.repository`、`jpa.mapper`、`jpa.store`、`jdbc.store` | 固定位置，新類別不會各自開資料夾 | JDBC 的 row 類別放 `jdbc.store` 並設為 package-private |
 | BC-35 | `jpa.mapper` 只放 `*Mapper` | 角色與命名一致 | 命名 `*Mapper` |
 
+### Application 的角色與呼叫方向（BC-36～BC-45）
+
+一個請求從外面進來的路徑固定是：**entrypoint → Usecase／Interactor → Service／Coordinator → store／port**。
+
+- **Usecase**：一件完整的業務動作，自己開交易。會改變狀態的只收一個 `*Command`。
+- **Interactor**：把 Usecase 串起來的流程，自己只讀不寫。例如「排程撈出一批，逐筆交給 Usecase，某筆失敗不影響其他筆」。
+- **Service**：被多個 Usecase 共用的一段 application 邏輯。它沒有自己的入口，只被 Usecase 或 Coordinator 呼叫。
+- **Coordinator**：把幾個 Service 串起來。
+
+查詢 Usecase 以 `Get`／`List` 開頭，可以直接收識別碼，但只能讀。
+
+| 編號 | 規則 | 為什麼 | 正確做法 |
+| --- | --- | --- | --- |
+| BC-36 | Application 類別只能放在 `enums`、`event`、`invocation`、`policy`、`port`、`result`、`service`、`state`、`store`、`usecase` | 固定位置才看得出角色；直接放在 `application` 根的類別沒有角色 | 依角色選一個；例如 `StockReceiptRequest` 這種「識別碼＋Command」的包裝，應把識別碼併進 Command |
+| BC-37 | `application.usecase` 只放 `*Usecase`、`*Interactor`；這兩種類別也只能放在這裡 | 找業務動作只要看一個資料夾 | 不要用 `*Facade` 等其他名稱包裝 Usecase |
+| BC-38 | `*Usecase`／`*Interactor` 只有一個 public operation。會改變狀態的只收一個 `application.invocation` 的 `*Command`，或在排程批次時不收參數；`Get`／`List` 開頭的查詢可以直接收識別碼 | 一個類別一件事；Command 是輸入的唯一契約，加欄位不必改簽名 | 兩個入口就拆成兩個 Usecase；共用的核心邏輯抽成 `application.service` 的 `*Service` |
+| BC-39 | `Get`／`List` 查詢 Usecase 只能讀：不得依賴 `*Publisher` 或 Application Event；呼叫 store 時只能用 `find`／`get`／`list`／`count`／`exists`／`load`／`search` 開頭的 method | 名稱是查詢，就保證沒有副作用，可以放心重試或快取 | 需要寫入就不要用 `Get`／`List` 命名，改收 Command |
+| BC-40 | 不收參數的 Usecase／Interactor operation 只能由 `entrypoint.schedule` 呼叫 | 不收參數代表「自己去撈該處理的資料」，這只該由排程觸發 | 其他入口要觸發時，定義 Command 傳入要處理的對象 |
+| BC-41 | `*Interactor` 必須組合至少一個 Usecase 或 Interactor；`*Usecase` 不得依賴 Interactor | Interactor 是 Usecase 之上的流程，方向只能往下 | 沒有組合 Usecase 的 Interactor 改名 `*Usecase` |
+| BC-42 | `application.service` 只放 `*Service`、`*Coordinator`；這兩種類別也只能放在這裡 | 名稱即角色；`*Registrar`、`*Completer`、`*Transactions` 這類名稱說不出它在哪一層 | 改名 `*Service`（例如 `InboundReceiptRegistrar` → `InboundReceiptRegistrationService`） |
+| BC-43 | `*Coordinator` 必須組合至少一個 Service 或 Coordinator；`*Service` 不得依賴 Coordinator；`application.service` 不得依賴 `usecase` | Service 在 Usecase 之下；Service 呼叫 Usecase 會讓交易與事件發布的責任混在一起 | 需要 Usecase 裡的一段邏輯時，把那段抽成 Service，讓 Usecase 與原呼叫端都呼叫它 |
+| BC-44 | Entrypoint 只能透過 Usecase／Interactor 進入 application；不得直接使用 `application.service` 或 `application.store` | 入口不繞過 Usecase，交易邊界與檢查才只有一處 | 查詢也建一個 `Get*`／`List*` Usecase |
+| BC-45 | `*Interactor` 只能讀：不得依賴 `*Publisher` 或 Application Event；呼叫 store 時只能用讀取動詞開頭的 method（同 BC-39） | Interactor 只負責撈清單、逐筆轉交、隔離失敗；寫入若分散在 Interactor 與 Usecase 兩處，直接呼叫 Usecase 的人就會漏掉那段寫入 | 寫入（包含冪等登記）移進 Usecase；例如收貨編號的登記在 `ConfirmStockReceiptUsecase` 同一交易內完成 |
+
 `domain`、`entrypoint`、`infrastructure` 不存在的 context（例如 fulfillment 沒有 domain）可以通過；但 `application`
 不存在時 BC-02 一定失敗，避免根套件寫錯讓所有規則空轉通過。
 
@@ -81,6 +105,7 @@ monolith 的總測試對這些項目標示為 skipped，凍結檔只存一份。
 | inventory | BC-14 | allocation、balance、movement 之間既有三組雙向依賴；重整方案已定案，2026-11-25 決定延後執行 | 執行 inventory 模組重整後 |
 | fulfillment | BC-15 | `fulfillment.configuration` 不屬於任何 layer | 套件統一階段 4 拆解 `configuration` 後 |
 | fulfillment | BC-28 | `TemporalFulfillmentEventBridge` 在 entrypoint 直接呼叫 Temporal，不是 `*EventConsumer` | 套件統一階段 4 改為 Consumer → Usecase → port 後 |
+| wms | BC-42 | `WmsDomainEventHandlers` 放在 `application.service` 但不是 Service：它接收 Application Event 並執行業務邏輯 | 套件統一階段 5 把邏輯移入 Usecase、由 Listener 呼叫後 |
 
 新增延後項目前必須先在上表登記原因與移除時機；凍結檔不得手動編輯，`archunit.properties` 也不得開啟
 `freeze.refreeze`。

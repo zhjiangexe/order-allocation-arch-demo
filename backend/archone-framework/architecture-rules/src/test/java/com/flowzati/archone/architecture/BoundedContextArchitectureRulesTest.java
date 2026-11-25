@@ -136,7 +136,26 @@ class BoundedContextArchitectureRulesTest {
             new Violation("BC-33", "storeimpl"),
             new Violation("BC-33", "publicstorehelper"),
             new Violation("BC-34", "persistenceunknown"),
-            new Violation("BC-35", "mappername"));
+            new Violation("BC-35", "mappername"),
+            new Violation("BC-36", "applicationroot"),
+            new Violation("BC-36", "applicationunknown"),
+            new Violation("BC-37", "usecasepackagehelper"),
+            new Violation("BC-37", "usecaseoutside"),
+            new Violation("BC-38", "usecasetwooperations"),
+            new Violation("BC-38", "usecaseidparameter"),
+            new Violation("BC-39", "querypublishes"),
+            new Violation("BC-39", "querywrites"),
+            new Violation("BC-40", "parameterlessfromrest"),
+            new Violation("BC-41", "interactorwithoutusecase"),
+            new Violation("BC-41", "usecaseusesinteractor"),
+            new Violation("BC-42", "servicepackagehelper"),
+            new Violation("BC-42", "serviceoutside"),
+            new Violation("BC-43", "coordinatorwithoutservice"),
+            new Violation("BC-43", "serviceusescoordinator"),
+            new Violation("BC-43", "serviceusesusecase"),
+            new Violation("BC-44", "entrypointusesstore"),
+            new Violation("BC-44", "entrypointusesservice"),
+            new Violation("BC-45", "interactorwrites"));
 
     @TestFactory
     @DisplayName("每條規則都會擋下對應的違規")

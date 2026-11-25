@@ -17,8 +17,11 @@ Reservation、Position、Location 的唯一 owner。
 - Application orchestration 依既有角色收納：
   - `application.invocation`：use case 輸入的 `*Command`／`*Query` record，以及只被它們欄位使用的組成 record
     （例如 `MovementLine`）（共用規則 BC-25）。
-  - `application.usecase`：對外 Application use case。
-  - `application.service`：由 use case 使用的 Application component 或 transaction helper。
+  - `application.usecase`：對外 Application use case（`*Usecase`）與組合多個 Usecase 的 `*Interactor`（BC-37）。
+    會改變狀態的 operation 只收一個 `*Command`；`Get`／`List` 開頭的查詢可以直接收識別碼但只能讀；不收參數的
+    批次只由 `entrypoint.schedule` 呼叫；Interactor 只讀不寫，冪等登記這類寫入放在 Usecase 同一交易（BC-38～BC-41、BC-45）。Entrypoint 一律經過這裡，不直接用 service 或 store（BC-44）。
+  - `application.service`：被多個 use case 共用的 Application 邏輯，只能命名 `*Service` 或 `*Coordinator`，且不得
+    呼叫 Usecase（BC-42、BC-43）。例如 `StockOperationReleaseService` 同時被釋放與取消兩個流程使用。
   - `application.policy`：transaction、retry、lock ordering 等 Application coordination policy。
   - `application.store`：Inventory 自訂的所有 `*Store` data-access 純介面（BC-24）。
   - `application.port`：非 data-access 的外部協作 interface，包含具名 Application event Publisher，以及只屬於
@@ -33,8 +36,7 @@ Reservation、Position、Location 的唯一 owner。
   唯一例外是 enum：一律放在同層的 `enums`（BC-17），這是專案慣例而非 DDD 分類。
 - 不建立通用 `dto`、`type`、`input`、`output`、`model`、`error`、`exception` 雜物 package；例外類別使用
   foundation 共用的例外型別，錯誤代碼是 enum，放 `enums`。
-- 目前允許留在 Application root 的只有 `StockReceiptRequest`（套件統一階段 3 會併入 `ConfirmStockReceiptCommand`）；
-  不得新增 root type。
+- Application root 不得放任何型別（BC-36）；收貨冪等用的 `receiptId` 是 `ConfirmStockReceiptCommand` 的欄位。
 - Domain package 只容納 authoritative business facts、state、invariants 與純 domain policy。Workflow status、
   lifecycle publication action、caller checkpoint 等 Application vocabulary 不得放入 Domain。
 - Domain 型別不得直接放在 `domain` root，只能放在下列子套件（BC-16）。判斷順序由上而下，第一個符合的即是：

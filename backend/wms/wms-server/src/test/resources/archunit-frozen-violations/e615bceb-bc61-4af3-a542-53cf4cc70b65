@@ -1,0 +1,1 @@
+Class <com.flowzati.archone.wms.process.application.service.WmsDomainEventHandlers> does not have name matching '.*(Service|Coordinator)$' in (WmsDomainEventHandlers.java:0)

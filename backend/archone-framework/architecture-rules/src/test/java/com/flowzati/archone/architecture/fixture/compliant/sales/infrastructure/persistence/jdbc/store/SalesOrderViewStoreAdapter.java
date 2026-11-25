@@ -6,7 +6,7 @@ import java.util.List;
 public class SalesOrderViewStoreAdapter implements SalesOrderViewStore {
 
     @Override
-    public List<String> orderIds() {
+    public List<String> findOrderIds() {
         return new SalesOrderViewRows().ids();
     }
 }

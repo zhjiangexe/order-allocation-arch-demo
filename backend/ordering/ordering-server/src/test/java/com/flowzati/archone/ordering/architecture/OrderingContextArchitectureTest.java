@@ -36,7 +36,6 @@ class OrderingContextArchitectureTest {
     private static final String INVOCATION_PACKAGE_ROOT = BASE_PACKAGE + ".application.invocation";
     private static final String INVOCATION_PACKAGE = INVOCATION_PACKAGE_ROOT + "..";
     private static final String USECASE_PACKAGE = BASE_PACKAGE + ".application.usecase..";
-    private static final String APPLICATION_SERVICE_PACKAGE = BASE_PACKAGE + ".application.service..";
     private static final String APPLICATION_PORT_PACKAGE = BASE_PACKAGE + ".application.port..";
     private static final String APPLICATION_STORE_PACKAGE = BASE_PACKAGE + ".application.store..";
     private static final String ENTRYPOINT_PACKAGE = BASE_PACKAGE + ".entrypoint..";
@@ -82,34 +81,6 @@ class OrderingContextArchitectureTest {
         }
 
         @Test
-        @DisplayName("Application usecase package 只能包含 Usecase 或 Interactor")
-        void applicationUsecasePackageContainsOnlyUsecasesOrInteractors() {
-            classes()
-                    .that()
-                    .resideInAPackage(USECASE_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveNameMatching(".*(Usecase|Interactor)$")
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Application 的 Usecase 與 Interactor 只能位於 usecase package")
-        void applicationUsecasesAndInteractorsBelongToUsecasePackage() {
-            classes()
-                    .that()
-                    .resideInAPackage(APPLICATION_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .and()
-                    .haveNameMatching(".*(Usecase|Interactor)$")
-                    .should()
-                    .resideInAPackage(USECASE_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
         @DisplayName("Usecase 與 Interactor 只能有一個 public operation，且只能接收一個 Command 或 Query")
         void usecasesAndInteractorsExposeOneInvocationOperation() {
             classes()
@@ -120,107 +91,6 @@ class OrderingContextArchitectureTest {
                     .and()
                     .haveNameMatching(".*(Usecase|Interactor)$")
                     .should(haveSinglePublicOperationWithInvocationParameter())
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Interactor 必須依賴 usecase package 中至少一個 Usecase 或另一個 Interactor")
-        void interactorsDependOnUsecasesOrOtherInteractors() {
-            classes()
-                    .that()
-                    .resideInAPackage(USECASE_PACKAGE)
-                    .and()
-                    .haveSimpleNameEndingWith("Interactor")
-                    .should()
-                    .dependOnClassesThat(resideInAPackage(USECASE_PACKAGE)
-                            .and(simpleNameEndingWith("Usecase").or(simpleNameEndingWith("Interactor"))))
-                    .allowEmptyShould(true)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Usecase 不得反向依賴 Interactor")
-        void usecasesDoNotDependOnInteractors() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(USECASE_PACKAGE)
-                    .and()
-                    .haveSimpleNameEndingWith("Usecase")
-                    .should()
-                    .dependOnClassesThat(resideInAPackage(USECASE_PACKAGE).and(simpleNameEndingWith("Interactor")))
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Application service package 只能包含 Service 或 Coordinator")
-        void applicationServicePackageContainsOnlyServicesOrCoordinators() {
-            classes()
-                    .that()
-                    .resideInAPackage(APPLICATION_SERVICE_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveNameMatching(".*(Service|Coordinator)$")
-                    .allowEmptyShould(true)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Application 的 Service 與 Coordinator 只能位於 service package")
-        void applicationServicesAndCoordinatorsBelongToServicePackage() {
-            classes()
-                    .that()
-                    .resideInAPackage(APPLICATION_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .and()
-                    .haveNameMatching(".*(Service|Coordinator)$")
-                    .should()
-                    .resideInAPackage(APPLICATION_SERVICE_PACKAGE)
-                    .allowEmptyShould(true)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Coordinator 必須依賴 service package 中至少一個 Service 或另一個 Coordinator")
-        void coordinatorsDependOnServicesOrOtherCoordinators() {
-            classes()
-                    .that()
-                    .resideInAPackage(APPLICATION_SERVICE_PACKAGE)
-                    .and()
-                    .haveSimpleNameEndingWith("Coordinator")
-                    .should()
-                    .dependOnClassesThat(resideInAPackage(APPLICATION_SERVICE_PACKAGE)
-                            .and(simpleNameEndingWith("Service").or(simpleNameEndingWith("Coordinator"))))
-                    .allowEmptyShould(true)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Service 不得反向依賴 Coordinator")
-        void servicesDoNotDependOnCoordinators() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(APPLICATION_SERVICE_PACKAGE)
-                    .and()
-                    .haveSimpleNameEndingWith("Service")
-                    .should()
-                    .dependOnClassesThat(
-                            resideInAPackage(APPLICATION_SERVICE_PACKAGE).and(simpleNameEndingWith("Coordinator")))
-                    .allowEmptyShould(true)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Application service package 不得反向依賴 usecase package")
-        void applicationServicesDoNotDependOnUsecases() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(APPLICATION_SERVICE_PACKAGE)
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAPackage(USECASE_PACKAGE)
-                    .allowEmptyShould(true)
                     .check(ORDERING_CLASSES);
         }
 

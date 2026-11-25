@@ -47,14 +47,15 @@
 ### `application.usecase`
 
 - Top-level type 只能是 `*Usecase` 或 `*Interactor`。
-- Ordering Application 中所有 `*Usecase`／`*Interactor` 都必須位於此 package。
+- Ordering Application 中所有 `*Usecase`／`*Interactor` 都必須位於此 package（共用規則 BC-37）。
 - 每個 `*Usecase`／`*Interactor` 只能宣告一個非 static public operation；method name 使用具體業務動詞，
   不強制統一為 `execute`。
 - 該 operation 必須剛好接收一個 `application.invocation` 中的 `*Command` 或 `*Query`；不得使用多個 scalar、
-  Domain object 或 transport DTO 作為 public application input。
+  Domain object 或 transport DTO 作為 public application input。這比共用規則 BC-38 嚴格：共用規則允許
+  `Get`／`List` 查詢直接收識別碼，Ordering 的查詢仍使用 `*Query`。
 - Constructor 與 private／package-private helper 不屬於 public operation，不受上述參數形狀限制。
 - `*Interactor` 必須依賴同 package 中至少一個 `*Usecase` 或另一個 `*Interactor`。
-- `*Usecase` 不得反向依賴 `*Interactor`。
+- `*Usecase` 不得反向依賴 `*Interactor`（共用規則 BC-41）。
 - Usecase／Interactor 可以依賴 `application.service` 中的 Service／Coordinator。
 - 不得依賴 transport DTO、Entrypoint、Infrastructure 或 versioned Integration Event contracts。
 
@@ -64,7 +65,7 @@
 - Ordering Application 中所有 `*Service`／`*Coordinator` 都必須位於此 package。
 - `*Coordinator` 必須依賴同 package 中至少一個 `*Service` 或另一個 `*Coordinator`。
 - `*Service` 不得反向依賴 `*Coordinator`。
-- Service／Coordinator 不得反向依賴 `application.usecase`。
+- Service／Coordinator 不得反向依賴 `application.usecase`（共用規則 BC-42、BC-43）。
 - Application service 表達可重用的 application capability；跨 use case 的流程編排才使用 Coordinator。
 
 ### Ports and events

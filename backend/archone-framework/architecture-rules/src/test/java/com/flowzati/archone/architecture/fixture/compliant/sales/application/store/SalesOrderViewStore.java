@@ -3,5 +3,5 @@ package com.flowzati.archone.architecture.fixture.compliant.sales.application.st
 import java.util.List;
 
 public interface SalesOrderViewStore {
-    List<String> orderIds();
+    List<String> findOrderIds();
 }
