@@ -1,12 +1,12 @@
 [versions]
-springBoot = "4.0.9"
+springBoot = "4.0.10"
 springCloud = "2025.1.4"
 springModulith = "2.0.9"
 dependencyManagement = "1.1.7"
 java = "25"
 uuid-creator = "6.1.1"
-temporal = "1.40.0"
-spotless = "8.11.0"
+temporal = "1.41.1"
+spotless = "8.12.0"
 palantirJavaFormat = "2.103.0"
 archunit = "1.5.1"
 # 傳遞相依的安全性修補版本, 由 build.gradle 的 dependencyManagement 套用。
