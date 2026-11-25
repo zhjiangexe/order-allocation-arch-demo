@@ -6,7 +6,9 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
-import java.util.function.Function;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -79,75 +81,98 @@ class BoundedContextArchitectureRulesTest {
         assertThat(failures).isPositive();
     }
 
+    /** 每個違規 fixture 套件與它必須觸發的規則編號。一條規則可以有多個 fixture，涵蓋不同的違規形狀。 */
+    private static final List<Violation> VIOLATIONS = List.of(
+            new Violation("BC-01", "domainouter"),
+            new Violation("BC-02", "applicationouter"),
+            new Violation("BC-03", "entrypointinfra"),
+            new Violation("BC-04", "infraentrypoint"),
+            new Violation("BC-05", "businesscontract"),
+            new Violation("BC-05", "businesspublication"),
+            new Violation("BC-05", "businesspublisher"),
+            new Violation("BC-06", "publisheroutsideadapter"),
+            new Violation("BC-06", "businesspublisher"),
+            new Violation("BC-07", "messageproducer"),
+            new Violation("BC-08", "adapterwithoutport"),
+            new Violation("BC-09", "transportname"),
+            new Violation("BC-10", "impuretranslator"),
+            new Violation("BC-11", "consumerpublishes"),
+            new Violation("BC-12", "splitpublisher"),
+            new Violation("BC-13", "domaincycle"),
+            new Violation("BC-14", "modulecycle"),
+            new Violation("BC-15", "nolayer"),
+            new Violation("BC-16", "unknowndomainrole"),
+            new Violation("BC-16", "domainroot"),
+            new Violation("BC-17", "enumoutside"),
+            new Violation("BC-17", "nestedenum"),
+            new Violation("BC-17", "enumspackagerecord"),
+            new Violation("BC-18", "mutablevalue"),
+            new Violation("BC-19", "servicesubpackage"),
+            new Violation("BC-20", "implsuffix"),
+            new Violation("BC-21", "servicename"),
+            new Violation("BC-21", "servicemutable"),
+            new Violation("BC-22", "serviceimplreferenced"),
+            new Violation("BC-23", "serviceunimplemented"),
+            new Violation("BC-24", "storeclass"),
+            new Violation("BC-24", "storename"),
+            new Violation("BC-25", "invocationloose"),
+            new Violation("BC-25", "invocationclass"),
+            new Violation("BC-26", "entrypointroot"),
+            new Violation("BC-26", "entrypointunknown"),
+            new Violation("BC-27", "restflat"),
+            new Violation("BC-27", "restnotcontroller"),
+            new Violation("BC-27", "restresponseclass"),
+            new Violation("BC-28", "messagingrole"),
+            new Violation("BC-28", "twosubscriptions"),
+            new Violation("BC-28", "subscriptionsfield"),
+            new Violation("BC-29", "schedulename"),
+            new Violation("BC-30", "temporalname"),
+            new Violation("BC-31", "modelembeddable"),
+            new Violation("BC-31", "primarykeynotembeddedid"),
+            new Violation("BC-31", "entityoutsidemodel"),
+            new Violation("BC-32", "repositoryname"),
+            new Violation("BC-32", "repositorynotjpa"),
+            new Violation("BC-33", "storeprefix"),
+            new Violation("BC-33", "storeimpl"),
+            new Violation("BC-33", "publicstorehelper"),
+            new Violation("BC-34", "persistenceunknown"),
+            new Violation("BC-35", "mappername"));
+
     @TestFactory
     @DisplayName("每條規則都會擋下對應的違規")
     Stream<DynamicTest> everyRuleRejectsItsViolation() {
-        return Stream.of(
-                        violation("domainouter", BoundedContextArchitectureRules::domainDoesNotDependOnOuterLayers),
-                        violation(
-                                "applicationouter",
-                                BoundedContextArchitectureRules::applicationDoesNotDependOnEntrypointsOrInfrastructure),
-                        violation(
-                                "entrypointinfra",
-                                BoundedContextArchitectureRules::entrypointsDoNotDependOnInfrastructure),
-                        violation(
-                                "infraentrypoint",
-                                BoundedContextArchitectureRules::infrastructureDoesNotDependOnEntrypoints),
-                        violation(
-                                "businesscontract",
-                                BoundedContextArchitectureRules::businessCodeDoesNotDependOnIntegrationEventBoundary),
-                        violation(
-                                "businesspublication",
-                                BoundedContextArchitectureRules::businessCodeDoesNotDependOnIntegrationEventBoundary),
-                        violation(
-                                "businesspublisher",
-                                BoundedContextArchitectureRules::businessCodeDoesNotDependOnIntegrationEventBoundary),
-                        violation(
-                                "publisheroutsideadapter",
-                                BoundedContextArchitectureRules
-                                        ::onlyIntegrationEventAdaptersUseIntegrationEventPublisher),
-                        violation(
-                                "businesspublisher",
-                                BoundedContextArchitectureRules
-                                        ::onlyIntegrationEventAdaptersUseIntegrationEventPublisher),
-                        violation(
-                                "messageproducer", BoundedContextArchitectureRules::noClassUsesMessageProducerDirectly),
-                        violation(
-                                "adapterwithoutport",
-                                BoundedContextArchitectureRules
-                                        ::integrationEventAdaptersImplementPublisherPortsAndPublish),
-                        violation(
-                                "transportname",
-                                BoundedContextArchitectureRules::integrationEventAdaptersAreNotNamedAfterTransport),
-                        violation(
-                                "impuretranslator", BoundedContextArchitectureRules::translatorsArePureTransformations),
-                        violation(
-                                "consumerpublishes",
-                                BoundedContextArchitectureRules::entrypointsDoNotPublishOutboundEvents),
-                        violation(
-                                "splitpublisher",
-                                BoundedContextArchitectureRules::publisherPortsReceiveOneCompleteEvent),
-                        violation(
-                                "domaincycle",
-                                BoundedContextArchitectureRules::domainSubpackagesOfEachModuleAreFreeOfCycles),
-                        violation("modulecycle", BoundedContextArchitectureRules::modulesAreFreeOfCycles),
-                        violation("nolayer", BoundedContextArchitectureRules::everyClassBelongsToALayer))
+        return VIOLATIONS.stream()
                 .map(violation -> DynamicTest.dynamicTest(violation.displayName(), violation::assertRejected));
     }
 
-    private static Violation violation(String fixture, Function<BoundedContextArchitectureRules, ArchRule> rule) {
-        return new Violation(fixture, rule.apply(new BoundedContextArchitectureRules(VIOLATION + fixture)));
+    @Test
+    @DisplayName("每條規則都至少有一個違規 fixture，證明它真的會擋")
+    void everyRuleHasAViolationFixture() {
+        Set<String> covered = VIOLATIONS.stream().map(Violation::ruleId).collect(Collectors.toSet());
+
+        assertThat(BoundedContextArchitectureRules.forContext(FIXTURE + ".compliant"))
+                .extracting(BoundedContextArchitectureRules.SharedRule::id)
+                .allSatisfy(id ->
+                        assertThat(covered).as("violation fixture for %s", id).contains(id));
     }
 
-    private record Violation(String fixture, ArchRule rule) {
+    private record Violation(String ruleId, String fixture) {
+
+        ArchRule rule() {
+            return BoundedContextArchitectureRules.forContext(VIOLATION + fixture).stream()
+                    .filter(shared -> shared.id().equals(ruleId))
+                    .findFirst()
+                    .orElseThrow()
+                    .rule();
+        }
 
         String displayName() {
-            return fixture + " → " + rule.getDescription();
+            return fixture + " → " + rule().getDescription();
         }
 
         void assertRejected() {
-            assertThat(rule.evaluate(FIXTURE_CLASSES).hasViolation())
-                    .as("%s should reject fixture %s", rule.getDescription(), fixture)
+            assertThat(rule().evaluate(FIXTURE_CLASSES).hasViolation())
+                    .as("%s should reject fixture %s", ruleId, fixture)
                     .isTrue();
         }
     }

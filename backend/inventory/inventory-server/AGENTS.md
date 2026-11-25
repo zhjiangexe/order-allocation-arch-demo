@@ -8,41 +8,45 @@ Reservation、Position、Location 的唯一 owner。
 
 - 模組的 Spring Bean 組裝設定放在 `<module>.infrastructure.configuration`；Application／Domain
   不得反向依賴 Infrastructure 的組裝設定。
-- 執行期技術行為依職責留在 Infrastructure，例如 AOP 例外轉換放在 `infrastructure.aop`，不放 configuration。
+- 執行期技術行為依職責留在 Infrastructure，例如 AOP 例外轉換放在 `infrastructure.aop`，不放 configuration；
+  監控用的 health indicator／metrics 屬於技術元件，放在 `<module>.infrastructure.observability`（2026-11-25 決定：
+  不視為 entrypoint，可直接讀取該模組的 Store 做唯讀檢查）。
 - 跨模組的部署組裝保留在 deployment 的 `bootstrap.configuration`。
 
 - 維持目前 module-first、layer-second 的 package 結構；未經明確架構變更，不要自行改成 feature-first。
 - Application orchestration 依既有角色收納：
-  - `application.command`：改變狀態的 command 與其專屬輸入明細。
+  - `application.invocation`：use case 輸入的 `*Command`／`*Query` record，以及只被它們欄位使用的組成 record
+    （例如 `MovementLine`）（共用規則 BC-25）。
   - `application.usecase`：對外 Application use case。
   - `application.service`：由 use case 使用的 Application component 或 transaction helper。
   - `application.policy`：transaction、retry、lock ordering 等 Application coordination policy。
-  - `application.store`：Inventory 自訂的所有 `*Store` data-access interface。
+  - `application.store`：Inventory 自訂的所有 `*Store` data-access 純介面（BC-24）。
   - `application.port`：非 data-access 的外部協作 interface，包含具名 Application event Publisher，以及只屬於
     該 port contract 的 target／decision。
-  - `application.projection`：只供內部 selection／planning 使用的 immutable persistence projection。
-  - `application.view`：visibility query、operator query 或 diagnostic query 回傳的 immutable read model。
-  - `application.result`：use case、application service 或 transaction boundary 的完成結果及其專屬明細。
+  - `application.result`：use case、application service 或 transaction boundary 的完成結果及其專屬明細，
+    包含查詢回傳的 immutable read model（例如 `StockLocationView`）。
+  - `application.state`：transaction working set（例如 `StockOperationComposite`、`MoveQuantAllocationSet`）。
   - `application.event`：Application publisher 的事件語彙與 immutable payload；即使名稱含 `Snapshot`，仍以
     主要用途判斷。
-  - `application.valueobject`：具 value equality 與不變式、沒有獨立 identity/lifecycle 的 workflow-scoped
-    value。
-  - `application.exception`：由 Application workflow 判斷並拋出的例外。
-- 型別依主要責任分包，不依 Java 形狀分包：`record` 不必然是 value object，`enum` 不建立 `type` package，
-  publisher payload 優先視為 event，query projection 優先視為 view／projection。
-- 無法單一判定角色的 application working model 暫留 owning module 的 `application` root，並記錄原因；
-  不建立通用 `dto`、`type`、`input`、`output` 或 `model` 雜物 package。
-- 目前允許留在 Application root 的只有 `StockOperationComposite`、`StockReceiptRequest`、
-  `MoveQuantAllocationSet`；新增 root type 前必須先證明它無法歸入既有角色 package，並同步更新 living
-  architecture。
+  - `application.enums`：Application 層的 enum（error code、workflow status、lifecycle action 等）。
+- 型別依主要責任分包，不依 Java 形狀分包：`record` 不必然是 value object，publisher payload 優先視為 event。
+  唯一例外是 enum：一律放在同層的 `enums`（BC-17），這是專案慣例而非 DDD 分類。
+- 不建立通用 `dto`、`type`、`input`、`output`、`model`、`error`、`exception` 雜物 package；例外類別使用
+  foundation 共用的例外型別，錯誤代碼是 enum，放 `enums`。
+- 目前允許留在 Application root 的只有 `StockReceiptRequest`（套件統一階段 3 會併入 `ConfirmStockReceiptCommand`）；
+  不得新增 root type。
 - Domain package 只容納 authoritative business facts、state、invariants 與純 domain policy。Workflow status、
   lifecycle publication action、caller checkpoint 等 Application vocabulary 不得放入 Domain。
-- Domain 型別不得直接放在 `domain` root：
+- Domain 型別不得直接放在 `domain` root，只能放在下列子套件（BC-16）。判斷順序由上而下，第一個符合的即是：
+  - `domain.enums`：所有 Domain enum（Status、State、Type、Policy 選項等固定選項）。
   - `domain.aggregate`：具有 identity、獨立 lifecycle 與 transaction consistency boundary 的 aggregate root。
   - `domain.entity`：具有 identity，但尚未形成或不擁有獨立 aggregate boundary 的 Domain entity。
-  - `domain.valueobject`：沒有獨立 identity/lifecycle、以值表達穩定 Domain 概念；Domain enum 也歸此類。
-  - `domain.policy`：具名且可重用的純業務決策規則或 policy vocabulary。
-  - `domain.service`：不自然屬於單一 aggregate 的 stateless pure domain calculation contract/implementation。
+  - `domain.valueobject`：沒有獨立 identity/lifecycle、以內容決定相等性的值；必須是 record，或 final class＋
+    全部欄位 final＋覆寫 `equals`／`hashCode`（BC-18）。
+  - `domain.service`：不自然屬於單一 aggregate 的 stateless pure domain calculation。介面與實作同一資料夾、
+    不開 `impl`；實作名稱＝做法描述＋介面名稱（例如 `ShipCompleteFefoStockAllocationPlanner`），欄位全部
+    final；只有 `infrastructure.configuration` 可以引用實作（BC-19～BC-23）。
+  - `domain.policy`：具名、可替換的純業務決策規則 class（固定選項的 enum 放 `domain.enums`）。
 - `Demand`、`Supply`、`Proposal` 是類別的 Domain 名詞，不是技術 package；沒有獨立 identity/lifecycle 且
   以內容決定相等性的 pure planning input/output 放在 `domain.valueobject`。
 - Domain 不建立 `dto`、`view`、`command`、`result`、`projection` 或 `event` package；這些是 Application、
@@ -77,16 +81,20 @@ Reservation、Position、Location 的唯一 owner。
 - JDBC 目前使用 `infrastructure.persistence.jdbc.store`，收納 Application `*Store` 的 JDBC 實作，以及必須
   與實作共用 package-private 存取權限的 row-folding collaborator。
 - JPA 使用下列技術角色：
-  - `infrastructure.persistence.jpa.entity`：`@Entity`、composite key 等 JPA persistence model。
+  - `infrastructure.persistence.jpa.model`：`@Entity` 的 `*Entity`，以及多欄位主鍵 `*PrimaryKey`
+    （`@Embeddable`，由 entity 以 `@EmbeddedId` 使用，主鍵欄位只定義一次；不使用 `@IdClass`）（BC-31）。
   - `infrastructure.persistence.jpa.repository`：Spring Data `Jpa*Repository` interface。
   - `infrastructure.persistence.jpa.mapper`：Domain 與 JPA entity 的轉換。
   - `infrastructure.persistence.jpa.store`：實作 Application `*Store` 並協調 repository/mapper 的 adapter。
+- Store 實作（JPA 與 JDBC 皆同）命名為「介面名稱＋`Adapter`」，例如 `StockQuantStore` → `StockQuantStoreAdapter`；
+  不加 `Jpa`／`Jdbc` 前綴（技術看資料夾），不用 `*Impl`（BC-20、BC-33）。只供它使用的輔助類別必須是
+  package-private。
 - 不為未出現的角色預建空 package。可重用 SQL、converter、codec 或 JDBC support 真正形成獨立責任時，才建立
   `query`、`converter`、`codec` 或 `support`。
 - JDBC 不建立假的 `entity` package；SQL row 若只服務單一 Store，保留為 private/nested type 或同一
   `jdbc.store` 的 package-private collaborator。
 - Domain 與 Infrastructure 不鏡像分包：`domain.entity` 表達 Domain identity/lifecycle，
-  `persistence.jpa.entity` 表達 ORM mapping，兩者語意不同。
+  `persistence.jpa.model` 表達 ORM mapping，兩者語意不同；這也是 JPA 資料夾不叫 `entity` 的原因。
 
 ## Store rules
 
@@ -102,6 +110,7 @@ Reservation、Position、Location 的唯一 owner。
 - 其他 top-level production class 若需要 import `Parent.Child`，原則上應將 `Child` 外提成獨立 top-level file。
 - 跨 class method signature、Application port、Store result 或 controller request/response 的型別必須是可辨識
   owner 的 top-level type。
+- Domain／Application 的 enum 一律是 top-level（BC-17），不得寫在其他類別內部。
 - 以下情況可以保留 nested type：
   - private local key、row、queue 或單一演算法的 implementation detail；
   - sealed interface 的封閉 variants；
@@ -109,6 +118,16 @@ Reservation、Position、Location 的唯一 owner。
 - JDBC row folding 已形成獨立責任時，抽成同一 `persistence.jdbc.store` package 的 package-private
   collaborator；
   collaborator 自己的 private row buffers 可以繼續 nested。
+
+## Entrypoint package rules
+
+- Entrypoint 依觸發來源分資料夾：`rest`、`messaging`、`temporal`、`schedule`，不得放在 entrypoint 根（BC-26）。
+- `entrypoint.rest` 根只放 `@RestController` 的 `*Rest`；`rest.request` 放 `*Request` record；`rest.response`
+  放 `*Response` record（BC-27）。
+- `entrypoint.messaging` 只放 `*EventConsumer`，以及每個模組唯一一個 `<Module>EventSubscriptions`
+  （例如 `AllocationEventSubscriptions`、`MovementEventSubscriptions`）（BC-28）。Subscriptions 的常數**值**
+  已寫入 Inbox 去重紀錄，永遠不可修改。
+- `entrypoint.schedule` 只放 `*Scheduler`（BC-29）；`entrypoint.temporal` 只放 `*Adapter`（BC-30）。
 
 ## Adapter ownership
 
@@ -120,8 +139,9 @@ Reservation、Position、Location 的唯一 owner。
 ## Architecture gate
 
 - `InventorySharedBoundaryArchitectureTest` 套用 `:archone-framework:architecture-rules` 的
-  `BoundedContextArchitectureRules`，驗證 layer 依賴方向、Integration Event 邊界與模組無循環。規則編號、理由與
-  正確做法見 `backend/archone-framework/architecture-rules/README.md`。
+  `BoundedContextArchitectureRules`，驗證 layer 依賴方向、Integration Event 邊界、模組無循環，以及上述各
+  package 的角色與命名（本檔標註的 `BC-xx`）。規則編號、理由與正確做法見
+  `backend/archone-framework/architecture-rules/README.md`。
 - 模組間循環（BC-14）目前以 freeze 延後處理：既有循環記在 `src/test/resources/archunit-frozen-violations`，
   **新增任何跨模組雙向依賴都會失敗**。不得編輯凍結檔或開啟 refreeze。
 - 不得以排除類別或放寬 package predicate 讓新程式碼通過；架構決策改變時先更新本檔與共用規則。

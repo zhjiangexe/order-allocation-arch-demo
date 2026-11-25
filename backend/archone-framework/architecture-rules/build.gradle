@@ -9,6 +9,9 @@ dependencies {
 
     testImplementation project(':archone-framework:messaging:messaging-api')
     testImplementation project(':archone-framework:messaging:messaging-events')
+    // fixture 需要 JPA、Spring Data 與 Spring MVC 的 annotation／介面，才能驗證 persistence 與 REST 規則。
+    testImplementation libs.spring.boot.starter.data.jpa
+    testImplementation libs.spring.boot.starter.webmvc
     testImplementation libs.spring.boot.starter.test
     testRuntimeOnly libs.junit.platform.launcher
 }

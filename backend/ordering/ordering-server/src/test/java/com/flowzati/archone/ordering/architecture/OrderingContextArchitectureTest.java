@@ -63,26 +63,6 @@ class OrderingContextArchitectureTest {
     class ApplicationLayer {
 
         @Test
-        @DisplayName("Application invocation 只能是 top-level record，且名稱以 Command 或 Query 結尾")
-        void applicationInvocationsAreCommandsOrQueriesAndRecords() {
-            classes()
-                    .that()
-                    .resideInAPackage(INVOCATION_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveNameMatching(".*(Command|Query)$")
-                    .check(ORDERING_CLASSES);
-
-            classes()
-                    .that()
-                    .resideInAPackage(INVOCATION_PACKAGE)
-                    .should()
-                    .beRecords()
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
         @DisplayName("Application invocation 不得依賴 infrastructure、entrypoint、Spring MVC、JPA 或 integration contract")
         void applicationInvocationsDoNotDependOnTransportOrInfrastructure() {
             noClasses()
@@ -284,31 +264,6 @@ class OrderingContextArchitectureTest {
         }
 
         @Test
-        @DisplayName("Domain value object 必須是 record")
-        void domainValueObjectsAreRecords() {
-            classes()
-                    .that()
-                    .resideInAPackage(VALUE_OBJECT_PACKAGE)
-                    .should()
-                    .beRecords()
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Domain service 必須以 Service 結尾")
-        void domainServicesHaveServiceSuffix() {
-            classes()
-                    .that()
-                    .resideInAPackage(DOMAIN_SERVICE_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveSimpleNameEndingWith("Service")
-                    .allowEmptyShould(true)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
         @DisplayName("Aggregate 不得依賴 domain service")
         void aggregatesDoNotDependOnDomainServices() {
             noClasses()
@@ -350,19 +305,6 @@ class OrderingContextArchitectureTest {
     class EntrypointLayer {
 
         @Test
-        @DisplayName("REST entrypoint 的 top-level class 只能是 Rest、Request 或 Response")
-        void restEntrypointsHaveHttpBoundaryNames() {
-            classes()
-                    .that()
-                    .resideInAPackage(REST_ENTRYPOINT_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveNameMatching(".*(Rest|Request|Response)$")
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
         @DisplayName("REST Request 與 Response 只能位於 HTTP entrypoint")
         void restRequestsAndResponsesBelongToHttpEntrypoints() {
             classes()
@@ -372,19 +314,6 @@ class OrderingContextArchitectureTest {
                     .haveSimpleNameEndingWith("Response")
                     .should()
                     .resideInAPackage(REST_ENTRYPOINT_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("REST Request 與 Response 必須是 record")
-        void restRequestsAndResponsesAreRecords() {
-            classes()
-                    .that()
-                    .resideInAPackage(REST_ENTRYPOINT_PACKAGE)
-                    .and()
-                    .haveNameMatching(".*(Request|Response)$")
-                    .should()
-                    .beRecords()
                     .check(ORDERING_CLASSES);
         }
 
@@ -430,19 +359,6 @@ class OrderingContextArchitectureTest {
                     .dependOnClassesThat()
                     .resideInAnyPackage(
                             PERSISTENCE_INFRASTRUCTURE_PACKAGE, APPLICATION_PORT_PACKAGE, APPLICATION_STORE_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Messaging entrypoint 只能是 EventConsumer 或 EventSubscriptions")
-        void messagingEntrypointsHaveConsumerNames() {
-            classes()
-                    .that()
-                    .resideInAPackage(MESSAGING_ENTRYPOINT_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveNameMatching(".*(EventConsumer|EventSubscriptions)$")
                     .check(ORDERING_CLASSES);
         }
 
@@ -595,41 +511,8 @@ class OrderingContextArchitectureTest {
         }
 
         @Test
-        @DisplayName("JPA model 必須以 Entity 結尾並標註 @Entity")
-        void jpaModelsAreEntities() {
-            classes()
-                    .that()
-                    .resideInAPackage(JPA_MODEL_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveSimpleNameEndingWith("Entity")
-                    .andShould()
-                    .beAnnotatedWith("jakarta.persistence.Entity")
-                    .check(ORDERING_CLASSES);
-
-            classes()
-                    .that()
-                    .areAnnotatedWith("jakarta.persistence.Entity")
-                    .should()
-                    .resideInAPackage(JPA_MODEL_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("JPA repository 必須是 repository package 中的 Repository interface")
-        void jpaRepositoriesAreRepositoryInterfaces() {
-            classes()
-                    .that()
-                    .resideInAPackage(JPA_REPOSITORY_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveSimpleNameEndingWith("Repository")
-                    .andShould()
-                    .beInterfaces()
-                    .check(ORDERING_CLASSES);
-
+        @DisplayName("Repository 只能位於 jpa.repository（package 內容由共用規則 BC-32 檢查）")
+        void jpaRepositoriesBelongToRepositoryPackage() {
             classes()
                     .that()
                     .resideInAPackage(PERSISTENCE_INFRASTRUCTURE_PACKAGE)
@@ -641,19 +524,8 @@ class OrderingContextArchitectureTest {
         }
 
         @Test
-        @DisplayName("Persistence store adapter 必須實作 application store port")
-        void persistenceStoreAdaptersImplementApplicationStorePorts() {
-            classes()
-                    .that()
-                    .resideInAPackage(JPA_STORE_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveSimpleNameEndingWith("StoreAdapter")
-                    .andShould()
-                    .implement(resideInAPackage(APPLICATION_STORE_PACKAGE))
-                    .check(ORDERING_CLASSES);
-
+        @DisplayName("StoreAdapter 只能位於 jpa.store（命名與實作由共用規則 BC-33 檢查）")
+        void persistenceStoreAdaptersBelongToStorePackage() {
             classes()
                     .that()
                     .resideInAPackage(PERSISTENCE_INFRASTRUCTURE_PACKAGE)
@@ -665,17 +537,8 @@ class OrderingContextArchitectureTest {
         }
 
         @Test
-        @DisplayName("JPA mapper 必須位於 mapper package 並以 Mapper 結尾")
+        @DisplayName("Mapper 只能位於 jpa.mapper（命名由共用規則 BC-35 檢查）")
         void jpaMappersBelongToMapperPackage() {
-            classes()
-                    .that()
-                    .resideInAPackage(JPA_MAPPER_PACKAGE)
-                    .and()
-                    .areTopLevelClasses()
-                    .should()
-                    .haveSimpleNameEndingWith("Mapper")
-                    .check(ORDERING_CLASSES);
-
             classes()
                     .that()
                     .resideInAPackage(PERSISTENCE_INFRASTRUCTURE_PACKAGE)

@@ -1,3 +1,5 @@
 package com.flowzati.archone.architecture.fixture.compliant.sales.application.invocation;
 
-public record PlaceSalesOrderCommand(String orderId) {}
+import java.util.List;
+
+public record PlaceSalesOrderCommand(String orderId, List<SalesOrderLine> lines) {}

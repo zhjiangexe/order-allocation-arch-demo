@@ -36,6 +36,36 @@ CI 對每個 push 與 PR 執行 `./gradlew build`，以上三組都包含在內�
 | BC-14 | 同一 context 內的模組之間不得循環依賴 | 循環讓模組無法單獨理解與修改 | 找出被雙方共用的型別，移到真正擁有它的模組，並保持單向依賴 |
 | BC-15 | 每個類別都必須在 `domain`、`application`、`entrypoint`、`infrastructure`、`bootstrap` 之下，或在 context 最上層的 `api` | 不屬於任何一層的類別不受上述規則保護 | 依職責放進對應的 layer；`api` 只用於對外公開的 `*-api` 模組 |
 
+### 各套件的角色與命名（BC-16～BC-35）
+
+分類以 DDD 戰術分類為骨幹（aggregate／entity／valueobject／service／policy），再加上「enum 一律放
+`enums`」這個專案慣例；後者不是 DDD 的要求。Domain 類別依下列順序判斷，第一個符合的就是它的位置：
+enum → `enums`；有身分且為主體 → `aggregate`；隸屬主體的身分物件 → `entity`；無身分、以內容相等 →
+`valueobject`；無狀態計算 → `service`；具名可替換的業務規則 class → `policy`；都不符合時先討論，不要另開套件。
+
+| 編號 | 規則 | 為什麼 | 正確做法 |
+| --- | --- | --- | --- |
+| BC-16 | Domain 類別只能放在 `aggregate`、`entity`、`valueobject`、`enums`、`service`、`policy` | 固定的分類才能一眼看出角色；`type`、`error` 這類依形狀分的套件會變成雜物堆 | 依上面的判斷順序選一個 |
+| BC-17 | Domain／application 的 enum 必須是獨立檔案，放在同層 `enums`；`enums` 只能放 enum | enum 是固定選項，與有內容的值不同；分層放才不會讓 domain 依賴 application | `domain.enums` 或 `application.enums`；寫在其他類別內部的 enum 要拆出來 |
+| BC-18 | `domain.valueobject` 只能是 record，或 final class＋全部欄位 final＋覆寫 `equals`／`hashCode` | Value object 以內容決定相等、建立後不可改 | 優先用 record；需要隱藏內部表示時用 final class |
+| BC-19 | `domain.service` 不得有子套件 | 介面與實作放一起，才看得出有哪些做法 | 不開 `impl`，實作直接放在 `domain.service` |
+| BC-20 | 類別名稱不得以 `Impl` 結尾 | `Impl` 沒有說明實作的做法或技術 | 用做法命名（`PriorityCapacityWavePlanner`），store 實作用 `*StoreAdapter` |
+| BC-21 | `domain.service` 的實作名稱＝做法描述＋介面名稱，且欄位全部 final | 名稱說明是哪一種做法；domain service 是無狀態計算 | 例如 `WavePlanner` → `PriorityCapacityWavePlanner` |
+| BC-22 | `domain.service` 的實作只能由 `infrastructure.configuration` 引用 | 換做法時只改組裝一處；其他程式依賴介面 | 在 `infrastructure.configuration` 建立實作，其他地方注入介面 |
+| BC-23 | `domain.service` 的每個介面都至少有一個實作 | 沒有實作的介面是空殼 | 補實作，或刪掉介面 |
+| BC-24 | `application.store` 只能放以 `Store` 結尾的純介面 | 資料存取的契約與實作分開，application 不知道資料存在哪裡 | 實作放 `infrastructure.persistence.*.store` |
+| BC-25 | `application.invocation` 只能放 `*Command`／`*Query` record，或被它們欄位使用的組成 record | 輸入型別集中且不可變；明細行（例如 `MovementLine`）屬於指令的一部分 | 不被任何 Command／Query 使用的型別，放到它真正的角色套件 |
+| BC-26 | Entrypoint 類別只能放在 `rest`、`messaging`、`temporal`、`schedule` | 依觸發來源分資料夾，一眼看出程式從哪裡被呼叫 | 依觸發來源放；不要放在 entrypoint 根或另開 `consumer` |
+| BC-27 | `entrypoint.rest` 根只放 `@RestController` 的 `*Rest`；`rest.request` 只放 `*Request` record；`rest.response` 只放 `*Response` record | 控制器、請求格式、回應格式分開，HTTP 介面一目了然 | 依角色放進三個位置；HTTP 狀態碼的判斷寫在 Response 的方法裡 |
+| BC-28 | `entrypoint.messaging` 只放 `*EventConsumer` 與每個模組唯一的 `*EventSubscriptions`（只能有常數） | 每個模組的 Inbox 訂閱名稱集中一處；這些**值**寫進去重紀錄，永遠不能改 | 新訂閱加進該模組既有的 `<Module>EventSubscriptions` |
+| BC-29 | `entrypoint.schedule` 只放 `*Scheduler` | 資料夾表觸發來源、字尾表角色 | 排程入口命名為 `*Scheduler` |
+| BC-30 | `entrypoint.temporal` 只放 `*Adapter` | 同上 | Temporal Activity 入口命名為 `*Adapter` |
+| BC-31 | `@Entity`、`@Embeddable` 只能在 `jpa.model`；`jpa.model` 只放 `@Entity` 的 `*Entity` 與以 `@EmbeddedId` 使用的 `@Embeddable` `*PrimaryKey` | `entity` 會和 `domain.entity` 撞名；多欄位主鍵用 `@EmbeddedId`，主鍵欄位只寫一次 | 多欄位主鍵獨立成 `*PrimaryKey` 檔；不使用 `@IdClass` |
+| BC-32 | `jpa.repository` 只放繼承 `JpaRepository` 的 `Jpa*Repository` 介面 | 名稱與種類一致：Jpa 開頭的一定是 Spring Data 介面 | 命名 `Jpa<Entity 名稱>Repository` |
+| BC-33 | `jpa.store`／`jdbc.store` 的 public 類別＝所實作的 `application.store` 介面名＋`Adapter`；輔助類別 package-private | 看名字就知道它實作哪個 Store；技術看資料夾，不寫進名稱 | `StockQuantStore` → `StockQuantStoreAdapter`；不要 `Jpa`／`Jdbc` 前綴或 `Impl` |
+| BC-34 | Persistence 類別只能放在 `jpa.model`、`jpa.repository`、`jpa.mapper`、`jpa.store`、`jdbc.store` | 固定位置，新類別不會各自開資料夾 | JDBC 的 row 類別放 `jdbc.store` 並設為 package-private |
+| BC-35 | `jpa.mapper` 只放 `*Mapper` | 角色與命名一致 | 命名 `*Mapper` |
+
 `domain`、`entrypoint`、`infrastructure` 不存在的 context（例如 fulfillment 沒有 domain）可以通過；但 `application`
 不存在時 BC-02 一定失敗，避免根套件寫錯讓所有規則空轉通過。
 
@@ -50,6 +80,7 @@ monolith 的總測試對這些項目標示為 skipped，凍結檔只存一份。
 | --- | --- | --- | --- |
 | inventory | BC-14 | allocation、balance、movement 之間既有三組雙向依賴；重整方案已定案，2026-11-25 決定延後執行 | 執行 inventory 模組重整後 |
 | fulfillment | BC-15 | `fulfillment.configuration` 不屬於任何 layer | 套件統一階段 4 拆解 `configuration` 後 |
+| fulfillment | BC-28 | `TemporalFulfillmentEventBridge` 在 entrypoint 直接呼叫 Temporal，不是 `*EventConsumer` | 套件統一階段 4 改為 Consumer → Usecase → port 後 |
 
 新增延後項目前必須先在上表登記原因與移除時機；凍結檔不得手動編輯，`archunit.properties` 也不得開啟
 `freeze.refreeze`。

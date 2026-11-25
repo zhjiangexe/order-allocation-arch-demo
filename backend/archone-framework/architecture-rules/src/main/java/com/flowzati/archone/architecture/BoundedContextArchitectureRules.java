@@ -84,8 +84,9 @@ public final class BoundedContextArchitectureRules {
     public static final Map<String, Set<String>> DEFERRED_RULES = Map.of(
             // inventory 模組間既有循環：重整方案已定案，2026-11-25 決定延後執行。
             "inventory", Set.of("BC-14"),
-            // fulfillment.configuration 在階段 4 拆解（議題 Q7）；拆完即移除此項與凍結檔。
-            "fulfillment", Set.of("BC-15"));
+            // 階段 4 處理：fulfillment.configuration 拆解（Q7，BC-15）與 TemporalFulfillmentEventBridge 改為標準
+            // Consumer → Usecase 流程（Q3c，BC-28）。處理完即移除此項與凍結檔。
+            "fulfillment", Set.of("BC-15", "BC-28"));
 
     /** A shared rule and its stable identifier from the rule table in {@code README.md}. */
     public record SharedRule(String id, ArchRule rule) {}
@@ -93,6 +94,7 @@ public final class BoundedContextArchitectureRules {
     /** All shared rules for the bounded context rooted at {@code basePackage}. */
     public static List<SharedRule> forContext(String basePackage) {
         BoundedContextArchitectureRules rules = new BoundedContextArchitectureRules(basePackage);
+        BoundedContextRoleRules roles = new BoundedContextRoleRules(basePackage);
         return List.of(
                 new SharedRule("BC-01", rules.domainDoesNotDependOnOuterLayers()),
                 new SharedRule("BC-02", rules.applicationDoesNotDependOnEntrypointsOrInfrastructure()),
@@ -108,7 +110,27 @@ public final class BoundedContextArchitectureRules {
                 new SharedRule("BC-12", rules.publisherPortsReceiveOneCompleteEvent()),
                 new SharedRule("BC-13", rules.domainSubpackagesOfEachModuleAreFreeOfCycles()),
                 new SharedRule("BC-14", rules.modulesAreFreeOfCycles()),
-                new SharedRule("BC-15", rules.everyClassBelongsToALayer()));
+                new SharedRule("BC-15", rules.everyClassBelongsToALayer()),
+                new SharedRule("BC-16", roles.domainClassesUseKnownRolePackages()),
+                new SharedRule("BC-17", roles.enumsLiveInEnumsPackages()),
+                new SharedRule("BC-18", roles.valueObjectsAreImmutableValues()),
+                new SharedRule("BC-19", roles.domainServicePackageIsFlat()),
+                new SharedRule("BC-20", roles.noImplSuffix()),
+                new SharedRule("BC-21", roles.domainServiceImplementationsAreNamedAndImmutable()),
+                new SharedRule("BC-22", roles.domainServiceImplementationsAreReferencedOnlyFromConfiguration()),
+                new SharedRule("BC-23", roles.domainServiceInterfacesHaveImplementations()),
+                new SharedRule("BC-24", roles.applicationStoresArePureInterfaces()),
+                new SharedRule("BC-25", roles.invocationsAreCommandsQueriesOrTheirComponents()),
+                new SharedRule("BC-26", roles.entrypointsUseKnownChannelPackages()),
+                new SharedRule("BC-27", roles.restPackagesSeparateControllersRequestsAndResponses()),
+                new SharedRule("BC-28", roles.messagingEntrypointsAreConsumersAndOneSubscriptionsHolder()),
+                new SharedRule("BC-29", roles.scheduleEntrypointsAreSchedulers()),
+                new SharedRule("BC-30", roles.temporalEntrypointsAreAdapters()),
+                new SharedRule("BC-31", roles.jpaModelsAreEntitiesOrPrimaryKeys()),
+                new SharedRule("BC-32", roles.jpaRepositoriesExtendJpaRepository()),
+                new SharedRule("BC-33", roles.storeAdaptersAreNamedAfterTheirStore()),
+                new SharedRule("BC-34", roles.persistenceUsesKnownPackages()),
+                new SharedRule("BC-35", roles.jpaMappersAreMappers()));
     }
 
     /**

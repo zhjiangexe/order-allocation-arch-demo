@@ -38,7 +38,8 @@
 ### `application.invocation`
 
 - 只能表達 use case input。
-- Top-level type 名稱只能以 `Command` 或 `Query` 結尾。
+- Top-level type 名稱只能以 `Command` 或 `Query` 結尾；唯一例外是只被某個 Command／Query 欄位使用的組成
+  record（共用規則 BC-25）。
 - 所有 invocation type 必須是 `record`。
 - 不得依賴 Entrypoint、Infrastructure、Spring MVC、Servlet、JPA 或 versioned Integration Event contracts。
 - HTTP `Request`／`Response` 不得放入此 package。
@@ -78,8 +79,12 @@
 ## Domain layer
 
 - Domain 不得依賴 Spring、JPA、shared messaging infrastructure 或 Integration Event contracts。
-- `domain.valueobject` 中的 type 必須是 `record`。
-- `domain.service` 中的 top-level type 必須以 `Service` 結尾。
+- Domain 型別只能放在 `aggregate`、`entity`、`valueobject`、`enums`、`service`、`policy` 之一（BC-16）。
+- Domain／Application 的 enum 一律是 top-level，放在同層的 `domain.enums`／`application.enums`（BC-17）。
+- `domain.valueobject` 中的 type 必須是 `record`，或 final class＋全部欄位 final＋覆寫 `equals`／`hashCode`
+  （BC-18）。
+- `domain.service` 不強制 `Service` 字尾（資料夾已表達角色）；介面與實作同資料夾，實作名稱＝做法描述＋介面
+  名稱，只有 `infrastructure.configuration` 可以引用實作（BC-19～BC-23）。
 - Aggregate 不得依賴 Domain Service。
 - Entity 不得依賴 Aggregate 或 Domain Service。
 - Value Object 不得依賴 Aggregate、Entity 或 Domain Service。
@@ -93,7 +98,7 @@ publication。
 
 ### `entrypoint.rest`
 
-- Top-level type 只能是 `*Rest`、`*Request` 或 `*Response`。
+- `entrypoint.rest` 根只放 `*Rest`；`*Request` 放 `rest.request`、`*Response` 放 `rest.response`（BC-27）。
 - `*Request`／`*Response` 只屬於 HTTP boundary，而且必須是 `record`。
 - `@RestController` 必須以 `Rest` 結尾；`*Rest` 必須標註 `@RestController`。
 - REST adapter 必須將 Request 轉成 Application `Command`／`Query`。
@@ -101,7 +106,8 @@ publication。
 
 ### `entrypoint.messaging`
 
-- Top-level type 必須以 `EventConsumer` 結尾。
+- Top-level type 只能是 `*EventConsumer`，以及唯一一個 `OrderingEventSubscriptions`（Inbox subscriber
+  identity 常數；**值永遠不可修改**）（BC-28）。
 - Consumer 只把 inbound versioned contract 與必要 correlation identity 轉成 normalized `Command`／`Query`，
   再呼叫 Usecase／Interactor。
 - 不得直接依賴 persistence implementation、Application Store、outbound Publisher port 或 messaging
@@ -130,10 +136,10 @@ REST、Messaging 與 Temporal entrypoint package 不得互相依賴。
 
 ### `infrastructure.persistence.jpa`
 
-- `model`：top-level type 必須以 `Entity` 結尾並標註 `@Entity`。
-- `repository`：top-level type 必須是以 `Repository` 結尾的 interface。
-- `mapper`：top-level type 必須以 `Mapper` 結尾。
-- `store`：top-level type 必須以 `StoreAdapter` 結尾並實作 `application.store` interface。
+- `model`：`@Entity` 的 `*Entity`，以及以 `@EmbeddedId` 使用的 `@Embeddable` `*PrimaryKey`（BC-31）。
+- `repository`：繼承 `JpaRepository` 的 `Jpa*Repository` interface（BC-32）。
+- `mapper`：top-level type 必須以 `Mapper` 結尾（BC-35）。
+- `store`：名稱＝所實作的 `application.store` interface 名稱＋`Adapter`（BC-33）。
 - Model 不得依賴 Repository、Mapper 或 Store。
 - Repository 不得依賴 Mapper 或 Store。
 - Mapper 不得依賴 Repository 或 Store。

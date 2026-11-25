@@ -13,6 +13,6 @@ public class PaymentCapturedEventConsumer {
     public void onMessage(String orderId) {
         usecase.place(
                 new com.flowzati.archone.architecture.fixture.compliant.sales.application.invocation
-                        .PlaceSalesOrderCommand(orderId));
+                        .PlaceSalesOrderCommand(orderId, java.util.List.of()));
     }
 }
