@@ -6,17 +6,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationViewStore;
+import com.flowzati.archone.inventory.movement.application.usecase.GetPrimaryOrderStockOperationUsecase;
 import com.flowzati.archone.inventory.movement.domain.valueobject.StockOperationSource;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-class StockOperationQueryServiceTest {
+class GetPrimaryOrderStockOperationUsecaseTest {
 
     private final StockOperationViewStore stockOperationViewStore = mock(StockOperationViewStore.class);
-    private final StockOperationQueryService queryService = new StockOperationQueryService(stockOperationViewStore);
+    private final GetPrimaryOrderStockOperationUsecase usecase =
+            new GetPrimaryOrderStockOperationUsecase(stockOperationViewStore);
 
     @Test
     void resolvesThePrimaryOrderThroughTheBoundedProjection() {
@@ -25,7 +26,7 @@ class StockOperationQueryServiceTest {
         StockOperationView view = mock(StockOperationView.class);
         when(stockOperationViewStore.findBySource(source)).thenReturn(Optional.of(view));
 
-        assertThat(queryService.findPrimaryOrder(orderId)).containsSame(view);
+        assertThat(usecase.get(orderId)).containsSame(view);
 
         verify(stockOperationViewStore).findBySource(source);
     }

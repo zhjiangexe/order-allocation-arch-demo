@@ -7,8 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationReleaseService;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
-import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
 import com.flowzati.archone.inventory.movement.application.enums.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.enums.StockOperationLifecycleAction;
@@ -16,7 +16,7 @@ import com.flowzati.archone.inventory.movement.application.event.StockOperationL
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
 import com.flowzati.archone.inventory.movement.application.port.StockOperationLifecycleChangedPublisher;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions;
+import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationService;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationCancellationStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-class StockOperationCancellationTransactionsTest {
+class StockOperationCancellationServiceTest {
 
     private static final UUID STOCK_OPERATION_ID = new UUID(0, 1);
     private static final UUID MOVE_ID = new UUID(0, 2);
@@ -49,9 +49,9 @@ class StockOperationCancellationTransactionsTest {
     private StockMoveStore stockMoveStore;
     private StockMoveLineStore stockMoveLineStore;
     private StockOperationCancellationStore stockOperationCancellationStore;
-    private ReleaseStockOperationUsecase releaseOperation;
+    private StockOperationReleaseService releaseOperation;
     private StockOperationLifecycleChangedPublisher lifecyclePublisher;
-    private StockOperationCancellationTransactions transactions;
+    private StockOperationCancellationService transactions;
 
     @BeforeEach
     void setUp() {
@@ -59,9 +59,9 @@ class StockOperationCancellationTransactionsTest {
         stockMoveStore = mock(StockMoveStore.class);
         stockMoveLineStore = mock(StockMoveLineStore.class);
         stockOperationCancellationStore = mock(StockOperationCancellationStore.class);
-        releaseOperation = mock(ReleaseStockOperationUsecase.class);
+        releaseOperation = mock(StockOperationReleaseService.class);
         lifecyclePublisher = mock(StockOperationLifecycleChangedPublisher.class);
-        transactions = new StockOperationCancellationTransactions(
+        transactions = new StockOperationCancellationService(
                 stockOperationStore,
                 stockMoveStore,
                 stockMoveLineStore,
@@ -106,7 +106,7 @@ class StockOperationCancellationTransactionsTest {
         assertThat(result.checkpoint().state()).isEqualTo(StockOperationCancellationState.STARTED);
         assertThat(operation.state()).isEqualTo(StockOperationState.ASSIGNED);
         assertThat(move.getState()).isEqualTo(MoveState.ASSIGNED);
-        verify(releaseOperation, never()).execute(any(), any());
+        verify(releaseOperation, never()).release(any(), any());
         verify(lifecyclePublisher, never()).publish(any());
     }
 
@@ -126,7 +126,7 @@ class StockOperationCancellationTransactionsTest {
                 NOW);
         when(stockOperationCancellationStore.find(STOCK_OPERATION_ID, OPERATION_ID))
                 .thenReturn(Optional.of(operation));
-        when(releaseOperation.releaseForCancellation(STOCK_OPERATION_ID, NOW)).thenReturn(Optional.of(snapshot));
+        when(releaseOperation.release(STOCK_OPERATION_ID, NOW)).thenReturn(Optional.of(snapshot));
         when(stockOperationStore.lockById(STOCK_OPERATION_ID))
                 .thenReturn(Optional.of(assignedOperation), Optional.of(confirmedOperation));
         when(stockMoveStore.lockByStockOperationIdInIdOrder(STOCK_OPERATION_ID)).thenReturn(List.of(confirmedMove));
@@ -135,7 +135,7 @@ class StockOperationCancellationTransactionsTest {
         assertThat(transactions.complete(STOCK_OPERATION_ID, OPERATION_ID, NOW))
                 .isEqualTo(StockOperationCancellationStatus.COMPLETED);
 
-        verify(releaseOperation).releaseForCancellation(STOCK_OPERATION_ID, NOW);
+        verify(releaseOperation).release(STOCK_OPERATION_ID, NOW);
         assertThat(confirmedOperation.state()).isEqualTo(StockOperationState.CANCELLED);
         assertThat(confirmedMove.getState()).isEqualTo(MoveState.CANCELLED);
         assertThat(operation.state()).isEqualTo(StockOperationCancellationState.COMPLETED);

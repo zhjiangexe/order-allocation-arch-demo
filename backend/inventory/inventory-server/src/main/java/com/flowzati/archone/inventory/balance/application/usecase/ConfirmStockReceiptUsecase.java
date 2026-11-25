@@ -4,9 +4,10 @@ import com.flowzati.archone.foundation.time.BusinessClock;
 import com.flowzati.archone.inventory.balance.application.event.StockAvailabilityIncreased;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.port.StockAvailabilityIncreasedPublisher;
-import com.flowzati.archone.inventory.balance.application.service.InboundReceiptCompleter;
+import com.flowzati.archone.inventory.balance.application.service.InboundReceiptCompletionService;
+import com.flowzati.archone.inventory.balance.application.store.StockReceiptRequestStore;
 import com.flowzati.archone.inventory.balance.domain.valueobject.ReceivingBatchIdentity;
-import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrar;
+import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrationService;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
@@ -26,35 +27,44 @@ import org.springframework.stereotype.Service;
 @Service
 public class ConfirmStockReceiptUsecase {
 
+    private final StockReceiptRequestStore stockReceiptRequestStore;
     private final BusinessClock appClock;
-    private final InboundReceiptRegistrar inboundReceiptRegistrar;
-    private final InboundReceiptCompleter inboundReceiptCompleter;
+    private final InboundReceiptRegistrationService inboundReceiptRegistrationService;
+    private final InboundReceiptCompletionService inboundReceiptCompletionService;
     private final StockAvailabilityIncreasedPublisher availabilityPublisher;
 
     public ConfirmStockReceiptUsecase(
+            StockReceiptRequestStore stockReceiptRequestStore,
             BusinessClock appClock,
-            InboundReceiptRegistrar inboundReceiptRegistrar,
-            InboundReceiptCompleter inboundReceiptCompleter,
+            InboundReceiptRegistrationService inboundReceiptRegistrationService,
+            InboundReceiptCompletionService inboundReceiptCompletionService,
             StockAvailabilityIncreasedPublisher availabilityPublisher) {
+        this.stockReceiptRequestStore = stockReceiptRequestStore;
         this.appClock = appClock;
-        this.inboundReceiptRegistrar = inboundReceiptRegistrar;
-        this.inboundReceiptCompleter = inboundReceiptCompleter;
+        this.inboundReceiptRegistrationService = inboundReceiptRegistrationService;
+        this.inboundReceiptCompletionService = inboundReceiptCompletionService;
         this.availabilityPublisher = availabilityPublisher;
     }
 
-    /** Transport-neutral application entrypoint; request idempotency belongs to the caller boundary. */
+    /**
+     * 同一交易先登記 {@code receiptId} 再入庫：相同 ID＋相同內容重送時直接結束，不重複入庫；相同 ID＋不同內容
+     * 由 store 拋出衝突。
+     */
     @Transactional
     public void execute(ConfirmStockReceiptCommand command) {
+        if (!stockReceiptRequestStore.claimIfNew(command)) {
+            return;
+        }
         receive(command);
     }
 
     private void receive(ConfirmStockReceiptCommand command) {
         Instant now = appClock.instant();
 
-        List<StockMove> incoming = inboundReceiptRegistrar.register(
+        List<StockMove> incoming = inboundReceiptRegistrationService.register(
                 command.facilityId(), command.ownerId(), command.locationId(), command.sku(), command.quantity(), now);
 
-        inboundReceiptCompleter.complete(
+        inboundReceiptCompletionService.complete(
                 incoming, new ReceivingBatchIdentity(command.inDate(), command.expiryDate()), now);
 
         availabilityPublisher.publish(new StockAvailabilityIncreased(

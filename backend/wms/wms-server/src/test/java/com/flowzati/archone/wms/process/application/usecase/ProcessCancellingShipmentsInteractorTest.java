@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.wms.shipment.application.invocation.CompleteShipmentCancellationCommand;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.application.usecase.CompleteShipmentCancellationUsecase;
 import java.time.Instant;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-class ProcessCancellingShipmentsUsecaseTest {
+class ProcessCancellingShipmentsInteractorTest {
 
     private static final Instant NOW = Instant.parse("2026-08-20T01:00:10Z");
 
@@ -30,8 +31,8 @@ class ProcessCancellingShipmentsUsecaseTest {
 
         usecase().execute();
 
-        verify(completion).execute(first, NOW);
-        verify(completion).execute(second, NOW);
+        verify(completion).execute(new CompleteShipmentCancellationCommand(first, NOW));
+        verify(completion).execute(new CompleteShipmentCancellationCommand(second, NOW));
     }
 
     @Test
@@ -40,14 +41,16 @@ class ProcessCancellingShipmentsUsecaseTest {
         UUID following = UUID.randomUUID();
         when(appClock.instant()).thenReturn(NOW);
         when(shipmentStore.findCancelling(25)).thenReturn(List.of(failed, following));
-        doThrow(new IllegalStateException("conflict")).when(completion).execute(failed, NOW);
+        doThrow(new IllegalStateException("conflict"))
+                .when(completion)
+                .execute(new CompleteShipmentCancellationCommand(failed, NOW));
 
         usecase().execute();
 
-        verify(completion).execute(following, NOW);
+        verify(completion).execute(new CompleteShipmentCancellationCommand(following, NOW));
     }
 
-    private ProcessCancellingShipmentsUsecase usecase() {
-        return new ProcessCancellingShipmentsUsecase(shipmentStore, completion, appClock, 25);
+    private ProcessCancellingShipmentsInteractor usecase() {
+        return new ProcessCancellingShipmentsInteractor(shipmentStore, completion, appClock, 25);
     }
 }

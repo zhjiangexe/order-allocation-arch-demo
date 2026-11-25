@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowzati.archone.inventory.allocation.application.invocation.ReleaseStockOperationCommand;
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationReleaseService;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
@@ -65,7 +67,9 @@ class ReleaseStockOperationUsecaseTest {
         stockQuantStore = mock(StockQuantStore.class);
         lifecyclePublisher = mock(StockOperationLifecycleChangedPublisher.class);
         usecase = new ReleaseStockOperationUsecase(
-                stockOperationStore, stockMoveStore, stockMoveLineStore, stockQuantStore, lifecyclePublisher);
+                new StockOperationReleaseService(
+                        stockOperationStore, stockMoveStore, stockMoveLineStore, stockQuantStore),
+                lifecyclePublisher);
     }
 
     @Test
@@ -77,7 +81,8 @@ class ReleaseStockOperationUsecaseTest {
         given(operation, move, List.of(new StockMoveLine(uuid(10), MOVE_ID, QUANT_ID, 3)));
         when(stockQuantStore.lockByIds(Set.of(QUANT_ID))).thenReturn(List.of(quant));
 
-        assertThat(usecase.execute(STOCK_OPERATION_ID, RELEASED_AT)).isTrue();
+        assertThat(usecase.execute(new ReleaseStockOperationCommand(STOCK_OPERATION_ID, RELEASED_AT)))
+                .isTrue();
 
         assertThat(operation.state()).isEqualTo(StockOperationState.CONFIRMED);
         assertThat(move.getState()).isEqualTo(MoveState.CONFIRMED);
@@ -110,7 +115,8 @@ class ReleaseStockOperationUsecaseTest {
     void replaysAlreadyReleasedGroup() {
         given(operation(StockOperationState.CONFIRMED), move(MoveState.CONFIRMED), List.of());
 
-        assertThat(usecase.execute(STOCK_OPERATION_ID, RELEASED_AT)).isFalse();
+        assertThat(usecase.execute(new ReleaseStockOperationCommand(STOCK_OPERATION_ID, RELEASED_AT)))
+                .isFalse();
 
         verify(stockQuantStore, never()).lockByIds(any());
         verify(stockMoveLineStore, never()).deleteByMoveIds(any());
@@ -122,7 +128,7 @@ class ReleaseStockOperationUsecaseTest {
     void rejectsIncompleteAssignedCoverage() {
         given(operation(StockOperationState.ASSIGNED), move(MoveState.ASSIGNED), List.of());
 
-        assertThatThrownBy(() -> usecase.execute(STOCK_OPERATION_ID, RELEASED_AT))
+        assertThatThrownBy(() -> usecase.execute(new ReleaseStockOperationCommand(STOCK_OPERATION_ID, RELEASED_AT)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("exactly cover");
 
@@ -137,7 +143,7 @@ class ReleaseStockOperationUsecaseTest {
                 move(MoveState.DONE),
                 List.of(new StockMoveLine(uuid(10), MOVE_ID, QUANT_ID, 3)));
 
-        assertThatThrownBy(() -> usecase.execute(STOCK_OPERATION_ID, RELEASED_AT))
+        assertThatThrownBy(() -> usecase.execute(new ReleaseStockOperationCommand(STOCK_OPERATION_ID, RELEASED_AT)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Only an assigned stock operation");
     }

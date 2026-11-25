@@ -120,7 +120,7 @@ public class StockMove {
      * {@code waiting} 的分岔。
      *
      * <p>名字直接取自 {@link MoveState#CONFIRMED}，不另創說法。<b>建立的意圖由
-     * {@code InboundReceiptRegistrar} 那一層說</b>——它才是解析作業類型、組單據、決定起訖的地方；這裡
+     * {@code InboundReceiptRegistrationService} 那一層說</b>——它才是解析作業類型、組單據、決定起訖的地方；這裡
      * 只回答「這個實例從哪個狀態開始」。
      */
     public static StockMove confirmed(

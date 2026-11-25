@@ -12,14 +12,14 @@ import java.util.List;
 import java.util.UUID;
 
 /** Monolith composition query；只組合各 Context 公開的 application query，不直接查它們的資料表。 */
-public class OrderFulfillmentQueryUsecase {
+public class GetOrderFulfillmentUsecase {
 
     private final OrderQueryApi orderQueryApi;
     private final InventoryOperationQueryApi inventoryOperationQueryApi;
     private final WmsShipmentQueryApi wmsShipmentQueryApi;
     private final FulfillmentWorkflowStateReader workflowStateReader;
 
-    public OrderFulfillmentQueryUsecase(
+    public GetOrderFulfillmentUsecase(
             OrderQueryApi orderQueryApi,
             InventoryOperationQueryApi inventoryOperationQueryApi,
             WmsShipmentQueryApi wmsShipmentQueryApi,

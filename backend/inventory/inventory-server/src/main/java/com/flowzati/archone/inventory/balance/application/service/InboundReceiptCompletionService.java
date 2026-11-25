@@ -34,7 +34,7 @@ import org.springframework.stereotype.Component;
  * availability fact 包在同一個 transaction。Outbound waiting-move allocation 在提交後另開交易。
  */
 @Component
-public class InboundReceiptCompleter {
+public class InboundReceiptCompletionService {
 
     private final StockMoveStore stockMoveStore;
     private final StockMoveLineStore stockMoveLineStore;
@@ -42,7 +42,7 @@ public class InboundReceiptCompleter {
     private final StockQuantStore stockQuantStore;
     private final StockLocationStore stockLocationStore;
 
-    public InboundReceiptCompleter(
+    public InboundReceiptCompletionService(
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockOperationStore stockOperationStore,

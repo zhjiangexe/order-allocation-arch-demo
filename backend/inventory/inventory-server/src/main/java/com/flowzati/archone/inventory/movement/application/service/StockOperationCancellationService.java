@@ -1,7 +1,7 @@
 package com.flowzati.archone.inventory.movement.application.service;
 
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationReleaseService;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
-import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.movement.application.enums.StockOperationCancellationStatus;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleChanged;
 import com.flowzati.archone.inventory.movement.application.event.StockOperationLifecycleSnapshot;
@@ -26,27 +26,27 @@ import org.springframework.stereotype.Component;
 
 /** Durable local transactions for an externally confirmed stock-operation cancellation. */
 @Component
-public class StockOperationCancellationTransactions {
+public class StockOperationCancellationService {
 
     private final StockOperationStore stockOperationStore;
     private final StockMoveStore stockMoveStore;
     private final StockMoveLineStore stockMoveLineStore;
     private final StockOperationCancellationStore stockOperationCancellationStore;
-    private final ReleaseStockOperationUsecase releaseStockOperation;
+    private final StockOperationReleaseService stockOperationReleaseService;
     private final StockOperationLifecycleChangedPublisher lifecyclePublisher;
 
-    public StockOperationCancellationTransactions(
+    public StockOperationCancellationService(
             StockOperationStore stockOperationStore,
             StockMoveStore stockMoveStore,
             StockMoveLineStore stockMoveLineStore,
             StockOperationCancellationStore stockOperationCancellationStore,
-            ReleaseStockOperationUsecase releaseStockOperation,
+            StockOperationReleaseService stockOperationReleaseService,
             StockOperationLifecycleChangedPublisher lifecyclePublisher) {
         this.stockOperationStore = stockOperationStore;
         this.stockMoveStore = stockMoveStore;
         this.stockMoveLineStore = stockMoveLineStore;
         this.stockOperationCancellationStore = stockOperationCancellationStore;
-        this.releaseStockOperation = releaseStockOperation;
+        this.stockOperationReleaseService = stockOperationReleaseService;
         this.lifecyclePublisher = lifecyclePublisher;
     }
 
@@ -134,8 +134,8 @@ public class StockOperationCancellationTransactions {
             throw new IllegalStateException("A completed operation cannot be cancelled");
         }
         if (stockOperation.state() == StockOperationState.ASSIGNED) {
-            snapshot = releaseStockOperation
-                    .releaseForCancellation(stockOperationId, now)
+            snapshot = stockOperationReleaseService
+                    .release(stockOperationId, now)
                     .orElseThrow(
                             () -> new IllegalStateException("Assigned operation release produced no before-image"));
             operationComposite = loadOperationCompositeForUpdate(stockOperationId);

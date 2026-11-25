@@ -10,12 +10,12 @@ import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
 import com.flowzati.archone.contracts.promising.v1.AllocationEventDestinations;
 import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
 import com.flowzati.archone.foundation.identity.IdGenerator;
+import com.flowzati.archone.inventory.allocation.application.invocation.ReleaseStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
-import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
+import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.movement.entrypoint.messaging.MovementEventSubscriptions;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.ordering.application.store.OrderStore;
@@ -51,7 +51,7 @@ class AllocationWorkflowEndToEndIntegrationTest {
     private com.flowzati.archone.testsupport.AllocationOrderLifecycleEventDriver consumer;
 
     @Autowired
-    private StockReceiptApplicationFacade stockReceiptApplicationFacade;
+    private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
     @Autowired
     private com.flowzati.archone.testsupport.AllocationOutcomeDrainFactory outcomeDrainFactory;
@@ -217,7 +217,8 @@ class AllocationWorkflowEndToEndIntegrationTest {
         UUID moveId = jdbcTemplate.queryForObject(
                 "SELECT id FROM stock_moves WHERE stock_operation_id = ?", UUID.class, stockOperationId);
 
-        assertThat(releaseStockOperationUsecase.execute(stockOperationId, PostgreSQLTestConfiguration.NOW))
+        assertThat(releaseStockOperationUsecase.execute(
+                        new ReleaseStockOperationCommand(stockOperationId, PostgreSQLTestConfiguration.NOW)))
                 .isTrue();
         assertThat(stockQuantStore.findById(stockQuantId))
                 .hasValueSatisfying(
@@ -469,16 +470,15 @@ class AllocationWorkflowEndToEndIntegrationTest {
     }
 
     private void receive(String sku, int quantity) {
-        stockReceiptApplicationFacade.confirm(new StockReceiptRequest(
+        confirmStockReceiptUsecase.execute(new ConfirmStockReceiptCommand(
                 UUID.randomUUID(),
-                new ConfirmStockReceiptCommand(
-                        OrderFixtures.OWNER_ID,
-                        OrderFixtures.FACILITY_ID,
-                        OrderFixtures.LOCATION_ID,
-                        sku,
-                        StockFixtures.ARRIVED_ON,
-                        StockFixtures.EXPIRES_ON,
-                        quantity)));
+                OrderFixtures.OWNER_ID,
+                OrderFixtures.FACILITY_ID,
+                OrderFixtures.LOCATION_ID,
+                sku,
+                StockFixtures.ARRIVED_ON,
+                StockFixtures.EXPIRES_ON,
+                quantity));
         inventoryEventDrainFactory.create().drain();
     }
 

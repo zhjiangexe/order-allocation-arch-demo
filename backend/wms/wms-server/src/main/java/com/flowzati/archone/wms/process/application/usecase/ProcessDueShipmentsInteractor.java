@@ -11,9 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 
 /** 從持久化狀態找回等待到期的 Shipment，讓三個部署環境執行相同的模擬倉內流程。 */
-public class ProcessDueShipmentsUsecase {
+public class ProcessDueShipmentsInteractor {
 
-    private static final Logger log = LoggerFactory.getLogger(ProcessDueShipmentsUsecase.class);
+    private static final Logger log = LoggerFactory.getLogger(ProcessDueShipmentsInteractor.class);
 
     private final ShipmentStore shipmentStore;
     private final SimulateWarehouseOperationsUsecase simulateWarehouseOperations;
@@ -21,7 +21,7 @@ public class ProcessDueShipmentsUsecase {
     private final Duration processingDelay;
     private final int batchLimit;
 
-    public ProcessDueShipmentsUsecase(
+    public ProcessDueShipmentsInteractor(
             ShipmentStore shipmentStore,
             SimulateWarehouseOperationsUsecase simulateWarehouseOperations,
             BusinessClock appClock,

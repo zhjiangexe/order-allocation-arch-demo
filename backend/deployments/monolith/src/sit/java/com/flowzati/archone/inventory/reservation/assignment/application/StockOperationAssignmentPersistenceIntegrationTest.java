@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.flowzati.archone.inventory.allocation.application.invocation.ReleaseStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.service.StockAllocationCommitService;
+import com.flowzati.archone.inventory.allocation.application.service.StockOperationReleaseService;
 import com.flowzati.archone.inventory.allocation.application.store.OwnerAllocationPolicyStore;
 import com.flowzati.archone.inventory.allocation.application.store.StockAllocationSupplyStore;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
@@ -76,6 +78,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     StockOperationLifecycleChangedIntegrationEventAdapter.class,
     StockOperationCompletedIntegrationEventAdapter.class,
     ReleaseStockOperationUsecase.class,
+    StockOperationReleaseService.class,
     CompleteOutboundMovementsUsecase.class,
     StockOperationAssignmentPersistenceIntegrationTest.RepositoryConfiguration.class
 })
@@ -212,7 +215,8 @@ class StockOperationAssignmentPersistenceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(releaseOperation.execute(STOCK_OPERATION_ID, ASSIGNED_AT.plusSeconds(60)))
+        assertThat(releaseOperation.execute(
+                        new ReleaseStockOperationCommand(STOCK_OPERATION_ID, ASSIGNED_AT.plusSeconds(60))))
                 .isTrue();
         entityManager.flush();
         jdbcTemplate.execute("SET CONSTRAINTS ALL IMMEDIATE");

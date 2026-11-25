@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.fulfillment.application.port.FulfillmentWorkflowStateReader;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryResult;
-import com.flowzati.archone.fulfillment.application.usecase.OrderFulfillmentQueryUsecase;
+import com.flowzati.archone.fulfillment.application.usecase.GetOrderFulfillmentUsecase;
 import com.flowzati.archone.fulfillment.configuration.OrderFulfillmentProperties;
 import com.flowzati.archone.fulfillment.configuration.OrderFulfillmentQueryConfiguration;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationQueryApi;
@@ -33,7 +33,7 @@ class OrderFulfillmentQueryConfigurationTest {
     void assemblesEventsByDefaultWithoutReader() {
         prepareOrder();
         runner.run(context -> {
-            var response = context.getBean(OrderFulfillmentQueryUsecase.class).query(orderId);
+            var response = context.getBean(GetOrderFulfillmentUsecase.class).query(orderId);
             assertThat(response.workflowQueryStatus()).isEqualTo(FulfillmentWorkflowQueryStatus.NOT_APPLICABLE);
         });
     }
@@ -48,7 +48,7 @@ class OrderFulfillmentQueryConfigurationTest {
                 .withBean(FulfillmentWorkflowStateReader.class, () -> reader)
                 .run(context -> {
                     var response =
-                            context.getBean(OrderFulfillmentQueryUsecase.class).query(orderId);
+                            context.getBean(GetOrderFulfillmentUsecase.class).query(orderId);
                     assertThat(response.workflowQueryStatus()).isEqualTo(FulfillmentWorkflowQueryStatus.NOT_FOUND);
                 });
     }

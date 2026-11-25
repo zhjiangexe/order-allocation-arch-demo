@@ -18,7 +18,7 @@ import com.flowzati.archone.testsupport.PostgreSQLTestConfiguration;
 import com.flowzati.archone.wms.picking.application.store.PickingWorkStore;
 import com.flowzati.archone.wms.picking.domain.enums.PickTaskStatus;
 import com.flowzati.archone.wms.process.application.invocation.SimulateWarehouseOperationsCommand;
-import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsUsecase;
+import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsInteractor;
 import com.flowzati.archone.wms.process.application.usecase.SimulateWarehouseOperationsUsecase;
 import com.flowzati.archone.wms.shipment.application.invocation.CancelShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
@@ -66,7 +66,7 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
     private PickingWorkStore pickingWorkStore;
 
     @Autowired
-    private ProcessDueShipmentsUsecase processDueShipmentsUsecase;
+    private ProcessDueShipmentsInteractor processDueShipmentsInteractor;
 
     @Autowired
     private CancelShipmentUsecase cancelShipmentUsecase;
@@ -141,8 +141,8 @@ class WmsFulfillmentHandoffTransactionIntegrationTest {
                 .findByStockOperationId(stockOperationId)
                 .orElseThrow()
                 .id();
-        processDueShipmentsUsecase.execute();
-        processDueShipmentsUsecase.execute();
+        processDueShipmentsInteractor.execute();
+        processDueShipmentsInteractor.execute();
 
         assertThat(shipmentStore.findById(shipmentId)).hasValueSatisfying(shipment -> {
             assertThat(shipment.status()).isEqualTo(ShipmentStatus.HANDED_OVER_TO_CARRIER);

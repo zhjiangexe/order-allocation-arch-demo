@@ -25,7 +25,7 @@ import com.flowzati.archone.inventory.allocation.infrastructure.persistence.jpa.
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.repository.JpaStockQuantRepository;
 import com.flowzati.archone.inventory.balance.infrastructure.persistence.jpa.store.StockQuantStoreAdapter;
 import com.flowzati.archone.inventory.movement.application.enums.StockMovementErrorCode;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
+import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrationService;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperationCancellation;
 import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
 import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
@@ -79,7 +79,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
     StockQuantStoreAdapter.class,
     StockOperationTypeStoreAdapter.class,
     OrderStockMovementStoreAdapter.class,
-    StockOperationRegistrar.class,
+    StockOperationRegistrationService.class,
     StockOperationAssignmentCandidateStoreAdapter.class,
     OwnerAllocationPolicyStoreAdapter.class,
     StockAllocationSupplyStoreAdapter.class,
@@ -105,7 +105,7 @@ class StockMovementRegistrationPersistenceIntegrationTest {
     private OrderStockMovementStoreAdapter orderSource;
 
     @Autowired
-    private StockOperationRegistrar registrar;
+    private StockOperationRegistrationService registrar;
 
     @Autowired
     private AllocateOrderUsecase allocateOrder;

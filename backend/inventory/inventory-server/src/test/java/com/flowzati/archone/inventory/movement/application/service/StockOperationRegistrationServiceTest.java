@@ -37,7 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Stock movement group registration")
-class StockOperationRegistrarTest {
+class StockOperationRegistrationServiceTest {
 
     private static final UUID STOCK_OPERATION_ID = uuid(1);
     private static final UUID MOVE_A_ID = uuid(2);
@@ -56,12 +56,12 @@ class StockOperationRegistrarTest {
     private StockMoveStore stockMoveStore;
 
     private Queue<UUID> ids;
-    private StockOperationRegistrar registrar;
+    private StockOperationRegistrationService registrar;
 
     @BeforeEach
     void setUp() {
         ids = new ArrayDeque<>(List.of(STOCK_OPERATION_ID, MOVE_A_ID, MOVE_B_ID, uuid(8), uuid(9)));
-        registrar = new StockOperationRegistrar(stockOperationStore, stockMoveStore, ids::remove);
+        registrar = new StockOperationRegistrationService(stockOperationStore, stockMoveStore, ids::remove);
     }
 
     @Test

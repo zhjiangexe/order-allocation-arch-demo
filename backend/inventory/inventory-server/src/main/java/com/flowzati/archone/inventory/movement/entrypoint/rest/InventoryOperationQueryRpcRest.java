@@ -5,23 +5,23 @@ import com.flowzati.archone.inventory.api.operation.InventoryOperationView;
 import com.flowzati.archone.inventory.movement.application.result.StockMoveLineView;
 import com.flowzati.archone.inventory.movement.application.result.StockMoveView;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
+import com.flowzati.archone.inventory.movement.application.usecase.GetPrimaryOrderStockOperationUsecase;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class InventoryOperationQueryRpcRest implements InventoryOperationQueryApi {
 
-    private final StockOperationQueryService queryService;
+    private final GetPrimaryOrderStockOperationUsecase getPrimaryOrderStockOperationUsecase;
 
-    public InventoryOperationQueryRpcRest(StockOperationQueryService queryService) {
-        this.queryService = queryService;
+    public InventoryOperationQueryRpcRest(GetPrimaryOrderStockOperationUsecase getPrimaryOrderStockOperationUsecase) {
+        this.getPrimaryOrderStockOperationUsecase = getPrimaryOrderStockOperationUsecase;
     }
 
     @Override
     public InventoryOperationView findPrimaryOrder(UUID orderId) {
-        return queryService
-                .findPrimaryOrder(orderId)
+        return getPrimaryOrderStockOperationUsecase
+                .get(orderId)
                 .map(InventoryOperationQueryRpcRest::toView)
                 .orElse(null);
     }

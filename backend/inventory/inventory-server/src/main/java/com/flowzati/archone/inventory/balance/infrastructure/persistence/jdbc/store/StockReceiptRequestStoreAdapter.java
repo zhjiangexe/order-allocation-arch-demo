@@ -1,7 +1,6 @@
 package com.flowzati.archone.inventory.balance.infrastructure.persistence.jdbc.store;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
-import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.enums.StockBalanceErrorCode;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.store.StockReceiptRequestStore;
@@ -37,13 +36,12 @@ public class StockReceiptRequestStoreAdapter implements StockReceiptRequestStore
     }
 
     @Override
-    public boolean claimIfNew(StockReceiptRequest request) {
-        Objects.requireNonNull(request, "Stock receipt request is required");
+    public boolean claimIfNew(ConfirmStockReceiptCommand command) {
+        Objects.requireNonNull(command, "Stock receipt command is required");
         requireCallerTransaction();
-        ConfirmStockReceiptCommand command = request.command();
         int inserted = jdbcOperations.update(
                 INSERT_IF_NEW,
-                request.receiptId(),
+                command.receiptId(),
                 command.ownerId(),
                 command.facilityId(),
                 command.locationId(),
@@ -55,23 +53,22 @@ public class StockReceiptRequestStoreAdapter implements StockReceiptRequestStore
             return true;
         }
 
-        StockReceiptRequest existing = jdbcOperations.queryForObject(
+        ConfirmStockReceiptCommand existing = jdbcOperations.queryForObject(
                 FIND_BY_ID,
-                (resultSet, rowNumber) -> new StockReceiptRequest(
+                (resultSet, rowNumber) -> new ConfirmStockReceiptCommand(
                         resultSet.getObject("receipt_id", UUID.class),
-                        new ConfirmStockReceiptCommand(
-                                resultSet.getObject("owner_id", UUID.class),
-                                resultSet.getObject("facility_id", UUID.class),
-                                resultSet.getObject("location_id", UUID.class),
-                                resultSet.getString("sku_code"),
-                                resultSet.getObject("in_date", java.time.LocalDate.class),
-                                resultSet.getObject("expiry_date", java.time.LocalDate.class),
-                                resultSet.getInt("quantity"))),
-                request.receiptId());
-        if (!request.equals(existing)) {
+                        resultSet.getObject("owner_id", UUID.class),
+                        resultSet.getObject("facility_id", UUID.class),
+                        resultSet.getObject("location_id", UUID.class),
+                        resultSet.getString("sku_code"),
+                        resultSet.getObject("in_date", java.time.LocalDate.class),
+                        resultSet.getObject("expiry_date", java.time.LocalDate.class),
+                        resultSet.getInt("quantity")),
+                command.receiptId());
+        if (!command.equals(existing)) {
             throw new ApplicationConflictException(
                     StockBalanceErrorCode.STOCK_RECEIPT_REQUEST_CONFLICT,
-                    "Receipt ID is already bound to a different request: " + request.receiptId());
+                    "Receipt ID is already bound to a different request: " + command.receiptId());
         }
         return false;
     }

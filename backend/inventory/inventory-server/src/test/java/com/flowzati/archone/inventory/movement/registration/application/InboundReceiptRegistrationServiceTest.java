@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.flowzati.archone.inventory.location.application.store.StockLocationStore;
 import com.flowzati.archone.inventory.location.domain.entity.StockLocation;
-import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrar;
+import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrationService;
 import com.flowzati.archone.inventory.movement.application.store.StockMoveStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationStore;
 import com.flowzati.archone.inventory.movement.application.store.StockOperationTypeStore;
@@ -30,14 +30,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 @DisplayName("建立 supply-only inbound 搬運")
-class InboundReceiptRegistrarTest {
+class InboundReceiptRegistrationServiceTest {
 
     private final Instant now = Instant.parse("2026-07-21T23:00:00Z");
     private StockLocationStore stockLocationStore;
     private StockOperationTypeStore stockOperationTypeStore;
     private StockOperationStore stockOperationStore;
     private StockMoveStore stockMoveStore;
-    private InboundReceiptRegistrar registrar;
+    private InboundReceiptRegistrationService registrar;
 
     @BeforeEach
     void setUp() {
@@ -45,7 +45,7 @@ class InboundReceiptRegistrarTest {
         stockOperationTypeStore = mock(StockOperationTypeStore.class);
         stockOperationStore = mock(StockOperationStore.class);
         stockMoveStore = mock(StockMoveStore.class);
-        registrar = new InboundReceiptRegistrar(
+        registrar = new InboundReceiptRegistrationService(
                 stockLocationStore, stockOperationTypeStore, stockOperationStore, stockMoveStore);
     }
 

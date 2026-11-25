@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsUsecase;
-import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsUsecase;
+import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsInteractor;
+import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsInteractor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -15,8 +15,10 @@ class SimulatedWarehouseOperationsSchedulerTest {
     void usesTheSameSchedulerByDefaultButStillAllowsTestsToDisableIt() {
         ApplicationContextRunner runner = new ApplicationContextRunner()
                 .withUserConfiguration(SimulatedWarehouseOperationsScheduler.class)
-                .withBean(ProcessDueShipmentsUsecase.class, () -> mock(ProcessDueShipmentsUsecase.class))
-                .withBean(ProcessCancellingShipmentsUsecase.class, () -> mock(ProcessCancellingShipmentsUsecase.class));
+                .withBean(ProcessDueShipmentsInteractor.class, () -> mock(ProcessDueShipmentsInteractor.class))
+                .withBean(
+                        ProcessCancellingShipmentsInteractor.class,
+                        () -> mock(ProcessCancellingShipmentsInteractor.class));
 
         runner.run(context -> assertThat(context).hasSingleBean(SimulatedWarehouseOperationsScheduler.class));
         runner.withPropertyValues("archone.wms.simulation.enabled=false")
@@ -25,8 +27,8 @@ class SimulatedWarehouseOperationsSchedulerTest {
 
     @Test
     void delegatesEachSchedulerTickToTheDurableBatchUsecase() {
-        ProcessDueShipmentsUsecase usecase = mock(ProcessDueShipmentsUsecase.class);
-        ProcessCancellingShipmentsUsecase cancellationUsecase = mock(ProcessCancellingShipmentsUsecase.class);
+        ProcessDueShipmentsInteractor usecase = mock(ProcessDueShipmentsInteractor.class);
+        ProcessCancellingShipmentsInteractor cancellationUsecase = mock(ProcessCancellingShipmentsInteractor.class);
 
         new SimulatedWarehouseOperationsScheduler(usecase, cancellationUsecase).processDueShipments();
 

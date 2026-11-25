@@ -1,6 +1,7 @@
 package com.flowzati.archone.wms.process.application.usecase;
 
 import com.flowzati.archone.foundation.time.BusinessClock;
+import com.flowzati.archone.wms.shipment.application.invocation.CompleteShipmentCancellationCommand;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
 import com.flowzati.archone.wms.shipment.application.usecase.CompleteShipmentCancellationUsecase;
 import java.time.Instant;
@@ -9,16 +10,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** 從持久化 backlog 完成已受理的 Shipment cancellation；每張 Shipment 的 transaction 彼此隔離。 */
-public class ProcessCancellingShipmentsUsecase {
+public class ProcessCancellingShipmentsInteractor {
 
-    private static final Logger log = LoggerFactory.getLogger(ProcessCancellingShipmentsUsecase.class);
+    private static final Logger log = LoggerFactory.getLogger(ProcessCancellingShipmentsInteractor.class);
 
     private final ShipmentStore shipmentStore;
     private final CompleteShipmentCancellationUsecase completeShipmentCancellation;
     private final BusinessClock appClock;
     private final int batchLimit;
 
-    public ProcessCancellingShipmentsUsecase(
+    public ProcessCancellingShipmentsInteractor(
             ShipmentStore shipmentStore,
             CompleteShipmentCancellationUsecase completeShipmentCancellation,
             BusinessClock appClock,
@@ -41,7 +42,7 @@ public class ProcessCancellingShipmentsUsecase {
 
     private void completeOne(UUID shipmentId, Instant completedAt) {
         try {
-            completeShipmentCancellation.execute(shipmentId, completedAt);
+            completeShipmentCancellation.execute(new CompleteShipmentCancellationCommand(shipmentId, completedAt));
         } catch (RuntimeException exception) {
             // 單筆衝突或異常都留待下一輪依最新持久化狀態重試，不阻斷同批其他 Shipment。
             log.atError()

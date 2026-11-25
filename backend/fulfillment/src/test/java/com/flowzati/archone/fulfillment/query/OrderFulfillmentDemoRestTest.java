@@ -5,7 +5,7 @@ import static org.mockito.Mockito.when;
 
 import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.fulfillment.application.result.OrderFulfillmentQueryResult;
-import com.flowzati.archone.fulfillment.application.usecase.OrderFulfillmentQueryUsecase;
+import com.flowzati.archone.fulfillment.application.usecase.GetOrderFulfillmentUsecase;
 import com.flowzati.archone.fulfillment.entrypoint.rest.OrderFulfillmentDemoRest;
 import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderFulfillmentResponse;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationView;
@@ -45,7 +45,7 @@ class OrderFulfillmentDemoRestTest {
     private MockMvcTester mvc;
 
     @MockitoBean
-    private OrderFulfillmentQueryUsecase queryService;
+    private GetOrderFulfillmentUsecase queryService;
 
     @Test
     @DisplayName("履約查詢應以一份 response 組合 source、stock operation 與 WMS")

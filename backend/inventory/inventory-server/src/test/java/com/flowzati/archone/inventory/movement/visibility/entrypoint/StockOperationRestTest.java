@@ -10,7 +10,7 @@ import com.flowzati.archone.inventory.movement.application.result.StockMoveView;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationHeaderView;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationSourceView;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationView;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
+import com.flowzati.archone.inventory.movement.application.usecase.ListConfirmedStockOperationsUsecase;
 import com.flowzati.archone.inventory.movement.domain.enums.MoveState;
 import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
 import com.flowzati.archone.inventory.movement.domain.enums.MovementSourceType;
@@ -36,27 +36,27 @@ class StockOperationRestTest {
     private MockMvcTester mvc;
 
     @MockitoBean
-    private StockOperationQueryService queryService;
+    private ListConfirmedStockOperationsUsecase listConfirmedStockOperationsUsecase;
 
     @Test
     void filtersQueueByOwner() {
         UUID ownerId = UUID.randomUUID();
-        when(queryService.listConfirmed(ownerId, 20)).thenReturn(List.of());
+        when(listConfirmedStockOperationsUsecase.list(ownerId, 20)).thenReturn(List.of());
         assertThat(mvc.get().uri("/stock-operations?ownerId=" + ownerId + "&limit=20"))
                 .hasStatus(200);
-        verify(queryService).listConfirmed(ownerId, 20);
+        verify(listConfirmedStockOperationsUsecase).list(ownerId, 20);
     }
 
     @Test
     void rejectsMalformedOwner() {
         assertThat(mvc.get().uri("/stock-operations?ownerId=invalid")).hasStatus(400);
-        verifyNoInteractions(queryService);
+        verifyNoInteractions(listConfirmedStockOperationsUsecase);
     }
 
     @Test
     void returnsCanonicalPickingQueue() {
         UUID stockOperationId = UUID.randomUUID();
-        when(queryService.listConfirmed(20)).thenReturn(List.of(operation(stockOperationId)));
+        when(listConfirmedStockOperationsUsecase.list(null, 20)).thenReturn(List.of(operation(stockOperationId)));
 
         var response = assertThat(mvc.get().uri("/stock-operations?state=CONFIRMED&limit=20"));
 
@@ -66,14 +66,14 @@ class StockOperationRestTest {
         response.bodyJson().extractingPath("$[0].moves[0].sourceLineId").isEqualTo("line-1");
         response.bodyJson().extractingPath("$[0].moves[0].batches[0].quantity").isEqualTo(5);
         response.bodyJson().doesNotHavePath("$[0].moves[0].moveLines");
-        verify(queryService).listConfirmed(20);
+        verify(listConfirmedStockOperationsUsecase).list(null, 20);
     }
 
     @Test
     void rejectsUnsupportedState() {
         assertThat(mvc.get().uri("/stock-operations?state=ASSIGNED")).hasStatus(400);
 
-        verifyNoInteractions(queryService);
+        verifyNoInteractions(listConfirmedStockOperationsUsecase);
     }
 
     private static StockOperationView operation(UUID stockOperationId) {

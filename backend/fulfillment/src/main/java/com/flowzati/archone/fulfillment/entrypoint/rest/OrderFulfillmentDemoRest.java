@@ -1,6 +1,6 @@
 package com.flowzati.archone.fulfillment.entrypoint.rest;
 
-import com.flowzati.archone.fulfillment.application.usecase.OrderFulfillmentQueryUsecase;
+import com.flowzati.archone.fulfillment.application.usecase.GetOrderFulfillmentUsecase;
 import com.flowzati.archone.fulfillment.entrypoint.rest.response.OrderFulfillmentResponse;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,9 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/demo/orders")
 public class OrderFulfillmentDemoRest {
 
-    private final OrderFulfillmentQueryUsecase queryService;
+    private final GetOrderFulfillmentUsecase queryService;
 
-    public OrderFulfillmentDemoRest(OrderFulfillmentQueryUsecase queryService) {
+    public OrderFulfillmentDemoRest(GetOrderFulfillmentUsecase queryService) {
         this.queryService = queryService;
     }
 

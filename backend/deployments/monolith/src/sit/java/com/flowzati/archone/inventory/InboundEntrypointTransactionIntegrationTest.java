@@ -11,11 +11,10 @@ import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedInteg
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.entrypoint.messaging.AllocationEventSubscriptions;
-import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.enums.StockBalanceErrorCode;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
+import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.ordering.application.store.OrderStore;
 import com.flowzati.archone.ordering.domain.aggregate.Order;
@@ -58,7 +57,7 @@ class InboundEntrypointTransactionIntegrationTest {
     private AllocationOrderLifecycleEventDriver allocationConsumer;
 
     @Autowired
-    private StockReceiptApplicationFacade stockReceiptApplicationFacade;
+    private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
     @Autowired
     private OrderStore orderStore;
@@ -187,9 +186,9 @@ class InboundEntrypointTransactionIntegrationTest {
                 orderStore, jdbcTemplate, OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 0, 0));
 
-        StockReceiptRequest request = receiptRequest(eventId, 3);
-        stockReceiptApplicationFacade.confirm(request);
-        stockReceiptApplicationFacade.confirm(request);
+        ConfirmStockReceiptCommand request = receiptRequest(eventId, 3);
+        confirmStockReceiptUsecase.execute(request);
+        confirmStockReceiptUsecase.execute(request);
 
         assertThat(countReceiptRequests(eventId)).isEqualTo(1);
         assertThat(stockQuantStore.findById(stockQuantId)).hasValueSatisfying(pool -> {
@@ -240,7 +239,7 @@ class InboundEntrypointTransactionIntegrationTest {
                 orderStore, jdbcTemplate, OrderFixtures.backorderedOrder(orderId, "SKU-1", 3, receivedAt, receivedAt));
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 0, 0));
 
-        stockReceiptApplicationFacade.confirm(receiptRequest(eventId, 3));
+        confirmStockReceiptUsecase.execute(receiptRequest(eventId, 3));
 
         UUID availabilityEventId = jdbcTemplate.queryForObject(
                 "SELECT id FROM event_outbox WHERE type = ?",
@@ -285,9 +284,9 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID receiptId = UUID.randomUUID();
         stockQuantStore.save(StockFixtures.unexpiredBatch(stockQuantId, "SKU-1", 0, 0));
 
-        stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 3));
+        confirmStockReceiptUsecase.execute(receiptRequest(receiptId, 3));
 
-        assertThatThrownBy(() -> stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 4)))
+        assertThatThrownBy(() -> confirmStockReceiptUsecase.execute(receiptRequest(receiptId, 4)))
                 .isInstanceOfSatisfying(
                         ApplicationConflictException.class,
                         exception -> assertThat(exception.errorCode())
@@ -312,7 +311,7 @@ class InboundEntrypointTransactionIntegrationTest {
         UUID receiptId = UUID.randomUUID();
         jdbcTemplate.update("DELETE FROM stock_operation_types WHERE facility_id = ?", OrderFixtures.FACILITY_ID);
 
-        assertThatThrownBy(() -> stockReceiptApplicationFacade.confirm(receiptRequest(receiptId, 3)))
+        assertThatThrownBy(() -> confirmStockReceiptUsecase.execute(receiptRequest(receiptId, 3)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("has no inbound operation type");
 
@@ -344,17 +343,16 @@ class InboundEntrypointTransactionIntegrationTest {
         """, Integer.class, subscriberId, eventId) == 1;
     }
 
-    private StockReceiptRequest receiptRequest(UUID receiptId, int quantity) {
-        return new StockReceiptRequest(
+    private ConfirmStockReceiptCommand receiptRequest(UUID receiptId, int quantity) {
+        return new ConfirmStockReceiptCommand(
                 receiptId,
-                new ConfirmStockReceiptCommand(
-                        OrderFixtures.OWNER_ID,
-                        OrderFixtures.FACILITY_ID,
-                        OrderFixtures.LOCATION_ID,
-                        "SKU-1",
-                        StockFixtures.ARRIVED_ON,
-                        StockFixtures.EXPIRES_ON,
-                        quantity));
+                OrderFixtures.OWNER_ID,
+                OrderFixtures.FACILITY_ID,
+                OrderFixtures.LOCATION_ID,
+                "SKU-1",
+                StockFixtures.ARRIVED_ON,
+                StockFixtures.EXPIRES_ON,
+                quantity);
     }
 
     private int countReceiptRequests(UUID receiptId) {

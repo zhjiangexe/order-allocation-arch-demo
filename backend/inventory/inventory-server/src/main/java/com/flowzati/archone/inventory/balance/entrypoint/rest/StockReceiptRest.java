@@ -1,8 +1,7 @@
 package com.flowzati.archone.inventory.balance.entrypoint.rest;
 
-import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
-import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
+import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.balance.entrypoint.rest.request.ConfirmStockReceiptRequest;
 import com.flowzati.archone.inventory.balance.entrypoint.rest.response.StockReceiptConfirmedResponse;
 import jakarta.validation.Valid;
@@ -21,15 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/stock-receipts")
 public class StockReceiptRest {
 
-    private final StockReceiptApplicationFacade stockReceiptApplicationFacade;
+    private final ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
-    public StockReceiptRest(StockReceiptApplicationFacade stockReceiptApplicationFacade) {
-        this.stockReceiptApplicationFacade = stockReceiptApplicationFacade;
+    public StockReceiptRest(ConfirmStockReceiptUsecase confirmStockReceiptUsecase) {
+        this.confirmStockReceiptUsecase = confirmStockReceiptUsecase;
     }
 
     @PostMapping
     public StockReceiptConfirmedResponse confirm(@Valid @RequestBody ConfirmStockReceiptRequest request) {
         ConfirmStockReceiptCommand command = new ConfirmStockReceiptCommand(
+                request.receiptId(),
                 request.ownerId(),
                 request.facilityId(),
                 request.locationId(),
@@ -37,7 +37,7 @@ public class StockReceiptRest {
                 request.inDate(),
                 request.expiryDate(),
                 request.quantity());
-        stockReceiptApplicationFacade.confirm(new StockReceiptRequest(request.receiptId(), command));
+        confirmStockReceiptUsecase.execute(command);
         return new StockReceiptConfirmedResponse(request.receiptId(), request.sku(), request.quantity());
     }
 }

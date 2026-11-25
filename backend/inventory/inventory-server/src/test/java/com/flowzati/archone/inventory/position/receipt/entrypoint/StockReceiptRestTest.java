@@ -7,9 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.flowzati.archone.foundation.error.ApplicationConflictException;
-import com.flowzati.archone.inventory.balance.application.StockReceiptRequest;
 import com.flowzati.archone.inventory.balance.application.enums.StockBalanceErrorCode;
-import com.flowzati.archone.inventory.balance.application.service.StockReceiptApplicationFacade;
+import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
+import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.balance.entrypoint.rest.StockReceiptRest;
 import com.flowzati.archone.support.spring.web.validation.GlobalRestExceptionHandler;
 import java.util.Locale;
@@ -52,7 +52,7 @@ class StockReceiptRestTest {
     private MockMvcTester mvc;
 
     @MockitoBean
-    private StockReceiptApplicationFacade facade;
+    private ConfirmStockReceiptUsecase confirmStockReceiptUsecase;
 
     @Test
     @DisplayName("同步收貨只映射 request，並直接呼叫 transactional use case")
@@ -69,21 +69,19 @@ class StockReceiptRestTest {
         response.bodyJson().doesNotHavePath("$.allocatedOrderIds");
         response.bodyJson().doesNotHavePath("$.limitReached");
 
-        ArgumentCaptor<StockReceiptRequest> captor = ArgumentCaptor.forClass(StockReceiptRequest.class);
-        verify(facade).confirm(captor.capture());
+        ArgumentCaptor<ConfirmStockReceiptCommand> captor = ArgumentCaptor.forClass(ConfirmStockReceiptCommand.class);
+        verify(confirmStockReceiptUsecase).execute(captor.capture());
         assertThat(captor.getValue().receiptId()).isEqualTo(RECEIPT_ID);
-        assertThat(captor.getValue().command().facilityId().toString())
-                .isEqualTo("00000000-0000-0000-0000-0000000000b1");
-        assertThat(captor.getValue().command().locationId().toString())
-                .isEqualTo("00000000-0000-0000-0000-0000000000c1");
+        assertThat(captor.getValue().facilityId().toString()).isEqualTo("00000000-0000-0000-0000-0000000000b1");
+        assertThat(captor.getValue().locationId().toString()).isEqualTo("00000000-0000-0000-0000-0000000000c1");
     }
 
     @Test
     @DisplayName("use case 拒絕輸入時由 global handler 轉成 400 ProblemDetail")
     void shouldMapAnApplicationInputErrorToBadRequest() {
         doThrow(new IllegalArgumentException("Location is outside facility"))
-                .when(facade)
-                .confirm(any());
+                .when(confirmStockReceiptUsecase)
+                .execute(any());
 
         var response = assertThat(mvc.post()
                 .uri("/stock-receipts")
@@ -96,7 +94,7 @@ class StockReceiptRestTest {
         response.bodyJson().extractingPath("$.detail").isEqualTo("Location is outside facility");
         response.bodyJson().extractingPath("$.code").isEqualTo("INVALID_REQUEST");
 
-        verify(facade).confirm(any());
+        verify(confirmStockReceiptUsecase).execute(any());
     }
 
     @Test
@@ -105,8 +103,8 @@ class StockReceiptRestTest {
         doThrow(new ApplicationConflictException(
                         StockBalanceErrorCode.STOCK_RECEIPT_REQUEST_CONFLICT,
                         "Receipt ID is already bound to a different request: " + RECEIPT_ID))
-                .when(facade)
-                .confirm(any());
+                .when(confirmStockReceiptUsecase)
+                .execute(any());
 
         var response = assertThat(mvc.post()
                 .uri("/stock-receipts")
@@ -123,7 +121,7 @@ class StockReceiptRestTest {
                 .isEqualTo("Receipt ID is already bound to a different request: " + RECEIPT_ID);
         response.bodyJson().extractingPath("$.code").isEqualTo("INVENTORY_STOCK_RECEIPT_REQUEST_CONFLICT");
 
-        verify(facade).confirm(any());
+        verify(confirmStockReceiptUsecase).execute(any());
     }
 
     @Test
@@ -147,7 +145,7 @@ class StockReceiptRestTest {
         response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("Receipt ID is required");
         response.bodyJson().doesNotHavePath("$.errors[0].rejectedValue");
 
-        verify(facade, never()).confirm(any());
+        verify(confirmStockReceiptUsecase, never()).execute(any());
     }
 
     @Test
@@ -164,7 +162,7 @@ class StockReceiptRestTest {
         response.bodyJson().extractingPath("$.detail").isEqualTo("一個或多個請求欄位不合法");
         response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("收貨識別碼為必填");
 
-        verify(facade, never()).confirm(any());
+        verify(confirmStockReceiptUsecase, never()).execute(any());
     }
 
     @Test
@@ -181,7 +179,7 @@ class StockReceiptRestTest {
         response.bodyJson().extractingPath("$.errors[0].code").isEqualTo("NotNull");
         response.bodyJson().extractingPath("$.errors[0].message").isEqualTo("Received quantity is required");
 
-        verify(facade, never()).confirm(any());
+        verify(confirmStockReceiptUsecase, never()).execute(any());
     }
 
     @Test
@@ -197,6 +195,6 @@ class StockReceiptRestTest {
         response.hasStatus(400);
         response.bodyJson().extractingPath("$.errors.length()").isEqualTo(2);
 
-        verify(facade, never()).confirm(any());
+        verify(confirmStockReceiptUsecase, never()).execute(any());
     }
 }

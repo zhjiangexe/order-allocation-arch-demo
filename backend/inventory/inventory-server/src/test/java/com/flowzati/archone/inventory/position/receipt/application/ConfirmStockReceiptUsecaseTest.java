@@ -2,6 +2,7 @@ package com.flowzati.archone.inventory.position.receipt.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -10,10 +11,11 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.inventory.balance.application.event.StockAvailabilityIncreased;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.port.StockAvailabilityIncreasedPublisher;
-import com.flowzati.archone.inventory.balance.application.service.InboundReceiptCompleter;
+import com.flowzati.archone.inventory.balance.application.service.InboundReceiptCompletionService;
+import com.flowzati.archone.inventory.balance.application.store.StockReceiptRequestStore;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.balance.domain.valueobject.ReceivingBatchIdentity;
-import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrar;
+import com.flowzati.archone.inventory.movement.application.service.InboundReceiptRegistrationService;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockMove;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
 import com.flowzati.archone.inventory.testsupport.InventoryFixtures;
@@ -34,20 +36,24 @@ class ConfirmStockReceiptUsecaseTest {
     private static final String SKU = "SKU-1";
     private static final Instant NOW = Instant.parse("2026-07-21T23:00:00Z");
 
-    private InboundReceiptRegistrar inboundReceiptRegistrar;
-    private InboundReceiptCompleter inboundReceiptCompleter;
+    private StockReceiptRequestStore stockReceiptRequestStore;
+    private InboundReceiptRegistrationService inboundReceiptRegistrationService;
+    private InboundReceiptCompletionService inboundReceiptCompletionService;
     private StockAvailabilityIncreasedPublisher availabilityPublisher;
     private ConfirmStockReceiptUsecase usecase;
 
     @BeforeEach
     void setUp() {
-        inboundReceiptRegistrar = mock(InboundReceiptRegistrar.class);
-        inboundReceiptCompleter = mock(InboundReceiptCompleter.class);
+        stockReceiptRequestStore = mock(StockReceiptRequestStore.class);
+        when(stockReceiptRequestStore.claimIfNew(any())).thenReturn(true);
+        inboundReceiptRegistrationService = mock(InboundReceiptRegistrationService.class);
+        inboundReceiptCompletionService = mock(InboundReceiptCompletionService.class);
         availabilityPublisher = mock(StockAvailabilityIncreasedPublisher.class);
         usecase = new ConfirmStockReceiptUsecase(
+                stockReceiptRequestStore,
                 InventoryFixtures.businessClock(Clock.fixed(NOW, ZoneId.of("UTC")), "Asia/Taipei"),
-                inboundReceiptRegistrar,
-                inboundReceiptCompleter,
+                inboundReceiptRegistrationService,
+                inboundReceiptCompletionService,
                 availabilityPublisher);
     }
 
@@ -56,7 +62,7 @@ class ConfirmStockReceiptUsecaseTest {
     void shouldCompleteInboundMovementBeforePublishingAvailability() {
         ConfirmStockReceiptCommand command = command();
         StockMove move = inboundMove(command.quantity());
-        when(inboundReceiptRegistrar.register(
+        when(inboundReceiptRegistrationService.register(
                         command.facilityId(),
                         command.ownerId(),
                         InventoryFixtures.LOCATION_ID,
@@ -67,8 +73,9 @@ class ConfirmStockReceiptUsecaseTest {
 
         usecase.execute(command);
 
-        InOrder order = inOrder(inboundReceiptRegistrar, inboundReceiptCompleter, availabilityPublisher);
-        order.verify(inboundReceiptRegistrar)
+        InOrder order =
+                inOrder(inboundReceiptRegistrationService, inboundReceiptCompletionService, availabilityPublisher);
+        order.verify(inboundReceiptRegistrationService)
                 .register(
                         command.facilityId(),
                         command.ownerId(),
@@ -76,7 +83,7 @@ class ConfirmStockReceiptUsecaseTest {
                         SKU,
                         command.quantity(),
                         NOW);
-        order.verify(inboundReceiptCompleter)
+        order.verify(inboundReceiptCompletionService)
                 .complete(List.of(move), new ReceivingBatchIdentity(command.inDate(), command.expiryDate()), NOW);
         ArgumentCaptor<StockAvailabilityIncreased> increase = ArgumentCaptor.forClass(StockAvailabilityIncreased.class);
         order.verify(availabilityPublisher).publish(increase.capture());
@@ -94,7 +101,7 @@ class ConfirmStockReceiptUsecaseTest {
     @DisplayName("指定位置不屬於 Facility 時拒絕收貨，且不建立任何 movement")
     void shouldRejectALocationOutsideTheFacility() {
         ConfirmStockReceiptCommand command = command();
-        when(inboundReceiptRegistrar.register(
+        when(inboundReceiptRegistrationService.register(
                         command.facilityId(),
                         command.ownerId(),
                         command.locationId(),
@@ -108,11 +115,23 @@ class ConfirmStockReceiptUsecaseTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not belong to facility");
 
-        verifyNoInteractions(inboundReceiptCompleter, availabilityPublisher);
+        verifyNoInteractions(inboundReceiptCompletionService, availabilityPublisher);
+    }
+
+    @Test
+    @DisplayName("相同收貨編號與內容重送時，不再入庫也不發布")
+    void exactReplayDoesNotReceiveAgain() {
+        ConfirmStockReceiptCommand command = command();
+        when(stockReceiptRequestStore.claimIfNew(command)).thenReturn(false);
+
+        usecase.execute(command);
+
+        verifyNoInteractions(inboundReceiptRegistrationService, inboundReceiptCompletionService, availabilityPublisher);
     }
 
     private ConfirmStockReceiptCommand command() {
         return new ConfirmStockReceiptCommand(
+                UUID.randomUUID(),
                 InventoryFixtures.OWNER_ID,
                 InventoryFixtures.FACILITY_ID,
                 InventoryFixtures.LOCATION_ID,

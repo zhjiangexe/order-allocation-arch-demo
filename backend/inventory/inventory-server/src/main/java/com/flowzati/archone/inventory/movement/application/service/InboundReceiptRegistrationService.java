@@ -27,14 +27,14 @@ import org.springframework.stereotype.Component;
  * 例如未來的盤點調整。因此不需要一個強制所有 move 都造 operation 的 Factory。
  */
 @Component
-public class InboundReceiptRegistrar {
+public class InboundReceiptRegistrationService {
 
     private final StockLocationStore stockLocationStore;
     private final StockOperationTypeStore stockOperationTypeStore;
     private final StockOperationStore stockOperationStore;
     private final StockMoveStore stockMoveStore;
 
-    public InboundReceiptRegistrar(
+    public InboundReceiptRegistrationService(
             StockLocationStore stockLocationStore,
             StockOperationTypeStore stockOperationTypeStore,
             StockOperationStore stockOperationStore,

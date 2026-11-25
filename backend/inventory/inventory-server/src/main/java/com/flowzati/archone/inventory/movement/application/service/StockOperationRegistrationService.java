@@ -19,18 +19,18 @@ import org.springframework.stereotype.Component;
 
 /** 將來源需求註冊成可等待的 movement intent；這一層不選供給、不預留 Quant。 */
 @Component
-public class StockOperationRegistrar {
+public class StockOperationRegistrationService {
 
     private final StockOperationStore stockOperationStore;
     private final StockMoveStore stockMoveStore;
     private final Supplier<UUID> idSupplier;
 
     @Autowired
-    public StockOperationRegistrar(StockOperationStore stockOperationStore, StockMoveStore stockMoveStore) {
+    public StockOperationRegistrationService(StockOperationStore stockOperationStore, StockMoveStore stockMoveStore) {
         this(stockOperationStore, stockMoveStore, IdGenerator::nextId);
     }
 
-    StockOperationRegistrar(
+    StockOperationRegistrationService(
             StockOperationStore stockOperationStore, StockMoveStore stockMoveStore, Supplier<UUID> idSupplier) {
         this.stockOperationStore = stockOperationStore;
         this.stockMoveStore = stockMoveStore;

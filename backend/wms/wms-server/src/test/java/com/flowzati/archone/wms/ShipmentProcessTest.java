@@ -21,6 +21,7 @@ import com.flowzati.archone.wms.picking.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.picking.domain.aggregate.PickingWork;
 import com.flowzati.archone.wms.picking.domain.enums.PickTaskStatus;
 import com.flowzati.archone.wms.shipment.application.invocation.CancelShipmentCommand;
+import com.flowzati.archone.wms.shipment.application.invocation.CompleteShipmentCancellationCommand;
 import com.flowzati.archone.wms.shipment.application.invocation.CreateShipmentCommand;
 import com.flowzati.archone.wms.shipment.application.invocation.MovementLine;
 import com.flowzati.archone.wms.shipment.application.result.CreateShipmentResult;
@@ -291,7 +292,7 @@ class ShipmentProcessTest {
         assertThat(publications).isEmpty();
 
         Instant completedAt = T0.plusSeconds(40);
-        completeShipmentCancellation.execute(shipment.id(), completedAt);
+        completeShipmentCancellation.execute(new CompleteShipmentCancellationCommand(shipment.id(), completedAt));
 
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
         assertThat(shipment.cancellationStateValue()).contains(ShipmentCancellationState.COMPLETED);
@@ -314,7 +315,8 @@ class ShipmentProcessTest {
 
         cancelShipment.handle(
                 new CancelShipmentCommand(nextId(), shipment.id(), T0.plusSeconds(50), "customer request"));
-        completeShipmentCancellation.execute(shipment.id(), T0.plusSeconds(60));
+        completeShipmentCancellation.execute(
+                new CompleteShipmentCancellationCommand(shipment.id(), T0.plusSeconds(60)));
 
         assertThat(shipment.status()).isEqualTo(ShipmentStatus.CANCELLED);
         assertThat(shipmentDispatchStore

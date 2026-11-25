@@ -11,7 +11,7 @@ import com.flowzati.archone.inventory.movement.application.enums.StockOperationC
 import com.flowzati.archone.inventory.movement.application.invocation.CancelStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions;
+import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationService;
 import com.flowzati.archone.inventory.movement.application.usecase.CancelStockOperationUsecase;
 import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
 import java.time.Clock;
@@ -27,12 +27,12 @@ class CancelStockOperationUsecaseTest {
     private static final UUID STOCK_OPERATION_ID = new UUID(0, 1);
     private static final UUID OPERATION_ID = new UUID(0, 2);
 
-    private StockOperationCancellationTransactions transactions;
+    private StockOperationCancellationService transactions;
     private CancelStockOperationUsecase usecase;
 
     @BeforeEach
     void setUp() {
-        transactions = mock(StockOperationCancellationTransactions.class);
+        transactions = mock(StockOperationCancellationService.class);
         usecase = new CancelStockOperationUsecase(transactions, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

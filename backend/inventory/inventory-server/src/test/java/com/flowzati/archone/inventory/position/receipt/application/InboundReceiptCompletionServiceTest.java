@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.foundation.identity.IdGenerator;
 import com.flowzati.archone.inventory.allocation.application.store.StockMoveLineStore;
 import com.flowzati.archone.inventory.allocation.domain.entity.StockMoveLine;
-import com.flowzati.archone.inventory.balance.application.service.InboundReceiptCompleter;
+import com.flowzati.archone.inventory.balance.application.service.InboundReceiptCompletionService;
 import com.flowzati.archone.inventory.balance.application.store.StockQuantStore;
 import com.flowzati.archone.inventory.balance.domain.aggregate.StockQuant;
 import com.flowzati.archone.inventory.balance.domain.valueobject.ReceivingBatchIdentity;
@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 @DisplayName("完成搬運")
-class InboundReceiptCompleterTest {
+class InboundReceiptCompletionServiceTest {
 
     private static final String SKU = "SKU-1";
     private final Instant now = Instant.parse("2026-07-25T02:00:00Z");
@@ -46,7 +46,7 @@ class InboundReceiptCompleterTest {
     private StockOperationStore stockOperationStore;
     private StockQuantStore stockQuantStore;
     private StockLocationStore stockLocationStore;
-    private InboundReceiptCompleter completer;
+    private InboundReceiptCompletionService completer;
 
     @BeforeEach
     void setUp() {
@@ -55,7 +55,7 @@ class InboundReceiptCompleterTest {
         stockOperationStore = mock(StockOperationStore.class);
         stockQuantStore = mock(StockQuantStore.class);
         stockLocationStore = mock(StockLocationStore.class);
-        completer = new InboundReceiptCompleter(
+        completer = new InboundReceiptCompletionService(
                 stockMoveStore, stockMoveLineStore, stockOperationStore, stockQuantStore, stockLocationStore);
         when(stockLocationStore.findById(InventoryFixtures.SUPPLIERS_LOCATION_ID))
                 .thenReturn(Optional.of(InventoryFixtures.suppliersLocation()));

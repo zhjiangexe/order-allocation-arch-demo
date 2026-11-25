@@ -13,7 +13,7 @@ import com.flowzati.archone.inventory.allocation.application.usecase.AllocateOrd
 import com.flowzati.archone.inventory.movement.application.invocation.MovementLine;
 import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationRegistrationResult;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
+import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrationService;
 import com.flowzati.archone.inventory.movement.domain.aggregate.StockOperation;
 import com.flowzati.archone.inventory.movement.domain.enums.MovementAssignmentPolicy;
 import com.flowzati.archone.inventory.movement.domain.enums.StockOperationDirection;
@@ -35,14 +35,14 @@ class AllocateOrderUsecaseTest {
     private static final UUID ORDER_ID = uuid(10);
 
     private OrderStockMovementStore adapter;
-    private StockOperationRegistrar registrar;
+    private StockOperationRegistrationService registrar;
     private StockOperationAssignmentCoordinator assignmentCoordinator;
     private AllocateOrderUsecase usecase;
 
     @BeforeEach
     void setUp() {
         adapter = mock(OrderStockMovementStore.class);
-        registrar = mock(StockOperationRegistrar.class);
+        registrar = mock(StockOperationRegistrationService.class);
         assignmentCoordinator = mock(StockOperationAssignmentCoordinator.class);
         usecase = new AllocateOrderUsecase(adapter, registrar, assignmentCoordinator);
     }

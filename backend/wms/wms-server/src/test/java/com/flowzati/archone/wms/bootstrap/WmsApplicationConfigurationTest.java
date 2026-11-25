@@ -13,8 +13,8 @@ import com.flowzati.archone.wms.dispatch.infrastructure.persistence.jpa.reposito
 import com.flowzati.archone.wms.infrastructure.configuration.WmsApplicationConfiguration;
 import com.flowzati.archone.wms.picking.application.usecase.ConfirmPickUsecase;
 import com.flowzati.archone.wms.picking.infrastructure.persistence.jpa.repository.JpaPickingWorkRepository;
-import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsUsecase;
-import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsUsecase;
+import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsInteractor;
+import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsInteractor;
 import com.flowzati.archone.wms.process.application.usecase.SimulateWarehouseOperationsUsecase;
 import com.flowzati.archone.wms.receiving.application.usecase.ConfirmArrivalUsecase;
 import com.flowzati.archone.wms.receiving.application.usecase.ConfirmPutawayUsecase;
@@ -68,8 +68,8 @@ class WmsApplicationConfigurationTest {
             assertThat(context).hasSingleBean(StageShipmentUsecase.class);
             assertThat(context).hasSingleBean(HandOverShipmentUsecase.class);
             assertThat(context).hasSingleBean(SimulateWarehouseOperationsUsecase.class);
-            assertThat(context).hasSingleBean(ProcessDueShipmentsUsecase.class);
-            assertThat(context).hasSingleBean(ProcessCancellingShipmentsUsecase.class);
+            assertThat(context).hasSingleBean(ProcessDueShipmentsInteractor.class);
+            assertThat(context).hasSingleBean(ProcessCancellingShipmentsInteractor.class);
         });
     }
 }

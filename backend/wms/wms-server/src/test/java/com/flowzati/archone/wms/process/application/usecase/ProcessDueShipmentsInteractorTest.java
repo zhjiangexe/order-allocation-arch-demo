@@ -15,7 +15,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.OptimisticLockingFailureException;
 
-class ProcessDueShipmentsUsecaseTest {
+class ProcessDueShipmentsInteractorTest {
 
     private static final Instant NOW = Instant.parse("2026-08-20T01:00:10Z");
 
@@ -51,7 +51,7 @@ class ProcessDueShipmentsUsecaseTest {
         verify(simulator).handle(new SimulateWarehouseOperationsCommand(following, NOW));
     }
 
-    private ProcessDueShipmentsUsecase usecase() {
-        return new ProcessDueShipmentsUsecase(shipmentStore, simulator, appClock, Duration.ofSeconds(10), 25);
+    private ProcessDueShipmentsInteractor usecase() {
+        return new ProcessDueShipmentsInteractor(shipmentStore, simulator, appClock, Duration.ofSeconds(10), 25);
     }
 }

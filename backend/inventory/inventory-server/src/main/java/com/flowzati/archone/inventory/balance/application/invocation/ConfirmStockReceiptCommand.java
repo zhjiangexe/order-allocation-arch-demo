@@ -11,11 +11,15 @@ import java.util.UUID;
  * 的一部分」的合併規則，而任何一條規則都會在某些情況下合併掉不該合併的貨；讓它們參與識別，
  * 就沒有規則要定義，也就沒有規則會定錯。
  *
+ * <p>{@code receiptId} 是呼叫端擁有的收貨識別，用於冪等：相同 ID＋相同內容重送不重複入庫，相同 ID＋不同內容
+ * 視為衝突。
+ *
  * <p>目前是一段式簡化流程：確認時同交易建立 operation、move、move line 並完成，不表達預約到貨、
  * 卸貨、驗收或上架等待。未來拆成多階段時，這個 command 應改為完成既有 receipt，而不是繼續
  * 擴張成一張多行收貨單。
  */
 public record ConfirmStockReceiptCommand(
+        UUID receiptId,
         UUID ownerId,
         UUID facilityId,
         UUID locationId,
@@ -24,6 +28,9 @@ public record ConfirmStockReceiptCommand(
         LocalDate expiryDate,
         int quantity) {
     public ConfirmStockReceiptCommand {
+        if (receiptId == null) {
+            throw new IllegalArgumentException("Receipt ID is required");
+        }
         if (ownerId == null) {
             throw new IllegalArgumentException("Owner ID is required");
         }

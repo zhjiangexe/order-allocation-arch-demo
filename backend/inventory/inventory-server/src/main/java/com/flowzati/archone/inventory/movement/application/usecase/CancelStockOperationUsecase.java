@@ -4,7 +4,7 @@ import com.flowzati.archone.inventory.movement.application.enums.StockOperationC
 import com.flowzati.archone.inventory.movement.application.invocation.CancelStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationCheckpoint;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationCancellationPreparation;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationTransactions;
+import com.flowzati.archone.inventory.movement.application.service.StockOperationCancellationService;
 import com.flowzati.archone.inventory.movement.domain.enums.StockOperationCancellationState;
 import java.time.Clock;
 import org.springframework.stereotype.Service;
@@ -13,10 +13,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class CancelStockOperationUsecase {
 
-    private final StockOperationCancellationTransactions transactions;
+    private final StockOperationCancellationService transactions;
     private final Clock clock;
 
-    public CancelStockOperationUsecase(StockOperationCancellationTransactions transactions, Clock clock) {
+    public CancelStockOperationUsecase(StockOperationCancellationService transactions, Clock clock) {
         this.transactions = transactions;
         this.clock = clock;
     }

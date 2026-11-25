@@ -1,6 +1,6 @@
 package com.flowzati.archone.inventory.movement.entrypoint.rest;
 
-import com.flowzati.archone.inventory.movement.application.service.StockOperationQueryService;
+import com.flowzati.archone.inventory.movement.application.usecase.ListConfirmedStockOperationsUsecase;
 import com.flowzati.archone.inventory.movement.entrypoint.rest.response.StockOperationResponse;
 import java.util.List;
 import java.util.UUID;
@@ -17,10 +17,10 @@ public class StockOperationRest {
     private static final int DEFAULT_LIMIT = 100;
     private static final int MAX_LIMIT = 200;
 
-    private final StockOperationQueryService queryService;
+    private final ListConfirmedStockOperationsUsecase listConfirmedStockOperationsUsecase;
 
-    public StockOperationRest(StockOperationQueryService queryService) {
-        this.queryService = queryService;
+    public StockOperationRest(ListConfirmedStockOperationsUsecase listConfirmedStockOperationsUsecase) {
+        this.listConfirmedStockOperationsUsecase = listConfirmedStockOperationsUsecase;
     }
 
     @GetMapping
@@ -34,7 +34,8 @@ public class StockOperationRest {
         if (limit <= 0 || limit > MAX_LIMIT) {
             throw new IllegalArgumentException("limit must be between 1 and " + MAX_LIMIT);
         }
-        return (ownerId == null ? queryService.listConfirmed(limit) : queryService.listConfirmed(ownerId, limit))
-                .stream().map(StockOperationResponse::from).toList();
+        return listConfirmedStockOperationsUsecase.list(ownerId, limit).stream()
+                .map(StockOperationResponse::from)
+                .toList();
     }
 }

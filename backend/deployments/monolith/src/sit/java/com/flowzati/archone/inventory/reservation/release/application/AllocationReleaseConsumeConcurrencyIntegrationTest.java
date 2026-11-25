@@ -3,6 +3,7 @@ package com.flowzati.archone.inventory.reservation.release.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowzati.archone.ArchoneApplication;
+import com.flowzati.archone.inventory.allocation.application.invocation.ReleaseStockOperationCommand;
 import com.flowzati.archone.inventory.allocation.application.usecase.ReleaseStockOperationUsecase;
 import com.flowzati.archone.inventory.movement.application.invocation.CompleteOutboundMovementsCommand;
 import com.flowzati.archone.inventory.movement.application.usecase.CompleteOutboundMovementsUsecase;
@@ -145,8 +146,11 @@ class AllocationReleaseConsumeConcurrencyIntegrationTest {
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            Future<Object> release = executor.submit(() ->
-                    race(ready, start, () -> releaseStockOperationUsecase.execute(STOCK_OPERATION_ID, terminalAt)));
+            Future<Object> release = executor.submit(() -> race(
+                    ready,
+                    start,
+                    () -> releaseStockOperationUsecase.execute(
+                            new ReleaseStockOperationCommand(STOCK_OPERATION_ID, terminalAt))));
             Future<Object> complete = executor.submit(() -> race(
                     ready,
                     start,

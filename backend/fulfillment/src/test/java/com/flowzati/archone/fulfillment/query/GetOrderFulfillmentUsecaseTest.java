@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQueryStatus;
 import com.flowzati.archone.fulfillment.application.port.FulfillmentWorkflowStateReader;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryResult;
-import com.flowzati.archone.fulfillment.application.usecase.OrderFulfillmentQueryUsecase;
+import com.flowzati.archone.fulfillment.application.usecase.GetOrderFulfillmentUsecase;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationQueryApi;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationView;
 import com.flowzati.archone.orchestration.contract.workflow.order.result.OrderFulfillmentSnapshot;
@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-class OrderFulfillmentQueryUsecaseTest {
+class GetOrderFulfillmentUsecaseTest {
     private final UUID orderId = UUID.randomUUID();
     private final OrderQueryApi orders = mock(OrderQueryApi.class);
     private final InventoryOperationQueryApi operations = mock(InventoryOperationQueryApi.class);
@@ -98,7 +98,7 @@ class OrderFulfillmentQueryUsecaseTest {
                 .thenReturn(new FulfillmentWorkflowQueryResult(FulfillmentWorkflowQueryStatus.NOT_APPLICABLE, null));
     }
 
-    private OrderFulfillmentQueryUsecase service() {
-        return new OrderFulfillmentQueryUsecase(orders, operations, shipments, reader);
+    private GetOrderFulfillmentUsecase service() {
+        return new GetOrderFulfillmentUsecase(orders, operations, shipments, reader);
     }
 }

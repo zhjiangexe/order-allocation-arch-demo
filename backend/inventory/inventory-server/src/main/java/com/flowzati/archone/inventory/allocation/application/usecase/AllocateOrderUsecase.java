@@ -5,7 +5,7 @@ import com.flowzati.archone.inventory.allocation.application.service.StockOperat
 import com.flowzati.archone.inventory.allocation.application.store.OrderStockMovementStore;
 import com.flowzati.archone.inventory.movement.application.invocation.RegisterStockOperationCommand;
 import com.flowzati.archone.inventory.movement.application.result.StockOperationRegistrationResult;
-import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrar;
+import com.flowzati.archone.inventory.movement.application.service.StockOperationRegistrationService;
 import jakarta.transaction.Transactional;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -26,15 +26,15 @@ import org.springframework.stereotype.Service;
 public class AllocateOrderUsecase {
 
     private final OrderStockMovementStore orderSource;
-    private final StockOperationRegistrar movementRegistrar;
+    private final StockOperationRegistrationService stockOperationRegistrationService;
     private final StockOperationAssignmentCoordinator assignmentCoordinator;
 
     public AllocateOrderUsecase(
             OrderStockMovementStore orderSource,
-            StockOperationRegistrar movementRegistrar,
+            StockOperationRegistrationService stockOperationRegistrationService,
             StockOperationAssignmentCoordinator assignmentCoordinator) {
         this.orderSource = orderSource;
-        this.movementRegistrar = movementRegistrar;
+        this.stockOperationRegistrationService = stockOperationRegistrationService;
         this.assignmentCoordinator = assignmentCoordinator;
     }
 
@@ -51,7 +51,7 @@ public class AllocateOrderUsecase {
         }
 
         // 2. 冪等建立 CONFIRMED Operation 與 Moves；此時尚未預留庫存。
-        StockOperationRegistrationResult registered = movementRegistrar.register(source.get());
+        StockOperationRegistrationResult registered = stockOperationRegistrationService.register(source.get());
 
         // 3. 只嘗試這組 movement；前單阻擋或缺貨時保留 CONFIRMED，等待日後喚醒。
         assignmentCoordinator.tryAssign(registered.operation().id());

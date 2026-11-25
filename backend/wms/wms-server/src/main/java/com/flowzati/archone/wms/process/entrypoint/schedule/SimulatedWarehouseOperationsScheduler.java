@@ -1,7 +1,7 @@
 package com.flowzati.archone.wms.process.entrypoint.schedule;
 
-import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsUsecase;
-import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsUsecase;
+import com.flowzati.archone.wms.process.application.usecase.ProcessCancellingShipmentsInteractor;
+import com.flowzati.archone.wms.process.application.usecase.ProcessDueShipmentsInteractor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -17,21 +17,21 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "archone.wms.simulation.enabled", havingValue = "true", matchIfMissing = true)
 public class SimulatedWarehouseOperationsScheduler {
 
-    private final ProcessDueShipmentsUsecase processDueShipmentsUsecase;
-    private final ProcessCancellingShipmentsUsecase processCancellingShipmentsUsecase;
+    private final ProcessDueShipmentsInteractor processDueShipmentsInteractor;
+    private final ProcessCancellingShipmentsInteractor processCancellingShipmentsInteractor;
 
     public SimulatedWarehouseOperationsScheduler(
-            ProcessDueShipmentsUsecase processDueShipmentsUsecase,
-            ProcessCancellingShipmentsUsecase processCancellingShipmentsUsecase) {
-        this.processDueShipmentsUsecase = processDueShipmentsUsecase;
-        this.processCancellingShipmentsUsecase = processCancellingShipmentsUsecase;
+            ProcessDueShipmentsInteractor processDueShipmentsInteractor,
+            ProcessCancellingShipmentsInteractor processCancellingShipmentsInteractor) {
+        this.processDueShipmentsInteractor = processDueShipmentsInteractor;
+        this.processCancellingShipmentsInteractor = processCancellingShipmentsInteractor;
     }
 
     @Scheduled(
             initialDelayString = "${archone.wms.simulation.scheduler-initial-delay-ms:1000}",
             fixedDelayString = "${archone.wms.simulation.scheduler-delay-ms:1000}")
     public void processDueShipments() {
-        processCancellingShipmentsUsecase.execute();
-        processDueShipmentsUsecase.execute();
+        processCancellingShipmentsInteractor.execute();
+        processDueShipmentsInteractor.execute();
     }
 }

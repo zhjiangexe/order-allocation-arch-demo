@@ -3,6 +3,7 @@ package com.flowzati.archone.testsupport;
 import com.flowzati.archone.inventory.balance.application.invocation.ConfirmStockReceiptCommand;
 import com.flowzati.archone.inventory.balance.application.usecase.ConfirmStockReceiptUsecase;
 import com.flowzati.archone.inventory.position.onhand.testsupport.StockFixtures;
+import java.util.UUID;
 
 /** 整合測試直接驅動本地同步收貨邊界，不再偽造外部 availability integration event。 */
 public final class StockReceiptFixture {
@@ -11,6 +12,7 @@ public final class StockReceiptFixture {
 
     public static void confirm(ConfirmStockReceiptUsecase usecase, String sku, int quantity) {
         usecase.execute(new ConfirmStockReceiptCommand(
+                UUID.randomUUID(),
                 OrderFixtures.OWNER_ID,
                 OrderFixtures.FACILITY_ID,
                 OrderFixtures.LOCATION_ID,
