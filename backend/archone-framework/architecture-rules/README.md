@@ -28,7 +28,7 @@ CI 對每個 push 與 PR 執行 `./gradlew build`，以上三組都包含在內�
 | BC-06 | 只有 `infrastructure.messaging` 的 `*IntegrationEventAdapter` 可使用 `IntegrationEventPublisher` | 對外發布只有一個出口，才能保證格式轉換與交易一致 | 新增或擴充對應的 `*IntegrationEventAdapter` |
 | BC-07 | 不得直接使用 `MessageProducer` | 直接送訊息會繞過 outbox，交易回滾時訊息照樣送出 | 透過 `*IntegrationEventAdapter` → `IntegrationEventPublisher` |
 | BC-08 | `*IntegrationEventAdapter` 必須在 `infrastructure.messaging`、實作 `application.port.*Publisher`、並呼叫 `IntegrationEventPublisher` | 讓「業務事件 → 對外訊息」的轉換點固定且可找 | 依此三點補齊；不發布的類別不要用這個字尾 |
-| BC-09 | `*IntegrationEventAdapter` 不得以 Outbox、Kafka、JDBC 命名 | 名稱描述業務邊界，傳輸方式可替換 | 以事件邊界命名，例如 `StockOperationIntegrationEventAdapter` |
+| BC-09 | `*IntegrationEventAdapter` 不得以 Outbox、Kafka、JDBC 命名 | 名稱描述業務邊界，傳輸方式可替換 | 以事件邊界命名，例如 `StockOperationAssignedIntegrationEventAdapter` |
 | BC-10 | `infrastructure.messaging` 的 `*Translator` 不得發布、不得讀寫資料庫 | Translator 是純轉換，才能單獨測試、不帶副作用 | 需要查資料時，由 Usecase 先查好放進 Application Event |
 | BC-11 | `entrypoint`（含 Consumer）不得發布對外事件或使用 `*Publisher` port | 收到訊息後的狀態改變與後續發布必須在同一交易內，由 Usecase 負責 | Consumer 只轉成 Command 呼叫 Usecase |
 | BC-12 | `application.port.*Publisher` 的每個方法只能收一個參數 | 一次發布一個完整的 Application Event，避免事件被拆成零散欄位 | 把欄位收進一個 Application Event record |

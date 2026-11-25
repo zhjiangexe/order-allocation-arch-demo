@@ -75,6 +75,10 @@ Reservation、Position、Location 的唯一 owner。
   Application Event、Publisher port 與 Integration Event Adapter 完成；Consumer 不得發布 Usecase Result。
 - Application Event 與 Integration Event 可以採用不同 bounded context 的語言，但外部語意必須能由內部事實
   完整推導；不得把 proposal、partial assignment 或 soft hold 翻譯成 committed。
+- 同一 context 內以 Spring Application Event 串接模組時：發布端是 `infrastructure.event.*ApplicationEventAdapter`，
+  實作 `application.port` 的 `*Publisher`，只有它可以使用 `ApplicationEventPublisher`（BC-48、BC-50）；接收端是
+  `entrypoint.event.*EventListener`，只把事件轉成 Command 交給 Usecase，只有它可以掛 `@EventListener`
+  （BC-47、BC-49）。Listener 使用同步 `@EventListener`，Usecase 在發布者的交易內執行。實例見 wms 的 `process` 模組。
 
 ## Persistence package rules
 
