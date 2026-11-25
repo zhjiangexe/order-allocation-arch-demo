@@ -1,6 +1,5 @@
 package com.flowzati.archone.wms.wave.domain.valueobject;
 
-import com.flowzati.archone.wms.shipment.domain.aggregate.Shipment;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -24,16 +23,5 @@ public record WaveCandidate(
         if (lineCount <= 0 || unitCount <= 0) {
             throw new IllegalArgumentException("Wave candidate requires positive line and unit counts");
         }
-    }
-
-    public static WaveCandidate from(Shipment shipment) {
-        return new WaveCandidate(
-                shipment.id(),
-                shipment.facilityId(),
-                shipment.dispatchBy(),
-                shipment.releasePriority(),
-                shipment.createdAt(),
-                shipment.lines().size(),
-                shipment.lines().stream().map(line -> line.quantity()).reduce(0, Math::addExact));
     }
 }

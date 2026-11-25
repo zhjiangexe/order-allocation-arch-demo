@@ -27,21 +27,26 @@ promising.fulfillment-handoffs
   → SimulateWarehouseOperationsUsecase
   → PlanWaveUsecase
   → ReleaseWaveUsecase
-      └─ WaveReleased（同步 domain event）
-          ├─ 建立 PickingWork / PickTask
-          └─ 更新 Shipment release checkpoint
+      └─ WaveReleased（同步 Application Event）
+          └─ WarehouseProcessEventListener → ReleaseShipmentsToPickingUsecase
+              ├─ 建立 PickingWork / PickTask
+              └─ 更新 Shipment release checkpoint
   → ConfirmPickUsecase
-      └─ PickingWorkStatusChanged（同步 domain event）
-          └─ 更新 Shipment picking checkpoint
+      └─ PickingWorkStatusChanged（同步 Application Event）
+          └─ WarehouseProcessEventListener → RecordPickingProgressUsecase
+              └─ 更新 Shipment picking checkpoint
   → Pack / Stage / HandOver use cases
-      └─ ShipmentDispatchStatusChanged（同步 domain event）
-          └─ 更新 ShipmentDispatch checkpoint
-              └─ ShipmentHandedOver（integration event / outbox）
+      └─ ShipmentDispatchStatusChanged（同步 Application Event）
+          └─ WarehouseProcessEventListener → RecordDispatchProgressUsecase
+              └─ 更新 Shipment pack / stage / handover checkpoint
+                  └─ ShipmentHandedOver（integration event / outbox）
+  （取消完成時：ShipmentCancellationCompleted → CloseCancelledShipmentWorkUsecase 收掉 PickingWork 與 ShipmentDispatch）
 ```
 
 `Wave`、`PickingWork`、`ShipmentDispatch` 各自擁有狀態與資料表；`Shipment` 不再內嵌現場揀貨、包裝細節，
-只保留跨流程查詢和取消判斷所需的 checkpoint。WMS 內部事件使用 Spring 同步發布，handler
-與發布者共享同一個 transaction，任何一步失敗都整筆 rollback。跨 bounded context 的
+只保留跨流程查詢和取消判斷所需的 checkpoint。WMS 內部事件由 `process.infrastructure.event.WmsApplicationEventAdapter`
+以 Spring 同步發布，`process.entrypoint.event.WarehouseProcessEventListener` 只把事件轉成 Command 交給 `process`
+的 Usecase。這些 Usecase 宣告 `Propagation.MANDATORY`，必須在發布者的 transaction 內執行，任何一步失敗都整筆 rollback。跨 bounded context 的
 `ShipmentHandedOver`、`ShipmentCancelled` 仍使用 durable outbox；若未來拆成不同服務，再把需要跨服務的
 內部事件升級為 outbox / inbox integration event。
 

@@ -123,7 +123,7 @@ Reservation、Position、Location 的唯一 owner。
 
 ## Entrypoint package rules
 
-- Entrypoint 依觸發來源分資料夾：`rest`、`messaging`、`temporal`、`schedule`，不得放在 entrypoint 根（BC-26）。
+- Entrypoint 依觸發來源分資料夾：`rest`、`messaging`、`temporal`、`schedule`、`event`（同一 context 內的 Application Event，`*EventListener`，BC-47），不得放在 entrypoint 根（BC-26）。
 - `entrypoint.rest` 根只放 `@RestController` 的 `*Rest`；`rest.request` 放 `*Request` record；`rest.response`
   放 `*Response` record（BC-27）。
 - `entrypoint.messaging` 只放 `*EventConsumer`，以及每個模組唯一一個 `<Module>EventSubscriptions`

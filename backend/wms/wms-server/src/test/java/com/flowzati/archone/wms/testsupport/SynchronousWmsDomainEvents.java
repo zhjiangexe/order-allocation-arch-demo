@@ -7,7 +7,11 @@ import com.flowzati.archone.wms.dispatch.application.store.ShipmentDispatchStore
 import com.flowzati.archone.wms.picking.application.event.PickingWorkStatusChanged;
 import com.flowzati.archone.wms.picking.application.port.PickingWorkStatusChangedPublisher;
 import com.flowzati.archone.wms.picking.application.store.PickingWorkStore;
-import com.flowzati.archone.wms.process.application.service.WmsDomainEventHandlers;
+import com.flowzati.archone.wms.process.application.usecase.CloseCancelledShipmentWorkUsecase;
+import com.flowzati.archone.wms.process.application.usecase.RecordDispatchProgressUsecase;
+import com.flowzati.archone.wms.process.application.usecase.RecordPickingProgressUsecase;
+import com.flowzati.archone.wms.process.application.usecase.ReleaseShipmentsToPickingUsecase;
+import com.flowzati.archone.wms.process.entrypoint.event.WarehouseProcessEventListener;
 import com.flowzati.archone.wms.shipment.application.event.ShipmentCancellationCompleted;
 import com.flowzati.archone.wms.shipment.application.port.ShipmentCancellationCompletedPublisher;
 import com.flowzati.archone.wms.shipment.application.store.ShipmentStore;
@@ -20,15 +24,18 @@ public class SynchronousWmsDomainEvents
                 ShipmentCancellationCompletedPublisher,
                 ShipmentDispatchStatusChangedPublisher {
 
-    private final WmsDomainEventHandlers handlers;
+    private final WarehouseProcessEventListener handlers;
 
     public SynchronousWmsDomainEvents(
             ShipmentStore shipmentStore,
             PickingWorkStore pickingWorkStore,
             ShipmentDispatchStore shipmentDispatchStore,
             ShipmentHandedOverPublisher shipmentHandedOverPublisher) {
-        handlers = new WmsDomainEventHandlers(
-                shipmentStore, pickingWorkStore, shipmentDispatchStore, shipmentHandedOverPublisher);
+        handlers = new WarehouseProcessEventListener(
+                new ReleaseShipmentsToPickingUsecase(shipmentStore, pickingWorkStore),
+                new RecordPickingProgressUsecase(shipmentStore),
+                new CloseCancelledShipmentWorkUsecase(pickingWorkStore, shipmentDispatchStore),
+                new RecordDispatchProgressUsecase(shipmentStore, shipmentHandedOverPublisher));
     }
 
     @Override

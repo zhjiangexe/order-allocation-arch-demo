@@ -64,7 +64,7 @@ public class PlanWaveUsecase {
                         .filter(Shipment::isWaveCandidate)
                         .toList();
         List<WaveCandidate> candidates =
-                candidateShipments.stream().map(WaveCandidate::from).toList();
+                candidateShipments.stream().map(PlanWaveUsecase::toCandidate).toList();
         List<WaveAssignment> assignments = wavePlanner.plan(candidates, policy);
         if (assignments.isEmpty()) {
             throw new IllegalStateException("No eligible Shipment fits Wave " + command.waveId() + " planning policy");
@@ -95,5 +95,16 @@ public class PlanWaveUsecase {
                 wave.facilityId(),
                 assignments.size());
         return wave;
+    }
+
+    private static WaveCandidate toCandidate(Shipment shipment) {
+        return new WaveCandidate(
+                shipment.id(),
+                shipment.facilityId(),
+                shipment.dispatchBy(),
+                shipment.releasePriority(),
+                shipment.createdAt(),
+                shipment.lines().size(),
+                shipment.lines().stream().map(line -> line.quantity()).reduce(0, Math::addExact));
     }
 }

@@ -157,7 +157,12 @@ class BoundedContextArchitectureRulesTest {
             new Violation("BC-44", "entrypointusesservice"),
             new Violation("BC-45", "interactorwrites"),
             new Violation("BC-46", "restreturnsstate"),
-            new Violation("BC-46", "restwrapsresult"));
+            new Violation("BC-46", "restwrapsresult"),
+            new Violation("BC-47", "eventlistenername"),
+            new Violation("BC-48", "applicationeventadaptername"),
+            new Violation("BC-48", "applicationeventadapterwithoutport"),
+            new Violation("BC-49", "eventlisteneroutsideentrypoint"),
+            new Violation("BC-50", "eventpublisheroutsideadapter"));
 
     @TestFactory
     @DisplayName("每條規則都會擋下對應的違規")

@@ -3,6 +3,7 @@ package com.flowzati.archone.architecture;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.core.domain.properties.CanBeAnnotated.Predicates.annotatedWith;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.base.DescribedPredicate;
@@ -30,13 +31,16 @@ import java.util.Set;
 final class BoundedContextRoleRules {
 
     static final Set<String> DOMAIN_ROLES = Set.of("aggregate", "entity", "valueobject", "enums", "service", "policy");
-    static final Set<String> ENTRYPOINT_CHANNELS = Set.of("rest", "messaging", "temporal", "schedule");
+    static final Set<String> ENTRYPOINT_CHANNELS = Set.of("rest", "messaging", "temporal", "schedule", "event");
 
     private static final String JPA_ENTITY = "jakarta.persistence.Entity";
     private static final String JPA_EMBEDDABLE = "jakarta.persistence.Embeddable";
     private static final String JPA_EMBEDDED_ID = "jakarta.persistence.EmbeddedId";
     private static final String JPA_REPOSITORY = "org.springframework.data.jpa.repository.JpaRepository";
     private static final String REST_CONTROLLER = "org.springframework.web.bind.annotation.RestController";
+    private static final String SPRING_EVENT_LISTENER = "org.springframework.context.event.EventListener";
+    private static final String SPRING_APPLICATION_EVENT_PUBLISHER =
+            "org.springframework.context.ApplicationEventPublisher";
     private static final Set<String> REST_RETURN_WRAPPERS = Set.of(
             "void",
             "java.lang.Void",
@@ -214,7 +218,8 @@ final class BoundedContextRoleRules {
                         .toArray(String[]::new))
                 .allowEmptyShould(true)
                 .as(describe(
-                        "BC-26", "Entrypoint 類別只能放在依觸發來源命名的 rest、messaging、temporal、schedule 之一（不得直接放在 entrypoint 根）"));
+                        "BC-26",
+                        "Entrypoint 類別只能放在依觸發來源命名的 rest、messaging、temporal、schedule、event 之一（不得直接放在 entrypoint 根）"));
     }
 
     ArchRule restPackagesSeparateControllersRequestsAndResponses() {
@@ -281,6 +286,58 @@ final class BoundedContextRoleRules {
                 .haveSimpleNameEndingWith("Adapter")
                 .allowEmptyShould(true)
                 .as(describe("BC-30", "entrypoint.temporal 只放 *Adapter"));
+    }
+
+    ArchRule eventEntrypointsAreListeners() {
+        return classes()
+                .that()
+                .resideInAPackage(layerRole("entrypoint", "event"))
+                .and()
+                .areTopLevelClasses()
+                .should()
+                .haveSimpleNameEndingWith("EventListener")
+                .allowEmptyShould(true)
+                .as(describe("BC-47", "entrypoint.event 只放 *EventListener（同一 context 內的 Application Event 入口）"));
+    }
+
+    ArchRule applicationEventAdaptersImplementPublisherPorts() {
+        return classes()
+                .that()
+                .resideInAPackage(layerRole("infrastructure", "event"))
+                .and()
+                .areTopLevelClasses()
+                .should(beApplicationEventAdapterImplementingPublisherPort())
+                .allowEmptyShould(true)
+                .as(describe(
+                        "BC-48",
+                        "infrastructure.event 只放 *ApplicationEventAdapter，且必須實作 application.port 的 *Publisher"));
+    }
+
+    ArchRule applicationEventsAreHandledOnlyInEventEntrypoints() {
+        return methods()
+                .that()
+                .areDeclaredInClassesThat()
+                .resideInAPackage(basePackage + "..")
+                .and()
+                .areMetaAnnotatedWith(SPRING_EVENT_LISTENER)
+                .should()
+                .beDeclaredInClassesThat()
+                .resideInAPackage(layerRole("entrypoint", "event"))
+                .allowEmptyShould(true)
+                .as(describe("BC-49", "只有 entrypoint.event 可以接收 Spring Application Event（@EventListener）"));
+    }
+
+    ArchRule applicationEventsArePublishedOnlyByEventAdapters() {
+        return noClasses()
+                .that()
+                .resideInAPackage(basePackage + "..")
+                .and()
+                .resideOutsideOfPackage(layerRole("infrastructure", "event"))
+                .should()
+                .dependOnClassesThat()
+                .haveFullyQualifiedName(SPRING_APPLICATION_EVENT_PUBLISHER)
+                .allowEmptyShould(true)
+                .as(describe("BC-50", "只有 infrastructure.event 可以使用 Spring ApplicationEventPublisher 發布事件"));
     }
 
     // -------------------------------------------------------- infrastructure
@@ -588,6 +645,27 @@ final class BoundedContextRoleRules {
         return packageName.startsWith(basePackage + ".")
                 && packageName.endsWith(".entrypoint.rest.response")
                 && type.getSimpleName().endsWith("Response");
+    }
+
+    private ArchCondition<JavaClass> beApplicationEventAdapterImplementingPublisherPort() {
+        return new ArchCondition<>("be an *ApplicationEventAdapter implementing an application.port *Publisher") {
+            @Override
+            public void check(JavaClass javaClass, ConditionEvents events) {
+                if (!javaClass.getSimpleName().endsWith("ApplicationEventAdapter")) {
+                    events.add(SimpleConditionEvent.violated(
+                            javaClass, javaClass.getName() + " is not named *ApplicationEventAdapter"));
+                    return;
+                }
+                boolean implementsPublisherPort = javaClass.getRawInterfaces().stream()
+                        .anyMatch(port -> port.getPackageName().startsWith(basePackage + ".")
+                                && port.getPackageName().endsWith(".application.port")
+                                && port.getSimpleName().endsWith("Publisher"));
+                if (!implementsPublisherPort) {
+                    events.add(SimpleConditionEvent.violated(
+                            javaClass, javaClass.getName() + " does not implement an application.port *Publisher"));
+                }
+            }
+        };
     }
 
     private String moduleOf(JavaClass javaClass) {

@@ -1,4 +1,4 @@
-package com.flowzati.archone.wms.process.infrastructure.messaging;
+package com.flowzati.archone.wms.process.infrastructure.event;
 
 import com.flowzati.archone.wms.dispatch.application.event.ShipmentDispatchStatusChanged;
 import com.flowzati.archone.wms.dispatch.application.port.ShipmentDispatchStatusChangedPublisher;
@@ -11,9 +11,9 @@ import com.flowzati.archone.wms.wave.application.port.WaveReleasedPublisher;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
-/** 同一 WMS bounded context 內的同步 domain event bus；handler 失敗會讓原交易一起 rollback。 */
+/** WMS 內部的 Application Event 發布：同步交給 entrypoint.event 的 Listener，Listener 失敗會讓原交易一起 rollback。 */
 @Component
-public class SpringWmsDomainEventPublisher
+public class WmsApplicationEventAdapter
         implements WaveReleasedPublisher,
                 PickingWorkStatusChangedPublisher,
                 ShipmentCancellationCompletedPublisher,
@@ -21,7 +21,7 @@ public class SpringWmsDomainEventPublisher
 
     private final ApplicationEventPublisher events;
 
-    public SpringWmsDomainEventPublisher(ApplicationEventPublisher events) {
+    public WmsApplicationEventAdapter(ApplicationEventPublisher events) {
         this.events = events;
     }
 
