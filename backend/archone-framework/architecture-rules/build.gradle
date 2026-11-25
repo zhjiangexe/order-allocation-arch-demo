@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'shared ArchUnit rules for bounded context boundaries'
+
+dependencies {
+    api libs.archunit
+
+    testImplementation project(':archone-framework:messaging:messaging-api')
+    testImplementation project(':archone-framework:messaging:messaging-events')
+    testImplementation libs.spring.boot.starter.test
+    testRuntimeOnly libs.junit.platform.launcher
+}

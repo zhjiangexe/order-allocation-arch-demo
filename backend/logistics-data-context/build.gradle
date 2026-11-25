@@ -8,6 +8,8 @@ dependencies {
     api libs.spring.boot.starter.data.jpa
     api libs.spring.boot.starter.webmvc
 
+    testImplementation project(':archone-framework:architecture-rules')
+    testImplementation libs.archunit.junit5
     testImplementation libs.spring.boot.starter.test
     testImplementation libs.spring.boot.starter.webmvc.test
     testRuntimeOnly libs.junit.platform.launcher

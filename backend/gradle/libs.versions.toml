@@ -8,6 +8,7 @@ uuid-creator = "6.1.1"
 temporal = "1.40.0"
 spotless = "8.11.0"
 palantirJavaFormat = "2.103.0"
+archunit = "1.5.1"
 # 傳遞相依的安全性修補版本, 由 build.gradle 的 dependencyManagement 套用。
 snappyJava = "1.1.10.12"
 lz4Java = "1.14.0"
@@ -70,6 +71,8 @@ testcontainers-postgresql = { group = "org.testcontainers", name = "testcontaine
 testcontainers-kafka = { group = "org.testcontainers", name = "testcontainers-kafka" }
 kafka-clients = { group = "org.apache.kafka", name = "kafka-clients" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
+archunit = { group = "com.tngtech.archunit", name = "archunit", version.ref = "archunit" }
+archunit-junit5 = { group = "com.tngtech.archunit", name = "archunit-junit5", version.ref = "archunit" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }

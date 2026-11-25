@@ -30,3 +30,7 @@
   context 不得直接呼叫 `MessageProducer`。
 - Adapter 名稱描述直接銜接的 Integration Event boundary，不使用 Outbox、Kafka、JDBC 等可替換的下層傳輸
   機制命名。
+- 上述邊界與 layer 依賴方向由 `backend/archone-framework/architecture-rules` 的 `BoundedContextArchitectureRules`
+  以 ArchUnit 強制驗證。每條規則有編號（`BC-xx`），理由與正確做法見該模組的 `README.md`。每個 bounded context
+  以 `*SharedBoundaryArchitectureTest` 套用；新增 bounded context 時一併加上這個測試（monolith 的
+  `BoundedContextArchitectureTest` 也會自動找出新 context 並檢查）。

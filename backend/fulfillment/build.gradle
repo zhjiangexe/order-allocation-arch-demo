@@ -23,6 +23,7 @@ dependencies {
     testImplementation libs.spring.boot.starter.webmvc.test
     testImplementation libs.spring.modulith.starter.test
     testImplementation project(':spring-framework-support')
-    testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.1'
+    testImplementation project(':archone-framework:architecture-rules')
+    testImplementation libs.archunit.junit5
     testRuntimeOnly libs.junit.platform.launcher
 }

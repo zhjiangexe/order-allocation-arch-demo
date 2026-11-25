@@ -8,8 +8,9 @@ git -C "$REPOSITORY_ROOT" diff --check
 
 cd "$REPOSITORY_ROOT/backend"
 ./gradlew \
-  :ordering-context:spotlessCheck \
-  :ordering-context:test \
+  :ordering:ordering-server:spotlessCheck \
+  :ordering:ordering-server:test \
+  :archone-framework:architecture-rules:test \
   :fulfillment:compileTestJava \
   :deployments:monolith:compileTestJava \
   "$@"

@@ -117,6 +117,15 @@ Reservation、Position、Location 的唯一 owner。
 - `AllocationOptimisticLockRetryObserver` 放在 `inventory.bootstrap.observability`，負責跨 Allocation／
   Movement 的重試監測。新增 adapter 仍應先尋找明確 owner，不建立通用 `inventory.adapter`。
 
+## Architecture gate
+
+- `InventorySharedBoundaryArchitectureTest` 套用 `:archone-framework:architecture-rules` 的
+  `BoundedContextArchitectureRules`，驗證 layer 依賴方向、Integration Event 邊界與模組無循環。規則編號、理由與
+  正確做法見 `backend/archone-framework/architecture-rules/README.md`。
+- 模組間循環（BC-14）目前以 freeze 延後處理：既有循環記在 `src/test/resources/archunit-frozen-violations`，
+  **新增任何跨模組雙向依賴都會失敗**。不得編輯凍結檔或開啟 refreeze。
+- 不得以排除類別或放寬 package predicate 讓新程式碼通過；架構決策改變時先更新本檔與共用規則。
+
 ## Verification
 
 - 修改 Java 後執行 `cd backend && ./gradlew spotlessApply`。

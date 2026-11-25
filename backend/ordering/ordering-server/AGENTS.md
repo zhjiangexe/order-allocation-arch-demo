@@ -3,9 +3,14 @@
 本檔適用於 `backend/ordering/ordering-server`。修改或新增 production code 前，先依此判斷類別所屬 layer、package
 與依賴方向。
 
-架構規則由
-`src/test/java/com/flowzati/archone/ordering/architecture/OrderingContextArchitectureTest.java` 強制驗證；本檔用來
-說明規則意圖與正確建模方式。若文件與測試不一致，不得直接刪除、忽略或放寬測試，應先確認架構決策並同步更新
+架構規則由兩組 ArchUnit 測試強制驗證：
+
+- `OrderingSharedBoundaryArchitectureTest`：套用 `:archone-framework:architecture-rules` 的
+  `BoundedContextArchitectureRules`，驗證所有 bounded context 共用的 layer 依賴方向、Integration Event 邊界與
+  domain 子套件無循環。規則編號、理由與正確做法見 `backend/archone-framework/architecture-rules/README.md`。
+- `OrderingContextArchitectureTest`：Ordering 專屬的命名、package ownership 與角色規則。
+
+本檔用來說明規則意圖與正確建模方式。若文件與測試不一致，不得直接刪除、忽略或放寬測試，應先確認架構決策並同步更新
 兩者。
 
 ## Package root
@@ -144,7 +149,8 @@ Messaging infrastructure 與 Persistence infrastructure 不得互相依賴。
 - 編譯器產生的 synthetic class 可從「角色必須依賴某類型」的規則中排除，但規則仍須覆蓋所有 top-level
   production type。
 - 若架構決策確實改變，先說明舊規則不再成立的原因，再同步修改本檔與
-  `OrderingContextArchitectureTest`。
+  `OrderingContextArchitectureTest`；共用規則的變更改在 `BoundedContextArchitectureRules`，並補上對應的違規
+  fixture 測試。
 - 新增 layer role 或 package 時，應同時補上命名、package ownership 與依賴方向的 ArchUnit gate。
 
 ## Verification

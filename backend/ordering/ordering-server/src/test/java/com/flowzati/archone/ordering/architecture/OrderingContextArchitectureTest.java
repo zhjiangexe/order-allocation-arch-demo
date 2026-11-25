@@ -4,7 +4,6 @@ import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPac
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
-import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.flowzati.archone.ordering.domain.aggregate.Order;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -20,6 +19,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Ordering-specific naming and role rules. Layer direction and Integration Event boundaries shared by every bounded
+ * context are verified by {@link OrderingSharedBoundaryArchitectureTest}.
+ */
 @DisplayName("Ordering bounded context architecture rules")
 class OrderingContextArchitectureTest {
 
@@ -28,8 +31,6 @@ class OrderingContextArchitectureTest {
     private static final String BASE_PACKAGE = PROJECT_PACKAGE + "." + CONTEXT_NAME;
     private static final String INTEGRATION_CONTRACT_PACKAGE = PROJECT_PACKAGE + ".contracts..";
     private static final String ORDERING_INTEGRATION_CONTRACT_PACKAGE = PROJECT_PACKAGE + ".contracts.ordering..";
-    private static final String INTEGRATION_EVENT_PUBLISHER =
-            PROJECT_PACKAGE + ".messaging.events.IntegrationEventPublisher";
     private static final String DOMAIN_PACKAGE = BASE_PACKAGE + ".domain..";
     private static final String APPLICATION_PACKAGE = BASE_PACKAGE + ".application..";
     private static final String INVOCATION_PACKAGE_ROOT = BASE_PACKAGE + ".application.invocation";
@@ -56,71 +57,6 @@ class OrderingContextArchitectureTest {
 
     private static final JavaClasses ORDERING_CLASSES = new ClassFileImporter()
             .importUrl(Order.class.getProtectionDomain().getCodeSource().getLocation());
-
-    @Nested
-    @DisplayName("Layer boundaries")
-    class LayerBoundaries {
-
-        @Test
-        @DisplayName("Domain 不得依賴外層 application、entrypoint 或 infrastructure")
-        void domainDoesNotDependOnOuterLayers() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(DOMAIN_PACKAGE)
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAnyPackage(APPLICATION_PACKAGE, ENTRYPOINT_PACKAGE, INFRASTRUCTURE_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Application 不得依賴 entrypoint 或 infrastructure")
-        void applicationDoesNotDependOnEntrypointsOrInfrastructure() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(APPLICATION_PACKAGE)
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAnyPackage(ENTRYPOINT_PACKAGE, INFRASTRUCTURE_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Domain 與 application 不得依賴 versioned integration event contracts")
-        void businessCodeDoesNotDependOnVersionedIntegrationContracts() {
-            noClasses()
-                    .that()
-                    .resideInAnyPackage(DOMAIN_PACKAGE, APPLICATION_PACKAGE)
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAPackage(INTEGRATION_CONTRACT_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("只有 infrastructure.messaging 可以發布 integration events")
-        void onlyMessagingInfrastructureMayPublishIntegrationEvents() {
-            noClasses()
-                    .that()
-                    .resideOutsideOfPackage(MESSAGING_INFRASTRUCTURE_PACKAGE)
-                    .should()
-                    .dependOnClassesThat()
-                    .haveFullyQualifiedName(INTEGRATION_EVENT_PUBLISHER)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Entrypoint 不得依賴 infrastructure")
-        void entrypointsDoNotDependOnInfrastructure() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(ENTRYPOINT_PACKAGE)
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAPackage(INFRASTRUCTURE_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-    }
 
     @Nested
     @DisplayName("Application layer")
@@ -407,15 +343,6 @@ class OrderingContextArchitectureTest {
                     .resideInAnyPackage(AGGREGATE_PACKAGE, ENTITY_PACKAGE, DOMAIN_SERVICE_PACKAGE)
                     .check(ORDERING_CLASSES);
         }
-
-        @Test
-        @DisplayName("Domain subpackages 不得形成循環依賴")
-        void domainSubpackagesAreFreeOfCycles() {
-            slices().matching(BASE_PACKAGE + ".domain.(*)..")
-                    .should()
-                    .beFreeOfCycles()
-                    .check(ORDERING_CLASSES);
-        }
     }
 
     @Nested
@@ -627,18 +554,6 @@ class OrderingContextArchitectureTest {
     class InfrastructureLayer {
 
         @Test
-        @DisplayName("Infrastructure 不得反向依賴 entrypoint")
-        void infrastructureDoesNotDependOnEntrypoints() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(INFRASTRUCTURE_PACKAGE)
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAPackage(ENTRYPOINT_PACKAGE)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
         @DisplayName("Messaging infrastructure 只能包含 IntegrationEventAdapter、Translator 或 Resolver")
         void messagingInfrastructureContainsOnlyBoundaryRoles() {
             classes()
@@ -648,36 +563,6 @@ class OrderingContextArchitectureTest {
                     .areTopLevelClasses()
                     .should()
                     .haveNameMatching(".*(IntegrationEventAdapter|Translator|Resolver)$")
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Integration event adapter 必須實作 application publisher port 並負責實際發布")
-        void integrationEventAdaptersImplementPublisherPortsAndPublishEvents() {
-            classes()
-                    .that()
-                    .resideInAPackage(MESSAGING_INFRASTRUCTURE_PACKAGE)
-                    .and()
-                    .haveSimpleNameEndingWith("IntegrationEventAdapter")
-                    .should()
-                    .implement(resideInAPackage(APPLICATION_PORT_PACKAGE).and(simpleNameEndingWith("Publisher")))
-                    .andShould()
-                    .dependOnClassesThat()
-                    .haveFullyQualifiedName(INTEGRATION_EVENT_PUBLISHER)
-                    .check(ORDERING_CLASSES);
-        }
-
-        @Test
-        @DisplayName("Messaging helper 不得繞過 IntegrationEventAdapter 直接發布 event")
-        void onlyIntegrationEventAdaptersPublishFromMessagingInfrastructure() {
-            noClasses()
-                    .that()
-                    .resideInAPackage(MESSAGING_INFRASTRUCTURE_PACKAGE)
-                    .and()
-                    .haveSimpleNameNotEndingWith("IntegrationEventAdapter")
-                    .should()
-                    .dependOnClassesThat()
-                    .haveFullyQualifiedName(INTEGRATION_EVENT_PUBLISHER)
                     .check(ORDERING_CLASSES);
         }
 

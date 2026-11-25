@@ -66,6 +66,7 @@ dependencies {
     testImplementation libs.spring.boot.starter.opentelemetry.test
     testImplementation libs.spring.boot.starter.webmvc.test
     testImplementation libs.spring.modulith.starter.test
+    testImplementation project(':archone-framework:architecture-rules')
     testImplementation project(':archone-framework:messaging:messaging-test-support')
     testImplementation(testFixtures(project(':inventory:inventory-server')))
     testRuntimeOnly libs.junit.platform.launcher
