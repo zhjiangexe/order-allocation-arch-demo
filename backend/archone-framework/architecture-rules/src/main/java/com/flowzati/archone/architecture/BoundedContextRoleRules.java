@@ -37,6 +37,13 @@ final class BoundedContextRoleRules {
     private static final String JPA_EMBEDDED_ID = "jakarta.persistence.EmbeddedId";
     private static final String JPA_REPOSITORY = "org.springframework.data.jpa.repository.JpaRepository";
     private static final String REST_CONTROLLER = "org.springframework.web.bind.annotation.RestController";
+    private static final Set<String> REST_RETURN_WRAPPERS = Set.of(
+            "void",
+            "java.lang.Void",
+            "org.springframework.http.ResponseEntity",
+            "java.util.List",
+            "java.util.Set",
+            "java.util.Optional");
 
     private final String basePackage;
     private final String contextName;
@@ -222,6 +229,20 @@ final class BoundedContextRoleRules {
                         "BC-27",
                         "entrypoint.rest 根只放 @RestController *Rest；rest.request 只放 *Request record；"
                                 + "rest.response 只放 *Response record"));
+    }
+
+    ArchRule restOperationsReturnResponses() {
+        return classes()
+                .that()
+                .resideInAPackage(layerRole("entrypoint", "rest"))
+                .and()
+                .areAnnotatedWith(REST_CONTROLLER)
+                .should(returnOnlyResponsesOrPublishedApiTypes())
+                .allowEmptyShould(true)
+                .as(describe(
+                        "BC-46",
+                        "@RestController 的 public method 只能回傳 rest.response 的 *Response、context 對外 api 套件的型別，"
+                                + "或沒有內容（void／ResponseEntity<Void>）；可以包在 ResponseEntity、List、Set、Optional 裡"));
     }
 
     ArchRule messagingEntrypointsAreConsumersAndOneSubscriptionsHolder() {
@@ -535,6 +556,38 @@ final class BoundedContextRoleRules {
                 subscriptionsByModule.clear();
             }
         };
+    }
+
+    private ArchCondition<JavaClass> returnOnlyResponsesOrPublishedApiTypes() {
+        return new ArchCondition<>("return only *Response, published api types, or no content") {
+            @Override
+            public void check(JavaClass javaClass, ConditionEvents events) {
+                javaClass.getMethods().stream()
+                        .filter(method -> method.getModifiers().contains(JavaModifier.PUBLIC))
+                        .forEach(method -> method.getReturnType().getAllInvolvedRawTypes().stream()
+                                .filter(type -> !isAllowedRestReturnType(type))
+                                .map(JavaClass::getName)
+                                .distinct()
+                                .forEach(type -> events.add(SimpleConditionEvent.violated(
+                                        method,
+                                        method.getFullName() + " returns " + type
+                                                + "; expose a rest.response *Response instead"))));
+            }
+        };
+    }
+
+    private boolean isAllowedRestReturnType(JavaClass type) {
+        String name = type.getName();
+        if (REST_RETURN_WRAPPERS.contains(name)) {
+            return true;
+        }
+        String packageName = type.getPackageName();
+        if (packageName.equals(basePackage + ".api") || packageName.startsWith(basePackage + ".api.")) {
+            return true;
+        }
+        return packageName.startsWith(basePackage + ".")
+                && packageName.endsWith(".entrypoint.rest.response")
+                && type.getSimpleName().endsWith("Response");
     }
 
     private String moduleOf(JavaClass javaClass) {

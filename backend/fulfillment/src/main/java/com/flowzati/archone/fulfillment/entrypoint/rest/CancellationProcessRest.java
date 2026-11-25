@@ -1,8 +1,8 @@
 package com.flowzati.archone.fulfillment.entrypoint.rest;
 
 import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
-import com.flowzati.archone.fulfillment.application.state.CancellationProcess;
 import com.flowzati.archone.fulfillment.application.usecase.GetCancellationProcessUsecase;
+import com.flowzati.archone.fulfillment.entrypoint.rest.response.CancellationProcessResponse;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
@@ -25,10 +25,11 @@ public class CancellationProcessRest {
     }
 
     @GetMapping("/{requestId}")
-    public ResponseEntity<CancellationProcess> get(
+    public ResponseEntity<CancellationProcessResponse> get(
             @PathVariable(name = "orderId") UUID orderId, @PathVariable(name = "requestId") UUID requestId) {
         return getCancellationProcess
                 .get(orderId, requestId)
+                .map(CancellationProcessResponse::from)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

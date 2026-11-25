@@ -1,12 +1,13 @@
-package com.flowzati.archone.fulfillment.entrypoint.messaging;
+package com.flowzati.archone.fulfillment.infrastructure.temporal;
 
 import static io.temporal.api.enums.v1.WorkflowIdConflictPolicy.WORKFLOW_ID_CONFLICT_POLICY_FAIL;
 import static io.temporal.api.enums.v1.WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE;
 
-import com.flowzati.archone.contracts.cancel.v1.ShipmentCancelledIntegrationEvent;
-import com.flowzati.archone.contracts.fulfillment.v1.ShipmentHandedOverIntegrationEvent;
-import com.flowzati.archone.contracts.ordering.v1.OrderPlacedIntegrationEvent;
-import com.flowzati.archone.contracts.promising.v1.OrderAllocationCommittedIntegrationEvent;
+import com.flowzati.archone.fulfillment.application.invocation.RecordShipmentCancelledCommand;
+import com.flowzati.archone.fulfillment.application.invocation.RecordShipmentHandedOverCommand;
+import com.flowzati.archone.fulfillment.application.invocation.RecordStockOperationAssignedCommand;
+import com.flowzati.archone.fulfillment.application.invocation.StartOrderFulfillmentCommand;
+import com.flowzati.archone.fulfillment.application.port.OrderFulfillmentWorkflowPort;
 import com.flowzati.archone.orchestration.contract.workflow.order.OrderFulfillmentWorkflow;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.AssignedStockMove;
 import com.flowzati.archone.orchestration.contract.workflow.order.invocation.OrderFulfillmentInput;
@@ -16,28 +17,30 @@ import com.flowzati.archone.orchestration.contract.workflow.order.invocation.Sto
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowExecutionAlreadyStarted;
 import io.temporal.client.WorkflowOptions;
+import java.util.UUID;
 
-/** 將 fulfillment integration events 轉成 Temporal Workflow start 或 signal。 */
-public class TemporalFulfillmentEventBridge {
+/** 以 Temporal Workflow 實作訂單履約流程：開始流程用 workflow start，各方事實用 signal。 */
+public class TemporalOrderFulfillmentWorkflowAdapter implements OrderFulfillmentWorkflowPort {
 
     private final WorkflowClient workflowClient;
 
-    public TemporalFulfillmentEventBridge(WorkflowClient workflowClient) {
+    public TemporalOrderFulfillmentWorkflowAdapter(WorkflowClient workflowClient) {
         this.workflowClient = workflowClient;
     }
 
-    public void startWorkflow(OrderPlacedIntegrationEvent event) {
+    @Override
+    public void start(StartOrderFulfillmentCommand command) {
         OrderFulfillmentWorkflow workflow =
-                workflowClient.newWorkflowStub(OrderFulfillmentWorkflow.class, workflowOptions(event.getOrderId()));
+                workflowClient.newWorkflowStub(OrderFulfillmentWorkflow.class, workflowOptions(command.orderId()));
         try {
             WorkflowClient.start(
-                    workflow::execute, new OrderFulfillmentInput(event.getOrderId(), event.getReceivedAt()));
+                    workflow::execute, new OrderFulfillmentInput(command.orderId(), command.orderReceivedAt()));
         } catch (WorkflowExecutionAlreadyStarted ignored) {
             // Kafka redelivery 與 Inbox retry 可能再次嘗試啟動；workflowId 保證同一張 Order 只有一條流程。
         }
     }
 
-    static WorkflowOptions workflowOptions(java.util.UUID orderId) {
+    static WorkflowOptions workflowOptions(UUID orderId) {
         return WorkflowOptions.newBuilder()
                 .setWorkflowId(OrderFulfillmentWorkflow.workflowId(orderId))
                 .setWorkflowIdConflictPolicy(WORKFLOW_ID_CONFLICT_POLICY_FAIL)
@@ -46,42 +49,45 @@ public class TemporalFulfillmentEventBridge {
                 .build();
     }
 
-    public void signalStockOperationAssigned(OrderAllocationCommittedIntegrationEvent event) {
-        workflow(event.getOrderId())
+    @Override
+    public void stockOperationAssigned(RecordStockOperationAssignedCommand command) {
+        workflow(command.orderId())
                 .stockOperationAssigned(new StockOperationAssignedInput(
-                        event.getStockOperationId(),
-                        event.getOrderId(),
-                        event.getOwnerId(),
-                        event.getFacilityId(),
-                        event.getMoves().stream()
+                        command.stockOperationId(),
+                        command.orderId(),
+                        command.ownerId(),
+                        command.facilityId(),
+                        command.moves().stream()
                                 .map(line -> new AssignedStockMove(
                                         line.orderLineId(),
                                         line.moveId(),
                                         line.skuCode(),
-                                        event.getSourceLocationId(),
+                                        line.sourceLocationId(),
                                         line.quantity()))
                                 .toList(),
-                        event.getDispatchBy(),
-                        event.getReleasePriority(),
-                        event.getAssignedAt()));
+                        command.dispatchBy(),
+                        command.releasePriority(),
+                        command.assignedAt()));
     }
 
-    public void signalShipmentHandedOver(ShipmentHandedOverIntegrationEvent event) {
-        workflow(event.getOrderId())
+    @Override
+    public void shipmentHandedOver(RecordShipmentHandedOverCommand command) {
+        workflow(command.orderId())
                 .shipmentHandedOverToCarrier(new ShipmentHandedOverToCarrierInput(
-                        event.getOrderId(), event.getShipmentId(), event.getHandedOverAt()));
+                        command.orderId(), command.shipmentId(), command.handedOverAt()));
     }
 
-    public void signalShipmentCancelled(ShipmentCancelledIntegrationEvent event) {
-        workflow(event.getOrderId())
+    @Override
+    public void shipmentCancelled(RecordShipmentCancelledCommand command) {
+        workflow(command.orderId())
                 .shipmentCancelled(new ShipmentCancelledInput(
-                        event.getOrderId(),
-                        event.getShipmentId(),
-                        event.getCancellationRequestId(),
-                        event.getCancelledAt()));
+                        command.orderId(),
+                        command.shipmentId(),
+                        command.cancellationRequestId(),
+                        command.cancelledAt()));
     }
 
-    private OrderFulfillmentWorkflow workflow(java.util.UUID orderId) {
+    private OrderFulfillmentWorkflow workflow(UUID orderId) {
         return workflowClient.newWorkflowStub(
                 OrderFulfillmentWorkflow.class, OrderFulfillmentWorkflow.workflowId(orderId));
     }

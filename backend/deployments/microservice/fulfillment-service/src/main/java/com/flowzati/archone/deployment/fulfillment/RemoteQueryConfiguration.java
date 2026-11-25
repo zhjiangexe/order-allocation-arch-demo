@@ -1,6 +1,6 @@
 package com.flowzati.archone.deployment.fulfillment;
 
-import com.flowzati.archone.fulfillment.configuration.OrderFulfillmentProperties;
+import com.flowzati.archone.fulfillment.infrastructure.configuration.OrderFulfillmentProperties;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationQueryApi;
 import com.flowzati.archone.ordering.api.query.OrderQueryApi;
 import com.flowzati.archone.wms.api.shipment.WmsShipmentQueryApi;

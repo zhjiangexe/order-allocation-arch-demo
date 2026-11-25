@@ -1,4 +1,0 @@
-#
-#Wed Nov 25 19:01:47 CST 2026
-[BC-15]\ fulfillment\uFF5C\u6BCF\u500B\u985E\u5225\u90FD\u5FC5\u9808\u4F4D\u65BC\ domain\u3001application\u3001entrypoint\u3001infrastructure\u3001bootstrap\ \u4E4B\u4E0B\uFF0C\u6216\u4F4D\u65BC\ context\ \u6700\u4E0A\u5C64\u7684\ api\uFF08\u5C0D\u5916\u516C\u958B\u6A21\u7D44\uFF09=9fe01c0e-d9df-4bb7-a803-5cc1a4efff0c
-[BC-28]\ fulfillment\uFF5Centrypoint.messaging\ \u53EA\u653E\ *EventConsumer\ \u8207\ *EventSubscriptions\uFF1B\u6BCF\u500B\u6A21\u7D44\u53EA\u80FD\u6709\u4E00\u500B\ *EventSubscriptions\uFF0C\u4E14\u53EA\u80FD\u5BA3\u544A\ static\ final\ String\ \u5E38\u6578=0148d655-212b-4fa8-b808-97f4f02d427e

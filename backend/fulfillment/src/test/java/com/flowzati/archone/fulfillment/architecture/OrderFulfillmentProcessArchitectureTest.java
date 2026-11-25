@@ -25,7 +25,6 @@ class OrderFulfillmentProcessArchitectureTest {
                 .resideInAnyPackage(
                         "com.flowzati.archone.fulfillment.orchestration..",
                         "com.flowzati.archone.fulfillment.entrypoint..",
-                        "com.flowzati.archone.fulfillment.configuration..",
                         "com.flowzati.archone.fulfillment.infrastructure..")
                 .check(PROCESS_CLASSES);
     }
@@ -53,15 +52,13 @@ class OrderFulfillmentProcessArchitectureTest {
     }
 
     @Test
-    void entrypointsDoNotDependOnOrchestrationOrConfiguration() {
+    void entrypointsDoNotDependOnOrchestrationOrTemporal() {
         noClasses()
                 .that()
                 .resideInAPackage("com.flowzati.archone.fulfillment.entrypoint..")
                 .should()
                 .dependOnClassesThat()
-                .resideInAnyPackage(
-                        "com.flowzati.archone.fulfillment.orchestration..",
-                        "com.flowzati.archone.fulfillment.configuration..")
+                .resideInAnyPackage("com.flowzati.archone.fulfillment.orchestration..", "io.temporal..")
                 .check(PROCESS_CLASSES);
     }
 

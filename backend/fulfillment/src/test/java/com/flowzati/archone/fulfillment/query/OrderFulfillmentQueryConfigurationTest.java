@@ -8,8 +8,8 @@ import com.flowzati.archone.fulfillment.application.enums.FulfillmentWorkflowQue
 import com.flowzati.archone.fulfillment.application.port.FulfillmentWorkflowStateReader;
 import com.flowzati.archone.fulfillment.application.result.FulfillmentWorkflowQueryResult;
 import com.flowzati.archone.fulfillment.application.usecase.GetOrderFulfillmentUsecase;
-import com.flowzati.archone.fulfillment.configuration.OrderFulfillmentProperties;
-import com.flowzati.archone.fulfillment.configuration.OrderFulfillmentQueryConfiguration;
+import com.flowzati.archone.fulfillment.infrastructure.configuration.OrderFulfillmentProperties;
+import com.flowzati.archone.fulfillment.infrastructure.configuration.OrderFulfillmentQueryConfiguration;
 import com.flowzati.archone.inventory.api.operation.InventoryOperationQueryApi;
 import com.flowzati.archone.ordering.api.query.OrderQueryApi;
 import com.flowzati.archone.ordering.api.query.OrderQueryView;

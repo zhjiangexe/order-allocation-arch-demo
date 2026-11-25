@@ -36,7 +36,7 @@ CI 對每個 push 與 PR 執行 `./gradlew build`，以上三組都包含在內�
 | BC-14 | 同一 context 內的模組之間不得循環依賴 | 循環讓模組無法單獨理解與修改 | 找出被雙方共用的型別，移到真正擁有它的模組，並保持單向依賴 |
 | BC-15 | 每個類別都必須在 `domain`、`application`、`entrypoint`、`infrastructure`、`bootstrap` 之下，或在 context 最上層的 `api` | 不屬於任何一層的類別不受上述規則保護 | 依職責放進對應的 layer；`api` 只用於對外公開的 `*-api` 模組 |
 
-### 各套件的角色與命名（BC-16～BC-35）
+### 各套件的角色與命名（BC-16～BC-35、BC-46）
 
 分類以 DDD 戰術分類為骨幹（aggregate／entity／valueobject／service／policy），再加上「enum 一律放
 `enums`」這個專案慣例；後者不是 DDD 的要求。Domain 類別依下列順序判斷，第一個符合的就是它的位置：
@@ -65,6 +65,7 @@ enum → `enums`；有身分且為主體 → `aggregate`；隸屬主體的身分
 | BC-33 | `jpa.store`／`jdbc.store` 的 public 類別＝所實作的 `application.store` 介面名＋`Adapter`；輔助類別 package-private | 看名字就知道它實作哪個 Store；技術看資料夾，不寫進名稱 | `StockQuantStore` → `StockQuantStoreAdapter`；不要 `Jpa`／`Jdbc` 前綴或 `Impl` |
 | BC-34 | Persistence 類別只能放在 `jpa.model`、`jpa.repository`、`jpa.mapper`、`jpa.store`、`jdbc.store` | 固定位置，新類別不會各自開資料夾 | JDBC 的 row 類別放 `jdbc.store` 並設為 package-private |
 | BC-35 | `jpa.mapper` 只放 `*Mapper` | 角色與命名一致 | 命名 `*Mapper` |
+| BC-46 | `@RestController` 的 public method 只能回傳 `rest.response` 的 `*Response`、context 對外 `api` 套件的型別，或沒有內容；可包在 `ResponseEntity`、`List`、`Set`、`Optional` 裡 | 對外格式與內部結構分開：內部改欄位不會悄悄改到 API | 新增 `*Response` 並用 `from(...)` 轉換；實作 `*-api` 介面的 RPC 入口直接回傳 `api` 的型別 |
 
 ### Application 的角色與呼叫方向（BC-36～BC-45）
 
@@ -103,8 +104,6 @@ monolith 的總測試對這些項目標示為 skipped，凍結檔只存一份。
 | Context | 規則 | 原因 | 何時移除 |
 | --- | --- | --- | --- |
 | inventory | BC-14 | allocation、balance、movement 之間既有三組雙向依賴；重整方案已定案，2026-11-25 決定延後執行 | 執行 inventory 模組重整後 |
-| fulfillment | BC-15 | `fulfillment.configuration` 不屬於任何 layer | 套件統一階段 4 拆解 `configuration` 後 |
-| fulfillment | BC-28 | `TemporalFulfillmentEventBridge` 在 entrypoint 直接呼叫 Temporal，不是 `*EventConsumer` | 套件統一階段 4 改為 Consumer → Usecase → port 後 |
 | wms | BC-42 | `WmsDomainEventHandlers` 放在 `application.service` 但不是 Service：它接收 Application Event 並執行業務邏輯 | 套件統一階段 5 把邏輯移入 Usecase、由 Listener 呼叫後 |
 
 新增延後項目前必須先在上表登記原因與移除時機；凍結檔不得手動編輯，`archunit.properties` 也不得開啟

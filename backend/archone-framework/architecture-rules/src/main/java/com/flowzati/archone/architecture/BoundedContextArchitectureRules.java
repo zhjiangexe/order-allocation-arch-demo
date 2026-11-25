@@ -84,9 +84,6 @@ public final class BoundedContextArchitectureRules {
     public static final Map<String, Set<String>> DEFERRED_RULES = Map.of(
             // inventory 模組間既有循環：重整方案已定案，2026-11-25 決定延後執行。
             "inventory", Set.of("BC-14"),
-            // 階段 4 處理：fulfillment.configuration 拆解（Q7，BC-15）與 TemporalFulfillmentEventBridge 改為標準
-            // Consumer → Usecase 流程（Q3c，BC-28）。處理完即移除此項與凍結檔。
-            "fulfillment", Set.of("BC-15", "BC-28"),
             // 階段 5 處理：WmsDomainEventHandlers 的邏輯移入 Usecase，改由 entrypoint.event 的 Listener 呼叫（主題 D）。
             "wms", Set.of("BC-42"));
 
@@ -143,7 +140,8 @@ public final class BoundedContextArchitectureRules {
                 new SharedRule("BC-42", app.servicePackageHoldsServicesAndCoordinators()),
                 new SharedRule("BC-43", app.servicesStayBelowUsecases()),
                 new SharedRule("BC-44", app.entrypointsEnterThroughUsecases()),
-                new SharedRule("BC-45", app.interactorsOnlyRead()));
+                new SharedRule("BC-45", app.interactorsOnlyRead()),
+                new SharedRule("BC-46", roles.restOperationsReturnResponses()));
     }
 
     /**

@@ -1,4 +1,4 @@
-package com.flowzati.archone.fulfillment.configuration;
+package com.flowzati.archone.fulfillment.infrastructure.configuration;
 
 import com.flowzati.archone.foundation.configuration.FulfillmentOrchestrationMode;
 import com.flowzati.archone.fulfillment.application.port.CancellationRequestAcceptedPublisher;
